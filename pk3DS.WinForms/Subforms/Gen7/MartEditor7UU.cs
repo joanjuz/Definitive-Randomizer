@@ -730,32 +730,24 @@ public partial class MartEditor7UU : Form
         int Token);
 
     private bool TryResolveEVShopItems(
-        out ushort[] wings,
+        out ushort[] vitamins,
         out ushort heartScale,
         out ushort rareCandy,
         out ushort megaRing,
         out string error)
     {
-        wings = [];
+        vitamins = [];
         heartScale = 0;
         rareCandy = 0;
         megaRing = 0;
         error = string.Empty;
 
-        string[][] wingAliases =
-        [
-            ["Health Wing", "Pluma Vigor"],
-            ["Muscle Wing", "Pluma MÃºsculo", "Pluma Musculo"],
-            ["Resist Wing", "Pluma Aguante"],
-            ["Genius Wing", "Pluma Intelecto"],
-            ["Clever Wing", "Pluma Mente"],
-            ["Swift Wing", "Pluma Ãmpetu", "Pluma Impetu"],
-        ];
+        string[][] vitaminAliases = Gen7VitaminEVPatcher.VitaminAliases;
 
-        var resolvedWings =
+        var resolvedVitamins =
             new List<ushort>();
 
-        foreach (string[] aliases in wingAliases)
+        foreach (string[] aliases in vitaminAliases)
         {
             int item =
                 FindItemID(
@@ -768,7 +760,7 @@ public partial class MartEditor7UU : Form
                 return false;
             }
 
-            resolvedWings.Add(
+            resolvedVitamins.Add(
                 checked(
                     (ushort)item));
         }
@@ -806,8 +798,8 @@ public partial class MartEditor7UU : Form
             return false;
         }
 
-        wings =
-            resolvedWings.ToArray();
+        vitamins =
+            resolvedVitamins.ToArray();
 
         heartScale =
             checked(
@@ -826,14 +818,14 @@ public partial class MartEditor7UU : Form
 
     private static ushort[] GetRequiredEVItemsForMart(
         int martIndex,
-        IReadOnlyList<ushort> wings,
+        IReadOnlyList<ushort> vitamins,
         ushort heartScale,
         ushort rareCandy,
         ushort megaRing)
     {
         var required =
             new List<ushort>(
-                wings);
+                vitamins);
 
         required.Add(
             rareCandy);
@@ -898,132 +890,163 @@ public partial class MartEditor7UU : Form
             slots);
     }
 
+    // Find old EV Wings when migrating shops patched by the previous Add EV Items.
+    // If an old Wing ID cannot be resolved, it is simply ignored.
+    private ushort[] GetLegacyEVWingIds()
+    {
+        string[][] aliases =
+        [
+            ["Health Wing", "Pluma Vigor"],
+            ["Muscle Wing", "Pluma Músculo", "Pluma Musculo"],
+            ["Resist Wing", "Pluma Aguante"],
+            ["Genius Wing", "Pluma Intelecto"],
+            ["Clever Wing", "Pluma Mente"],
+            ["Swift Wing", "Pluma Ímpetu", "Pluma Impetu"],
+        ];
+
+        return aliases
+            .Select(group => FindItemID(group))
+            .Select(id => id > 0 ? checked((ushort)id) : (ushort)0)
+            .ToArray();
+    }
+
+    private static void ReplaceLegacyWingsInPreview(
+        List<ushort> mart,
+        IReadOnlyList<ushort> wings,
+        IReadOnlyList<ushort> vitamins)
+    {
+        for (int i = 0; i < vitamins.Count; i++)
+        {
+            ushort wing = wings[i];
+            if (wing == 0 || wing == vitamins[i])
+                continue;
+
+            int index;
+            while ((index = mart.IndexOf(wing)) >= 0)
+            {
+                if (mart.Contains(vitamins[i]))
+                    mart.RemoveAt(index);
+                else
+                    mart[index] = vitamins[i];
+            }
+        }
+    }
+
     private void B_AddEVItems_Click(object sender, EventArgs e)
     {
         if (DialogResult.Yes != WinFormsUtil.Prompt(
             MessageBoxButtons.YesNo,
-            "Add EV/training items to progression marts?",
-            "This will ADD the six EV Wings and Rare Candy without replacing existing shop items. " +
-            "Heart Scale is added from 3 Trials onward, and Key Stone from 5 Trials onward. " +
-            "Items already sold by a mart will not be duplicated."))
-        {
+            "Add vitamins (252 EV) to progression marts?",
+            "Adds six vitamins (+10 EV each) and Rare Candy to progression marts. " +
+            "Vitamins will work past 100 EV via their AddEVAbove100 item flag. " +
+            "Existing EV Wings from the old patch are migrated, not duplicated. " +
+            "Heart Scale is added from 3 Trials; Key Stone from 5 Trials."))
             return;
-        }
 
         if (entryItem > -1)
             SetListItem();
 
         if (!TryResolveEVShopItems(
-                out ushort[] wings,
+                out ushort[] vitamins,
                 out ushort heartScale,
                 out ushort rareCandy,
                 out ushort megaRing,
                 out string resolveError))
         {
             WinFormsUtil.Error(
-                "Could not resolve the EV shop items from this ROM's item table.",
+                "Could not resolve the vitamins from this ROM's item table.",
                 resolveError);
             return;
         }
 
-        int martCount =
-            Math.Min(
-                RegularMartCount,
-                regularMarts.Length);
+        ushort[] oldWings = GetLegacyEVWingIds();
+        int martCount = Math.Min(RegularMartCount, regularMarts.Length);
 
-        for (int mart = 0;
-             mart < martCount;
-             mart++)
+        // Validate capacity before altering any inventory.
+        for (int mart = 0; mart < martCount; mart++)
         {
-            ushort[] required =
-                GetRequiredEVItemsForMart(
-                    mart,
-                    wings,
-                    heartScale,
-                    rareCandy,
-                    megaRing);
-
-            int missing =
-                required.Count(item =>
-                    !regularMarts[mart].Contains(
-                        item));
-
-            if (regularMarts[mart].Count + missing <=
-                Gen7ExpandedMartTable.MaximumSlotsPerMart)
+            var preview = new List<ushort>(regularMarts[mart]);
+            ReplaceLegacyWingsInPreview(preview, oldWings, vitamins);
+            ushort[] required = GetRequiredEVItemsForMart(
+                mart, vitamins, heartScale, rareCandy, megaRing);
+            int missing = required.Count(item => !preview.Contains(item));
+            if (preview.Count + missing > Gen7ExpandedMartTable.MaximumSlotsPerMart)
             {
-                continue;
+                WinFormsUtil.Error(
+                    "Vitamins could not be added.",
+                    $"'{locations[mart]}' needs {missing} new slot(s), exceeding the " +
+                    $"{Gen7ExpandedMartTable.MaximumSlotsPerMart}-slot limit.");
+                return;
             }
-
-            WinFormsUtil.Error(
-                "EV/training items could not be added.",
-                $"'{locations[mart]}' needs {missing} new slot(s), but that would exceed the maximum of " +
-                $"{Gen7ExpandedMartTable.MaximumSlotsPerMart} slots.");
-            return;
         }
 
         evItemSlots.Clear();
+        int converted = 0;
+        int removedWings = 0;
+        int added = 0;
+        int alreadyAvailable = 0;
 
-        int added =
-            0;
-
-        int alreadyAvailable =
-            0;
-
-        for (int mart = 0;
-             mart < martCount;
-             mart++)
+        for (int mart = 0; mart < martCount; mart++)
         {
-            ushort[] required =
-                GetRequiredEVItemsForMart(
-                    mart,
-                    wings,
-                    heartScale,
-                    rareCandy,
-                    megaRing);
+            List<ushort> inventory = regularMarts[mart];
+            for (int i = 0; i < vitamins.Length; i++)
+            {
+                ushort wing = oldWings[i];
+                if (wing == 0 || wing == vitamins[i])
+                    continue;
+
+                int slot;
+                while ((slot = inventory.IndexOf(wing)) >= 0)
+                {
+                    if (inventory.Contains(vitamins[i]))
+                    {
+                        // Avoid a duplicate when both a vitamin and its old wing exist.
+                        expandedMartOperations.Add(
+                            new PendingExpandedMartOperation(
+                                new ExpandedMartOperation(
+                                    ExpandedMartOperationKind.Delete, mart, slot),
+                                token: 0));
+                        inventory.RemoveAt(slot);
+                        regularMartSlotTokens[mart].RemoveAt(slot);
+                        removedWings++;
+                    }
+                    else
+                    {
+                        inventory[slot] = vitamins[i];
+                        converted++;
+                    }
+                }
+            }
+
+            ushort[] required = GetRequiredEVItemsForMart(
+                mart, vitamins, heartScale, rareCandy, megaRing);
 
             foreach (ushort itemId in required)
             {
-                int existingSlot =
-                    regularMarts[mart]
-                        .IndexOf(
-                            itemId);
-
+                int existingSlot = inventory.IndexOf(itemId);
                 if (existingSlot >= 0)
                 {
-                    evItemSlots.Add(
-                        new TrackedEVItemSlot(
-                            mart,
-                            itemId,
-                            existingSlot,
-                            Token: 0));
-
+                    evItemSlots.Add(new TrackedEVItemSlot(
+                        mart, itemId, existingSlot, Token: 0));
                     alreadyAvailable++;
                     continue;
                 }
 
                 if (!TryAppendRegularMartItem(
-                        mart,
-                        itemId,
-                        out int token,
-                        out string appendError))
+                        mart, itemId, out int token, out string appendError))
                 {
-                    WinFormsUtil.Error(
-                        "EV/training items could not be added.",
-                        appendError);
+                    WinFormsUtil.Error("Vitamins could not be added.", appendError);
                     return;
                 }
 
-                evItemSlots.Add(
-                    new TrackedEVItemSlot(
-                        mart,
-                        itemId,
-                        regularMarts[mart].Count - 1,
-                        token));
-
+                evItemSlots.Add(new TrackedEVItemSlot(
+                    mart, itemId, inventory.Count - 1, token));
                 added++;
             }
         }
 
+        vitaminEVIds = vitamins;
+        patchVitaminEVsOnSave = true;
         setEVItemsOnSave = true;
         recordEVExpandedActionOnSave = true;
 
@@ -1031,20 +1054,13 @@ public partial class MartEditor7UU : Form
             GetListItem();
 
         UpdateExpandedMartButtons();
-
-        if (added == 0)
-        {
-            WinFormsUtil.Alert(
-                "All EV/training items are already available.",
-                $"{alreadyAvailable} required mart entries were found. No additional slots were added. " +
-                "Click Save to preserve the configuration in the Global Template.");
-            return;
-        }
-
         WinFormsUtil.Alert(
-            "EV/training items added!",
-            $"{added} new mart slot(s) were added and {alreadyAvailable} required item(s) were already present. " +
-            "Existing shop items were preserved. Click Save to rebuild Shop.cro.");
+            "Vitamins (252 EV) prepared!",
+            $"{added} new slot(s), {converted} old Wing(s) converted, " +
+            $"{removedWings} duplicate Wing(s) removed, " +
+            $"{alreadyAvailable} items already present. " +
+            "Click Save to write Shop.cro, enable AddEVAbove100 on all six vitamins " +
+            "and record the Global Template action.");
     }
 
     private void ApplyEVItemsFromTemplate(
@@ -1155,6 +1171,21 @@ public partial class MartEditor7UU : Form
         }
 
         setEVItemsOnSave = true;
+
+        // Old templates (no evItems marker) retain their original wing behavior.
+        // New templates replay the recorded vitamin slots and patch item data.
+        if (action.Parameters.TryGetValue("evItems", out string evItems) &&
+            string.Equals(evItems, "vitamins", StringComparison.OrdinalIgnoreCase))
+        {
+            if (!TryResolveEVShopItems(
+                    out ushort[] vitamins,
+                    out _, out _, out _,
+                    out string resolveError))
+                throw new InvalidDataException(resolveError);
+
+            vitaminEVIds = vitamins;
+            patchVitaminEVsOnSave = true;
+        }
 
         if (entryItem > -1)
             GetListItem();
@@ -1531,6 +1562,8 @@ public partial class MartEditor7UU : Form
     private bool recordRareCandyExpandedActionOnSave;
     private bool setEVItemsOnSave;
     private bool recordEVExpandedActionOnSave;
+    private bool patchVitaminEVsOnSave;
+    private ushort[] vitaminEVIds = [];
     private bool randomizeMartsOnSave;
     private bool randomizeBPMartsOnSave;
     private bool randomizeMartsSpecialOnly;
@@ -1605,6 +1638,23 @@ public partial class MartEditor7UU : Form
                 SetItemPrice(megaRing, MegaRingPrice);
         }
 
+        // Keep vitamins' +10 EV gains while permitting EVs above 100.
+        // Apply only when the new vitamin action was selected, not for old templates.
+        if (patchVitaminEVsOnSave)
+        {
+            try
+            {
+                Gen7VitaminEVPatcher.Apply(vitaminEVIds);
+            }
+            catch (Exception ex)
+            {
+                if (BatchRuntime.IsActive)
+                    throw new InvalidOperationException("Could not enable Vitamin EV 252.", ex);
+                WinFormsUtil.Error("Could not enable Vitamin EV 252.", ex.Message);
+                return;
+            }
+        }
+
         File.WriteAllBytes(CROPath, shopToWrite);
 
         RememberExpandedMartTemplateAction();
@@ -1622,6 +1672,7 @@ public partial class MartEditor7UU : Form
             RandomizationSessionState.MarkAction(
                 "marts.add-ev-items",
                 ("mode", "expanded"),
+                ("evItems", "vitamins"),
                 ("slots", GetEVTemplateSlots()),
                 ("heartScaleFromTrial", HeartScaleTrial.ToString()),
                 ("megaRingFromTrial", MegaRingTrial.ToString()),
