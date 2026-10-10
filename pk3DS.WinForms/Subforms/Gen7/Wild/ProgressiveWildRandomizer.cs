@@ -37,17 +37,25 @@ public class ProgressiveWildRandomizer
 
         foreach (var area in areaArray)
         {
-            int progressionLevel =
+            // Keep the old area-level calculation only as a safe fallback for
+            // empty/internal placeholder tables. Real encounter tables choose
+            // their Progressive BST tier from their own current level range.
+            int fallbackAreaProgressionLevel =
                 GetAreaProgressionLevel(area);
-
-            ProgressiveBSTRule rule =
-                GetRule(progressionLevel);
-
-            SpeciesTierPool pool =
-                GetPool(rule);
 
             foreach (var table in area.Tables)
             {
+                int progressionLevel =
+                    GetTableProgressionLevel(
+                        table,
+                        fallbackAreaProgressionLevel);
+
+                ProgressiveBSTRule rule =
+                    GetRule(progressionLevel);
+
+                SpeciesTierPool pool =
+                    GetPool(rule);
+
                 RandomizeTable7(
                     table,
                     slotStart,
@@ -60,9 +68,8 @@ public class ProgressiveWildRandomizer
                 if (AllCanCallAllies)
                     FillEmptySOSSlots(table, pool);
 
-                // The area's progression tier is calculated before any
-                // optional level modification. Encounter level scaling
-                // therefore remains independent from species progression.
+                // Species progression is calculated before any optional level
+                // modification, so level scaling remains independent.
                 if (ModifyLevel)
                 {
                     table.MinLevel =
@@ -85,6 +92,38 @@ public class ProgressiveWildRandomizer
         }
     }
 
+    private int GetTableProgressionLevel(
+        EncounterTable table,
+        int fallbackAreaProgressionLevel)
+    {
+        if (table.MinLevel <= 0 &&
+            table.MaxLevel <= 0)
+        {
+            return fallbackAreaProgressionLevel;
+        }
+
+        var regular = table.Encounter7s[0];
+
+        if (regular.Length == 0 ||
+            regular.All(slot => slot.Species == 0) ||
+            regular.All(slot => slot.Species == 731))
+        {
+            return fallbackAreaProgressionLevel;
+        }
+
+        int progressionLevel =
+            Math.Max(
+                table.MinLevel,
+                table.MaxLevel);
+
+        if (progressionLevel <= 0)
+            return fallbackAreaProgressionLevel;
+
+        return Math.Clamp(
+            progressionLevel,
+            1,
+            100);
+    }
     private int GetAreaProgressionLevel(
         Area7 area)
     {
