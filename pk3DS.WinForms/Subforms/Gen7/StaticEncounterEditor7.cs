@@ -1369,6 +1369,85 @@ public partial class StaticEncounterEditor7 : Form
         return allowed[Util.Random32() % allowed.Length];
     }
 
+    private static bool IsDamagingMove(int move)
+    {
+        return move > 0 &&
+               move < Main.Config.Moves.Length &&
+               Main.Config.Moves[move].Power > 0;
+    }
+
+private void EnsureStarterHasDamagingMove(EncounterGift7 starter)
+{
+    // USUM injects SpecialMove into the starter's initial four moves.
+    // A non-damaging SpecialMove can displace the only natural attack,
+    // so validate the effective gift slot rather than only the learnset.
+    int[] currentMoves = learn
+        .GetCurrentMoves(
+            starter.Species,
+            starter.Form,
+            starter.Level,
+            4)
+        .Where(move => move > 0)
+        .ToArray();
+
+    int FindNaturalDamagingMove()
+    {
+        int current = currentMoves.FirstOrDefault(IsDamagingMove);
+        if (current != 0)
+            return current;
+
+        return learn
+            .GetMovesUpToLevel(
+                starter.Species,
+                starter.Form,
+                starter.Level)
+            .Where(IsDamagingMove)
+            .Distinct()
+            .OrderBy(move => Main.Config.Moves[move].Power)
+            .FirstOrDefault();
+    }
+
+    int FindSafeFallback()
+    {
+        if (IsDamagingMove(33))
+            return 33;
+
+        for (int move = 1; move < Main.Config.Moves.Length; move++)
+        {
+            if (IsDamagingMove(move))
+                return move;
+        }
+
+        throw new InvalidOperationException(
+            "No damaging move exists in the active move table.");
+    }
+
+    if (starter.SpecialMove > 0)
+    {
+        if (IsDamagingMove(starter.SpecialMove))
+            return;
+
+        int replacement = FindNaturalDamagingMove();
+
+        starter.SpecialMove =
+            replacement != 0
+                ? replacement
+                : FindSafeFallback();
+
+        return;
+    }
+
+    if (currentMoves.Any(IsDamagingMove))
+        return;
+
+    int damagingMove = FindNaturalDamagingMove();
+
+    starter.SpecialMove =
+        damagingMove != 0
+            ? damagingMove
+            : FindSafeFallback();
+}
+
     private void B_Starters_Click(object sender, EventArgs e)
     {
         if (WinFormsUtil.Prompt(MessageBoxButtons.YesNo, "Randomize Starters? Cannot undo.", "Double check Randomization settings before continuing.") != DialogResult.Yes)
@@ -1425,6 +1504,9 @@ public partial class StaticEncounterEditor7 : Form
 
             t.Form = Randomizer.GetRandomForme(t.Species, CHK_AllowMega.Checked, true, Main.SpeciesStat);
             t.Nature = -1; // random
+
+            // Every randomized starter must be able to deal damage immediately.
+            EnsureStarterHasDamagingMove(t);
         }
 
         GetListBoxEntries();
