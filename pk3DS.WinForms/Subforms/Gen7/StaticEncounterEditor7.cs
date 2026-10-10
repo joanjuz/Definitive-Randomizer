@@ -599,7 +599,11 @@ public partial class StaticEncounterEditor7 : Form
 
         GetListBoxEntries();
         if (LB_Trade.Items.Count > 0)
+        {
+            loading = true;
             LB_Trade.SelectedIndex = Math.Min(Math.Max(tEntry, 0), LB_Trade.Items.Count - 1);
+            loading = false;
+        }
         GetTrade();
 
         RandomizationSessionState.MarkAction("trades.accept-any");
@@ -654,7 +658,11 @@ public partial class StaticEncounterEditor7 : Form
 
         GetListBoxEntries();
         if (LB_Trade.Items.Count > 0)
+        {
+            loading = true;
             LB_Trade.SelectedIndex = Math.Min(Math.Max(tEntry, 0), LB_Trade.Items.Count - 1);
+            loading = false;
+        }
         GetTrade();
 
         MarkSpeciesRandomizationAction("trades.randomize-offers");
@@ -1000,6 +1008,9 @@ public partial class StaticEncounterEditor7 : Form
 
     private void LB_Trade_SelectedIndexChanged(object sender, EventArgs e)
     {
+        if (loading)
+            return;
+
         SetTrade();
         tEntry = LB_Trade.SelectedIndex;
         GetTrade();
