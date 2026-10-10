@@ -119,7 +119,7 @@ public sealed partial class Main
                 "CRO recipes applied successfully!",
                 summary,
                 "",
-                $"Backup: {backupPath}");
+                string.IsNullOrWhiteSpace(backupPath) ? "Backups automaticos desactivados" : $"Backup: {backupPath}");
         }
         catch (Exception ex)
         {

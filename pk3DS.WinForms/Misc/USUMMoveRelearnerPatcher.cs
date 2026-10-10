@@ -261,7 +261,7 @@ internal static class USUMMoveRelearnerPatcher
             return "The USUM Move Relearner patch is already applied. No files were changed.";
 
         string backupPath = codePath + ".pk3ds-usum-relearner.bak";
-        if (!File.Exists(backupPath))
+        if (AutomaticBackups.Enabled && !File.Exists(backupPath))
             File.Copy(codePath, backupPath);
 
         // Write detours first, then hooks.
@@ -277,7 +277,7 @@ internal static class USUMMoveRelearnerPatcher
             "Pokémon Center cafés now open the Move Relearner." + Environment.NewLine +
             "Future level-up moves are filtered out; only moves available at the Pokémon's current level or earlier are offered." +
             Environment.NewLine + Environment.NewLine +
-            "Backup: " + backupPath;
+            "Backup: " + (AutomaticBackups.Enabled ? backupPath : "desactivado");
     }
 
     private static void ValidateLillieTutorial(GameConfig config)
@@ -355,7 +355,7 @@ internal static class USUMMoveRelearnerPatcher
                 string backupPath =
                     storyPath + ".pk3ds-usum-relearner-lillie.bak";
 
-                if (!File.Exists(backupPath))
+                if (AutomaticBackups.Enabled && !File.Exists(backupPath))
                     File.Copy(storyPath, backupPath);
 
                 for (int line = 0; line < LillieTutorialPatched[language].Length; line++)
@@ -485,7 +485,7 @@ internal static class USUMMoveRelearnerPatcher
             codePath +
             ".pk3ds-usum-relearner.bak";
 
-        if (!File.Exists(backupPath))
+        if (AutomaticBackups.Enabled && !File.Exists(backupPath))
             File.Copy(codePath, backupPath);
 
         byte[] updated = (byte[])code.Clone();
@@ -529,7 +529,7 @@ internal static class USUMMoveRelearnerPatcher
             Environment.NewLine +
             Environment.NewLine +
             "Backup: " +
-            backupPath;
+            (AutomaticBackups.Enabled ? backupPath : "desactivado");
     }
 
     private static bool IsAllZero(byte[] code, int offset, int length)
