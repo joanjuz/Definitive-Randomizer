@@ -18,6 +18,9 @@ internal static class PatchBackupManager
         if (string.IsNullOrWhiteSpace(patchId))
             throw new ArgumentException("Patch backup ID cannot be empty.", nameof(patchId));
 
+        if (!AutomaticBackups.Enabled)
+            return string.Empty;
+
         string projectRoot = GetProjectRoot(sourcePath);
         string backupDirectory = Path.Combine(projectRoot, BackupRootName, patchId);
         Directory.CreateDirectory(backupDirectory);

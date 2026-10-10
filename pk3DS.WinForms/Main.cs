@@ -963,7 +963,8 @@ public sealed partial class Main : Form
                     else
                     {
                         Config.Initialize(RomFSPath, ExeFSPath, Language);
-                        Config.BackupFiles();
+                        if (AutomaticBackups.Enabled)
+                            Config.BackupFiles();
                     }
                 }
             }
@@ -1175,7 +1176,7 @@ public sealed partial class Main : Form
             "- The relearner only offers level-up moves the Pokémon could already know at its current level.",
             "- Lillie's first Pokémon Center tutorial is updated to explain the new café service.",
             "",
-            "Backups are created the first time code.bin and the affected StoryText banks are changed."))
+            "Automatic backups are disabled. Keep your own clean ROM extraction for recovery."))
         {
             return;
         }

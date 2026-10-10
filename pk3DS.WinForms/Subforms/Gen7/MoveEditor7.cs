@@ -1226,7 +1226,7 @@ public partial class MoveEditor7 : Form
             return FindKingShieldBytes(data, alreadyPatched) >= 0 ? 0 : -1;
 
         string backup = battleCroPath + ".bak_kings_shield_minus_one";
-        if (!File.Exists(backup))
+        if (AutomaticBackups.Enabled && !File.Exists(backup))
             File.Copy(battleCroPath, backup, false);
 
         File.WriteAllBytes(battleCroPath, data);

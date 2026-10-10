@@ -363,6 +363,9 @@ internal static class Gen7LuckyChantCritPatcher
 
     private static void BackupOnce(string path,string suffix)
     {
+        if (!AutomaticBackups.Enabled)
+            return;
+
         string backup = path+suffix;
 
         if (!File.Exists(backup))

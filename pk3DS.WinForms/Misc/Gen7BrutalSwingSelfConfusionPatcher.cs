@@ -800,6 +800,9 @@ internal static class Gen7BrutalSwingSelfConfusionPatcher
         string path,
         string suffix)
     {
+        if (!AutomaticBackups.Enabled)
+            return;
+
         string backup =
             path + suffix;
 

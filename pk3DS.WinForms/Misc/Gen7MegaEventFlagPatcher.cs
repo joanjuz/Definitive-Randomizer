@@ -367,6 +367,9 @@ internal static class Gen7MegaEventFlagPatcher
         string path,
         string suffix)
     {
+        if (!AutomaticBackups.Enabled)
+            return;
+
         string backup =
             path + suffix;
 
