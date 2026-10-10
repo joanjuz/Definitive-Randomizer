@@ -172,15 +172,20 @@ public partial class TutorEditor7 : Form
             SetListBPMove();
 
         ushort[] currentTutorMoves = GetCurrentTutorMoveList();
-        ushort[] savedTutorMoves = GetTutorMoveList();
 
         USUMTutorCodeSyncPatcher.Plan codeSyncPlan = null;
-        if (Main.Config.USUM &&
-            !currentTutorMoves.SequenceEqual(savedTutorMoves))
+        if (Main.Config.USUM)
         {
-            codeSyncPlan = USUMTutorCodeSyncPatcher.Prepare(
-                Main.ExeFSPath,
-                currentTutorMoves);
+            // Shop.cro may already contain randomized moves from a prior edit
+            // or template. Always compare its 67 moves with the native code.bin
+            // tutor table, not only with the previous Shop.cro inventory.
+            USUMTutorCodeSyncPatcher.Plan plan =
+                USUMTutorCodeSyncPatcher.Prepare(
+                    Main.ExeFSPath,
+                    currentTutorMoves);
+
+            if (plan.ChangedSlots > 0)
+                codeSyncPlan = plan;
         }
 
         if (CHK_TutorSanity?.Checked == true)
