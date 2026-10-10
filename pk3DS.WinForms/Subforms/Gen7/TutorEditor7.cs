@@ -171,13 +171,69 @@ public partial class TutorEditor7 : Form
         if (entryBPMove > -1)
             SetListBPMove();
 
+        ushort[] currentTutorMoves = GetCurrentTutorMoveList();
+        ushort[] savedTutorMoves = GetTutorMoveList();
+
+        USUMTutorCodeSyncPatcher.Plan codeSyncPlan = null;
+        if (Main.Config.USUM &&
+            !currentTutorMoves.SequenceEqual(savedTutorMoves))
+        {
+            codeSyncPlan = USUMTutorCodeSyncPatcher.Prepare(
+                Main.ExeFSPath,
+                currentTutorMoves);
+        }
+
         if (CHK_TutorSanity?.Checked == true)
             ApplyTutorSanity();
 
         if (CHK_TutorFollowEvolutions?.Checked == true)
             ApplyTutorFollowEvolutions();
 
-        File.WriteAllBytes(CROPath, data);
+        byte[] originalShop = null;
+        if (codeSyncPlan is not null)
+        {
+            originalShop = File.ReadAllBytes(CROPath);
+            PatchBackupManager.BackupOnce(
+                CROPath,
+                "usum-tutor-code-sync");
+        }
+
+        try
+        {
+            File.WriteAllBytes(CROPath, data);
+
+            if (codeSyncPlan is not null)
+            {
+                int changedSlots =
+                    USUMTutorCodeSyncPatcher.Apply(
+                        codeSyncPlan);
+
+                if (BatchRuntime.IsActive)
+                {
+                    BatchRuntime.Log(
+                        $"Move Tutors: synchronized {changedSlots} code.bin slot(s).");
+                }
+            }
+        }
+        catch
+        {
+            if (originalShop is not null)
+            {
+                try
+                {
+                    File.WriteAllBytes(
+                        CROPath,
+                        originalShop);
+                }
+                catch
+                {
+                    // Preserve the original exception. A project backup was
+                    // already created before either Tutor binary was changed.
+                }
+            }
+
+            throw;
+        }
 
         if (randomizeTutorsOnSave)
             RandomizationSessionState.MarkAction("move-tutors.randomize");
