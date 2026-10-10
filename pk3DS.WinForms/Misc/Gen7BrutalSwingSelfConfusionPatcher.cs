@@ -18,6 +18,9 @@ namespace pk3DS.WinForms;
 ///
 /// The injected handler registers exactly one timing-0x04 callback. The callback
 /// validates the current actor/move event, then queues Confusion for the move user.
+///
+/// The patch also changes the proven spread/multi-hit selector at 0x1FDE4 so the
+/// stock 2-5 hit count survives when more than one opposing target is active.
 /// Normal move data (30 BP, 2-5 hits, AllFoes) stays in the balance template.
 /// </summary>
 internal static class Gen7BrutalSwingSelfConfusionPatcher
@@ -31,6 +34,21 @@ internal static class Gen7BrutalSwingSelfConfusionPatcher
     private const uint StockMoveTable = 0x00105DF0;
 
     private const int SelfConfusionCodeSize = 0x6C;
+
+    // Verified in Ultra Sun: with more than one resolved spread target,
+    // the stock selector sends execution through a path that collapses a
+    // normal 2-5 hit count to one pass per target.
+    //
+    // Stock @ 0x1FDE4: BEQ 0x1FE3C  (14 00 00 0A)
+    // Patched:          B   0x1FE3C  (14 00 00 EA)
+    //
+    // This keeps the game's stock 2-5 RNG. The patch is only installed when
+    // the Giro Vil custom mechanic is requested.
+    private const int SpreadMultiHitSelectorOffset = 0x0001FDE4;
+    private static readonly byte[] SpreadMultiHitSelectorStock =
+        Hex("14 00 00 0A");
+    private static readonly byte[] SpreadMultiHitSelectorPatched =
+        Hex("14 00 00 EA");
 
     // Stock USUM Battle.cro helpers proven by the generic Confusion path.
     private const uint EventGuard = 0x00060740;
@@ -57,6 +75,7 @@ internal static class Gen7BrutalSwingSelfConfusionPatcher
     private enum InstallState
     {
         Ready,
+        NeedsSpreadFix,
         Installed,
     }
 
@@ -95,10 +114,29 @@ internal static class Gen7BrutalSwingSelfConfusionPatcher
         if (state == InstallState.Installed)
             return 0;
 
+        // Upgrade a previously installed self-confusion-only version without
+        // adding a duplicate special-move registry entry.
+        if (state == InstallState.NeedsSpreadFix)
+        {
+            byte[] upgraded = (byte[])data.Clone();
+
+            if (!TryApplySpreadMultiHitFix(upgraded) ||
+                !TryUpdateHashes(upgraded) ||
+                !TryClassify(upgraded, out InstallState upgradedState) ||
+                upgradedState != InstallState.Installed)
+            {
+                return -1;
+            }
+
+            BackupOnce(path, ".bak_brutal_swing_self_confusion_v2");
+            File.WriteAllBytes(path, upgraded);
+            return 1;
+        }
+
         var mechanic =
             new CroMechanicRequest
             {
-                Name = "Brutal Swing post-move self-confusion",
+                Name = "Brutal Swing spread multi-hit + post-move self-confusion",
                 Effects =
                 [
                     new CroMechanicEffectSpec
@@ -146,14 +184,15 @@ internal static class Gen7BrutalSwingSelfConfusionPatcher
 
         code.CopyTo(updated, checked((int)functionOffset));
 
-        if (!TryUpdateHashes(updated) ||
+        if (!TryApplySpreadMultiHitFix(updated) ||
+            !TryUpdateHashes(updated) ||
             !TryClassify(updated, out InstallState finalState) ||
             finalState != InstallState.Installed)
         {
             return -1;
         }
 
-        BackupOnce(path, ".bak_brutal_swing_self_confusion_v1");
+        BackupOnce(path, ".bak_brutal_swing_self_confusion_v2");
         File.WriteAllBytes(path, updated);
         return 1;
     }
@@ -172,6 +211,21 @@ internal static class Gen7BrutalSwingSelfConfusionPatcher
         {
             return false;
         }
+
+        bool spreadFixStock =
+            Match(
+                data,
+                SpreadMultiHitSelectorOffset,
+                SpreadMultiHitSelectorStock);
+
+        bool spreadFixInstalled =
+            Match(
+                data,
+                SpreadMultiHitSelectorOffset,
+                SpreadMultiHitSelectorPatched);
+
+        if (!spreadFixStock && !spreadFixInstalled)
+            return false;
 
         if (!TryGetMoveTable(
                 data,
@@ -222,7 +276,11 @@ internal static class Gen7BrutalSwingSelfConfusionPatcher
             return false;
         }
 
-        state = InstallState.Installed;
+        state =
+            spreadFixInstalled
+                ? InstallState.Installed
+                : InstallState.NeedsSpreadFix;
+
         return true;
     }
 
@@ -543,6 +601,43 @@ internal static class Gen7BrutalSwingSelfConfusionPatcher
             ((uint)words & 0x00FFFFFFu);
 
         return true;
+    }
+
+    private static bool TryApplySpreadMultiHitFix(
+        byte[] data)
+    {
+        if (data is null ||
+            SpreadMultiHitSelectorOffset < 0 ||
+            SpreadMultiHitSelectorOffset + SpreadMultiHitSelectorPatched.Length >
+                data.Length)
+        {
+            return false;
+        }
+
+        if (Match(
+                data,
+                SpreadMultiHitSelectorOffset,
+                SpreadMultiHitSelectorPatched))
+        {
+            return true;
+        }
+
+        if (!Match(
+                data,
+                SpreadMultiHitSelectorOffset,
+                SpreadMultiHitSelectorStock))
+        {
+            return false;
+        }
+
+        SpreadMultiHitSelectorPatched.CopyTo(
+            data,
+            SpreadMultiHitSelectorOffset);
+
+        return Match(
+            data,
+            SpreadMultiHitSelectorOffset,
+            SpreadMultiHitSelectorPatched);
     }
 
     private static bool TryUpdateHashes(
