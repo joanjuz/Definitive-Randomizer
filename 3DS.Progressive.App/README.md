@@ -1,6 +1,14 @@
-# 3DS Progressive — preview funcional v0.1.1
+# 3DS Progressive — preview funcional v0.2.0
 
 Nueva aplicación WPF independiente dentro de pk3DS Progressive. No se modifica pk3DS.WinForms ni pk3DS.Core.
+
+## Cambios de v0.2.0
+- Todos los avisos y confirmaciones del editor Personal utilizan ahora StudioDialog, un diálogo oscuro propio y reutilizable.
+- El botón **Movimientos** de la barra lateral abre un segundo editor real con listado, búsqueda y modificación de tipo, categoría, potencia, precisión, PP y prioridad.
+- El editor de movimientos conserva bytes no editados, serializa los registros `WD` para ORAS/Gen 7 y guarda mediante GARC temporal y verificación; X/Y utiliza sus entradas directas.
+- El editor de movimientos es una ventana WPF independiente durante esta primera fase; se integrará progresivamente en la navegación de paneles.
+- Ni el método SavePersonal ni los proyectos pk3DS originales se modificaron.
+
 
 ## Funcionalidades del primer editor
 - Abre RomFS y ExeFS de X/Y, ORAS, S/M y USUM mediante pk3DS.Core.
@@ -37,4 +45,6 @@ IMPORTANTE: trabajá sobre una copia del juego extraído. Studio no hace backups
 - Comprobar sprites online, offline, personalizados y cambio rápido de especie.
 - Repetir guardado de stat y verificación con pk3DS Progressive usando la preview 0.1.1.
 - Comparar integridad de GARC en copias y probar formas alternativas / otras versiones.
-- Migrar las demás opciones del editor Personal y resto de herramientas.
+- Validar en una copia de Ultra Sol el guardado de potencia o PP de un movimiento y su lectura posterior desde pk3DS Progressive.
+- Migrar las demás opciones de Personal y Move Editor, incluyendo efectos, flags, Z-Moves y funciones Progressive.
+- Incorporar el nuevo módulo dentro de la misma región de trabajo, sin perder la navegación global, cuando esté validado.

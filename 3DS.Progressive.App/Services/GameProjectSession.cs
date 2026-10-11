@@ -61,6 +61,7 @@ public sealed class GameProjectSession
     }
 
     public string ProjectRoot { get; }
+    internal GameConfig GameConfiguration => _config;
     public string GameName => _config.Version.ToString();
     public int Generation => _config.Generation;
     public IReadOnlyList<PokemonListEntry> Entries { get; }

@@ -86,7 +86,7 @@
                                 Background="#2B4059" FontWeight="SemiBold"/>
                         <Button Content="⚔  Entrenadores" Style="{StaticResource NavDisabled}"/>
                         <Button Content="◎  Encuentros" Style="{StaticResource NavDisabled}"/>
-                        <Button Content="◇  Movimientos" Style="{StaticResource NavDisabled}"/>
+                        <Button x:Name="MovesButton" Content="◇  Movimientos" Style="{StaticResource SidebarButton}" IsEnabled="False" Click="Moves_Click"/>
                         <Button Content="▣  MT y tutores" Style="{StaticResource NavDisabled}"/>
                         <Button Content="▤  Objetos y tiendas" Style="{StaticResource NavDisabled}"/>
                         <Button Content="◆  Evoluciones" Style="{StaticResource NavDisabled}"/>

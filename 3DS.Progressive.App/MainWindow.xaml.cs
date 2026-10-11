@@ -6,10 +6,6 @@ using System.Windows.Media;
 using Color = System.Windows.Media.Color;
 using ColorConverter = System.Windows.Media.ColorConverter;
 using System.Threading;
-using MessageBox = System.Windows.MessageBox;
-using MessageBoxButton = System.Windows.MessageBoxButton;
-using MessageBoxImage = System.Windows.MessageBoxImage;
-using MessageBoxResult = System.Windows.MessageBoxResult;
 using ThreeDS.Progressive.Models;
 using ThreeDS.Progressive.Services;
 
@@ -67,13 +63,13 @@ public partial class MainWindow : Window
             InspectorGameText.Text = candidate.GameName;
             EntryCountText.Text = candidate.Entries.Count + " entradas editables";
             EditorContent.IsEnabled = true;
+            MovesButton.IsEnabled = true;
             PokemonList.SelectedIndex = 0;
             StatusText.Text = "Proyecto abierto en modo lectura. Guardar requiere confirmación.";
         }
         catch (Exception ex)
         {
-            MessageBox.Show(this, ex.Message, "No se pudo abrir el proyecto",
-                MessageBoxButton.OK, MessageBoxImage.Error);
+            StudioDialog.Error(this, "No se pudo abrir el proyecto", ex.Message);
             StatusText.Text = "Error al abrir proyecto: " + ex.Message;
         }
     }
@@ -173,10 +169,9 @@ public partial class MainWindow : Window
     {
         if (!HasUnsavedChanges())
             return true;
-        return MessageBox.Show(this,
-            "Hay cambios sin guardar. ¿Querés descartarlos?",
-            "Cambios pendientes", MessageBoxButton.YesNo, MessageBoxImage.Warning)
-            == MessageBoxResult.Yes;
+        return StudioDialog.Confirm(this, "Cambios pendientes", 
+            "Hay cambios sin guardar. ¿Querés descartarlos?", 
+            "Si continuás, los cambios de la especie actual no se conservarán.");
     }
 
     private void Save_Click(object sender, RoutedEventArgs e)
@@ -185,8 +180,8 @@ public partial class MainWindow : Window
             return;
         if (!TryDraft(out PersonalValues? draft) || draft is null)
         {
-            MessageBox.Show(this, "Todos los campos numéricos deben contener valores de 0 a 255, y ambos tipos deben estar seleccionados.",
-                "Datos inválidos", MessageBoxButton.OK, MessageBoxImage.Warning);
+            StudioDialog.Notice(this, "Datos inválidos",
+                "Los valores deben estar entre 0 y 255 y ambos tipos deben estar seleccionados.");
             return;
         }
         if (draft == _original)
@@ -195,12 +190,9 @@ public partial class MainWindow : Window
             return;
         }
 
-        if (MessageBox.Show(this,
-            "Se modificará la tabla personal del proyecto extraído seleccionado. " +
-            "Asegurate de trabajar sobre una COPIA de tus archivos. " +
-            "Studio NO crea backups automáticos. ¿Continuar?",
-            "Confirmar guardado del GARC", MessageBoxButton.YesNo,
-            MessageBoxImage.Warning) != MessageBoxResult.Yes)
+        if (!StudioDialog.Confirm(this, "Confirmar guardado del GARC",
+            "Se modificará la tabla personal del proyecto extraído seleccionado.",
+            "Asegurate de trabajar sobre una COPIA de tus archivos. Studio no crea backups automáticos."))
             return;
 
         try
@@ -209,14 +201,28 @@ public partial class MainWindow : Window
             _original = _session.ReadPersonal(_currentIndex);
             UpdatePreview();
             StatusText.Text = "Cambios guardados y GARC verificado: entrada " + _currentIndex + ".";
-            MessageBox.Show(this, "Datos personales guardados correctamente.",
-                "3DS Progressive", MessageBoxButton.OK, MessageBoxImage.Information);
+            StudioDialog.Notice(this, "Guardado completado", "Datos personales guardados correctamente.");
         }
         catch (Exception ex)
         {
             StatusText.Text = "No se pudo guardar: " + ex.Message;
-            MessageBox.Show(this, ex.Message, "Error al guardar",
-                MessageBoxButton.OK, MessageBoxImage.Error);
+            StudioDialog.Error(this, "Error al guardar", ex.Message);
+        }
+    }
+
+    private void Moves_Click(object sender, RoutedEventArgs e)
+    {
+        if (_session is null)
+            return;
+        try
+        {
+            var window = new MoveEditorWindow(_session) { Owner = this };
+            window.ShowDialog();
+            StatusText.Text = "Volviste al editor de Pokémon.";
+        }
+        catch (Exception ex)
+        {
+            StudioDialog.Error(this, "No se pudo abrir Movimientos", ex.Message);
         }
     }
 
