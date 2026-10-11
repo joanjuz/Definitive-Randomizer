@@ -21,4 +21,20 @@ public sealed record MoveValues(
     public int ZPower { get; init; }
     public int ZEffect { get; init; }
     public uint Flags { get; init; }
+    public int InflictCount { get; init; }
+    public int TurnsMin { get; init; }
+    public int TurnsMax { get; init; }
+    public int Recoil { get; init; }
+    public int Healing { get; init; }
+    public int Stat1 { get; init; }
+    public int Stat2 { get; init; }
+    public int Stat3 { get; init; }
+    public int Stat1Stage { get; init; }
+    public int Stat2Stage { get; init; }
+    public int Stat3Stage { get; init; }
+    public int Stat1Rate { get; init; }
+    public int Stat2Rate { get; init; }
+    public int Stat3Rate { get; init; }
+    public int RefreshType { get; init; }
+    public int RefreshRate { get; init; }
 }

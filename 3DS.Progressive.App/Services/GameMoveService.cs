@@ -61,6 +61,17 @@ public sealed class GameMoveService
             ZPower = move is Move7 z7 ? z7.ZPower : 0,
             ZEffect = move is Move7 e7 ? e7.ZEffect : 0,
             Flags = move is Move7 f7 ? (uint)f7.Flags : (uint)((Move6)move).Flags,
+            InflictCount = (int)move.InflictCount, TurnsMin = move.TurnMin,
+            TurnsMax = move.TurnMax, Recoil = unchecked((sbyte)move.Recoil),
+            Healing = (int)move.Healing,
+            Stat1 = move.Stat1, Stat2 = move.Stat2, Stat3 = move.Stat3,
+            Stat1Stage = unchecked((sbyte)move.Stat1Stage),
+            Stat2Stage = unchecked((sbyte)move.Stat2Stage),
+            Stat3Stage = unchecked((sbyte)move.Stat3Stage),
+            Stat1Rate = move.Stat1Percent,
+            Stat2Rate = move.Stat2Percent, Stat3Rate = move.Stat3Percent,
+            RefreshType = move is Move7 rm ? (int)rm.RefreshAfflictType : 0,
+            RefreshRate = move is Move7 rp ? rp.RefreshAfflictPercent : 0,
         };
     }
 
@@ -85,7 +96,23 @@ public sealed class GameMoveService
             changes.Target is < 0 or > 255 ||
             changes.ZMove is < 0 or > 65535 ||
             changes.ZPower is < 0 or > 255 ||
-            changes.ZEffect is < 0 or > 255)
+            changes.ZEffect is < 0 or > 255 ||
+            changes.InflictCount is < 0 or > 255 ||
+            changes.TurnsMin is < 0 or > 255 ||
+            changes.TurnsMax is < 0 or > 255 ||
+            changes.Recoil is < -128 or > 127 ||
+            changes.Healing is < 0 or > 255 ||
+            changes.Stat1 is < 0 or > 255 ||
+            changes.Stat2 is < 0 or > 255 ||
+            changes.Stat3 is < 0 or > 255 ||
+            changes.Stat1Stage is < -128 or > 127 ||
+            changes.Stat2Stage is < -128 or > 127 ||
+            changes.Stat3Stage is < -128 or > 127 ||
+            changes.Stat1Rate is < 0 or > 255 ||
+            changes.Stat2Rate is < 0 or > 255 ||
+            changes.Stat3Rate is < 0 or > 255 ||
+            changes.RefreshType is < 0 or > 255 ||
+            changes.RefreshRate is < 0 or > 255)
             throw new ArgumentOutOfRangeException(nameof(changes),
                 "Revisá tipo, categoría, potencia, precisión (0–255), PP (0–255) y prioridad (-8 a +8).");
 
@@ -108,8 +135,7 @@ public sealed class GameMoveService
             throw new InvalidDataException("Registro de movimiento incompleto. No se guardó nada.");
 
         byte[] edited = (byte[])records[id].Clone();
-        // Solo tocar los seis campos admitidos; preserva flags, Z-Move,
-        // efectos, objetivos, multigolpe y demás bytes.
+        // El editor genera campos equivalentes al vanilla; preserva bytes no expuestos.
         edited[0] = (byte)changes.Type;
         edited[2] = (byte)changes.Category;
         edited[3] = (byte)changes.Power;
@@ -124,6 +150,21 @@ public sealed class GameMoveService
         edited[0xF] = (byte)changes.Flinch;
         BitConverter.GetBytes((ushort)changes.EffectSequence).CopyTo(edited, 0x10);
         edited[0x14] = (byte)changes.Target;
+        edited[0x0B] = (byte)changes.InflictCount;
+        edited[0x0C] = (byte)changes.TurnsMin;
+        edited[0x0D] = (byte)changes.TurnsMax;
+        edited[0x12] = unchecked((byte)(sbyte)changes.Recoil);
+        edited[0x13] = (byte)changes.Healing;
+        edited[0x15] = (byte)changes.Stat1;
+        edited[0x16] = (byte)changes.Stat2;
+        edited[0x17] = (byte)changes.Stat3;
+        edited[0x18] = unchecked((byte)(sbyte)changes.Stat1Stage);
+        edited[0x19] = unchecked((byte)(sbyte)changes.Stat2Stage);
+        edited[0x1A] = unchecked((byte)(sbyte)changes.Stat3Stage);
+        edited[0x1B] = (byte)changes.Stat1Rate;
+        edited[0x1C] = (byte)changes.Stat2Rate;
+        edited[0x1D] = (byte)changes.Stat3Rate;
+
         if (mini && _config.Generation == 7)
         {
             var z = new Move7(edited)
@@ -132,6 +173,8 @@ public sealed class GameMoveService
                 ZPower = changes.ZPower,
                 ZEffect = changes.ZEffect,
                 Flags = (MoveFlag7)changes.Flags,
+                RefreshAfflictType = (RefreshType)changes.RefreshType,
+                RefreshAfflictPercent = changes.RefreshRate,
             };
         }
         else

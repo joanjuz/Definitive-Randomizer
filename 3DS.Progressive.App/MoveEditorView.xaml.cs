@@ -6,6 +6,7 @@ using System.Windows.Controls;
 using System.Windows.Data;
 using System.Windows.Media;
 using ThreeDS.Progressive.Models;
+using pk3DS.Core.Structures;
 using ThreeDS.Progressive.Services;
 using Color = System.Windows.Media.Color;
 using ColorConverter = System.Windows.Media.ColorConverter;
@@ -19,12 +20,24 @@ public partial class MoveEditorView : System.Windows.Controls.UserControl
     private MoveValues? _saved;
     private bool _loading;
     private bool _restoringSelection;
+    private bool _updatingFlags;
+    private readonly List<System.Windows.Controls.CheckBox> _flagChecks = [];
 
     public MoveEditorView(GameProjectSession project)
     {
         InitializeComponent();
         _moves = new GameMoveService(project);
         ZMoveCard.Visibility = _moves.SupportsZMoves ? Visibility.Visible : Visibility.Collapsed;
+        QualityBox.ItemsSource = _moves.Qualities;
+        InflictBox.ItemsSource = _moves.Inflictions;
+        TargetBox.ItemsSource = _moves.Targets;
+        ZMoveBox.ItemsSource = _moves.AllMoveNames;
+        ZEffectBox.ItemsSource = _moves.ZEffects;
+        StatOneBox.ItemsSource = _moves.Stats;
+        StatTwoBox.ItemsSource = _moves.Stats;
+        StatThreeBox.ItemsSource = _moves.Stats;
+        RefreshTypeBox.ItemsSource = MoveEditorCatalog.IndexedChoices(Enum.GetNames(typeof(RefreshType)));
+        CreateFlagCheckBoxes();
         MoveType.ItemsSource = _moves.Types;
         MoveList.ItemsSource = _moves.Entries;
         CountText.Text = _moves.Entries.Count + " movimientos";
@@ -74,19 +87,45 @@ public partial class MoveEditorView : System.Windows.Controls.UserControl
             MoveAccuracy.Text = p.Accuracy.ToString();
             MovePP.Text = p.PP.ToString();
             MovePriority.Text = p.Priority.ToString();
-            QualityBox.Text = p.Quality.ToString();
+            QualityBox.SelectedValue = p.Quality;
             MinHitsBox.Text = p.HitMin.ToString();
             MaxHitsBox.Text = p.HitMax.ToString();
-            InflictBox.Text = p.Inflict.ToString();
+            // Valores no catalogados se conservan en lugar de convertirlos a None.
+            if (!_moves.Inflictions.Any(c => c.Id == p.Inflict))
+                InflictBox.ItemsSource = _moves.Inflictions.Concat([new MoveChoice(p.Inflict, "ID no catalogado")]).ToArray();
+            else
+                InflictBox.ItemsSource = _moves.Inflictions;
+            InflictBox.SelectedValue = p.Inflict;
             InflictRateBox.Text = p.InflictPercent.ToString();
             CritBox.Text = p.CritStage.ToString();
             FlinchBox.Text = p.Flinch.ToString();
             EffectBox.Text = p.EffectSequence.ToString();
-            TargetBox.Text = p.Target.ToString();
-            ZMoveBox.Text = p.ZMove.ToString();
+            TargetBox.SelectedValue = p.Target;
+            if (!_moves.AllMoveNames.Any(c => c.Id == p.ZMove))
+                ZMoveBox.ItemsSource = _moves.AllMoveNames.Concat([new MoveChoice(p.ZMove, "Movimiento no catalogado")]).ToArray();
+            else
+                ZMoveBox.ItemsSource = _moves.AllMoveNames;
+            ZMoveBox.SelectedValue = p.ZMove;
             ZPowerBox.Text = p.ZPower.ToString();
-            ZEffectBox.Text = p.ZEffect.ToString();
+            ZEffectBox.SelectedValue = p.ZEffect;
+            TurnsMinBox.Text = p.TurnsMin.ToString();
+            TurnsMaxBox.Text = p.TurnsMax.ToString();
+            RecoilBox.Text = p.Recoil.ToString();
+            HealingBox.Text = p.Healing.ToString();
+            StatOneBox.SelectedValue = p.Stat1;
+            StatTwoBox.SelectedValue = p.Stat2;
+            StatThreeBox.SelectedValue = p.Stat3;
+            StageOneBox.Text = p.Stat1Stage.ToString();
+            StageTwoBox.Text = p.Stat2Stage.ToString();
+            StageThreeBox.Text = p.Stat3Stage.ToString();
+            StageRateOneBox.Text = p.Stat1Rate.ToString();
+            StageRateTwoBox.Text = p.Stat2Rate.ToString();
+            StageRateThreeBox.Text = p.Stat3Rate.ToString();
+            InflictCountBox.Text = p.InflictCount.ToString();
+            RefreshTypeBox.SelectedValue = p.RefreshType;
+            RefreshRateBox.Text = p.RefreshRate.ToString();
             FlagsBox.Text = p.Flags.ToString("X8");
+            SyncFlagCheckboxes(p.Flags);
         }
         finally { _loading = false; }
         UpdatePreview();
@@ -99,6 +138,22 @@ public partial class MoveEditorView : System.Windows.Controls.UserControl
         if (flagsText.StartsWith("0x", StringComparison.OrdinalIgnoreCase))
             flagsText = flagsText[2..];
         if (_selected is null ||
+            !byte.TryParse(TurnsMinBox.Text, out byte turnsmin) ||
+            !byte.TryParse(TurnsMaxBox.Text, out byte turnsmax) ||
+            !sbyte.TryParse(RecoilBox.Text, out sbyte recoil) ||
+            !byte.TryParse(HealingBox.Text, out byte healing) ||
+            !TryChoice(StatOneBox, out int stat1) ||
+            !TryChoice(StatTwoBox, out int stat2) ||
+            !TryChoice(StatThreeBox, out int stat3) ||
+            !sbyte.TryParse(StageOneBox.Text, out sbyte stat1stage) ||
+            !sbyte.TryParse(StageTwoBox.Text, out sbyte stat2stage) ||
+            !sbyte.TryParse(StageThreeBox.Text, out sbyte stat3stage) ||
+            !byte.TryParse(StageRateOneBox.Text, out byte stat1rate) ||
+            !byte.TryParse(StageRateTwoBox.Text, out byte stat2rate) ||
+            !byte.TryParse(StageRateThreeBox.Text, out byte stat3rate) ||
+            !byte.TryParse(InflictCountBox.Text, out byte inflictcount) ||
+            !TryChoice(RefreshTypeBox, out int refreshtype) ||
+            !byte.TryParse(RefreshRateBox.Text, out byte refreshrate) ||
             !byte.TryParse(MovePower.Text, out byte power) ||
             !byte.TryParse(MoveAccuracy.Text, out byte acc) ||
             !byte.TryParse(MovePP.Text, out byte pp) ||
@@ -107,18 +162,18 @@ public partial class MoveEditorView : System.Windows.Controls.UserControl
             MoveCategory.SelectedIndex < 0 || MoveCategory.SelectedIndex > 2 ||
             MoveType.SelectedIndex < 0 || MoveType.SelectedIndex >= _moves.Types.Count ||
             !uint.TryParse(flagsText, NumberStyles.HexNumber, CultureInfo.InvariantCulture, out uint flags) ||
-            !byte.TryParse(QualityBox.Text, out byte quality) ||
+            !TryChoice(QualityBox, out int quality) ||
             !byte.TryParse(MinHitsBox.Text, out byte hitmin) || hitmin > 15 ||
             !byte.TryParse(MaxHitsBox.Text, out byte hitmax) || hitmax > 15 ||
-            !ushort.TryParse(InflictBox.Text, out ushort inflict) ||
+            !TryChoice(InflictBox, out int inflict) ||
             !byte.TryParse(InflictRateBox.Text, out byte inflictpercent) ||
             !byte.TryParse(CritBox.Text, out byte critstage) ||
             !byte.TryParse(FlinchBox.Text, out byte flinch) ||
             !ushort.TryParse(EffectBox.Text, out ushort effectsequence) ||
-            !byte.TryParse(TargetBox.Text, out byte target) ||
-            !ushort.TryParse(ZMoveBox.Text, out ushort zmove) ||
+            !TryChoice(TargetBox, out int target) ||
+            !TryChoice(ZMoveBox, out int zmove) ||
             !byte.TryParse(ZPowerBox.Text, out byte zpower) ||
-            !byte.TryParse(ZEffectBox.Text, out byte zeffect))
+            !TryChoice(ZEffectBox, out int zeffect))
             return false;
         result = new MoveValues(MoveType.SelectedIndex, MoveCategory.SelectedIndex,
             power, acc, pp, priority)
@@ -136,6 +191,22 @@ public partial class MoveEditorView : System.Windows.Controls.UserControl
             ZPower = zpower,
             ZEffect = zeffect,
             Flags = flags,
+            TurnsMin = turnsmin,
+            TurnsMax = turnsmax,
+            Recoil = recoil,
+            Healing = healing,
+            Stat1 = stat1,
+            Stat2 = stat2,
+            Stat3 = stat3,
+            Stat1Stage = stat1stage,
+            Stat2Stage = stat2stage,
+            Stat3Stage = stat3stage,
+            Stat1Rate = stat1rate,
+            Stat2Rate = stat2rate,
+            Stat3Rate = stat3rate,
+            InflictCount = inflictcount,
+            RefreshType = refreshtype,
+            RefreshRate = refreshrate,
         };
         return true;
     }
@@ -167,6 +238,76 @@ public partial class MoveEditorView : System.Windows.Controls.UserControl
         ChangeStateText.Text = !valid ? "Revisar campos" : modified ? "Cambios sin guardar" : "Guardado";
         ChangeStateBadge.Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString(bg)!);
         ChangeStateText.Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString(fg)!);
+    }
+
+
+    private static bool TryChoice(ComboBox box, out int id)
+    {
+        id = 0;
+        if (box.SelectedValue is int selected)
+        {
+            id = selected;
+            return true;
+        }
+        return false;
+    }
+
+    private void CreateFlagCheckBoxes()
+    {
+        var flagNames = Enum.GetNames(_moves.SupportsZMoves ? typeof(MoveFlag7) : typeof(MoveFlag6));
+        for (int i = 0; i < 32; i++)
+        {
+            int bit = i;
+            var check = new System.Windows.Controls.CheckBox
+            {
+                Content = i + 1 < flagNames.Length ? flagNames[i + 1] : $"Flag {i + 1}",
+                Foreground = System.Windows.Media.Brushes.White,
+                Width = 175,
+                Padding = new Thickness(2, 6, 4, 6),
+                Margin = new Thickness(0, 1, 0, 1),
+                ToolTip = $"Bit {i} del campo Flags"
+            };
+            check.Checked += (_, _) => FlagCheckChanged(bit, true);
+            check.Unchecked += (_, _) => FlagCheckChanged(bit, false);
+            _flagChecks.Add(check);
+            FlagsPanel.Children.Add(check);
+        }
+    }
+
+    private void FlagCheckChanged(int bit, bool enabled)
+    {
+        if (_updatingFlags || _loading || FlagsBox is null)
+            return;
+        string txt = (FlagsBox.Text ?? "").Trim().Replace("0x", "", StringComparison.OrdinalIgnoreCase);
+        if (!uint.TryParse(txt, NumberStyles.HexNumber, CultureInfo.InvariantCulture, out uint flags))
+            return;
+        flags = enabled ? flags | (1u << bit) : flags & ~(1u << bit);
+        FlagsBox.Text = flags.ToString("X8");
+    }
+
+    private void SyncFlagCheckboxes(uint flags)
+    {
+        _updatingFlags = true;
+        try
+        {
+            for (int i = 0; i < _flagChecks.Count; i++)
+                _flagChecks[i].IsChecked = (flags & (1u << i)) != 0;
+        }
+        finally
+        {
+            _updatingFlags = false;
+        }
+    }
+
+    private void FlagsBox_TextChanged(object sender, TextChangedEventArgs e)
+    {
+        if (!_loading && FlagsBox is not null && !_updatingFlags)
+        {
+            string txt = (FlagsBox.Text ?? "").Trim().Replace("0x", "", StringComparison.OrdinalIgnoreCase);
+            if (uint.TryParse(txt, NumberStyles.HexNumber, CultureInfo.InvariantCulture, out uint flags))
+                SyncFlagCheckboxes(flags);
+        }
+        UpdatePreview();
     }
 
     private void Value_Changed(object sender, SelectionChangedEventArgs e) => UpdatePreview();

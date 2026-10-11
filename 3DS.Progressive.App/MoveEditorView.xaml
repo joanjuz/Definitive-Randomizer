@@ -111,7 +111,7 @@
                     <Border Style="{StaticResource MoveCard}">
                         <Expander Header="EFECTOS, GOLPES, OBJETIVOS Y FLAGS" Foreground="{StaticResource TextMain}" IsExpanded="False">
                             <StackPanel Margin="0,16,0,0">
-                                <TextBlock Text="Se conservan los demás bytes; los IDs avanzados siguen la estructura vanilla de pk3DS."
+                                <TextBlock Text="Las listas emplean las mismas categorías de pk3DS vanilla y conservan sus IDs internos."
                                            Foreground="{StaticResource TextSoft}" TextWrapping="Wrap" FontSize="11" Margin="0,0,0,13"/>
                                 <UniformGrid Columns="2">
                                     <StackPanel Margin="0,0,10,13">
@@ -152,7 +152,7 @@
 </StackPanel>
                                     <StackPanel Margin="0,0,10,13">
     <TextBlock Text="Flags (hexadecimal)" Style="{StaticResource MoveLabel}"/>
-    <TextBox x:Name="FlagsBox" TextChanged="Text_Changed"/>
+    <TextBox x:Name="FlagsBox" TextChanged="FlagsBox_TextChanged"/>
 </StackPanel>
                                 </UniformGrid>
                             </StackPanel>
@@ -180,7 +180,7 @@
                     </Border>
                     <Border Style="{StaticResource MoveCard}">
                         <TextBlock Foreground="{StaticResource TextSoft}" TextWrapping="Wrap"
-                                   Text="Faltan estados secundarios, turnos, curación, cambios de stats, recarga, compatibilidades, randomizaciones y parches Progressive. Los bytes no editados se conservan."/>
+                                   Text="Este editor representa las opciones básicas y avanzadas de movimiento. La randomización masiva, balance, textos, CRO y parches Progressive serán módulos independientes."/>
                     </Border>
                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
                         <Button Content="Restablecer" Click="Reset_Click" Margin="0,0,10,0"/>
