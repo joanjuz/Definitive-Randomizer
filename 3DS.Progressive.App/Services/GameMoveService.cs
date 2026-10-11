@@ -46,10 +46,10 @@ public sealed class GameMoveService
     public IReadOnlyList<MoveListEntry> Entries { get; }
     public IReadOnlyList<string> Types { get; }
     public IReadOnlyList<MoveChoice> AllMoveNames { get; }
-    public IReadOnlyList<MoveChoice> Qualities { get; } = MoveEditorCatalog.IndexedChoices(MoveEditorCatalog.QualityNames);
-    public IReadOnlyList<MoveChoice> ZEffects { get; } = MoveEditorCatalog.IndexedChoices(MoveEditorCatalog.ZEffectNames);
-    public IReadOnlyList<MoveChoice> Targets { get; } = MoveEditorCatalog.IndexedChoices(MoveEditorCatalog.TargetNames);
-    public IReadOnlyList<MoveChoice> Stats { get; } = MoveEditorCatalog.IndexedChoices(MoveEditorCatalog.StatNames);
+    public IReadOnlyList<MoveChoice> Qualities { get; } = MoveEditorCatalog.IndexedChoices(MoveEditorCatalog.QualityNames, MoveEditorCatalog.QualityNames.Length);
+    public IReadOnlyList<MoveChoice> ZEffects { get; } = MoveEditorCatalog.IndexedChoices(MoveEditorCatalog.ZEffectNames, MoveEditorCatalog.ZEffectNames.Length);
+    public IReadOnlyList<MoveChoice> Targets { get; } = MoveEditorCatalog.IndexedChoices(MoveEditorCatalog.TargetNames, MoveEditorCatalog.TargetNames.Length);
+    public IReadOnlyList<MoveChoice> Stats { get; } = MoveEditorCatalog.IndexedChoices(MoveEditorCatalog.StatNames, MoveEditorCatalog.StatNames.Length);
     public IReadOnlyList<MoveChoice> Inflictions { get; } = MoveEditorCatalog.InflictionChoices;
     public bool SupportsZMoves => _config.Generation == 7;
 
