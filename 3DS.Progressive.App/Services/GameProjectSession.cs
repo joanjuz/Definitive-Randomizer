@@ -1,3 +1,7 @@
+using System;
+using System.IO;
+using System.Linq;
+using System.Collections.Generic;
 using System.Security.Cryptography;
 using pk3DS.Core;
 using pk3DS.Core.CTR;
