@@ -12,7 +12,7 @@ using ColorConverter = System.Windows.Media.ColorConverter;
 
 namespace ThreeDS.Progressive;
 
-public partial class MoveEditorView : UserControl
+public partial class MoveEditorView : System.Windows.Controls.UserControl
 {
     private readonly GameMoveService _moves;
     private MoveListEntry? _selected;
