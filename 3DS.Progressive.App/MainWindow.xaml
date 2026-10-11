@@ -1,0 +1,269 @@
+<Window x:Class="ThreeDS.Progressive.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="3DS Progressive — Editor" Width="1390" Height="845"
+        MinWidth="1130" MinHeight="690" WindowStartupLocation="CenterScreen">
+    <Window.Resources>
+        <Style x:Key="SmallHeading" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="{StaticResource TextSoft}"/>
+            <Setter Property="FontSize" Value="11"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+        </Style>
+        <Style x:Key="Card" TargetType="Border">
+            <Setter Property="Background" Value="{StaticResource Panel}"/>
+            <Setter Property="BorderBrush" Value="{StaticResource Stroke}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="CornerRadius" Value="11"/>
+            <Setter Property="Padding" Value="15"/>
+            <Setter Property="Margin" Value="0,0,0,13"/>
+        </Style>
+        <Style x:Key="FieldCaption" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="{StaticResource TextSoft}"/>
+            <Setter Property="Margin" Value="0,0,0,5"/>
+            <Setter Property="FontSize" Value="12"/>
+        </Style>
+        <Style x:Key="NavDisabled" BasedOn="{StaticResource SidebarButton}" TargetType="Button">
+            <Setter Property="Opacity" Value="0.52"/>
+            <Setter Property="IsEnabled" Value="False"/>
+        </Style>
+    </Window.Resources>
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="73"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="39"/>
+        </Grid.RowDefinitions>
+
+        <!-- Cabecera permanente -->
+        <Border Grid.Row="0" Background="#111720" BorderBrush="{StaticResource Stroke}"
+                BorderThickness="0,0,0,1">
+            <Grid Margin="22,0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                    <Border Width="39" Height="39" CornerRadius="10" Background="#2D4665"
+                            Margin="0,0,12,0">
+                        <TextBlock Text="3" FontSize="25" FontWeight="Bold" Foreground="#9FC7F5"
+                                   HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                    </Border>
+                    <StackPanel VerticalAlignment="Center">
+                        <TextBlock Text="3DS Progressive" FontWeight="SemiBold" FontSize="19"/>
+                        <TextBlock Text="EDICIÓN DE JUEGOS 3DS" Foreground="{StaticResource TextSoft}"
+                                   FontSize="10" FontWeight="SemiBold"/>
+                    </StackPanel>
+                </StackPanel>
+                <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="45,0,12,0">
+                    <TextBlock x:Name="ProjectNameText" Text="Sin proyecto cargado"
+                               FontSize="14" FontWeight="SemiBold"/>
+                    <TextBlock x:Name="GameNameText" Text="Seleccioná una carpeta de juego extraído"
+                               FontSize="12" Foreground="{StaticResource TextSoft}"/>
+                </StackPanel>
+                <Button x:Name="OpenProjectButton" Grid.Column="2" Click="OpenProject_Click"
+                        Style="{StaticResource PrimaryButton}" VerticalAlignment="Center"
+                        Content="Abrir proyecto..."/>
+            </Grid>
+        </Border>
+
+        <Grid Grid.Row="1">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="211"/>
+                <ColumnDefinition Width="239"/>
+                <ColumnDefinition Width="*" MinWidth="410"/>
+                <ColumnDefinition Width="252"/>
+            </Grid.ColumnDefinitions>
+
+            <!-- Navegacion -->
+            <Border Background="#18202B" BorderBrush="{StaticResource Stroke}"
+                    BorderThickness="0,0,1,0">
+                <DockPanel Margin="13,18">
+                    <StackPanel DockPanel.Dock="Top">
+                        <TextBlock Text="EDICIÓN" Style="{StaticResource SmallHeading}"
+                                   Margin="12,0,0,12"/>
+                        <Button Content="◆  Pokémon" Style="{StaticResource SidebarButton}"
+                                Background="#2B4059" FontWeight="SemiBold"/>
+                        <Button Content="⚔  Entrenadores" Style="{StaticResource NavDisabled}"/>
+                        <Button Content="◎  Encuentros" Style="{StaticResource NavDisabled}"/>
+                        <Button Content="◇  Movimientos" Style="{StaticResource NavDisabled}"/>
+                        <Button Content="▣  MT y tutores" Style="{StaticResource NavDisabled}"/>
+                        <Button Content="▤  Objetos y tiendas" Style="{StaticResource NavDisabled}"/>
+                        <Button Content="◆  Evoluciones" Style="{StaticResource NavDisabled}"/>
+                        <Button Content="≡  Historia y textos" Style="{StaticResource NavDisabled}"/>
+                        <TextBlock Text="SISTEMAS" Style="{StaticResource SmallHeading}"
+                                   Margin="12,25,0,12"/>
+                        <Button Content="◈  Mecánicas y CRO" Style="{StaticResource NavDisabled}"/>
+                        <Button Content="▧  Herramientas ROM" Style="{StaticResource NavDisabled}"/>
+                        <Button Content="⇄  Automatización" Style="{StaticResource NavDisabled}"/>
+                        <Button Content="⚙  Configuración" Style="{StaticResource NavDisabled}"/>
+                    </StackPanel>
+                    <Border DockPanel.Dock="Bottom" Background="{StaticResource Surface}"
+                            CornerRadius="9" Padding="12" VerticalAlignment="Bottom">
+                        <StackPanel>
+                            <TextBlock Text="HITO 01" Foreground="{StaticResource Accent}"
+                                       FontWeight="Bold" FontSize="11"/>
+                            <TextBlock Text="Editor de datos personales" TextWrapping="Wrap"
+                                       Margin="0,6,0,0"/>
+                            <TextBlock Text="Los demás módulos están pendientes, no simulados."
+                                       Foreground="{StaticResource TextSoft}" TextWrapping="Wrap"
+                                       FontSize="11" Margin="0,5,0,0"/>
+                        </StackPanel>
+                    </Border>
+                </DockPanel>
+            </Border>
+
+            <!-- Lista y busqueda -->
+            <Border Grid.Column="1" BorderBrush="{StaticResource Stroke}"
+                    BorderThickness="0,0,1,0" Background="#1B2430">
+                <DockPanel Margin="14,19">
+                    <StackPanel DockPanel.Dock="Top" Margin="0,0,0,13">
+                        <TextBlock Text="ESPECIES Y FORMAS" Style="{StaticResource SmallHeading}"
+                                   Margin="0,0,0,13"/>
+                        <TextBox x:Name="SearchBox" TextChanged="SearchBox_TextChanged"
+                                 ToolTip="Buscar por nombre o número de entrada"/>
+                        <TextBlock x:Name="EntryCountText" Text="Sin datos" FontSize="11"
+                                   Foreground="{StaticResource TextSoft}" Margin="2,10,0,0"/>
+                    </StackPanel>
+                    <ListBox x:Name="PokemonList" SelectionChanged="PokemonList_SelectionChanged"
+                             ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                        <ListBox.ItemTemplate>
+                            <DataTemplate>
+                                <TextBlock Text="{Binding Display}" TextTrimming="CharacterEllipsis"/>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+                </DockPanel>
+            </Border>
+
+            <!-- Editor central -->
+            <ScrollViewer Grid.Column="2" VerticalScrollBarVisibility="Auto" Padding="0">
+                <StackPanel x:Name="EditorContent" Margin="27,24" IsEnabled="False">
+                    <StackPanel Margin="0,0,0,18">
+                        <TextBlock Text="Datos de Pokémon" FontSize="25" FontWeight="SemiBold"/>
+                        <TextBlock x:Name="EntryTitleText" Text="Abrí un proyecto para comenzar."
+                                   Foreground="{StaticResource TextSoft}" Margin="0,7,0,0"/>
+                    </StackPanel>
+                    <Border Style="{StaticResource Card}">
+                        <StackPanel>
+                            <TextBlock Text="ESTADÍSTICAS BASE" Style="{StaticResource SmallHeading}"
+                                       Margin="0,0,0,13"/>
+                            <UniformGrid Columns="2">
+                                <StackPanel Margin="0,0,10,13">
+                                    <TextBlock Text="PS" Style="{StaticResource FieldCaption}"/>
+                                    <TextBox x:Name="HpBox" TextChanged="Stat_TextChanged"/>
+                                </StackPanel>
+                                <StackPanel Margin="0,0,0,13">
+                                    <TextBlock Text="Ataque" Style="{StaticResource FieldCaption}"/>
+                                    <TextBox x:Name="AtkBox" TextChanged="Stat_TextChanged"/>
+                                </StackPanel>
+                                <StackPanel Margin="0,0,10,13">
+                                    <TextBlock Text="Defensa" Style="{StaticResource FieldCaption}"/>
+                                    <TextBox x:Name="DefBox" TextChanged="Stat_TextChanged"/>
+                                </StackPanel>
+                                <StackPanel Margin="0,0,0,13">
+                                    <TextBlock Text="Ataque Especial" Style="{StaticResource FieldCaption}"/>
+                                    <TextBox x:Name="SpaBox" TextChanged="Stat_TextChanged"/>
+                                </StackPanel>
+                                <StackPanel Margin="0,0,10,0">
+                                    <TextBlock Text="Defensa Especial" Style="{StaticResource FieldCaption}"/>
+                                    <TextBox x:Name="SpdBox" TextChanged="Stat_TextChanged"/>
+                                </StackPanel>
+                                <StackPanel>
+                                    <TextBlock Text="Velocidad" Style="{StaticResource FieldCaption}"/>
+                                    <TextBox x:Name="SpeBox" TextChanged="Stat_TextChanged"/>
+                                </StackPanel>
+                            </UniformGrid>
+                        </StackPanel>
+                    </Border>
+                    <Border Style="{StaticResource Card}">
+                        <StackPanel>
+                            <TextBlock Text="TIPOS Y CAPTURA" Style="{StaticResource SmallHeading}"
+                                       Margin="0,0,0,13"/>
+                            <UniformGrid Columns="2">
+                                <StackPanel Margin="0,0,10,12">
+                                    <TextBlock Text="Primer tipo" Style="{StaticResource FieldCaption}"/>
+                                    <ComboBox x:Name="TypeOne" SelectionChanged="Type_SelectionChanged"/>
+                                </StackPanel>
+                                <StackPanel Margin="0,0,0,12">
+                                    <TextBlock Text="Segundo tipo" Style="{StaticResource FieldCaption}"/>
+                                    <ComboBox x:Name="TypeTwo" SelectionChanged="Type_SelectionChanged"/>
+                                </StackPanel>
+                            </UniformGrid>
+                            <TextBlock Text="Ratio de captura (0–255)"
+                                       Style="{StaticResource FieldCaption}"/>
+                            <TextBox x:Name="CatchBox" TextChanged="Stat_TextChanged"/>
+                        </StackPanel>
+                    </Border>
+                    <Border Style="{StaticResource Card}">
+                        <StackPanel>
+                            <TextBlock Text="ALCANCE DEL PRIMER HITO"
+                                       Style="{StaticResource SmallHeading}" Margin="0,0,0,9"/>
+                            <TextBlock Foreground="{StaticResource TextSoft}" TextWrapping="Wrap"
+                                       LineHeight="19">
+                                Los demás campos de Personal (habilidades, EV, compatibilidades,
+                                formas, objetos y otros bytes) se preservan al guardar, pero
+                                todavía no están disponibles para edición visual.
+                            </TextBlock>
+                        </StackPanel>
+                    </Border>
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                        <Button Content="Restablecer campos" Click="Reset_Click" Margin="0,0,10,0"/>
+                        <Button x:Name="SaveButton" Content="Guardar en el proyecto"
+                                Style="{StaticResource PrimaryButton}" Click="Save_Click"
+                                IsEnabled="False"/>
+                    </StackPanel>
+                </StackPanel>
+            </ScrollViewer>
+
+            <!-- Inspector -->
+            <Border Grid.Column="3" Background="#1B2430"
+                    BorderBrush="{StaticResource Stroke}" BorderThickness="1,0,0,0">
+                <StackPanel Margin="17,23">
+                    <TextBlock Text="INSPECTOR" Style="{StaticResource SmallHeading}"
+                               Margin="0,0,0,18"/>
+                    <Border Style="{StaticResource Card}">
+                        <StackPanel>
+                            <TextBlock Text="Total de estadísticas" Foreground="{StaticResource TextSoft}"/>
+                            <TextBlock x:Name="BstText" Text="—" FontWeight="Bold" FontSize="36"
+                                       Foreground="{StaticResource Accent}" Margin="0,6,0,0"/>
+                            <TextBlock Text="BST (Base Stat Total)" FontSize="11"
+                                       Foreground="{StaticResource TextSoft}"/>
+                        </StackPanel>
+                    </Border>
+                    <Border Style="{StaticResource Card}">
+                        <StackPanel>
+                            <TextBlock Text="Sesión actual" FontWeight="SemiBold" Margin="0,0,0,12"/>
+                            <TextBlock x:Name="InspectorGameText" Text="Sin juego"
+                                       Foreground="{StaticResource TextSoft}" TextWrapping="Wrap"/>
+                            <TextBlock x:Name="InspectorEntryText" Text="Sin especie"
+                                       Foreground="{StaticResource TextSoft}" Margin="0,6,0,0"
+                                       TextWrapping="Wrap"/>
+                        </StackPanel>
+                    </Border>
+                    <Border Style="{StaticResource Card}">
+                        <StackPanel>
+                            <TextBlock Text="Seguridad de guardado" FontWeight="SemiBold"
+                                       Margin="0,0,0,9"/>
+                            <TextBlock Text="Solo se escribe al pulsar Guardar y confirmar. Se valida el GARC antes de reemplazar el archivo. Usa una copia de trabajo del juego."
+                                       Foreground="{StaticResource TextSoft}" FontSize="12"
+                                       TextWrapping="Wrap" LineHeight="18"/>
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+            </Border>
+        </Grid>
+
+        <Border Grid.Row="2" Background="#111720" BorderBrush="{StaticResource Stroke}"
+                BorderThickness="0,1,0,0">
+            <DockPanel Margin="18,0" LastChildFill="True">
+                <TextBlock Text="3DS PROGRESSIVE · V0.1 PREVIEW"
+                           DockPanel.Dock="Right" Foreground="{StaticResource TextSoft}"
+                           FontSize="10" VerticalAlignment="Center"/>
+                <TextBlock x:Name="StatusText" Text="Esperando proyecto extraído..."
+                           Foreground="{StaticResource TextSoft}" TextTrimming="CharacterEllipsis"
+                           VerticalAlignment="Center" FontSize="11"/>
+            </DockPanel>
+        </Border>
+    </Grid>
+</Window>

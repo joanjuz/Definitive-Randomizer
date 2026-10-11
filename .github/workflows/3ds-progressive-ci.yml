@@ -1,0 +1,31 @@
+name: 3DS Progressive · Windows build
+on:
+  push:
+    branches:
+      - feature/3ds-progressive-ui
+    paths:
+      - "3DS.Progressive.App/**"
+      - "pk3DS.Core/**"
+      - ".github/workflows/3ds-progressive-ci.yml"
+  pull_request:
+    paths:
+      - "3DS.Progressive.App/**"
+      - "pk3DS.Core/**"
+      - ".github/workflows/3ds-progressive-ci.yml"
+
+jobs:
+  build-wpf:
+    runs-on: windows-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Instalar .NET 10
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+      - name: Restaurar 3DS Progressive
+        run: dotnet restore .\3DS.Progressive.App\3DS.Progressive.App.csproj -r win-x64
+      - name: Compilar 3DS Progressive
+        run: dotnet build .\3DS.Progressive.App\3DS.Progressive.App.csproj -c Release -r win-x64 --no-restore
