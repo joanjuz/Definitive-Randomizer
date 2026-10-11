@@ -268,9 +268,9 @@
               <StackPanel Margin="0,0,10,13"><TextBlock Text="Habilidad 1" Style="{StaticResource FieldCaption}"/><ComboBox x:Name="AbilityOne" SelectionChanged="Type_SelectionChanged"/></StackPanel>
               <StackPanel Margin="0,0,10,13"><TextBlock Text="Habilidad 2" Style="{StaticResource FieldCaption}"/><ComboBox x:Name="AbilityTwo" SelectionChanged="Type_SelectionChanged"/></StackPanel>
               <StackPanel Margin="0,0,10,13"><TextBlock Text="Habilidad oculta" Style="{StaticResource FieldCaption}"/><ComboBox x:Name="AbilityHidden" SelectionChanged="Type_SelectionChanged"/></StackPanel>
-              <StackPanel Margin="0,0,10,13"><TextBlock Text="Objeto 1 (ID 0–65535)" Style="{StaticResource FieldCaption}"/><TextBox x:Name="HeldItemOne" TextChanged="Stat_TextChanged"/></StackPanel>
-              <StackPanel Margin="0,0,10,13"><TextBlock Text="Objeto 2 (ID 0–65535)" Style="{StaticResource FieldCaption}"/><TextBox x:Name="HeldItemTwo" TextChanged="Stat_TextChanged"/></StackPanel>
-              <StackPanel Margin="0,0,10,13"><TextBlock Text="Objeto 3 (ID 0–65535)" Style="{StaticResource FieldCaption}"/><TextBox x:Name="HeldItemThree" TextChanged="Stat_TextChanged"/></StackPanel>
+              <StackPanel Margin="0,0,10,13"><TextBlock Text="Objeto equipable 1" Style="{StaticResource FieldCaption}"/><ComboBox x:Name="HeldItemOne" DisplayMemberPath="Display" SelectedValuePath="Id" SelectionChanged="Type_SelectionChanged" MaxDropDownHeight="300"/></StackPanel>
+              <StackPanel Margin="0,0,10,13"><TextBlock Text="Objeto equipable 2" Style="{StaticResource FieldCaption}"/><ComboBox x:Name="HeldItemTwo" DisplayMemberPath="Display" SelectedValuePath="Id" SelectionChanged="Type_SelectionChanged" MaxDropDownHeight="300"/></StackPanel>
+              <StackPanel Margin="0,0,10,13"><TextBlock Text="Objeto equipable 3" Style="{StaticResource FieldCaption}"/><ComboBox x:Name="HeldItemThree" DisplayMemberPath="Display" SelectedValuePath="Id" SelectionChanged="Type_SelectionChanged" MaxDropDownHeight="300"/></StackPanel>
             </UniformGrid>
         </StackPanel>
     </Expander>
@@ -303,9 +303,9 @@
               <StackPanel Margin="0,0,10,13"><TextBlock Text="Amistad (0–255)" Style="{StaticResource FieldCaption}"/><TextBox x:Name="FriendshipBox" TextChanged="Stat_TextChanged"/></StackPanel>
               <StackPanel Margin="0,0,10,13"><TextBlock Text="Ciclos de eclosión" Style="{StaticResource FieldCaption}"/><TextBox x:Name="HatchBox" TextChanged="Stat_TextChanged"/></StackPanel>
               <StackPanel Margin="0,0,10,13"><TextBlock Text="Ratio de género (0–255)" Style="{StaticResource FieldCaption}"/><TextBox x:Name="GenderBox" TextChanged="Stat_TextChanged"/></StackPanel>
-              <StackPanel Margin="0,0,10,13"><TextBlock Text="Grupo huevo 1 (ID 0–255)" Style="{StaticResource FieldCaption}"/><TextBox x:Name="EggOneBox" TextChanged="Stat_TextChanged"/></StackPanel>
-              <StackPanel Margin="0,0,10,13"><TextBlock Text="Grupo huevo 2 (ID 0–255)" Style="{StaticResource FieldCaption}"/><TextBox x:Name="EggTwoBox" TextChanged="Stat_TextChanged"/></StackPanel>
-              <StackPanel Margin="0,0,10,13"><TextBlock Text="Curva EXP (ID 0–255)" Style="{StaticResource FieldCaption}"/><TextBox x:Name="GrowthBox" TextChanged="Stat_TextChanged"/></StackPanel>
+              <StackPanel Margin="0,0,10,13"><TextBlock Text="Grupo huevo 1" Style="{StaticResource FieldCaption}"/><ComboBox x:Name="EggOneBox" DisplayMemberPath="Display" SelectedValuePath="Id" SelectionChanged="Type_SelectionChanged" MaxDropDownHeight="300"/></StackPanel>
+              <StackPanel Margin="0,0,10,13"><TextBlock Text="Grupo huevo 2" Style="{StaticResource FieldCaption}"/><ComboBox x:Name="EggTwoBox" DisplayMemberPath="Display" SelectedValuePath="Id" SelectionChanged="Type_SelectionChanged" MaxDropDownHeight="300"/></StackPanel>
+              <StackPanel Margin="0,0,10,13"><TextBlock Text="Curva de experiencia" Style="{StaticResource FieldCaption}"/><ComboBox x:Name="GrowthBox" DisplayMemberPath="Display" SelectedValuePath="Id" SelectionChanged="Type_SelectionChanged" MaxDropDownHeight="300"/></StackPanel>
               <StackPanel Margin="0,0,10,13"><TextBlock Text="Ratio de escape (0–255)" Style="{StaticResource FieldCaption}"/><TextBox x:Name="EscapeBox" TextChanged="Stat_TextChanged"/></StackPanel>
             </UniformGrid>
         </StackPanel>

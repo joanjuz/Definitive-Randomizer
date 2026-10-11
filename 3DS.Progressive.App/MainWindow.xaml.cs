@@ -25,6 +25,9 @@ public partial class MainWindow : Window
     private CancellationTokenSource? _spriteCancellation;
     private MoveEditorView? _movesView;
     private bool _showingMoves;
+    private IReadOnlyList<MoveChoice> _itemOptions = [];
+    private IReadOnlyList<MoveChoice> _eggOptions = [];
+    private IReadOnlyList<MoveChoice> _growthOptions = [];
     private readonly ObservableCollection<FlagChoice> _tmChoices = [];
     private readonly ObservableCollection<FlagChoice> _tutorChoices = [];
     private readonly ObservableCollection<FlagChoice> _specialChoices = [];
@@ -71,6 +74,21 @@ public partial class MainWindow : Window
             AbilityOne.ItemsSource = candidate.AbilityNames;
             AbilityTwo.ItemsSource = candidate.AbilityNames;
             AbilityHidden.ItemsSource = candidate.AbilityNames;
+            _itemOptions = candidate.ItemNames.Select((name, index) =>
+                new MoveChoice(index, string.IsNullOrWhiteSpace(name)
+                    ? (index == 0 ? "Sin objeto" : $"Objeto ID {index}") : name)).ToArray();
+            string[] eggs = ["—", "Monstruo", "Agua 1", "Bicho", "Volador", "Campo",
+                "Hada", "Planta", "Humanoide", "Agua 3", "Mineral", "Amorfo",
+                "Agua 2", "Ditto", "Dragón", "No descubierto"];
+            _eggOptions = eggs.Select((name, index) => new MoveChoice(index, name)).ToArray();
+            string[] growth = ["Medio rápido", "Errático", "Fluctuante",
+                "Medio lento", "Rápido", "Lento"];
+            _growthOptions = growth.Select((name, index) => new MoveChoice(index, name)).ToArray();
+            foreach (var control in new[] { HeldItemOne, HeldItemTwo, HeldItemThree })
+                control.ItemsSource = _itemOptions;
+            EggOneBox.ItemsSource = _eggOptions;
+            EggTwoBox.ItemsSource = _eggOptions;
+            GrowthBox.ItemsSource = _growthOptions;
             ZItemBox.ItemsSource = candidate.ItemNames;
             ZBaseMoveBox.ItemsSource = candidate.MoveNames;
             ZSpecialMoveBox.ItemsSource = candidate.MoveNames;
@@ -152,9 +170,9 @@ public partial class MainWindow : Window
             AbilityOne.SelectedIndex = p.Ability1;
             AbilityTwo.SelectedIndex = p.Ability2;
             AbilityHidden.SelectedIndex = p.AbilityHidden;
-            HeldItemOne.Text = p.Item1.ToString();
-            HeldItemTwo.Text = p.Item2.ToString();
-            HeldItemThree.Text = p.Item3.ToString();
+            AssignNamedValue(HeldItemOne, _itemOptions, p.Item1);
+            AssignNamedValue(HeldItemTwo, _itemOptions, p.Item2);
+            AssignNamedValue(HeldItemThree, _itemOptions, p.Item3);
             EvHpBox.Text = p.EvHp.ToString();
             EvAtkBox.Text = p.EvAttack.ToString();
             EvDefBox.Text = p.EvDefense.ToString();
@@ -165,9 +183,9 @@ public partial class MainWindow : Window
             FriendshipBox.Text = p.BaseFriendship.ToString();
             HatchBox.Text = p.HatchCycles.ToString();
             GenderBox.Text = p.GenderRatio.ToString();
-            EggOneBox.Text = p.EggGroup1.ToString();
-            EggTwoBox.Text = p.EggGroup2.ToString();
-            GrowthBox.Text = p.ExperienceGrowth.ToString();
+            AssignNamedValue(EggOneBox, _eggOptions, p.EggGroup1);
+            AssignNamedValue(EggTwoBox, _eggOptions, p.EggGroup2);
+            AssignNamedValue(GrowthBox, _growthOptions, p.ExperienceGrowth);
             EscapeBox.Text = p.EscapeRate.ToString();
             EvoStageBox.Text = p.EvoStage.ToString();
             FormCountBox.Text = p.FormCount.ToString();
@@ -189,6 +207,22 @@ public partial class MainWindow : Window
 
         UpdatePreview();
         _ = UpdateSpriteAsync(next.Index);
+    }
+
+    private static void AssignNamedValue(System.Windows.Controls.ComboBox box,
+        IReadOnlyList<MoveChoice> options, int id)
+    {
+        // La ROM personalizada podría contener IDs por encima del archivo de nombres.
+        // Mantenerlos visibles y guardables sin normalizarlos a cero.
+        box.ItemsSource = options.Any(x => x.Id == id)
+            ? options : options.Concat([new MoveChoice(id, "ID propio, sin nombre registrado")]).ToArray();
+        box.SelectedValue = id;
+    }
+
+    private static bool TryNamedValue(System.Windows.Controls.ComboBox box, int max, out int id)
+    {
+        id = box.SelectedValue is int value ? value : -1;
+        return id >= 0 && id <= max;
     }
 
     private void LoadCompatibilityLists(PersonalValues p)
@@ -286,9 +320,9 @@ public partial class MainWindow : Window
             return false;
         if (AbilityOne.SelectedIndex < 0 || AbilityTwo.SelectedIndex < 0 ||
             AbilityHidden.SelectedIndex < 0 ||
-            !ushort.TryParse(HeldItemOne.Text, out ushort item1) ||
-            !ushort.TryParse(HeldItemTwo.Text, out ushort item2) ||
-            !ushort.TryParse(HeldItemThree.Text, out ushort item3) ||
+            !TryNamedValue(HeldItemOne, 65535, out int item1) ||
+            !TryNamedValue(HeldItemTwo, 65535, out int item2) ||
+            !TryNamedValue(HeldItemThree, 65535, out int item3) ||
             !byte.TryParse(EvHpBox.Text, out byte evhp) || evhp > 3 ||
             !byte.TryParse(EvAtkBox.Text, out byte evattack) || evattack > 3 ||
             !byte.TryParse(EvDefBox.Text, out byte evdefense) || evdefense > 3 ||
@@ -299,9 +333,9 @@ public partial class MainWindow : Window
             !byte.TryParse(FriendshipBox.Text, out byte basefriendship) ||
             !byte.TryParse(HatchBox.Text, out byte hatchcycles) ||
             !byte.TryParse(GenderBox.Text, out byte genderratio) ||
-            !byte.TryParse(EggOneBox.Text, out byte egggroup1) ||
-            !byte.TryParse(EggTwoBox.Text, out byte egggroup2) ||
-            !byte.TryParse(GrowthBox.Text, out byte experiencegrowth) ||
+            !TryNamedValue(EggOneBox, 255, out int egggroup1) ||
+            !TryNamedValue(EggTwoBox, 255, out int egggroup2) ||
+            !TryNamedValue(GrowthBox, 255, out int experiencegrowth) ||
             !byte.TryParse(EscapeBox.Text, out byte escaperate) ||
             !byte.TryParse(EvoStageBox.Text, out byte evostage) ||
             !byte.TryParse(FormCountBox.Text, out byte formcount) ||
