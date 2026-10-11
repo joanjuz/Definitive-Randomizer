@@ -111,12 +111,12 @@
                     <Border Style="{StaticResource MoveCard}">
                         <Expander Header="EFECTOS, GOLPES, OBJETIVOS Y FLAGS" Foreground="{StaticResource TextMain}" IsExpanded="False">
                             <StackPanel Margin="0,16,0,0">
-                                <TextBlock Text="Las listas emplean las mismas categorías de pk3DS vanilla y conservan sus IDs internos."
+                                <TextBlock Text="Se conservan los demás bytes; los IDs avanzados siguen la estructura vanilla de pk3DS."
                                            Foreground="{StaticResource TextSoft}" TextWrapping="Wrap" FontSize="11" Margin="0,0,0,13"/>
                                 <UniformGrid Columns="2">
                                     <StackPanel Margin="0,0,10,13">
-    <TextBlock Text="Calidad/animación (0–255)" Style="{StaticResource MoveLabel}"/>
-    <TextBox x:Name="QualityBox" TextChanged="Text_Changed"/>
+    <TextBlock Text="Clasificación del efecto" Style="{StaticResource MoveLabel}"/>
+    <ComboBox x:Name="QualityBox" DisplayMemberPath="Display" SelectedValuePath="Id" SelectionChanged="Value_Changed" MaxDropDownHeight="340" ToolTip="Opciones del editor pk3DS original"/>
 </StackPanel>
                                     <StackPanel Margin="0,0,10,13">
     <TextBlock Text="Golpes mínimos (0–15)" Style="{StaticResource MoveLabel}"/>
@@ -127,8 +127,8 @@
     <TextBox x:Name="MaxHitsBox" TextChanged="Text_Changed"/>
 </StackPanel>
                                     <StackPanel Margin="0,0,10,13">
-    <TextBlock Text="Efecto infligido (ID 0–65535)" Style="{StaticResource MoveLabel}"/>
-    <TextBox x:Name="InflictBox" TextChanged="Text_Changed"/>
+    <TextBlock Text="Estado que provoca" Style="{StaticResource MoveLabel}"/>
+    <ComboBox x:Name="InflictBox" DisplayMemberPath="Display" SelectedValuePath="Id" SelectionChanged="Value_Changed" MaxDropDownHeight="340" ToolTip="Opciones del editor pk3DS original"/>
 </StackPanel>
                                     <StackPanel Margin="0,0,10,13">
     <TextBlock Text="Probabilidad de efecto (0–255)" Style="{StaticResource MoveLabel}"/>
@@ -147,14 +147,47 @@
     <TextBox x:Name="EffectBox" TextChanged="Text_Changed"/>
 </StackPanel>
                                     <StackPanel Margin="0,0,10,13">
-    <TextBlock Text="Objetivo (ID 0–255)" Style="{StaticResource MoveLabel}"/>
-    <TextBox x:Name="TargetBox" TextChanged="Text_Changed"/>
+    <TextBlock Text="Objetivo" Style="{StaticResource MoveLabel}"/>
+    <ComboBox x:Name="TargetBox" DisplayMemberPath="Display" SelectedValuePath="Id" SelectionChanged="Value_Changed" MaxDropDownHeight="340" ToolTip="Opciones del editor pk3DS original"/>
 </StackPanel>
                                     <StackPanel Margin="0,0,10,13">
     <TextBlock Text="Flags (hexadecimal)" Style="{StaticResource MoveLabel}"/>
-    <TextBox x:Name="FlagsBox" TextChanged="FlagsBox_TextChanged"/>
+    <TextBox x:Name="FlagsBox" TextChanged="Text_Changed"/>
 </StackPanel>
                                 </UniformGrid>
+                            </StackPanel>
+                        </Expander>
+                    </Border>
+                    <Border Style="{StaticResource MoveCard}">
+                        <Expander Header="CAMBIOS DE STATS, TURNOS Y RECUPERACIÓN" Foreground="{StaticResource TextMain}" IsExpanded="False">
+                            <StackPanel Margin="0,16,0,0">
+                                <TextBlock Text="Los IDs y probabilidades respetan los campos del Move Editor original. Los cambios de nivel pueden ser negativos."
+                                           Foreground="{StaticResource TextSoft}" TextWrapping="Wrap" Margin="0,0,0,12"/>
+                                <UniformGrid Columns="2">
+                                    <StackPanel Margin="0,0,10,13"><TextBlock Text="Turnos mínimos (0–255)" Style="{StaticResource MoveLabel}"/><TextBox x:Name="TurnsMinBox" TextChanged="Text_Changed"/></StackPanel>
+                                    <StackPanel Margin="0,0,10,13"><TextBlock Text="Turnos máximos (0–255)" Style="{StaticResource MoveLabel}"/><TextBox x:Name="TurnsMaxBox" TextChanged="Text_Changed"/></StackPanel>
+                                    <StackPanel Margin="0,0,10,13"><TextBlock Text="Retroceso/daño absorbido (-128 a 127)" Style="{StaticResource MoveLabel}"/><TextBox x:Name="RecoilBox" TextChanged="Text_Changed"/></StackPanel>
+                                    <StackPanel Margin="0,0,10,13"><TextBlock Text="Curación / Drain (valor 0–255)" Style="{StaticResource MoveLabel}"/><TextBox x:Name="HealingBox" TextChanged="Text_Changed"/></StackPanel>
+                                    <StackPanel Margin="0,0,10,13"><TextBlock Text="Stat 1" Style="{StaticResource MoveLabel}"/><ComboBox x:Name="StatOneBox" DisplayMemberPath="Display" SelectedValuePath="Id" SelectionChanged="Value_Changed"/></StackPanel>
+                                    <StackPanel Margin="0,0,10,13"><TextBlock Text="Stat 2" Style="{StaticResource MoveLabel}"/><ComboBox x:Name="StatTwoBox" DisplayMemberPath="Display" SelectedValuePath="Id" SelectionChanged="Value_Changed"/></StackPanel>
+                                    <StackPanel Margin="0,0,10,13"><TextBlock Text="Stat 3" Style="{StaticResource MoveLabel}"/><ComboBox x:Name="StatThreeBox" DisplayMemberPath="Display" SelectedValuePath="Id" SelectionChanged="Value_Changed"/></StackPanel>
+                                    <StackPanel Margin="0,0,10,13"><TextBlock Text="Cambio de nivel 1 (-128 a 127)" Style="{StaticResource MoveLabel}"/><TextBox x:Name="StageOneBox" TextChanged="Text_Changed"/></StackPanel>
+                                    <StackPanel Margin="0,0,10,13"><TextBlock Text="Cambio de nivel 2 (-128 a 127)" Style="{StaticResource MoveLabel}"/><TextBox x:Name="StageTwoBox" TextChanged="Text_Changed"/></StackPanel>
+                                    <StackPanel Margin="0,0,10,13"><TextBlock Text="Cambio de nivel 3 (-128 a 127)" Style="{StaticResource MoveLabel}"/><TextBox x:Name="StageThreeBox" TextChanged="Text_Changed"/></StackPanel>
+                                    <StackPanel Margin="0,0,10,13"><TextBlock Text="Probabilidad stat 1 (0–255)" Style="{StaticResource MoveLabel}"/><TextBox x:Name="StageRateOneBox" TextChanged="Text_Changed"/></StackPanel>
+                                    <StackPanel Margin="0,0,10,13"><TextBlock Text="Probabilidad stat 2 (0–255)" Style="{StaticResource MoveLabel}"/><TextBox x:Name="StageRateTwoBox" TextChanged="Text_Changed"/></StackPanel>
+                                    <StackPanel Margin="0,0,10,13"><TextBlock Text="Probabilidad stat 3 (0–255)" Style="{StaticResource MoveLabel}"/><TextBox x:Name="StageRateThreeBox" TextChanged="Text_Changed"/></StackPanel>
+                                    <StackPanel Margin="0,0,10,13"><TextBlock Text="Control de duración del estado (0–255)" Style="{StaticResource MoveLabel}"/><TextBox x:Name="InflictCountBox" TextChanged="Text_Changed"/></StackPanel>
+                                </UniformGrid>
+                            </StackPanel>
+                        </Expander>
+                    </Border>
+                    <Border Style="{StaticResource MoveCard}">
+                        <Expander Header="FLAGS INDIVIDUALES" Foreground="{StaticResource TextMain}" IsExpanded="False">
+                            <StackPanel Margin="0,14,0,0">
+                                <TextBlock Text="Las mismas banderas del pk3DS vanilla; también podés seguir usando el valor hexadecimal."
+                                           Foreground="{StaticResource TextSoft}" TextWrapping="Wrap" Margin="0,0,0,10"/>
+                                <WrapPanel x:Name="FlagsPanel" ItemWidth="175" />
                             </StackPanel>
                         </Expander>
                     </Border>
@@ -163,24 +196,33 @@
                             <StackPanel Margin="0,16,0,0">
                                 <UniformGrid Columns="2">
                                     <StackPanel Margin="0,0,10,13">
-    <TextBlock Text="Movimiento Z asociado (ID)" Style="{StaticResource MoveLabel}"/>
-    <TextBox x:Name="ZMoveBox" TextChanged="Text_Changed"/>
+    <TextBlock Text="Movimiento Z asociado" Style="{StaticResource MoveLabel}"/>
+    <ComboBox x:Name="ZMoveBox" DisplayMemberPath="Display" SelectedValuePath="Id" SelectionChanged="Value_Changed" MaxDropDownHeight="340" ToolTip="Opciones del editor pk3DS original"/>
 </StackPanel>
                                     <StackPanel Margin="0,0,10,13">
     <TextBlock Text="Potencia Z (0–255)" Style="{StaticResource MoveLabel}"/>
     <TextBox x:Name="ZPowerBox" TextChanged="Text_Changed"/>
 </StackPanel>
                                     <StackPanel Margin="0,0,10,13">
-    <TextBlock Text="Efecto Z (0–255)" Style="{StaticResource MoveLabel}"/>
-    <TextBox x:Name="ZEffectBox" TextChanged="Text_Changed"/>
+    <TextBlock Text="Efecto Z" Style="{StaticResource MoveLabel}"/>
+    <ComboBox x:Name="ZEffectBox" DisplayMemberPath="Display" SelectedValuePath="Id" SelectionChanged="Value_Changed" MaxDropDownHeight="340" ToolTip="Opciones del editor pk3DS original"/>
 </StackPanel>
+                                    <StackPanel Margin="0,0,10,13">
+                                        <TextBlock Text="Tipo Poké Relax" Style="{StaticResource MoveLabel}"/>
+                                        <ComboBox x:Name="RefreshTypeBox" SelectionChanged="Value_Changed"/>
+                                    </StackPanel>
+                                    <StackPanel Margin="0,0,10,13">
+                                        <TextBlock Text="Probabilidad Poké Relax (0–255)" Style="{StaticResource MoveLabel}"/>
+                                        <TextBox x:Name="RefreshRateBox" TextChanged="Text_Changed"/>
+                                    </StackPanel>
+
                                 </UniformGrid>
                             </StackPanel>
                         </Expander>
                     </Border>
                     <Border Style="{StaticResource MoveCard}">
                         <TextBlock Foreground="{StaticResource TextSoft}" TextWrapping="Wrap"
-                                   Text="Este editor representa las opciones básicas y avanzadas de movimiento. La randomización masiva, balance, textos, CRO y parches Progressive serán módulos independientes."/>
+                                   Text="Faltan estados secundarios, turnos, curación, cambios de stats, recarga, compatibilidades, randomizaciones y parches Progressive. Los bytes no editados se conservan."/>
                     </Border>
                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
                         <Button Content="Restablecer" Click="Reset_Click" Margin="0,0,10,0"/>

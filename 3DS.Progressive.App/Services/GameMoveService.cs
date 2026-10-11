@@ -37,10 +37,20 @@ public sealed class GameMoveService
                 string.IsNullOrWhiteSpace(names[id]) ? $"Movimiento {id:000}" : names[id]))
             .ToArray();
         Types = _config.GetText(TextName.Types);
+        AllMoveNames = Enumerable.Range(0, names.Length).Select(i =>
+            new MoveChoice(i, string.IsNullOrWhiteSpace(names[i]) ? (i == 0 ? "Ninguno" : $"Movimiento {i:000}") :
+                names[i] + (i is >= 622 and < 658 ? (i % 2 == 0 ? " (Físico)" : " (Especial)") : "")))
+            .ToArray();
     }
 
     public IReadOnlyList<MoveListEntry> Entries { get; }
     public IReadOnlyList<string> Types { get; }
+    public IReadOnlyList<MoveChoice> AllMoveNames { get; }
+    public IReadOnlyList<MoveChoice> Qualities { get; } = MoveEditorCatalog.IndexedChoices(MoveEditorCatalog.QualityNames);
+    public IReadOnlyList<MoveChoice> ZEffects { get; } = MoveEditorCatalog.IndexedChoices(MoveEditorCatalog.ZEffectNames);
+    public IReadOnlyList<MoveChoice> Targets { get; } = MoveEditorCatalog.IndexedChoices(MoveEditorCatalog.TargetNames);
+    public IReadOnlyList<MoveChoice> Stats { get; } = MoveEditorCatalog.IndexedChoices(MoveEditorCatalog.StatNames);
+    public IReadOnlyList<MoveChoice> Inflictions { get; } = MoveEditorCatalog.InflictionChoices;
     public bool SupportsZMoves => _config.Generation == 7;
 
     public MoveValues Read(int id)
