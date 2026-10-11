@@ -87,7 +87,7 @@ public partial class MoveEditorView : System.Windows.Controls.UserControl
             MoveAccuracy.Text = p.Accuracy.ToString();
             MovePP.Text = p.PP.ToString();
             MovePriority.Text = p.Priority.ToString();
-            QualityBox.SelectedValue = p.Quality;
+            AssignCatalog(QualityBox, _moves.Qualities, p.Quality);
             MinHitsBox.Text = p.HitMin.ToString();
             MaxHitsBox.Text = p.HitMax.ToString();
             // Valores no catalogados se conservan en lugar de convertirlos a None.
@@ -100,21 +100,21 @@ public partial class MoveEditorView : System.Windows.Controls.UserControl
             CritBox.Text = p.CritStage.ToString();
             FlinchBox.Text = p.Flinch.ToString();
             EffectBox.Text = p.EffectSequence.ToString();
-            TargetBox.SelectedValue = p.Target;
+            AssignCatalog(TargetBox, _moves.Targets, p.Target);
             if (!_moves.AllMoveNames.Any(c => c.Id == p.ZMove))
                 ZMoveBox.ItemsSource = _moves.AllMoveNames.Concat([new MoveChoice(p.ZMove, "Movimiento no catalogado")]).ToArray();
             else
                 ZMoveBox.ItemsSource = _moves.AllMoveNames;
             ZMoveBox.SelectedValue = p.ZMove;
             ZPowerBox.Text = p.ZPower.ToString();
-            ZEffectBox.SelectedValue = p.ZEffect;
+            AssignCatalog(ZEffectBox, _moves.ZEffects, p.ZEffect);
             TurnsMinBox.Text = p.TurnsMin.ToString();
             TurnsMaxBox.Text = p.TurnsMax.ToString();
             RecoilBox.Text = p.Recoil.ToString();
             HealingBox.Text = p.Healing.ToString();
-            StatOneBox.SelectedValue = p.Stat1;
-            StatTwoBox.SelectedValue = p.Stat2;
-            StatThreeBox.SelectedValue = p.Stat3;
+            AssignCatalog(StatOneBox, _moves.Stats, p.Stat1);
+            AssignCatalog(StatTwoBox, _moves.Stats, p.Stat2);
+            AssignCatalog(StatThreeBox, _moves.Stats, p.Stat3);
             StageOneBox.Text = p.Stat1Stage.ToString();
             StageTwoBox.Text = p.Stat2Stage.ToString();
             StageThreeBox.Text = p.Stat3Stage.ToString();
@@ -122,7 +122,8 @@ public partial class MoveEditorView : System.Windows.Controls.UserControl
             StageRateTwoBox.Text = p.Stat2Rate.ToString();
             StageRateThreeBox.Text = p.Stat3Rate.ToString();
             InflictCountBox.Text = p.InflictCount.ToString();
-            RefreshTypeBox.SelectedValue = p.RefreshType;
+            AssignCatalog(RefreshTypeBox, MoveEditorCatalog.IndexedChoices(
+                Enum.GetNames(typeof(RefreshType)), 5), p.RefreshType);
             RefreshRateBox.Text = p.RefreshRate.ToString();
             FlagsBox.Text = p.Flags.ToString("X8");
             SyncFlagCheckboxes(p.Flags);
@@ -240,6 +241,15 @@ public partial class MoveEditorView : System.Windows.Controls.UserControl
         ChangeStateText.Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString(fg)!);
     }
 
+
+    private static void AssignCatalog(System.Windows.Controls.ComboBox box,
+        IReadOnlyList<MoveChoice> normal, int selectedId)
+    {
+        box.ItemsSource = normal.Any(c => c.Id == selectedId)
+            ? normal
+            : normal.Concat([new MoveChoice(selectedId, "ID original no catalogado")]).ToArray();
+        box.SelectedValue = selectedId;
+    }
 
     private static bool TryChoice(System.Windows.Controls.ComboBox box, out int id)
     {
