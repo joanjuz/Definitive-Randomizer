@@ -5,6 +5,7 @@ using System.Windows.Data;
 using System.Windows.Media;
 using Color = System.Windows.Media.Color;
 using ColorConverter = System.Windows.Media.ColorConverter;
+using Brushes = System.Windows.Media.Brushes;
 using System.Threading;
 using ThreeDS.Progressive.Models;
 using ThreeDS.Progressive.Services;
