@@ -90,14 +90,14 @@ internal static class UiSmoke
             check(tools.ActiveAction==BatchAction.MoveBalance && ((FrameworkElement)tools.FindName("TemplatePanel")).Visibility==Visibility.Visible,"WPF templates open in the temporary centre");
             Layout(view,1170,720);Capture(view,"movimientos-templates.png");
             Walk(tools).OfType<Button>().First(b=>Equals(b.Content,"← Volver al editor")).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            foreach (var expander in Walk(view).OfType<Expander>().ToArray())
+                expander.IsExpanded=true;
             Layout(view,1170,720);
             ComboBox choice=(ComboBox)view.FindName("TargetBox");
             choice.BringIntoView();view.UpdateLayout();choice.ApplyTemplate();
-            Console.WriteLine("WPF selector value: "+choice.SelectedValue+"; name: "+choice.SelectedItem+"; rendered: "+string.Join(" / ",Walk(choice).OfType<TextBlock>().Select(t=>t.Text)));
             Capture(view,"movimientos-editor.png");
             check(Walk(choice).OfType<TextBlock>().Any(t=>t.Text.Contains("Single Adjacent Ally/Foe")) &&
                 !Walk(choice).OfType<TextBlock>().Any(t=>t.Text.Contains("MoveChoice {")),"WPF selected dropdown shows its name rather than record code");
-            Capture(view,"movimientos-editor.png");
         }
         main.Close();app.Shutdown();
     }
