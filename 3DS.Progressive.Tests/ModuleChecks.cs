@@ -116,7 +116,7 @@ internal static class ModuleChecks
             reject(()=>new GameTrainerService(f.Session).Apply(preview),version+" trainer cross-session proposal is rejected");
             trainers.Apply(preview);check(EditorValues.Flatten(trainers.Read(1))["P0.Level"]==54,version+" trainer level scaling applies to the frozen scope");
             var history=f.Session.History.Read();check(history.Entries.Count==3&&history.Entries[^1].Parameters.ContainsKey("Seed"),version+" trainer history records all successful actions and parameters");
-            check(history.Entries[0].Changes.Any(c=>c.Field=="Nivel"&&c.Before=="10"&&c.After=="45"),version+" history includes before/after values");
+            check(history.Entries[0].Changes.Any(c=>c.Key=="P0.Level"&&c.Field=="Pokémon 1 · Nivel"&&c.Before=="10"&&c.After=="45"),version+" history identifies the team slot and includes before/after values");
             check(new ProjectHistory(f.Root,f.Game.Version.ToString()).Read().Entries.Count==history.Entries.Count,version+" project history survives reopening");
             var encounter=new GameEncounterService(f.Session);var encBefore=Read(f,"encdata");
             check(encounter.Entries.Count==(f.Game.Generation==7?4:2),version+" encounters expose maps and day/night separately");

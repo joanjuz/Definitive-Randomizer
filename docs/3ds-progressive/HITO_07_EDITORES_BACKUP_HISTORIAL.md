@@ -20,7 +20,7 @@ Se conservan los campos desconocidos de cabeceras, padding y bits reservados de 
 
 ## Historial portable
 
-`3ds-progressive-history.json` se escribe en la raíz del proyecto, fuera de RomFS/ExeFS. Abrir el proyecto o una vista previa no crea archivos. Cada guardado confirmado conserva un documento versión 1 con entradas ordenadas: identificador, fecha UTC, módulo/acción, valores anteriores/nuevos, parámetros, semilla/alcance y hashes SHA-256 antes/después. Los templates registran además la huella del CSV y las dependencias. El historial se consulta desde la navegación y se exporta como JSON.
+`3ds-progressive-history.json` se escribe en la raíz del proyecto, fuera de RomFS/ExeFS. Abrir el proyecto o una vista previa no crea archivos. Cada guardado confirmado conserva un documento versión 1 con entradas ordenadas: identificador, fecha UTC, módulo/acción, valores anteriores/nuevos, parámetros, semilla/alcance y hashes SHA-256 antes/después. Los editores de registros incluyen clave de campo y grupo para identificar el slot de equipo, tabla o ruta de evolución. Los templates registran además la huella del CSV y las dependencias. El historial se consulta desde la navegación y se exporta como JSON.
 
 El historial participa en el mismo `FileTransaction` que los archivos del juego. Los rechazos por datos inválidos, propuestas obsoletas o fallos de escritura no añaden acciones. Las operaciones sin cambios no añaden entradas. El modo de pruebas permite una carpeta de estado aislada mediante `PROGRESSIVE_STATE_DIR`.
 

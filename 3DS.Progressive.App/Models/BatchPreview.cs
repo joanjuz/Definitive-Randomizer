@@ -2,7 +2,7 @@ using ThreeDS.Progressive.Services;
 
 namespace ThreeDS.Progressive.Models;
 
-public sealed record BatchChange(int Id, string Name, string Field, string Before, string After);
+public sealed record BatchChange(int Id, string Name, string Field, string Before, string After, string? Key = null);
 
 /// <summary>A frozen proposal tied to one service and one exact source file.</summary>
 public sealed class BatchPreview

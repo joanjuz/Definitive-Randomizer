@@ -95,7 +95,7 @@ public partial class RecordEditorView : UserControl
     private void Show(int id)
     {
         _loading=true;
-        try{_id=id;BuildGroups(FieldsPanel,Editor.Read(id),_fields,true);SelectionText.Text=Editor.Entries.First(e=>e.Id==id).Display;_dirty=false;SaveButton.IsEnabled=false;Invalidate();}
+        try{_id=id;BuildGroups(FieldsPanel,Editor.Read(id),_fields,true);SelectionText.Text=Editor.Entries.First(e=>e.Id==id).Display;_dirty=false;SaveButton.IsEnabled=false;StatusText.Text="Editor listo.";Invalidate();}
         finally{_loading=false;}
     }
     private void Selection_Changed(object sender,SelectionChangedEventArgs e)

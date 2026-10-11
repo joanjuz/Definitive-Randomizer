@@ -40,8 +40,9 @@ internal static class EditorValues
     internal static IReadOnlyList<BatchChange> Diff(int id,string name,IEnumerable<EditorGroup> before,IEnumerable<EditorGroup> after)
     {
         var old=before.SelectMany(g=>g.Fields).ToDictionary(f=>f.Key);
-        return after.SelectMany(g=>g.Fields).Where(f=>old[f.Key].Value!=f.Value)
-            .Select(f=>new BatchChange(id,name,f.Label,Label(old[f.Key]),Label(f))).ToArray();
+        return after.SelectMany(g=>g.Fields.Select(f=>(Field:f,Group:g.Name)))
+            .Where(p=>old[p.Field.Key].Value!=p.Field.Value)
+            .Select(p=>new BatchChange(id,name,p.Group+" · "+p.Field.Label,Label(old[p.Field.Key]),Label(p.Field),p.Field.Key)).ToArray();
     }
     private static string Label(EditorField f)=>f.Choices?.FirstOrDefault(c=>c.Id==f.Value)?.Display??f.Value.ToString(CultureInfo.InvariantCulture);
 }
