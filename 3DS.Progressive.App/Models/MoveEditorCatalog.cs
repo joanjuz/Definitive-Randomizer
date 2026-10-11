@@ -8,6 +8,7 @@ namespace ThreeDS.Progressive.Models;
 public sealed record MoveChoice(int Id, string Name)
 {
     public string Display => $"{Id:000} · {Name}";
+    public override string ToString() => Name;
 }
 
 public static class MoveEditorCatalog

@@ -1,4 +1,6 @@
 using System.Globalization;
+using System.Security.Cryptography;
+using System.IO;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
@@ -30,7 +32,13 @@ public partial class BatchToolsView : UserControl
     private bool _hms;
     private bool _special;
     private bool _banActive;
-    private sealed record ActionChoice(BatchAction Id, string Name);
+    private BatchAction _action;
+    private int _lastSeed;
+    private string? _templatePath;
+    private readonly Dictionary<BatchAction, (Dictionary<string, bool> Checks, Dictionary<string, string> Numbers)> _options = [];
+    public event Action? BackRequested;
+    internal BatchAction ActiveAction => _action;
+    internal int LastSeed => _lastSeed;
 
     public BatchToolsView() => InitializeComponent();
 
@@ -42,13 +50,37 @@ public partial class BatchToolsView : UserControl
         _moves = moves; _generation = generation; _hms = hms; _special = special; _banActive = banActive;
         _prepare = prepare; _scope = scope; _generate = generate; _apply = apply; _export = export;
         _configured = true;
-        ActionBox.ItemsSource = moves
-            ? new[] { new ActionChoice(BatchAction.MoveRandomize, "Randomizar tipos y categorías"), new ActionChoice(BatchAction.Metronome, "Modo Metrónomo") }
-            : new[] { new ActionChoice(BatchAction.PersonalRandomize, "Randomizar Pokémon"), new ActionChoice(BatchAction.PersonalModify, "Modificar Pokémon"),
-                new ActionChoice(BatchAction.BanTrappingAbilities, "Excluir Shadow Tag y Arena Trap") };
-        ActionBox.SelectedIndex = 0;
+        _options.Clear();
+        _checks.Clear(); _numbers.Clear();
+        _templatePath = null;
+        TemplateName.Text = _moves ? "Balance Progressive incluido" : "Estadísticas Progressive incluidas";
+        OpenAction(moves ? BatchAction.MoveRandomize : BatchAction.PersonalRandomize);
+    }
+
+    public void OpenAction(BatchAction action)
+    {
+        bool valid = _moves ? action is BatchAction.MoveRandomize or BatchAction.Metronome or BatchAction.MoveBalance
+            : action is BatchAction.PersonalRandomize or BatchAction.PersonalModify;
+        if (!valid) throw new ArgumentException("Esta acción no pertenece al editor actual.");
+        RememberOptions();
+        _action = action;
+        ActionTitle.Text = action switch
+        {
+            BatchAction.PersonalRandomize => "Randomizar Pokémon", BatchAction.PersonalModify => "Modificar Pokémon",
+            BatchAction.MoveRandomize => "Randomizar movimientos", BatchAction.Metronome => "Modo Metrónomo",
+            _ => "Balance y templates",
+        };
         BuildOptions();
         InvalidatePreview();
+        OptionsScroll.ScrollToTop();
+        ValidationText.Text = "";
+    }
+
+    private void RememberOptions()
+    {
+        if (_checks.Count + _numbers.Count == 0) return;
+        _options[_action] = (_checks.ToDictionary(p => p.Key, p => p.Value.IsChecked == true),
+            _numbers.ToDictionary(p => p.Key, p => p.Value.Box.Text));
     }
 
     public void InvalidatePreview()
@@ -68,40 +100,44 @@ public partial class BatchToolsView : UserControl
         try
         {
             OptionsPanel.Children.Clear(); _checks.Clear(); _numbers.Clear();
-            if (ActionBox.SelectedItem is not ActionChoice choice) return;
-            SeedBox.IsEnabled = choice.Id is BatchAction.PersonalRandomize or BatchAction.MoveRandomize;
-            switch (choice.Id)
+            SeedPanel.Visibility = IsRandom ? Visibility.Visible : Visibility.Collapsed;
+            TemplatePanel.Visibility = _action == BatchAction.MoveBalance || (_action == BatchAction.PersonalModify && _generation == 7) ? Visibility.Visible : Visibility.Collapsed;
+            TemplateCaption.Text = _moves ? "Template de movimientos" : "Template de estadísticas";
+            switch (_action)
             {
                 case BatchAction.MoveRandomize:
-                    Check("MoveTypes", "Tipos de movimientos");
-                    Check("MoveCategories", "Categoría física/especial (conservar movimientos de estado)");
+                    Check("MoveTypes", "Tipos de movimientos", true);
+                    Check("MoveCategories", "Categoría física/especial (conservar movimientos de estado)", true);
                     ActionHelp.Text = "Forcejeo (165) y Maldición (174) quedan protegidos, como en el editor original.";
                     break;
                 case BatchAction.Metronome:
                     ActionHelp.Text = "En el alcance elegido: Metrónomo (118) tendrá 40 PP; Placaje (33), 1 PP; los demás, 0 PP. Solo modifica PP.";
                     break;
-                case BatchAction.BanTrappingAbilities:
-                    ActionHelp.Text = "Reemplaza Shadow Tag (23) y Arena Trap (71) por otra habilidad existente o una alternativa determinista. La exclusión seguirá activa en las próximas acciones masivas de esta sesión.";
+                case BatchAction.MoveBalance:
+                    Check("BattlePatches", "Aplicar mecánicas de combate del template", true);
+                    Check("MoveDescriptions", "Actualizar descripciones en español", true);
+                    ActionHelp.Text = "Usa los templates de pk3DS Progressive. Revisá los movimientos y archivos de combate antes de aplicar.";
                     break;
                 case BatchAction.PersonalRandomize:
                     Check("Stats", "Variar estadísticas base"); Number("Deviation", "Variación de estadísticas (%)", 25, 0, 100);
                     var stats = new WrapPanel(); OptionsPanel.Children.Add(stats);
                     foreach (var slot in new[] { ("HP", "PS"), ("ATK", "Ataque"), ("DEF", "Defensa"), ("SPE", "Velocidad"), ("SPA", "At. esp."), ("SPD", "Def. esp.") })
-                        Check(slot.Item1, slot.Item2, true, stats);
+                        Check(slot.Item1, slot.Item2, false, stats);
                     Check("Shuffle", "Barajar estadísticas (preservar BST)");
                     Check("Types", "Randomizar tipos"); Number("SingleTypeChance", "Probabilidad de un solo tipo (%)", 50, 0, 100);
-                    Check("Abilities", "Randomizar habilidades"); Check("WonderGuard", "Permitir Wonder Guard");
-                    Check("BanTraps", "Excluir Shadow Tag y Arena Trap", _banActive);
+                    Check("Abilities", "Randomizar habilidades", true); Check("WonderGuard", "Permitir Wonder Guard");
+                    Check("BanTraps", "Excluir Shadow Tag y Arena Trap", true);
                     if (_banActive) _checks["BanTraps"].IsEnabled = false;
-                    Check("Items", "Randomizar objetos equipados"); Check("Catch", "Randomizar ratio de captura");
+                    Check("Items", "Randomizar objetos equipados", true); Check("Catch", "Randomizar ratio de captura");
                     Check("Eggs", "Randomizar grupos huevo"); Number("SameEggChance", "Probabilidad de repetir grupo huevo (%)", 50, 0, 100);
-                    Check("Tms", "Randomizar compatibilidad MT");
-                    if (_hms) Check("Hms", "Randomizar compatibilidad MO");
-                    Check("TypeTutors", "Randomizar tutores por tipo");
-                    if (_special) Check("SpecialTutors", _generation == 7 ? "Randomizar tutores de playa" : "Randomizar tutores ORAS");
+                    Check("Tms", "Randomizar compatibilidad MT", true);
+                    if (_hms) Check("Hms", "Randomizar compatibilidad MO", true);
+                    Check("TypeTutors", "Randomizar tutores por tipo", true);
+                    if (_special) Check("SpecialTutors", _generation == 7 ? "Randomizar tutores de playa" : "Randomizar tutores ORAS", true);
                     ActionHelp.Text = "Usa el motor de pk3DS. La variación y el barajado protegen a los Pokémon con 1 PS. Los parámetros y la semilla se aplican a los registros guardados.";
                     break;
                 case BatchAction.PersonalModify:
+                    if (_generation == 7) Check("PersonalTemplate", "Aplicar estadísticas desde un template Progressive");
                     Check("RemoveEvs", "Quitar EV otorgados"); Check("SlowGrowth", "Curva de experiencia lenta");
                     Check("ScaleExperience", "Escalar experiencia base"); Number("ExperiencePercent", "Experiencia base (%)", 100, 0, 10000);
                     Check("ClearCompatibility", "Quitar MT y tutores (conservar MO de Gen 6)");
@@ -115,6 +151,15 @@ public partial class BatchToolsView : UserControl
                     ActionHelp.Text = "Solo modifica las opciones marcadas y conserva los bits reservados. Quitar compatibilidades y hacerlas completas son opciones incompatibles.";
                     break;
             }
+            if (_options.TryGetValue(_action, out var remembered))
+            {
+                foreach (var pair in remembered.Checks)
+                    if (_checks.TryGetValue(pair.Key, out var check)) check.IsChecked = pair.Value;
+                foreach (var pair in remembered.Numbers)
+                    if (_numbers.TryGetValue(pair.Key, out var number)) number.Box.Text = pair.Value;
+            }
+            if (_banActive && _checks.TryGetValue("BanTraps", out var ban)) { ban.IsChecked = true; ban.IsEnabled = false; }
+            UpdateDependencies();
         }
         finally { _building = false; }
     }
@@ -145,10 +190,7 @@ public partial class BatchToolsView : UserControl
     private BatchSettings ReadSettings()
     {
         var errors = new List<string>();
-        bool random = SeedBox.IsEnabled;
-        SeedBox.ClearValue(System.Windows.Controls.Control.BorderBrushProperty);
-        if (!int.TryParse(SeedBox.Text, out int seed) && random)
-        { SeedBox.BorderBrush = ErrorBrush(); errors.Add("Semilla: usá un entero entre -2147483648 y 2147483647."); }
+
         foreach (var pair in _numbers)
         {
             var n = pair.Value;
@@ -166,12 +208,14 @@ public partial class BatchToolsView : UserControl
         }
         if (Checked("ClearCompatibility") && new[] { "FullTms", "FullHms", "FullTypeTutors", "FullSpecialTutors" }.Any(Checked))
             errors.Add("No combines quitar compatibilidad con compatibilidad completa.");
+        if (Checked("Stats") && !new[] { "HP", "ATK", "DEF", "SPE", "SPA", "SPD" }.Any(Checked))
+            errors.Add("Variación de estadísticas: elegí al menos una estadística.");
         if (errors.Count > 0) throw new ArgumentException(string.Join("\n", errors));
         // Disabled numeric options never parse an irrelevant invalid field.
         decimal Active(string check, string number, decimal fallback) => Checked(check) ? Value(number) : fallback;
         return new BatchSettings
         {
-            Seed = random ? seed : 0, Stats = Checked("Stats"), Shuffle = Checked("Shuffle"),
+            Seed = IsRandom ? _lastSeed : 0, Stats = Checked("Stats"), Shuffle = Checked("Shuffle"),
             StatSlots = new[] { "HP", "ATK", "DEF", "SPE", "SPA", "SPD" }.Select(Checked).ToArray(),
             Deviation = Active("Stats", "Deviation", 25), Types = Checked("Types"), SingleTypeChance = Active("Types", "SingleTypeChance", 50),
             Abilities = Checked("Abilities"), WonderGuard = Checked("WonderGuard"), BanTraps = Checked("BanTraps"),
@@ -183,30 +227,82 @@ public partial class BatchToolsView : UserControl
             QuickHatch = Checked("QuickHatch"), SetCatch = Checked("SetCatch"), CatchValue = (int)Active("SetCatch", "CatchValue", 255),
             SetCall = Checked("SetCall"), CallValue = (int)Active("SetCall", "CallValue", 15),
             MoveTypes = Checked("MoveTypes"), MoveCategories = Checked("MoveCategories"),
+            PersonalTemplate = Checked("PersonalTemplate"),
+            TemplatePath = _templatePath, BattlePatches = Checked("BattlePatches"), MoveDescriptions = Checked("MoveDescriptions") && Checked("BattlePatches"),
         };
     }
 
     private static Brush ErrorBrush() => new SolidColorBrush(Color.FromRgb(255, 98, 109));
-    private void Input_Changed(object sender, RoutedEventArgs e) { if (!_building) InvalidatePreview(); }
-    private void Action_Changed(object sender, SelectionChangedEventArgs e)
-    { if (_configured) { BuildOptions(); InvalidatePreview(); ValidationText.Text = ""; } }
+    private bool IsRandom => _action is BatchAction.PersonalRandomize or BatchAction.MoveRandomize;
+
+    private void UpdateDependencies()
+    {
+        foreach (var pair in _numbers)
+            pair.Value.Box.IsEnabled = pair.Key switch
+            {
+                "Deviation" => Checked("Stats"), "SingleTypeChance" => Checked("Types"),
+                "SameEggChance" => Checked("Eggs"), "ExperiencePercent" => Checked("ScaleExperience"),
+                "CatchValue" => Checked("SetCatch"), "CallValue" => Checked("SetCall"), _ => true,
+            };
+        foreach (string slot in new[] { "HP", "ATK", "DEF", "SPE", "SPA", "SPD" })
+            if (_checks.TryGetValue(slot, out var check)) check.IsEnabled = Checked("Stats");
+        if (_checks.TryGetValue("WonderGuard", out var guard)) guard.IsEnabled = Checked("Abilities");
+        TemplatePanel.IsEnabled = _moves || Checked("PersonalTemplate");
+        if (_checks.TryGetValue("MoveDescriptions", out var descriptions)) descriptions.IsEnabled = Checked("BattlePatches");
+    }
+
+    private void Input_Changed(object sender, RoutedEventArgs e)
+    {
+        if (_building) return;
+        UpdateDependencies();
+        InvalidatePreview();
+        ValidationText.Text = "";
+    }
+
+    private void Back_Click(object sender, RoutedEventArgs e) { RememberOptions(); InvalidatePreview(); BackRequested?.Invoke(); }
+    private void Defaults_Click(object sender, RoutedEventArgs e)
+    {
+        _options.Remove(_action); BuildOptions(); InvalidatePreview(); ValidationText.Text = "";
+    }
+    private void LoadTemplate_Click(object sender, RoutedEventArgs e)
+    {
+        var picker = new Microsoft.Win32.OpenFileDialog { Filter = "Templates CSV (*.csv)|*.csv", Title = _moves ? "Template de movimientos" : "Template de estadísticas de Pokémon" };
+        if (picker.ShowDialog(Window.GetWindow(this)) != true) return;
+        _templatePath = picker.FileName;
+        TemplateName.Text = Path.GetFileName(_templatePath);
+        TemplateName.ToolTip = _templatePath;
+        InvalidatePreview(); ValidationText.Text = "";
+    }
+    private void DefaultTemplate_Click(object sender, RoutedEventArgs e)
+    {
+        _templatePath = null; TemplateName.Text = _moves ? "Balance Progressive incluido" : "Estadísticas Progressive incluidas"; TemplateName.ToolTip = null;
+        InvalidatePreview(); ValidationText.Text = "";
+    }
 
     private void Preview_Click(object sender, RoutedEventArgs e)
     {
-        if (!_configured || ActionBox.SelectedItem is not ActionChoice choice) return;
+        if (!_configured) return;
         InvalidatePreview(); ValidationText.Text = "";
         try
         {
-            BatchSettings settings = ReadSettings();
+            ReadSettings();
             if (_prepare?.Invoke() != true) return;
-            _preview = _generate!(choice.Id, settings, _scope!(ScopeBox.SelectedIndex));
+            if (IsRandom)
+            {
+                int next;
+                do { next = RandomNumberGenerator.GetInt32(int.MaxValue); } while (next == _lastSeed);
+                _lastSeed = next;
+                SeedText.Text = next.ToString(CultureInfo.InvariantCulture);
+            }
+            BatchSettings settings = ReadSettings();
+            _preview = _generate!(_action, settings, _scope!(ScopeBox.SelectedIndex));
             ChangesList.ItemsSource = _preview.Changes;
             ChangesList.Visibility = _preview.Changes.Count == 0 ? Visibility.Collapsed : Visibility.Visible;
-            SummaryText.Text = $"{_preview.Action} · {_preview.ScopeCount} entradas revisadas · {_preview.ChangedCount} modificadas · {_preview.Changes.Count} campos."
-                + (SeedBox.IsEnabled ? $" Semilla: {_preview.Seed}." : "")
+            SummaryText.Text = $"{_preview.Action} · {_preview.ScopeCount} entradas revisadas · {_preview.ChangedCount} modificadas · {_preview.Changes.Count} campos · {_preview.AdditionalFileCount} archivos adicionales."
+                + (IsRandom ? $" Semilla: {_preview.Seed}." : "")
                 + (_preview.ChangedCount == 0 ? " No hay cambios para aplicar." : " Revisá la lista antes de aplicar.");
             CopyChangesButton.IsEnabled = _preview.Changes.Count > 0;
-            ApplyButton.IsEnabled = _preview.ChangedCount > 0 || choice.Id == BatchAction.BanTrappingAbilities;
+            ApplyButton.IsEnabled = _preview.Changes.Count > 0;
         }
         catch (Exception ex) { ValidationText.Text = ex.Message; }
     }
@@ -223,17 +319,17 @@ public partial class BatchToolsView : UserControl
             return;
         }
         if (!StudioDialog.Confirm(Window.GetWindow(this), "Aplicar al proyecto", proposal.Action,
-            $"Se guardarán {proposal.ChangedCount} entradas de {proposal.ScopeCount} revisadas. El GARC se volverá a leer y verificar.")) return;
+            $"Se guardarán {proposal.ChangedCount} entradas de {proposal.ScopeCount} revisadas y {proposal.AdditionalFileCount} archivos adicionales. Se volverán a leer y verificar los archivos propuestos.")) return;
         try
         {
             _apply(proposal);
-            if (ActionBox.SelectedItem is ActionChoice a && (a.Id == BatchAction.BanTrappingAbilities || Checked("BanTraps")))
+            if (Checked("BanTraps"))
             {
                 _banActive = true;
                 if (_checks.TryGetValue("BanTraps", out var ban)) { ban.IsChecked = true; ban.IsEnabled = false; }
             }
             InvalidatePreview();
-            SummaryText.Text = $"Aplicación completada: {proposal.ChangedCount} entradas guardadas; GARC verificado.";
+            SummaryText.Text = $"Aplicación completada: {proposal.ChangedCount} entradas guardadas; archivos verificados.";
         }
         catch (Exception ex)
         {

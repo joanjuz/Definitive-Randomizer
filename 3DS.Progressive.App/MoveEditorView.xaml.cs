@@ -3,6 +3,7 @@ using System.ComponentModel;
 using System.Globalization;
 using System.Windows;
 using System.Windows.Controls;
+using Button = System.Windows.Controls.Button;
 using System.Windows.Data;
 using System.Windows.Media;
 using ThreeDS.Progressive.Models;
@@ -29,6 +30,7 @@ public partial class MoveEditorView : System.Windows.Controls.UserControl
         InitializeComponent();
         _moves = new GameMoveService(project);
         MoveToolsHost.Content = _tools;
+        _tools.BackRequested += () => { MoveToolsPanel.Visibility = Visibility.Collapsed; MoveFieldsPanel.Visibility = Visibility.Visible; };
         _tools.Configure(true, project.Generation, false, false, false,
             () =>
             {
@@ -65,6 +67,17 @@ public partial class MoveEditorView : System.Windows.Controls.UserControl
         CountText.Text = _moves.Entries.Count + " movimientos";
         MoveList.SelectedIndex = 0;
         StatusLabel.Text = "Editor de movimientos listo. Guardar requiere confirmación.";
+    }
+
+    private void MoveAction_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not Button { Tag: string action }) return;
+        bool pending = HasChanges();
+        if (!ConfirmDiscard()) return;
+        if (pending && _selected is not null) ShowMove(_selected);
+        _tools.OpenAction(Enum.Parse<BatchAction>(action));
+        MoveFieldsPanel.Visibility = Visibility.Collapsed;
+        MoveToolsPanel.Visibility = Visibility.Visible;
     }
 
     private void SearchInput_TextChanged(object sender, TextChangedEventArgs e)

@@ -1,4 +1,5 @@
 using System.IO;
+using System.Security.Cryptography;
 using pk3DS.Core.CTR;
 using pk3DS.Core.Structures;
 using ThreeDS.Progressive.Models;
@@ -11,6 +12,7 @@ public sealed partial class GameMoveService
 
     public BatchPreview PreviewMoves(BatchAction action, BatchSettings settings, IReadOnlyList<int> scope)
     {
+        if (action == BatchAction.MoveBalance) return PreviewMoveTemplate(settings, scope);
         if (action is not (BatchAction.MoveRandomize or BatchAction.Metronome))
             throw new ArgumentException("Acción de movimientos no reconocida.");
         int[] ids = scope.Distinct().Order().ToArray();
@@ -39,8 +41,15 @@ public sealed partial class GameMoveService
     {
         if (preview.Owner != _batchOwner || !preview.Fingerprint.AsSpan().SequenceEqual(_sha))
             throw new InvalidOperationException("La vista previa pertenece a otra sesión o quedó desactualizada.");
-        _sha = GarcTransaction.Commit(_path, _config.GetGARCReference("move"), preview.Fingerprint,
-            preview.CopyRecords(), !_config.XY);
+        foreach (var dependency in preview.Dependencies)
+            GarcTransaction.ReadUnchanged(dependency.Path, dependency.Fingerprint);
+        byte[] source = GarcTransaction.ReadUnchanged(_path, preview.Fingerprint);
+        byte[] output = GarcTransaction.Build(source, _config.GetGARCReference("move"), preview.CopyRecords(), !_config.XY);
+        var files = new[] { new FileChange(_path, source, output) }.Concat(preview.AdditionalFiles).ToArray();
+        FileTransaction.Commit(files);
+        _sha = SHA256.HashData(output);
         _config.InitializeMoves();
+        if (_config.Language == 6 && preview.AdditionalFiles.Any(f => f.Path == Path.Combine(_config.RomFS, _config.GetGARCFileName("gametext"))))
+            _config.InitializeGameText();
     }
 }

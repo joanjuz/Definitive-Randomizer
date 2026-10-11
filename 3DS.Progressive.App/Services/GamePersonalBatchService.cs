@@ -1,4 +1,5 @@
 using System.IO;
+using System.Security.Cryptography;
 using pk3DS.Core;
 using pk3DS.Core.CTR;
 using pk3DS.Core.Randomizers;
@@ -36,6 +37,21 @@ public sealed partial class GameProjectSession
         if (!SupportsHms && (s.Hms || s.FullHms) || !SupportsSpecialTutors && (s.SpecialTutors || s.FullSpecialTutors) ||
             Generation != 7 && s.SetCall)
             throw new ArgumentException("Las opciones seleccionadas no corresponden a este juego.");
+        var dependencies = new List<(string Path, byte[] Fingerprint)>();
+        var statRows = Array.Empty<PokemonStatTemplates.PokemonStatPatchRow>();
+        if (s.PersonalTemplate)
+        {
+            if (action != BatchAction.PersonalModify || Generation != 7)
+                throw new ArgumentException("El template de estadísticas corresponde a Modificar Pokémon de Gen 7.");
+            string path = Path.GetFullPath(s.TemplatePath ?? Path.Combine(AppContext.BaseDirectory, "custom_balance_templates", "pokemon_stats_gen7.csv"));
+            dependencies.Add((path, SHA256.HashData(File.ReadAllBytes(path))));
+            string[] names = Enumerable.Range(0, EntryCount).Select(id => Entries.FirstOrDefault(e => e.Index == id)?.Name ?? "—").ToArray();
+            statRows = PokemonStatTemplates.Load(path, names);
+            if (statRows.Length == 0 || !statRows.Any(r => ids.Contains(r.Entry)))
+                throw new InvalidDataException("No hay entradas del template en el alcance elegido.");
+            // Validate all rows before building any per-entry changes.
+            foreach (var row in statRows) PokemonStatTemplates.Apply(row, new PersonalTable((byte[])files[row.Entry].Clone(), _config.Version).Table[0]);
+        }
         lock (RandomGate)
         {
             // Core captures Util.Rand in its constructor, so reseed BEFORE constructing it.
@@ -60,6 +76,7 @@ public sealed partial class GameProjectSession
                 if (action == BatchAction.PersonalRandomize) randomizer.Randomize(after, id);
                 if (action == BatchAction.PersonalModify)
                     BatchAlgorithms.ModifyPersonal(after, s, Generation, _config.XY ? 5 : 7, specialCounts);
+                foreach (var row in statRows.Where(r => r.Entry == id)) PokemonStatTemplates.Apply(row, after);
                 if (action == BatchAction.BanTrappingAbilities || s.BanTraps || TrappingAbilitiesBanned)
                     BatchAlgorithms.BanTraps(after, id, _config.Info.MaxAbilityID);
                 files[id] = (byte[])after.Write().Clone();
@@ -71,13 +88,14 @@ public sealed partial class GameProjectSession
         return new BatchPreview(_batchOwner, _diskFingerprint, files,
             action == BatchAction.PersonalRandomize ? "Randomizar Pokémon" :
             action == BatchAction.PersonalModify ? "Modificar Pokémon" : "Excluir Shadow Tag y Arena Trap",
-            s.Seed, ids.Length, changes, s.BanTraps || action == BatchAction.BanTrappingAbilities);
+            s.Seed, ids.Length, changes, s.BanTraps || action == BatchAction.BanTrappingAbilities, dependencies: dependencies);
     }
 
     public void ApplyPersonalPreview(BatchPreview preview)
     {
         if (preview.Owner != _batchOwner || !preview.Fingerprint.AsSpan().SequenceEqual(_diskFingerprint))
             throw new InvalidOperationException("La vista previa pertenece a otra sesión o quedó desactualizada.");
+        foreach (var dependency in preview.Dependencies) GarcTransaction.ReadUnchanged(dependency.Path, dependency.Fingerprint);
         _diskFingerprint = GarcTransaction.Commit(_personalPath, _config.GetGARCReference("personal"),
             preview.Fingerprint, preview.CopyRecords());
         _config.InitializePersonal();

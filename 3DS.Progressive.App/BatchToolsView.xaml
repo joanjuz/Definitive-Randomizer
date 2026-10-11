@@ -3,20 +3,27 @@
  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
  Foreground="{StaticResource TextMain}">
  <UserControl.Resources>
-  <Style TargetType="CheckBox">
+  <Style TargetType="CheckBox" BasedOn="{StaticResource {x:Type CheckBox}}">
    <Setter Property="Foreground" Value="{StaticResource TextMain}"/>
    <Setter Property="Margin" Value="0,7,0,7"/>
    <Setter Property="VerticalContentAlignment" Value="Center"/>
   </Style>
  </UserControl.Resources>
- <Expander Header="Herramientas masivas" Foreground="{StaticResource TextMain}" Margin="0,0,0,16">
-  <Border Background="{StaticResource Panel}" BorderBrush="{StaticResource Stroke}" BorderThickness="1" CornerRadius="10" Padding="16" Margin="0,10,0,0">
+ <Grid Margin="25,23">
+  <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+  <DockPanel Margin="0,0,0,18">
+   <Button Content="← Volver al editor" DockPanel.Dock="Right" Click="Back_Click" Margin="12,0,0,0"/>
+   <StackPanel>
+    <TextBlock x:Name="ActionTitle" FontSize="23" FontWeight="SemiBold" TextWrapping="Wrap"/>
+    <TextBlock Text="Herramientas del inspector" Foreground="{StaticResource TextSoft}" Margin="0,5,0,0"/>
+   </StackPanel>
+  </DockPanel>
+  <ScrollViewer x:Name="OptionsScroll" Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Background="Transparent">
+  <Border Background="{StaticResource Panel}" BorderBrush="{StaticResource Stroke}" BorderThickness="1" CornerRadius="10" Padding="16" Margin="0,0,0,0">
    <StackPanel>
     <TextBlock Text="Configurá, revisá y aplicá" FontSize="17" FontWeight="SemiBold"/>
     <TextBlock Text="La vista previa muestra los valores antes y después. Aplicar requiere confirmación."
       Foreground="{StaticResource TextSoft}" TextWrapping="Wrap" Margin="0,6,0,14"/>
-    <TextBlock Text="Acción" Foreground="{StaticResource TextSoft}" Margin="0,0,0,5"/>
-    <ComboBox x:Name="ActionBox" DisplayMemberPath="Name" SelectionChanged="Action_Changed"/>
     <UniformGrid Columns="2" Margin="0,12,0,12">
      <StackPanel Margin="0,0,10,0">
       <TextBlock Text="Alcance" Foreground="{StaticResource TextSoft}" Margin="0,0,0,5"/>
@@ -26,24 +33,24 @@
        <ComboBoxItem Content="Entrada seleccionada"/>
       </ComboBox>
      </StackPanel>
-     <StackPanel>
-      <TextBlock Text="Semilla (entero)" Foreground="{StaticResource TextSoft}" Margin="0,0,0,5"/>
-      <TextBox x:Name="SeedBox" Text="12345" TextChanged="Input_Changed"/>
+     <StackPanel x:Name="SeedPanel">
+      <TextBlock Text="Semilla aleatoria" Foreground="{StaticResource TextSoft}" Margin="0,0,0,5"/>
+      <Border Background="{StaticResource Surface}" BorderBrush="{StaticResource Stroke}" BorderThickness="1" CornerRadius="7" Padding="12,10">
+       <TextBlock x:Name="SeedText" Text="Nueva en cada vista previa" Foreground="{StaticResource TextSoft}" TextWrapping="Wrap"/>
+      </Border>
      </StackPanel>
     </UniformGrid>
     <TextBlock x:Name="ActionHelp" Foreground="{StaticResource TextSoft}" TextWrapping="Wrap" Margin="0,0,0,8"/>
+    <StackPanel x:Name="TemplatePanel" Visibility="Collapsed" Margin="0,0,0,12">
+     <TextBlock x:Name="TemplateCaption" Text="Template de movimientos" Foreground="{StaticResource TextSoft}" Margin="0,0,0,7"/>
+     <TextBlock x:Name="TemplateName" Text="Balance Progressive incluido" TextWrapping="Wrap" Margin="0,0,0,9"/>
+     <WrapPanel>
+      <Button Content="Cargar CSV…" Click="LoadTemplate_Click" Margin="0,0,8,8"/>
+      <Button Content="Usar Progressive" Click="DefaultTemplate_Click" Margin="0,0,0,8"/>
+     </WrapPanel>
+    </StackPanel>
     <StackPanel x:Name="OptionsPanel"/>
     <TextBlock x:Name="ValidationText" Foreground="#FF626D" TextWrapping="Wrap" Margin="0,8,0,8"/>
-    <WrapPanel>
-     <Button x:Name="PreviewButton" Content="Generar vista previa" Click="Preview_Click" Margin="0,0,8,8"/>
-     <Button x:Name="ApplyButton" Content="Aplicar cambios" Click="Apply_Click" IsEnabled="False"
-      Style="{StaticResource PrimaryButton}" Margin="0,0,8,8"/>
-     <Button Content="Descartar vista previa" Click="Clear_Click" Margin="0,0,0,8"/>
-    </WrapPanel>
-    <WrapPanel Margin="0,5,0,5">
-     <Button Content="Copiar tabla guardada" Click="CopyTable_Click" Margin="0,0,8,8"/>
-     <Button x:Name="CopyChangesButton" Content="Copiar cambios" Click="CopyChanges_Click" IsEnabled="False" Margin="0,0,0,8"/>
-    </WrapPanel>
     <TextBlock x:Name="SummaryText" Foreground="{StaticResource TextSoft}" TextWrapping="Wrap" Margin="0,6,0,10"/>
     <ListBox x:Name="ChangesList" MaxHeight="340" Visibility="Collapsed"
       ScrollViewer.HorizontalScrollBarVisibility="Disabled" VirtualizingPanel.IsVirtualizing="True"
@@ -63,5 +70,21 @@
     </ListBox>
    </StackPanel>
   </Border>
- </Expander>
+  </ScrollViewer>
+  <Border Grid.Row="2" Background="{StaticResource Panel}" BorderBrush="{StaticResource Stroke}" BorderThickness="1" CornerRadius="10" Padding="14,14,14,6" Margin="0,12,0,0">
+   <StackPanel>
+    <WrapPanel>
+     <Button x:Name="PreviewButton" Content="Generar vista previa" Click="Preview_Click" Margin="0,0,8,8"/>
+     <Button x:Name="ApplyButton" Content="Aplicar cambios" Click="Apply_Click" IsEnabled="False"
+      Style="{StaticResource PrimaryButton}" Margin="0,0,8,8"/>
+     <Button Content="Descartar vista previa" Click="Clear_Click" Margin="0,0,8,8"/>
+     <Button Content="Valores iniciales" Click="Defaults_Click" Margin="0,0,0,8"/>
+    </WrapPanel>
+    <WrapPanel Margin="0,5,0,5">
+     <Button Content="Copiar tabla guardada" Click="CopyTable_Click" Margin="0,0,8,8"/>
+     <Button x:Name="CopyChangesButton" Content="Copiar cambios" Click="CopyChanges_Click" IsEnabled="False" Margin="0,0,0,8"/>
+    </WrapPanel>
+   </StackPanel>
+  </Border>
+ </Grid>
 </UserControl>

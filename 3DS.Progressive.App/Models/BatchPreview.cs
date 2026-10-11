@@ -1,3 +1,5 @@
+using ThreeDS.Progressive.Services;
+
 namespace ThreeDS.Progressive.Models;
 
 public sealed record BatchChange(int Id, string Name, string Field, string Before, string After);
@@ -12,12 +14,16 @@ public sealed class BatchPreview
     public string Action { get; }
     public int Seed { get; }
     internal bool BanTraps { get; }
+    internal IReadOnlyList<FileChange> AdditionalFiles { get; }
+    internal IReadOnlyList<(string Path, byte[] Fingerprint)> Dependencies { get; }
+    public int AdditionalFileCount => AdditionalFiles.Count;
     public int ScopeCount { get; }
     public int ChangedCount { get; }
     public IReadOnlyList<BatchChange> Changes { get; }
 
     internal BatchPreview(Guid owner, byte[] fingerprint, byte[][] records,
-        string action, int seed, int scopeCount, IEnumerable<BatchChange> changes, bool banTraps = false)
+        string action, int seed, int scopeCount, IEnumerable<BatchChange> changes, bool banTraps = false,
+        IEnumerable<FileChange>? additionalFiles = null, IEnumerable<(string Path, byte[] Fingerprint)>? dependencies = null)
     {
         Owner = owner;
         Fingerprint = (byte[])fingerprint.Clone();
@@ -25,13 +31,15 @@ public sealed class BatchPreview
         Action = action;
         Seed = seed;
         BanTraps = banTraps;
+        AdditionalFiles = Array.AsReadOnly((additionalFiles ?? []).ToArray());
+        Dependencies = Array.AsReadOnly((dependencies ?? []).Select(d => (d.Path, (byte[])d.Fingerprint.Clone())).ToArray());
         ScopeCount = scopeCount;
         Changes = Array.AsReadOnly(changes.ToArray());
-        ChangedCount = Changes.Select(c => c.Id).Distinct().Count();
+        ChangedCount = Changes.Where(c => c.Id > 0).Select(c => c.Id).Distinct().Count();
     }
 }
 
-public enum BatchAction { PersonalRandomize, PersonalModify, BanTrappingAbilities, MoveRandomize, Metronome }
+public enum BatchAction { PersonalRandomize, PersonalModify, BanTrappingAbilities, MoveRandomize, Metronome, MoveBalance }
 
 public sealed record BatchSettings
 {
@@ -54,6 +62,7 @@ public sealed record BatchSettings
     public bool Hms { get; init; }
     public bool TypeTutors { get; init; }
     public bool SpecialTutors { get; init; }
+    public bool PersonalTemplate { get; init; }
     public bool RemoveEvs { get; init; }
     public bool SlowGrowth { get; init; }
     public bool ScaleExperience { get; init; }
@@ -70,4 +79,7 @@ public sealed record BatchSettings
     public int CallValue { get; init; } = 15;
     public bool MoveTypes { get; init; }
     public bool MoveCategories { get; init; }
+    public string? TemplatePath { get; init; }
+    public bool BattlePatches { get; init; } = true;
+    public bool MoveDescriptions { get; init; } = true;
 }

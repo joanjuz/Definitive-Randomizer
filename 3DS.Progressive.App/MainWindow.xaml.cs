@@ -2,6 +2,7 @@ using System.ComponentModel;
 using System.Collections.ObjectModel;
 using System.Windows;
 using System.Windows.Controls;
+using Button = System.Windows.Controls.Button;
 using System.Windows.Data;
 using System.Windows.Media;
 using Color = System.Windows.Media.Color;
@@ -27,6 +28,7 @@ public partial class MainWindow : Window
     private MoveEditorView? _movesView;
     private bool _showingMoves;
     private IReadOnlyList<MoveChoice> _itemOptions = [];
+    private IReadOnlyList<MoveChoice> _moveOptions = [];
     private IReadOnlyList<MoveChoice> _eggOptions = [];
     private IReadOnlyList<MoveChoice> _growthOptions = [];
     private readonly ObservableCollection<FlagChoice> _tmChoices = [];
@@ -37,6 +39,7 @@ public partial class MainWindow : Window
     {
         InitializeComponent();
         PersonalToolsHost.Content = _personalTools;
+        _personalTools.BackRequested += ClosePersonalTools;
         TmFlagsList.ItemsSource = _tmChoices;
         TutorFlagsList.ItemsSource = _tutorChoices;
         SpecialTutorFlagsList.ItemsSource = _specialChoices;
@@ -67,6 +70,23 @@ public partial class MainWindow : Window
             }, project.ExportPersonalTable);
     }
 
+    private void PersonalAction_Click(object sender, RoutedEventArgs e)
+    {
+        if (_session is null || sender is not Button { Tag: string action }) return;
+        bool pending = HasUnsavedChanges();
+        if (!ConfirmDiscard()) return;
+        if (pending && _previous is not null) ShowEntry(_previous);
+        _personalTools.OpenAction(Enum.Parse<BatchAction>(action));
+        PokemonEditorPanel.Visibility = Visibility.Collapsed;
+        PersonalToolsPanel.Visibility = Visibility.Visible;
+    }
+
+    private void ClosePersonalTools()
+    {
+        PersonalToolsPanel.Visibility = Visibility.Collapsed;
+        PokemonEditorPanel.Visibility = Visibility.Visible;
+    }
+
     private void OpenProject_Click(object sender, RoutedEventArgs e)
     {
         if (!ConfirmDiscard() || (_showingMoves && _movesView is not null && !_movesView.ConfirmLeave()))
@@ -83,62 +103,70 @@ public partial class MainWindow : Window
         try
         {
             var candidate = GameProjectSession.Open(dialog.SelectedPath);
-            _session = candidate;
-            _movesView = null;
-            MovesHost.Content = null;
-            DisplayPokemon();
-            _previous = null;
-            _original = null;
-            _currentIndex = -1;
-            _spriteCancellation?.Cancel();
-            PokemonSprite.Source = null;
-            SpriteFallback.Visibility = Visibility.Visible;
-            SpriteStatusText.Text = "Sin sprite";
-            _suppressSelection = true;
-            SearchBox.Text = string.Empty;
-            TypeOne.ItemsSource = candidate.Types;
-            TypeTwo.ItemsSource = candidate.Types;
-            AbilityOne.ItemsSource = candidate.AbilityNames;
-            AbilityTwo.ItemsSource = candidate.AbilityNames;
-            AbilityHidden.ItemsSource = candidate.AbilityNames;
-            _itemOptions = candidate.ItemNames.Select((name, index) =>
-                new MoveChoice(index, string.IsNullOrWhiteSpace(name)
-                    ? (index == 0 ? "Sin objeto" : $"Objeto ID {index}") : name)).ToArray();
-            string[] eggs = ["—", "Monstruo", "Agua 1", "Bicho", "Volador", "Campo",
-                "Hada", "Planta", "Humanoide", "Agua 3", "Mineral", "Amorfo",
-                "Agua 2", "Ditto", "Dragón", "No descubierto"];
-            _eggOptions = eggs.Select((name, index) => new MoveChoice(index, name)).ToArray();
-            string[] growth = ["Medio rápido", "Errático", "Fluctuante",
-                "Medio lento", "Rápido", "Lento"];
-            _growthOptions = growth.Select((name, index) => new MoveChoice(index, name)).ToArray();
-            foreach (var control in new[] { HeldItemOne, HeldItemTwo, HeldItemThree })
-                control.ItemsSource = _itemOptions;
-            EggOneBox.ItemsSource = _eggOptions;
-            EggTwoBox.ItemsSource = _eggOptions;
-            GrowthBox.ItemsSource = _growthOptions;
-            ZItemBox.ItemsSource = candidate.ItemNames;
-            ZBaseMoveBox.ItemsSource = candidate.MoveNames;
-            ZSpecialMoveBox.ItemsSource = candidate.MoveNames;
-            Gen7PersonalCard.Visibility = candidate.SupportsGen7Personal
-                ? Visibility.Visible : Visibility.Collapsed;
-            PokemonList.ItemsSource = candidate.Entries;
-            _suppressSelection = false;
-
-            ProjectNameText.Text = System.IO.Path.GetFileName(candidate.ProjectRoot);
-            GameNameText.Text = "Juego: " + candidate.GameName + "  ·  Gen " + candidate.Generation;
-            InspectorGameText.Text = candidate.GameName;
-            EntryCountText.Text = candidate.Entries.Count + " entradas editables";
-            EditorContent.IsEnabled = true;
-            MovesButton.IsEnabled = true;
-            ConfigurePersonalTools(candidate);
-            PokemonList.SelectedIndex = 0;
-            StatusText.Text = "Proyecto abierto en modo lectura. Guardar requiere confirmación.";
+            LoadProject(candidate);
         }
         catch (Exception ex)
         {
             StudioDialog.Error(this, "No se pudo abrir el proyecto", ex.Message);
             StatusText.Text = "Error al abrir proyecto: " + ex.Message;
         }
+    }
+
+    internal void LoadProject(GameProjectSession candidate)
+    {
+        _session = candidate;
+        _movesView = null;
+        MovesHost.Content = null;
+        DisplayPokemon();
+        _previous = null;
+        _original = null;
+        _currentIndex = -1;
+        _spriteCancellation?.Cancel();
+        PokemonSprite.Source = null;
+        SpriteFallback.Visibility = Visibility.Visible;
+        SpriteStatusText.Text = "Sin sprite";
+        _suppressSelection = true;
+        SearchBox.Text = string.Empty;
+        TypeOne.ItemsSource = candidate.Types;
+        TypeTwo.ItemsSource = candidate.Types;
+        AbilityOne.ItemsSource = candidate.AbilityNames;
+        AbilityTwo.ItemsSource = candidate.AbilityNames;
+        AbilityHidden.ItemsSource = candidate.AbilityNames;
+        _itemOptions = candidate.ItemNames.Select((name, index) =>
+            new MoveChoice(index, string.IsNullOrWhiteSpace(name)
+                ? (index == 0 ? "Sin objeto" : $"Objeto ID {index}") : name)).ToArray();
+        string[] eggs = ["—", "Monstruo", "Agua 1", "Bicho", "Volador", "Campo",
+            "Hada", "Planta", "Humanoide", "Agua 3", "Mineral", "Amorfo",
+            "Agua 2", "Ditto", "Dragón", "No descubierto"];
+        _eggOptions = eggs.Select((name, index) => new MoveChoice(index, name)).ToArray();
+        string[] growth = ["Medio rápido", "Errático", "Fluctuante",
+            "Medio lento", "Rápido", "Lento"];
+        _growthOptions = growth.Select((name, index) => new MoveChoice(index, name)).ToArray();
+        foreach (var control in new[] { HeldItemOne, HeldItemTwo, HeldItemThree })
+            control.ItemsSource = _itemOptions;
+        EggOneBox.ItemsSource = _eggOptions;
+        EggTwoBox.ItemsSource = _eggOptions;
+        GrowthBox.ItemsSource = _growthOptions;
+        _moveOptions = candidate.MoveNames.Select((name, index) => new MoveChoice(index,
+            string.IsNullOrWhiteSpace(name) ? (index == 0 ? "Ninguno" : $"Movimiento ID {index}") : name)).ToArray();
+        ZItemBox.ItemsSource = _itemOptions;
+        ZBaseMoveBox.ItemsSource = _moveOptions;
+        ZSpecialMoveBox.ItemsSource = _moveOptions;
+        Gen7PersonalCard.Visibility = candidate.SupportsGen7Personal
+            ? Visibility.Visible : Visibility.Collapsed;
+        PokemonList.ItemsSource = candidate.Entries;
+        _suppressSelection = false;
+
+        ProjectNameText.Text = System.IO.Path.GetFileName(candidate.ProjectRoot);
+        GameNameText.Text = "Juego: " + candidate.GameName + "  ·  Gen " + candidate.Generation;
+        InspectorGameText.Text = candidate.GameName;
+        EntryCountText.Text = candidate.Entries.Count + " entradas editables";
+        EditorContent.IsEnabled = true;
+        PersonalActions.IsEnabled = true;
+        MovesButton.IsEnabled = true;
+        ConfigurePersonalTools(candidate);
+        PokemonList.SelectedIndex = 0;
+        StatusText.Text = "Proyecto abierto en modo lectura. Guardar requiere confirmación.";
     }
 
     private void SearchBox_TextChanged(object sender, TextChangedEventArgs e)
@@ -223,9 +251,9 @@ public partial class MainWindow : Window
             ColorBox.Text = p.Color.ToString();
             HeightBox.Text = p.Height.ToString();
             WeightBox.Text = p.Weight.ToString();
-            ZItemBox.SelectedIndex = p.ZItem;
-            ZBaseMoveBox.SelectedIndex = p.ZBaseMove;
-            ZSpecialMoveBox.SelectedIndex = p.ZSpecialMove;
+            AssignNamedValue(ZItemBox, _itemOptions, p.ZItem);
+            AssignNamedValue(ZBaseMoveBox, _moveOptions, p.ZBaseMove);
+            AssignNamedValue(ZSpecialMoveBox, _moveOptions, p.ZSpecialMove);
             RegionalVariantCheck.IsChecked = p.RegionalVariant;
             LoadCompatibilityLists(p);
             SaveButton.IsEnabled = true;
@@ -337,6 +365,7 @@ public partial class MainWindow : Window
     private bool TryDraft(out PersonalValues? draft)
     {
         draft = null;
+        int zItem = 0, zBase = 0, zSpecial = 0;
         if (_currentIndex < 0 || _session is null)
             return false;
         if (!byte.TryParse(HpBox.Text, out byte hp) ||
@@ -374,9 +403,9 @@ public partial class MainWindow : Window
             !ushort.TryParse(HeightBox.Text, out ushort height) ||
             !ushort.TryParse(WeightBox.Text, out ushort weight) ||
             (_session.SupportsGen7Personal &&
-                (ZItemBox.SelectedIndex < 0 ||
-                 ZBaseMoveBox.SelectedIndex < 0 ||
-                 ZSpecialMoveBox.SelectedIndex < 0)))
+                (!TryNamedValue(ZItemBox, 65535, out zItem) ||
+                 !TryNamedValue(ZBaseMoveBox, 65535, out zBase) ||
+                 !TryNamedValue(ZSpecialMoveBox, 65535, out zSpecial))))
             return false;
         draft = new PersonalValues(hp, atk, def, spa, spd, spe, catchRate,
             TypeOne.SelectedIndex, TypeTwo.SelectedIndex)
@@ -407,9 +436,9 @@ public partial class MainWindow : Window
             Color = color,
             Height = height,
             Weight = weight,
-            ZItem = _session.SupportsGen7Personal ? ZItemBox.SelectedIndex : 0,
-            ZBaseMove = _session.SupportsGen7Personal ? ZBaseMoveBox.SelectedIndex : 0,
-            ZSpecialMove = _session.SupportsGen7Personal ? ZSpecialMoveBox.SelectedIndex : 0,
+            ZItem = zItem,
+            ZBaseMove = zBase,
+            ZSpecialMove = zSpecial,
             RegionalVariant = _session.SupportsGen7Personal && RegionalVariantCheck.IsChecked == true,
             TmFlags = MergeFlags(_original!.TmFlags, _tmChoices),
             TutorFlags = MergeFlags(_original.TutorFlags, _tutorChoices),
@@ -429,8 +458,8 @@ public partial class MainWindow : Window
     {
         if (!HasUnsavedChanges())
             return true;
-        return StudioDialog.Confirm(this, "Cambios pendientes", 
-            "Hay cambios sin guardar. ¿Querés descartarlos?", 
+        return StudioDialog.Confirm(this, "Cambios pendientes",
+            "Hay cambios sin guardar. ¿Querés descartarlos?",
             "Si continuás, los cambios de la especie actual no se conservarán.");
     }
 
@@ -491,6 +520,8 @@ public partial class MainWindow : Window
         _showingMoves = false;
         PokemonListPanel.Visibility = Visibility.Visible;
         PokemonEditorPanel.Visibility = Visibility.Visible;
+        PersonalToolsPanel.Visibility = Visibility.Collapsed;
+        _personalTools.InvalidatePreview();
         PokemonInspectorPanel.Visibility = Visibility.Visible;
         MovesHost.Visibility = Visibility.Collapsed;
         PokemonNavButton.Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#2B4059")!);
@@ -512,6 +543,8 @@ public partial class MainWindow : Window
             MovesHost.Content = _movesView;
             PokemonListPanel.Visibility = Visibility.Collapsed;
             PokemonEditorPanel.Visibility = Visibility.Collapsed;
+            PersonalToolsPanel.Visibility = Visibility.Collapsed;
+            _personalTools.InvalidatePreview();
             PokemonInspectorPanel.Visibility = Visibility.Collapsed;
             MovesHost.Visibility = Visibility.Visible;
             _showingMoves = true;

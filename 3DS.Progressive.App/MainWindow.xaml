@@ -23,7 +23,6 @@
             <Setter Property="FontSize" Value="12"/>
         </Style>
         <Style x:Key="NavDisabled" BasedOn="{StaticResource SidebarButton}" TargetType="Button">
-            <Setter Property="Opacity" Value="0.52"/>
             <Setter Property="IsEnabled" Value="False"/>
         </Style>
     </Window.Resources>
@@ -142,7 +141,6 @@
                           Background="{StaticResource Bg}" Padding="0">
                 <StackPanel x:Name="EditorContent" Margin="25,23" IsEnabled="False"
                             Background="{StaticResource Bg}">
-                    <ContentControl x:Name="PersonalToolsHost"/>
                     <StackPanel Margin="0,0,0,16">
                         <TextBlock Text="Datos de Pokémon" FontSize="24" FontWeight="SemiBold"/>
                         <TextBlock x:Name="EntryTitleText" Text="Abrí un proyecto para comenzar."
@@ -355,15 +353,15 @@
                                 <UniformGrid Columns="2">
                                     <StackPanel Margin="0,0,10,13">
  <TextBlock Text="Cristal Z exclusivo" Style="{StaticResource FieldCaption}"/>
- <ComboBox x:Name="ZItemBox" SelectionChanged="Type_SelectionChanged" />
+ <ComboBox x:Name="ZItemBox" DisplayMemberPath="Name" SelectedValuePath="Id" SelectionChanged="Type_SelectionChanged" />
  </StackPanel>
                                     <StackPanel Margin="0,0,10,13">
  <TextBlock Text="Movimiento base" Style="{StaticResource FieldCaption}"/>
- <ComboBox x:Name="ZBaseMoveBox" SelectionChanged="Type_SelectionChanged" />
+ <ComboBox x:Name="ZBaseMoveBox" DisplayMemberPath="Name" SelectedValuePath="Id" SelectionChanged="Type_SelectionChanged" />
  </StackPanel>
                                     <StackPanel Margin="0,0,10,13">
  <TextBlock Text="Movimiento Z exclusivo" Style="{StaticResource FieldCaption}"/>
- <ComboBox x:Name="ZSpecialMoveBox" SelectionChanged="Type_SelectionChanged" />
+ <ComboBox x:Name="ZSpecialMoveBox" DisplayMemberPath="Name" SelectedValuePath="Id" SelectionChanged="Type_SelectionChanged" />
  </StackPanel>
                                     <CheckBox x:Name="RegionalVariantCheck" Content="Variante regional"
                                               Foreground="{StaticResource TextMain}" VerticalAlignment="Center"
@@ -435,18 +433,6 @@
                             </StackPanel>
                         </Expander>
                     </Border>
-                    <Border Style="{StaticResource Card}">
-                        <StackPanel>
-                            <TextBlock Text="CAMPOS TODAVÍA PENDIENTES"
-                                       Style="{StaticResource SmallHeading}" Margin="0,0,0,9"/>
-                            <TextBlock Foreground="{StaticResource TextSoft}" TextWrapping="Wrap"
-                                       LineHeight="19">
-                                Siguen pendientes herramientas de randomización, opciones de evolución por formulario,
-                                edición del índice de formas y algunas mecánicas Progressive.
-                                Los demás bytes se preservan al guardar.
-                            </TextBlock>
-                        </StackPanel>
-                    </Border>
                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
                         <Button Content="Restablecer campos" Click="Reset_Click" Margin="0,0,10,0"/>
                         <Button x:Name="SaveButton" Content="Guardar en el proyecto"
@@ -456,12 +442,21 @@
                 </StackPanel>
             </ScrollViewer>
 
+            <Grid x:Name="PersonalToolsPanel" Grid.Column="2" Visibility="Collapsed">
+                <ContentControl x:Name="PersonalToolsHost" HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch"/>
+            </Grid>
+
             <!-- Inspector -->
             <Border x:Name="PokemonInspectorPanel" Grid.Column="3" Background="#1B2430"
                     BorderBrush="{StaticResource Stroke}" BorderThickness="1,0,0,0">
+                <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Background="Transparent">
                 <StackPanel Margin="17,23">
                     <TextBlock Text="INSPECTOR" Style="{StaticResource SmallHeading}"
-                               Margin="0,0,0,18"/>
+                               Margin="0,0,0,12"/>
+                    <StackPanel x:Name="PersonalActions" IsEnabled="False" Margin="0,0,0,18">
+                        <Button x:Name="RandomizePokemonButton" Content="Randomizar Pokémon" Click="PersonalAction_Click" Tag="PersonalRandomize" Margin="0,0,0,8"/>
+                        <Button x:Name="ModifyPokemonButton" Content="Modificar Pokémon" Click="PersonalAction_Click" Tag="PersonalModify"/>
+                    </StackPanel>
                     <Border Style="{StaticResource Card}">
                         <StackPanel>
                             <TextBlock Text="Total de estadísticas" Foreground="{StaticResource TextSoft}"/>
@@ -494,6 +489,7 @@
                         </StackPanel>
                     </Border>
                 </StackPanel>
+                </ScrollViewer>
             </Border>
             <ContentControl x:Name="MovesHost" Grid.Column="1" Grid.ColumnSpan="3"
                             Visibility="Collapsed" Background="{StaticResource Bg}"/>
@@ -502,7 +498,7 @@
         <Border Grid.Row="2" Background="#111720" BorderBrush="{StaticResource Stroke}"
                 BorderThickness="0,1,0,0">
             <DockPanel Margin="18,0" LastChildFill="True">
-                <TextBlock Text="3DS PROGRESSIVE · V0.1.1 PREVIEW"
+                <TextBlock Text="3DS PROGRESSIVE · V0.6.0 PREVIEW"
                            DockPanel.Dock="Right" Foreground="{StaticResource TextSoft}"
                            FontSize="10" VerticalAlignment="Center"/>
                 <TextBlock x:Name="StatusText" Text="Esperando proyecto extraído..."

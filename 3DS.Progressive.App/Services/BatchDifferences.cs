@@ -48,4 +48,25 @@ internal static class BatchDifferences
         string Label(int n) => n >= 0 && n < types.Count ? $"{types[n]} ({n})" : $"ID {n}";
         string Category(int n) => n switch { 0 => "Estado", 1 => "Físico", 2 => "Especial", _ => $"ID {n}" };
     }
+    internal static IEnumerable<BatchChange> AllMoveFields(int id, string name, Move a, Move b, IReadOnlyList<string> types)
+    {
+        foreach (var property in a.GetType().GetProperties().Where(p => p.CanRead && p.GetIndexParameters().Length == 0))
+        {
+            object? before = property.GetValue(a), after = property.GetValue(b);
+            if (before is byte[] || Equals(before, after)) continue;
+            string field = property.Name switch { "Heal" => "Curación", "MinTurns" => "Turnos mín.", "MaxTurns" => "Turnos máx.", "TurnMin" => "Turnos mín.", "TurnMax" => "Turnos máx.",
+                "Stat1Percent" => "Prob. stat 1", "Stat2Percent" => "Prob. stat 2", "Stat3Percent" => "Prob. stat 3",
+                "InflictCount" => "Parámetro / duración del estado", _ => TableExport.Label(property.Name) };
+            string Format(object? value) => property.Name switch
+            {
+                "Type" => TableExport.Named(value, types),
+                "Category" => TableExport.Named(value, new[] { "Estado", "Físico", "Especial" }),
+                "Priority" or "Recoil" or "Stat1Stage" or "Stat2Stage" or "Stat3Stage" => unchecked((sbyte)Convert.ToInt32(value)).ToString(),
+                "Flags" => Convert.ToUInt32(value).ToString("X8"), _ => TableExport.Scalar(value),
+            };
+            yield return new(id, name, field, Format(before), Format(after));
+        }
+
+    }
+
 }

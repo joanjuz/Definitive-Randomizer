@@ -34,35 +34,38 @@ internal static class GarcTransaction
         byte[][] records, bool mini = false)
     {
         byte[] source = ReadUnchanged(path, fingerprint);
+        byte[] bytes = Build(source, reference, records, mini);
+        FileTransaction.Commit([new FileChange(path, source, bytes)]);
+        return SHA256.HashData(bytes);
+    }
+
+    internal static byte[] Build(byte[] source, GARCReference reference, byte[][] records,
+        bool mini = false, bool preserveRecordSize = true)
+    {
         var original = new GARC.MemGARC(source);
         byte[][] originalRecords = mini ? Mini.UnpackMini(original.GetFile(0), "WD") : original.Files;
         if (mini && original.FileCount != 1)
             throw new InvalidDataException("El GARC WD contiene archivos inesperados.");
         if (originalRecords is null || originalRecords.Length != records.Length ||
-            originalRecords.Where((r, i) => r.Length != records[i].Length).Any())
+            (preserveRecordSize && originalRecords.Where((r, i) => r.Length != records[i].Length).Any()))
             throw new InvalidDataException("La cantidad o el tamaño de los registros cambió. No se guardó nada.");
         byte[][] outer = mini ? [Mini.PackMini(records, "WD")] : records;
-        string temp = path + ".studio-" + Guid.NewGuid().ToString("N") + ".tmp";
+        original.Files = outer;
+        string temp = Path.Combine(Path.GetTempPath(), "3ds-progressive-garc-" + Guid.NewGuid().ToString("N") + ".tmp");
+        byte[] bytes;
         try
         {
-            var output = new GARCFile(new GARC.MemGARC(source), reference, temp) { Files = outer };
-            output.Save();
-            byte[] bytes = File.ReadAllBytes(temp);
-            var check = new GARC.MemGARC(bytes);
-            if (check.FileCount != outer.Length)
-                throw new InvalidDataException("La cantidad de archivos del GARC regenerado no coincide.");
-            byte[][] verified = mini ? Mini.UnpackMini(check.GetFile(0), "WD") : check.Files;
-            if (verified is null || verified.Length != records.Length ||
-                records.Where((r, i) => !r.AsSpan().SequenceEqual(verified[i])).Any())
-                throw new InvalidDataException("La relectura no coincide con la propuesta. No se guardó nada.");
-            // Last check immediately before replacing the complete, verified archive.
-            ReadUnchanged(path, fingerprint);
-            File.Replace(temp, path, null);
-            byte[] persisted = File.ReadAllBytes(path);
-            if (!persisted.AsSpan().SequenceEqual(bytes))
-                throw new IOException("No coincide la relectura del archivo final. Reabrí el proyecto.");
-            return SHA256.HashData(persisted);
+            new GARCFile(original, reference, temp).Save();
+            bytes = File.ReadAllBytes(temp);
         }
         finally { if (File.Exists(temp)) File.Delete(temp); }
+        var check = new GARC.MemGARC(bytes);
+        if (check.FileCount != outer.Length)
+            throw new InvalidDataException("La cantidad de archivos del GARC regenerado no coincide.");
+        byte[][] verified = mini ? Mini.UnpackMini(check.GetFile(0), "WD") : check.Files;
+        if (verified is null || verified.Length != records.Length ||
+            records.Where((r, i) => !r.AsSpan().SequenceEqual(verified[i])).Any())
+            throw new InvalidDataException("La relectura no coincide con la propuesta. No se guardó nada.");
+        return bytes;
     }
 }

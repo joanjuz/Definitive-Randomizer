@@ -7,12 +7,16 @@ on:
       - "3DS.Progressive.App/**"
       - "3DS.Progressive.Tests/**"
       - "pk3DS.Core/**"
+      - "custom_balance_templates/moves_gen*.csv"
+      - "custom_balance_templates/pokemon_stats_gen7.csv"
       - ".github/workflows/3ds-progressive-ci.yml"
   pull_request:
     paths:
       - "3DS.Progressive.App/**"
       - "3DS.Progressive.Tests/**"
       - "pk3DS.Core/**"
+      - "custom_balance_templates/moves_gen*.csv"
+      - "custom_balance_templates/pokemon_stats_gen7.csv"
       - ".github/workflows/3ds-progressive-ci.yml"
 
 jobs:
@@ -32,7 +36,17 @@ jobs:
       - name: Compilar 3DS Progressive
         run: dotnet build .\3DS.Progressive.App\3DS.Progressive.App.csproj -c Release -r win-x64 --no-restore
       - name: Regresiones con datos sinteticos XY, ORAS, SM y USUM
+        env:
+          PROGRESSIVE_UI_CAPTURE_DIR: ${{ github.workspace }}/ui-captures
         run: dotnet run --project .\3DS.Progressive.Tests\3DS.Progressive.Tests.csproj -c Release
+      - name: Capturas de las comprobaciones WPF
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: 3DS-Progressive-UI-checks
+          path: ui-captures/*.png
+          if-no-files-found: warn
+          retention-days: 14
       - name: Publicar version preliminar autocontenida
         run: dotnet publish .\3DS.Progressive.App\3DS.Progressive.App.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -o .\preview-output
       - name: Adjuntar ejecutable de prueba

@@ -151,6 +151,7 @@ using(var b=new Fixture(GameVersion.USUM))
     Reject(()=>b.Session.PreviewPersonal(BatchAction.PersonalModify,new BatchSettings(),[0]),"entry zero protected");
     Reject(()=>b.Session.PreviewPersonal(BatchAction.PersonalModify,new BatchSettings(),[]),"empty scope rejected");
 }
+TemplateChecks.Run(Check, Reject);
 if (OperatingSystem.IsWindows())
 {
     Exception? failure = null;
@@ -185,8 +186,10 @@ sealed class Fixture : IDisposable
         var text=version switch {GameVersion.XY=>TextReference.GameText_XY,GameVersion.ORAS=>TextReference.GameText_AO,
             GameVersion.SM=>TextReference.GameText_SM,_=>TextReference.GameText_USUM};
         Set("Files",refs);Set("GameText",text);Set("Info",new GameInfo(Game));
+        Set("Variables",Game.Generation==7?TextVariableCode.VariableCodes_SM:version==GameVersion.XY?TextVariableCode.VariableCodes_XY:TextVariableCode.VariableCodes_AO);
         string[][] names=Enumerable.Range(0,text.Max(t=>t.Index)+1).Select(_=>Enumerable.Range(0,1000).Select(i=>"Entry"+i).ToArray()).ToArray();
         names[text.First(t=>t.Name==TextName.Types).Index]=Enumerable.Range(0,18).Select(i=>"Type"+i).ToArray();
+        names[text.First(t=>t.Name==TextName.SpeciesNames).Index][289]="Slaking";
         Set("GameTextStrings",names);
         int size=version==GameVersion.XY?0x40:version==GameVersion.ORAS?0x50:0x54;
         byte[][] personal=Enumerable.Range(0,840).Select(i=>
@@ -212,7 +215,7 @@ sealed class Fixture : IDisposable
         WriteGarc(MovePath,Game.XY?moves:[Mini.PackMini(moves,"WD")],Game.GetGARCReference("move"));Game.InitializeMoves();
         Session=CreateSession(Game,Root,PersonalPath);
     }
-    void WriteGarc(string path,byte[][] files,GARCReference reference)
+    internal void WriteGarc(string path,byte[][] files,GARCReference reference)
     {
         Directory.CreateDirectory(Path.GetDirectoryName(path)!);
         var garc=GARC.PackGARC(files,Game.GARCVersion,4);new GARCFile(garc,reference,path).Save();

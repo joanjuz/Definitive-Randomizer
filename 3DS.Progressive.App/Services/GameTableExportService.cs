@@ -45,6 +45,8 @@ internal static class TableExport
         return string.Join(Environment.NewLine, lines);
     }
 
+    internal static string Label(string property) => Labels.GetValueOrDefault(property, property);
+
     internal static string Scalar(object? value) => value is uint u ? u.ToString("X8")
         : value is bool b ? (b ? "Sí" : "No") : Convert.ToString(value, CultureInfo.InvariantCulture) ?? "";
     internal static string Named(object? value, IReadOnlyList<string> names)

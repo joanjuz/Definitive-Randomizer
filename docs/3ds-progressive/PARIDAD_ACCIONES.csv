@@ -21,23 +21,23 @@ Pokémon,Compatibilidad: tutores ORAS/playa,PersonalEditor6/7.B_ModifyAll,Implem
 Pokémon,Eclosión rápida,PersonalEditor6/7.B_ModifyAll,Implementado,"Fixtures Gen6/Gen7, límites y bits reservados",Quitar MT conserva MO Gen6; EXP desbordada rechazada; prueba manual pendiente
 Pokémon,Captura fija,PersonalEditor6/7.B_ModifyAll,Implementado,"Fixtures Gen6/Gen7, límites y bits reservados",Quitar MT conserva MO Gen6; EXP desbordada rechazada; prueba manual pendiente
 Pokémon,SOS fijo Gen7,PersonalEditor6/7.B_ModifyAll,Implementado,"Fixtures Gen6/Gen7, límites y bits reservados",Quitar MT conserva MO Gen6; EXP desbordada rechazada; prueba manual pendiente
-Pokémon,Excluir Shadow Tag y Arena Trap,PersonalEditor7.B_BanTrappingAbilities_Click,Implementado,Saneamiento determinista y exclusión posterior,Regla activa en acciones masivas de sesión/alcance; prueba manual pendiente
+Pokémon,Excluir Shadow Tag y Arena Trap,PersonalEditor7.B_BanTrappingAbilities_Click,Implementado,Saneamiento determinista y exclusión posterior,Opción dentro de Randomizar Pokémon; no acción independiente en inspector
 Pokémon,Copiar datos completos,PersonalEditor6/7.B_Dump_Click,Implementado,Todos los campos del modelo y cabeceras en español,TSV al portapapeles; no un dump binario
 Movimientos,Tipos y categorías,MoveEditor6/7.B_RandAll_Click,Implementado,Solo bytes tipo/categoría; conserva estado/Z/flags,Protege IDs165/174; corrige confusión índice del selector antiguo; prueba manual pendiente
 Movimientos,Modo Metrónomo,MoveEditor6/7.B_Metronome_Click,Implementado,PP únicamente; IDs118/33 traducidos desde índices117/32,Prueba manual pendiente
 Movimientos,Copiar datos completos,MoveEditor6/7.B_Table_Click,Implementado,Todos los campos y cabeceras en español,Portapapeles; catálogos y IDs custom
 Pokémon,Alcance todo/filtrado/selección,BatchToolsView + servicios Studio,Implementado,Fixtures; inicialización WPF Windows en CI,Validación del usuario pendiente
-Pokémon,Semilla reproducible,BatchToolsView + servicios Studio,Implementado,Fixtures; inicialización WPF Windows en CI,Validación del usuario pendiente
+Pokémon,Semilla nueva automática por vista previa,BatchToolsView + servicios Studio,Implementado,RNG criptográfico; propuesta congelada; servicios reproducibles,Número visible solo para diagnóstico; sin edición manual
 Pokémon,Vista previa antes/después,BatchToolsView + servicios Studio,Implementado,Fixtures; inicialización WPF Windows en CI,Validación del usuario pendiente
 Pokémon,Aplicación confirmada y GARC verificado,BatchToolsView + servicios Studio,Implementado,Fixtures; inicialización WPF Windows en CI,Validación del usuario pendiente
 Pokémon,Copia de cambios,BatchToolsView + servicios Studio,Implementado,Fixtures; inicialización WPF Windows en CI,Validación del usuario pendiente
 Movimientos,Alcance todo/filtrado/selección,BatchToolsView + servicios Studio,Implementado,Fixtures; inicialización WPF Windows en CI,Validación del usuario pendiente
-Movimientos,Semilla reproducible,BatchToolsView + servicios Studio,Implementado,Fixtures; inicialización WPF Windows en CI,Validación del usuario pendiente
+Movimientos,Semilla nueva automática por vista previa,BatchToolsView + servicios Studio,Implementado,RNG criptográfico; propuesta congelada; servicios reproducibles,Número visible solo para diagnóstico; sin edición manual
 Movimientos,Vista previa antes/después,BatchToolsView + servicios Studio,Implementado,Fixtures; inicialización WPF Windows en CI,Validación del usuario pendiente
 Movimientos,Aplicación confirmada y GARC verificado,BatchToolsView + servicios Studio,Implementado,Fixtures; inicialización WPF Windows en CI,Validación del usuario pendiente
 Movimientos,Copia de cambios,BatchToolsView + servicios Studio,Implementado,Fixtures; inicialización WPF Windows en CI,Validación del usuario pendiente
-Pokémon,Balance CSV/templates,B_PokemonStatsTemplate_Click + CustomBalanceTemplates,Pendiente,No disponible en Studio,Mantener opciones originales; no activar botones sin implementación
-Movimientos,Balance completo,B_BalanceMoves + Battle/CRO + descripciones,Pendiente,No disponible en Studio,Mantener opciones originales; no activar botones sin implementación
+Pokémon,Balance CSV/templates,B_PokemonStatsTemplate_Click + CustomBalanceTemplates,Implementado,Fixtures; CSV; idempotencia; scope; stale CSV/textos/CRO; rollback,Template Gen7 incluido; nombres/IDs; stats 1–255; campos omitidos preservados
+Movimientos,Balance completo,B_BalanceMoves + Battle/CRO + descripciones,Implementado,Fixtures; CSV; idempotencia; scope; stale CSV/textos/CRO; rollback,Validación manual pendiente; firmas CRO originales; segunda pasada; Giro Vil v2 conservado
 Entrenadores,Editor y randomizadores completos,TrainerEditor6/7 + Progressive/Smart Items/Better Movesets,Pendiente,No disponible en Studio,Mantener opciones originales; no activar botones sin implementación
 Encuentros,Tablas y Progressive Wild,WildEditor6/7 y sistemas Progressive,Pendiente,No disponible en Studio,Mantener opciones originales; no activar botones sin implementación
 Automatización,Global Template y Batch ROM Builder,GlobalRandomizationTemplate y BatchRomBuilder,Pendiente,No disponible en Studio,Mantener opciones originales; no activar botones sin implementación

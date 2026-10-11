@@ -63,10 +63,9 @@
                 </DockPanel>
             </Border>
 
-            <ScrollViewer Grid.Column="1" Background="{StaticResource Bg}"
+            <ScrollViewer x:Name="MoveFieldsPanel" Grid.Column="1" Background="{StaticResource Bg}"
                           VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
                 <StackPanel Margin="27,26">
-                    <ContentControl x:Name="MoveToolsHost"/>
                     <TextBlock x:Name="MoveNameText" Text="Seleccioná un movimiento"
                                FontSize="26" FontWeight="SemiBold"/>
                     <TextBlock x:Name="MoveNumberText" Text="Campos básicos"
@@ -220,10 +219,6 @@
                             </StackPanel>
                         </Expander>
                     </Border>
-                    <Border Style="{StaticResource MoveCard}">
-                        <TextBlock Foreground="{StaticResource TextSoft}" TextWrapping="Wrap"
-                                   Text="Faltan estados secundarios, turnos, curación, cambios de stats, recarga, compatibilidades, randomizaciones y parches Progressive. Los bytes no editados se conservan."/>
-                    </Border>
                     <TextBlock x:Name="ValidationSummary" Foreground="#FF9696" FontSize="12"
                                TextWrapping="Wrap" Margin="0,0,0,10" Visibility="Collapsed"/>
                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
@@ -233,10 +228,19 @@
                     </StackPanel>
                 </StackPanel>
             </ScrollViewer>
+            <Grid x:Name="MoveToolsPanel" Grid.Column="1" Visibility="Collapsed">
+                <ContentControl x:Name="MoveToolsHost" HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch"/>
+            </Grid>
             <Border Grid.Column="2" Background="#1B2430" BorderBrush="{StaticResource Stroke}" BorderThickness="1,0,0,0">
+                <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Background="Transparent">
                 <StackPanel Margin="17,24">
                     <TextBlock Text="INSPECTOR" Foreground="{StaticResource TextSoft}"
-                               FontSize="11" FontWeight="SemiBold" Margin="0,0,0,18"/>
+                               FontSize="11" FontWeight="SemiBold" Margin="0,0,0,12"/>
+                    <StackPanel Margin="0,0,0,18">
+                        <Button x:Name="RandomizeMovesButton" Content="Randomizar movimientos" Click="MoveAction_Click" Tag="MoveRandomize" Margin="0,0,0,8"/>
+                        <Button x:Name="MetronomeButton" Content="Modo Metrónomo" Click="MoveAction_Click" Tag="Metronome" Margin="0,0,0,8"/>
+                        <Button x:Name="BalanceMovesButton" Content="Balance y templates" Click="MoveAction_Click" Tag="MoveBalance"/>
+                    </StackPanel>
                     <Border Style="{StaticResource MoveCard}">
                         <StackPanel>
                             <TextBlock Text="Tipo y categoría" Foreground="{StaticResource TextSoft}"/>
@@ -265,6 +269,7 @@
                         </StackPanel>
                     </Border>
                 </StackPanel>
+                </ScrollViewer>
             </Border>
         </Grid>
         <Border Grid.Row="2" Background="#111720" BorderBrush="{StaticResource Stroke}" BorderThickness="0,1,0,0">

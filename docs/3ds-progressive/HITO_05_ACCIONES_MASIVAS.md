@@ -1,3 +1,5 @@
+> Documento del hito v0.5.0. La navegación, semillas y templates actuales se describen en [Hito 06](HITO_06_INSPECTOR_Y_TEMPLATES.md).
+
 # Hito 05 — acciones masivas y guardado verificado
 
 Fecha: 2026-10-11. Rama: `feature/3ds-progressive-ui`. Preview v0.5.0.
