@@ -253,7 +253,7 @@ public partial class BatchToolsView : UserControl
 
     private void Input_Changed(object sender, RoutedEventArgs e)
     {
-        if (_building) return;
+        if (_building || !_configured) return;
         UpdateDependencies();
         InvalidatePreview();
         ValidationText.Text = "";
