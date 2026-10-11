@@ -241,7 +241,7 @@ public partial class MoveEditorView : System.Windows.Controls.UserControl
     }
 
 
-    private static bool TryChoice(ComboBox box, out int id)
+    private static bool TryChoice(System.Windows.Controls.ComboBox box, out int id)
     {
         id = 0;
         if (box.SelectedValue is int selected)
