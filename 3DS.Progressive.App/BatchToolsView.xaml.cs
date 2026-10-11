@@ -101,6 +101,7 @@ public partial class BatchToolsView : UserControl
         {
             OptionsPanel.Children.Clear(); _checks.Clear(); _numbers.Clear();
             SeedPanel.Visibility = IsRandom ? Visibility.Visible : Visibility.Collapsed;
+            ScopeRow.Columns = IsRandom ? 2 : 1;
             TemplatePanel.Visibility = _action == BatchAction.MoveBalance || (_action == BatchAction.PersonalModify && _generation == 7) ? Visibility.Visible : Visibility.Collapsed;
             TemplateCaption.Text = _moves ? "Template de movimientos" : "Template de estadísticas";
             switch (_action)

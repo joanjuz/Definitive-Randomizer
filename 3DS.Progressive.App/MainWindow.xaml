@@ -1,6 +1,7 @@
 <Window x:Class="ThreeDS.Progressive.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Style="{StaticResource {x:Type Window}}"
         Title="3DS Progressive — Editor" Width="1390" Height="845"
         MinWidth="1130" MinHeight="690" WindowStartupLocation="CenterScreen">
     <Window.Resources>
@@ -78,7 +79,8 @@
             <Border Background="#18202B" BorderBrush="{StaticResource Stroke}"
                     BorderThickness="0,0,1,0">
                 <DockPanel Margin="13,18">
-                    <StackPanel DockPanel.Dock="Top">
+                    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Background="Transparent">
+                    <StackPanel>
                         <TextBlock Text="EDICIÓN" Style="{StaticResource SmallHeading}"
                                    Margin="12,0,0,12"/>
                         <Button x:Name="PokemonNavButton" Click="Pokemon_Click" Content="◆  Pokémon" Style="{StaticResource SidebarButton}"
@@ -97,6 +99,7 @@
                         <Button Content="⇄  Automatización" Style="{StaticResource NavDisabled}"/>
                         <Button Content="⚙  Configuración" Style="{StaticResource NavDisabled}"/>
                     </StackPanel>
+                    </ScrollViewer>
                     <Border Visibility="Collapsed" DockPanel.Dock="Bottom" Background="{StaticResource Surface}"
                             CornerRadius="9" Padding="12" VerticalAlignment="Bottom">
                         <StackPanel>

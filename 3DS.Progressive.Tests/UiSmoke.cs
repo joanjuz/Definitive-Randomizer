@@ -18,6 +18,7 @@ internal static class UiSmoke
         var main = new MainWindow();
         main.Show();
         Layout((FrameworkElement)main.Content,1390,845);
+        check(main.Foreground is SolidColorBrush color && color.Color==Color.FromRgb(239,243,248),"WPF main titles inherit the dark theme foreground");
         check(main.FindName("PersonalToolsHost") is ContentControl { Content: BatchToolsView },"WPF main shell initializes inspector tools");
         check(((FrameworkElement)main.FindName("PersonalToolsPanel")).Visibility==Visibility.Collapsed,"WPF tools are initially outside the editor");
         check(!Walk(main.Content.As<DependencyObject>()).OfType<TextBlock>().Any(t=>t.Text.Contains("CAMPOS TODAVÍA PENDIENTES")),"WPF obsolete pending-fields card removed");
@@ -72,7 +73,8 @@ internal static class UiSmoke
             check(personal.ActiveAction==BatchAction.PersonalModify,"WPF modifier is a separate named inspector button");
             Walk(personal).OfType<Button>().First(b=>Equals(b.Content,"← Volver al editor")).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             Layout((FrameworkElement)main.Content,1390,845);Capture((FrameworkElement)main.Content,"pokemon-editor.png");
-            var view = new MoveEditorView(fixture.Session);
+            ((Button)main.FindName("MovesButton")).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            var view = (MoveEditorView)((ContentControl)main.FindName("MovesHost")).Content;
             Layout(view,1170,720);
             check(!Walk(view).OfType<Button>().Any(b => Equals(b.Content,"Editor integrado · 3DS Progressive")),"WPF obsolete integrated editor badge removed");
             check(!Walk(view).OfType<TextBlock>().Any(t=>t.Text.Contains("Faltan estados secundarios")),"WPF obsolete move pending notice removed");
@@ -89,7 +91,10 @@ internal static class UiSmoke
             Layout(view,1170,720);Capture(view,"movimientos-templates.png");
             Walk(tools).OfType<Button>().First(b=>Equals(b.Content,"← Volver al editor")).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             Layout(view,1170,720);
-            ComboBox choice=(ComboBox)view.FindName("TargetBox");choice.ApplyTemplate();
+            ComboBox choice=(ComboBox)view.FindName("TargetBox");
+            choice.BringIntoView();view.UpdateLayout();choice.ApplyTemplate();
+            Console.WriteLine("WPF selector value: "+choice.SelectedValue+"; name: "+choice.SelectedItem+"; rendered: "+string.Join(" / ",Walk(choice).OfType<TextBlock>().Select(t=>t.Text)));
+            Capture(view,"movimientos-editor.png");
             check(Walk(choice).OfType<TextBlock>().Any(t=>t.Text.Contains("Single Adjacent Ally/Foe")) &&
                 !Walk(choice).OfType<TextBlock>().Any(t=>t.Text.Contains("MoveChoice {")),"WPF selected dropdown shows its name rather than record code");
             Capture(view,"movimientos-editor.png");
