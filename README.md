@@ -6,7 +6,7 @@
 
 ## Project status
 
-- **Current stable line:** v4.9.0
+- **Current stable line:** v4.17.1
 - **Development branch:** `Eris-Ultranova`
 - **Platform:** Windows x64
 - **License:** GNU GPL v3
@@ -16,7 +16,7 @@ pk3DS Progressive keeps the original pk3DS editing and randomization foundation 
 
 ## Current development highlights
 
-The features below describe the current `Eris-Ultranova` development branch. Some were added after the v4.9.0 stable release and will be included in future stable releases after validation.
+The features below describe the current `Eris-Ultranova` branch, consolidated in v4.17.1 Stable. Some newer or experimental features may still require additional runtime testing.
 
 ### Progressive randomization
 
@@ -50,7 +50,7 @@ The features below describe the current `Eris-Ultranova` development branch. Som
 
 - Editable Fix Economy system
 - Expanded Marts
-- Optional Rare Candies and EV items in marts
+- Optional Rare Candies and six vitamins in marts (+10 EV, up to 252 per stat, for 200 Pokédollars each in USUM)
 - Persistent battle consumables
 - Additional item and shop quality-of-life options
 
@@ -69,7 +69,7 @@ Progressive-specific functionality is currently most developed for **Ultra Sun /
 
 Stable releases are distributed **for free** through this repository's [Releases](../../releases).
 
-The latest published stable release is **v4.9.0**. The `Eris-Ultranova` branch contains newer development features that are not yet part of a published stable build.
+The latest published stable release is **v4.17.1**, built from `Eris-Ultranova`.
 
 New stable versions will be released after their features have been completed and validated.
 
@@ -109,12 +109,12 @@ dotnet publish .\pk3DS.WinForms\pk3DS.WinForms.csproj `
 
 1. Dump your own legally obtained Pokémon 3DS game.
 2. Extract the required RomFS / ExeFS content using your preferred 3DS tooling.
-3. Keep a backup of the original extracted files.
+3. Keep your own clean copy of the original extracted files. Automatic persistent backups are disabled by default.
 4. Open the extracted game in pk3DS Progressive.
 5. Configure the randomization and gameplay options you want.
 6. Save the modified files and rebuild or deploy them using your normal 3DS modding workflow.
 
-Because many Progressive features can modify multiple game systems at once, keeping a clean backup is strongly recommended.
+Because several features modify game files, keep a clean original extraction outside the working project. pk3DS Progressive does not create persistent backups automatically by default.
 
 ## Support, donations, and commissions
 
