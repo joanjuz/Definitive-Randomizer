@@ -60,6 +60,7 @@ public sealed class GameProjectSession
         Types = config.GetText(TextName.Types);
         AbilityNames = config.GetText(TextName.AbilityNames);
         ItemNames = config.GetText(TextName.ItemNames);
+        MoveNames = config.GetText(TextName.MoveNames);
     }
 
     public string ProjectRoot { get; }
@@ -70,6 +71,8 @@ public sealed class GameProjectSession
     public IReadOnlyList<string> Types { get; }
     public IReadOnlyList<string> AbilityNames { get; }
     public IReadOnlyList<string> ItemNames { get; }
+    public IReadOnlyList<string> MoveNames { get; }
+    public bool SupportsGen7Personal => _config.Generation == 7;
     public int EntryCount => _config.GARCPersonal.FileCount - 1;
 
     /// <summary>
@@ -154,7 +157,27 @@ public sealed class GameProjectSession
             HatchCycles = p.HatchCycles, GenderRatio = p.Gender,
             EggGroup1 = p.EggGroups[0], EggGroup2 = p.EggGroups[1],
             ExperienceGrowth = p.EXPGrowth, EscapeRate = p.EscapeRate,
+            EvoStage = p.EvoStage, FormCount = p.FormeCount,
+            FormSprite = p.FormeSprite, Color = p.Color,
+            Height = p.Height, Weight = p.Weight,
+            ZItem = p is PersonalInfoSM sm1 ? sm1.SpecialZ_Item : 0,
+            ZBaseMove = p is PersonalInfoSM sm2 ? sm2.SpecialZ_BaseMove : 0,
+            ZSpecialMove = p is PersonalInfoSM sm3 ? sm3.SpecialZ_ZMove : 0,
+            RegionalVariant = p is PersonalInfoSM sm4 && sm4.LocalVariant,
+            TmFlags = EncodeFlags(p.TMHM),
+            TutorFlags = EncodeFlags(p.TypeTutors),
+            SpecialTutorFlags = string.Join("|", p.SpecialTutors.Select(EncodeFlags)),
         };
+    }
+
+    private static string EncodeFlags(bool[] data) =>
+        new string(data.Select(x => x ? '1' : '0').ToArray());
+
+    private static bool[] DecodeFlags(string data, int length)
+    {
+        if (data.Length != length || data.Any(x => x is not ('0' or '1')))
+            throw new ArgumentException("Longitud o contenido de compatibilidad inválido.");
+        return data.Select(x => x == '1').ToArray();
     }
 
     /// <summary>
@@ -183,6 +206,13 @@ public sealed class GameProjectSession
         foreach (int ev in new[] { values.EvHp, values.EvAttack, values.EvDefense,
                     values.EvSpecialAttack, values.EvSpecialDefense, values.EvSpeed })
             if (ev is < 0 or > 3) throw new ArgumentOutOfRangeException(nameof(values), "Cada EV otorgado debe estar entre 0 y 3.");
+
+        if (values.EvoStage is < 0 or > 255 || values.FormCount is < 0 or > 255 ||
+            values.FormSprite is < 0 or > 65535 || values.Color is < 0 or > 63 ||
+            values.Height is < 0 or > 65535 || values.Weight is < 0 or > 65535 ||
+            values.ZItem is < 0 or > 65535 || values.ZBaseMove is < 0 or > 65535 ||
+            values.ZSpecialMove is < 0 or > 65535)
+            throw new ArgumentOutOfRangeException(nameof(values), "Valores de formas, tamaño o Z fuera de rango.");
 
         byte[] source = File.ReadAllBytes(_personalPath);
         if (!SHA256.HashData(source).AsSpan().SequenceEqual(_diskFingerprint))
@@ -220,6 +250,26 @@ public sealed class GameProjectSession
         p.EggGroups = [values.EggGroup1, values.EggGroup2];
         p.EXPGrowth = values.ExperienceGrowth;
         p.EscapeRate = values.EscapeRate;
+        p.EvoStage = values.EvoStage;
+        p.FormeCount = values.FormCount;
+        p.FormeSprite = values.FormSprite;
+        p.Color = values.Color;
+        p.Height = values.Height;
+        p.Weight = values.Weight;
+        p.TMHM = DecodeFlags(values.TmFlags, p.TMHM.Length);
+        p.TypeTutors = DecodeFlags(values.TutorFlags, p.TypeTutors.Length);
+        string[] special = values.SpecialTutorFlags.Length == 0 ? [] : values.SpecialTutorFlags.Split('|');
+        if (special.Length != p.SpecialTutors.Length)
+            throw new ArgumentException("La cantidad de grupos de tutores ha cambiado.");
+        for (int k = 0; k < special.Length; k++)
+            p.SpecialTutors[k] = DecodeFlags(special[k], p.SpecialTutors[k].Length);
+        if (p is PersonalInfoSM sm)
+        {
+            sm.SpecialZ_Item = values.ZItem;
+            sm.SpecialZ_BaseMove = values.ZBaseMove;
+            sm.SpecialZ_ZMove = values.ZSpecialMove;
+            sm.LocalVariant = values.RegionalVariant;
+        }
         files[index] = p.Write();
 
         // La ultima entrada GARC es la tabla maestra de PersonalInfo.

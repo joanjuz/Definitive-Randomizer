@@ -27,6 +27,19 @@ public sealed record PersonalValues(
     public int EggGroup2 { get; init; }
     public int ExperienceGrowth { get; init; }
     public int EscapeRate { get; init; }
+    public int EvoStage { get; init; }
+    public int FormCount { get; init; }
+    public int FormSprite { get; init; }
+    public int Color { get; init; }
+    public int Height { get; init; }
+    public int Weight { get; init; }
+    public int ZItem { get; init; }
+    public int ZBaseMove { get; init; }
+    public int ZSpecialMove { get; init; }
+    public bool RegionalVariant { get; init; }
+    public string TmFlags { get; init; } = string.Empty;
+    public string TutorFlags { get; init; } = string.Empty;
+    public string SpecialTutorFlags { get; init; } = string.Empty;
 }
 
 public sealed record PokemonListEntry(int Index, string Name)

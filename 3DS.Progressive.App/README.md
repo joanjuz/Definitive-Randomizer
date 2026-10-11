@@ -1,8 +1,8 @@
-# 3DS Progressive — preview funcional v0.3.0
+# 3DS Progressive — preview funcional v0.4.0
 
 Nueva aplicación WPF independiente dentro de pk3DS Progressive. No se modifica pk3DS.WinForms ni pk3DS.Core.
 
-## Cambios de v0.3.0
+## Cambios de v0.4.0
 - Todos los avisos y confirmaciones del editor Personal utilizan ahora StudioDialog, un diálogo oscuro propio y reutilizable.
 - El botón **Movimientos** de la barra lateral abre un segundo editor real con listado, búsqueda y modificación de tipo, categoría, potencia, precisión, PP y prioridad.
 - El editor de movimientos conserva bytes no editados, serializa los registros `WD` para ORAS/Gen 7 y guarda mediante GARC temporal y verificación; X/Y utiliza sus entradas directas.
@@ -49,6 +49,18 @@ IMPORTANTE: trabajá sobre una copia del juego extraído. Studio no hace backups
 - Repetir guardado de stat y verificación con pk3DS Progressive usando la preview 0.1.1.
 - Comparar integridad de GARC en copias y probar formas alternativas / otras versiones.
 - **Validado por el usuario:** la edición de movimientos (campos básicos de v0.2.0) persiste y pk3DS Progressive reconoce sus cambios.
-- Pendiente: probar los campos avanzados añadidos en v0.3.0 en una copia de Ultra Sol.
+- Pendiente: probar los campos avanzados añadidos en v0.4.0 en una copia de Ultra Sol.
 - Migrar las demás opciones de Personal y Move Editor, incluyendo efectos, flags, Z-Moves y funciones Progressive.
 - Integración dentro del shell realizada. Pendiente refinar alineación, eliminar la doble cabecera y completar las funciones de los editores.
+
+## Hito 04: migración de opciones con paridad del editor vanilla
+
+- Se restablecieron los catálogos de **MoveQualities, ZMoveEffects, TargetingTypes, StatCategories e InflictionTypes** del Move Editor original, preservando los ID internos. `Quality` es clasificación del comportamiento del movimiento, **no** calidad de animación.
+- En Movimientos, **Movimiento Z**, **Efecto Z**, **Clasificación de efecto**, objetivo y estado infligido se seleccionan por nombre; las opciones desconocidas mantienen índices explícitos.
+- Se incorporaron turnos mínimo/máximo, recoil, curación, tres slots de cambios de stats con valores negativos y probabilidades, duración de estados, Poké Relax en Gen 7, y las 32 flags con checkboxes y campo hexadecimal sincronizados.
+- En Pokémon se añadieron **compatibilidades MT y tutor** con edición de bits, formas, color, peso, altura, etapa, Z exclusivo y variante regional en Gen 7.
+- Los bits reservados de TM y tutor permanecen intactos. Los tutores especiales se identifican por índice técnico en ROMs custom para evitar nombres engañosos.
+- No se modifican los proyectos pk3DS.Core ni pk3DS.WinForms. Los datos personales del juego siguen tratándose como archivos de usuario, nunca en el repositorio.
+- La evidencia aportada por el usuario confirma la lectura/guardado anterior del editor en Ultra Sol; **esta nueva versión requiere una regresión de las opciones adicionales**.
+
+**Enfoque posterior:** migración de herramientas masivas, randomizaciones, parches y el resto de editores, a partir de la matriz de controles, en lugar de desarrollar controles aislados sin cobertura.

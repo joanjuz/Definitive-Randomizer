@@ -312,13 +312,134 @@
     </Expander>
 </Border>
                     <Border Style="{StaticResource Card}">
+                        <Expander Header="FORMAS, COLOR Y DATOS FÍSICOS" Foreground="{StaticResource TextMain}" IsExpanded="False">
+                            <StackPanel Margin="0,14,0,0">
+                                <TextBlock Text="Los valores de altura y peso se muestran en unidades internas del juego; la asignación de Form Stats Index se mantiene sin edición para prevenir daños."
+                                           Foreground="{StaticResource TextSoft}" TextWrapping="Wrap" Margin="0,0,0,13"/>
+                                <UniformGrid Columns="2">
+                                    <StackPanel Margin="0,0,10,13">
+ <TextBlock Text="Etapa de evolución (0–255)" Style="{StaticResource FieldCaption}"/>
+ <TextBox x:Name="EvoStageBox" TextChanged="Stat_TextChanged" />
+ </StackPanel>
+                                    <StackPanel Margin="0,0,10,13">
+ <TextBlock Text="Número de formas (0–255)" Style="{StaticResource FieldCaption}"/>
+ <TextBox x:Name="FormCountBox" TextChanged="Stat_TextChanged" />
+ </StackPanel>
+                                    <StackPanel Margin="0,0,10,13">
+ <TextBlock Text="Sprite de forma (0–65535)" Style="{StaticResource FieldCaption}"/>
+ <TextBox x:Name="FormSpriteBox" TextChanged="Stat_TextChanged" />
+ </StackPanel>
+                                    <StackPanel Margin="0,0,10,13">
+ <TextBlock Text="Color interno (0–63)" Style="{StaticResource FieldCaption}"/>
+ <TextBox x:Name="ColorBox" TextChanged="Stat_TextChanged" />
+ </StackPanel>
+                                    <StackPanel Margin="0,0,10,13">
+ <TextBlock Text="Altura (centésimas de metro)" Style="{StaticResource FieldCaption}"/>
+ <TextBox x:Name="HeightBox" TextChanged="Stat_TextChanged" />
+ </StackPanel>
+                                    <StackPanel Margin="0,0,10,13">
+ <TextBlock Text="Peso (décimas de kg)" Style="{StaticResource FieldCaption}"/>
+ <TextBox x:Name="WeightBox" TextChanged="Stat_TextChanged" />
+ </StackPanel>
+                                </UniformGrid>
+                            </StackPanel>
+                        </Expander>
+                    </Border>
+                    <Border x:Name="Gen7PersonalCard" Style="{StaticResource Card}">
+                        <Expander Header="POKÉMON ESPECIALES Y MOVIMIENTOS Z · GEN 7"
+                                  Foreground="{StaticResource TextMain}" IsExpanded="False">
+                            <StackPanel Margin="0,14,0,0">
+                                <TextBlock Text="Se reutilizan los nombres de objetos y movimientos extraídos del juego; el ID se conserva en el GARC."
+                                           Foreground="{StaticResource TextSoft}" TextWrapping="Wrap" Margin="0,0,0,13"/>
+                                <UniformGrid Columns="2">
+                                    <StackPanel Margin="0,0,10,13">
+ <TextBlock Text="Cristal Z exclusivo" Style="{StaticResource FieldCaption}"/>
+ <ComboBox x:Name="ZItemBox" SelectionChanged="Type_SelectionChanged" />
+ </StackPanel>
+                                    <StackPanel Margin="0,0,10,13">
+ <TextBlock Text="Movimiento base" Style="{StaticResource FieldCaption}"/>
+ <ComboBox x:Name="ZBaseMoveBox" SelectionChanged="Type_SelectionChanged" />
+ </StackPanel>
+                                    <StackPanel Margin="0,0,10,13">
+ <TextBlock Text="Movimiento Z exclusivo" Style="{StaticResource FieldCaption}"/>
+ <ComboBox x:Name="ZSpecialMoveBox" SelectionChanged="Type_SelectionChanged" />
+ </StackPanel>
+                                    <CheckBox x:Name="RegionalVariantCheck" Content="Variante regional"
+                                              Foreground="{StaticResource TextMain}" VerticalAlignment="Center"
+                                              Checked="FlagCheck_Changed" Unchecked="FlagCheck_Changed"/>
+                                </UniformGrid>
+                            </StackPanel>
+                        </Expander>
+                    </Border>
+                    <Border Style="{StaticResource Card}">
+                        <Expander Header="COMPATIBILIDAD MT / TUTORES" Foreground="{StaticResource TextMain}" IsExpanded="False">
+                            <StackPanel Margin="0,14,0,0">
+                                <TextBlock Text="Las MT incluyen sus 100 ranuras editables; los bits reservados se preservan. Los tutores especiales usan índices internos para no mostrar nombres incorrectos en ROMs custom."
+                                           Foreground="{StaticResource TextSoft}" TextWrapping="Wrap" Margin="0,0,0,13"/>
+                                <WrapPanel Margin="0,0,0,12">
+                                    <Button Content="Marcar todas las MT" Click="CheckAllTm_Click" Margin="0,0,9,0"/>
+                                    <Button Content="Quitar todas las MT" Click="UncheckAllTm_Click"/>
+                                </WrapPanel>
+                                <StackPanel Margin="0,0,10,10">
+                                  <TextBlock Text="Máquinas técnicas (100 slots)" FontWeight="SemiBold" Margin="0,0,0,8"/>
+                                  <ScrollViewer Height="230" VerticalScrollBarVisibility="Auto"
+                                                Background="{StaticResource Surface}">
+                                    <ItemsControl x:Name="TmFlagsList">
+                                      <ItemsControl.ItemsPanel><ItemsPanelTemplate><WrapPanel/></ItemsPanelTemplate></ItemsControl.ItemsPanel>
+                                      <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                          <CheckBox IsChecked="{Binding IsChecked, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                            Content="{Binding Label}" Foreground="{StaticResource TextMain}"
+                                            Padding="5" Width="210" Margin="3" FontSize="11"/>
+                                        </DataTemplate>
+                                      </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                  </ScrollViewer>
+                                </StackPanel>
+                                <StackPanel Margin="0,0,10,10">
+                                  <TextBlock Text="Tutores por tipo" FontWeight="SemiBold" Margin="0,0,0,8"/>
+                                  <ScrollViewer Height="230" VerticalScrollBarVisibility="Auto"
+                                                Background="{StaticResource Surface}">
+                                    <ItemsControl x:Name="TutorFlagsList">
+                                      <ItemsControl.ItemsPanel><ItemsPanelTemplate><WrapPanel/></ItemsPanelTemplate></ItemsControl.ItemsPanel>
+                                      <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                          <CheckBox IsChecked="{Binding IsChecked, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                            Content="{Binding Label}" Foreground="{StaticResource TextMain}"
+                                            Padding="5" Width="210" Margin="3" FontSize="11"/>
+                                        </DataTemplate>
+                                      </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                  </ScrollViewer>
+                                </StackPanel>
+                                <StackPanel Margin="0,0,10,10">
+                                  <TextBlock Text="Tutores especiales / Beach Tutors" FontWeight="SemiBold" Margin="0,0,0,8"/>
+                                  <ScrollViewer Height="230" VerticalScrollBarVisibility="Auto"
+                                                Background="{StaticResource Surface}">
+                                    <ItemsControl x:Name="SpecialTutorFlagsList">
+                                      <ItemsControl.ItemsPanel><ItemsPanelTemplate><WrapPanel/></ItemsPanelTemplate></ItemsControl.ItemsPanel>
+                                      <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                          <CheckBox IsChecked="{Binding IsChecked, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                            Content="{Binding Label}" Foreground="{StaticResource TextMain}"
+                                            Padding="5" Width="210" Margin="3" FontSize="11"/>
+                                        </DataTemplate>
+                                      </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                  </ScrollViewer>
+                                </StackPanel>
+                            </StackPanel>
+                        </Expander>
+                    </Border>
+                    <Border Style="{StaticResource Card}">
                         <StackPanel>
                             <TextBlock Text="CAMPOS TODAVÍA PENDIENTES"
                                        Style="{StaticResource SmallHeading}" Margin="0,0,0,9"/>
                             <TextBlock Foreground="{StaticResource TextSoft}" TextWrapping="Wrap"
                                        LineHeight="19">
-                                Compatibilidad MT y tutores, opciones de formas, color y datos especiales
-                                de Gen 7 siguen pendientes de edición visual. Se mantienen al guardar.
+                                Siguen pendientes herramientas de randomización, opciones de evolución por formulario,
+                                edición del índice de formas y algunas mecánicas Progressive.
+                                Los demás bytes se preservan al guardar.
                             </TextBlock>
                         </StackPanel>
                     </Border>

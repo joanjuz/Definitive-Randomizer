@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using System.Collections.ObjectModel;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Data;
@@ -24,10 +25,16 @@ public partial class MainWindow : Window
     private CancellationTokenSource? _spriteCancellation;
     private MoveEditorView? _movesView;
     private bool _showingMoves;
+    private readonly ObservableCollection<FlagChoice> _tmChoices = [];
+    private readonly ObservableCollection<FlagChoice> _tutorChoices = [];
+    private readonly ObservableCollection<FlagChoice> _specialChoices = [];
 
     public MainWindow()
     {
         InitializeComponent();
+        TmFlagsList.ItemsSource = _tmChoices;
+        TutorFlagsList.ItemsSource = _tutorChoices;
+        SpecialTutorFlagsList.ItemsSource = _specialChoices;
     }
 
     private void OpenProject_Click(object sender, RoutedEventArgs e)
@@ -64,6 +71,11 @@ public partial class MainWindow : Window
             AbilityOne.ItemsSource = candidate.AbilityNames;
             AbilityTwo.ItemsSource = candidate.AbilityNames;
             AbilityHidden.ItemsSource = candidate.AbilityNames;
+            ZItemBox.ItemsSource = candidate.ItemNames;
+            ZBaseMoveBox.ItemsSource = candidate.MoveNames;
+            ZSpecialMoveBox.ItemsSource = candidate.MoveNames;
+            Gen7PersonalCard.Visibility = candidate.SupportsGen7Personal
+                ? Visibility.Visible : Visibility.Collapsed;
             PokemonList.ItemsSource = candidate.Entries;
             _suppressSelection = false;
 
@@ -157,6 +169,17 @@ public partial class MainWindow : Window
             EggTwoBox.Text = p.EggGroup2.ToString();
             GrowthBox.Text = p.ExperienceGrowth.ToString();
             EscapeBox.Text = p.EscapeRate.ToString();
+            EvoStageBox.Text = p.EvoStage.ToString();
+            FormCountBox.Text = p.FormCount.ToString();
+            FormSpriteBox.Text = p.FormSprite.ToString();
+            ColorBox.Text = p.Color.ToString();
+            HeightBox.Text = p.Height.ToString();
+            WeightBox.Text = p.Weight.ToString();
+            ZItemBox.SelectedIndex = p.ZItem;
+            ZBaseMoveBox.SelectedIndex = p.ZBaseMove;
+            ZSpecialMoveBox.SelectedIndex = p.ZSpecialMove;
+            RegionalVariantCheck.IsChecked = p.RegionalVariant;
+            LoadCompatibilityLists(p);
             SaveButton.IsEnabled = true;
         }
         finally
@@ -166,6 +189,64 @@ public partial class MainWindow : Window
 
         UpdatePreview();
         _ = UpdateSpriteAsync(next.Index);
+    }
+
+    private void LoadCompatibilityLists(PersonalValues p)
+    {
+        _tmChoices.Clear();
+        for (int i = 0; i < Math.Min(100, p.TmFlags.Length); i++)
+            AddChoice(_tmChoices, $"MT {i + 1:000}", i, -1, p.TmFlags[i] == '1');
+        _tutorChoices.Clear();
+        string[] tutorNames = ["Covet", "Hyper Voice", "Draco Meteor", "Knock Off",
+            "Iron Tail", "Iron Head", "Trick", "Icy Wind"];
+        for (int i = 0; i < Math.Min(8, p.TutorFlags.Length); i++)
+            AddChoice(_tutorChoices, $"{i + 1:00} · {tutorNames[i]}", i, -1, p.TutorFlags[i] == '1');
+        _specialChoices.Clear();
+        string[] groups = p.SpecialTutorFlags.Length == 0 ? [] : p.SpecialTutorFlags.Split('|');
+        for (int group = 0; group < groups.Length; group++)
+            for (int i = 0; i < groups[group].Length; i++)
+                AddChoice(_specialChoices, $"Grupo {group + 1} · Slot {i + 1:00}",
+                    i, group, groups[group][i] == '1');
+    }
+
+    private void AddChoice(ObservableCollection<FlagChoice> target, string name,
+        int index, int group, bool enabled)
+    {
+        var flag = new FlagChoice(name, index, group, enabled);
+        flag.Changed += () => { if (!_loadingEntry) UpdatePreview(); };
+        target.Add(flag);
+    }
+
+    private static string MergeFlags(string original, ObservableCollection<FlagChoice> flags)
+    {
+        char[] data = original.ToCharArray();
+        foreach (FlagChoice flag in flags)
+            data[flag.Index] = flag.IsChecked ? '1' : '0';
+        return new string(data);
+    }
+
+    private string MergeSpecialFlags(string original)
+    {
+        string[] groups = original.Length == 0 ? [] : original.Split('|');
+        char[][] data = groups.Select(g => g.ToCharArray()).ToArray();
+        foreach (FlagChoice flag in _specialChoices)
+            data[flag.Group][flag.Index] = flag.IsChecked ? '1' : '0';
+        return string.Join("|", data.Select(g => new string(g)));
+    }
+
+    private void CheckAllTm_Click(object sender, RoutedEventArgs e)
+    {
+        foreach (FlagChoice flag in _tmChoices) flag.IsChecked = true;
+    }
+
+    private void UncheckAllTm_Click(object sender, RoutedEventArgs e)
+    {
+        foreach (FlagChoice flag in _tmChoices) flag.IsChecked = false;
+    }
+
+    private void FlagCheck_Changed(object sender, RoutedEventArgs e)
+    {
+        if (!_loadingEntry) UpdatePreview();
     }
 
     private bool TryDraft(out PersonalValues? draft)
@@ -200,7 +281,17 @@ public partial class MainWindow : Window
             !byte.TryParse(EggOneBox.Text, out byte egggroup1) ||
             !byte.TryParse(EggTwoBox.Text, out byte egggroup2) ||
             !byte.TryParse(GrowthBox.Text, out byte experiencegrowth) ||
-            !byte.TryParse(EscapeBox.Text, out byte escaperate))
+            !byte.TryParse(EscapeBox.Text, out byte escaperate) ||
+            !byte.TryParse(EvoStageBox.Text, out byte evostage) ||
+            !byte.TryParse(FormCountBox.Text, out byte formcount) ||
+            !ushort.TryParse(FormSpriteBox.Text, out ushort formsprite) ||
+            !byte.TryParse(ColorBox.Text, out byte color) || color > 63 ||
+            !ushort.TryParse(HeightBox.Text, out ushort height) ||
+            !ushort.TryParse(WeightBox.Text, out ushort weight) ||
+            (_session.SupportsGen7Personal &&
+                (ZItemBox.SelectedIndex < 0 ||
+                 ZBaseMoveBox.SelectedIndex < 0 ||
+                 ZSpecialMoveBox.SelectedIndex < 0)))
             return false;
         draft = new PersonalValues(hp, atk, def, spa, spd, spe, catchRate,
             TypeOne.SelectedIndex, TypeTwo.SelectedIndex)
@@ -225,6 +316,19 @@ public partial class MainWindow : Window
             EggGroup2 = egggroup2,
             ExperienceGrowth = experiencegrowth,
             EscapeRate = escaperate,
+            EvoStage = evostage,
+            FormCount = formcount,
+            FormSprite = formsprite,
+            Color = color,
+            Height = height,
+            Weight = weight,
+            ZItem = _session.SupportsGen7Personal ? ZItemBox.SelectedIndex : 0,
+            ZBaseMove = _session.SupportsGen7Personal ? ZBaseMoveBox.SelectedIndex : 0,
+            ZSpecialMove = _session.SupportsGen7Personal ? ZSpecialMoveBox.SelectedIndex : 0,
+            RegionalVariant = _session.SupportsGen7Personal && RegionalVariantCheck.IsChecked == true,
+            TmFlags = MergeFlags(_original!.TmFlags, _tmChoices),
+            TutorFlags = MergeFlags(_original.TutorFlags, _tutorChoices),
+            SpecialTutorFlags = MergeSpecialFlags(_original.SpecialTutorFlags),
         };
         return true;
     }
