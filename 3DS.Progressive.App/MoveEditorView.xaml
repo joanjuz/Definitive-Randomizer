@@ -209,7 +209,7 @@
 </StackPanel>
                                     <StackPanel Margin="0,0,10,13">
                                         <TextBlock Text="Tipo Poké Relax" Style="{StaticResource MoveLabel}"/>
-                                        <ComboBox x:Name="RefreshTypeBox" SelectionChanged="Value_Changed"/>
+                                        <ComboBox x:Name="RefreshTypeBox" DisplayMemberPath="Display" SelectedValuePath="Id" SelectionChanged="Value_Changed"/>
                                     </StackPanel>
                                     <StackPanel Margin="0,0,10,13">
                                         <TextBlock Text="Probabilidad Poké Relax (0–255)" Style="{StaticResource MoveLabel}"/>
@@ -224,6 +224,8 @@
                         <TextBlock Foreground="{StaticResource TextSoft}" TextWrapping="Wrap"
                                    Text="Faltan estados secundarios, turnos, curación, cambios de stats, recarga, compatibilidades, randomizaciones y parches Progressive. Los bytes no editados se conservan."/>
                     </Border>
+                    <TextBlock x:Name="ValidationSummary" Foreground="#FF9696" FontSize="12"
+                               TextWrapping="Wrap" Margin="0,0,0,10" Visibility="Collapsed"/>
                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
                         <Button Content="Restablecer" Click="Reset_Click" Margin="0,0,10,0"/>
                         <Button x:Name="SaveMoveButton" Content="Guardar movimiento"

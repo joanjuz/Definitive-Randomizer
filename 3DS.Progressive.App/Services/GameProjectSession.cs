@@ -5,6 +5,7 @@ using System.Collections.Generic;
 using System.Security.Cryptography;
 using pk3DS.Core;
 using pk3DS.Core.CTR;
+using pk3DS.Core.Modding.Research;
 using pk3DS.Core.Structures.PersonalInfo;
 using ThreeDS.Progressive.Models;
 
@@ -61,6 +62,10 @@ public sealed class GameProjectSession
         AbilityNames = config.GetText(TextName.AbilityNames);
         ItemNames = config.GetText(TextName.ItemNames);
         MoveNames = config.GetText(TextName.MoveNames);
+        // Nombres resueltos desde el code.bin y Shop.cro ACTIVOS (incluidas ROMs custom).
+        // Si faltan los binarios, NO asumir tablas vanilla ni inventar asignaciones.
+        TmMoveIds = TryReadTmMoves(config);
+        BeachTutorMoveIds = TryReadBeachTutorMoves(config);
     }
 
     public string ProjectRoot { get; }
@@ -72,6 +77,92 @@ public sealed class GameProjectSession
     public IReadOnlyList<string> AbilityNames { get; }
     public IReadOnlyList<string> ItemNames { get; }
     public IReadOnlyList<string> MoveNames { get; }
+    public IReadOnlyList<ushort> TmMoveIds { get; }
+    public IReadOnlyList<ushort> BeachTutorMoveIds { get; }
+    public bool TmNamesAvailable => TmMoveIds.Count == 100;
+    public bool BeachTutorNamesAvailable => BeachTutorMoveIds.Count > 0;
+
+    public string GetMoveLabel(int id)
+    {
+        if (id >= 0 && id < MoveNames.Count && !string.IsNullOrWhiteSpace(MoveNames[id]))
+            return MoveNames[id];
+        return $"Movimiento ID {id}";
+    }
+
+    private static ushort[] TryReadTmMoves(GameConfig config)
+    {
+        // Mismo marcador y desplazamiento del TMEditor7.GetTMHMList.
+        byte[] signature = [0x03, 0x40, 0x03, 0x41, 0x03, 0x42, 0x03, 0x43, 0x03];
+        try
+        {
+            if (!Directory.Exists(config.ExeFS))
+                return [];
+            foreach (string path in Directory.EnumerateFiles(config.ExeFS)
+                .Where(p => Path.GetFileName(p).Contains("code", StringComparison.OrdinalIgnoreCase)))
+            {
+                byte[] data = File.ReadAllBytes(path);
+                if (data.Length < 0x400000 + signature.Length + 0x22 + 200 ||
+                    data.Length % 0x200 != 0)
+                    continue;
+                int rel = data.AsSpan(0x400000).IndexOf(signature);
+                if (rel < 0)
+                    continue;
+                int offset = checked(0x400000 + rel + signature.Length + (config.USUM ? 0x22 : 0));
+                if (offset + 100 * sizeof(ushort) > data.Length)
+                    continue;
+                ushort[] result = new ushort[100];
+                for (int i = 0; i < result.Length; i++)
+                    result[i] = BitConverter.ToUInt16(data, offset + 2 * i);
+                return result;
+            }
+        }
+        catch (IOException) { }
+        catch (UnauthorizedAccessException) { }
+        return [];
+    }
+
+    private static ushort[] TryReadBeachTutorMoves(GameConfig config)
+    {
+        if (config.Generation != 7)
+            return [];
+        string path = Path.Combine(config.RomFS, "Shop.cro");
+        try
+        {
+            if (!File.Exists(path))
+                return [];
+            byte[] data = File.ReadAllBytes(path);
+            byte[] counts;
+            int offset;
+            if (config.USUM)
+            {
+                if (!Gen7ShopCroLayout.TryRead(data, out var layout, out _))
+                    return [];
+                counts = layout.BPTutors.Counts.ToArray();
+                offset = checked((int)layout.BPTutors.DataStart);
+            }
+            else
+            {
+                // SM vanilla usa el desplazamiento legado del TutorEditor7.
+                if (data.Length < 0x54DE)
+                    return [];
+                counts = data.Skip(0x52D2).Take(4).ToArray();
+                offset = 0x54DE;
+            }
+            int total = counts.Sum(n => (int)n);
+            if (total <= 0 || total > 256 || offset < 0 ||
+                (long)offset + total * 4 > data.Length)
+                return [];
+            ushort[] result = new ushort[total];
+            for (int i = 0; i < total; i++)
+                result[i] = BitConverter.ToUInt16(data, offset + i * 4);
+            return result;
+        }
+        catch (IOException) { }
+        catch (UnauthorizedAccessException) { }
+        catch (OverflowException) { }
+        return [];
+    }
+
     public bool SupportsGen7Personal => _config.Generation == 7;
     public int EntryCount => _config.GARCPersonal.FileCount - 1;
 

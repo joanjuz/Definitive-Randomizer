@@ -193,20 +193,41 @@ public partial class MainWindow : Window
 
     private void LoadCompatibilityLists(PersonalValues p)
     {
+        if (_session is null)
+            return;
+
         _tmChoices.Clear();
         for (int i = 0; i < Math.Min(100, p.TmFlags.Length); i++)
-            AddChoice(_tmChoices, $"MT {i + 1:000}", i, -1, p.TmFlags[i] == '1');
+        {
+            string name = i < _session.TmMoveIds.Count
+                ? _session.GetMoveLabel(_session.TmMoveIds[i])
+                : "Nombre no disponible (code.bin)";
+            AddChoice(_tmChoices, $"MT {i + 1:000} · {name}", i, -1, p.TmFlags[i] == '1');
+        }
+
         _tutorChoices.Clear();
-        string[] tutorNames = ["Covet", "Hyper Voice", "Draco Meteor", "Knock Off",
-            "Iron Tail", "Iron Head", "Trick", "Icy Wind"];
-        for (int i = 0; i < Math.Min(8, p.TutorFlags.Length); i++)
-            AddChoice(_tutorChoices, $"{i + 1:00} · {tutorNames[i]}", i, -1, p.TutorFlags[i] == '1');
+        // Exactamente los 8 movimientos TypeTutors de PersonalEditor7 (no inventar un orden).
+        int[] fixedTutors = [520, 519, 518, 338, 307, 308, 434, 620];
+        for (int i = 0; i < Math.Min(p.TutorFlags.Length, fixedTutors.Length); i++)
+            AddChoice(_tutorChoices,
+                $"{i + 1:00} · {_session.GetMoveLabel(fixedTutors[i])}",
+                i, -1, p.TutorFlags[i] == '1');
+
         _specialChoices.Clear();
         string[] groups = p.SpecialTutorFlags.Length == 0 ? [] : p.SpecialTutorFlags.Split('|');
+        int slot = 0;
         for (int group = 0; group < groups.Length; group++)
-            for (int i = 0; i < groups[group].Length; i++)
-                AddChoice(_specialChoices, $"Grupo {group + 1} · Slot {i + 1:00}",
+        {
+            for (int i = 0; i < groups[group].Length; i++, slot++)
+            {
+                string moveName = slot < _session.BeachTutorMoveIds.Count
+                    ? _session.GetMoveLabel(_session.BeachTutorMoveIds[slot])
+                    : "Nombre no disponible (Shop.cro)";
+                AddChoice(_specialChoices,
+                    $"BT {slot + 1:00} · {moveName}",
                     i, group, groups[group][i] == '1');
+            }
+        }
     }
 
     private void AddChoice(ObservableCollection<FlagChoice> target, string name,

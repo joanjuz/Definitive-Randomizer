@@ -212,6 +212,87 @@ public partial class MoveEditorView : System.Windows.Controls.UserControl
         return true;
     }
 
+    private readonly List<System.Windows.Controls.Control> _highlightedErrors = [];
+
+    private List<string> ValidateFields()
+    {
+        foreach (var field in _highlightedErrors)
+        {
+            field.ClearValue(System.Windows.Controls.Control.BorderBrushProperty);
+            field.ClearValue(System.Windows.Controls.Control.BorderThicknessProperty);
+            field.ClearValue(FrameworkElement.ToolTipProperty);
+        }
+        _highlightedErrors.Clear();
+        var errors = new List<string>();
+
+        void Error(System.Windows.Controls.Control field, string message)
+        {
+            errors.Add(message);
+            field.BorderBrush = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#FF626D")!);
+            field.BorderThickness = new Thickness(2);
+            field.ToolTip = message;
+            _highlightedErrors.Add(field);
+        }
+        void Number(System.Windows.Controls.TextBox field, string label, int min, int max)
+        {
+            if (!int.TryParse(field.Text, NumberStyles.Integer, CultureInfo.InvariantCulture,
+                    out int value) || value < min || value > max)
+                Error(field, $"{label}: número entre {min} y {max}.");
+        }
+        void Choice(System.Windows.Controls.ComboBox field, string label)
+        {
+            if (field.SelectedValue is not int)
+                Error(field, $"{label}: seleccioná una opción de la lista.");
+        }
+
+        if (_selected is not null)
+        {
+            Number(TurnsMinBox, "Turnos mínimos", 0, 255);
+            Number(TurnsMaxBox, "Turnos máximos", 0, 255);
+            Number(RecoilBox, "Retroceso", -128, 127);
+            Number(HealingBox, "Curación", 0, 255);
+            Number(StageOneBox, "Nivel de stat 1", -128, 127);
+            Number(StageTwoBox, "Nivel de stat 2", -128, 127);
+            Number(StageThreeBox, "Nivel de stat 3", -128, 127);
+            Number(StageRateOneBox, "Probabilidad stat 1", 0, 255);
+            Number(StageRateTwoBox, "Probabilidad stat 2", 0, 255);
+            Number(StageRateThreeBox, "Probabilidad stat 3", 0, 255);
+            Number(InflictCountBox, "Duración del estado", 0, 255);
+            Number(RefreshRateBox, "Probabilidad Poké Relax", 0, 255);
+            Number(MovePower, "Potencia", 0, 255);
+            Number(MoveAccuracy, "Precisión", 0, 255);
+            Number(MovePP, "PP", 0, 255);
+            Number(MovePriority, "Prioridad", -8, 8);
+            Number(MinHitsBox, "Golpes mínimos", 0, 15);
+            Number(MaxHitsBox, "Golpes máximos", 0, 15);
+            Number(InflictRateBox, "Probabilidad del estado", 0, 255);
+            Number(CritBox, "Críticos", 0, 255);
+            Number(FlinchBox, "Retroceso del objetivo", 0, 255);
+            Number(EffectBox, "Secuencia del efecto", 0, 65535);
+            Number(ZPowerBox, "Potencia Z", 0, 255);
+            Choice(StatOneBox, "Stat 1");
+            Choice(StatTwoBox, "Stat 2");
+            Choice(StatThreeBox, "Stat 3");
+            Choice(RefreshTypeBox, "Poké Relax");
+            Choice(QualityBox, "Clasificación del efecto");
+            Choice(InflictBox, "Estado infligido");
+            Choice(TargetBox, "Objetivo");
+            Choice(ZMoveBox, "Movimiento Z asociado");
+            Choice(ZEffectBox, "Efecto Z");
+            if (MoveType.SelectedIndex < 0)
+                Error(MoveType, "Tipo del movimiento: elegí un tipo.");
+            if (MoveCategory.SelectedIndex is < 0 or > 2)
+                Error(MoveCategory, "Categoría del movimiento: elegí un valor.");
+            string flags = (FlagsBox.Text ?? "").Trim();
+            if (flags.StartsWith("0x", StringComparison.OrdinalIgnoreCase))
+                flags = flags[2..];
+            if (!uint.TryParse(flags, NumberStyles.HexNumber,
+                    CultureInfo.InvariantCulture, out _))
+                Error(FlagsBox, "Flags: código hexadecimal de 32 bits inválido.");
+        }
+        return errors;
+    }
+
     private bool HasChanges()
     {
         if (_saved is null)
@@ -232,7 +313,18 @@ public partial class MoveEditorView : System.Windows.Controls.UserControl
         PreviewCategory.Text = (MoveCategory.SelectedItem as ComboBoxItem)?.Content?.ToString() ?? "—";
         PreviewPower.Text = MovePower.Text;
 
-        bool valid = TryDraft(out MoveValues? next);
+        var errors = ValidateFields();
+        MoveValues? next = null;
+        bool valid = errors.Count == 0 && TryDraft(out next);
+        if (!valid && errors.Count == 0 && _selected is not null)
+            errors.Add("Un selector no pudo interpretarse. Restablecé el movimiento y volvé a intentarlo.");
+        if (ValidationSummary is not null)
+        {
+            ValidationSummary.Text = errors.Count == 0 ? "" :
+                "Revisar: " + string.Join("  ·  ", errors.Take(4)) +
+                (errors.Count > 4 ? $"  (+{errors.Count - 4} más)" : "");
+            ValidationSummary.Visibility = errors.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+        }
         bool modified = _saved is not null && (!valid || next != _saved);
         string bg = !valid ? "#6B4434" : modified ? "#75522E" : "#31544A";
         string fg = !valid ? "#F6C1A7" : modified ? "#F8D49A" : "#B6E8CC";
@@ -334,10 +426,21 @@ public partial class MoveEditorView : System.Windows.Controls.UserControl
     private void Save_Click(object sender, RoutedEventArgs e)
     {
         if (_selected is null) return;
+        var errors = ValidateFields();
+        if (errors.Count != 0)
+        {
+            UpdatePreview();
+            _highlightedErrors.FirstOrDefault()?.Focus();
+            StudioDialog.Notice(Window.GetWindow(this), "Revisá los campos marcados",
+                string.Join(Environment.NewLine, errors.Take(8)),
+                errors.Count > 8 ? $"Hay {errors.Count - 8} errores adicionales resaltados en rojo." :
+                                  "Cada campo inválido tiene un borde rojo y una descripción al pasar el cursor.");
+            return;
+        }
         if (!TryDraft(out var next) || next is null)
         {
-            StudioDialog.Notice(Window.GetWindow(this), "Datos inválidos",
-                "Revisá los campos del movimiento: tipo, categoría, potencia, precisión, PP y prioridad.");
+            StudioDialog.Error(Window.GetWindow(this), "No se pudo validar",
+                "No fue posible convertir uno de los valores. Restablecé el movimiento y volvé a intentarlo.");
             return;
         }
         if (next == _saved)
