@@ -82,7 +82,7 @@
                     <StackPanel DockPanel.Dock="Top">
                         <TextBlock Text="EDICIÓN" Style="{StaticResource SmallHeading}"
                                    Margin="12,0,0,12"/>
-                        <Button Content="◆  Pokémon" Style="{StaticResource SidebarButton}"
+                        <Button x:Name="PokemonNavButton" Click="Pokemon_Click" Content="◆  Pokémon" Style="{StaticResource SidebarButton}"
                                 Background="#2B4059" FontWeight="SemiBold"/>
                         <Button Content="⚔  Entrenadores" Style="{StaticResource NavDisabled}"/>
                         <Button Content="◎  Encuentros" Style="{StaticResource NavDisabled}"/>
@@ -114,7 +114,7 @@
             </Border>
 
             <!-- Lista y busqueda -->
-            <Border Grid.Column="1" BorderBrush="{StaticResource Stroke}"
+            <Border x:Name="PokemonListPanel" Grid.Column="1" BorderBrush="{StaticResource Stroke}"
                     BorderThickness="0,0,1,0" Background="#1B2430">
                 <DockPanel Margin="14,19">
                     <StackPanel DockPanel.Dock="Top" Margin="0,0,0,13">
@@ -137,7 +137,7 @@
             </Border>
 
             <!-- Editor central -->
-            <ScrollViewer Grid.Column="2" VerticalScrollBarVisibility="Auto"
+            <ScrollViewer x:Name="PokemonEditorPanel" Grid.Column="2" VerticalScrollBarVisibility="Auto"
                           HorizontalScrollBarVisibility="Disabled"
                           Background="{StaticResource Bg}" Padding="0">
                 <StackPanel x:Name="EditorContent" Margin="25,23" IsEnabled="False"
@@ -332,7 +332,7 @@
             </ScrollViewer>
 
             <!-- Inspector -->
-            <Border Grid.Column="3" Background="#1B2430"
+            <Border x:Name="PokemonInspectorPanel" Grid.Column="3" Background="#1B2430"
                     BorderBrush="{StaticResource Stroke}" BorderThickness="1,0,0,0">
                 <StackPanel Margin="17,23">
                     <TextBlock Text="INSPECTOR" Style="{StaticResource SmallHeading}"
@@ -370,6 +370,8 @@
                     </Border>
                 </StackPanel>
             </Border>
+            <ContentControl x:Name="MovesHost" Grid.Column="1" Grid.ColumnSpan="3"
+                            Visibility="Collapsed" Background="{StaticResource Bg}"/>
         </Grid>
 
         <Border Grid.Row="2" Background="#111720" BorderBrush="{StaticResource Stroke}"

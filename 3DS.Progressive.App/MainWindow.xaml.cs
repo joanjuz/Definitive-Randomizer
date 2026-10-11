@@ -21,6 +21,8 @@ public partial class MainWindow : Window
     private bool _loadingEntry;
     private readonly SpriteService _sprites = new();
     private CancellationTokenSource? _spriteCancellation;
+    private MoveEditorView? _movesView;
+    private bool _showingMoves;
 
     public MainWindow()
     {
@@ -29,7 +31,7 @@ public partial class MainWindow : Window
 
     private void OpenProject_Click(object sender, RoutedEventArgs e)
     {
-        if (!ConfirmDiscard())
+        if (!ConfirmDiscard() || (_showingMoves && _movesView is not null && !_movesView.ConfirmLeave()))
             return;
 
         using var dialog = new System.Windows.Forms.FolderBrowserDialog
@@ -44,6 +46,9 @@ public partial class MainWindow : Window
         {
             var candidate = GameProjectSession.Open(dialog.SelectedPath);
             _session = candidate;
+            _movesView = null;
+            MovesHost.Content = null;
+            DisplayPokemon();
             _previous = null;
             _original = null;
             _currentIndex = -1;
@@ -275,19 +280,48 @@ public partial class MainWindow : Window
         }
     }
 
+    private void Pokemon_Click(object sender, RoutedEventArgs e)
+    {
+        if (!_showingMoves)
+            return;
+        if (_movesView is not null && !_movesView.ConfirmLeave())
+            return;
+        DisplayPokemon();
+    }
+
+    private void DisplayPokemon()
+    {
+        _showingMoves = false;
+        PokemonListPanel.Visibility = Visibility.Visible;
+        PokemonEditorPanel.Visibility = Visibility.Visible;
+        PokemonInspectorPanel.Visibility = Visibility.Visible;
+        MovesHost.Visibility = Visibility.Collapsed;
+        PokemonNavButton.Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#2B4059")!);
+        MovesButton.Background = Brushes.Transparent;
+    }
+
     private void Moves_Click(object sender, RoutedEventArgs e)
     {
-        if (_session is null)
+        if (_session is null || _showingMoves)
+            return;
+        if (!ConfirmDiscard())
             return;
         try
         {
-            var window = new MoveEditorWindow(_session) { Owner = this };
-            window.ShowDialog();
-            StatusText.Text = "Volviste al editor de Pokémon.";
+            _movesView ??= new MoveEditorView(_session);
+            MovesHost.Content = _movesView;
+            PokemonListPanel.Visibility = Visibility.Collapsed;
+            PokemonEditorPanel.Visibility = Visibility.Collapsed;
+            PokemonInspectorPanel.Visibility = Visibility.Collapsed;
+            MovesHost.Visibility = Visibility.Visible;
+            _showingMoves = true;
+            PokemonNavButton.Background = Brushes.Transparent;
+            MovesButton.Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#2B4059")!);
+            StatusText.Text = "Movimientos · edición integrada en 3DS Progressive.";
         }
         catch (Exception ex)
         {
-            StudioDialog.Error(this, "No se pudo abrir Movimientos", ex.Message);
+            StudioDialog.Error(this, "No se pudo cargar Movimientos", ex.Message);
         }
     }
 
@@ -411,7 +445,7 @@ public partial class MainWindow : Window
 
     protected override void OnClosing(CancelEventArgs e)
     {
-        if (!ConfirmDiscard())
+        if (!ConfirmDiscard() || (_showingMoves && _movesView is not null && !_movesView.ConfirmLeave()))
             e.Cancel = true;
         if (!e.Cancel)
         {
