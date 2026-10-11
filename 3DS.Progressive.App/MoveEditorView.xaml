@@ -33,8 +33,7 @@
                     <TextBlock Text="3DS Progressive · Editor GARC" FontSize="12"
                                Foreground="{StaticResource TextSoft}" Margin="0,4,0,0"/>
                 </StackPanel>
-                <Button Grid.Column="1" Content="Editor integrado · 3DS Progressive"
-                        VerticalAlignment="Center" IsEnabled="False" Padding="16,10"/>
+
             </Grid>
         </Border>
         <Grid Grid.Row="1">
@@ -67,6 +66,7 @@
             <ScrollViewer Grid.Column="1" Background="{StaticResource Bg}"
                           VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
                 <StackPanel Margin="27,26">
+                    <ContentControl x:Name="MoveToolsHost"/>
                     <TextBlock x:Name="MoveNameText" Text="Seleccioná un movimiento"
                                FontSize="26" FontWeight="SemiBold"/>
                     <TextBlock x:Name="MoveNumberText" Text="Campos básicos"

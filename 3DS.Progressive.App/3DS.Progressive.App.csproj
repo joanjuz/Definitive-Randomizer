@@ -10,6 +10,7 @@
     <RootNamespace>ThreeDS.Progressive</RootNamespace>
   </PropertyGroup>
   <ItemGroup>
+    <InternalsVisibleTo Include="3DS.Progressive.Tests" />
     <ProjectReference Include="..\pk3DS.Core\pk3DS.Core.csproj" />
   </ItemGroup>
 </Project>

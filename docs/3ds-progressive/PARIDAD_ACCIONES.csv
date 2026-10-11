@@ -1,0 +1,43 @@
+﻿Modulo,Accion,Fuente,Estado,Evidencia,Notas
+Pokémon,Stats: variación y seis campos,PersonalEditor6/7.B_Randomize_Click → Core.PersonalRandomizer,Implementado,Paridad byte a byte Core; XY/ORAS/SM/USUM sintéticos,Prueba manual nueva pendiente
+Pokémon,Stats: barajado BST,PersonalEditor6/7.B_Randomize_Click → Core.PersonalRandomizer,Implementado,Paridad byte a byte Core; XY/ORAS/SM/USUM sintéticos,Prueba manual nueva pendiente
+Pokémon,Tipos y monotipo,PersonalEditor6/7.B_Randomize_Click → Core.PersonalRandomizer,Implementado,Paridad byte a byte Core; XY/ORAS/SM/USUM sintéticos,Prueba manual nueva pendiente
+Pokémon,Habilidades y Wonder Guard,PersonalEditor6/7.B_Randomize_Click → Core.PersonalRandomizer,Implementado,Paridad byte a byte Core; XY/ORAS/SM/USUM sintéticos,Prueba manual nueva pendiente
+Pokémon,Objetos equipados,PersonalEditor6/7.B_Randomize_Click → Core.PersonalRandomizer,Implementado,Paridad byte a byte Core; XY/ORAS/SM/USUM sintéticos,Prueba manual nueva pendiente
+Pokémon,Captura,PersonalEditor6/7.B_Randomize_Click → Core.PersonalRandomizer,Implementado,Paridad byte a byte Core; XY/ORAS/SM/USUM sintéticos,Prueba manual nueva pendiente
+Pokémon,Grupos huevo y porcentaje,PersonalEditor6/7.B_Randomize_Click → Core.PersonalRandomizer,Implementado,Paridad byte a byte Core; XY/ORAS/SM/USUM sintéticos,Prueba manual nueva pendiente
+Pokémon,Compatibilidad MT,PersonalEditor6/7.B_Randomize_Click → Core.PersonalRandomizer,Implementado,Paridad byte a byte Core; XY/ORAS/SM/USUM sintéticos,Prueba manual nueva pendiente
+Pokémon,Compatibilidad MO Gen6,PersonalEditor6/7.B_Randomize_Click → Core.PersonalRandomizer,Implementado,Paridad byte a byte Core; XY/ORAS/SM/USUM sintéticos,Prueba manual nueva pendiente
+Pokémon,Tutores por tipo,PersonalEditor6/7.B_Randomize_Click → Core.PersonalRandomizer,Implementado,Paridad byte a byte Core; XY/ORAS/SM/USUM sintéticos,Prueba manual nueva pendiente
+Pokémon,Tutores ORAS/USUM,PersonalEditor6/7.B_Randomize_Click → Core.PersonalRandomizer,Implementado,Paridad byte a byte Core; XY/ORAS/SM/USUM sintéticos,Prueba manual nueva pendiente
+Pokémon,EV: quitar,PersonalEditor6/7.B_ModifyAll,Implementado,"Fixtures Gen6/Gen7, límites y bits reservados",Quitar MT conserva MO Gen6; EXP desbordada rechazada; prueba manual pendiente
+Pokémon,EXP: crecimiento lento,PersonalEditor6/7.B_ModifyAll,Implementado,"Fixtures Gen6/Gen7, límites y bits reservados",Quitar MT conserva MO Gen6; EXP desbordada rechazada; prueba manual pendiente
+Pokémon,EXP: porcentaje base,PersonalEditor6/7.B_ModifyAll,Implementado,"Fixtures Gen6/Gen7, límites y bits reservados",Quitar MT conserva MO Gen6; EXP desbordada rechazada; prueba manual pendiente
+Pokémon,Compatibilidad: quitar,PersonalEditor6/7.B_ModifyAll,Implementado,"Fixtures Gen6/Gen7, límites y bits reservados",Quitar MT conserva MO Gen6; EXP desbordada rechazada; prueba manual pendiente
+Pokémon,Compatibilidad: todas MT,PersonalEditor6/7.B_ModifyAll,Implementado,"Fixtures Gen6/Gen7, límites y bits reservados",Quitar MT conserva MO Gen6; EXP desbordada rechazada; prueba manual pendiente
+Pokémon,Compatibilidad: todas MO,PersonalEditor6/7.B_ModifyAll,Implementado,"Fixtures Gen6/Gen7, límites y bits reservados",Quitar MT conserva MO Gen6; EXP desbordada rechazada; prueba manual pendiente
+Pokémon,Compatibilidad: todos tutores tipo,PersonalEditor6/7.B_ModifyAll,Implementado,"Fixtures Gen6/Gen7, límites y bits reservados",Quitar MT conserva MO Gen6; EXP desbordada rechazada; prueba manual pendiente
+Pokémon,Compatibilidad: tutores ORAS/playa,PersonalEditor6/7.B_ModifyAll,Implementado,"Fixtures Gen6/Gen7, límites y bits reservados",Quitar MT conserva MO Gen6; EXP desbordada rechazada; prueba manual pendiente
+Pokémon,Eclosión rápida,PersonalEditor6/7.B_ModifyAll,Implementado,"Fixtures Gen6/Gen7, límites y bits reservados",Quitar MT conserva MO Gen6; EXP desbordada rechazada; prueba manual pendiente
+Pokémon,Captura fija,PersonalEditor6/7.B_ModifyAll,Implementado,"Fixtures Gen6/Gen7, límites y bits reservados",Quitar MT conserva MO Gen6; EXP desbordada rechazada; prueba manual pendiente
+Pokémon,SOS fijo Gen7,PersonalEditor6/7.B_ModifyAll,Implementado,"Fixtures Gen6/Gen7, límites y bits reservados",Quitar MT conserva MO Gen6; EXP desbordada rechazada; prueba manual pendiente
+Pokémon,Excluir Shadow Tag y Arena Trap,PersonalEditor7.B_BanTrappingAbilities_Click,Implementado,Saneamiento determinista y exclusión posterior,Regla activa en acciones masivas de sesión/alcance; prueba manual pendiente
+Pokémon,Copiar datos completos,PersonalEditor6/7.B_Dump_Click,Implementado,Todos los campos del modelo y cabeceras en español,TSV al portapapeles; no un dump binario
+Movimientos,Tipos y categorías,MoveEditor6/7.B_RandAll_Click,Implementado,Solo bytes tipo/categoría; conserva estado/Z/flags,Protege IDs165/174; corrige confusión índice del selector antiguo; prueba manual pendiente
+Movimientos,Modo Metrónomo,MoveEditor6/7.B_Metronome_Click,Implementado,PP únicamente; IDs118/33 traducidos desde índices117/32,Prueba manual pendiente
+Movimientos,Copiar datos completos,MoveEditor6/7.B_Table_Click,Implementado,Todos los campos y cabeceras en español,Portapapeles; catálogos y IDs custom
+Pokémon,Alcance todo/filtrado/selección,BatchToolsView + servicios Studio,Implementado,Fixtures; inicialización WPF Windows en CI,Validación del usuario pendiente
+Pokémon,Semilla reproducible,BatchToolsView + servicios Studio,Implementado,Fixtures; inicialización WPF Windows en CI,Validación del usuario pendiente
+Pokémon,Vista previa antes/después,BatchToolsView + servicios Studio,Implementado,Fixtures; inicialización WPF Windows en CI,Validación del usuario pendiente
+Pokémon,Aplicación confirmada y GARC verificado,BatchToolsView + servicios Studio,Implementado,Fixtures; inicialización WPF Windows en CI,Validación del usuario pendiente
+Pokémon,Copia de cambios,BatchToolsView + servicios Studio,Implementado,Fixtures; inicialización WPF Windows en CI,Validación del usuario pendiente
+Movimientos,Alcance todo/filtrado/selección,BatchToolsView + servicios Studio,Implementado,Fixtures; inicialización WPF Windows en CI,Validación del usuario pendiente
+Movimientos,Semilla reproducible,BatchToolsView + servicios Studio,Implementado,Fixtures; inicialización WPF Windows en CI,Validación del usuario pendiente
+Movimientos,Vista previa antes/después,BatchToolsView + servicios Studio,Implementado,Fixtures; inicialización WPF Windows en CI,Validación del usuario pendiente
+Movimientos,Aplicación confirmada y GARC verificado,BatchToolsView + servicios Studio,Implementado,Fixtures; inicialización WPF Windows en CI,Validación del usuario pendiente
+Movimientos,Copia de cambios,BatchToolsView + servicios Studio,Implementado,Fixtures; inicialización WPF Windows en CI,Validación del usuario pendiente
+Pokémon,Balance CSV/templates,B_PokemonStatsTemplate_Click + CustomBalanceTemplates,Pendiente,No disponible en Studio,Mantener opciones originales; no activar botones sin implementación
+Movimientos,Balance completo,B_BalanceMoves + Battle/CRO + descripciones,Pendiente,No disponible en Studio,Mantener opciones originales; no activar botones sin implementación
+Entrenadores,Editor y randomizadores completos,TrainerEditor6/7 + Progressive/Smart Items/Better Movesets,Pendiente,No disponible en Studio,Mantener opciones originales; no activar botones sin implementación
+Encuentros,Tablas y Progressive Wild,WildEditor6/7 y sistemas Progressive,Pendiente,No disponible en Studio,Mantener opciones originales; no activar botones sin implementación
+Automatización,Global Template y Batch ROM Builder,GlobalRandomizationTemplate y BatchRomBuilder,Pendiente,No disponible en Studio,Mantener opciones originales; no activar botones sin implementación

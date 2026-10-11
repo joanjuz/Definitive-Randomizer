@@ -5,11 +5,13 @@ on:
       - feature/3ds-progressive-ui
     paths:
       - "3DS.Progressive.App/**"
+      - "3DS.Progressive.Tests/**"
       - "pk3DS.Core/**"
       - ".github/workflows/3ds-progressive-ci.yml"
   pull_request:
     paths:
       - "3DS.Progressive.App/**"
+      - "3DS.Progressive.Tests/**"
       - "pk3DS.Core/**"
       - ".github/workflows/3ds-progressive-ci.yml"
 
@@ -29,6 +31,8 @@ jobs:
         run: dotnet restore .\3DS.Progressive.App\3DS.Progressive.App.csproj -r win-x64
       - name: Compilar 3DS Progressive
         run: dotnet build .\3DS.Progressive.App\3DS.Progressive.App.csproj -c Release -r win-x64 --no-restore
+      - name: Regresiones con datos sinteticos XY, ORAS, SM y USUM
+        run: dotnet run --project .\3DS.Progressive.Tests\3DS.Progressive.Tests.csproj -c Release
       - name: Publicar version preliminar autocontenida
         run: dotnet publish .\3DS.Progressive.App\3DS.Progressive.App.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -o .\preview-output
       - name: Adjuntar ejecutable de prueba

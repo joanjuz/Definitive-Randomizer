@@ -14,7 +14,7 @@ namespace ThreeDS.Progressive.Services;
 /// Segundo modulo real: lector/escritor de Move GARC, utilizando Mini WD segun el juego.
 /// La serializacion replica el esquema de Main.B_Move_Click de pk3DS original.
 /// </summary>
-public sealed class GameMoveService
+public sealed partial class GameMoveService
 {
     private readonly GameConfig _config;
     private readonly string _path;
@@ -191,47 +191,7 @@ public sealed class GameMoveService
             new Move6(edited).Flags = (MoveFlag6)changes.Flags;
         records[id] = edited;
 
-        if (mini)
-        {
-            if (garcFiles.Length != 1)
-                throw new InvalidDataException("Estructura inesperada del GARC de movimientos.");
-            garcFiles[0] = Mini.PackMini(records, "WD");
-        }
-        else
-            garcFiles = records;
-
-        string temporary = _path + ".studio-" + Guid.NewGuid().ToString("N") + ".tmp";
-        try
-        {
-            var output = new GARCFile(
-                new GARC.MemGARC(source), _config.GetGARCReference("move"), temporary);
-            output.Files = garcFiles;
-            output.Save();
-
-            byte[] reloaded = File.ReadAllBytes(temporary);
-            var verifiedGarc = new GARC.MemGARC(reloaded);
-            if (verifiedGarc.FileCount != garcFiles.Length)
-                throw new InvalidDataException("El GARC regenerado tiene un número de archivos distinto.");
-            byte[][] verified = mini
-                ? Mini.UnpackMini(verifiedGarc.GetFile(0), "WD")
-                : verifiedGarc.Files;
-            if (verified.Length != records.Length)
-                throw new InvalidDataException("La tabla WD regenerada tiene un número de movimientos distinto.");
-            for (int i = 0; i < records.Length; i++)
-                if (!verified[i].AsSpan().SequenceEqual(records[i]))
-                    throw new InvalidDataException($"No coincide el movimiento {i} en el archivo verificado.");
-
-            if (!_sha.AsSpan().SequenceEqual(SHA256.HashData(File.ReadAllBytes(_path))))
-                throw new IOException("El GARC cambió mientras se guardaba. No se reemplazó.");
-
-            File.Replace(temporary, _path, null);
-            _sha = SHA256.HashData(File.ReadAllBytes(_path));
-            _config.InitializeMoves();
-        }
-        finally
-        {
-            if (File.Exists(temporary))
-                File.Delete(temporary);
-        }
+        _sha = GarcTransaction.Commit(_path, _config.GetGARCReference("move"), _sha, records, mini);
+        _config.InitializeMoves();
     }
 }

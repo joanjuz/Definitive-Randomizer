@@ -98,7 +98,7 @@
                         <Button Content="⇄  Automatización" Style="{StaticResource NavDisabled}"/>
                         <Button Content="⚙  Configuración" Style="{StaticResource NavDisabled}"/>
                     </StackPanel>
-                    <Border DockPanel.Dock="Bottom" Background="{StaticResource Surface}"
+                    <Border Visibility="Collapsed" DockPanel.Dock="Bottom" Background="{StaticResource Surface}"
                             CornerRadius="9" Padding="12" VerticalAlignment="Bottom">
                         <StackPanel>
                             <TextBlock Text="HITO 01" Foreground="{StaticResource Accent}"
@@ -142,6 +142,7 @@
                           Background="{StaticResource Bg}" Padding="0">
                 <StackPanel x:Name="EditorContent" Margin="25,23" IsEnabled="False"
                             Background="{StaticResource Bg}">
+                    <ContentControl x:Name="PersonalToolsHost"/>
                     <StackPanel Margin="0,0,0,16">
                         <TextBlock Text="Datos de Pokémon" FontSize="24" FontWeight="SemiBold"/>
                         <TextBlock x:Name="EntryTitleText" Text="Abrí un proyecto para comenzar."

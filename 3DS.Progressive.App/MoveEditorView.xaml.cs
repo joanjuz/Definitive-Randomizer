@@ -15,6 +15,7 @@ namespace ThreeDS.Progressive;
 
 public partial class MoveEditorView : System.Windows.Controls.UserControl
 {
+    private readonly BatchToolsView _tools = new();
     private readonly GameMoveService _moves;
     private MoveListEntry? _selected;
     private MoveValues? _saved;
@@ -27,6 +28,27 @@ public partial class MoveEditorView : System.Windows.Controls.UserControl
     {
         InitializeComponent();
         _moves = new GameMoveService(project);
+        MoveToolsHost.Content = _tools;
+        _tools.Configure(true, project.Generation, false, false, false,
+            () =>
+            {
+                if (!HasChanges()) return true;
+                if (!ConfirmDiscard()) return false;
+                if (_selected is not null) ShowMove(_selected);
+                return true;
+            },
+            scope => scope switch
+            {
+                1 => MoveList.Items.Cast<MoveListEntry>().Select(m => m.Id).ToArray(),
+                2 => _selected is not null ? new[] { _selected.Id } : Array.Empty<int>(),
+                _ => _moves.Entries.Select(m => m.Id).ToArray(),
+            }, _moves.PreviewMoves,
+            preview =>
+            {
+                _moves.ApplyMovePreview(preview);
+                if (_selected is not null) ShowMove(_selected);
+                StatusLabel.Text = $"{preview.Action}: {preview.ChangedCount} movimientos guardados y verificados.";
+            }, _moves.ExportMoveTable);
         ZMoveCard.Visibility = _moves.SupportsZMoves ? Visibility.Visible : Visibility.Collapsed;
         QualityBox.ItemsSource = _moves.Qualities;
         InflictBox.ItemsSource = _moves.Inflictions;
@@ -49,6 +71,7 @@ public partial class MoveEditorView : System.Windows.Controls.UserControl
     {
         if (MoveList is null || MoveList.ItemsSource is null)
             return;
+        _tools.InvalidatePreview();
         var view = CollectionViewSource.GetDefaultView(MoveList.ItemsSource);
         string q = (SearchInput.Text ?? string.Empty).Trim();
         view.Filter = item => item is MoveListEntry m &&
@@ -73,6 +96,7 @@ public partial class MoveEditorView : System.Windows.Controls.UserControl
 
     private void ShowMove(MoveListEntry entry)
     {
+        _tools.InvalidatePreview();
         var p = _moves.Read(entry.Id);
         _loading = true;
         try
@@ -403,6 +427,7 @@ public partial class MoveEditorView : System.Windows.Controls.UserControl
 
     private void FlagsBox_TextChanged(object sender, TextChangedEventArgs e)
     {
+        if (!_loading) _tools.InvalidatePreview();
         if (!_loading && FlagsBox is not null && !_updatingFlags)
         {
             string txt = (FlagsBox.Text ?? "").Trim().Replace("0x", "", StringComparison.OrdinalIgnoreCase);
@@ -412,8 +437,16 @@ public partial class MoveEditorView : System.Windows.Controls.UserControl
         UpdatePreview();
     }
 
-    private void Value_Changed(object sender, SelectionChangedEventArgs e) => UpdatePreview();
-    private void Text_Changed(object sender, TextChangedEventArgs e) => UpdatePreview();
+    private void Value_Changed(object sender, SelectionChangedEventArgs e)
+    {
+        if (!_loading) _tools.InvalidatePreview();
+        UpdatePreview();
+    }
+    private void Text_Changed(object sender, TextChangedEventArgs e)
+    {
+        if (!_loading) _tools.InvalidatePreview();
+        UpdatePreview();
+    }
 
     private void Reset_Click(object sender, RoutedEventArgs e)
     {
@@ -454,6 +487,7 @@ public partial class MoveEditorView : System.Windows.Controls.UserControl
             return;
         try
         {
+            _tools.InvalidatePreview();
             _moves.Save(_selected.Id, next);
             _saved = _moves.Read(_selected.Id);
             UpdatePreview();

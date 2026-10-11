@@ -1,66 +1,44 @@
-# 3DS Progressive — preview funcional v0.4.0
+# 3DS Progressive — preview funcional v0.5.0
 
-Nueva aplicación WPF independiente dentro de pk3DS Progressive. No se modifica pk3DS.WinForms ni pk3DS.Core.
+Aplicación WPF/.NET 10 independiente, en español y Dark Graphite, dentro del repositorio pk3DS Progressive. Trabaja en `feature/3ds-progressive-ui`, conserva WinForms y reutiliza Core sin modificar esos proyectos.
 
-## Cambios de v0.4.0
-- Todos los avisos y confirmaciones del editor Personal utilizan ahora StudioDialog, un diálogo oscuro propio y reutilizable.
-- El botón **Movimientos** de la barra lateral abre un segundo editor real con listado, búsqueda y modificación de tipo, categoría, potencia, precisión, PP y prioridad.
-- El editor de movimientos conserva bytes no editados, serializa los registros `WD` para ORAS/Gen 7 y guarda mediante GARC temporal y verificación; X/Y utiliza sus entradas directas.
-- **Movimientos ya no abre otra ventana:** usa una vista UserControl dentro del shell principal, con barra lateral siempre visible y regreso directo a Pokémon.
-- Pokémon incorpora edición avanzada de habilidades, objetos, seis EV yield, experiencia base, amistad, crianza y otros campos internos.
-- Movimientos incorpora edición avanzada de multigolpe, inflicción, probabilidad, objetivo, secuencia de efecto, críticos, retroceso, flags en hexadecimal y metadatos Z de Gen 7.
-- Los mecanismos de verificación de GARC originales siguen activos. Estos campos nuevos aún requieren regresión manual.
-- Los proyectos pk3DS.WinForms y pk3DS.Core no se modificaron.
+## Editores reales
 
+- **Pokémon:** lista/búsqueda de especies y formas, sprites personalizados y caché, estadísticas, tipos, habilidades, objetos, EV, EXP/crianza, compatibilidad MT/tutores y parámetros de formas y Z de Gen 7.
+- **Movimientos:** lista/búsqueda, campos básicos y avanzados, multigolpe, efectos, estados, objetivos, críticos, turnos, curación, tres slots de stats, 32 flags y parámetros/efectos Z.
+- Ambos permanecen en la misma ventana, con confirmación de cambios y diálogos oscuros.
 
-## Funcionalidades del primer editor
-- Abre RomFS y ExeFS de X/Y, ORAS, S/M y USUM mediante pk3DS.Core.
-- Lista y busca especies y formas.
-- Edita seis estadísticas base, dos tipos y ratio de captura; muestra BST en tiempo real.
-- Guarda el GARC personal con confirmación, comprobación de integridad y detección de cambios externos.
-- Tema Dark Graphite completo, ComboBox oscuros, cabecera con nombre, sprite, tipos y estado de edición.
-- Controles de otros módulos deshabilitados hasta que se implementen realmente.
+El usuario ya validó en Ultra Sol abrir proyecto, guardar stats, compatibilidad MT, movimientos y efectos Z con la preview previa. Los campos/acciones nuevos de v0.5.0 requieren prueba manual.
 
-**Validación manual reportada por el usuario:** modificó una stat y comprobó el valor cambiado con pk3DS Progressive. Esta evidencia valida ese flujo concreto, no todas las funciones de Studio.
+## Nuevo: Herramientas masivas
 
-## Sprites y personalización
-Se busca por prioridad:
-1. Sprite específico de entrada: %LOCALAPPDATA%\3DS Progressive\sprites\custom\entry-001.png
-2. Sprite de especie: %LOCALAPPDATA%\3DS Progressive\sprites\custom\species-001.png
-3. Nombre numérico: 001.png o 1.png en la misma carpeta custom.
-4. Caché: %LOCALAPPDATA%\3DS Progressive\sprites\cache\001.png
-5. Descarga opcional desde PokeAPI/sprites en raw.githubusercontent.com.
+Panel desplegable integrado en ambos editores, con alcance **Todo / Lista filtrada / Selección**, semilla, vista previa detallada antes/después y aplicación confirmada.
 
-Las formas alternativas sin PNG propio muestran el sprite de la especie base. Sin conexión ni archivos locales se ve un placeholder. Los PNG no se almacenan en el repositorio ni se incorporan al ejecutable. El artwork puede estar protegido por derechos de terceros.
+Pokémon: randomizador completo de datos Personal usando Core; modificaciones de EV, EXP, compatibilidad, crianza, captura y SOS; exclusión de Shadow Tag/Arena Trap persistente en las acciones masivas de la sesión. Las opciones MO/tutores/SOS se muestran según título.
 
-## Prueba en Windows
-Utilizá el artefacto de GitHub Actions para Windows x64 o ejecutá con SDK .NET 10:
+Movimientos: randomización de tipos/categorías y modo Metrónomo con IDs reales. La edición de PP o tipo/categoría conserva los demás campos, incluidos datos Z.
 
-    git fetch origin
-    git switch feature/3ds-progressive-ui
-    git pull --ff-only
-    dotnet run --project .\3DS.Progressive.App\3DS.Progressive.App.csproj -c Release
+**Copiar tabla guardada** y **Copiar cambios** permiten revisar todos los datos y propuestas en una hoja o editor de texto. La vista previa no escribe; cambiar parámetros, selección o el editor invalida la propuesta.
 
-IMPORTANTE: trabajá sobre una copia del juego extraído. Studio no hace backups automáticos y no crea ROMs .3ds directamente.
+Se eliminó el distintivo **Editor integrado · 3DS Progressive** y se ocultó la tarjeta obsoleta HITO 01.
 
-## Validación pendiente
-- Confirmar ausencia de fondo blanco y visibilidad correcta del desplegable de tipos.
-- Comprobar sprites online, offline, personalizados y cambio rápido de especie.
-- Repetir guardado de stat y verificación con pk3DS Progressive usando la preview 0.1.1.
-- Comparar integridad de GARC en copias y probar formas alternativas / otras versiones.
-- **Validado por el usuario:** la edición de movimientos (campos básicos de v0.2.0) persiste y pk3DS Progressive reconoce sus cambios.
-- Pendiente: probar los campos avanzados añadidos en v0.4.0 en una copia de Ultra Sol.
-- Migrar las demás opciones de Personal y Move Editor, incluyendo efectos, flags, Z-Moves y funciones Progressive.
-- Integración dentro del shell realizada. Pendiente refinar alineación, eliminar la doble cabecera y completar las funciones de los editores.
+## Guardado y pruebas
 
-## Hito 04: migración de opciones con paridad del editor vanilla
+El guardado explícito utiliza un GARC temporal, compara todos los registros, detecta cambios externos y verifica el archivo final. Personal incluye reconstrucción de tabla maestra; Movimientos respeta GARC directo X/Y y contenedor WD ORAS/Gen 7. No se crean backups automáticos.
 
-- Se restablecieron los catálogos de **MoveQualities, ZMoveEffects, TargetingTypes, StatCategories e InflictionTypes** del Move Editor original, preservando los ID internos. `Quality` es clasificación del comportamiento del movimiento, **no** calidad de animación.
-- En Movimientos, **Movimiento Z**, **Efecto Z**, **Clasificación de efecto**, objetivo y estado infligido se seleccionan por nombre; las opciones desconocidas mantienen índices explícitos.
-- Se incorporaron turnos mínimo/máximo, recoil, curación, tres slots de cambios de stats con valores negativos y probabilidades, duración de estados, Poké Relax en Gen 7, y las 32 flags con checkboxes y campo hexadecimal sincronizados.
-- En Pokémon se añadieron **compatibilidades MT y tutor** con edición de bits, formas, color, peso, altura, etapa, Z exclusivo y variante regional en Gen 7.
-- Los bits reservados de TM y tutor permanecen intactos. Los tutores especiales se identifican por índice técnico en ROMs custom para evitar nombres engañosos.
-- No se modifican los proyectos pk3DS.Core ni pk3DS.WinForms. Los datos personales del juego siguen tratándose como archivos de usuario, nunca en el repositorio.
-- La evidencia aportada por el usuario confirma la lectura/guardado anterior del editor en Ultra Sol; **esta nueva versión requiere una regresión de las opciones adicionales**.
+`3DS.Progressive.Tests` verifica servicios con fixtures sintéticos para XY/ORAS/SM/USUM y añade pruebas de inicialización WPF en Windows. CI compila, ejecuta esas comprobaciones y publica **3DS-Progressive-Preview-win-x64** autocontenido (14 días de retención).
 
-**Enfoque posterior:** migración de herramientas masivas, randomizaciones, parches y el resto de editores, a partir de la matriz de controles, en lugar de desarrollar controles aislados sin cobertura.
+```powershell
+dotnet run --project .\3DS.Progressive.Tests\3DS.Progressive.Tests.csproj -c Release
+dotnet run --project .\3DS.Progressive.App\3DS.Progressive.App.csproj -c Release
+```
+
+## Sprites
+
+Prioridad de PNG: `%LOCALAPPDATA%\3DS Progressive\sprites\custom\entry-001.png`, `species-001.png`, `001.png`/`1.png`, caché, y descarga opcional desde PokeAPI/sprites. La forma alternativa usa la especie base si no hay sprite de entrada. Sin imagen se muestra el fallback. No se incorporan sprites descargados al repositorio.
+
+## Alcance pendiente
+
+La migración no está completa. Balance/templates, parches de Battle/CRO y textos, Entrenadores, Encuentros, MT/tutores como editor de asignaciones, economía/tiendas y automatización siguen pendientes. Otros módulos permanecen deshabilitados. Esta es una **preview**, no sustituye el release estable WinForms ni realiza merge a la rama estable.
+
+Detalles y comprobaciones manuales: [Hito 05](../docs/3ds-progressive/HITO_05_ACCIONES_MASIVAS.md). Matriz: [Paridad de acciones](../docs/3ds-progressive/PARIDAD_ACCIONES.csv).

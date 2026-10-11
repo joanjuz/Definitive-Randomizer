@@ -15,6 +15,7 @@ namespace ThreeDS.Progressive;
 
 public partial class MainWindow : Window
 {
+    private readonly BatchToolsView _personalTools = new();
     private GameProjectSession? _session;
     private PokemonListEntry? _previous;
     private PersonalValues? _original;
@@ -35,9 +36,35 @@ public partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
+        PersonalToolsHost.Content = _personalTools;
         TmFlagsList.ItemsSource = _tmChoices;
         TutorFlagsList.ItemsSource = _tutorChoices;
         SpecialTutorFlagsList.ItemsSource = _specialChoices;
+    }
+
+    private void ConfigurePersonalTools(GameProjectSession project)
+    {
+        _personalTools.Configure(false, project.Generation, project.SupportsHms,
+            project.SupportsSpecialTutors, project.TrappingAbilitiesBanned,
+            () =>
+            {
+                if (!HasUnsavedChanges()) return true;
+                if (!ConfirmDiscard()) return false;
+                if (_previous is not null) ShowEntry(_previous);
+                return true;
+            },
+            scope => scope switch
+            {
+                1 => PokemonList.Items.Cast<PokemonListEntry>().Select(p => p.Index).ToArray(),
+                2 => _currentIndex > 0 ? new[] { _currentIndex } : Array.Empty<int>(),
+                _ => project.Entries.Select(p => p.Index).ToArray(),
+            }, project.PreviewPersonal,
+            preview =>
+            {
+                project.ApplyPersonalPreview(preview);
+                if (_previous is not null) ShowEntry(_previous);
+                StatusText.Text = $"{preview.Action}: {preview.ChangedCount} entradas guardadas y verificadas.";
+            }, project.ExportPersonalTable);
     }
 
     private void OpenProject_Click(object sender, RoutedEventArgs e)
@@ -103,6 +130,7 @@ public partial class MainWindow : Window
             EntryCountText.Text = candidate.Entries.Count + " entradas editables";
             EditorContent.IsEnabled = true;
             MovesButton.IsEnabled = true;
+            ConfigurePersonalTools(candidate);
             PokemonList.SelectedIndex = 0;
             StatusText.Text = "Proyecto abierto en modo lectura. Guardar requiere confirmación.";
         }
@@ -117,6 +145,7 @@ public partial class MainWindow : Window
     {
         if (PokemonList is null || PokemonList.ItemsSource is null)
             return;
+        _personalTools.InvalidatePreview();
         ICollectionView view = CollectionViewSource.GetDefaultView(PokemonList.ItemsSource);
         string query = (SearchBox.Text ?? string.Empty).Trim();
         view.Filter = item => item is PokemonListEntry p &&
@@ -147,6 +176,7 @@ public partial class MainWindow : Window
         if (_session is null)
             return;
 
+        _personalTools.InvalidatePreview();
         var p = _session.ReadPersonal(next.Index);
         _loadingEntry = true;
         try
@@ -268,7 +298,7 @@ public partial class MainWindow : Window
         int index, int group, bool enabled)
     {
         var flag = new FlagChoice(name, index, group, enabled);
-        flag.Changed += () => { if (!_loadingEntry) UpdatePreview(); };
+        flag.Changed += () => { if (!_loadingEntry) { _personalTools.InvalidatePreview(); UpdatePreview(); } };
         target.Add(flag);
     }
 
@@ -427,6 +457,7 @@ public partial class MainWindow : Window
 
         try
         {
+            _personalTools.InvalidatePreview();
             _session.SavePersonal(_currentIndex, draft);
             _original = _session.ReadPersonal(_currentIndex);
             UpdatePreview();
@@ -505,13 +536,19 @@ public partial class MainWindow : Window
     private void Stat_TextChanged(object sender, TextChangedEventArgs e)
     {
         if (!_loadingEntry)
+        {
+            _personalTools.InvalidatePreview();
             UpdatePreview();
+        }
     }
 
     private void Type_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
         if (!_loadingEntry)
+        {
+            _personalTools.InvalidatePreview();
             UpdatePreview();
+        }
     }
 
     private void UpdatePreview()

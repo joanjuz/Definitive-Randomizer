@@ -15,7 +15,7 @@ namespace ThreeDS.Progressive.Services;
 /// Integra pk3DS.Core sin depender de Main.Config, ventanas WinForms ni codigo de los editores.
 /// Unicamente lee los archivos del proyecto al abrirlo; el guardado requiere una llamada explicita.
 /// </summary>
-public sealed class GameProjectSession
+public sealed partial class GameProjectSession
 {
     private readonly GameConfig _config;
     private readonly string _personalPath;
@@ -377,36 +377,8 @@ public sealed class GameProjectSession
         }
         files[^1] = master;
 
-        string temp = _personalPath + ".studio-" + Guid.NewGuid().ToString("N") + ".tmp";
-        try
-        {
-            var output = new GARCFile(
-                new GARC.MemGARC(source),
-                _config.GetGARCReference("personal"),
-                temp);
-            output.Files = files;
-            output.Save();
-
-            var check = new GARC.MemGARC(File.ReadAllBytes(temp));
-            if (check.FileCount != files.Length ||
-                !check.GetFile(index).AsSpan().SequenceEqual(files[index]) ||
-                !check.GetFile(files.Length - 1).AsSpan().SequenceEqual(master))
-                throw new InvalidDataException(
-                    "Fallo la verificacion posterior al guardado del GARC.");
-
-            // No se deja un archivo parcial. El reemplazo es atomico en NTFS.
-            if (!SHA256.HashData(File.ReadAllBytes(_personalPath))
-                    .AsSpan().SequenceEqual(_diskFingerprint))
-                throw new IOException("El proyecto cambio durante el guardado. No se reemplazo.");
-
-            File.Replace(temp, _personalPath, null);
-            _diskFingerprint = SHA256.HashData(File.ReadAllBytes(_personalPath));
-            _config.InitializePersonal();
-        }
-        finally
-        {
-            if (File.Exists(temp))
-                File.Delete(temp);
-        }
+        _diskFingerprint = GarcTransaction.Commit(_personalPath, _config.GetGARCReference("personal"),
+            _diskFingerprint, files);
+        _config.InitializePersonal();
     }
 }
