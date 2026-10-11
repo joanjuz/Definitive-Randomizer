@@ -137,13 +137,76 @@
             </Border>
 
             <!-- Editor central -->
-            <ScrollViewer Grid.Column="2" VerticalScrollBarVisibility="Auto" Padding="0">
-                <StackPanel x:Name="EditorContent" Margin="27,24" IsEnabled="False">
-                    <StackPanel Margin="0,0,0,18">
-                        <TextBlock Text="Datos de Pokémon" FontSize="25" FontWeight="SemiBold"/>
+            <ScrollViewer Grid.Column="2" VerticalScrollBarVisibility="Auto"
+                          HorizontalScrollBarVisibility="Disabled"
+                          Background="{StaticResource Bg}" Padding="0">
+                <StackPanel x:Name="EditorContent" Margin="25,23" IsEnabled="False"
+                            Background="{StaticResource Bg}">
+                    <StackPanel Margin="0,0,0,16">
+                        <TextBlock Text="Datos de Pokémon" FontSize="24" FontWeight="SemiBold"/>
                         <TextBlock x:Name="EntryTitleText" Text="Abrí un proyecto para comenzar."
-                                   Foreground="{StaticResource TextSoft}" Margin="0,7,0,0"/>
+                                   Foreground="{StaticResource TextSoft}" FontSize="12" Margin="0,5,0,0"/>
                     </StackPanel>
+
+                    <!-- Cabecera: sprite + identidad + tipos + estado -->
+                    <Border Style="{StaticResource Card}" Background="#222F3D">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="112"/>
+                                <ColumnDefinition Width="*" MinWidth="0"/>
+                            </Grid.ColumnDefinitions>
+                            <Border Grid.Column="0" Background="#172331" BorderBrush="{StaticResource Stroke}"
+                                    BorderThickness="1" CornerRadius="12" Width="104" Height="112"
+                                    HorizontalAlignment="Left" VerticalAlignment="Top">
+                                <Grid>
+                                    <Grid x:Name="SpriteFallback" Opacity="0.55">
+                                        <Ellipse Stroke="#7790AB" StrokeThickness="4" Width="58" Height="58"/>
+                                        <Rectangle Fill="#7790AB" Height="4" Width="58"
+                                                   VerticalAlignment="Center"/>
+                                        <Ellipse Fill="#172331" Stroke="#7790AB" StrokeThickness="3"
+                                                 Width="18" Height="18"/>
+                                    </Grid>
+                                    <Image x:Name="PokemonSprite" Width="96" Height="96"
+                                           Stretch="Uniform" SnapsToDevicePixels="True"
+                                           RenderOptions.BitmapScalingMode="NearestNeighbor"/>
+                                </Grid>
+                            </Border>
+                            <StackPanel Grid.Column="1" Margin="5,0,0,0">
+                                <TextBlock x:Name="HeaderNameText" Text="Sin Pokémon"
+                                           FontSize="22" FontWeight="SemiBold"
+                                           TextTrimming="CharacterEllipsis"/>
+                                <TextBlock x:Name="HeaderNumberText" Text="Seleccioná una especie"
+                                           FontSize="12" Foreground="{StaticResource TextSoft}"
+                                           Margin="0,4,0,13"/>
+                                <WrapPanel Margin="0,0,0,10">
+                                    <Border x:Name="TypeBadgeOne" CornerRadius="7"
+                                            Background="#395469" Padding="11,6"
+                                            Margin="0,0,7,6">
+                                        <TextBlock x:Name="TypeBadgeOneText" Text="—"
+                                                   FontWeight="SemiBold" FontSize="11" Foreground="White"/>
+                                    </Border>
+                                    <Border x:Name="TypeBadgeTwo" CornerRadius="7"
+                                            Background="#395469" Padding="11,6"
+                                            Margin="0,0,7,6">
+                                        <TextBlock x:Name="TypeBadgeTwoText" Text="—"
+                                                   FontWeight="SemiBold" FontSize="11" Foreground="White"/>
+                                    </Border>
+                                </WrapPanel>
+                                <WrapPanel VerticalAlignment="Center">
+                                    <TextBlock Text="BST  " Foreground="{StaticResource TextSoft}"
+                                               VerticalAlignment="Center" FontSize="12"/>
+                                    <TextBlock x:Name="HeaderBstText" Text="—" FontSize="16"
+                                               FontWeight="Bold" Foreground="{StaticResource Accent}"
+                                               VerticalAlignment="Center" Margin="0,0,14,0"/>
+                                    <Border x:Name="DirtyBadge" Background="#35485D"
+                                            CornerRadius="7" Padding="9,5">
+                                        <TextBlock x:Name="DirtyBadgeText" Text="Sin cambios"
+                                                   Foreground="#C5D7E9" FontSize="11" FontWeight="SemiBold"/>
+                                    </Border>
+                                </WrapPanel>
+                            </StackPanel>
+                        </Grid>
+                    </Border>
                     <Border Style="{StaticResource Card}">
                         <StackPanel>
                             <TextBlock Text="ESTADÍSTICAS BASE" Style="{StaticResource SmallHeading}"
@@ -234,6 +297,9 @@
                     <Border Style="{StaticResource Card}">
                         <StackPanel>
                             <TextBlock Text="Sesión actual" FontWeight="SemiBold" Margin="0,0,0,12"/>
+                            <TextBlock x:Name="SpriteStatusText" Text="Sin sprite"
+                                       Foreground="{StaticResource TextSoft}" FontSize="11"
+                                       TextWrapping="Wrap" Margin="0,0,0,9"/>
                             <TextBlock x:Name="InspectorGameText" Text="Sin juego"
                                        Foreground="{StaticResource TextSoft}" TextWrapping="Wrap"/>
                             <TextBlock x:Name="InspectorEntryText" Text="Sin especie"
@@ -257,7 +323,7 @@
         <Border Grid.Row="2" Background="#111720" BorderBrush="{StaticResource Stroke}"
                 BorderThickness="0,1,0,0">
             <DockPanel Margin="18,0" LastChildFill="True">
-                <TextBlock Text="3DS PROGRESSIVE · V0.1 PREVIEW"
+                <TextBlock Text="3DS PROGRESSIVE · V0.1.1 PREVIEW"
                            DockPanel.Dock="Right" Foreground="{StaticResource TextSoft}"
                            FontSize="10" VerticalAlignment="Center"/>
                 <TextBlock x:Name="StatusText" Text="Esperando proyecto extraído..."

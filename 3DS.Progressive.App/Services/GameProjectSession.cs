@@ -68,6 +68,30 @@ public sealed class GameProjectSession
     public int EntryCount => _config.GARCPersonal.FileCount - 1;
 
     /// <summary>
+    /// Convierte un indice interno de Personal en la especie base para visualizar su sprite.
+    /// Las formas alternas usan la imagen base, salvo que el usuario agregue un PNG custom
+    /// para esa entrada. Esta funcion no participa en el guardado.
+    /// </summary>
+    public int GetSpriteSpeciesId(int entryIndex)
+    {
+        if (entryIndex < 1 || entryIndex >= EntryCount)
+            return 0;
+        if (entryIndex <= _config.MaxSpeciesID)
+            return entryIndex;
+
+        var table = _config.Personal.Table;
+        for (int species = 1; species <= _config.MaxSpeciesID && species < table.Length; species++)
+        {
+            var p = table[species];
+            int first = p.FormStatsIndex;
+            int others = Math.Max(0, p.FormeCount - 1);
+            if (first > 0 && entryIndex >= first && entryIndex < first + others)
+                return species;
+        }
+        return 0;
+    }
+
+    /// <summary>
     /// Solo acepta un proyecto extraido. Nunca descomprime ni mueve code.bin u otros archivos.
     /// </summary>
     public static GameProjectSession Open(string root)

@@ -1,38 +1,15 @@
-# 3DS Progressive — Hito 01 · App WPF + editor Personal
-
-## Repositorio
-- Mismo repositorio que pk3DS Progressive; proyecto nuevo: 3DS.Progressive.App.
-- Rama de desarrollo: feature/3ds-progressive-ui.
-- Base: release v4.17.1 Stable.
-- No modificar archivos de pk3DS.Core, pk3DS.WinForms ni su solución existente.
-
-## Arquitectura
-- UI: WPF, dark graphite, código de presentación en MainWindow.
-- Integración: Services/GameProjectSession accede directamente a pk3DS.Core.
-- Modelo: Models/PersonalValues agrupa únicamente los datos editables de la primera etapa.
-- Adaptación futura: migrar lógica de WinForms por módulos sin lanzar ni controlar ventanas antiguas.
-
-## Primera equivalencia con pk3DS vanilla
-| Origen | Nuevo elemento | Estado |
-| --- | --- | --- |
-| Main / Open | Abrir proyecto | Implementado; requiere validación runtime |
-| PersonalEditor6/7 CB_Species | Lista y búsqueda de especies | Implementado; requiere pruebas |
-| TB_BaseHP / ATK / DEF / SPA / SPD / SPE | Seis campos de stats | Implementado; requiere pruebas |
-| CB_Type1 / CB_Type2 | Selección de tipos | Implementado; requiere pruebas |
-| TB_CatchRate | Captura | Implementado; requiere pruebas |
-| Campo BST | Inspector de BST | Implementado; requiere pruebas |
-| Guardado de Personal GARC | Guardado verificable | Implementado; requiere pruebas |
-| Otros ~2966 controles del inventario | Migración futura | Pendiente |
-
-## Criterio para cerrar este hito
-- Build sin errores.
-- Abrir proyecto USUM en Windows y revisar que se detecta correctamente.
-- Editar la copia de trabajo y reabrir con pk3DS Progressive, comparando valores.
-- Corroborar que la ROM original y la aplicación WinForms no se modificaron.
-- Actualizar la matriz de paridad al completar pruebas reales.
+# 3DS Progressive — Hito 01 · Editor Personal
+- Repositorio: pk3DS Progressive; nuevo proyecto independiente 3DS.Progressive.App.
+- Rama: feature/3ds-progressive-ui; base: release v4.17.1 Stable.
+- Se conserva sin cambios el proyecto pk3DS.WinForms y el motor pk3DS.Core.
+- El usuario confirmó el 11/10/2026 que una stat modificada desde Studio se guardó y pudo verificarse en pk3DS Progressive.
+- La lectura del proyecto y el editor Personal del primer hito están probados en ese flujo; no se declara paridad ni validación de todos los campos o juegos.
+- Edición disponible: seis stats base, dos tipos, captura, lista de especies y búsqueda.
+- Guardado: archivo temporal, verificación de GARC y control de modificaciones externas.
+- Hito visual v0.1.1: revisar HITO_01_1_VISUAL.md.
 
 ## Decisiones
-- Batch ROM Builder probado con partida completa de Pokémon Ultra Sol.
-- NPC Trades validado previamente.
-- Bulk Item Use fuera del alcance.
-- No incluir ROMs, ExeFS, RomFS, partidas ni backups en Git.
+- NPC Trades: validados por el usuario.
+- Batch ROM Builder: partida completa de Pokémon Ultra Sol terminada por el usuario.
+- Bulk Item Use: fuera de alcance.
+- No subir ROMs, RomFS, ExeFS ni respaldos.

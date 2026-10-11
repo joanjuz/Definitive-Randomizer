@@ -2,6 +2,8 @@ using System.ComponentModel;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Data;
+using System.Windows.Media;
+using System.Threading;
 using MessageBox = System.Windows.MessageBox;
 using MessageBoxButton = System.Windows.MessageBoxButton;
 using MessageBoxImage = System.Windows.MessageBoxImage;
@@ -18,6 +20,9 @@ public partial class MainWindow : Window
     private PersonalValues? _original;
     private bool _suppressSelection;
     private int _currentIndex = -1;
+    private bool _loadingEntry;
+    private readonly SpriteService _sprites = new();
+    private CancellationTokenSource? _spriteCancellation;
 
     public MainWindow()
     {
@@ -44,6 +49,10 @@ public partial class MainWindow : Window
             _previous = null;
             _original = null;
             _currentIndex = -1;
+            _spriteCancellation?.Cancel();
+            PokemonSprite.Source = null;
+            SpriteFallback.Visibility = Visibility.Visible;
+            SpriteStatusText.Text = "Sin sprite";
             _suppressSelection = true;
             SearchBox.Text = string.Empty;
             TypeOne.ItemsSource = candidate.Types;
@@ -100,24 +109,36 @@ public partial class MainWindow : Window
     {
         if (_session is null)
             return;
-        var p = _session.ReadPersonal(next.Index);
 
-        _previous = next;
-        _currentIndex = next.Index;
-        _original = p;
-        EntryTitleText.Text = next.Name + "  ·  Entrada " + next.Index.ToString("000");
-        InspectorEntryText.Text = next.Name;
-        HpBox.Text = p.HP.ToString();
-        AtkBox.Text = p.Attack.ToString();
-        DefBox.Text = p.Defense.ToString();
-        SpaBox.Text = p.SpecialAttack.ToString();
-        SpdBox.Text = p.SpecialDefense.ToString();
-        SpeBox.Text = p.Speed.ToString();
-        CatchBox.Text = p.CatchRate.ToString();
-        TypeOne.SelectedIndex = p.FirstType;
-        TypeTwo.SelectedIndex = p.SecondType;
-        SaveButton.IsEnabled = true;
+        var p = _session.ReadPersonal(next.Index);
+        _loadingEntry = true;
+        try
+        {
+            _previous = next;
+            _currentIndex = next.Index;
+            _original = p;
+            EntryTitleText.Text = next.Name + "  ·  Entrada " + next.Index.ToString("000");
+            HeaderNameText.Text = next.Name;
+            HeaderNumberText.Text = "Entrada #" + next.Index.ToString("000");
+            InspectorEntryText.Text = next.Name;
+            HpBox.Text = p.HP.ToString();
+            AtkBox.Text = p.Attack.ToString();
+            DefBox.Text = p.Defense.ToString();
+            SpaBox.Text = p.SpecialAttack.ToString();
+            SpdBox.Text = p.SpecialDefense.ToString();
+            SpeBox.Text = p.Speed.ToString();
+            CatchBox.Text = p.CatchRate.ToString();
+            TypeOne.SelectedIndex = p.FirstType;
+            TypeTwo.SelectedIndex = p.SecondType;
+            SaveButton.IsEnabled = true;
+        }
+        finally
+        {
+            _loadingEntry = false;
+        }
+
         UpdatePreview();
+        _ = UpdateSpriteAsync(next.Index);
     }
 
     private bool TryDraft(out PersonalValues? draft)
@@ -184,6 +205,7 @@ public partial class MainWindow : Window
         {
             _session.SavePersonal(_currentIndex, draft);
             _original = _session.ReadPersonal(_currentIndex);
+            UpdatePreview();
             StatusText.Text = "Cambios guardados y GARC verificado: entrada " + _currentIndex + ".";
             MessageBox.Show(this, "Datos personales guardados correctamente.",
                 "3DS Progressive", MessageBoxButton.OK, MessageBoxImage.Information);
@@ -204,29 +226,125 @@ public partial class MainWindow : Window
         StatusText.Text = "Campos restablecidos al último estado guardado.";
     }
 
-    private void Stat_TextChanged(object sender, TextChangedEventArgs e) => UpdatePreview();
-    private void Type_SelectionChanged(object sender, SelectionChangedEventArgs e) => UpdatePreview();
+    private void Stat_TextChanged(object sender, TextChangedEventArgs e)
+    {
+        if (!_loadingEntry)
+            UpdatePreview();
+    }
+
+    private void Type_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (!_loadingEntry)
+            UpdatePreview();
+    }
 
     private void UpdatePreview()
     {
-        if (BstText is null || HpBox is null || AtkBox is null || DefBox is null ||
-            SpaBox is null || SpdBox is null || SpeBox is null)
+        if (BstText is null || HeaderBstText is null || HpBox is null ||
+            AtkBox is null || DefBox is null || SpaBox is null ||
+            SpdBox is null || SpeBox is null || DirtyBadge is null)
             return;
+
         if (byte.TryParse(HpBox.Text, out var hp) &&
             byte.TryParse(AtkBox.Text, out var atk) &&
             byte.TryParse(DefBox.Text, out var def) &&
             byte.TryParse(SpaBox.Text, out var spa) &&
             byte.TryParse(SpdBox.Text, out var spd) &&
             byte.TryParse(SpeBox.Text, out var spe))
-            BstText.Text = (hp + atk + def + spa + spd + spe).ToString();
+            BstText.Text = HeaderBstText.Text = (hp + atk + def + spa + spd + spe).ToString();
         else
-            BstText.Text = "—";
+            BstText.Text = HeaderBstText.Text = "—";
+
+        UpdateBadge(TypeBadgeOne, TypeBadgeOneText, TypeOne.SelectedItem as string);
+        UpdateBadge(TypeBadgeTwo, TypeBadgeTwoText, TypeTwo.SelectedItem as string);
+
+        if (_original is null)
+            SetDirtyState("Sin cambios", "#35485D", "#C5D7E9");
+        else if (!TryDraft(out PersonalValues? draft))
+            SetDirtyState("Revisar campos", "#75522E", "#F8D49A");
+        else if (draft != _original)
+            SetDirtyState("Cambios sin guardar", "#75522E", "#F8D49A");
+        else
+            SetDirtyState("Guardado", "#31544A", "#B6E8CC");
+    }
+
+    private void SetDirtyState(string message, string background, string foreground)
+    {
+        DirtyBadgeText.Text = message;
+        DirtyBadge.Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString(background)!);
+        DirtyBadgeText.Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString(foreground)!);
+    }
+
+    private static void UpdateBadge(Border badge, TextBlock label, string? name)
+    {
+        string type = string.IsNullOrWhiteSpace(name) ? "—" : name;
+        label.Text = type;
+        string color = type.ToLowerInvariant() switch
+        {
+            "normal" => "#6D798A",
+            "fire" => "#A85D45",
+            "water" => "#416FA4",
+            "electric" => "#A48D44",
+            "grass" => "#4B8157",
+            "ice" => "#528992",
+            "fighting" => "#8E554E",
+            "poison" => "#74539A",
+            "ground" => "#846E4C",
+            "flying" => "#5979A6",
+            "psychic" => "#A35B80",
+            "bug" => "#687E46",
+            "rock" => "#837252",
+            "ghost" => "#605A8A",
+            "dragon" => "#516AAB",
+            "dark" => "#50576B",
+            "steel" => "#5C788C",
+            "fairy" => "#9C7297",
+            _ => "#395469"
+        };
+        badge.Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString(color)!);
+    }
+
+    private async System.Threading.Tasks.Task UpdateSpriteAsync(int entryIndex)
+    {
+        if (_session is null)
+            return;
+
+        _spriteCancellation?.Cancel();
+        _spriteCancellation?.Dispose();
+        var cancellation = new CancellationTokenSource();
+        _spriteCancellation = cancellation;
+
+        PokemonSprite.Source = null;
+        SpriteFallback.Visibility = Visibility.Visible;
+        SpriteStatusText.Text = "Cargando sprite...";
+        int speciesId = _session.GetSpriteSpeciesId(entryIndex);
+
+        try
+        {
+            var result = await _sprites.GetSpriteAsync(entryIndex, speciesId, cancellation.Token);
+            if (cancellation.IsCancellationRequested || _currentIndex != entryIndex)
+                return;
+
+            PokemonSprite.Source = result.Image;
+            SpriteFallback.Visibility = result.Image is null
+                ? Visibility.Visible : Visibility.Collapsed;
+            SpriteStatusText.Text = result.Description;
+        }
+        catch (OperationCanceledException)
+        {
+            // Cambió la selección mientras se cargaba la imagen.
+        }
     }
 
     protected override void OnClosing(CancelEventArgs e)
     {
         if (!ConfirmDiscard())
             e.Cancel = true;
+        if (!e.Cancel)
+        {
+            _spriteCancellation?.Cancel();
+            _spriteCancellation?.Dispose();
+        }
         base.OnClosing(e);
     }
 }
