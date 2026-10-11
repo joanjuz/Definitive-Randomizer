@@ -285,8 +285,14 @@ public partial class MainWindow : Window
     {
         if (!_showingMoves)
             return;
+        bool discarded = _movesView?.HasPendingChanges == true;
         if (_movesView is not null && !_movesView.ConfirmLeave())
             return;
+        if (discarded)
+        {
+            MovesHost.Content = null;
+            _movesView = null;
+        }
         DisplayPokemon();
     }
 
@@ -305,8 +311,11 @@ public partial class MainWindow : Window
     {
         if (_session is null || _showingMoves)
             return;
+        bool discardedPokemon = HasUnsavedChanges();
         if (!ConfirmDiscard())
             return;
+        if (discardedPokemon && _previous is not null)
+            ShowEntry(_previous);
         try
         {
             _movesView ??= new MoveEditorView(_session);
