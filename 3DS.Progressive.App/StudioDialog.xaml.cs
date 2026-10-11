@@ -57,7 +57,7 @@ public partial class StudioDialog : Window
         if (e.ClickCount == 1) DragMove();
     }
 
-    protected override void OnKeyDown(KeyEventArgs e)
+    protected override void OnKeyDown(System.Windows.Input.KeyEventArgs e)
     {
         if (e.Key == Key.Escape)
         {
