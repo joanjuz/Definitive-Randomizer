@@ -1,5 +1,5 @@
 // Ported from pk3DS.WinForms/Misc/Gen7MeditateV73Patcher.cs at f459e40.
-// Only namespace and temporary IO roots differ; battle instructions are unchanged.
+// App IO and verified CRO layout adapters differ; original battle instructions are preserved.
 #nullable disable
 using System;
 using System.Collections.Generic;
@@ -109,6 +109,10 @@ internal static class Gen7MeditateV73Patcher
             return -1;
 
         byte[] data = File.ReadAllBytes(path);
+
+        int ProtectRegistry=LegacyCroLayout.StockOffset(data,Gen7MeditateV73Patcher.ProtectRegistry);
+        int DetectRegistry=LegacyCroLayout.StockOffset(data,Gen7MeditateV73Patcher.DetectRegistry);
+        int PurifyRegistry=LegacyCroLayout.StockOffset(data,Gen7MeditateV73Patcher.PurifyRegistry);
 
         if (data.Length < Cave + CombinedPayload.Length ||
             data.Length < PurifyRegistry + 8)

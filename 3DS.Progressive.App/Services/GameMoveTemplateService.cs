@@ -76,7 +76,8 @@ public sealed partial class GameMoveService
                 int again = Legacy.CustomBattleEffectPatcher.ApplyExternalPatches(_config.Generation, requests,
                     (_, message) => errors.Add(message));
                 if (again < 0 || !File.ReadAllBytes(staged).AsSpan().SequenceEqual(after))
-                    throw new InvalidDataException("Los parches de combate no superaron la verificación de segunda aplicación.");
+                    throw new InvalidDataException("Los parches de combate no superaron la verificación de segunda aplicación. "
+                        + string.Join(" ", errors));
                 var change = new FileChange(croPath, before, after);
                 if (change.Changed)
                 {
@@ -95,7 +96,7 @@ public sealed partial class GameMoveService
             if (settings.MoveDescriptions) PreviewDescriptions(selected, files, dependencies, changes);
             GarcTransaction.ReadUnchanged(templatePath, templateHash);
             return new BatchPreview(_batchOwner, _sha, records, "Balance y templates", 0, ids.Length, changes,
-                additionalFiles: files, dependencies: dependencies);
+                additionalFiles: files, dependencies: dependencies,parameters:ProjectHistory.Settings(settings,ids,dependencies));
         }
         finally { if (Directory.Exists(work)) Directory.Delete(work, true); }
     }

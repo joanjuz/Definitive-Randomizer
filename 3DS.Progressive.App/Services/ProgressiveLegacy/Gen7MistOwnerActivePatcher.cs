@@ -1,5 +1,5 @@
 // Ported from pk3DS.WinForms/Misc/Gen7MistOwnerActivePatcher.cs at f459e40.
-// Only namespace and temporary IO roots differ; battle instructions are unchanged.
+// App IO and verified CRO layout adapters differ; original battle instructions are preserved.
 #nullable disable
 using System;
 using System.Collections.Generic;

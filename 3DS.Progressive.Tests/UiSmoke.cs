@@ -52,10 +52,11 @@ internal static class UiSmoke
             Layout(tools,600,900);
             apply.ApplyTemplate();
             Border border=Walk(apply).OfType<Border>().First(b=>b.Name=="ButtonBorder");
-            check(((SolidColorBrush)border.Background).Color==Color.FromRgb(50,35,45),"WPF disabled action has subdued wine background Gen "+generation);
+            check(((SolidColorBrush)border.Background).Color==Color.FromRgb(38,55,74),"WPF disabled action has subdued logo-blue background Gen "+generation);
         }
         using(var fixture = new Fixture(GameVersion.USUM))
         {
+            ModuleChecks.CreateArchives(fixture);
             main.LoadProject(fixture.Session);
             Layout((FrameworkElement)main.Content,1390,845);
             check(((TextBlock)main.FindName("DirtyBadgeText")).Text=="Guardado","WPF preserves original custom Z IDs while loading Pokemon");
@@ -98,6 +99,36 @@ internal static class UiSmoke
             Capture(view,"movimientos-editor.png");
             check(Walk(choice).OfType<TextBlock>().Any(t=>t.Text.Contains("Single Adjacent Ally/Foe")) &&
                 !Walk(choice).OfType<TextBlock>().Any(t=>t.Text.Contains("MoveChoice {")),"WPF selected dropdown shows its name rather than record code");
+            check(((Button)main.FindName("BackupButton")).IsEnabled,"WPF manual backup becomes available with a project");
+            ((Button)main.FindName("TrainersButton")).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            var trainer=(RecordEditorView)((ContentControl)main.FindName("SectionHost")).Content;
+            check(trainer.Editor is ThreeDS.Progressive.Services.GameTrainerService,"WPF Trainers opens a real archive editor");
+            Layout(trainer,1170,720);Capture(trainer,"entrenadores-editor.png");
+            ((TextBox)trainer.FieldControls["P0.Level"]).Text="44";
+            check(((Button)trainer.FindName("SaveButton")).IsEnabled,"WPF trainer editing marks unsaved changes");
+            Walk(trainer).OfType<Button>().First(b=>Equals(b.Content,"Descartar cambios")).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            check(((TextBox)trainer.FieldControls["P0.Level"]).Text=="10","WPF trainer discard restores the saved value");
+            ((Button)trainer.FindName("RandomizerButton")).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            ((ComboBox)trainer.FindName("ScopeBox")).SelectedIndex=2;
+            ((TextBox)trainer.OptionControls["LevelScale"]).Text="160";
+            ((Button)trainer.FindName("PreviewButton")).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            check(((Button)trainer.FindName("ApplyButton")).IsEnabled,"WPF trainer randomizer produces a scoped proposal");
+            Layout(trainer,1170,720);Capture(trainer,"entrenadores-randomizar.png");
+            ((Button)main.FindName("EncountersButton")).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            var encounters=(RecordEditorView)((ContentControl)main.FindName("SectionHost")).Content;
+            check(encounters.Editor is ThreeDS.Progressive.Services.GameEncounterService && encounters.FieldControls.ContainsKey("S8.0.Species"),"WPF Encounters includes SOS/weather controls");
+            Layout(encounters,1170,720);Capture(encounters,"encuentros-editor.png");
+            ((Button)main.FindName("TrainersButton")).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            var remembered=(RecordEditorView)((ContentControl)main.FindName("SectionHost")).Content;
+            check(((TextBox)remembered.OptionControls["LevelScale"]).Text=="160"&&((ComboBox)remembered.FindName("ScopeBox")).SelectedIndex==2,"WPF module options and scope survive navigation");
+            ((Button)main.FindName("EvolutionsButton")).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            var evolutions=(RecordEditorView)((ContentControl)main.FindName("SectionHost")).Content;
+            check(evolutions.Editor is ThreeDS.Progressive.Services.GameEvolutionService&&evolutions.FieldControls.ContainsKey("E7.Method"),"WPF Evolutions exposes all eight routes");
+            Layout(evolutions,1170,720);Capture(evolutions,"evoluciones-editor.png");
+            ((Button)main.FindName("HistoryButton")).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            check(((ContentControl)main.FindName("SectionHost")).Content is HistoryView,"WPF persistent history opens in the same window");
+            ((Button)main.FindName("PokemonNavButton")).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            check(((FrameworkElement)main.FindName("PokemonEditorPanel")).Visibility==Visibility.Visible && ((FrameworkElement)main.FindName("SectionHost")).Visibility==Visibility.Collapsed,"WPF returns from new modules to Pokemon");
         }
         main.Close();app.Shutdown();
     }

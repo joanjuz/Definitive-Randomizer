@@ -9,6 +9,7 @@ using pk3DS.Core.Structures.PersonalInfo;
 using ThreeDS.Progressive.Models;
 using ThreeDS.Progressive.Services;
 
+using var state=new TestState();
 int checks = 0;
 void Check(bool condition, string name)
 {
@@ -152,6 +153,7 @@ using(var b=new Fixture(GameVersion.USUM))
     Reject(()=>b.Session.PreviewPersonal(BatchAction.PersonalModify,new BatchSettings(),[]),"empty scope rejected");
 }
 TemplateChecks.Run(Check, Reject);
+ModuleChecks.Run(Check, Reject);
 if (OperatingSystem.IsWindows())
 {
     Exception? failure = null;

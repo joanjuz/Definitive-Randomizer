@@ -1,5 +1,5 @@
 // Ported from pk3DS.WinForms/Misc/CustomBattleEffectPatcher.cs at f459e40.
-// Only namespace and temporary IO roots differ; battle instructions are unchanged.
+// App IO and verified CRO layout adapters differ; original battle instructions are preserved.
 #nullable disable
 using System;
 using System.Collections.Generic;
@@ -212,6 +212,20 @@ internal static class CustomBattleEffectPatcher
                 changed += result;
             }
         }
+        if (!failed && generation == 7)
+        {
+            string path = Path.Combine(Main.RomFSPath, "Battle.cro");
+            if (File.Exists(path))
+            {
+                byte[] data = File.ReadAllBytes(path);
+                if (Gen7BrutalSwingSelfConfusionPatcher.IsInstalled(data))
+                {
+                    byte[] hashed = (byte[])data.Clone();
+                    if (!Gen7BrutalSwingSelfConfusionPatcher.TryUpdateHashes(hashed)) return -1;
+                    if (!data.AsSpan().SequenceEqual(hashed)) File.WriteAllBytes(path, hashed);
+                }
+            }
+        }
         return failed ? -1 : changed;
     }
 
@@ -421,8 +435,8 @@ internal static class CustomBattleEffectPatcher
         // (and by U-turn / Volt Switch under their own event), so it switches the
         // user without Baton Pass stat-transfer behavior.
         const int WishFactoryOffset = 0x000C171C;
-        const int NewDescriptorOffset = 0x00105CD0;
-        const int NewDescriptor2Offset = 0x00105CD8;
+        int NewDescriptorOffset = LegacyCroLayout.StockOffset(data,0x00105CD0);
+        int NewDescriptor2Offset = LegacyCroLayout.StockOffset(data,0x00105CD8);
 
         const uint WishCountVanilla = 0xE3A01001; // MOV r1,#1
         const uint WishCountPatched = 0xE3A01002; // MOV r1,#2

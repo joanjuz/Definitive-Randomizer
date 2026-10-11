@@ -16,6 +16,7 @@ public sealed class BatchPreview
     internal bool BanTraps { get; }
     internal IReadOnlyList<FileChange> AdditionalFiles { get; }
     internal IReadOnlyList<(string Path, byte[] Fingerprint)> Dependencies { get; }
+    internal IReadOnlyDictionary<string,string> Parameters {get;}
     public int AdditionalFileCount => AdditionalFiles.Count;
     public int ScopeCount { get; }
     public int ChangedCount { get; }
@@ -23,9 +24,11 @@ public sealed class BatchPreview
 
     internal BatchPreview(Guid owner, byte[] fingerprint, byte[][] records,
         string action, int seed, int scopeCount, IEnumerable<BatchChange> changes, bool banTraps = false,
-        IEnumerable<FileChange>? additionalFiles = null, IEnumerable<(string Path, byte[] Fingerprint)>? dependencies = null)
+        IEnumerable<FileChange>? additionalFiles = null, IEnumerable<(string Path, byte[] Fingerprint)>? dependencies = null,
+        IReadOnlyDictionary<string,string>? parameters=null)
     {
         Owner = owner;
+        Parameters=new Dictionary<string,string>(parameters??new Dictionary<string,string>());
         Fingerprint = (byte[])fingerprint.Clone();
         _records = records.Select(r => (byte[])r.Clone()).ToArray();
         Action = action;

@@ -1,5 +1,5 @@
 // Ported from pk3DS.WinForms/Misc/Gen7BrutalSwingSelfConfusionPatcher.cs at f459e40.
-// Only namespace and temporary IO roots differ; battle instructions are unchanged.
+// App IO and verified CRO layout adapters differ; original battle instructions are preserved.
 #nullable disable
 using System;
 using System.IO;
@@ -199,6 +199,10 @@ internal static class Gen7BrutalSwingSelfConfusionPatcher
         File.WriteAllBytes(path, updated);
         return 1;
     }
+
+    // The validated V2 installer may extend the CRO; other effects can verify that layout.
+    internal static bool IsInstalled(byte[] data) =>
+        TryClassify(data, out InstallState state) && state == InstallState.Installed;
 
     private static bool TryClassify(
         byte[] data,
@@ -643,7 +647,7 @@ internal static class Gen7BrutalSwingSelfConfusionPatcher
             SpreadMultiHitSelectorPatched);
     }
 
-    private static bool TryUpdateHashes(
+    internal static bool TryUpdateHashes(
         byte[] data)
     {
         if (data is null ||

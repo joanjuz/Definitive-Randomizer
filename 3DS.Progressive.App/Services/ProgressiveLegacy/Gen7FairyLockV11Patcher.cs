@@ -1,5 +1,5 @@
 // Ported from pk3DS.WinForms/Misc/Gen7FairyLockV11Patcher.cs at f459e40.
-// Only namespace and temporary IO roots differ; battle instructions are unchanged.
+// App IO and verified CRO layout adapters differ; original battle instructions are preserved.
 #nullable disable
 using System;
 using System.Collections.Generic;
@@ -92,6 +92,9 @@ internal static class Gen7FairyLockV11Patcher
             return -1;
 
         byte[] data = File.ReadAllBytes(path);
+
+        int Descriptor=LegacyCroLayout.StockOffset(data,Gen7FairyLockV11Patcher.Descriptor);
+        int DescriptorHandlerPointer=LegacyCroLayout.StockOffset(data,Gen7FairyLockV11Patcher.DescriptorHandlerPointer);
 
         if (data.Length < Cave+CaveLength ||
             data.Length < Descriptor+8)

@@ -25,6 +25,7 @@ public sealed partial class GameProjectSession
     {
         _config = config;
         ProjectRoot = root;
+        History = new ProjectHistory(root,config.Version.ToString());
         _personalPath = personalPath;
         _diskFingerprint = SHA256.HashData(File.ReadAllBytes(personalPath));
 
@@ -69,6 +70,7 @@ public sealed partial class GameProjectSession
     }
 
     public string ProjectRoot { get; }
+    public ProjectHistory History { get; }
     internal GameConfig GameConfiguration => _config;
     public string GameName => _config.Version.ToString();
     public int Generation => _config.Generation;
@@ -277,6 +279,7 @@ public sealed partial class GameProjectSession
     /// </summary>
     public void SavePersonal(int index, PersonalValues values)
     {
+        PersonalValues beforeValues=ReadPersonal(index);
         if (index < 1 || index >= EntryCount)
             throw new ArgumentOutOfRangeException(nameof(index));
         foreach (int value in new[] { values.HP, values.Attack, values.Defense,
@@ -377,8 +380,9 @@ public sealed partial class GameProjectSession
         }
         files[^1] = master;
 
-        _diskFingerprint = GarcTransaction.Commit(_personalPath, _config.GetGARCReference("personal"),
-            _diskFingerprint, files);
+        _diskFingerprint = History.CommitGarc(_personalPath, _config.GetGARCReference("personal"),
+            _diskFingerprint, files,"Pokémon","Editar Pokémon",
+            ProjectHistory.ValueChanges(index,Entries.First(e=>e.Index==index).Name,beforeValues,values));
         _config.InitializePersonal();
     }
 }

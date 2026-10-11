@@ -34,7 +34,8 @@ public sealed partial class GameMoveService
                 Entries.FirstOrDefault(e => e.Id == id)?.Name ?? $"Movimiento {id}", before, after, Types));
         }
         return new BatchPreview(_batchOwner, _sha, records,
-            action == BatchAction.Metronome ? "Modo Metrónomo" : "Randomizar movimientos", settings.Seed, ids.Length, changes);
+            action == BatchAction.Metronome ? "Modo Metrónomo" : "Randomizar movimientos", settings.Seed, ids.Length, changes,
+            parameters:ProjectHistory.Settings(settings,ids));
     }
 
     public void ApplyMovePreview(BatchPreview preview)
@@ -46,7 +47,7 @@ public sealed partial class GameMoveService
         byte[] source = GarcTransaction.ReadUnchanged(_path, preview.Fingerprint);
         byte[] output = GarcTransaction.Build(source, _config.GetGARCReference("move"), preview.CopyRecords(), !_config.XY);
         var files = new[] { new FileChange(_path, source, output) }.Concat(preview.AdditionalFiles).ToArray();
-        FileTransaction.Commit(files);
+        _history.Commit(files,"Movimientos",preview.Action,preview.Changes,preview.Parameters);
         _sha = SHA256.HashData(output);
         _config.InitializeMoves();
         if (_config.Language == 6 && preview.AdditionalFiles.Any(f => f.Path == Path.Combine(_config.RomFS, _config.GetGARCFileName("gametext"))))

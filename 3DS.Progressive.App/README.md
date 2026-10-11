@@ -1,4 +1,4 @@
-# 3DS Progressive — preview funcional v0.6.0
+# 3DS Progressive — preview funcional v0.7.0
 
 Aplicación WPF/.NET 10 independiente, en español y Dark Graphite, dentro del repositorio pk3DS Progressive. Trabaja en `feature/3ds-progressive-ui`, conserva WinForms y reutiliza Core sin modificar esos proyectos.
 
@@ -6,9 +6,12 @@ Aplicación WPF/.NET 10 independiente, en español y Dark Graphite, dentro del r
 
 - **Pokémon:** lista/búsqueda de especies y formas, sprites personalizados y caché, estadísticas, tipos, habilidades, objetos, EV, EXP/crianza, compatibilidad MT/tutores y parámetros de formas y Z de Gen 7.
 - **Movimientos:** lista/búsqueda, campos básicos y avanzados, multigolpe, efectos, estados, objetivos, críticos, turnos, curación, tres slots de stats, 32 flags y parámetros/efectos Z.
-- Ambos permanecen en la misma ventana, con confirmación de cambios y diálogos oscuros.
+- **Entrenadores:** clase, modo, IA, dinero, objetos y equipos de hasta seis Pokémon. Especies/formas, niveles, habilidad, género, objetos y movimientos; IV, EV, naturaleza y shiny en Gen 7. Randomización de especies con tolerancia BST y escala de niveles.
+- **Encuentros:** tablas originales de Gen 6, incluyendo hordas y espejo EN de ORAS; día/noche, SOS y clima de Gen 7. Edición de especies/formas, niveles y tasas; randomización con BST, escala y alcance.
+- **Evoluciones:** ocho rutas por entrada, método, argumento, destino y forma/nivel de Gen 7. Randomización de destinos y conversión de intercambios a evolución por nivel.
+- Los editores permanecen en la misma ventana, con confirmación de cambios y diálogos oscuros. Los controles deshabilitados usan azul opaco #26374A, próximo al logo «3».
 
-El usuario ya validó en Ultra Sol abrir proyecto, guardar stats, compatibilidad MT, movimientos y efectos Z con la preview previa. Los campos/acciones nuevos de v0.6.0 requieren prueba manual.
+El usuario ya validó en Ultra Sol abrir proyecto, guardar stats, compatibilidad MT, movimientos, efectos Z y el template de estadísticas con las previews previas. Los editores y acciones nuevos requieren prueba manual.
 
 ## Acciones en el inspector
 
@@ -16,19 +19,29 @@ El usuario ya validó en Ultra Sol abrir proyecto, guardar stats, compatibilidad
 
 Cada vista previa aleatoria genera una semilla nueva automáticamente. No existe un número editable. Las pruebas de servicios todavía permiten reproducir una propuesta con la semilla registrada. Los valores iniciales de Pokémon coinciden con las capturas del usuario: habilidades, exclusión de Shadow Tag/Arena Trap, objetos, MT y tutores activados; estadísticas, barajado, tipos, Wonder Guard, captura y grupos huevo desactivados. Los slots de stats empiezan desmarcados. MO se ofrece solo en Gen 6. La exclusión de habilidades permanece como opción del randomizador.
 
-Los selectores muestran nombres; los controles deshabilitados usan un vino discreto. Se eliminaron los avisos obsoletos de campos pendientes.
+Los selectores muestran nombres. Los nuevos randomizadores también usan el inspector y sustituyen temporalmente el centro. Sus parámetros y alcance se recuerdan al cambiar de sección durante la sesión.
 
 **Templates:** se incluyen `moves_gen6.csv`, `moves_gen7.csv` y `pokemon_stats_gen7.csv`. Movimientos permite cargar un CSV propio o usar Progressive. Se conservan los defaults de balance de Gen 6 cuando su CSV incluido está vacío, como en el editor original. Se portaron campos básicos, multigolpe, turnos, estados, stats, flags, parámetros de efecto y efectos Z. Las mecánicas de combate usan los algoritmos originales sobre una copia temporal, incluidos Escudo Real, Hidrochorro/Chapoteo Lodo, Deseo, Meditación/Pantalla de Humo, Conjuro, Neblina, Cerrojo Feérico, Pesadilla y Giro Vil v2. Se verifican las firmas y la segunda aplicación antes de ofrecer cambios. Un CRO incompatible rechaza la propuesta completa. Desmarcar mecánicas permite aplicar solo datos de movimientos y desactiva las descripciones.
 
 Las descripciones se escriben en el banco español (idioma 6), conservando los demás archivos internos. **Modificar Pokémon** de Gen 7 añade el template de estadísticas de Progressive y permite elegir un CSV propio.
 
+**Corrección v0.7:** el instalador de Giro Vil V2 amplía el segmento de código de `Battle.cro`. Los registros posteriores se desplazan; ahora los patchers originales resuelven sus direcciones en ese layout verificado. Se conserva la comprobación obligatoria de segunda aplicación y las instrucciones V2 validadas. CROs expandidos ajenos siguen siendo rechazados.
+
 Alcance **Todo / Lista filtrada / Selección**, vista previa antes/después, **Copiar tabla guardada** y **Copiar cambios**. Cambiar parámetros, selección o el editor invalida la propuesta.
+
+## Backup e historial
+
+**Generar backup**, junto a **Abrir proyecto**, permite elegir una carpeta fuera del proyecto. Guarda un ZIP de todos los archivos presentes, un manifiesto SHA-256 y el historial. Relee y verifica el ZIP y las fuentes antes de finalizar; un fallo o cancelación elimina el archivo parcial. Representa los archivos guardados al pulsar el botón; las ediciones pendientes en el formulario todavía no están guardadas. No se generan backups automáticos.
+
+**Historial** registra cada guardado y aplicación confirmados de Pokémon, Movimientos, Entrenadores, Encuentros y Evoluciones: fecha, valores anteriores/nuevos, parámetros, semilla, alcance y hashes de archivos. Persiste en `3ds-progressive-history.json`, junto a RomFS/ExeFS, y viaja al mover o respaldar el proyecto. Se puede consultar y exportar como JSON. La entrada y los archivos editados participan en el mismo guardado verificado; vistas previas y operaciones rechazadas no generan entradas.
+
+El historial versionado es una base para ampliar el Global Template. La importación/reproducción del Global Template original y Batch ROM Builder todavía no están migradas a esta interfaz.
 
 ## Guardado y pruebas
 
-El guardado explícito prepara y relee todos los archivos, detecta cambios externos y verifica los bytes finales. Para balance se guardan juntos movimientos, textos y combate; un fallo revierte los archivos ya reemplazados desde memoria. No es una transacción atómica entre archivos frente a un corte del proceso o del sistema. Personal incluye reconstrucción de tabla maestra; Movimientos respeta GARC directo X/Y y contenedor WD ORAS/Gen 7. No se crean backups automáticos.
+El guardado explícito prepara y relee todos los archivos, detecta cambios externos y verifica los bytes finales. Para balance se guardan juntos movimientos, textos, combate e historial; un fallo revierte los archivos ya reemplazados desde memoria. No es una transacción atómica entre archivos frente a un corte del proceso o del sistema. Personal incluye reconstrucción de tabla maestra; Movimientos respeta GARC directo X/Y y contenedor WD ORAS/Gen 7.
 
-`3DS.Progressive.Tests` verifica servicios con fixtures sintéticos para XY/ORAS/SM/USUM y añade pruebas de inicialización WPF en Windows. 356 comprobaciones de servicios pasan con fixtures; Windows añade comprobaciones WPF de navegación, defaults, semillas, selectores y estilos, además de capturas reales. CI compila, ejecuta esas comprobaciones y publica **3DS-Progressive-Preview-win-x64** autocontenido (14 días de retención).
+`3DS.Progressive.Tests` verifica servicios con fixtures sintéticos para XY/ORAS/SM/USUM y añade pruebas de inicialización WPF en Windows. Las comprobaciones cubren preservación binaria, alcance, semillas, dependencias, historial portable, backup, reaplicación del CRO ampliado y navegación/estilos de los cinco editores. CI compila, ejecuta esas comprobaciones y publica **3DS-Progressive-Preview-win-x64** autocontenido (14 días de retención).
 
 ```powershell
 dotnet run --project .\3DS.Progressive.Tests\3DS.Progressive.Tests.csproj -c Release
@@ -41,8 +54,8 @@ Prioridad de PNG: `%LOCALAPPDATA%\3DS Progressive\sprites\custom\entry-001.png`,
 
 ## Alcance pendiente
 
-La migración no está completa. Entrenadores, Encuentros, MT/tutores como editor de asignaciones, economía/tiendas y automatización siguen pendientes. Otros módulos permanecen deshabilitados. Esta es una **preview**, no sustituye el release estable WinForms ni realiza merge a la rama estable.
+La migración no está completa. Quedan los sistemas de progresión y templates específicos de Entrenadores/Encuentros, Smart Items, Better Movesets, asignaciones MT/tutores, economía/tiendas, textos/historia y automatización global. Otros módulos permanecen deshabilitados. Esta es una **preview**, no sustituye el release estable WinForms ni realiza merge a la rama estable.
 
 Extraer el ZIP **completo** y ejecutar `3DS.Progressive.exe`; conservar la carpeta `custom_balance_templates` junto al ejecutable.
 
-Detalles y comprobaciones manuales: [Hito 06](../docs/3ds-progressive/HITO_06_INSPECTOR_Y_TEMPLATES.md). Matriz: [Paridad de acciones](../docs/3ds-progressive/PARIDAD_ACCIONES.csv).
+Detalles y comprobaciones manuales: [Hito 07](../docs/3ds-progressive/HITO_07_EDITORES_BACKUP_HISTORIAL.md). Matriz: [Paridad de acciones](../docs/3ds-progressive/PARIDAD_ACCIONES.csv).

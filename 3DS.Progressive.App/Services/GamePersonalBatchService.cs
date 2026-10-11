@@ -88,7 +88,8 @@ public sealed partial class GameProjectSession
         return new BatchPreview(_batchOwner, _diskFingerprint, files,
             action == BatchAction.PersonalRandomize ? "Randomizar Pokémon" :
             action == BatchAction.PersonalModify ? "Modificar Pokémon" : "Excluir Shadow Tag y Arena Trap",
-            s.Seed, ids.Length, changes, s.BanTraps || action == BatchAction.BanTrappingAbilities, dependencies: dependencies);
+            s.Seed, ids.Length, changes, s.BanTraps || action == BatchAction.BanTrappingAbilities, dependencies: dependencies,
+            parameters:ProjectHistory.Settings(s,ids,dependencies));
     }
 
     public void ApplyPersonalPreview(BatchPreview preview)
@@ -96,8 +97,8 @@ public sealed partial class GameProjectSession
         if (preview.Owner != _batchOwner || !preview.Fingerprint.AsSpan().SequenceEqual(_diskFingerprint))
             throw new InvalidOperationException("La vista previa pertenece a otra sesión o quedó desactualizada.");
         foreach (var dependency in preview.Dependencies) GarcTransaction.ReadUnchanged(dependency.Path, dependency.Fingerprint);
-        _diskFingerprint = GarcTransaction.Commit(_personalPath, _config.GetGARCReference("personal"),
-            preview.Fingerprint, preview.CopyRecords());
+        _diskFingerprint = History.CommitGarc(_personalPath, _config.GetGARCReference("personal"),
+            preview.Fingerprint, preview.CopyRecords(),"Pokémon",preview.Action,preview.Changes,preview.Parameters);
         _config.InitializePersonal();
         if (preview.BanTraps) TrappingAbilitiesBanned = true;
     }

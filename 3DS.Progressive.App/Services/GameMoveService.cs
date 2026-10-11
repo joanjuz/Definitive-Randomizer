@@ -17,12 +17,14 @@ namespace ThreeDS.Progressive.Services;
 public sealed partial class GameMoveService
 {
     private readonly GameConfig _config;
+    private readonly ProjectHistory _history;
     private readonly string _path;
     private byte[] _sha;
 
     public GameMoveService(GameProjectSession project)
     {
         _config = project.GameConfiguration;
+        _history = project.History;
         _path = Path.Combine(_config.RomFS, _config.GetGARCFileName("move"));
         if (!File.Exists(_path))
             throw new FileNotFoundException("No se encontró el archivo de movimientos.", _path);
@@ -87,6 +89,7 @@ public sealed partial class GameMoveService
 
     public void Save(int id, MoveValues changes)
     {
+        MoveValues beforeValues=Read(id);
         if (id < 1 || id >= _config.Moves.Length)
             throw new ArgumentOutOfRangeException(nameof(id));
         if (changes.Type < 0 || changes.Type >= Types.Count ||
@@ -191,7 +194,8 @@ public sealed partial class GameMoveService
             new Move6(edited).Flags = (MoveFlag6)changes.Flags;
         records[id] = edited;
 
-        _sha = GarcTransaction.Commit(_path, _config.GetGARCReference("move"), _sha, records, mini);
+        _sha = _history.CommitGarc(_path, _config.GetGARCReference("move"), _sha, records,
+            "Movimientos","Editar movimiento",ProjectHistory.ValueChanges(id,Entries.First(e=>e.Id==id).Name,beforeValues,changes),mini:mini);
         _config.InitializeMoves();
     }
 }

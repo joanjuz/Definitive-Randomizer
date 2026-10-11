@@ -61,9 +61,10 @@
                     <TextBlock x:Name="GameNameText" Text="Seleccioná una carpeta de juego extraído"
                                FontSize="12" Foreground="{StaticResource TextSoft}"/>
                 </StackPanel>
-                <Button x:Name="OpenProjectButton" Grid.Column="2" Click="OpenProject_Click"
-                        Style="{StaticResource PrimaryButton}" VerticalAlignment="Center"
-                        Content="Abrir proyecto..."/>
+                <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                    <Button x:Name="BackupButton" Content="Generar backup" Click="Backup_Click" IsEnabled="False" Margin="0,0,10,0"/>
+                    <Button x:Name="OpenProjectButton" Click="OpenProject_Click" Style="{StaticResource PrimaryButton}" Content="Abrir proyecto..."/>
+                </StackPanel>
             </Grid>
         </Border>
 
@@ -85,12 +86,12 @@
                                    Margin="12,0,0,12"/>
                         <Button x:Name="PokemonNavButton" Click="Pokemon_Click" Content="◆  Pokémon" Style="{StaticResource SidebarButton}"
                                 Background="#2B4059" FontWeight="SemiBold"/>
-                        <Button Content="⚔  Entrenadores" Style="{StaticResource NavDisabled}"/>
-                        <Button Content="◎  Encuentros" Style="{StaticResource NavDisabled}"/>
+                        <Button x:Name="TrainersButton" Content="⚔  Entrenadores" Style="{StaticResource SidebarButton}" IsEnabled="False" Tag="Trainers" Click="Section_Click"/>
+                        <Button x:Name="EncountersButton" Content="◎  Encuentros" Style="{StaticResource SidebarButton}" IsEnabled="False" Tag="Encounters" Click="Section_Click"/>
                         <Button x:Name="MovesButton" Content="◇  Movimientos" Style="{StaticResource SidebarButton}" IsEnabled="False" Click="Moves_Click"/>
                         <Button Content="▣  MT y tutores" Style="{StaticResource NavDisabled}"/>
                         <Button Content="▤  Objetos y tiendas" Style="{StaticResource NavDisabled}"/>
-                        <Button Content="◆  Evoluciones" Style="{StaticResource NavDisabled}"/>
+                        <Button x:Name="EvolutionsButton" Content="◆  Evoluciones" Style="{StaticResource SidebarButton}" IsEnabled="False" Tag="Evolutions" Click="Section_Click"/>
                         <Button Content="≡  Historia y textos" Style="{StaticResource NavDisabled}"/>
                         <TextBlock Text="SISTEMAS" Style="{StaticResource SmallHeading}"
                                    Margin="12,25,0,12"/>
@@ -98,6 +99,7 @@
                         <Button Content="▧  Herramientas ROM" Style="{StaticResource NavDisabled}"/>
                         <Button Content="⇄  Automatización" Style="{StaticResource NavDisabled}"/>
                         <Button Content="⚙  Configuración" Style="{StaticResource NavDisabled}"/>
+                        <Button x:Name="HistoryButton" Content="≡  Historial de cambios" Style="{StaticResource SidebarButton}" IsEnabled="False" Tag="History" Click="Section_Click"/>
                     </StackPanel>
                     </ScrollViewer>
                     <Border Visibility="Collapsed" DockPanel.Dock="Bottom" Background="{StaticResource Surface}"
@@ -494,6 +496,7 @@
                 </StackPanel>
                 </ScrollViewer>
             </Border>
+            <ContentControl x:Name="SectionHost" Grid.Column="1" Grid.ColumnSpan="3" Visibility="Collapsed"/>
             <ContentControl x:Name="MovesHost" Grid.Column="1" Grid.ColumnSpan="3"
                             Visibility="Collapsed" Background="{StaticResource Bg}"/>
         </Grid>
@@ -501,7 +504,7 @@
         <Border Grid.Row="2" Background="#111720" BorderBrush="{StaticResource Stroke}"
                 BorderThickness="0,1,0,0">
             <DockPanel Margin="18,0" LastChildFill="True">
-                <TextBlock Text="3DS PROGRESSIVE · V0.6.0 PREVIEW"
+                <TextBlock Text="3DS PROGRESSIVE · V0.7.0 PREVIEW"
                            DockPanel.Dock="Right" Foreground="{StaticResource TextSoft}"
                            FontSize="10" VerticalAlignment="Center"/>
                 <TextBlock x:Name="StatusText" Text="Esperando proyecto extraído..."

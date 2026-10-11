@@ -3,6 +3,7 @@ using System.Collections.ObjectModel;
 using System.Windows;
 using System.Windows.Controls;
 using Button = System.Windows.Controls.Button;
+using UserControl = System.Windows.Controls.UserControl;
 using System.Windows.Data;
 using System.Windows.Media;
 using Color = System.Windows.Media.Color;
@@ -27,6 +28,9 @@ public partial class MainWindow : Window
     private CancellationTokenSource? _spriteCancellation;
     private MoveEditorView? _movesView;
     private bool _showingMoves;
+    private RecordEditorView? _recordView;
+    private readonly Dictionary<string,RecordEditorView.UiState> _sectionOptions=[];
+    private bool _backupRunning;
     private IReadOnlyList<MoveChoice> _itemOptions = [];
     private IReadOnlyList<MoveChoice> _moveOptions = [];
     private IReadOnlyList<MoveChoice> _eggOptions = [];
@@ -89,7 +93,7 @@ public partial class MainWindow : Window
 
     private void OpenProject_Click(object sender, RoutedEventArgs e)
     {
-        if (!ConfirmDiscard() || (_showingMoves && _movesView is not null && !_movesView.ConfirmLeave()))
+        if (!ConfirmDiscard() || !ConfirmAuxiliaryLeave())
             return;
 
         using var dialog = new System.Windows.Forms.FolderBrowserDialog
@@ -112,9 +116,69 @@ public partial class MainWindow : Window
         }
     }
 
+    private bool ConfirmAuxiliaryLeave()
+    {
+        if(_recordView is not null&&!_recordView.ConfirmLeave())return false;
+        if(_recordView is not null)_sectionOptions[_recordView.Editor.Title]=_recordView.RememberOptions();
+        if(_showingMoves&&_movesView is not null)
+        {
+            bool pending=_movesView.HasPendingChanges;
+            if(!_movesView.ConfirmLeave())return false;
+            if(pending){_movesView=null;MovesHost.Content=null;}
+        }
+        return true;
+    }
+
+    private void Section_Click(object sender,RoutedEventArgs e)
+    {
+        if(_session is null||sender is not Button {Tag:string section})return;
+        if(!ConfirmDiscard()||!ConfirmAuxiliaryLeave())return;
+        if(HasUnsavedChanges()&&_previous is not null)ShowEntry(_previous);
+        try
+        {
+            UserControl view=section switch
+            {
+                "Trainers"=>CreateEditor(new GameTrainerService(_session)),
+                "Encounters"=>CreateEditor(new GameEncounterService(_session)),
+                "Evolutions"=>CreateEditor(new GameEvolutionService(_session)),
+                "History"=>new HistoryView(_session.History),
+                _=>throw new ArgumentException("Sección desconocida.")
+            };
+            _recordView=view as RecordEditorView;SectionHost.Content=view;
+            PokemonListPanel.Visibility=PokemonEditorPanel.Visibility=PersonalToolsPanel.Visibility=PokemonInspectorPanel.Visibility=MovesHost.Visibility=Visibility.Collapsed;
+            _personalTools.InvalidatePreview();SectionHost.Visibility=Visibility.Visible;_showingMoves=false;
+            PokemonNavButton.Background=MovesButton.Background=TrainersButton.Background=EncountersButton.Background=EvolutionsButton.Background=HistoryButton.Background=Brushes.Transparent;
+            ((Button)sender).Background=new SolidColorBrush((Color)ColorConverter.ConvertFromString("#2B4059")!);
+            StatusText.Text=section=="History"?"Historial persistente de cambios confirmados.":"Editor integrado · guardar registra los cambios en el historial.";
+        }
+        catch(Exception ex){StudioDialog.Error(this,"No se pudo cargar la sección",ex.Message);}
+    }
+
+    private RecordEditorView CreateEditor(IProjectEditor editor)=>new(editor,_sectionOptions.GetValueOrDefault(editor.Title));
+
+    private async void Backup_Click(object sender,RoutedEventArgs e)
+    {
+        if(_session is null||_backupRunning)return;
+        using var folder=new System.Windows.Forms.FolderBrowserDialog {Description="Elegí la carpeta de destino del backup completo del proyecto.",ShowNewFolderButton=true};
+        if(folder.ShowDialog()!=System.Windows.Forms.DialogResult.OK)return;
+        var project=_session;_backupRunning=true;IsEnabled=false;
+        try
+        {
+            StatusText.Text="Generando backup de los archivos guardados…";
+            var progress=new Progress<BackupProgress>(p=>StatusText.Text=$"Backup: {p.Completed}/{p.Total} · {p.File}");
+            string path=await ProjectBackup.CreateAsync(project.ProjectRoot,folder.SelectedPath,project.GameName,progress,history:project.History.Read());
+            StatusText.Text="Backup completo y verificado: "+path;
+            IsEnabled=true;StudioDialog.Notice(this,"Backup generado","Se guardó y verificó una copia del proyecto y su historial.",path);
+        }
+        catch(Exception ex){IsEnabled=true;StudioDialog.Error(this,"No se pudo generar el backup",ex.Message);StatusText.Text=ex.Message;}
+        finally{_backupRunning=false;IsEnabled=true;}
+    }
+
     internal void LoadProject(GameProjectSession candidate)
     {
         _session = candidate;
+        _sectionOptions.Clear();
+        _recordView=null;SectionHost.Content=null;
         _movesView = null;
         MovesHost.Content = null;
         DisplayPokemon();
@@ -164,6 +228,7 @@ public partial class MainWindow : Window
         EditorContent.IsEnabled = true;
         PersonalActions.IsEnabled = true;
         MovesButton.IsEnabled = true;
+        TrainersButton.IsEnabled = EncountersButton.IsEnabled = EvolutionsButton.IsEnabled = HistoryButton.IsEnabled = BackupButton.IsEnabled = true;
         ConfigurePersonalTools(candidate);
         PokemonList.SelectedIndex = 0;
         StatusText.Text = "Proyecto abierto en modo lectura. Guardar requiere confirmación.";
@@ -502,8 +567,9 @@ public partial class MainWindow : Window
 
     private void Pokemon_Click(object sender, RoutedEventArgs e)
     {
-        if (!_showingMoves)
+        if (!_showingMoves && SectionHost.Visibility!=Visibility.Visible)
             return;
+        if(_recordView is not null&&!_recordView.ConfirmLeave())return;
         bool discarded = _movesView?.HasPendingChanges == true;
         if (_movesView is not null && !_movesView.ConfirmLeave())
             return;
@@ -517,6 +583,8 @@ public partial class MainWindow : Window
 
     private void DisplayPokemon()
     {
+        _recordView=null;SectionHost.Visibility=Visibility.Collapsed;SectionHost.Content=null;
+        TrainersButton.Background=EncountersButton.Background=EvolutionsButton.Background=HistoryButton.Background=Brushes.Transparent;
         _showingMoves = false;
         PokemonListPanel.Visibility = Visibility.Visible;
         PokemonEditorPanel.Visibility = Visibility.Visible;
@@ -532,6 +600,7 @@ public partial class MainWindow : Window
     {
         if (_session is null || _showingMoves)
             return;
+        if(_recordView is not null&&!_recordView.ConfirmLeave())return;
         bool discardedPokemon = HasUnsavedChanges();
         if (!ConfirmDiscard())
             return;
@@ -540,6 +609,8 @@ public partial class MainWindow : Window
         try
         {
             _movesView ??= new MoveEditorView(_session);
+            _recordView=null;SectionHost.Visibility=Visibility.Collapsed;SectionHost.Content=null;
+            TrainersButton.Background=EncountersButton.Background=EvolutionsButton.Background=HistoryButton.Background=Brushes.Transparent;
             MovesHost.Content = _movesView;
             PokemonListPanel.Visibility = Visibility.Collapsed;
             PokemonEditorPanel.Visibility = Visibility.Collapsed;
@@ -684,7 +755,8 @@ public partial class MainWindow : Window
 
     protected override void OnClosing(CancelEventArgs e)
     {
-        if (!ConfirmDiscard() || (_showingMoves && _movesView is not null && !_movesView.ConfirmLeave()))
+        if(_backupRunning){e.Cancel=true;base.OnClosing(e);return;}
+        if (!ConfirmDiscard() || !ConfirmAuxiliaryLeave())
             e.Cancel = true;
         if (!e.Cancel)
         {

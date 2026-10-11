@@ -12,9 +12,9 @@
         <SolidColorBrush x:Key="Accent" Color="#86B7F3"/>
         <SolidColorBrush x:Key="Hover" Color="#33465D"/>
         <SolidColorBrush x:Key="Selected" Color="#305477"/>
-        <SolidColorBrush x:Key="DisabledSurface" Color="#32232D"/>
-        <SolidColorBrush x:Key="DisabledStroke" Color="#553542"/>
-        <SolidColorBrush x:Key="DisabledText" Color="#A58090"/>
+        <SolidColorBrush x:Key="DisabledSurface" Color="#26374A"/>
+        <SolidColorBrush x:Key="DisabledStroke" Color="#3B4F65"/>
+        <SolidColorBrush x:Key="DisabledText" Color="#8294AB"/>
 
         <Style TargetType="{x:Type Window}">
             <Setter Property="FontFamily" Value="Segoe UI"/>

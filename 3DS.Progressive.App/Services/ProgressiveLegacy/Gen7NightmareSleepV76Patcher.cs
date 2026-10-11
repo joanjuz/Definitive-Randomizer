@@ -1,5 +1,5 @@
 // Ported from pk3DS.WinForms/Misc/Gen7NightmareSleepV76Patcher.cs at f459e40.
-// Only namespace and temporary IO roots differ; battle instructions are unchanged.
+// App IO and verified CRO layout adapters differ; original battle instructions are preserved.
 #nullable disable
 using System;
 using System.IO;
@@ -58,7 +58,9 @@ internal static class Gen7NightmareSleepV76Patcher
             return -1;
 
         byte[] data = File.ReadAllBytes(path);
-        if (data.Length != BattleCroSize)
+        // Giro Vil V2 extends the CRO while preserving the stock callback offsets.
+        // Accept only that fully verified extension, retaining every instruction signature.
+        if (!LegacyCroLayout.Compatible(data,BattleCroSize))
             return -1;
 
         if (!ValidateStockSleepSupport(data))

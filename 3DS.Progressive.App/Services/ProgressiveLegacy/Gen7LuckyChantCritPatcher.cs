@@ -1,5 +1,5 @@
 // Ported from pk3DS.WinForms/Misc/Gen7LuckyChantCritPatcher.cs at f459e40.
-// Only namespace and temporary IO roots differ; battle instructions are unchanged.
+// App IO and verified CRO layout adapters differ; original battle instructions are preserved.
 #nullable disable
 using System;
 using System.Collections.Generic;
@@ -115,7 +115,10 @@ internal static class Gen7LuckyChantCritPatcher
 
         byte[] data = File.ReadAllBytes(path);
 
-        if (data.Length != ExpectedSize ||
+        int SideSlotRecord=LegacyCroLayout.StockOffset(data,Gen7LuckyChantCritPatcher.SideSlotRecord);
+        int Descriptor=LegacyCroLayout.StockOffset(data,Gen7LuckyChantCritPatcher.Descriptor);
+
+        if (!LegacyCroLayout.Compatible(data,ExpectedSize) ||
             data.Length < Cave+FinalPayload.Length ||
             data.Length < Descriptor+8)
         {
