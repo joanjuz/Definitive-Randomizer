@@ -259,14 +259,66 @@
                         </StackPanel>
                     </Border>
                     <Border Style="{StaticResource Card}">
+    <Expander Header="HABILIDADES Y OBJETOS" IsExpanded="False" Foreground="{StaticResource TextMain}"
+              Background="{StaticResource Panel}" Padding="0">
+        <StackPanel Margin="0,13,0,0">
+            <TextBlock Text="Compatibilidad Gen 6/7. Seleccioná habilidades y los tres objetos posibles." FontSize="11" Foreground="{StaticResource TextSoft}"
+                       TextWrapping="Wrap" Margin="0,0,0,14"/>
+            <UniformGrid Columns="2">
+              <StackPanel Margin="0,0,10,13"><TextBlock Text="Habilidad 1" Style="{StaticResource FieldCaption}"/><ComboBox x:Name="AbilityOne" SelectionChanged="Type_SelectionChanged"/></StackPanel>
+              <StackPanel Margin="0,0,10,13"><TextBlock Text="Habilidad 2" Style="{StaticResource FieldCaption}"/><ComboBox x:Name="AbilityTwo" SelectionChanged="Type_SelectionChanged"/></StackPanel>
+              <StackPanel Margin="0,0,10,13"><TextBlock Text="Habilidad oculta" Style="{StaticResource FieldCaption}"/><ComboBox x:Name="AbilityHidden" SelectionChanged="Type_SelectionChanged"/></StackPanel>
+              <StackPanel Margin="0,0,10,13"><TextBlock Text="Objeto 1 (ID 0–65535)" Style="{StaticResource FieldCaption}"/><TextBox x:Name="HeldItemOne" TextChanged="Stat_TextChanged"/></StackPanel>
+              <StackPanel Margin="0,0,10,13"><TextBlock Text="Objeto 2 (ID 0–65535)" Style="{StaticResource FieldCaption}"/><TextBox x:Name="HeldItemTwo" TextChanged="Stat_TextChanged"/></StackPanel>
+              <StackPanel Margin="0,0,10,13"><TextBlock Text="Objeto 3 (ID 0–65535)" Style="{StaticResource FieldCaption}"/><TextBox x:Name="HeldItemThree" TextChanged="Stat_TextChanged"/></StackPanel>
+            </UniformGrid>
+        </StackPanel>
+    </Expander>
+</Border>
+                    <Border Style="{StaticResource Card}">
+    <Expander Header="EV OTORGADOS" IsExpanded="False" Foreground="{StaticResource TextMain}"
+              Background="{StaticResource Panel}" Padding="0">
+        <StackPanel Margin="0,13,0,0">
+            <TextBlock Text="Cada stat otorga entre 0 y 3 EV al derrotar al Pokémon." FontSize="11" Foreground="{StaticResource TextSoft}"
+                       TextWrapping="Wrap" Margin="0,0,0,14"/>
+            <UniformGrid Columns="3">
+              <StackPanel Margin="0,0,10,13"><TextBlock Text="EV PS" Style="{StaticResource FieldCaption}"/><TextBox x:Name="EvHpBox" TextChanged="Stat_TextChanged"/></StackPanel>
+              <StackPanel Margin="0,0,10,13"><TextBlock Text="EV Ataque" Style="{StaticResource FieldCaption}"/><TextBox x:Name="EvAtkBox" TextChanged="Stat_TextChanged"/></StackPanel>
+              <StackPanel Margin="0,0,10,13"><TextBlock Text="EV Defensa" Style="{StaticResource FieldCaption}"/><TextBox x:Name="EvDefBox" TextChanged="Stat_TextChanged"/></StackPanel>
+              <StackPanel Margin="0,0,10,13"><TextBlock Text="EV Ataque Esp." Style="{StaticResource FieldCaption}"/><TextBox x:Name="EvSpaBox" TextChanged="Stat_TextChanged"/></StackPanel>
+              <StackPanel Margin="0,0,10,13"><TextBlock Text="EV Defensa Esp." Style="{StaticResource FieldCaption}"/><TextBox x:Name="EvSpdBox" TextChanged="Stat_TextChanged"/></StackPanel>
+              <StackPanel Margin="0,0,10,13"><TextBlock Text="EV Velocidad" Style="{StaticResource FieldCaption}"/><TextBox x:Name="EvSpeBox" TextChanged="Stat_TextChanged"/></StackPanel>
+            </UniformGrid>
+        </StackPanel>
+    </Expander>
+</Border>
+                    <Border Style="{StaticResource Card}">
+    <Expander Header="CRIANZA Y CARACTERÍSTICAS" IsExpanded="False" Foreground="{StaticResource TextMain}"
+              Background="{StaticResource Panel}" Padding="0">
+        <StackPanel Margin="0,13,0,0">
+            <TextBlock Text="Valores internos originales de pk3DS; se conservan los campos que todavía no se editan." FontSize="11" Foreground="{StaticResource TextSoft}"
+                       TextWrapping="Wrap" Margin="0,0,0,14"/>
+            <UniformGrid Columns="2">
+              <StackPanel Margin="0,0,10,13"><TextBlock Text="Experiencia base (0–65535)" Style="{StaticResource FieldCaption}"/><TextBox x:Name="BaseExpBox" TextChanged="Stat_TextChanged"/></StackPanel>
+              <StackPanel Margin="0,0,10,13"><TextBlock Text="Amistad (0–255)" Style="{StaticResource FieldCaption}"/><TextBox x:Name="FriendshipBox" TextChanged="Stat_TextChanged"/></StackPanel>
+              <StackPanel Margin="0,0,10,13"><TextBlock Text="Ciclos de eclosión" Style="{StaticResource FieldCaption}"/><TextBox x:Name="HatchBox" TextChanged="Stat_TextChanged"/></StackPanel>
+              <StackPanel Margin="0,0,10,13"><TextBlock Text="Ratio de género (0–255)" Style="{StaticResource FieldCaption}"/><TextBox x:Name="GenderBox" TextChanged="Stat_TextChanged"/></StackPanel>
+              <StackPanel Margin="0,0,10,13"><TextBlock Text="Grupo huevo 1 (ID 0–255)" Style="{StaticResource FieldCaption}"/><TextBox x:Name="EggOneBox" TextChanged="Stat_TextChanged"/></StackPanel>
+              <StackPanel Margin="0,0,10,13"><TextBlock Text="Grupo huevo 2 (ID 0–255)" Style="{StaticResource FieldCaption}"/><TextBox x:Name="EggTwoBox" TextChanged="Stat_TextChanged"/></StackPanel>
+              <StackPanel Margin="0,0,10,13"><TextBlock Text="Curva EXP (ID 0–255)" Style="{StaticResource FieldCaption}"/><TextBox x:Name="GrowthBox" TextChanged="Stat_TextChanged"/></StackPanel>
+              <StackPanel Margin="0,0,10,13"><TextBlock Text="Ratio de escape (0–255)" Style="{StaticResource FieldCaption}"/><TextBox x:Name="EscapeBox" TextChanged="Stat_TextChanged"/></StackPanel>
+            </UniformGrid>
+        </StackPanel>
+    </Expander>
+</Border>
+                    <Border Style="{StaticResource Card}">
                         <StackPanel>
-                            <TextBlock Text="ALCANCE DEL PRIMER HITO"
+                            <TextBlock Text="CAMPOS TODAVÍA PENDIENTES"
                                        Style="{StaticResource SmallHeading}" Margin="0,0,0,9"/>
                             <TextBlock Foreground="{StaticResource TextSoft}" TextWrapping="Wrap"
                                        LineHeight="19">
-                                Los demás campos de Personal (habilidades, EV, compatibilidades,
-                                formas, objetos y otros bytes) se preservan al guardar, pero
-                                todavía no están disponibles para edición visual.
+                                Compatibilidad MT y tutores, opciones de formas, color y datos especiales
+                                de Gen 7 siguen pendientes de edición visual. Se mantienen al guardar.
                             </TextBlock>
                         </StackPanel>
                     </Border>

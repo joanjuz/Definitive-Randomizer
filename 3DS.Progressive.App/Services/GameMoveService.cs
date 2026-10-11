@@ -41,6 +41,7 @@ public sealed class GameMoveService
 
     public IReadOnlyList<MoveListEntry> Entries { get; }
     public IReadOnlyList<string> Types { get; }
+    public bool SupportsZMoves => _config.Generation == 7;
 
     public MoveValues Read(int id)
     {
@@ -50,7 +51,17 @@ public sealed class GameMoveService
         // Move.Priority esta declarado como int pero respaldado por un byte;
         // la interfaz vanilla lo interpreta correctamente como sbyte.
         return new MoveValues(move.Type, move.Category, move.Power,
-            move.Accuracy, move.PP, unchecked((sbyte)move.Priority));
+            move.Accuracy, move.PP, unchecked((sbyte)move.Priority))
+        {
+            Quality = move.Quality, HitMin = move.HitMin, HitMax = move.HitMax,
+            Inflict = move.Inflict, InflictPercent = move.InflictPercent,
+            CritStage = move.CritStage, Flinch = move.Flinch,
+            EffectSequence = move.EffectSequence, Target = (int)move.Target,
+            ZMove = move is Move7 m7 ? m7.ZMove : 0,
+            ZPower = move is Move7 z7 ? z7.ZPower : 0,
+            ZEffect = move is Move7 e7 ? e7.ZEffect : 0,
+            Flags = move is Move7 f7 ? (uint)f7.Flags : (uint)((Move6)move).Flags,
+        };
     }
 
     public void Save(int id, MoveValues changes)
@@ -62,7 +73,19 @@ public sealed class GameMoveService
             changes.Power is < 0 or > 255 ||
             changes.Accuracy is < 0 or > 255 ||
             changes.PP is < 0 or > 255 ||
-            changes.Priority is < -8 or > 8)
+            changes.Priority is < -8 or > 8 ||
+            changes.Quality is < 0 or > 255 ||
+            changes.HitMin is < 0 or > 15 ||
+            changes.HitMax is < 0 or > 15 ||
+            changes.Inflict is < 0 or > 65535 ||
+            changes.InflictPercent is < 0 or > 255 ||
+            changes.CritStage is < 0 or > 255 ||
+            changes.Flinch is < 0 or > 255 ||
+            changes.EffectSequence is < 0 or > 65535 ||
+            changes.Target is < 0 or > 255 ||
+            changes.ZMove is < 0 or > 65535 ||
+            changes.ZPower is < 0 or > 255 ||
+            changes.ZEffect is < 0 or > 255)
             throw new ArgumentOutOfRangeException(nameof(changes),
                 "Revisá tipo, categoría, potencia, precisión (0–255), PP (0–255) y prioridad (-8 a +8).");
 
@@ -76,6 +99,7 @@ public sealed class GameMoveService
         byte[][] records = mini
             ? Mini.UnpackMini(garcFiles[0], "WD")
             : garcFiles;
+        if (records is null) throw new InvalidDataException("Contenedor WD de movimientos no reconocido.");
 
         if (id >= records.Length)
             throw new InvalidDataException("El movimiento seleccionado no existe en el GARC.");
@@ -92,6 +116,26 @@ public sealed class GameMoveService
         edited[4] = (byte)changes.Accuracy;
         edited[5] = (byte)changes.PP;
         edited[6] = unchecked((byte)(sbyte)changes.Priority);
+        edited[1] = (byte)changes.Quality;
+        edited[7] = (byte)(changes.HitMin | changes.HitMax << 4);
+        BitConverter.GetBytes((ushort)changes.Inflict).CopyTo(edited, 8);
+        edited[0xA] = (byte)changes.InflictPercent;
+        edited[0xE] = (byte)changes.CritStage;
+        edited[0xF] = (byte)changes.Flinch;
+        BitConverter.GetBytes((ushort)changes.EffectSequence).CopyTo(edited, 0x10);
+        edited[0x14] = (byte)changes.Target;
+        if (mini && _config.Generation == 7)
+        {
+            var z = new Move7(edited)
+            {
+                ZMove = changes.ZMove,
+                ZPower = changes.ZPower,
+                ZEffect = changes.ZEffect,
+                Flags = (MoveFlag7)changes.Flags,
+            };
+        }
+        else
+            new Move6(edited).Flags = (MoveFlag6)changes.Flags;
         records[id] = edited;
 
         if (mini)

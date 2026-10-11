@@ -55,6 +55,9 @@ public partial class MainWindow : Window
             SearchBox.Text = string.Empty;
             TypeOne.ItemsSource = candidate.Types;
             TypeTwo.ItemsSource = candidate.Types;
+            AbilityOne.ItemsSource = candidate.AbilityNames;
+            AbilityTwo.ItemsSource = candidate.AbilityNames;
+            AbilityHidden.ItemsSource = candidate.AbilityNames;
             PokemonList.ItemsSource = candidate.Entries;
             _suppressSelection = false;
 
@@ -128,6 +131,26 @@ public partial class MainWindow : Window
             CatchBox.Text = p.CatchRate.ToString();
             TypeOne.SelectedIndex = p.FirstType;
             TypeTwo.SelectedIndex = p.SecondType;
+            AbilityOne.SelectedIndex = p.Ability1;
+            AbilityTwo.SelectedIndex = p.Ability2;
+            AbilityHidden.SelectedIndex = p.AbilityHidden;
+            HeldItemOne.Text = p.Item1.ToString();
+            HeldItemTwo.Text = p.Item2.ToString();
+            HeldItemThree.Text = p.Item3.ToString();
+            EvHpBox.Text = p.EvHp.ToString();
+            EvAtkBox.Text = p.EvAttack.ToString();
+            EvDefBox.Text = p.EvDefense.ToString();
+            EvSpaBox.Text = p.EvSpecialAttack.ToString();
+            EvSpdBox.Text = p.EvSpecialDefense.ToString();
+            EvSpeBox.Text = p.EvSpeed.ToString();
+            BaseExpBox.Text = p.BaseExperience.ToString();
+            FriendshipBox.Text = p.BaseFriendship.ToString();
+            HatchBox.Text = p.HatchCycles.ToString();
+            GenderBox.Text = p.GenderRatio.ToString();
+            EggOneBox.Text = p.EggGroup1.ToString();
+            EggTwoBox.Text = p.EggGroup2.ToString();
+            GrowthBox.Text = p.ExperienceGrowth.ToString();
+            EscapeBox.Text = p.EscapeRate.ToString();
             SaveButton.IsEnabled = true;
         }
         finally
@@ -153,8 +176,50 @@ public partial class MainWindow : Window
             !byte.TryParse(CatchBox.Text, out byte catchRate) ||
             TypeOne.SelectedIndex < 0 || TypeTwo.SelectedIndex < 0)
             return false;
+        if (AbilityOne.SelectedIndex < 0 || AbilityTwo.SelectedIndex < 0 ||
+            AbilityHidden.SelectedIndex < 0 ||
+            !ushort.TryParse(HeldItemOne.Text, out ushort item1) ||
+            !ushort.TryParse(HeldItemTwo.Text, out ushort item2) ||
+            !ushort.TryParse(HeldItemThree.Text, out ushort item3) ||
+            !byte.TryParse(EvHpBox.Text, out byte evhp) || evhp > 3 ||
+            !byte.TryParse(EvAtkBox.Text, out byte evattack) || evattack > 3 ||
+            !byte.TryParse(EvDefBox.Text, out byte evdefense) || evdefense > 3 ||
+            !byte.TryParse(EvSpaBox.Text, out byte evspecialattack) || evspecialattack > 3 ||
+            !byte.TryParse(EvSpdBox.Text, out byte evspecialdefense) || evspecialdefense > 3 ||
+            !byte.TryParse(EvSpeBox.Text, out byte evspeed) || evspeed > 3 ||
+            !ushort.TryParse(BaseExpBox.Text, out ushort baseexperience) ||
+            !byte.TryParse(FriendshipBox.Text, out byte basefriendship) ||
+            !byte.TryParse(HatchBox.Text, out byte hatchcycles) ||
+            !byte.TryParse(GenderBox.Text, out byte genderratio) ||
+            !byte.TryParse(EggOneBox.Text, out byte egggroup1) ||
+            !byte.TryParse(EggTwoBox.Text, out byte egggroup2) ||
+            !byte.TryParse(GrowthBox.Text, out byte experiencegrowth) ||
+            !byte.TryParse(EscapeBox.Text, out byte escaperate))
+            return false;
         draft = new PersonalValues(hp, atk, def, spa, spd, spe, catchRate,
-            TypeOne.SelectedIndex, TypeTwo.SelectedIndex);
+            TypeOne.SelectedIndex, TypeTwo.SelectedIndex)
+        {
+            Ability1 = AbilityOne.SelectedIndex,
+            Ability2 = AbilityTwo.SelectedIndex,
+            AbilityHidden = AbilityHidden.SelectedIndex,
+            Item1 = item1,
+            Item2 = item2,
+            Item3 = item3,
+            EvHp = evhp,
+            EvAttack = evattack,
+            EvDefense = evdefense,
+            EvSpecialAttack = evspecialattack,
+            EvSpecialDefense = evspecialdefense,
+            EvSpeed = evspeed,
+            BaseExperience = baseexperience,
+            BaseFriendship = basefriendship,
+            HatchCycles = hatchcycles,
+            GenderRatio = genderratio,
+            EggGroup1 = egggroup1,
+            EggGroup2 = egggroup2,
+            ExperienceGrowth = experiencegrowth,
+            EscapeRate = escaperate,
+        };
         return true;
     }
 

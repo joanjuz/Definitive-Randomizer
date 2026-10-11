@@ -1,10 +1,7 @@
-<Window x:Class="ThreeDS.Progressive.MoveEditorWindow"
+<UserControl x:Class="ThreeDS.Progressive.MoveEditorView"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="3DS Progressive — Movimientos" Width="1120" Height="760"
-        MinWidth="970" MinHeight="650" WindowStartupLocation="CenterOwner"
-        Background="{StaticResource Bg}" Foreground="{StaticResource TextMain}">
-    <Window.Resources>
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" Background="{StaticResource Bg}" Foreground="{StaticResource TextMain}">
+    <UserControl.Resources>
         <Style x:Key="MoveCard" TargetType="Border">
             <Setter Property="Background" Value="{StaticResource Panel}"/>
             <Setter Property="BorderBrush" Value="{StaticResource Stroke}"/>
@@ -18,7 +15,7 @@
             <Setter Property="FontSize" Value="12"/>
             <Setter Property="Margin" Value="0,0,0,8"/>
         </Style>
-    </Window.Resources>
+    </UserControl.Resources>
     <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="70"/>
@@ -36,8 +33,8 @@
                     <TextBlock Text="3DS Progressive · Editor GARC" FontSize="12"
                                Foreground="{StaticResource TextSoft}" Margin="0,4,0,0"/>
                 </StackPanel>
-                <Button Grid.Column="1" Content="Volver a Pokémon"
-                        VerticalAlignment="Center" Click="Close_Click" Padding="16,10"/>
+                <Button Grid.Column="1" Content="Editor integrado · 3DS Progressive"
+                        VerticalAlignment="Center" IsEnabled="False" Padding="16,10"/>
             </Grid>
         </Border>
         <Grid Grid.Row="1">
@@ -112,13 +109,78 @@
                         </StackPanel>
                     </Border>
                     <Border Style="{StaticResource MoveCard}">
-                        <StackPanel>
-                            <TextBlock Text="SIN PERDER OPCIONES DEL ORIGINAL"
-                                       Foreground="{StaticResource Accent}" FontWeight="SemiBold"
-                                       FontSize="11" Margin="0,0,0,10"/>
-                            <TextBlock Foreground="{StaticResource TextSoft}" TextWrapping="Wrap" LineHeight="21"
-                                       Text="El editor modifica únicamente los seis campos visibles. Efectos, flags, Z-Moves, turnos, objetivos, multigolpe y demás datos del movimiento se preservan. Estas opciones se incorporarán visualmente en hitos posteriores."/>
-                        </StackPanel>
+                        <Expander Header="EFECTOS, GOLPES, OBJETIVOS Y FLAGS" Foreground="{StaticResource TextMain}" IsExpanded="False">
+                            <StackPanel Margin="0,16,0,0">
+                                <TextBlock Text="Se conservan los demás bytes; los IDs avanzados siguen la estructura vanilla de pk3DS."
+                                           Foreground="{StaticResource TextSoft}" TextWrapping="Wrap" FontSize="11" Margin="0,0,0,13"/>
+                                <UniformGrid Columns="2">
+                                    <StackPanel Margin="0,0,10,13">
+    <TextBlock Text="Calidad/animación (0–255)" Style="{StaticResource MoveLabel}"/>
+    <TextBox x:Name="QualityBox" TextChanged="Text_Changed"/>
+</StackPanel>
+                                    <StackPanel Margin="0,0,10,13">
+    <TextBlock Text="Golpes mínimos (0–15)" Style="{StaticResource MoveLabel}"/>
+    <TextBox x:Name="MinHitsBox" TextChanged="Text_Changed"/>
+</StackPanel>
+                                    <StackPanel Margin="0,0,10,13">
+    <TextBlock Text="Golpes máximos (0–15)" Style="{StaticResource MoveLabel}"/>
+    <TextBox x:Name="MaxHitsBox" TextChanged="Text_Changed"/>
+</StackPanel>
+                                    <StackPanel Margin="0,0,10,13">
+    <TextBlock Text="Efecto infligido (ID 0–65535)" Style="{StaticResource MoveLabel}"/>
+    <TextBox x:Name="InflictBox" TextChanged="Text_Changed"/>
+</StackPanel>
+                                    <StackPanel Margin="0,0,10,13">
+    <TextBlock Text="Probabilidad de efecto (0–255)" Style="{StaticResource MoveLabel}"/>
+    <TextBox x:Name="InflictRateBox" TextChanged="Text_Changed"/>
+</StackPanel>
+                                    <StackPanel Margin="0,0,10,13">
+    <TextBlock Text="Etapa de crítico (0–255)" Style="{StaticResource MoveLabel}"/>
+    <TextBox x:Name="CritBox" TextChanged="Text_Changed"/>
+</StackPanel>
+                                    <StackPanel Margin="0,0,10,13">
+    <TextBlock Text="Probabilidad de retroceso (0–255)" Style="{StaticResource MoveLabel}"/>
+    <TextBox x:Name="FlinchBox" TextChanged="Text_Changed"/>
+</StackPanel>
+                                    <StackPanel Margin="0,0,10,13">
+    <TextBlock Text="Secuencia de efecto (0–65535)" Style="{StaticResource MoveLabel}"/>
+    <TextBox x:Name="EffectBox" TextChanged="Text_Changed"/>
+</StackPanel>
+                                    <StackPanel Margin="0,0,10,13">
+    <TextBlock Text="Objetivo (ID 0–255)" Style="{StaticResource MoveLabel}"/>
+    <TextBox x:Name="TargetBox" TextChanged="Text_Changed"/>
+</StackPanel>
+                                    <StackPanel Margin="0,0,10,13">
+    <TextBlock Text="Flags (hexadecimal)" Style="{StaticResource MoveLabel}"/>
+    <TextBox x:Name="FlagsBox" TextChanged="Text_Changed"/>
+</StackPanel>
+                                </UniformGrid>
+                            </StackPanel>
+                        </Expander>
+                    </Border>
+                    <Border x:Name="ZMoveCard" Style="{StaticResource MoveCard}">
+                        <Expander Header="OPCIONES DE MOVIMIENTOS Z · GEN 7" Foreground="{StaticResource TextMain}" IsExpanded="False">
+                            <StackPanel Margin="0,16,0,0">
+                                <UniformGrid Columns="2">
+                                    <StackPanel Margin="0,0,10,13">
+    <TextBlock Text="Movimiento Z asociado (ID)" Style="{StaticResource MoveLabel}"/>
+    <TextBox x:Name="ZMoveBox" TextChanged="Text_Changed"/>
+</StackPanel>
+                                    <StackPanel Margin="0,0,10,13">
+    <TextBlock Text="Potencia Z (0–255)" Style="{StaticResource MoveLabel}"/>
+    <TextBox x:Name="ZPowerBox" TextChanged="Text_Changed"/>
+</StackPanel>
+                                    <StackPanel Margin="0,0,10,13">
+    <TextBlock Text="Efecto Z (0–255)" Style="{StaticResource MoveLabel}"/>
+    <TextBox x:Name="ZEffectBox" TextChanged="Text_Changed"/>
+</StackPanel>
+                                </UniformGrid>
+                            </StackPanel>
+                        </Expander>
+                    </Border>
+                    <Border Style="{StaticResource MoveCard}">
+                        <TextBlock Foreground="{StaticResource TextSoft}" TextWrapping="Wrap"
+                                   Text="Faltan estados secundarios, turnos, curación, cambios de stats, recarga, compatibilidades, randomizaciones y parches Progressive. Los bytes no editados se conservan."/>
                     </Border>
                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
                         <Button Content="Restablecer" Click="Reset_Click" Margin="0,0,10,0"/>
@@ -169,4 +231,4 @@
             </Grid>
         </Border>
     </Grid>
-</Window>
+</UserControl>

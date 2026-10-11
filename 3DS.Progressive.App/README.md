@@ -1,13 +1,16 @@
-# 3DS Progressive — preview funcional v0.2.0
+# 3DS Progressive — preview funcional v0.3.0
 
 Nueva aplicación WPF independiente dentro de pk3DS Progressive. No se modifica pk3DS.WinForms ni pk3DS.Core.
 
-## Cambios de v0.2.0
+## Cambios de v0.3.0
 - Todos los avisos y confirmaciones del editor Personal utilizan ahora StudioDialog, un diálogo oscuro propio y reutilizable.
 - El botón **Movimientos** de la barra lateral abre un segundo editor real con listado, búsqueda y modificación de tipo, categoría, potencia, precisión, PP y prioridad.
 - El editor de movimientos conserva bytes no editados, serializa los registros `WD` para ORAS/Gen 7 y guarda mediante GARC temporal y verificación; X/Y utiliza sus entradas directas.
-- El editor de movimientos es una ventana WPF independiente durante esta primera fase; se integrará progresivamente en la navegación de paneles.
-- Ni el método SavePersonal ni los proyectos pk3DS originales se modificaron.
+- **Movimientos ya no abre otra ventana:** usa una vista UserControl dentro del shell principal, con barra lateral siempre visible y regreso directo a Pokémon.
+- Pokémon incorpora edición avanzada de habilidades, objetos, seis EV yield, experiencia base, amistad, crianza y otros campos internos.
+- Movimientos incorpora edición avanzada de multigolpe, inflicción, probabilidad, objetivo, secuencia de efecto, críticos, retroceso, flags en hexadecimal y metadatos Z de Gen 7.
+- Los mecanismos de verificación de GARC originales siguen activos. Estos campos nuevos aún requieren regresión manual.
+- Los proyectos pk3DS.WinForms y pk3DS.Core no se modificaron.
 
 
 ## Funcionalidades del primer editor
@@ -45,6 +48,7 @@ IMPORTANTE: trabajá sobre una copia del juego extraído. Studio no hace backups
 - Comprobar sprites online, offline, personalizados y cambio rápido de especie.
 - Repetir guardado de stat y verificación con pk3DS Progressive usando la preview 0.1.1.
 - Comparar integridad de GARC en copias y probar formas alternativas / otras versiones.
-- Validar en una copia de Ultra Sol el guardado de potencia o PP de un movimiento y su lectura posterior desde pk3DS Progressive.
+- **Validado por el usuario:** la edición de movimientos (campos básicos de v0.2.0) persiste y pk3DS Progressive reconoce sus cambios.
+- Pendiente: probar los campos avanzados añadidos en v0.3.0 en una copia de Ultra Sol.
 - Migrar las demás opciones de Personal y Move Editor, incluyendo efectos, flags, Z-Moves y funciones Progressive.
-- Incorporar el nuevo módulo dentro de la misma región de trabajo, sin perder la navegación global, cuando esté validado.
+- Integración dentro del shell realizada. Pendiente refinar alineación, eliminar la doble cabecera y completar las funciones de los editores.

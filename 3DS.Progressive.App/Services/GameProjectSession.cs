@@ -58,6 +58,8 @@ public sealed class GameProjectSession
             .Select(i => new PokemonListEntry(i, names[i]))
             .ToArray();
         Types = config.GetText(TextName.Types);
+        AbilityNames = config.GetText(TextName.AbilityNames);
+        ItemNames = config.GetText(TextName.ItemNames);
     }
 
     public string ProjectRoot { get; }
@@ -66,6 +68,8 @@ public sealed class GameProjectSession
     public int Generation => _config.Generation;
     public IReadOnlyList<PokemonListEntry> Entries { get; }
     public IReadOnlyList<string> Types { get; }
+    public IReadOnlyList<string> AbilityNames { get; }
+    public IReadOnlyList<string> ItemNames { get; }
     public int EntryCount => _config.GARCPersonal.FileCount - 1;
 
     /// <summary>
@@ -140,7 +144,17 @@ public sealed class GameProjectSession
         var p = _config.Personal.Table[index];
         var types = p.Types;
         return new PersonalValues(p.HP, p.ATK, p.DEF, p.SPA, p.SPD, p.SPE,
-            p.CatchRate, types[0], types[1]);
+            p.CatchRate, types[0], types[1])
+        {
+            Ability1 = p.Abilities[0], Ability2 = p.Abilities[1], AbilityHidden = p.Abilities[2],
+            Item1 = p.Items[0] & 0xFFFF, Item2 = p.Items[1] & 0xFFFF, Item3 = p.Items[2] & 0xFFFF,
+            EvHp = p.EV_HP, EvAttack = p.EV_ATK, EvDefense = p.EV_DEF,
+            EvSpecialAttack = p.EV_SPA, EvSpecialDefense = p.EV_SPD, EvSpeed = p.EV_SPE,
+            BaseExperience = p.BaseEXP, BaseFriendship = p.BaseFriendship,
+            HatchCycles = p.HatchCycles, GenderRatio = p.Gender,
+            EggGroup1 = p.EggGroups[0], EggGroup2 = p.EggGroups[1],
+            ExperienceGrowth = p.EXPGrowth, EscapeRate = p.EscapeRate,
+        };
     }
 
     /// <summary>
@@ -159,6 +173,16 @@ public sealed class GameProjectSession
         if (values.FirstType < 0 || values.FirstType >= Types.Count ||
             values.SecondType < 0 || values.SecondType >= Types.Count)
             throw new ArgumentOutOfRangeException(nameof(values), "Tipo de Pokemon invalido.");
+
+        foreach (int id in new[] { values.Ability1, values.Ability2, values.AbilityHidden,
+                  values.BaseFriendship, values.HatchCycles, values.GenderRatio,
+                  values.EggGroup1, values.EggGroup2, values.ExperienceGrowth, values.EscapeRate })
+            if (id is < 0 or > 255) throw new ArgumentOutOfRangeException(nameof(values), "ID fuera del rango 0 a 255.");
+        foreach (int item in new[] { values.Item1, values.Item2, values.Item3, values.BaseExperience })
+            if (item is < 0 or > 65535) throw new ArgumentOutOfRangeException(nameof(values), "El valor excede 65535.");
+        foreach (int ev in new[] { values.EvHp, values.EvAttack, values.EvDefense,
+                    values.EvSpecialAttack, values.EvSpecialDefense, values.EvSpeed })
+            if (ev is < 0 or > 3) throw new ArgumentOutOfRangeException(nameof(values), "Cada EV otorgado debe estar entre 0 y 3.");
 
         byte[] source = File.ReadAllBytes(_personalPath);
         if (!SHA256.HashData(source).AsSpan().SequenceEqual(_diskFingerprint))
@@ -181,6 +205,21 @@ public sealed class GameProjectSession
         p.SPE = values.Speed;
         p.CatchRate = values.CatchRate;
         p.Types = [values.FirstType, values.SecondType];
+        p.Abilities = [values.Ability1, values.Ability2, values.AbilityHidden];
+        p.Items = [values.Item1, values.Item2, values.Item3];
+        p.EV_HP = values.EvHp;
+        p.EV_ATK = values.EvAttack;
+        p.EV_DEF = values.EvDefense;
+        p.EV_SPA = values.EvSpecialAttack;
+        p.EV_SPD = values.EvSpecialDefense;
+        p.EV_SPE = values.EvSpeed;
+        p.BaseEXP = values.BaseExperience;
+        p.BaseFriendship = values.BaseFriendship;
+        p.HatchCycles = values.HatchCycles;
+        p.Gender = values.GenderRatio;
+        p.EggGroups = [values.EggGroup1, values.EggGroup2];
+        p.EXPGrowth = values.ExperienceGrowth;
+        p.EscapeRate = values.EscapeRate;
         files[index] = p.Write();
 
         // La ultima entrada GARC es la tabla maestra de PersonalInfo.

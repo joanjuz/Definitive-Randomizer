@@ -1,5 +1,6 @@
 using System;
 using System.ComponentModel;
+using System.Globalization;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Data;
@@ -11,7 +12,7 @@ using ColorConverter = System.Windows.Media.ColorConverter;
 
 namespace ThreeDS.Progressive;
 
-public partial class MoveEditorWindow : Window
+public partial class MoveEditorView : UserControl
 {
     private readonly GameMoveService _moves;
     private MoveListEntry? _selected;
@@ -19,10 +20,11 @@ public partial class MoveEditorWindow : Window
     private bool _loading;
     private bool _restoringSelection;
 
-    public MoveEditorWindow(GameProjectSession project)
+    public MoveEditorView(GameProjectSession project)
     {
         InitializeComponent();
         _moves = new GameMoveService(project);
+        ZMoveCard.Visibility = _moves.SupportsZMoves ? Visibility.Visible : Visibility.Collapsed;
         MoveType.ItemsSource = _moves.Types;
         MoveList.ItemsSource = _moves.Entries;
         CountText.Text = _moves.Entries.Count + " movimientos";
@@ -72,6 +74,19 @@ public partial class MoveEditorWindow : Window
             MoveAccuracy.Text = p.Accuracy.ToString();
             MovePP.Text = p.PP.ToString();
             MovePriority.Text = p.Priority.ToString();
+            QualityBox.Text = p.Quality.ToString();
+            MinHitsBox.Text = p.HitMin.ToString();
+            MaxHitsBox.Text = p.HitMax.ToString();
+            InflictBox.Text = p.Inflict.ToString();
+            InflictRateBox.Text = p.InflictPercent.ToString();
+            CritBox.Text = p.CritStage.ToString();
+            FlinchBox.Text = p.Flinch.ToString();
+            EffectBox.Text = p.EffectSequence.ToString();
+            TargetBox.Text = p.Target.ToString();
+            ZMoveBox.Text = p.ZMove.ToString();
+            ZPowerBox.Text = p.ZPower.ToString();
+            ZEffectBox.Text = p.ZEffect.ToString();
+            FlagsBox.Text = p.Flags.ToString("X8");
         }
         finally { _loading = false; }
         UpdatePreview();
@@ -80,6 +95,9 @@ public partial class MoveEditorWindow : Window
     private bool TryDraft(out MoveValues? result)
     {
         result = null;
+        string flagsText = (FlagsBox.Text ?? string.Empty).Trim();
+        if (flagsText.StartsWith("0x", StringComparison.OrdinalIgnoreCase))
+            flagsText = flagsText[2..];
         if (_selected is null ||
             !byte.TryParse(MovePower.Text, out byte power) ||
             !byte.TryParse(MoveAccuracy.Text, out byte acc) ||
@@ -87,10 +105,38 @@ public partial class MoveEditorWindow : Window
             !int.TryParse(MovePriority.Text, out int priority) ||
             priority < -8 || priority > 8 ||
             MoveCategory.SelectedIndex < 0 || MoveCategory.SelectedIndex > 2 ||
-            MoveType.SelectedIndex < 0 || MoveType.SelectedIndex >= _moves.Types.Count)
+            MoveType.SelectedIndex < 0 || MoveType.SelectedIndex >= _moves.Types.Count ||
+            !uint.TryParse(flagsText, NumberStyles.HexNumber, CultureInfo.InvariantCulture, out uint flags) ||
+            !byte.TryParse(QualityBox.Text, out byte quality) ||
+            !byte.TryParse(MinHitsBox.Text, out byte hitmin) || hitmin > 15 ||
+            !byte.TryParse(MaxHitsBox.Text, out byte hitmax) || hitmax > 15 ||
+            !ushort.TryParse(InflictBox.Text, out ushort inflict) ||
+            !byte.TryParse(InflictRateBox.Text, out byte inflictpercent) ||
+            !byte.TryParse(CritBox.Text, out byte critstage) ||
+            !byte.TryParse(FlinchBox.Text, out byte flinch) ||
+            !ushort.TryParse(EffectBox.Text, out ushort effectsequence) ||
+            !byte.TryParse(TargetBox.Text, out byte target) ||
+            !ushort.TryParse(ZMoveBox.Text, out ushort zmove) ||
+            !byte.TryParse(ZPowerBox.Text, out byte zpower) ||
+            !byte.TryParse(ZEffectBox.Text, out byte zeffect))
             return false;
         result = new MoveValues(MoveType.SelectedIndex, MoveCategory.SelectedIndex,
-            power, acc, pp, priority);
+            power, acc, pp, priority)
+        {
+            Quality = quality,
+            HitMin = hitmin,
+            HitMax = hitmax,
+            Inflict = inflict,
+            InflictPercent = inflictpercent,
+            CritStage = critstage,
+            Flinch = flinch,
+            EffectSequence = effectsequence,
+            Target = target,
+            ZMove = zmove,
+            ZPower = zpower,
+            ZEffect = zeffect,
+            Flags = flags,
+        };
         return true;
     }
 
@@ -102,7 +148,7 @@ public partial class MoveEditorWindow : Window
     }
 
     private bool ConfirmDiscard() =>
-        !HasChanges() || StudioDialog.Confirm(this, "Cambios pendientes",
+        !HasChanges() || StudioDialog.Confirm(Window.GetWindow(this), "Cambios pendientes",
             "Hay modificaciones sin guardar.",
             "Si continuás, los cambios del movimiento actual se perderán.");
 
@@ -139,7 +185,7 @@ public partial class MoveEditorWindow : Window
         if (_selected is null) return;
         if (!TryDraft(out var next) || next is null)
         {
-            StudioDialog.Notice(this, "Datos inválidos",
+            StudioDialog.Notice(Window.GetWindow(this), "Datos inválidos",
                 "Revisá los campos del movimiento: tipo, categoría, potencia, precisión, PP y prioridad.");
             return;
         }
@@ -148,7 +194,7 @@ public partial class MoveEditorWindow : Window
             StatusLabel.Text = "No hay modificaciones pendientes.";
             return;
         }
-        if (!StudioDialog.Confirm(this, "Confirmar guardado",
+        if (!StudioDialog.Confirm(Window.GetWindow(this), "Confirmar guardado",
             "Se actualizará el GARC de movimientos del proyecto extraído.",
             "Studio no realiza copias de seguridad automáticas. Asegurate de trabajar con una copia del juego."))
             return;
@@ -158,22 +204,19 @@ public partial class MoveEditorWindow : Window
             _saved = _moves.Read(_selected.Id);
             UpdatePreview();
             StatusLabel.Text = $"Movimiento #{_selected.Id:000} guardado y verificado.";
-            StudioDialog.Notice(this, "Movimiento guardado",
+            StudioDialog.Notice(Window.GetWindow(this), "Movimiento guardado",
                 "Los cambios se guardaron y se comprobó la integridad de la tabla.");
         }
         catch (Exception ex)
         {
             StatusLabel.Text = "Error al guardar movimiento.";
-            StudioDialog.Error(this, "No se pudo guardar", ex.Message);
+            StudioDialog.Error(Window.GetWindow(this), "No se pudo guardar", ex.Message);
         }
     }
 
-    private void Close_Click(object sender, RoutedEventArgs e) => Close();
+    
 
-    protected override void OnClosing(CancelEventArgs e)
-    {
-        if (!ConfirmDiscard())
-            e.Cancel = true;
-        base.OnClosing(e);
-    }
+    public bool ConfirmLeave() => ConfirmDiscard();
+
+    public bool HasPendingChanges => HasChanges();
 }
