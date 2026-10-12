@@ -83,6 +83,8 @@ internal sealed class SystemsView : UserControl
         panel.Children.Add(b);return b;
     }
     internal void OpenPlayerCapsForChecks()=>_navigate("PlayerCaps");
+    internal void OpenCroRecipesForChecks()=>_navigate("CroRecipes");
+    internal void OpenRelearnerForChecks()=>_navigate("UsumRelearner");
     private void BuildMechanics(StackPanel stack)
     {
         var cap=Card("Player Level Caps · USUM",
