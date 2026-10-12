@@ -45,6 +45,20 @@ public partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
+        UiProgress.Changed+=(message,busy)=>
+        {
+            if(!Dispatcher.CheckAccess())
+            {
+                Dispatcher.BeginInvoke(()=>
+                {
+                    OperationProgress.Visibility=busy?Visibility.Visible:Visibility.Collapsed;
+                    if(busy)StatusText.Text=message;
+                });
+                return;
+            }
+            OperationProgress.Visibility=busy?Visibility.Visible:Visibility.Collapsed;
+            if(busy)StatusText.Text=message;
+        };
         PersonalToolsHost.Content = _personalTools;
         _personalTools.BackRequested += ClosePersonalTools;
         TmFlagsList.ItemsSource = _tmChoices;
@@ -94,7 +108,7 @@ public partial class MainWindow : Window
         PokemonEditorPanel.Visibility = Visibility.Visible;
     }
 
-    private void OpenProject_Click(object sender, RoutedEventArgs e)
+    private async void OpenProject_Click(object sender, RoutedEventArgs e)
     {
         if (!ConfirmDiscard() || !ConfirmAuxiliaryLeave())
             return;
@@ -107,9 +121,10 @@ public partial class MainWindow : Window
         if (dialog.ShowDialog() != System.Windows.Forms.DialogResult.OK)
             return;
 
+        UiProgress.Begin("Leyendo los archivos del proyecto y construyendo catálogos…");
         try
         {
-            var candidate = GameProjectSession.Open(dialog.SelectedPath);
+            var candidate = await Task.Run(()=>GameProjectSession.Open(dialog.SelectedPath));
             LoadProject(candidate);
         }
         catch (Exception ex)
@@ -117,6 +132,7 @@ public partial class MainWindow : Window
             StudioDialog.Error(this, "No se pudo abrir el proyecto", ex.Message);
             StatusText.Text = "Error al abrir proyecto: " + ex.Message;
         }
+        finally{UiProgress.End();}
     }
 
     private bool ConfirmAuxiliaryLeave()
@@ -135,11 +151,13 @@ public partial class MainWindow : Window
         return true;
     }
 
-    private void Section_Click(object sender,RoutedEventArgs e)
+    private async void Section_Click(object sender,RoutedEventArgs e)
     {
         if(_session is null||sender is not Button {Tag:string section})return;
         if(!ConfirmDiscard()||!ConfirmAuxiliaryLeave())return;
         if(HasUnsavedChanges()&&_previous is not null)ShowEntry(_previous);
+        UiProgress.Begin("Cargando "+section+"…");
+        await Dispatcher.InvokeAsync(()=>{},System.Windows.Threading.DispatcherPriority.Background);
         try
         {
             UserControl view=section switch
@@ -164,6 +182,7 @@ public partial class MainWindow : Window
             StatusText.Text=section=="History"?"Historial persistente de cambios confirmados.":"Editor integrado · guardar registra los cambios en el historial.";
         }
         catch(Exception ex){StudioDialog.Error(this,"No se pudo cargar la sección",ex.Message);}
+        finally{UiProgress.End();}
     }
 
     private RecordEditorView CreateEditor(IProjectEditor editor)=>new(editor,_sectionOptions.GetValueOrDefault(editor.Title));
@@ -174,6 +193,7 @@ public partial class MainWindow : Window
         using var folder=new System.Windows.Forms.FolderBrowserDialog {Description="Elegí la carpeta de destino del backup completo del proyecto.",ShowNewFolderButton=true};
         if(folder.ShowDialog()!=System.Windows.Forms.DialogResult.OK)return;
         var project=_session;_backupRunning=true;IsEnabled=false;
+        UiProgress.Begin("Generando y verificando backup del proyecto…");
         try
         {
             StatusText.Text="Generando backup de los archivos guardados…";
@@ -183,7 +203,7 @@ public partial class MainWindow : Window
             IsEnabled=true;StudioDialog.Notice(this,"Backup generado","Se guardó y verificó una copia del proyecto y su historial.",path);
         }
         catch(Exception ex){IsEnabled=true;StudioDialog.Error(this,"No se pudo generar el backup",ex.Message);StatusText.Text=ex.Message;}
-        finally{_backupRunning=false;IsEnabled=true;}
+        finally{_backupRunning=false;IsEnabled=true;UiProgress.End();}
     }
 
     internal void LoadProject(GameProjectSession candidate)
