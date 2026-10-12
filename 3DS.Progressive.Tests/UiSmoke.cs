@@ -311,13 +311,11 @@ internal static class UiSmoke
                 check(((ContentControl)main.FindName("SectionHost")).Content is CroRecipesView,
                     "CRO Recipes opens native dark editor and preview within main WPF window");
                 ((Button)main.FindName("MechanicsButton")).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
-                (((ContentControl)main.FindName("SectionHost")).Content as SystemsView)?
-                    .OpenRelearnerForChecks();
+                (((ContentControl)main.FindName("SectionHost")).Content as SystemsView)?.OpenRelearnerForChecks();
                 check(((ContentControl)main.FindName("SectionHost")).Content is UsumRelearnerView,
                     "USUM Relearner opens original Sun/Moon patch workflow without WinForms dialog");
                 ((Button)main.FindName("MechanicsButton")).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
-                (((ContentControl)main.FindName("SectionHost")).Content as SystemsView)?
-                    .OpenPlayerCapsForChecks();
+                (((ContentControl)main.FindName("SectionHost")).Content as SystemsView)?.OpenPlayerCapsForChecks();
                 check(((ContentControl)main.FindName("SectionHost")).Content is PlayerLevelCapsView,
                     "WPF Player Level Caps opens researched USUM flags and CRO installer in the main application");
             }
