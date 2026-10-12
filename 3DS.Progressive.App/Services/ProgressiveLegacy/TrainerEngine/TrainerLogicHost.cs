@@ -82,6 +82,18 @@ internal sealed class TrainerLogicHost
                 result.Add(new("Rangos Progressive BST",ranges.SelectMany((r,i)=>new[]{
                     F($"BST.{i}.MinLevel",$"Rango {i+1} · nivel mínimo",r.MinLevel,1,100),F($"BST.{i}.MaxLevel",$"Rango {i+1} · nivel máximo",r.MaxLevel,1,100),
                     F($"BST.{i}.MinBST",$"Rango {i+1} · BST mínimo",r.MinBST,0,1530),F($"BST.{i}.MaxBST",$"Rango {i+1} · BST máximo",r.MaxBST,0,1530),F($"BST.{i}.FullRandom",$"Rango {i+1} · libre",r.FullRandom?1:0,0,1)}).ToArray(),false));
+            // Opciones globales antes accesibles solo en los diálogos Level Caps / Move Rules.
+            // Mantener la semántica JSON del template original y su estado al navegar.
+            if(template.LevelCaps is { } caps)
+                result.Add(new("Política global de Level Caps",[
+                    F("GlobalCaps.ApplyPrevious","Aplicar a entrenadores anteriores",caps.ApplyToPreviousTrainers?1:0,0,1),
+                    F("GlobalCaps.PreviousGap","Separación de nivel con entrenadores anteriores",caps.PreviousTrainerGap,0,20),
+                    F("GlobalCaps.ResetUnlisted","Restablecer entrenadores sin reglas",caps.ResetUnlistedTrainers?1:0,0,1)
+                ],false));
+            if(template.TrainerMoveRules is { } moveRules)
+                result.Add(new("Política global de reglas de movimientos",[
+                    F("GlobalMoves.ResetUnlisted","Restablecer reglas de entrenadores no listados",moveRules.ResetUnlistedTrainers?1:0,0,1)
+                ],false));
             int id=SelectedTrainer;
             var existingCap=template.LevelCaps?.Trainers.FirstOrDefault(r=>r.TrainerID==id);
             var existingRule=template.TrainerMoveRules?.Trainers.FirstOrDefault(r=>r.TrainerID==id);
@@ -153,6 +165,15 @@ internal sealed class TrainerLogicHost
             }
         }
         var template=(TrainerRandomizerTemplate)Call(form,"CaptureTrainerTemplate")!;
+        if(template.LevelCaps is { } caps)
+        {
+            if(values.TryGetValue("GlobalCaps.ApplyPrevious",out int previous))caps.ApplyToPreviousTrainers=previous==1;
+            if(values.TryGetValue("GlobalCaps.PreviousGap",out int gap))caps.PreviousTrainerGap=gap;
+            if(values.TryGetValue("GlobalCaps.ResetUnlisted",out int reset))caps.ResetUnlistedTrainers=reset==1;
+        }
+        if(template.TrainerMoveRules is { } moveRules &&
+            values.TryGetValue("GlobalMoves.ResetUnlisted",out int resetRules))
+            moveRules.ResetUnlistedTrainers=resetRules==1;
         foreach(var pair in values.Where(p=>p.Key.StartsWith("BST.")))
         {
             var key=pair.Key.Split('.');var range=template.ProgressiveBST!.Ranges[int.Parse(key[1])];
@@ -162,10 +183,17 @@ internal sealed class TrainerLogicHost
         {
             string k=$"Rule.{id}.";int V(string name)=>values[k+name];
             template.LevelCaps??=new();template.TrainerMoveRules??=new();
-            template.LevelCaps.Trainers.RemoveAll(r=>r.TrainerID==id);
-            template.LevelCaps.Trainers.Add(new(){TrainerID=id,Use=V("CapUse")==1,LevelCap=V("LevelCap"),NerfTeam=V("Nerf")==1,Mega=V("Mega")==1,ZMove=V("ZMove")==1});
-            template.TrainerMoveRules.Trainers.RemoveAll(r=>r.TrainerID==id);
-            template.TrainerMoveRules.Trainers.Add(new(){TrainerID=id,Use=V("MoveUse")==1,MinMovePower=V("Power"),StrongStat=V("Strong")==1,MixedTolerance=V("Tolerance"),AllowStatusMoves=V("Status")==1,BetterMovesets=V("Better")==1,SmartItems=V("Smart")==1,EVs=V("EV")});
+            // Actualizar en lugar de reconstruir: se conserva CurrentAceLevel y futuros
+            // campos de reglas de templates vanilla/Progressive importados.
+            var cap=template.LevelCaps.Trainers.FirstOrDefault(r=>r.TrainerID==id);
+            if(cap is null){cap=new TrainerLevelCapTemplateEntry{TrainerID=id};template.LevelCaps.Trainers.Add(cap);}
+            cap.Use=V("CapUse")==1;cap.LevelCap=V("LevelCap");cap.NerfTeam=V("Nerf")==1;
+            cap.Mega=V("Mega")==1;cap.ZMove=V("ZMove")==1;
+            var rule=template.TrainerMoveRules.Trainers.FirstOrDefault(r=>r.TrainerID==id);
+            if(rule is null){rule=new TrainerMoveRuleTemplateEntry{TrainerID=id};template.TrainerMoveRules.Trainers.Add(rule);}
+            rule.Use=V("MoveUse")==1;rule.MinMovePower=V("Power");rule.StrongStat=V("Strong")==1;
+            rule.MixedTolerance=V("Tolerance");rule.AllowStatusMoves=V("Status")==1;
+            rule.BetterMovesets=V("Better")==1;rule.SmartItems=V("Smart")==1;rule.EVs=V("EV");
         }
         TrainerRandomizerTemplateFile.Validate(template,_config.Version.ToString());
         _template=template;Call(form,"ApplyTrainerTemplate",template,false);
