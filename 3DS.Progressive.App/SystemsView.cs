@@ -129,6 +129,11 @@ internal sealed class SystemsView : UserControl
                 },new JsonSerializerOptions{WriteIndented=true}));
                 _status.Text=$"Inventario exportado: {items.Length} archivos con SHA-256.";
             }
+            catch(Exception ex)
+            {
+                StudioDialog.Error(Window.GetWindow(this),"Inventario de ROM",ex.Message);
+                _status.Text="Error al exportar el inventario: "+ex.Message;
+            }
             finally{UiProgress.End();}
         });
         stack.Children.Add(audit);
