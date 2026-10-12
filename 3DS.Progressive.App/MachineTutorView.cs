@@ -23,6 +23,7 @@ internal sealed class MachineTutorView : UserControl
     private readonly GameProjectSession _project;
     private GameMachineTutorService _service;
     private readonly DataGrid _machineGrid,_tutorGrid;
+    private readonly List<DataGrid> _machineColumns=[];
     private readonly Button _saveMachines,_savePrices;
     private bool _dirtyMachines,_dirtyPrices;
     private readonly TextBlock _status;
@@ -61,15 +62,18 @@ internal sealed class MachineTutorView : UserControl
         random.Click+=(_,_)=>TryAction(()=>
         {
             _service.RandomizeMachines();
-            _machineGrid.Items.Refresh();
+            foreach(var table in _machineColumns)table.Items.Refresh();
             _dirtyMachines=true;UpdateState();
             _status.Text="Asignaciones de MT aleatorias preparadas en memoria. Revisá antes de guardar.";
         });
         _saveMachines=new Button {Content="Guardar MT",IsEnabled=false};
         _saveMachines.Click+=(_,_)=>TryAction(()=>
         {
-            _machineGrid.CommitEdit(DataGridEditingUnit.Cell,true);
-            _machineGrid.CommitEdit(DataGridEditingUnit.Row,true);
+            foreach(var table in _machineColumns)
+            {
+                table.CommitEdit(DataGridEditingUnit.Cell,true);
+                table.CommitEdit(DataGridEditingUnit.Row,true);
+            }
             if(!StudioDialog.Confirm(Window.GetWindow(this),"Guardar MT",
                 "Se modificará code.bin y se registrarán las diferencias en el historial."))return;
             _service.SaveMachines();_service=new GameMachineTutorService(_project);
@@ -93,7 +97,29 @@ internal sealed class MachineTutorView : UserControl
             Width=new DataGridLength(1,DataGridLengthUnitType.Star),MinWidth=300
         });
         _machineGrid.CellEditEnding+=(_,_)=>{_dirtyMachines=true;UpdateState();};
-        machines.Children.Add(_machineGrid);
+        var compact=new UniformGrid {Columns=3};
+        _machineColumns.Add(_machineGrid);
+        compact.Children.Add(_machineGrid);
+        for(int n=1;n<3;n++)
+        {
+            var extra=BuildGrid();
+            extra.Margin=new Thickness(7,0,0,0);
+            extra.Columns.Add(new DataGridTextColumn
+                {Header="MT",Binding=new Binding("Number"),IsReadOnly=true,Width=48});
+            extra.Columns.Add(new DataGridComboBoxColumn
+            {
+                Header="Movimiento",ItemsSource=_service.MoveChoices,DisplayMemberPath="Display",
+                SelectedValuePath="Id",SelectedValueBinding=new Binding("MoveId")
+                {Mode=BindingMode.TwoWay,UpdateSourceTrigger=UpdateSourceTrigger.PropertyChanged},
+                Width=new DataGridLength(1,DataGridLengthUnitType.Star),MinWidth=185
+            });
+            extra.CellEditEnding+=(_,_)=>{_dirtyMachines=true;UpdateState();};
+            _machineColumns.Add(extra);
+            compact.Children.Add(extra);
+        }
+        _machineGrid.Columns[0].Width=48;
+        _machineGrid.Columns[1].MinWidth=185;
+        machines.Children.Add(compact);
         tabs.Items.Add(new TabItem {Header="MT",Content=machines});
 
         var tutoring=new DockPanel {Margin=new Thickness(4)};
@@ -155,10 +181,15 @@ internal sealed class MachineTutorView : UserControl
     }
     private void Rebind()
     {
-        _machineGrid.ItemsSource=_service.Machines;
+        int chunk=(_service.Machines.Count+_machineColumns.Count-1)/_machineColumns.Count;
+        for(int i=0;i<_machineColumns.Count;i++)
+        {
+            var table=_machineColumns[i];
+            table.ItemsSource=_service.Machines.Skip(i*chunk).Take(chunk).ToArray();
+            if(table.Columns.OfType<DataGridComboBoxColumn>().FirstOrDefault() is { } selector)
+                selector.ItemsSource=_service.MoveChoices;
+        }
         _tutorGrid.ItemsSource=_service.Tutors;
-        if(_machineGrid.Columns.OfType<DataGridComboBoxColumn>().FirstOrDefault() is { } selector)
-            selector.ItemsSource=_service.MoveChoices;
         UpdateState();
     }
     private void UpdateState()
