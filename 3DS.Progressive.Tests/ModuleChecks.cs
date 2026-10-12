@@ -351,6 +351,13 @@ internal static class ModuleChecks
             }
             var encounter=new GameEncounterService(f.Session);var encBefore=Read(f,"encdata");
             check(encounter.Entries.Count==(f.Game.Generation==7?4:2),version+" encounters expose maps and day/night separately");
+            string wildReport=encounter.ExportAllEncounterTables();
+            check(wildReport.Contains("Tablas: "+encounter.Entries.Count,StringComparison.Ordinal) &&
+                  (f.Game.Generation!=7||
+                    (wildReport.Contains("ENCUENTROS NORMALES",StringComparison.Ordinal) &&
+                     wildReport.Contains("SOS · CLIMA",StringComparison.Ordinal)&&
+                     wildReport.Contains("TOTAL 100%",StringComparison.Ordinal))),
+                  version+" Wild report covers levels, rates and all encounter/SOS groups");
             var ev=EditorValues.Flatten(encounter.Read(1));string prefix=f.Game.Generation==7?"S0.0.":"S0.";
             ev[prefix+"Species"]=25;ev[prefix+"Form"]=1;
             if(f.Game.Generation==7){ev["Min"]=20;ev["Max"]=25;ev["S8.0.Species"]=26;}
