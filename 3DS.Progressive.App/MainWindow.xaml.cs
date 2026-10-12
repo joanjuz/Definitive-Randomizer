@@ -147,6 +147,7 @@ public partial class MainWindow : Window
                 "StaticEncounters"=>CreateEditor(new GameStaticEncounterService(_session)),
                 "MachineTutor"=>_machineTutorView=new MachineTutorView(_session),
                 "LevelUp"=>_levelUpView=new LevelUpView(_session),
+                "Items"=>CreateEditor(new GameItemService(_session)),
                 "Evolutions"=>CreateEditor(new GameEvolutionService(_session)),
                 "History"=>new HistoryView(_session.History),
                 _=>throw new ArgumentException("Sección desconocida.")
@@ -154,7 +155,7 @@ public partial class MainWindow : Window
             _recordView=view as RecordEditorView; if(section!="MachineTutor")_machineTutorView=null; if(section!="LevelUp")_levelUpView=null;SectionHost.Content=view;
             PokemonListPanel.Visibility=PokemonEditorPanel.Visibility=PersonalToolsPanel.Visibility=PokemonInspectorPanel.Visibility=MovesHost.Visibility=Visibility.Collapsed;
             _personalTools.InvalidatePreview();SectionHost.Visibility=Visibility.Visible;_showingMoves=false;
-            PokemonNavButton.Background=MovesButton.Background=TrainersButton.Background=EncountersButton.Background=StaticEncountersButton.Background=MachineTutorButton.Background=LevelUpButton.Background=EvolutionsButton.Background=HistoryButton.Background=Brushes.Transparent;
+            PokemonNavButton.Background=MovesButton.Background=TrainersButton.Background=EncountersButton.Background=StaticEncountersButton.Background=MachineTutorButton.Background=LevelUpButton.Background=ItemsButton.Background=EvolutionsButton.Background=HistoryButton.Background=Brushes.Transparent;
             ((Button)sender).Background=new SolidColorBrush((Color)ColorConverter.ConvertFromString("#2B4059")!);
             StatusText.Text=section=="History"?"Historial persistente de cambios confirmados.":"Editor integrado · guardar registra los cambios en el historial.";
         }
@@ -239,6 +240,7 @@ public partial class MainWindow : Window
         StaticEncountersButton.IsEnabled=candidate.Generation==7;
         MachineTutorButton.IsEnabled=candidate.Generation==7;
         LevelUpButton.IsEnabled=true;
+        ItemsButton.IsEnabled=true;
         ConfigurePersonalTools(candidate);
         PokemonList.SelectedIndex = 0;
         StatusText.Text = "Proyecto abierto en modo lectura. Guardar requiere confirmación.";
