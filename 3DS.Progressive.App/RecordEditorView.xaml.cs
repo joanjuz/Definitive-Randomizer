@@ -42,7 +42,7 @@ public partial class RecordEditorView : UserControl
         {
             GiftBstButton.Visibility=Visibility.Visible;
             if(staticEditor.SupportsTotemRules)
-                TotemCapsButton.Visibility=TotemBstButton.Visibility=TradesAnyButton.Visibility=Visibility.Visible;
+                TotemCapsButton.Visibility=TotemBstButton.Visibility=TradesAnyButton.Visibility=TradesNamesButton.Visibility=Visibility.Visible;
         }
         if(editor is ITemplateProjectEditor template){TemplateButton.Visibility=Visibility.Visible;TemplateButton.Content=template.TemplateButton;TemplatePathText.Text=template.DefaultTemplatePath;}
         if(editor is ThreeDS.Progressive.Services.GameEncounterService wild&&state is not null)
@@ -633,6 +633,34 @@ public partial class RecordEditorView : UserControl
             StatusText.Text="Field Items exportados a CSV.";
         }
         catch(Exception ex){StudioDialog.Error(Window.GetWindow(this),"Error al exportar Field Items",ex.Message);}
+    }
+    private void TradesNames_Click(object sender,RoutedEventArgs e)
+    {
+        if(Editor is not ThreeDS.Progressive.Services.GameStaticEncounterService service
+            ||!service.SupportsTotemRules||!ConfirmLeave())return;
+        try
+        {
+            UiProgress.Begin("Preparando los diálogos originales de intercambio USUM…");
+            var dialogue=new ThreeDS.Progressive.Services.GameTradeDialogueService(
+                service.ProjectSession);
+            ThreeDS.Progressive.Models.EditorProposal preview;
+            try{preview=dialogue.Preview();}
+            finally{UiProgress.End();}
+            if(preview.Changes.Count==0)
+            {
+                StudioDialog.Notice(Window.GetWindow(this),"Diálogos de intercambios",
+                    "El banco español ya coincide con los diálogos genéricos previstos.");
+                return;
+            }
+            if(!StudioDialog.Confirm(Window.GetWindow(this),"Ocultar nombres en intercambios",
+                $"Se sustituirán {preview.Changes.Count} líneas del banco storytext español (archivo 14), dejando intactas las demás líneas e idiomas."))return;
+            UiProgress.Begin("Guardando diálogos de intercambios…");
+            try{dialogue.Apply(preview);}
+            finally{UiProgress.End();}
+            StatusText.Text="Diálogos españoles guardados y registrados en el historial.";
+        }
+        catch(Exception ex)
+        {StudioDialog.Error(Window.GetWindow(this),"Diálogos de intercambios",ex.Message);}
     }
     private void TradesAny_Click(object sender,RoutedEventArgs e)
     {
