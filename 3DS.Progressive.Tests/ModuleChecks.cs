@@ -120,7 +120,30 @@ internal static class ModuleChecks
             using var f=new Fixture(version);CreateArchives(f);
             if(version==GameVersion.USUM)
             {
-                const string example=\u0060\u0060\u0060;
+                const string example="""
+                    {
+                      "Version": 1, "ActionCoverageVersion": 8, "Name": "DEFINITIVO",
+                      "Game": "USUM", "Generation": 7,
+                      "SavedUtc": "2026-10-10T17:26:36Z",
+                      "RandSettings": ["LevelUpEditor7", "CHK_NoFixedDamage\tTrue", "SMTE", "CHK_LevelCaps\tTrue"],
+                      "Trainer": {"ProgressiveBST":{"Enabled":true,"Ranges":[
+                        {"MinLevel":1,"MaxLevel":14,"MinBST":1,"MaxBST":350,"FullRandom":false}
+                      ]},"LevelCaps":{"Trainers":[{"TrainerID":23,"LevelCap":19}]}},
+                      "Wild": {"ProgressiveBST":{"Enabled":true,"Ranges":[
+                        {"MinLevel":1,"MaxLevel":10,"MinBST":180,"MaxBST":320,"FullRandom":false}
+                      ]}},
+                      "LevelCaps":{"Entries":[{"Label":"Defeat Ultra Necrozma",
+                        "Kind":"EventWorkAtLeast","FlagOffset":68,"FlagBit":1796,"Cap":60}]},
+                      "Actions":[
+                        {"Id":"trainers.randomize","Parameters":{}},
+                        {"Id":"marts.add-ev-items","Parameters":{"mode":"expanded","slots":"0:9:50|0:10:565"}},
+                        {"Id":"wild-encounters.progressive","Parameters":{"progression":"area-max-valid-table"}}
+                      ],
+                      "Assets":[{"Role":"move-balance","FileName":"moves_gen7.csv",
+                        "Sha256":"55AE6C8A48F0868BF9BE407E8BB5F9FC91E376C10B92B80F0EE0EB0B8B5579CE"}],
+                      "UnknownFutureField":{"Payload":[1,2,3]}
+                    }
+                    """;
             }
             if(version==GameVersion.USUM)
             {
