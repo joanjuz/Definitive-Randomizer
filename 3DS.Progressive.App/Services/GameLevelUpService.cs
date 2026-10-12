@@ -120,6 +120,21 @@ public sealed class GameLevelUpService
         return new LevelUpBatchPreview(before,result,changes,metronome?"Modo Metrónomo (todos)":"Randomizar todos",
             metronome?null:settings);
     }
+    /// <summary>Read the exact frozen proposed GARC without touching disk or recomputing randomization.</summary>
+    public IReadOnlyDictionary<int,IReadOnlyList<LevelUpMoveEntry>> PreviewLearnsets(LevelUpBatchPreview preview)
+    {
+        if(preview.Original.Length==0||preview.Output.Length==0)
+            throw new ArgumentException("Vista previa vacía.");
+        var files=new GARC.MemGARC(preview.Output).Files;
+        return Entries.Where(e=>e.Index>0&&e.Index<files.Length).ToDictionary(e=>e.Index,
+            e=>
+            {
+                var set=new Learnset6(files[e.Index]);
+                return (IReadOnlyList<LevelUpMoveEntry>)set.Moves
+                    .Select((move,index)=>new LevelUpMoveEntry{Move=move,Level=set.Levels[index]})
+                    .ToArray();
+            });
+    }
     public void ApplyRandomization(LevelUpBatchPreview preview)
     {
         byte[] before=GarcTransaction.ReadUnchanged(_path,_sha);
