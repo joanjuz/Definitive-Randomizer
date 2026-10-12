@@ -188,6 +188,26 @@ internal static class UiSmoke
             ((Button)main.FindName("TrainersButton")).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             var remembered=(RecordEditorView)((ContentControl)main.FindName("SectionHost")).Content;
             check(((TextBox)remembered.OptionControls["NUD_LevelBoost"]).Text=="1.6"&&((ComboBox)remembered.FindName("ScopeBox")).SelectedIndex==2,"WPF module options and scope survive navigation");
+            ((Button)main.FindName("StaticEncountersButton")).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            var staticView=(RecordEditorView)((ContentControl)main.FindName("SectionHost")).Content;
+            check(staticView.Editor is ThreeDS.Progressive.Services.GameStaticEncounterService
+                &&staticView.FieldControls.ContainsKey("ShinyLock"),
+                "WPF Static Encounters opens real Gen7 gift fields");
+            Layout(staticView,1170,720);Capture(staticView,"static-encounters-editor.png");
+
+            // Supply a valid code.bin fixture for the native TM editor; unlike a dummy
+            // navigation card this exercises loading actual Gen7 TM assignments.
+            byte[] code=new byte[0x402000];
+            byte[] signature=[0x03,0x40,0x03,0x41,0x03,0x42,0x03,0x43,0x03];
+            signature.CopyTo(code,0x400000);
+            int tmOffset=0x400000+signature.Length+0x22;
+            for(int i=0;i<100;i++)BitConverter.GetBytes((ushort)(i+1)).CopyTo(code,tmOffset+i*2);
+            File.WriteAllBytes(Path.Combine(fixture.Game.ExeFS,"code.bin"),code);
+            ((Button)main.FindName("MachineTutorButton")).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            var machineView=((ContentControl)main.FindName("SectionHost")).Content as MachineTutorView;
+            check(machineView is not null && Walk(machineView).OfType<TabControl>().Any(t=>t.Items.Count==2),
+                "WPF MT/Tutors navigation opens a real dual-tab editor");
+            if(machineView is not null){Layout(machineView,1170,720);Capture(machineView,"mt-tutores-editor.png");}
             ((Button)main.FindName("EvolutionsButton")).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             var evolutions=(RecordEditorView)((ContentControl)main.FindName("SectionHost")).Content;
             check(evolutions.Editor is ThreeDS.Progressive.Services.GameEvolutionService&&evolutions.FieldControls.ContainsKey("E7.Method"),"WPF Evolutions exposes all eight routes");
