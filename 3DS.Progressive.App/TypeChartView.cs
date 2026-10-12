@@ -5,6 +5,7 @@ using ThreeDS.Progressive.Services;
 using Brush=System.Windows.Media.Brush;
 using Button=System.Windows.Controls.Button;
 using UserControl=System.Windows.Controls.UserControl;
+using UniformGrid=System.Windows.Controls.Primitives.UniformGrid;
 
 namespace ThreeDS.Progressive;
 
@@ -94,7 +95,7 @@ internal sealed class TypeChartView : UserControl
             _buttons[r,c].Content=Label(v);
             _buttons[r,c].Background=(Brush)FindResource(v switch
             {
-                0=>"Bg",2=>"Panel",4=>"Surface",_=>"AccentSoft"
+                0=>"Bg",2=>"Panel",4=>"Surface",_=>"Selected"
             });
         }
     }
