@@ -118,6 +118,49 @@ internal static class ModuleChecks
         foreach(var version in new[]{GameVersion.XY,GameVersion.ORAS,GameVersion.SM,GameVersion.USUM})
         {
             using var f=new Fixture(version);CreateArchives(f);
+            if(version==GameVersion.USUM)
+            {
+                const string example=\u0060\u0060\u0060;
+            }
+            if(version==GameVersion.USUM)
+            {
+                var global=GlobalTemplateDocument.Parse(example,"USUM",7);
+                check(global.Version==1&&global.Coverage==8&&global.TrainerCapCount==1
+                    &&global.PlayerCapCount==1&&global.Actions.Count==3,
+                    "Global Template v1/coverage8 loads original nested trainers/wild/flags/opaque actions");
+                string beforeGlobal=global.ToJson();
+                var round=GlobalTemplateDocument.Parse(beforeGlobal,"USUM",7);
+                check(round.ToJson()==beforeGlobal&&round.ToJson().Contains("UnknownFutureField")
+                    &&round.ToJson().Contains("0:9:50|0:10:565")
+                    &&round.ToJson().Contains("EventWorkAtLeast"),
+                    "Global Template roundtrip retains arbitrary legacy Progressive parameters and future fields");
+                var changed=round.Clone();
+                changed.SelectActions(new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+                    {"trainers.randomize","wild-encounters.progressive"});
+                check(changed.Actions.Count==2&&changed.ToJson().Contains("UnknownFutureField")
+                    &&changed.ToJson().Contains("MinLevel"),
+                    "Global Template action filtering preserves BST ranges and unknown fields");
+                reject(()=>GlobalTemplateDocument.Parse(beforeGlobal,"SM",7),
+                    "Global Template rejects loading USUM recipe into SM");
+                reject(()=>GlobalTemplateDocument.Parse(beforeGlobal,"USUM",6),
+                    "Global Template rejects wrong generation");
+                string tmp=Path.Combine(Path.GetTempPath(),"template-v1-"+Guid.NewGuid().ToString("N")+".json");
+                try
+                {
+                    global.Save(tmp);
+                    var restored=GlobalTemplateDocument.Load(tmp,"USUM",7);
+                    check(restored.ToJson()==beforeGlobal,
+                        "Global Template file save/load keeps original v1 schema and action parameters");
+                    reject(()=>restored.Save(tmp),"Global Template does not silently overwrite imported original");
+                    var batch=new BatchRomExecution(f.Session);
+                    var (preflight,warnings)=batch.Preflight(new RomBatchOptions(tmp,
+                        Path.Combine(Path.GetTempPath(),"progressive-batch-out-"+Guid.NewGuid().ToString("N")),
+                        "TestBatch",2,false,true,false));
+                    check(preflight.Actions.Count==3&&warnings.Count>0,
+                        "Batch builder validates complete original action structure and reports assets/backend gaps");
+                }
+                finally{if(File.Exists(tmp))File.Delete(tmp);}
+            }
             var trainers=new GameTrainerService(f.Session);var originalHeader=Read(f,"trdata");var originalTeam=Read(f,"trpoke");
             check(trainers.Entries.Count==3,version+" trainers have named browsable records");
             var values=EditorValues.Flatten(trainers.Read(1));
