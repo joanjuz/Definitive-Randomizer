@@ -44,16 +44,18 @@ internal sealed class GameTextView : UserControl
     internal bool HasPendingChanges=>_dirty;
     internal bool ConfirmLeave()=>!_dirty||StudioDialog.Confirm(Window.GetWindow(this),
         "Cambios de texto pendientes","Hay líneas editadas sin guardar.","Si continuás, se descartarán.");
-    internal GameTextView(GameProjectSession project)
+    internal GameTextView(GameProjectSession project,bool story=false)
     {
-        _service=new(project);Background=(Brush)FindResource("Bg");
+        _service=new(project,story);Background=(Brush)FindResource("Bg");
         var root=new DockPanel {Margin=new Thickness(20)};
         Content=root;
         var heading=new StackPanel {Margin=new Thickness(0,0,0,12)};
         DockPanel.SetDock(heading,Dock.Top);root.Children.Add(heading);
-        heading.Children.Add(new TextBlock {Text="Historia y textos",FontSize=22,
+        heading.Children.Add(new TextBlock {Text=story?"Story Text · diálogos e historia":"Game Text · textos generales",FontSize=22,
             FontWeight=FontWeights.SemiBold,Foreground=(Brush)FindResource("TextMain")});
-        heading.Children.Add(new TextBlock {Text="Archivos de texto de la ROM. Se conserva el número y orden de líneas para no romper referencias de scripts.",
+        heading.Children.Add(new TextBlock {Text=story?
+            "Bancos originales de diálogos y eventos. Conservá los códigos [VAR ...], cambios de línea y el orden de cada mensaje para evitar scripts dañados.":
+            "Archivos de texto de la ROM. Se conserva el número y orden de líneas para no romper referencias de scripts.",
             Foreground=(Brush)FindResource("TextSoft"),TextWrapping=TextWrapping.Wrap});
         var footer=new DockPanel {Margin=new Thickness(0,12,0,0)};
         DockPanel.SetDock(footer,Dock.Bottom);root.Children.Add(footer);
@@ -146,7 +148,7 @@ internal sealed class GameTextView : UserControl
             _grid.CommitEdit(DataGridEditingUnit.Cell,true);
             _grid.CommitEdit(DataGridEditingUnit.Row,true);
             if(!StudioDialog.Confirm(Window.GetWindow(this),"Confirmar texto",
-                $"Guardar {_rows.Count} líneas del archivo {_id:000} en el GARC de texto."))return;
+                $"Guardar {_rows.Count} líneas del archivo {_id:000} en {_service.BankName} del idioma activo."))return;
             _service.Save(_id,_rows.Select(x=>x.Value).ToArray());
             Load(_id);_status.Text="Texto guardado, verificado y registrado en el historial.";
         }
@@ -156,7 +158,7 @@ internal sealed class GameTextView : UserControl
     {
         try
         {
-            var picker=new Microsoft.Win32.SaveFileDialog {Filter="Texto|*.txt",FileName=$"texto-{_id:000}.txt"};
+            var picker=new Microsoft.Win32.SaveFileDialog {Filter="Texto|*.txt",FileName=$"{(_service.BankName=="Story Text"?"story":"game")}-text-{_id:000}.txt"};
             if(picker.ShowDialog(Window.GetWindow(this))!=true)return;
             File.WriteAllText(picker.FileName,_service.Export(_id),System.Text.Encoding.UTF8);
             _status.Text="Archivo de texto exportado.";
