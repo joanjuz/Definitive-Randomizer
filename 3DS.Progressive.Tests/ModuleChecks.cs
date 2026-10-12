@@ -6,6 +6,7 @@ using System.Text.Json;
 using pk3DS.Core;
 using pk3DS.Core.CTR;
 using pk3DS.Core.Structures;
+using pk3DS.Core.Modding.Research;
 using ThreeDS.Progressive.Models;
 using ThreeDS.Progressive.Services;
 using Legacy=ThreeDS.Progressive.Services.ProgressiveLegacy;
@@ -274,11 +275,27 @@ internal static class ModuleChecks
             check(bulkPreview.Changes.Count>10&&
                 File.ReadAllBytes(PathFor(f,"levelup")).SequenceEqual(bulkOriginal),
                 version+" all-Pokémon Metronome preview is read-only and produces a frozen patch");
+            var proposed=levelup.PreviewLearnsets(bulkPreview);
+            check(proposed.ContainsKey(1)&&proposed[1].Count==1&&proposed[1][0].Move==118
+                &&levelup.Read(1).Count==6,
+                version+" global Level Up preview shows exact proposed GARC while retaining original on disk");
             levelup.ApplyRandomization(bulkPreview);
             check(levelup.Read(1).Count==1&&levelup.Read(1)[0].Move==118
                 &&levelup.Read(2)[0].Level==1,
                 version+" all-Pokémon Metronome applies safely through GARC history");
 
+            var playerCaps=new GamePlayerLevelCapService(f.Session);
+            if(f.Game.USUM)
+            {
+                var defaults=LevelCapTable.Default();
+                check(defaults.Entries.Count==21
+                    &&defaults.Entries.Any(e=>e.Kind==LevelCapConditionKind.EventWorkAtLeast),
+                    version+" researched Player Level Caps retain all 21 Event Flag / Event Work checkpoints");
+                check(playerCaps.StartingTable().Entries.Count==21,
+                    version+" missing CRO patch falls back safely to canonical Player Caps");
+                reject(()=>playerCaps.Preview(defaults),
+                    "Player Caps refuses install when Battle.cro / decompressed code.bin missing");
+            }
             var item=new GameItemService(f.Session);
             var iv=EditorValues.Flatten(item.Read(1));
             check(iv["Price"]==10,version+" item editor reads base 10-unit price");
