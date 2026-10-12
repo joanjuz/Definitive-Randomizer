@@ -27,6 +27,7 @@ public sealed partial class GameMartService
         ["Resist Wing","Pluma Aguante"],["Genius Wing","Pluma Intelecto"],
         ["Clever Wing","Pluma Mente"],["Swift Wing","Pluma Ímpetu","Pluma Impetu"]
     ];
+    private const int AbilityCapsuleUSUM = 645;
     private bool _setCandyPrice, _setKeyPrice, _enableVitamin252, _banCapsule;
     private int[] _vitaminIds = [];
     private readonly List<string> _presets = [];
@@ -49,8 +50,8 @@ public sealed partial class GameMartService
 
     public int RandomizeShops(bool bp,bool specialsOnly=false,bool protectX=true)
     {
-        int? capsule=_banCapsule?TryItemId("Ability Capsule","Cápsula Habilidad","Capsula Habilidad"):null;
-        int[] pool=ItemPool.Where(id=>id>0&&id<_project.ItemNames.Count&&id!=capsule).ToArray();
+        int[] pool=ItemPool.Where(id=>id>0&&id<_project.ItemNames.Count&&
+            (!_banCapsule||id!=AbilityCapsuleUSUM)).ToArray();
         if(pool.Length==0)throw new InvalidDataException("No hay objetos válidos para randomizar.");
         var rng=new Random(RandomNumberGenerator.GetInt32(int.MaxValue));
         void Shuffle()
@@ -65,9 +66,23 @@ public sealed partial class GameMartService
             {
                 int before=row.ItemId;
                 if(!bp&&(ProtectedItems.Contains(before)||(protectX&&SpeedrunXItems.Contains(before))))continue;
+                // When X protection is disabled, X-only shops such as Mount Lanakila
+                // must actually randomize. Never re-roll another X item for an X slot.
                 if(cursor==pool.Length){Shuffle();cursor=0;}
                 int next=pool[cursor++];
-                if(next!=before){row.ItemId=next;count++;}
+                if(next==before||(!protectX&&SpeedrunXItems.Contains(before)&&SpeedrunXItems.Contains(next)))
+                {
+                    int search=0;
+                    while(search++<pool.Length &&
+                        (next==before||(!protectX&&SpeedrunXItems.Contains(before)&&SpeedrunXItems.Contains(next))))
+                    {
+                        if(cursor==pool.Length){Shuffle();cursor=0;}
+                        next=pool[cursor++];
+                    }
+                    if(next==before||(!protectX&&SpeedrunXItems.Contains(before)&&SpeedrunXItems.Contains(next)))
+                        throw new InvalidDataException("No se encontró reemplazo válido para objeto X.");
+                }
+                row.ItemId=next;count++;
             }
         _presets.Add(bp?"marts.randomize-bp":specialsOnly?"marts.randomize:special-only":"marts.randomize");
         return count;
@@ -129,7 +144,9 @@ public sealed partial class GameMartService
     }
     public int BanAbilityCapsule()
     {
-        int capsule=RequireItem("Ability Capsule","Cápsula Habilidad","Capsula Habilidad");
+        int capsule=AbilityCapsuleUSUM;
+        if(capsule>=_project.ItemNames.Count)
+            throw new InvalidDataException("La tabla de objetos USUM no contiene el ID 645.");
         int[] pool=ItemPool.Where(id=>id>0&&id<_project.ItemNames.Count&&id!=capsule&&!ProtectedItems.Contains(id)).Distinct().ToArray();
         if(pool.Length==0)throw new InvalidOperationException("No hay reemplazos válidos para Cápsula Habilidad.");
         var rng=new Random(RandomNumberGenerator.GetInt32(int.MaxValue));int changed=0;
