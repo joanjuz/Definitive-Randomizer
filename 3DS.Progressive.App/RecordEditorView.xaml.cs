@@ -517,27 +517,84 @@ public partial class RecordEditorView : UserControl
             TrainerTeamCards.Children.Add(new TextBlock {Text="Este entrenador no tiene Pokémon en el equipo.",
                 Foreground=(Brush)FindResource("TextSoft"),Margin=new Thickness(6,12,6,12)});
     }
+    private void EncounterGroup_Changed(object sender,SelectionChangedEventArgs e)
+    {
+        if(_loading||_id<0||Editor is not GameEncounterService wild)return;
+        try { UpdateEncounterSprites(_id,wild.Read(_id)); }
+        catch(Exception ex) { StatusText.Text="No se pudo mostrar esta fila: "+ex.Message; }
+    }
+
     private void UpdateEncounterSprites(int id,IReadOnlyList<EditorGroup> groups)
     {
         EncounterSpriteCards.Children.Clear();
-        if(Editor is not ThreeDS.Progressive.Services.GameEncounterService
-            &&Editor is not ThreeDS.Progressive.Services.GameStaticEncounterService)
+        EncounterPairCards.Children.Clear();
+        bool wild=Editor is GameEncounterService {SupportsWildTemplate:true};
+        WildPreviewControls.Visibility=wild?Visibility.Visible:Visibility.Collapsed;
+        EncounterPairPreview.Visibility=Visibility.Collapsed;
+        if(Editor is not GameEncounterService && Editor is not GameStaticEncounterService)
         {
             EncounterSpritePreview.Visibility=Visibility.Collapsed;
             return;
         }
-        var section=groups.FirstOrDefault(g=>g.Fields.Any(f=>f.Key=="Species"||
-            f.Key.EndsWith(".Species",StringComparison.Ordinal)));
-        if(section is null){EncounterSpritePreview.Visibility=Visibility.Collapsed;return;}
-        EncounterSpritePreview.Visibility=Visibility.Visible;
-        EncounterSpriteTitle.Text=section.Name.ToUpperInvariant()+" · SPRITES";
-        var entries=section.Fields.Where(f=>f.Key=="Species"||
-            f.Key.EndsWith(".Species",StringComparison.Ordinal)).Take(12).ToArray();
-        foreach(var field in entries)
+        EditorGroup? section;
+        if(wild)
         {
+            if(EncounterGroupPicker.SelectedIndex<0)
+                EncounterGroupPicker.SelectedIndex=0;
+            int selected=Math.Clamp(EncounterGroupPicker.SelectedIndex,0,8);
+            section=groups.Skip(1).ElementAtOrDefault(selected);
+            var main=groups.FirstOrDefault()?.Fields.ToDictionary(f=>f.Key);
+            int min=main?.GetValueOrDefault("Min")?.Value??0;
+            int max=main?.GetValueOrDefault("Max")?.Value??0;
+            int active=section?.Fields.Count(f=>f.Key.EndsWith(".Species",StringComparison.Ordinal)
+                &&f.Value>0)??0;
+            string summary=$"Niveles {min}–{max} · {active} especies en la fila seleccionada";
+            if(selected==0)
+            {
+                int rate=Enumerable.Range(0,10).Sum(slot=>
+                    main?.GetValueOrDefault("Rate"+slot)?.Value??0);
+                summary+=$" · Probabilidades: {rate}%";
+                if(rate is not (0 or 100))summary+=" (debe sumar 0% o 100%)";
+            }
+            EncounterGroupSummary.Text=summary;
+        }
+        else
+            section=groups.FirstOrDefault(g=>g.Fields.Any(f=>f.Key=="Species"||
+                f.Key.EndsWith(".Species",StringComparison.Ordinal)));
+        if(section is null)
+        {
+            EncounterSpritePreview.Visibility=Visibility.Collapsed;return;
+        }
+        EncounterSpritePreview.Visibility=Visibility.Visible;
+        EncounterSpriteTitle.Text=wild&&Editor is GameEncounterService w
+            ?$"{w.TimeOfDay(id).ToUpperInvariant()} · {section.Name.ToUpperInvariant()}"
+            :section.Name.ToUpperInvariant()+" · SPRITES";
+        RenderEncounterRow(EncounterSpriteCards,section,id,null);
+        if(wild&&Editor is GameEncounterService editor&&
+            editor.PairedDayNightId(id) is int paired)
+        {
+            int selected=Math.Clamp(EncounterGroupPicker.SelectedIndex,0,8);
+            var alternate=editor.Read(paired).Skip(1).ElementAtOrDefault(selected);
+            if(alternate is not null)
+            {
+                EncounterPairPreview.Visibility=Visibility.Visible;
+                EncounterPairTitle.Text=$"{editor.TimeOfDay(paired).ToUpperInvariant()} · {alternate.Name} · tabla #{paired}";
+                RenderEncounterRow(EncounterPairCards,alternate,id,paired);
+            }
+        }
+    }
+
+    private void RenderEncounterRow(WrapPanel host,EditorGroup section,int activeId,int? pairedId)
+    {
+        var allFields=section.Fields;
+        var entries=allFields.Where(f=>f.Key=="Species"||
+            f.Key.EndsWith(".Species",StringComparison.Ordinal)).Take(12).ToArray();
+        for(int position=0;position<entries.Length;position++)
+        {
+            var field=entries[position];
             string prefix=field.Key.EndsWith(".Species",StringComparison.Ordinal)
                 ?field.Key[..^7]:string.Empty;
-            int form=section.Fields.FirstOrDefault(f=>f.Key==prefix+"Form")?.Value??0;
+            int form=allFields.FirstOrDefault(f=>f.Key==prefix+"Form")?.Value??0;
             int species=field.Value;
             var picture=new Image {Width=52,Height=52,Stretch=Stretch.Uniform,
                 HorizontalAlignment=System.Windows.HorizontalAlignment.Center};
@@ -546,22 +603,38 @@ public partial class RecordEditorView : UserControl
                 Foreground=(Brush)FindResource("TextSoft"),
                 VerticalAlignment=System.Windows.VerticalAlignment.Center,
                 HorizontalAlignment=System.Windows.HorizontalAlignment.Center};
-            var art=new Grid {Height=56};art.Children.Add(picture);art.Children.Add(fallback);
-            var content=new StackPanel();content.Children.Add(art);
-            string label=field.Choices?.FirstOrDefault(c=>c.Id==species)?.Display??$"#{species}";
+            var art=new Grid {Height=56};
+            art.Children.Add(picture);art.Children.Add(fallback);
+            var content=new StackPanel();
+            content.Children.Add(new TextBlock {Text=$"#{position+1:00}",
+                FontSize=10,Foreground=(Brush)FindResource("TextSoft"),
+                TextAlignment=TextAlignment.Center});
+            content.Children.Add(art);
+            string label=field.Choices?.FirstOrDefault(choice=>choice.Id==species)?.Display??$"#{species}";
             content.Children.Add(new TextBlock {Text=label,Width=95,
-                TextTrimming=TextTrimming.CharacterEllipsis,TextAlignment=TextAlignment.Center,FontSize=11});
+                TextTrimming=TextTrimming.CharacterEllipsis,
+                TextAlignment=TextAlignment.Center,FontSize=11});
+            if(form>0)
+                content.Children.Add(new TextBlock {Text=$"Forma {form}",FontSize=10,
+                    Foreground=(Brush)FindResource("TextSoft"),TextAlignment=TextAlignment.Center});
             var card=new Button {Content=content,Width=104,Margin=new Thickness(0,0,8,8),
-                Padding=new Thickness(3)};
+                Padding=new Thickness(3),
+                ToolTip=pairedId.HasValue?"Abrir esta ranura en la tabla del otro horario":
+                    "Ir a la especie y forma de esta ranura"};
             string key=field.Key;
-            card.Click+=(_,_)=>
+            card.Click+=(_,_) =>
             {
+                if(pairedId.HasValue)
+                {
+                    RecordList.SelectedItem=Editor.Entries.FirstOrDefault(x=>x.Id==pairedId.Value);
+                    if(_id!=pairedId.Value)return;
+                }
                 if(_editorSections.TryGetValue(key,out var expand))expand.IsExpanded=true;
                 if(_fields.TryGetValue(key,out var control))control.BringIntoView();
             };
-            EncounterSpriteCards.Children.Add(card);
-            if(species>0)
-                _=LoadTeamSpriteAsync(picture,fallback,id,species,form,_trainerSpriteCancel!.Token);
+            host.Children.Add(card);
+            if(species>0&&_trainerSpriteCancel is not null)
+                _=LoadTeamSpriteAsync(picture,fallback,activeId,species,form,_trainerSpriteCancel.Token);
         }
     }
     private static Dictionary<string,int> Values(Dictionary<string,FrameworkElement> controls)=>controls.ToDictionary(p=>p.Key,p=>p.Value switch
