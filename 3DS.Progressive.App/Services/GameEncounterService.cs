@@ -230,15 +230,7 @@ public sealed class GameEncounterService : ArchiveProjectEditor
             if(!range.FullRandom)pool=allowed.Where(species=>
                 Config.Personal[species].BST>=range.MinBST&&Config.Personal[species].BST<=range.MaxBST).ToArray();
         }
-        else if(options["SimilarBST"]==1)
-        {
-            int original=values.FirstOrDefault(p=>p.Key.EndsWith("Species")&&p.Value>0).Value;
-            if(original>0&&original<Config.Personal.Table.Length)
-            {
-                int bst=Config.Personal[original].BST;
-                pool=allowed.Where(species=>Math.Abs(Config.Personal[species].BST-bst)*100<=bst*options["BST"]).ToArray();
-            }
-        }
+        // Similar BST is slot-specific, never based on the first species of the area.
         if(pool.Length==0)throw new InvalidDataException("No hay especies válidas con los filtros BST seleccionados.");
         int slotMode=options["SlotMode"];
         foreach(string key in values.Keys.Where(k=>k.EndsWith("Species")).ToArray())
@@ -253,7 +245,15 @@ public sealed class GameEncounterService : ArchiveProjectEditor
                  isSos?options["SOS"]==1&&slotMode is 0 or 2:
                  slotMode is not 2));
             if(!allow||options["Species"]!=1||values[key]<=0)continue;
-            int chosen=pool[random.Next(pool.Length)];
+            int[] slotPool=pool;
+            if(options["SimilarBST"]==1&&values[key]<Config.Personal.Table.Length)
+            {
+                int bst=Config.Personal[values[key]].BST;
+                slotPool=allowed.Where(species=>Math.Abs(Config.Personal[species].BST-bst)*100<=bst*options["BST"]).ToArray();
+                if(slotPool.Length==0)
+                    throw new InvalidDataException($"No hay reemplazos dentro de la tolerancia BST del slot {key}.");
+            }
+            int chosen=slotPool[random.Next(slotPool.Length)];
             values[key]=chosen;values[key[..^7]+"Form"]=0;
         }
         if(Config.Generation==7&&slotMode==3&&options["SOS"]==1)
@@ -266,7 +266,7 @@ public sealed class GameEncounterService : ArchiveProjectEditor
                 values[target+"Form"]=values[source+"Form"];
             }
         }
-        int Scale(int x)=>Math.Clamp((int)Math.Round(x*options["LevelScale"]/100.0)+options["LevelFlat"],1,100);
+        int Scale(int x)=>x==0?0:Math.Clamp((int)Math.Round(x*options["LevelScale"]/100.0)+options["LevelFlat"],1,100);
         if(Config.Generation==7)
         {
             int min=values["Min"],max=values["Max"];
