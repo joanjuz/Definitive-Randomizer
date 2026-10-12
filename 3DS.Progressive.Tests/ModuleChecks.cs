@@ -310,6 +310,18 @@ internal static class ModuleChecks
             }
             if(f.Game.Generation==7)
             {
+                // Slot mode 1/3 must never randomize weather even if the
+                // Weather checkbox is enabled. Mode 2 also excludes regular.
+                check(GameEncounterService.ShouldRandomizeWildGroup(0,1,true,true)&&
+                      !GameEncounterService.ShouldRandomizeWildGroup(1,1,true,true)&&
+                      !GameEncounterService.ShouldRandomizeWildGroup(8,1,true,true)&&
+                      GameEncounterService.ShouldRandomizeWildGroup(0,3,true,true)&&
+                      !GameEncounterService.ShouldRandomizeWildGroup(8,3,true,true)&&
+                      !GameEncounterService.ShouldRandomizeWildGroup(0,2,true,true)&&
+                      GameEncounterService.ShouldRandomizeWildGroup(1,2,true,true)&&
+                      GameEncounterService.ShouldRandomizeWildGroup(8,2,true,true)&&
+                      !GameEncounterService.ShouldRandomizeWildGroup(8,0,true,false),
+                      version+" Wild normal/SOS/copy slot modes preserve weather correctly");
                 // Same behavior as EncounterTable.CopySlotsToSOS: overwrite all
                 // seven ordinary SOS sets, INCLUDING previously empty slots.
                 var sosValues=new Dictionary<string,int>();
