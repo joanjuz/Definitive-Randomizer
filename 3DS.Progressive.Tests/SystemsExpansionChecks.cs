@@ -12,6 +12,18 @@ internal static class SystemsExpansionChecks
     {
         using var f=new Fixture(GameVersion.USUM);
         var config=f.Game;
+        // Shops must never fall back to hard-coded offsets or create a bogus
+        // Shop.cro when a project lacks the expected relocation metadata.
+        string shopCro=Path.Combine(config.RomFS,"Shop.cro");
+        reject(()=>new GameMartService(f.Session),
+            "USUM Mart editor refuses missing Shop.cro instead of guessing tables");
+        byte[] unknownShop=new byte[0x9000];
+        File.WriteAllBytes(shopCro,unknownShop);
+        reject(()=>new GameMartService(f.Session),
+            "USUM Mart editor rejects unrecognized CRO before any edit");
+        check(File.ReadAllBytes(shopCro).SequenceEqual(unknownShop),
+            "Unknown Shop.cro remains byte-identical after rejected editor load");
+        File.Delete(shopCro);
         string EggPath()=>Path.Combine(config.RomFS,config.GetGARCFileName("eggmove"));
         string MegaPath()=>Path.Combine(config.RomFS,config.GetGARCFileName("megaevo"));
         byte[][] egg=Enumerable.Range(0,840).Select(i=>
