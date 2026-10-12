@@ -99,7 +99,8 @@
                         <Button x:Name="FieldItemsButton" Content="♢  Field Items"
                                 Style="{StaticResource SidebarButton}" IsEnabled="False" Tag="FieldItems" Click="Section_Click"/>
                         <Button x:Name="EvolutionsButton" Content="◆  Evoluciones" Style="{StaticResource SidebarButton}" IsEnabled="False" Tag="Evolutions" Click="Section_Click"/>
-                        <Button x:Name="GameTextButton" Content="≡  Historia y textos" Style="{StaticResource SidebarButton}" IsEnabled="False" Tag="GameText" Click="Section_Click"/>
+                        <Button x:Name="GameTextButton" Content="≡  Game Text" Style="{StaticResource SidebarButton}" IsEnabled="False" Tag="GameText" Click="Section_Click"/>
+                        <Button x:Name="StoryTextButton" Content="≡  Story Text · diálogos" Style="{StaticResource SidebarButton}" IsEnabled="False" Tag="StoryText" Click="Section_Click"/>
                         <TextBlock Text="SISTEMAS" Style="{StaticResource SmallHeading}"
                                    Margin="12,25,0,12"/>
                         <Button x:Name="MechanicsButton" Content="◈  Mecánicas y CRO"
