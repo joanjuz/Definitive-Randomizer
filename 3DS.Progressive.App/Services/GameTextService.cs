@@ -45,9 +45,11 @@ public sealed class GameTextService
         if(!after.SequenceEqual(confirmed))
             throw new InvalidDataException("La codificación del texto no es reversible. No se guardará.");
         records[id]=bytes;
-        var changes=before.Zip(after,(old,next,index)=>(old,next,index))
-            .Where(x=>x.old!=x.next)
-            .Select(x=>new BatchChange(id,$"Archivo {id:000}","Línea "+x.index,x.old,x.next)).ToArray();
+        if(before.Length!=after.Length)
+            throw new ArgumentException("No se admite cambiar la cantidad de líneas del archivo.");
+        var changes=Enumerable.Range(0,before.Length)
+            .Where(i=>before[i]!=after[i])
+            .Select(i=>new BatchChange(id,$"Archivo {id:000}","Línea "+i,before[i],after[i])).ToArray();
         _sha=_project.History.CommitGarc(_path,_reference,_sha,records,"Historia y textos",
             "Editar texto del juego",changes);
         _config.InitializeGameText();
