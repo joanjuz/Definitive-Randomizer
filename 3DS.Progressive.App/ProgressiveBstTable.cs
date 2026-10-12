@@ -8,6 +8,8 @@ using System.Windows.Data;
 using System.Windows.Media;
 using ThreeDS.Progressive.Models;
 using Brush=System.Windows.Media.Brush;
+using Brushes=System.Windows.Media.Brushes;
+using MessageBox=System.Windows.MessageBox;
 using Button=System.Windows.Controls.Button;
 using CheckBox=System.Windows.Controls.CheckBox;
 using Control=System.Windows.Controls.Control;
@@ -48,7 +50,7 @@ internal sealed class ProgressiveBstTable : UserControl
         Content=main;
         var heading=new DockPanel {Margin=new Thickness(0,0,0,10)};
         main.Children.Add(heading);
-        var buttons=new WrapPanel {HorizontalAlignment=HorizontalAlignment.Right};
+        var buttons=new WrapPanel {HorizontalAlignment=System.Windows.HorizontalAlignment.Right};
         DockPanel.SetDock(buttons,Dock.Right);heading.Children.Add(buttons);
         var add=new Button {Content="+ Añadir rango",Margin=new Thickness(0,0,8,0)};
         add.Click+=(_,_)=>AddRange();
