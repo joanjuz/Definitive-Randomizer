@@ -200,7 +200,7 @@ internal static class ModuleChecks
             check(levelup.Read(1).Count==6,version+" original level-up learnsets are loaded");
             var rows=levelup.Read(1).ToArray();rows[0].Move=12;rows[0].Level=2;
             levelup.Save(1,rows);
-            check(levelup.Read(1)[0].Move==12&&levelup.Read(1)[0].Level==1,
+            check(levelup.Read(1).Any(r=>r.Move==12&&r.Level==2)&&levelup.Read(1)[0].Level==1,
                 version+" level-up moves are preserved and sorted when saving");
             check(new Learnset6(Read(f,"levelup")[2]).Moves[0]==1,
                 version+" level-up editing does not touch other Pokémon");
