@@ -10,6 +10,7 @@ using Button=System.Windows.Controls.Button;
 using CheckBox=System.Windows.Controls.CheckBox;
 using TextBox=System.Windows.Controls.TextBox;
 using UserControl=System.Windows.Controls.UserControl;
+using Panel=System.Windows.Controls.Panel;
 
 namespace ThreeDS.Progressive;
 
