@@ -23,7 +23,7 @@ internal sealed class OwseDevView : UserControl
     private readonly TextBox _details;
     private readonly ListBox _zones;
     private readonly (int Id,int ParentMap,string Location)[] _zoneItems;
-    private readonly pk3DS.Core.CTR.LazyGARCFile _encounters;
+    private readonly LazyGARCFile _encounters;
     internal OwseDevView(GameProjectSession project)
     {
         if(project.Generation!=7)throw new NotSupportedException("OWSE Dev actual solo admite Gen7.");
