@@ -8,6 +8,7 @@ internal sealed class AppPreferences
 {
     public string DefaultProjectFolder {get;set;}="";
     public string DefaultBackupFolder {get;set;}="";
+    public int GameTextLanguageIndex {get;set;}=2;
     private static readonly string FilePath=Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
         "3DS-Progressive","settings.json");
@@ -23,6 +24,8 @@ internal sealed class AppPreferences
     }
     internal void Save()
     {
+        if(GameTextLanguageIndex is <0 or >9)
+            throw new ArgumentOutOfRangeException(nameof(GameTextLanguageIndex),"Índice de idioma inválido.");
         foreach(var path in new[]{DefaultProjectFolder,DefaultBackupFolder})
             if(!string.IsNullOrWhiteSpace(path)&&!Directory.Exists(path))
                 throw new DirectoryNotFoundException("La carpeta indicada no existe: "+path);
