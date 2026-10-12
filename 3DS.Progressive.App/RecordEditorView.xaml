@@ -59,6 +59,8 @@
    <Border Grid.Column="2" Background="{StaticResource Panel}" BorderBrush="{StaticResource Stroke}" BorderThickness="1,0,0,0" Padding="18,22">
     <StackPanel><TextBlock Text="INSPECTOR" Foreground="{StaticResource TextSoft}" FontSize="11" Margin="0,0,0,12"/>
      <Button x:Name="RandomizerButton" Content="Randomizar" Click="Randomizer_Click" Margin="0,0,0,10"/>
+     <Button x:Name="MegaUnlockButton" Content="Habilitar Mega desde el inicio (USUM)"
+             Visibility="Collapsed" Click="MegaUnlock_Click" Margin="0,0,0,10"/>
      <Button x:Name="EconomyTableButton" Content="Tabla de precios · Fix Economy" Visibility="Collapsed"
              Click="EconomyTable_Click" Margin="0,0,0,10"/>
      <Button x:Name="FieldExportButton" Content="Exportar Field Items CSV" Visibility="Collapsed"
