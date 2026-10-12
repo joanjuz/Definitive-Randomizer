@@ -101,8 +101,10 @@ Prioridad de PNG: `%LOCALAPPDATA%\3DS Progressive\sprites\custom\entry-001.png`,
 
 ## Alcance pendiente
 
-La migración no está completa. Ya se integraron Static Encounters, Egg Moves, Level Up masivo, Player Caps, herramientas CRO, Type Chart Gen7, Global Template y Batch ROM Builder. Continúan pendientes las opciones completas de Progressive Wild, el barajado de Story Text y módulos Gen6 especiales. En tiendas USUM se incorporaron la edición normal/BP, ranuras ampliables, randomización, caramelos raros y vitaminas con flags para EV 252. Quedan pendientes la sincronización bidireccional de sus opciones con Global Template y validación runtime de ambos juegos. Esta es una **preview**: no sustituye la versión estable WinForms ni se ha fusionado con ella.
+La migración no está completa. Ya se integraron Static Encounters, Egg Moves, Level Up masivo, Player Caps, herramientas CRO, Type Chart Gen7, Global Template y Batch ROM Builder. Progressive Wild incorpora templates JSON v1 con rangos BST y filtros, formas Gen7 y copiar/pegar tablas con vista previa; todavía faltan los controles y flujos restantes del SMWE original y su validación runtime. Siguen pendientes el barajado protegido de Story Text y módulos Gen6 especializados. En tiendas USUM se incorporaron la edición normal/BP, ranuras ampliables, randomización, caramelos raros y vitaminas con flags para EV 252. Quedan pendientes la sincronización bidireccional de sus opciones con Global Template y validación runtime de ambos juegos. Esta es una **preview**: no sustituye la versión estable WinForms ni se ha fusionado con ella.
 
 Extraer el ZIP **completo** y ejecutar `3DS.Progressive.exe`; conservar la carpeta `custom_balance_templates` junto al ejecutable.
+
+Seguimiento activo de paridad y alcance real de Progressive Wild: [Hito 20](../docs/3ds-progressive/HITO_20_PARIDAD_VIVA_Y_WILD_V1.md). La matriz CSV se actualiza por acción y no confunde implementación con validación en juego.
 
 Detalles y comprobaciones manuales: [Hito 08](../docs/3ds-progressive/HITO_08_MOTORES_ORIGINALES.md). Matriz: [Paridad de acciones](../docs/3ds-progressive/PARIDAD_ACCIONES.csv).
