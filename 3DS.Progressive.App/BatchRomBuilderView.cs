@@ -8,6 +8,7 @@ using Button=System.Windows.Controls.Button;
 using TextBox=System.Windows.Controls.TextBox;
 using CheckBox=System.Windows.Controls.CheckBox;
 using UserControl=System.Windows.Controls.UserControl;
+using ProgressBar=System.Windows.Controls.ProgressBar;
 using UniformGrid=System.Windows.Controls.Primitives.UniformGrid;
 
 namespace ThreeDS.Progressive;
