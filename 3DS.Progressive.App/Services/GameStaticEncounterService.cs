@@ -57,7 +57,8 @@ public sealed class GameStaticEncounterService : ArchiveProjectEditor
             Field("G7","Generación 7",1,0,1),
             Field("Legends","Permitir Pokémon legendarios",1,0,1),
             Field("Events","Permitir Pokémon de evento",1,0,1),
-            Field("BST","Tolerancia BST (%) · 0 = libre",0,0,100),
+            Field("SimilarBST","Limitar especies por BST similar",0,0,1),
+            Field("BST","Tolerancia BST (%) · 0 = libre",30,0,100),
             Field("LegendToLegend","Reemplazar legendarios por legendarios",0,0,1),
             Field("NoLegendGifts","Bloquear legendarios en regalos e intercambios",0,0,1)
         ]),
@@ -65,6 +66,7 @@ public sealed class GameStaticEncounterService : ArchiveProjectEditor
             Field("Gifts","Incluir regalos e iniciales",1,0,1),
             Field("Static","Incluir encuentros estáticos y Totems",1,0,1),
             Field("Trades","Incluir Pokémon ofrecidos en intercambios",1,0,1),
+            Field("ScaleLevels","Modificar niveles",0,0,1),
             Field("LevelScale","Multiplicar niveles (%)",100,10,300),
             Field("LevelFlat","Sumar niveles",0,-100,100)
         ]),
@@ -178,7 +180,7 @@ public sealed class GameStaticEncounterService : ArchiveProjectEditor
             pool=pool.Where(legendary.Contains).ToArray();
         if(options["ForceFinal"]==1&&level>=options["FinalLevel"])
             pool=pool.Where(id=>Legal.FinalEvolutions_7.Contains(id)).ToArray();
-        int tolerance=options["BST"];
+        int tolerance=options["SimilarBST"]==1?options["BST"]:0;
         if(tolerance>0&&original>0&&original<Config.Personal.Table.Length)
         {
             int bst=Config.Personal[original].BST;
@@ -199,7 +201,7 @@ public sealed class GameStaticEncounterService : ArchiveProjectEditor
                 slot.File!=1,options,random);
             values["Form"]=0;
         }
-        if(values["Level"]>0)
+        if(values["Level"]>0&&options["ScaleLevels"]==1)
             values["Level"]=Math.Clamp((int)Math.Round(values["Level"]*options["LevelScale"]/100.0)
                 +options["LevelFlat"],1,100);
         if(options["RandomItems"]==1&&values.ContainsKey("Item"))
