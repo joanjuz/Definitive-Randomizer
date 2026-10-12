@@ -112,9 +112,19 @@ public partial class RecordEditorView : UserControl
                     :BuildGroupCard(filtered,controls,editor));
         }
         if(wildRanges.Length>0)
-            panel.Children.Add(GroupBorder(new Expander {Header="Rangos BST progresivo",
+        {
+            var card=GroupBorder(new Expander {Header="Rangos BST progresivo",
                 IsExpanded=true,Foreground=(Brush)FindResource("TextMain"),
-                Content=CreateBstTable(wildRanges,true)}));
+                Content=CreateBstTable(wildRanges,true)});
+            panel.Children.Add(card);
+            if(controls.TryGetValue("Progressive",out var control)&&control is CheckBox check)
+            {
+                void Toggle(object sender,RoutedEventArgs e)=>card.Visibility=
+                    check.IsChecked==true?Visibility.Visible:Visibility.Collapsed;
+                check.Checked+=Toggle;check.Unchecked+=Toggle;
+                card.Visibility=check.IsChecked==true?Visibility.Visible:Visibility.Collapsed;
+            }
+        }
     }
     private readonly Dictionary<string,Expander> _editorSections=[];
     private int _trainerTabIndex;
@@ -142,7 +152,18 @@ public partial class RecordEditorView : UserControl
             {
                 var ranges=groups.SelectMany(g=>g.Fields)
                     .Where(f=>f.Key.StartsWith("BST.",StringComparison.Ordinal)).ToArray();
-                if(ranges.Length>0)container.Children.Add(CreateBstTable(ranges));
+                if(ranges.Length>0)
+                {
+                    var bstPanel=CreateBstTable(ranges);
+                    container.Children.Add(bstPanel);
+                    if(controls.TryGetValue("CHK_ProgressiveBST",out var control)&&control is CheckBox check)
+                    {
+                        void Toggle(object sender,RoutedEventArgs e)=>bstPanel.Visibility=
+                            check.IsChecked==true?Visibility.Visible:Visibility.Collapsed;
+                        check.Checked+=Toggle;check.Unchecked+=Toggle;
+                        bstPanel.Visibility=check.IsChecked==true?Visibility.Visible:Visibility.Collapsed;
+                    }
+                }
             }
             if(container.Children.Count==0)
                 container.Children.Add(new TextBlock {Text="No hay opciones adicionales para esta versión del juego.",
@@ -228,11 +249,67 @@ public partial class RecordEditorView : UserControl
             ||name.StartsWith("EV",StringComparison.OrdinalIgnoreCase))return 1;
         return 0;
     }
+    private static readonly (string Parent,string[] Related)[] OptionDependencies=
+    [
+        ("CHK_ForceFullyEvolved",["NUD_ForceFullyEvolved"]),
+        ("CHK_Damage",["NUD_Damage"]),
+        ("CHK_STAB",["NUD_STAB"]),
+        ("CHK_RandomDoubleBattles",["NUD_DoubleBattleChance"]),
+        ("CHK_Level",["NUD_LevelBoost"]),
+        ("CHK_StrongStat",["NUD_StrongStatTolerance","CHK_StrongStatNormalTrainers",
+            "CHK_StrongStatImportantTrainers","CHK_StrongStatBosses"]),
+        ("CHK_BetterMovesets",["CHK_BetterMovesetsIncludeTMs",
+            "CHK_BetterMovesetsNormalTrainers","CHK_BetterMovesetsImportantTrainers","CHK_BetterMovesetsBosses"]),
+        ("CHK_SmartHeldItems",["CHK_SmartItemsNormalTrainers","CHK_SmartItemsImportantTrainers",
+            "CHK_SmartItemsBosses","CB_SmartHeldItemMode","CB_SmartHeldItemModeNormal",
+            "CB_SmartHeldItemModeImportant","CB_SmartHeldItemModeBoss"])
+    ];
+    private static IReadOnlyList<EditorField> SortedOptions(IReadOnlyList<EditorField> fields)
+    {
+        var ordered=new List<EditorField>();
+        var consumed=new HashSet<string>();
+        foreach(var field in fields)
+        {
+            if(consumed.Contains(field.Key))continue;
+            var relation=OptionDependencies.FirstOrDefault(pair=>pair.Related.Contains(field.Key));
+            if(relation.Parent is not null&&fields.Any(f=>f.Key==relation.Parent))continue;
+            ordered.Add(field);consumed.Add(field.Key);
+            var children=OptionDependencies.FirstOrDefault(pair=>pair.Parent==field.Key).Related;
+            if(children is not null)
+                foreach(var child in fields.Where(f=>children.Contains(f.Key)))
+                    if(consumed.Add(child.Key))ordered.Add(child);
+        }
+        foreach(var field in fields)if(consumed.Add(field.Key))ordered.Add(field);
+        return ordered;
+    }
     private Border BuildGroupCard(EditorGroup group,Dictionary<string,FrameworkElement> controls,bool editor)
     {
-        var grid=BuildFieldsGrid(group.Fields,controls,editor);
+        var fields=group.Fields;
+        var master=OptionDependencies.FirstOrDefault(p=>fields.Any(f=>f.Key==p.Parent)
+            &&p.Related.Any(k=>fields.Any(f=>f.Key==k)));
+        FrameworkElement content;
+        if(!editor&&master.Parent is "CHK_StrongStat" or "CHK_BetterMovesets" or "CHK_SmartHeldItems")
+        {
+            var first=fields.First(f=>f.Key==master.Parent);
+            var dependents=fields.Where(f=>master.Related.Contains(f.Key)).ToArray();
+            var unrelated=fields.Where(f=>f.Key!=master.Parent&&!master.Related.Contains(f.Key)).ToArray();
+            var stack=new StackPanel();
+            stack.Children.Add(BuildFieldsGrid([first],controls,false));
+            var sub=BuildFieldsGrid(dependents,controls,false);
+            stack.Children.Add(sub);
+            if(unrelated.Length>0)stack.Children.Add(BuildFieldsGrid(unrelated,controls,false));
+            if(controls[master.Parent] is CheckBox check)
+            {
+                void Toggle(object sender,RoutedEventArgs e)=>sub.Visibility=check.IsChecked==true
+                    ?Visibility.Visible:Visibility.Collapsed;
+                check.Checked+=Toggle;check.Unchecked+=Toggle;
+                sub.Visibility=check.IsChecked==true?Visibility.Visible:Visibility.Collapsed;
+            }
+            content=stack;
+        }
+        else content=BuildFieldsGrid(fields,controls,editor);
         var expand=new Expander {Header=group.Name,IsExpanded=group.Expanded,
-            Foreground=(Brush)FindResource("TextMain"),Content=grid};
+            Foreground=(Brush)FindResource("TextMain"),Content=content};
         if(editor)foreach(var field in group.Fields)_editorSections[field.Key]=expand;
         return GroupBorder(expand);
     }
@@ -246,7 +323,7 @@ public partial class RecordEditorView : UserControl
         Dictionary<string,FrameworkElement> controls,bool editor)
     {
         var grid=new UniformGrid {Columns=2,Margin=new Thickness(0,12,0,0)};
-        foreach(var field in fields)
+        foreach(var field in editor?fields:SortedOptions(fields))
         {
             var cell=new StackPanel {Margin=new Thickness(0,0,12,15)};
             bool isCheck=field.Choices is null&&field.Min==0&&field.Max==1;
@@ -279,6 +356,16 @@ public partial class RecordEditorView : UserControl
                 AddTrainerAiBits(cell,ai);
             grid.Children.Add(cell);
         }
+        if(!editor)
+            foreach(var (parent,related) in OptionDependencies)
+                if(controls.TryGetValue(parent,out var toggle)&&toggle is CheckBox check)
+                    foreach(var child in related)
+                        if(controls.TryGetValue(child,out var dependent))
+                        {
+                            dependent.IsEnabled=check.IsChecked==true;
+                            check.Checked+=(_,_)=>dependent.IsEnabled=true;
+                            check.Unchecked+=(_,_)=>dependent.IsEnabled=false;
+                        }
         return grid;
     }
     private void AddTrainerAiBits(StackPanel cell,TextBox value)
