@@ -157,7 +157,8 @@ public partial class MainWindow : Window
         if(!ConfirmDiscard()||!ConfirmAuxiliaryLeave())return;
         if(HasUnsavedChanges()&&_previous is not null)ShowEntry(_previous);
         UiProgress.Begin("Cargando "+section+"…");
-        await Dispatcher.InvokeAsync(()=>{},System.Windows.Threading.DispatcherPriority.Background);
+        if(!StudioDialog.AutomatedChecks)
+            await Dispatcher.InvokeAsync(()=>{},System.Windows.Threading.DispatcherPriority.Background);
         try
         {
             UserControl view=section switch
