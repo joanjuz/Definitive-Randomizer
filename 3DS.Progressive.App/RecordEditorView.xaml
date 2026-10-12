@@ -48,6 +48,10 @@
    <Border Grid.Column="2" Background="{StaticResource Panel}" BorderBrush="{StaticResource Stroke}" BorderThickness="1,0,0,0" Padding="18,22">
     <StackPanel><TextBlock Text="INSPECTOR" Foreground="{StaticResource TextSoft}" FontSize="11" Margin="0,0,0,12"/>
      <Button x:Name="RandomizerButton" Content="Randomizar" Click="Randomizer_Click" Margin="0,0,0,10"/>
+     <Button x:Name="TrainerCapsButton" Content="Tabla de Level Caps" Visibility="Collapsed"
+             Click="TrainerCaps_Click" Margin="0,0,0,8"/>
+     <Button x:Name="TrainerMovesButton" Content="Tabla de Trainer Move Rules" Visibility="Collapsed"
+             Click="TrainerMoves_Click" Margin="0,0,0,10"/>
      <Button x:Name="TemplateButton" Content="Template de evoluciones" Visibility="Collapsed" Click="Template_Click" Margin="0,0,0,10"/>
      <Button x:Name="ImportOptionsButton" Content="Cargar template de entrenadores" Visibility="Collapsed" Click="ImportOptions_Click" Margin="0,0,0,10"/>
      <Button x:Name="ExportOptionsButton" Content="Exportar template de entrenadores" Visibility="Collapsed" Click="ExportOptions_Click" Margin="0,0,0,10"/>
