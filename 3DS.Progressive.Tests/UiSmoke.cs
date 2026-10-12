@@ -300,6 +300,7 @@ internal static class UiSmoke
             var hub=((ContentControl)main.FindName("SectionHost")).Content as SystemsView;
             if(fixture.Game.USUM&&hub is not null)
             {
+                Layout(hub,1150,720);
                 Walk(hub).OfType<Button>().First(x=>Equals(x.Content,"Abrir Player Level Caps"))
                     .RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
                 check(((ContentControl)main.FindName("SectionHost")).Content is PlayerLevelCapsView,
