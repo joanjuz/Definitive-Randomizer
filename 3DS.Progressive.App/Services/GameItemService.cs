@@ -94,6 +94,45 @@ public sealed class GameItemService : ArchiveProjectEditor
         if(written.Length!=original.Length)throw new InvalidDataException("La longitud del objeto no coincide. No se guardó.");
         records["item"][id]=written;
     }
+    public IReadOnlyList<ItemPriceRow> PriceRows()
+    {
+        var records=Records();
+        return Entries.Select(entry=>
+        {
+            int current=new Item(records["item"][entry.Id]).BuyPrice;
+            int target=Config.Generation==7?GameEconomyDefaults.TargetPrice(entry.Id)??current:current;
+            return new ItemPriceRow
+            {
+                Id=entry.Id,Name=entry.Name,CurrentBuy=current,TargetBuy=target,
+                Included=Config.Generation==7&&GameEconomyDefaults.TargetPrice(entry.Id).HasValue,
+                Source=Config.Generation==7&&GameEconomyDefaults.TargetPrice(entry.Id).HasValue
+                    ?GameEconomyDefaults.Source(entry.Id):"Actual"
+            };
+        }).ToArray();
+    }
+    public EditorProposal PreviewEconomy(IReadOnlyList<ItemPriceRow> rows)
+    {
+        var records=Records();var changes=new List<BatchChange>();
+        if(rows.Select(r=>r.Id).Distinct().Count()!=rows.Count)
+            throw new ArgumentException("La tabla contiene elementos duplicados.");
+        foreach(var row in rows.Where(r=>r.Included))
+        {
+            if(!Entries.Any(e=>e.Id==row.Id))
+                throw new ArgumentException($"Objeto #{row.Id} desconocido.");
+            if(row.TargetBuy<0||row.TargetBuy>655350||row.TargetBuy%10!=0)
+                throw new ArgumentException($"Precio inválido de {row.Name}. Debe ser múltiplo de 10.");
+            var before=ReadRecord(row.Id,records);
+            var values=EditorValues.Flatten(before);
+            values["Price"]=row.TargetBuy;
+            EditorValues.Validate(before,values);
+            WriteRecord(row.Id,values,records);
+            changes.AddRange(EditorValues.Diff(row.Id,row.Name,before,ReadRecord(row.Id,records)));
+        }
+        return new EditorProposal(ProposalOwner,"Aplicar economía",0,Build(records),changes,
+            new Dictionary<string,string>{{"Scope",string.Join(",",rows.Where(r=>r.Included).Select(r=>r.Id))},
+                {"Preset","UPR-ZX Gen7 + Progressive"}});
+    }
+
     protected override Dictionary<string,int> Randomize(int id,IReadOnlyDictionary<string,int> options,
         Dictionary<string,byte[][]> records,Random random)
     {
@@ -102,4 +141,18 @@ public sealed class GameItemService : ArchiveProjectEditor
             values["Price"]=Math.Clamp((int)Math.Round(values["Price"]*options["PriceScale"]/100.0/10)*10,0,655350);
         return values;
     }
+}
+
+public sealed class ItemPriceRow : System.ComponentModel.INotifyPropertyChanged
+{
+    public int Id {get;init;}
+    public string Name {get;init;}="";
+    public int CurrentBuy {get;init;}
+    public string Source {get;init;}="";
+    private int _targetBuy;
+    public int TargetBuy{get=>_targetBuy;set{_targetBuy=value;PropertyChanged?.Invoke(this,new(nameof(TargetBuy)));PropertyChanged?.Invoke(this,new(nameof(TargetSell)));}}
+    public int TargetSell=>TargetBuy/2;
+    private bool _included;
+    public bool Included{get=>_included;set{_included=value;PropertyChanged?.Invoke(this,new(nameof(Included)));}}
+    public event System.ComponentModel.PropertyChangedEventHandler? PropertyChanged;
 }
