@@ -9,6 +9,7 @@ using ThreeDS.Progressive.Services;
 using Brush = System.Windows.Media.Brush;
 using Button = System.Windows.Controls.Button;
 using ComboBox = System.Windows.Controls.ComboBox;
+using CheckBox = System.Windows.Controls.CheckBox;
 using DataGrid = System.Windows.Controls.DataGrid;
 using ListBox = System.Windows.Controls.ListBox;
 using Panel = System.Windows.Controls.Panel;
@@ -33,6 +34,8 @@ internal sealed class MartEditorView : UserControl
     private readonly TextBlock _status;
     private readonly Button _apply;
     private readonly Button _add, _delete, _freeMega;
+    private readonly CheckBox _specialOnly = new() { Content = "Solo tiendas especiales", Margin = new Thickness(0, 5, 16, 10) };
+    private readonly CheckBox _protectX = new() { Content = "Conservar objetos X", IsChecked = true, Margin = new Thickness(0, 5, 16, 10) };
     private readonly TabControl _tabs = new();
     private readonly IReadOnlyList<MoveChoice> _items;
     private bool _dirty, _loading;
@@ -67,6 +70,13 @@ internal sealed class MartEditorView : UserControl
         _add = Add(actions, "+ Añadir ranura", AddSlot);
         _delete = Add(actions, "− Eliminar ranura", DeleteSlot);
         _freeMega = Add(actions, "Megapiedras gratis (0 BP)", FreeMega);
+        Add(actions, "Randomizar tiendas", () => Preset(() => _service.RandomizeShops(false,
+            _specialOnly.IsChecked == true, _protectX.IsChecked == true), "Randomización tiendas"));
+        Add(actions, "Randomizar BP", () => Preset(() => _service.RandomizeShops(true), "Randomización BP"));
+        Add(actions, "+ Caramelos raros", () => Preset(_service.AddRareCandies, "Caramelos raros"));
+        Add(actions, "+ Vitaminas · 252 EV", () => Preset(_service.AddVitamins252, "Vitaminas 252 EV"));
+        Add(actions, "Prohibir Cápsula Habilidad", () => Preset(_service.BanAbilityCapsule, "Cápsula Habilidad"));
+        heading.Children.Add(new WrapPanel { Children = { _specialOnly, _protectX } });
         Add(actions, "Generar vista previa", Preview);
         _apply = Add(actions, "Aplicar y verificar", Apply);
         _apply.IsEnabled = false;
@@ -295,6 +305,19 @@ internal sealed class MartEditorView : UserControl
         _service.FreeMegaStoneBP();
         Dirty();
     }
+    private void Preset(Func<int> action, string name)
+    {
+        CommitBoth();
+        try
+        {
+            int count = action();
+            Dirty();
+            _regularGrid.Items.Refresh();
+            _bpGrid.Items.Refresh();
+            _status.Text = $"{name}: {count} cambios preparados. Revisá las tablas y generá la vista previa antes de guardar.";
+        }
+        catch (Exception ex) { StudioDialog.Error(Window.GetWindow(this), name, ex.Message); }
+    }
     private void Preview()
     {
         CommitBoth();
@@ -306,6 +329,7 @@ internal sealed class MartEditorView : UserControl
             _apply.IsEnabled = _pending.Changes.Count > 0;
             _status.Text = $"{_pending.Changes.Count} diferencias; tamaño Shop.cro " +
                 $"{_pending.Rebuild.OriginalFileSize:N0} → {_pending.Rebuild.FinalFileSize:N0} bytes. " +
+                (_pending.ItemOutput is null ? "" : "Incluye GARC de objetos (precios y flags EV). ") +
                 (_pending.Changes.Count > 150 ? "Se muestran las primeras 150. " : "") +
                 "La ROM original sigue intacta.";
         }
