@@ -40,10 +40,11 @@ public sealed class GameTrainerService : ArchiveProjectEditor,IOptionTemplatePro
         var records=Records();var dependencies=new List<(string Path,byte[] Fingerprint)>();
         foreach(string name in new[]{"personal","move","levelup","evolution","eggmove","encounterstatic"})
         {
-            string path=Path.Combine(Config.RomFS,Config.GetGARCReference(name).Reference);
+            var reference=Config.GetGARCReference(name);if(reference is null)continue;
+            string path=Path.Combine(Config.RomFS,reference.Reference);
             if(File.Exists(path))dependencies.Add((path,System.Security.Cryptography.SHA256.HashData(File.ReadAllBytes(path))));
         }
-        foreach(string path in Directory.EnumerateFiles(Config.ExeFS).Where(p=>Path.GetFileNameWithoutExtension(p).Contains("code")))
+        foreach(string path in (Directory.Exists(Config.ExeFS)?Directory.EnumerateFiles(Config.ExeFS):[]).Where(p=>Path.GetFileNameWithoutExtension(p).Contains("code")))
             dependencies.Add((path,System.Security.Cryptography.SHA256.HashData(File.ReadAllBytes(path))));
         Config.InitializePersonal();Config.InitializeMoves();Config.InitializeLearnset();Config.InitializeEvos();
         int seed=System.Security.Cryptography.RandomNumberGenerator.GetInt32(int.MaxValue);
