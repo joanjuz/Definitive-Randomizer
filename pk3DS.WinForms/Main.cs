@@ -197,7 +197,7 @@ public sealed partial class Main : Form
         }
     }
 
-    private async Task ShowBatchRomBuilder()
+    private async Task ShowBatchRomBuilder(BatchRomBuildOptions externalOptions = null)
     {
         if (Config is null || string.IsNullOrWhiteSpace(RomFSPath) || string.IsNullOrWhiteSpace(ExeFSPath) || string.IsNullOrWhiteSpace(ExHeaderPath))
         {
@@ -226,14 +226,17 @@ public sealed partial class Main : Form
         string defaultOutput = Path.Combine(sourceParent, Path.GetFileName(originalRoot) + "_BatchROMs");
         Directory.CreateDirectory(GlobalRandomizationTemplateFile.TemplateDirectory);
 
-        using var dialog = new BatchRomBuilderDialog(
-            GlobalRandomizationTemplateFile.TemplateDirectory,
-            CurrentGlobalTemplateGame,
-            defaultOutput);
-        if (dialog.ShowDialog(this) != DialogResult.OK)
-            return;
-
-        BatchRomBuildOptions options = dialog.Options;
+        BatchRomBuildOptions options;
+        if (externalOptions is null)
+        {
+            using var dialog = new BatchRomBuilderDialog(
+                GlobalRandomizationTemplateFile.TemplateDirectory,
+                CurrentGlobalTemplateGame,
+                defaultOutput);
+            if (dialog.ShowDialog(this) != DialogResult.OK)return;
+            options=dialog.Options;
+        }
+        else options=externalOptions;
         if (IsSameOrChildPath(options.OutputDirectory, originalRoot))
         {
             WinFormsUtil.Alert(
@@ -289,6 +292,9 @@ public sealed partial class Main : Form
 
         if (dependencyWarnings.Count != 0)
         {
+            if (externalOptions is not null)
+                throw new InvalidDataException("Los assets difieren; no se permite replay automático: "+
+                    string.Join(" | ",dependencyWarnings));
             string warningText = string.Join(Environment.NewLine, dependencyWarnings.Select(z => "- " + z));
             if (WinFormsUtil.Prompt(
                     MessageBoxButtons.YesNo,
@@ -298,6 +304,8 @@ public sealed partial class Main : Form
                 return;
         }
 
+        if (template.ActionCoverageVersion < 2 && externalOptions is not null)
+            throw new InvalidDataException("ActionCoverageVersion insuficiente para batch.");
         if (template.ActionCoverageVersion < 2 &&
             WinFormsUtil.Prompt(
                 MessageBoxButtons.YesNo,
@@ -309,7 +317,7 @@ public sealed partial class Main : Form
         }
 
         string buildKind = options.Trimmed ? "Trimmed .3DS" : "Full .3DS";
-        if (WinFormsUtil.Prompt(
+        if (externalOptions is null && WinFormsUtil.Prompt(
                 MessageBoxButtons.YesNo,
                 $"Build {options.Count} randomized ROM(s)?",
                 $"Template: {Path.GetFileName(options.TemplatePath)}",
@@ -343,7 +351,7 @@ public sealed partial class Main : Form
         bool cancelled = false;
 
         using var progressDialog = new BatchRomProgressDialog(options.Count, pBar1);
-        progressDialog.Show(this);
+        if (externalOptions is null)progressDialog.Show(this);
         progressDialog.SetStage("Starting batch...");
         Application.DoEvents();
 
@@ -497,7 +505,7 @@ public sealed partial class Main : Form
                 log.Add($"Cancelled by user after {completed}/{options.Count} ROM(s): {DateTime.Now:yyyy-MM-dd HH:mm:ss}");
                 File.WriteAllLines(logPath, log, Encoding.UTF8);
                 progressDialog.MarkCancelled(completed, options.Count);
-                WinFormsUtil.Alert(
+                if(externalOptions is null)WinFormsUtil.Alert(
                     "Batch ROM build cancelled.",
                     $"Completed ROMs kept: {completed}/{options.Count}.",
                     $"Output folder: {options.OutputDirectory}",
@@ -508,7 +516,7 @@ public sealed partial class Main : Form
                 log.Add($"Completed: {DateTime.Now:yyyy-MM-dd HH:mm:ss}");
                 File.WriteAllLines(logPath, log, Encoding.UTF8);
                 progressDialog.MarkCompleted(completed);
-                WinFormsUtil.Alert(
+                if(externalOptions is null)WinFormsUtil.Alert(
                     "Batch ROM build complete!",
                     $"Created {completed} ROM(s).",
                     $"Output folder: {options.OutputDirectory}",
@@ -522,6 +530,7 @@ public sealed partial class Main : Form
             try { File.WriteAllLines(logPath, log, Encoding.UTF8); } catch { }
             progressDialog.MarkCancelled(completed, options.Count);
 
+            if(externalOptions is not null)throw;
             WinFormsUtil.Alert(
                 "Batch ROM build cancelled.",
                 $"Completed ROMs kept: {completed}/{options.Count}.",
@@ -534,6 +543,7 @@ public sealed partial class Main : Form
             try { File.WriteAllLines(logPath, log, Encoding.UTF8); } catch { }
             progressDialog.MarkFailed(ex.Message);
 
+            if(externalOptions is not null)throw;
             WinFormsUtil.Alert(
                 "Batch ROM Builder stopped because an error occurred.",
                 ex.Message,
