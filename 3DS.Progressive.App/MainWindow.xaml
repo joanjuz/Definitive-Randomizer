@@ -31,7 +31,7 @@
         <Grid.RowDefinitions>
             <RowDefinition Height="73"/>
             <RowDefinition Height="*"/>
-            <RowDefinition Height="51"/>
+            <RowDefinition Height="69"/>
         </Grid.RowDefinitions>
 
         <!-- Cabecera permanente -->
@@ -531,9 +531,19 @@
                              Minimum="0" Maximum="100" Value="0"
                              Visibility="Collapsed" Foreground="{StaticResource Accent}"
                              Background="{StaticResource Surface}" VerticalAlignment="Center"/>
-                <TextBlock x:Name="StatusText" Text="Esperando proyecto extraído..."
-                           Foreground="{StaticResource TextSoft}" TextTrimming="CharacterEllipsis"
-                           VerticalAlignment="Center" FontSize="11"/>
+                <TextBlock x:Name="OperationElapsedText" DockPanel.Dock="Right"
+                           Foreground="{StaticResource TextSoft}" FontSize="11"
+                           VerticalAlignment="Center" Margin="8,0,10,0"
+                           Visibility="Collapsed" Text="00:00"/>
+                <StackPanel VerticalAlignment="Center">
+                    <TextBlock x:Name="StatusText" Text="Esperando proyecto extraído..."
+                               Foreground="{StaticResource TextSoft}" TextTrimming="CharacterEllipsis"
+                               FontSize="11" FontWeight="SemiBold"/>
+                    <TextBlock x:Name="OperationStageText" Text=""
+                               Foreground="{StaticResource Accent}" FontSize="11"
+                               TextTrimming="CharacterEllipsis" Visibility="Collapsed"
+                               Margin="0,4,0,0"/>
+                </StackPanel>
             </DockPanel>
         </Border>
     </Grid>
