@@ -81,12 +81,41 @@ el historial mediante EditorProposal, sin escribir durante la preparación.
 - Las funciones heredadas de encuentros siguen pasando por fingerprint,
   vista previa, historial y relectura del GARC LZ11.
 
+## Progressive Wild — inspección completa de filas y fidelidad SOS
+
+El inspector de encuentros WPF ahora presenta un selector explícito para las
+**9 filas Gen7** (normal, SOS 1–7, clima) y muestra sprites de las especies y
+formas de la fila elegida. En la misma pantalla aparece su tabla de día/noche
+emparejada, con navegación a los campos de edición de la otra franja horaria.
+La selección inicial sigue siendo «Normales» para preservar hábitos anteriores.
+
+Comparación de código contra `EncounterTable.CopySlotsToSOS`,
+`Wild7Randomizer` y `ProgressiveWildRandomizer`:
+
+- **Normal → SOS**: copia diez especies/formas a cada una de las siete filas
+  ordinarias, incluso a espacios previamente vacíos; la fila de clima no cambia.
+- **Todos pueden pedir aliados**: rellena únicamente los espacios ordinarios SOS
+  vacíos cuyo encuentro normal está ocupado, mediante especies nuevas del pool
+  permitido. Nunca sobrescribe aliados existentes ni coloca Pokémon nuevos en
+  clima por esta opción.
+- **Probabilidades**: el editor rechaza guardados con suma diferente de 0%
+  o 100%, al igual que SMWE original.
+- **Exportar reporte de encuentros**: volcado legible de cada área/tabla,
+  niveles, probabilidades, especies, formas y todas las filas normales/SOS/clima
+  en TXT UTF-8 sin modificar archivos del proyecto.
+
+Pruebas automatizadas: salida por grupo (10 normales o 6 meteorológicos),
+vista día/noche emparejada, copia de slots previamente vacíos, aliados
+independientes, preservación de clima, tasa inválida rechazada e informe completo.
+**Aún falta** confirmar estas opciones in-game para SM, US, UM y combinaciones
+progresivas con tablas inaccesibles.
+
 ## Pendiente para cerrar Progressive Wild
 
 1. Validar Copy/Paste de tabla y área, ahora implementado, contra SMWE
    en ROMs reales y con tablas de tamaños/slots heterogéneos.
-2. Grillas con sprites y filas día/noche/SOS/clima plenamente comparables
-   al editor SMWE original; filtros y previsualización visual completa.
+2. Inspector de 9 filas con sprites y día/noche implementado; ajustar ergonomía
+   de edición masiva, filtros y comparaciones visuales con SMWE original.
 3. Comparación control por control de filtros, reglas y defaults de Wild7Randomizer
    y ProgressiveWildRandomizer; evitar diferencias en tablas vacías e inaccesibles.
 4. Importación/exportación de tablas de encuentro y reportes con fidelidad.
