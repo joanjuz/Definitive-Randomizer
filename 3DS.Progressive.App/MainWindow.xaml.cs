@@ -29,6 +29,7 @@ public partial class MainWindow : Window
     private MoveEditorView? _movesView;
     private bool _showingMoves;
     private RecordEditorView? _recordView;
+    private MachineTutorView? _machineTutorView;
     private readonly Dictionary<string,RecordEditorView.UiState> _sectionOptions=[];
     private bool _backupRunning;
     private IReadOnlyList<MoveChoice> _itemOptions = [];
@@ -119,6 +120,7 @@ public partial class MainWindow : Window
     private bool ConfirmAuxiliaryLeave()
     {
         if(_recordView is not null&&!_recordView.ConfirmLeave())return false;
+        if(_machineTutorView is not null&&!_machineTutorView.ConfirmLeave())return false;
         if(_recordView is not null)_sectionOptions[_recordView.Editor.Title]=_recordView.RememberOptions();
         if(_showingMoves&&_movesView is not null)
         {
@@ -141,14 +143,15 @@ public partial class MainWindow : Window
                 "Trainers"=>CreateEditor(new GameTrainerService(_session)),
                 "Encounters"=>CreateEditor(new GameEncounterService(_session)),
                 "StaticEncounters"=>CreateEditor(new GameStaticEncounterService(_session)),
+                "MachineTutor"=>_machineTutorView=new MachineTutorView(_session),
                 "Evolutions"=>CreateEditor(new GameEvolutionService(_session)),
                 "History"=>new HistoryView(_session.History),
                 _=>throw new ArgumentException("Sección desconocida.")
             };
-            _recordView=view as RecordEditorView;SectionHost.Content=view;
+            _recordView=view as RecordEditorView; if(section!="MachineTutor")_machineTutorView=null;SectionHost.Content=view;
             PokemonListPanel.Visibility=PokemonEditorPanel.Visibility=PersonalToolsPanel.Visibility=PokemonInspectorPanel.Visibility=MovesHost.Visibility=Visibility.Collapsed;
             _personalTools.InvalidatePreview();SectionHost.Visibility=Visibility.Visible;_showingMoves=false;
-            PokemonNavButton.Background=MovesButton.Background=TrainersButton.Background=EncountersButton.Background=StaticEncountersButton.Background=EvolutionsButton.Background=HistoryButton.Background=Brushes.Transparent;
+            PokemonNavButton.Background=MovesButton.Background=TrainersButton.Background=EncountersButton.Background=StaticEncountersButton.Background=MachineTutorButton.Background=EvolutionsButton.Background=HistoryButton.Background=Brushes.Transparent;
             ((Button)sender).Background=new SolidColorBrush((Color)ColorConverter.ConvertFromString("#2B4059")!);
             StatusText.Text=section=="History"?"Historial persistente de cambios confirmados.":"Editor integrado · guardar registra los cambios en el historial.";
         }
@@ -179,7 +182,7 @@ public partial class MainWindow : Window
     {
         _session = candidate;
         _sectionOptions.Clear();
-        _recordView=null;SectionHost.Content=null;
+        _recordView=null;_machineTutorView=null;SectionHost.Content=null;
         _movesView = null;
         MovesHost.Content = null;
         DisplayPokemon();
@@ -231,6 +234,7 @@ public partial class MainWindow : Window
         MovesButton.IsEnabled = true;
         TrainersButton.IsEnabled = EncountersButton.IsEnabled = EvolutionsButton.IsEnabled = HistoryButton.IsEnabled = BackupButton.IsEnabled = true;
         StaticEncountersButton.IsEnabled=candidate.Generation==7;
+        MachineTutorButton.IsEnabled=candidate.Generation==7;
         ConfigurePersonalTools(candidate);
         PokemonList.SelectedIndex = 0;
         StatusText.Text = "Proyecto abierto en modo lectura. Guardar requiere confirmación.";
