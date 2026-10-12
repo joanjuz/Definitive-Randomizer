@@ -4,6 +4,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Data;
 using System.Windows.Media;
+using System.Windows.Controls.Primitives;
 using ThreeDS.Progressive.Models;
 using ThreeDS.Progressive.Services;
 using Brush=System.Windows.Media.Brush;
@@ -27,6 +28,9 @@ internal sealed class LevelUpView : UserControl
     private readonly GameLevelUpService _service;
     private ObservableCollection<LevelUpMoveEntry> _rows=[];
     private readonly DataGrid _grid;
+    private readonly UniformGrid _compact=new() {Columns=3};
+    private LevelUpMoveEntry? _selectedMove;
+    private int _compactColumns=3;
     private readonly ListBox _species;
     private readonly TextBox _search;
     private readonly Button _save;
@@ -113,9 +117,49 @@ internal sealed class LevelUpView : UserControl
             Width=new DataGridLength(1,DataGridLengthUnitType.Star),MinWidth=220
         });
         _grid.CellEditEnding+=(_,_)=>Dirty();
-        right.Children.Add(_grid);
+        // Dense multi-column cards replace the long one-record-per-full-width table.
+        // The original grid remains a binding source for the row-edit commands.
+        var compactScroll=new ScrollViewer {VerticalScrollBarVisibility=ScrollBarVisibility.Auto,
+            HorizontalScrollBarVisibility=ScrollBarVisibility.Disabled,Content=_compact};
+        right.Children.Add(compactScroll);
+        right.SizeChanged+=(_,_)=>
+        {
+            int columns=Math.Clamp((int)(right.ActualWidth/295),1,4);
+            if(columns!=_compactColumns){_compactColumns=columns;_compact.Columns=columns;}
+        };
         _loading=true;_species.SelectedIndex=0;_loading=false;
         if(_species.SelectedItem is PokemonListEntry p)Load(p.Index);
+    }
+    private void RebuildCards()
+    {
+        _compact.Children.Clear();
+        foreach(var row in _rows)
+        {
+            var border=new Border {Margin=new Thickness(0,0,9,9),Padding=new Thickness(9,7,9,7),
+                CornerRadius=new CornerRadius(7),BorderThickness=new Thickness(1),
+                BorderBrush=(Brush)FindResource("Stroke"),Background=(Brush)FindResource("Panel")};
+            void Select()
+            {
+                _selectedMove=row;
+                foreach(Border card in _compact.Children)card.BorderBrush=(Brush)FindResource("Stroke");
+                border.BorderBrush=(Brush)FindResource("Accent");
+            }
+            border.MouseLeftButtonDown+=(_,_)=>Select();
+            var slot=new Grid();
+            slot.ColumnDefinitions.Add(new ColumnDefinition {Width=new GridLength(58)});
+            slot.ColumnDefinitions.Add(new ColumnDefinition {Width=new GridLength(1,GridUnitType.Star)});
+            var level=new TextBox {Text=row.Level.ToString(),MinHeight=31,Margin=new Thickness(0,0,8,0),
+                ToolTip="Nivel al que se aprende el movimiento"};
+            level.LostFocus+=(_,_)=>{if(int.TryParse(level.Text,out int n)&&n is >=1 and <=100)
+            {if(row.Level!=n){row.Level=n;Dirty();}}else level.Text=row.Level.ToString();};
+            var moves=new ComboBox {ItemsSource=_service.Moves,DisplayMemberPath="Display",
+                SelectedValuePath="Id",SelectedValue=row.Move,MinHeight=31,FontSize=11};
+            moves.SelectionChanged+=(_,_)=>{if(moves.SelectedValue is int move&&row.Move!=move)
+            {row.Move=move;Dirty();}};
+            Grid.SetColumn(moves,1);slot.Children.Add(level);slot.Children.Add(moves);
+            border.Child=slot;
+            _compact.Children.Add(border);
+        }
     }
     private void Filter()
     {
@@ -139,7 +183,7 @@ internal sealed class LevelUpView : UserControl
     {
         _current=id;
         _rows=new ObservableCollection<LevelUpMoveEntry>(_service.Read(id));
-        _grid.ItemsSource=_rows;_dirty=false;_save.IsEnabled=false;
+        _grid.ItemsSource=_rows;RebuildCards();_dirty=false;_save.IsEnabled=false;
         _status.Text=$"Especie #{id:000} · {_rows.Count} movimientos de nivel.";
     }
     private void Commit()
@@ -150,12 +194,12 @@ internal sealed class LevelUpView : UserControl
     private void Add()
     {
         Commit();if(_rows.Count>=100)return;
-        int level=_grid.SelectedItem is LevelUpMoveEntry r?r.Level:1;
-        var row=new LevelUpMoveEntry {Level=level,Move=1};_rows.Add(row);_grid.SelectedItem=row;Dirty();
+        int level=_selectedMove?.Level??1;
+        var row=new LevelUpMoveEntry {Level=level,Move=1};_rows.Add(row);_selectedMove=row;RebuildCards();Dirty();
     }
     private void Remove()
     {
-        Commit();if(_grid.SelectedItem is LevelUpMoveEntry r){_rows.Remove(r);Dirty();}
+        Commit();var r=_selectedMove??_rows.LastOrDefault();if(r is not null){_rows.Remove(r);_selectedMove=null;RebuildCards();Dirty();}
     }
     private void Randomize()
     {
@@ -166,7 +210,7 @@ internal sealed class LevelUpView : UserControl
         if(valid.Length==0)return;
         var rng=new Random(System.Security.Cryptography.RandomNumberGenerator.GetInt32(int.MaxValue));
         foreach(var row in _rows)row.Move=valid[rng.Next(valid.Length)];
-        _grid.Items.Refresh();Dirty();
+        _grid.Items.Refresh();RebuildCards();Dirty();
     }
     private void Save()
     {
