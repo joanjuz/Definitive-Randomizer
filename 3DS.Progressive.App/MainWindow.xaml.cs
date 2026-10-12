@@ -42,6 +42,7 @@ public partial class MainWindow : Window
     private GlobalTemplateView? _globalTemplateView;
     private BatchRomBuilderView? _batchRomView;
     private GameTextView? _gameTextView;
+    private GameTextView? _storyTextView;
     private readonly Dictionary<string,RecordEditorView.UiState> _sectionOptions=[];
     private readonly System.Windows.Threading.DispatcherTimer _operationTimer=new()
         {Interval=TimeSpan.FromSeconds(1)};
@@ -215,6 +216,7 @@ public partial class MainWindow : Window
         if(_martView is not null&&!_martView.ConfirmLeave())return false;
         if(_levelUpView is not null&&!_levelUpView.ConfirmLeave())return false;
         if(_gameTextView is not null&&!_gameTextView.ConfirmLeave())return false;
+        if(_storyTextView is not null&&!_storyTextView.ConfirmLeave())return false;
         if(_playerCapsView is not null&&!_playerCapsView.ConfirmLeave())return false;
         if(_croRecipesView is not null&&!_croRecipesView.ConfirmLeave())return false;
         if(_relearnerView is not null&&!_relearnerView.ConfirmLeave())return false;
@@ -252,6 +254,7 @@ public partial class MainWindow : Window
                 "Marts"=>_martView=new MartEditorView(_session),
                 "FieldItems"=>CreateEditor(new GameFieldItemsService(_session)),
                 "GameText"=>_gameTextView=new GameTextView(_session),
+                "StoryText"=>_storyTextView=new GameTextView(_session,story:true),
                 "Evolutions"=>CreateEditor(new GameEvolutionService(_session)),
                 "EggMoves"=>CreateEditor(new GameEggMoveService(_session)),
                 "MegaEvolutions"=>CreateEditor(new GameMegaEvolutionService(_session)),
@@ -279,10 +282,10 @@ public partial class MainWindow : Window
                 "History"=>new HistoryView(_session.History),
                 _=>throw new ArgumentException("Sección desconocida.")
             };
-            _recordView=view as RecordEditorView;_playerCapsView=null;if(section!="CroRecipes")_croRecipesView=null;if(section!="UsumRelearner")_relearnerView=null;if(section!="TypeChart")_typeChartView=null;if(section!="ShinyRate")_shinyRateView=null;if(section!="Rebuild")_romRebuildView=null; if(section!="MachineTutor")_machineTutorView=null; if(section!="Marts")_martView=null; if(section!="LevelUp")_levelUpView=null; if(section!="GameText")_gameTextView=null;SectionHost.Content=view;
+            _recordView=view as RecordEditorView;_playerCapsView=null;if(section!="CroRecipes")_croRecipesView=null;if(section!="UsumRelearner")_relearnerView=null;if(section!="TypeChart")_typeChartView=null;if(section!="ShinyRate")_shinyRateView=null;if(section!="Rebuild")_romRebuildView=null; if(section!="MachineTutor")_machineTutorView=null; if(section!="Marts")_martView=null; if(section!="LevelUp")_levelUpView=null; if(section!="GameText")_gameTextView=null;if(section!="StoryText")_storyTextView=null;SectionHost.Content=view;
             PokemonListPanel.Visibility=PokemonEditorPanel.Visibility=PersonalToolsPanel.Visibility=PokemonInspectorPanel.Visibility=MovesHost.Visibility=Visibility.Collapsed;
             _personalTools.InvalidatePreview();SectionHost.Visibility=Visibility.Visible;_showingMoves=false;
-            PokemonNavButton.Background=MovesButton.Background=TrainersButton.Background=EncountersButton.Background=StaticEncountersButton.Background=MachineTutorButton.Background=LevelUpButton.Background=ItemsButton.Background=MartsButton.Background=FieldItemsButton.Background=GameTextButton.Background=EvolutionsButton.Background=HistoryButton.Background=GlobalTemplateButton.Background=BatchRomButton.Background=PokemonToolsButton.Background=MechanicsButton.Background=RomToolsButton.Background=AutomationButton.Background=ConfigurationButton.Background=Brushes.Transparent;
+            PokemonNavButton.Background=MovesButton.Background=TrainersButton.Background=EncountersButton.Background=StaticEncountersButton.Background=MachineTutorButton.Background=LevelUpButton.Background=ItemsButton.Background=MartsButton.Background=FieldItemsButton.Background=GameTextButton.Background=StoryTextButton.Background=EvolutionsButton.Background=HistoryButton.Background=GlobalTemplateButton.Background=BatchRomButton.Background=PokemonToolsButton.Background=MechanicsButton.Background=RomToolsButton.Background=AutomationButton.Background=ConfigurationButton.Background=Brushes.Transparent;
             ((Button)sender).Background=new SolidColorBrush((Color)ColorConverter.ConvertFromString("#2B4059")!);
             StatusText.Text=section=="History"?"Historial persistente de cambios confirmados.":"Editor integrado · guardar registra los cambios en el historial.";
         }
@@ -302,7 +305,7 @@ public partial class MainWindow : Window
         {
             "Trainers"=>TrainersButton,"Encounters"=>EncountersButton,
             "StaticEncounters"=>StaticEncountersButton,"MachineTutor"=>MachineTutorButton,
-            "LevelUp"=>LevelUpButton,"Items"=>ItemsButton,"Marts"=>MartsButton,"GameText"=>GameTextButton,
+            "LevelUp"=>LevelUpButton,"Items"=>ItemsButton,"Marts"=>MartsButton,"GameText"=>GameTextButton,"StoryText"=>StoryTextButton,
             "History"=>HistoryButton,"PlayerCaps"=>MechanicsButton,
             "GlobalTemplate"=>GlobalTemplateButton,"BatchRom"=>BatchRomButton,
             _=>null
@@ -312,7 +315,7 @@ public partial class MainWindow : Window
             // The Player Caps editor is hosted as its own full-width view.
             if(!ConfirmDiscard()||!ConfirmAuxiliaryLeave())return;
             var view=_playerCapsView=new PlayerLevelCapsView(_session);
-            _recordView=null;_machineTutorView=null;_martView=null;_levelUpView=null;_gameTextView=null;
+            _recordView=null;_machineTutorView=null;_martView=null;_levelUpView=null;_gameTextView=null;_storyTextView=null;
             SectionHost.Content=view;
             PokemonListPanel.Visibility=PokemonEditorPanel.Visibility=PersonalToolsPanel.Visibility=
                 PokemonInspectorPanel.Visibility=MovesHost.Visibility=Visibility.Collapsed;
@@ -444,6 +447,13 @@ public partial class MainWindow : Window
         MartsButton.IsEnabled=candidate.GameConfiguration.USUM;
         FieldItemsButton.IsEnabled=candidate.Generation==7;
         GameTextButton.IsEnabled=true;
+        try
+        {
+            string storyPath=Path.Combine(candidate.GameConfiguration.RomFS,
+                candidate.GameConfiguration.GetGARCFileName("storytext"));
+            StoryTextButton.IsEnabled=File.Exists(storyPath);
+        }
+        catch { StoryTextButton.IsEnabled=false; }
         MechanicsButton.IsEnabled=PokemonToolsButton.IsEnabled=RomToolsButton.IsEnabled=AutomationButton.IsEnabled=ConfigurationButton.IsEnabled=true;
         GlobalTemplateButton.IsEnabled=BatchRomButton.IsEnabled=true;
         ConfigurePersonalTools(candidate);
