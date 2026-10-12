@@ -31,7 +31,28 @@
                    Foreground="{StaticResource TextSoft}" FontSize="11" FontWeight="SemiBold"/>
         <TextBlock Text="Seleccioná un sprite para editar el slot en su sección."
                    Foreground="{StaticResource TextSoft}" FontSize="11" Margin="0,4,0,10"/>
+        <StackPanel x:Name="WildPreviewControls" Visibility="Collapsed">
+         <ComboBox x:Name="EncounterGroupPicker" Margin="0,0,0,8"
+                   SelectionChanged="EncounterGroup_Changed">
+          <ComboBoxItem Content="Encuentros normales · 10 slots"/>
+          <ComboBoxItem Content="SOS 1 · 10 slots"/><ComboBoxItem Content="SOS 2 · 10 slots"/>
+          <ComboBoxItem Content="SOS 3 · 10 slots"/><ComboBoxItem Content="SOS 4 · 10 slots"/>
+          <ComboBoxItem Content="SOS 5 · 10 slots"/><ComboBoxItem Content="SOS 6 · 10 slots"/>
+          <ComboBoxItem Content="SOS 7 · 10 slots"/><ComboBoxItem Content="SOS por clima · 6 slots"/>
+         </ComboBox>
+         <TextBlock x:Name="EncounterGroupSummary" Foreground="{StaticResource TextSoft}"
+                    TextWrapping="Wrap" FontSize="11" Margin="0,0,0,8"/>
+        </StackPanel>
         <WrapPanel x:Name="EncounterSpriteCards"/>
+        <StackPanel x:Name="EncounterPairPreview" Visibility="Collapsed" Margin="0,12,0,0">
+          <Separator Margin="0,0,0,10" Background="{StaticResource Stroke}"/>
+          <TextBlock x:Name="EncounterPairTitle" Foreground="{StaticResource TextSoft}"
+                     FontWeight="SemiBold" FontSize="11" Margin="0,0,0,8"/>
+          <WrapPanel x:Name="EncounterPairCards"/>
+          <TextBlock Text="Los sprites de la otra franja horaria son de solo lectura. Elegí uno para abrir su tabla."
+                     TextWrapping="Wrap" FontSize="11" Foreground="{StaticResource TextSoft}"
+                     Margin="0,6,0,0"/>
+        </StackPanel>
        </StackPanel>
       </Border>
       <StackPanel x:Name="FieldsPanel"/>
