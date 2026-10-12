@@ -181,6 +181,18 @@ internal static class ModuleChecks
                 }
                 finally{if(File.Exists(tmp))File.Delete(tmp);}
             }
+            if(version==GameVersion.USUM)
+            {
+                var cro=new GameCroRecipeService(f.Session);
+                reject(()=>cro.Prepare(["recipe-does-not-exist.json"]),
+                    "CRO recipe preview rejects missing Battle.cro/recipe without modifying the project");
+                var relearner=new GameUsumRelearnerService(f.Session);
+                check(relearner.Supported,"USUM Relearner is enabled for Gen7 Ultra Sun/Moon");
+                check(BatchRomExecution.IsHashMismatch("SHA-256 distinto en moves_gen7.csv: "+
+                    "no aplicar automáticamente.") &&
+                    !BatchRomExecution.IsHashMismatch("No se encontró el asset: moves_gen7.csv"),
+                    "Only checksum mismatch may be explicitly overridden, missing assets remain fatal");
+            }
             var trainers=new GameTrainerService(f.Session);var originalHeader=Read(f,"trdata");var originalTeam=Read(f,"trpoke");
             check(trainers.Entries.Count==3,version+" trainers have named browsable records");
             var values=EditorValues.Flatten(trainers.Read(1));
