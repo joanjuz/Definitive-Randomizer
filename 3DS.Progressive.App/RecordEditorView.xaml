@@ -23,6 +23,17 @@
         <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled"><StackPanel x:Name="TrainerTeamCards" Orientation="Horizontal"/></ScrollViewer>
        </StackPanel>
       </Border>
+      <Border x:Name="EncounterSpritePreview" Background="{StaticResource Panel}"
+              BorderBrush="{StaticResource Stroke}" BorderThickness="1" CornerRadius="10"
+              Margin="0,0,0,16" Padding="14" Visibility="Collapsed">
+       <StackPanel>
+        <TextBlock x:Name="EncounterSpriteTitle" Text="SLOTS DEL ENCUENTRO"
+                   Foreground="{StaticResource TextSoft}" FontSize="11" FontWeight="SemiBold"/>
+        <TextBlock Text="Seleccioná un sprite para editar el slot en su sección."
+                   Foreground="{StaticResource TextSoft}" FontSize="11" Margin="0,4,0,10"/>
+        <WrapPanel x:Name="EncounterSpriteCards"/>
+       </StackPanel>
+      </Border>
       <StackPanel x:Name="FieldsPanel"/>
      </StackPanel>
     </ScrollViewer>
