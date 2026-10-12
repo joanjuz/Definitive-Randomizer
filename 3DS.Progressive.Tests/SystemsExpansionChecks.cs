@@ -138,6 +138,12 @@ internal static class SystemsExpansionChecks
                 "Rebuild produces a readable RomFS IVFC and does not modify the source project");
         }
         finally{if(File.Exists(rebuilt))File.Delete(rebuilt);}
+        string invalid3ds=Path.Combine(Path.GetTempPath(),
+            "progressive-rebuild-no-exheader-"+Guid.NewGuid().ToString("N")+".3ds");
+        reject(()=>rebuild.BuildAsync(RomRebuildKind.Full3DS,invalid3ds)
+                .GetAwaiter().GetResult(),
+            "Rebuild .3DS rejects missing ExHeader before rebuilding RomFS/ExeFS");
+        check(!File.Exists(invalid3ds),"Failed .3DS preflight leaves no output artifact");
         var shiny=new GameShinyRateService(f.Session);
         check(shiny.Read().Vanilla&&shiny.Read().AlwaysShinyOffset is not null,
             "Shiny Rate recognizes original PID routine and Everything Shiny signature");
