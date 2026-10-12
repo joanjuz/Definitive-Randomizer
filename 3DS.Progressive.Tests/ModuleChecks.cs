@@ -258,6 +258,56 @@ internal static class ModuleChecks
             var history=f.Session.History.Read();check(history.Entries.Count==3&&history.Entries[^1].Kind=="Action"&&history.Entries[^1].Changes.Count==0&&!history.Entries[^1].Parameters.ContainsKey("Seed")&&history.Entries[^1].Parameters["SeedPolicy"]=="FreshPerRun",version+" trainer history records all successful actions and parameters");
             check(history.Entries[0].Changes.Any(c=>c.Key=="P0.Level"&&c.Field=="Pokémon 1 · Nivel"&&c.Before=="10"&&c.After=="45"),version+" history identifies the team slot and includes before/after values");
             check(new ProjectHistory(f.Root,f.Game.Version.ToString()).Read().Entries.Count==history.Entries.Count,version+" project history survives reopening");
+            if(f.Game.Generation==7)
+            {
+                var wildTemplateEditor=new GameEncounterService(f.Session);
+                string wildGame=f.Game.USUM?"USUM":"SM";
+                string wildSource="""
+                {
+                  "version":1,"name":"Wild Original v1","game":"GAME_TOKEN",
+                  "g1":true,"g2":false,"g3":true,"g4":false,"g5":true,"g6":true,"g7":true,
+                  "legendaries":false,"events":true,"megaForms":true,
+                  "similarBST":false,"allCanCallAllies":true,
+                  "slotRandomizationOption":2,
+                  "modifyLevel":true,"levelAmplifier":1.25,
+                  "advancedLevelFlat":3,"advancedLevelMultiplier":125,
+                  "advancedKeepRange":true,
+                  "futureFlag":"preserve-me",
+                  "progressiveBST":{"enabled":true,"ranges":[
+                    {"minLevel":1,"maxLevel":40,"minBST":180,"maxBST":450,"fullRandom":false},
+                    {"minLevel":41,"maxLevel":100,"minBST":380,"maxBST":730,"fullRandom":false}
+                  ]}
+                }
+                """.Replace("GAME_TOKEN",wildGame,StringComparison.Ordinal);
+                wildTemplateEditor.RestoreOptions(wildSource);
+                var wildOptions=EditorValues.Flatten(wildTemplateEditor.RandomOptions);
+                check(wildOptions["MegaForms"]==1&&wildOptions["G2"]==0&&
+                      wildOptions["Events"]==1&&wildOptions["Progressive"]==1&&
+                      wildOptions["BST.1.MinLevel"]==41&&wildOptions["LevelScale"]==125,
+                    version+" Wild template v1 restores filters, level scale and Progressive BST controls");
+                string wildExport=wildTemplateEditor.CaptureOptions(wildOptions);
+                using var wildDoc=System.Text.Json.JsonDocument.Parse(wildExport);
+                var wildRoot=wildDoc.RootElement;
+                check(wildRoot.GetProperty("futureFlag").GetString()=="preserve-me" &&
+                      wildRoot.GetProperty("progressiveBST").GetProperty("ranges").GetArrayLength()==2 &&
+                      wildRoot.GetProperty("megaForms").GetBoolean(),
+                    version+" Wild template v1 roundtrips unrecognized properties and ranges");
+                string tempWild=Path.Combine(f.Root,"wild-regression.json");
+                wildTemplateEditor.ExportOptions(tempWild,wildOptions);
+                var reloadedWild=new GameEncounterService(f.Session);
+                reloadedWild.ImportOptions(tempWild);
+                check(EditorValues.Flatten(reloadedWild.RandomOptions)["BST.1.MaxBST"]==730,
+                    version+" Wild template v1 can be exported and imported through disk");
+                reject(()=>wildTemplateEditor.RestoreOptions(wildSource.Replace(
+                    "\"version\":1","\"version\":9",StringComparison.Ordinal)),
+                    version+" Wild rejects unsupported template versions");
+                reject(()=>wildTemplateEditor.RestoreOptions(wildSource.Replace(
+                    "\"minLevel\":41","\"minLevel\":43",StringComparison.Ordinal)),
+                    version+" Wild rejects uncovered BST levels");
+                reject(()=>wildTemplateEditor.RestoreOptions(wildSource.Replace(
+                    "\"game\":\""+wildGame+"\"","\"game\":\"XY\"",StringComparison.Ordinal)),
+                    version+" Wild rejects templates for another game");
+            }
             var encounter=new GameEncounterService(f.Session);var encBefore=Read(f,"encdata");
             check(encounter.Entries.Count==(f.Game.Generation==7?4:2),version+" encounters expose maps and day/night separately");
             var ev=EditorValues.Flatten(encounter.Read(1));string prefix=f.Game.Generation==7?"S0.0.":"S0.";
