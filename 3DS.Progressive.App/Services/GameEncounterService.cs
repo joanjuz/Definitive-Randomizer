@@ -38,7 +38,11 @@ public sealed partial class GameEncounterService : ArchiveProjectEditor, IOption
             try
             {
                 var areas=Area7.GetArray(Config.GetlzGARCData("encdata"),Config.GetlzGARCData("zonedata"),Config.GetlzGARCData("worlddata"),Config.GetText(TextName.metlist_000000));
-                foreach(var area in areas)if(!string.IsNullOrWhiteSpace(area.Name))names[area.FileNumber]=area.Name;
+                foreach(var area in areas)
+                {
+                    if(!string.IsNullOrWhiteSpace(area.Name))names[area.FileNumber]=area.Name;
+                    _zoneIndicesByFile[area.FileNumber]=area.Zones.Select(zone=>zone.Index).ToArray();
+                }
             }
             catch (Exception ex) when(ex is IOException or ArgumentException or IndexOutOfRangeException or NullReferenceException or InvalidOperationException or FormatException) { }
             for(int file=9;file<records.Length;file+=11)
@@ -103,6 +107,7 @@ public sealed partial class GameEncounterService : ArchiveProjectEditor, IOption
                     Field("AllCanCallAllies","Cualquier Pokémon puede pedir ayuda SOS (rellenar slots vacíos)",0,0,1)
                 ]),
                 new("Niveles",[
+                    Field("ModifyLevel","Modificar niveles al randomizar",1,0,1),
                     Field("LevelScale","Multiplicador de niveles (%)",100,1,500),
                     Field("LevelFlat","Ajuste plano (-100 a 100)",0,-100,100),
                     Field("KeepRange","Mantener mínimo y máximo diferenciados",1,0,1)
@@ -258,7 +263,10 @@ public sealed partial class GameEncounterService : ArchiveProjectEditor, IOption
                Enumerable.Range(1,ranges.Count-1).Any(i=>ranges[i].MinLevel!=ranges[i-1].MaxLevel+1))
                 throw new ArgumentException("Los rangos Progressive BST deben cubrir niveles 1–100 sin huecos ni solapamientos.");
         }
-        int level=Config.Generation==7?Math.Max(1,values["Max"]):Math.Max(1,values.GetValueOrDefault("S0.Max",1));
+        int level=Config.Generation==7&&options["Progressive"]==1
+            ?ProgressionLevel(id,records,values)
+            :Config.Generation==7?Math.Max(1,values["Max"]):
+                Math.Max(1,values.GetValueOrDefault("S0.Max",1));
         int[] pool=allowed;
         if(options["Progressive"]==1)
         {
@@ -300,6 +308,7 @@ public sealed partial class GameEncounterService : ArchiveProjectEditor, IOption
             WildSosRules.FillMissingAllies(values,pool,random,
                 species=>PickWildForm(species,random,options["MegaForms"]==1));
         int Scale(int x)=>x==0?0:Math.Clamp((int)Math.Round(x*options["LevelScale"]/100.0)+options["LevelFlat"],1,100);
+        if(Config.Generation==7&&options["ModifyLevel"]==0)return values;
         if(Config.Generation==7)
         {
             int min=values["Min"],max=values["Max"];
