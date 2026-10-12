@@ -98,8 +98,27 @@ internal sealed class RomRebuildView : UserControl
         }
         catch(Exception ex)
         {
-            _detail.Text="La reconstrucción se detuvo. El archivo original sigue intacto: "+ex.Message;
-            StudioDialog.Error(Window.GetWindow(this),"Falló Rebuild",ex.Message);
+            // Preserve the complete stack trace locally. The UI previously only
+            // displayed 'Object reference not set...', with no actionable stage.
+            string stage=UiProgress.Snapshot.Stage;
+            string? diagnostics=null;
+            try
+            {
+                string folder=Path.Combine(Environment.GetFolderPath(
+                    Environment.SpecialFolder.LocalApplicationData),"3DS-Progressive","logs");
+                Directory.CreateDirectory(folder);
+                diagnostics=Path.Combine(folder,"rebuild-errors.log");
+                File.AppendAllText(diagnostics,
+                    $"[{DateTimeOffset.Now:O}] Kind={kind} Stage={stage}\\n{ex}\\n---\\n"
+                        .Replace("\\\\n","\\n"));
+            }
+            catch(IOException){}catch(UnauthorizedAccessException){}
+            _detail.Text="La reconstrucción se detuvo; el proyecto de origen no fue modificado.\\n"+
+                "Etapa: "+stage+"\\nError: "+ex.Message+
+                (diagnostics is null?"":"\\nDiagnóstico completo: "+diagnostics);
+            StudioDialog.Error(Window.GetWindow(this),"Falló Rebuild",
+                "Etapa: "+stage+"\\n"+ex.Message+
+                (diagnostics is null?"":"\\nDetalles técnicos guardados en: "+diagnostics));
         }
         finally{_busy=false;_run.IsEnabled=true;_kind.IsEnabled=true;UiProgress.End();}
     }
