@@ -1,3 +1,4 @@
+using System.IO;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
@@ -41,7 +42,7 @@ internal sealed class ShinyRateView : UserControl
         panel.Children.Add(new TextBlock{Text="Rerolls PID (1 a 9000)",
             Foreground=(Brush)FindResource("TextSoft"),Margin=new Thickness(0,0,0,8)});
         _rerolls=new TextBox{Text=current.Rerolls.ToString(),Width=140,
-            HorizontalAlignment=HorizontalAlignment.Left,MinHeight=36};
+            HorizontalAlignment=System.Windows.HorizontalAlignment.Left,MinHeight=36};
         _rerolls.TextChanged+=(_,_)=>Invalidate();
         panel.Children.Add(_rerolls);
         _everything=new CheckBox{Content="Everything Shiny (parche universal)",
