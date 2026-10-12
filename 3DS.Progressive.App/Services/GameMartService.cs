@@ -252,6 +252,7 @@ public sealed partial class GameMartService
             throw new InvalidDataException("No existe la tienda BP de megapiedras.");
         foreach (var row in BpShops[5].Rows)
             row.Price = 0;
+        _presets.Add("marts.free-mega-stones");
     }
 
     private string ItemLabel(int id) =>
