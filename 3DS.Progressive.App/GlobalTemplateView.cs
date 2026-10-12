@@ -11,6 +11,8 @@ using CheckBox=System.Windows.Controls.CheckBox;
 using TextBox=System.Windows.Controls.TextBox;
 using UserControl=System.Windows.Controls.UserControl;
 using Panel=System.Windows.Controls.Panel;
+using DataGrid=System.Windows.Controls.DataGrid;
+using Binding=System.Windows.Data.Binding;
 
 namespace ThreeDS.Progressive;
 
