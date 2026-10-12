@@ -6,7 +6,7 @@ using System.Text.Json;
 namespace ThreeDS.Progressive.Services;
 
 internal sealed record RomBatchOptions(string TemplatePath,string OutputDirectory,string BaseName,
-    int Count,bool Trimmed,bool RestoreBackups,bool KeepEditableProjects);
+    int Count,bool Trimmed,bool RestoreBackups,bool KeepEditableProjects,bool AllowAssetMismatch=false);
 
 internal sealed record RomBuildArtifact(int Index,string File,string Sha256,long Bytes,int? Seed);
 internal sealed record RomBuildJournal(DateTimeOffset CompletedUtc,string Project,
@@ -95,11 +95,15 @@ internal sealed class BatchRomExecution
         if(!BackendAvailable)warnings.Add("El ejecutor original pk3DS.WinForms no se incluyó en este paquete.");
         return(template,warnings);
     }
+    internal static bool IsHashMismatch(string warning)=>
+        warning.StartsWith("SHA-256 distinto en ",StringComparison.Ordinal);
     internal async Task<RomBuildJournal> RunAsync(RomBatchOptions options,Action<string> progress)
     {
         var (template,warnings)=Preflight(options);
-        if(warnings.Count>0)throw new InvalidDataException("Hay requisitos sin resolver: "+
-            string.Join(" | ",warnings));
+        var blocking=warnings.Where(w=>!IsHashMismatch(w)).ToArray();
+        if(blocking.Length>0||warnings.Any(IsHashMismatch)&&!options.AllowAssetMismatch)
+            throw new InvalidDataException("Hay requisitos sin resolver: "+
+                string.Join(" | ",blocking.Length>0?blocking:warnings));
         Directory.CreateDirectory(options.OutputDirectory);
         string requestPath=Path.Combine(Path.GetTempPath(),"progressive-batch-"+
             Guid.NewGuid().ToString("N")+".json");
@@ -111,7 +115,7 @@ internal sealed class BatchRomExecution
             TemplatePath=Path.GetFullPath(options.TemplatePath),
             OutputDirectory=Path.GetFullPath(options.OutputDirectory),
             options.BaseName,options.Count,options.Trimmed,options.RestoreBackups,
-            options.KeepEditableProjects
+            options.KeepEditableProjects,options.AllowAssetMismatch
         };
         await File.WriteAllTextAsync(requestPath,JsonSerializer.Serialize(request));
         try
