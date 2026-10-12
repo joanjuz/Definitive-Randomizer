@@ -10,6 +10,20 @@ internal static class SystemsExpansionChecks
 {
     internal static void Run(Action<bool,string> check,Action<Action,string> reject)
     {
+        // Regression: deleting an ORIGINAL middle slot must work, reindex the
+        // remaining entries and refuse the final slot or BP (fixed-size) rows.
+        var regular=new MartShop(0,false,"Prueba regular",
+            [new MartSlotRow(1,10),new MartSlotRow(2,20),new MartSlotRow(3,30)]);
+        check(GameMartService.TryRemoveRegularSlot(regular,regular.Rows[1]) &&
+            regular.Rows.Select(r=>r.ItemId).SequenceEqual([10,30]) &&
+            regular.Rows.Select(r=>r.Number).SequenceEqual([1,2]),
+            "USUM mart deletes an existing middle slot and renumbers it");
+        check(GameMartService.TryRemoveRegularSlot(regular,regular.Rows[0]) &&
+            !GameMartService.TryRemoveRegularSlot(regular,regular.Rows[0]) &&
+            regular.Rows.Count==1, "USUM mart cannot remove the last normal slot");
+        var bp=new MartShop(0,true,"Prueba BP",[new MartSlotRow(1,1),new MartSlotRow(2,2)]);
+        check(!GameMartService.TryRemoveRegularSlot(bp,bp.Rows[0]) && bp.Rows.Count==2,
+            "USUM BP shops retain fixed row counts");
         using var f=new Fixture(GameVersion.USUM);
         var config=f.Game;
         // Shops must never fall back to hard-coded offsets or create a bogus
