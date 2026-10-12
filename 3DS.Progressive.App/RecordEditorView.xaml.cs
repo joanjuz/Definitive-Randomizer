@@ -103,7 +103,8 @@ public partial class RecordEditorView : UserControl
         foreach(var group in entries)
         {
             var filtered=wildRanges.Length>0?
-                group with {Fields=group.Fields.Where(f=>!f.Key.StartsWith("BST.",StringComparison.Ordinal)).ToArray()}
+                group with {Fields=group.Fields.Where(f=>!f.Key.StartsWith("BST.",StringComparison.Ordinal)
+                    &&f.Key!="Progressive").ToArray()}
                 :group;
             if(filtered.Fields.Count==0)continue;
             panel.Children.Add(editor&&Editor is ThreeDS.Progressive.Services.GameTrainerService
@@ -113,18 +114,30 @@ public partial class RecordEditorView : UserControl
         }
         if(wildRanges.Length>0)
         {
-            var card=GroupBorder(new Expander {Header="Rangos BST progresivo",
-                IsExpanded=true,Foreground=(Brush)FindResource("TextMain"),
-                Content=CreateBstTable(wildRanges,true)});
-            panel.Children.Add(card);
+            var modeField=entries.SelectMany(g=>g.Fields).First(f=>f.Key=="Progressive");
+            var layout=new StackPanel();
+            layout.Children.Add(BuildFieldsGrid([modeField],controls,false));
+            var table=CreateBstTable(wildRanges,true);
+            layout.Children.Add(table);
+            panel.Children.Add(GroupBorder(new Expander {Header="BST progresivo por nivel",
+                IsExpanded=true,Foreground=(Brush)FindResource("TextMain"),Content=layout}));
             if(controls.TryGetValue("Progressive",out var control)&&control is CheckBox check)
             {
-                void Toggle(object sender,RoutedEventArgs e)=>card.Visibility=
+                void Toggle(object sender,RoutedEventArgs e)=>table.Visibility=
                     check.IsChecked==true?Visibility.Visible:Visibility.Collapsed;
                 check.Checked+=Toggle;check.Unchecked+=Toggle;
-                card.Visibility=check.IsChecked==true?Visibility.Visible:Visibility.Collapsed;
+                table.Visibility=check.IsChecked==true?Visibility.Visible:Visibility.Collapsed;
             }
         }
+        WireExclusive(controls,"SimilarBST","Progressive");
+    }
+    private static void WireExclusive(Dictionary<string,FrameworkElement> fields,string a,string b)
+    {
+        if(!fields.TryGetValue(a,out var first)||first is not CheckBox one||
+           !fields.TryGetValue(b,out var second)||second is not CheckBox two)return;
+        one.Checked+=(_,_)=>{if(two.IsChecked==true)two.IsChecked=false;};
+        two.Checked+=(_,_)=>{if(one.IsChecked==true)one.IsChecked=false;};
+        if(one.IsChecked==true&&two.IsChecked==true)two.IsChecked=false;
     }
     private readonly Dictionary<string,Expander> _editorSections=[];
     private int _trainerTabIndex;
@@ -177,6 +190,7 @@ public partial class RecordEditorView : UserControl
                     Foreground=(Brush)FindResource("TextSoft"),TextWrapping=TextWrapping.Wrap,Margin=new Thickness(8,16,8,16)});
             tabs.Items.Add(new TabItem {Header=TrainerTabNames[category],Content=container});
         }
+        WireExclusive(controls,"CHK_BST","CHK_ProgressiveBST");
         tabs.SelectionChanged+=(_,e)=>
         {
             if(ReferenceEquals(e.Source,tabs))_trainerTabIndex=tabs.SelectedIndex;
@@ -263,6 +277,7 @@ public partial class RecordEditorView : UserControl
         ("CHK_STAB",["NUD_STAB"]),
         ("CHK_RandomDoubleBattles",["NUD_DoubleBattleChance"]),
         ("CHK_Level",["NUD_LevelBoost"]),
+        ("SimilarBST",["BST"]),
         ("CHK_StrongStat",["NUD_StrongStatTolerance","CHK_StrongStatNormalTrainers",
             "CHK_StrongStatImportantTrainers","CHK_StrongStatBosses"]),
         ("CHK_BetterMovesets",["CHK_BetterMovesetsIncludeTMs",
