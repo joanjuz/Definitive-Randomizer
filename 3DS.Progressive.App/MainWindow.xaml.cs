@@ -787,6 +787,7 @@ public partial class MainWindow : Window
         if (!_showingMoves && SectionHost.Visibility!=Visibility.Visible)
             return;
         if(_recordView is not null&&!_recordView.ConfirmLeave())return;
+        if(_martView is not null&&!_martView.ConfirmLeave())return;
         bool discarded = _movesView?.HasPendingChanges == true;
         if (_movesView is not null && !_movesView.ConfirmLeave())
             return;
@@ -800,7 +801,7 @@ public partial class MainWindow : Window
 
     private void DisplayPokemon()
     {
-        _recordView=null;SectionHost.Visibility=Visibility.Collapsed;SectionHost.Content=null;
+        _recordView=null;_martView=null;SectionHost.Visibility=Visibility.Collapsed;SectionHost.Content=null;
         TrainersButton.Background=EncountersButton.Background=EvolutionsButton.Background=HistoryButton.Background=Brushes.Transparent;
         _showingMoves = false;
         PokemonListPanel.Visibility = Visibility.Visible;
@@ -818,6 +819,7 @@ public partial class MainWindow : Window
         if (_session is null || _showingMoves)
             return;
         if(_recordView is not null&&!_recordView.ConfirmLeave())return;
+        if(_martView is not null&&!_martView.ConfirmLeave())return;
         bool discardedPokemon = HasUnsavedChanges();
         if (!ConfirmDiscard())
             return;
@@ -826,7 +828,7 @@ public partial class MainWindow : Window
         try
         {
             _movesView ??= new MoveEditorView(_session);
-            _recordView=null;SectionHost.Visibility=Visibility.Collapsed;SectionHost.Content=null;
+            _recordView=null;_martView=null;SectionHost.Visibility=Visibility.Collapsed;SectionHost.Content=null;
             TrainersButton.Background=EncountersButton.Background=EvolutionsButton.Background=HistoryButton.Background=Brushes.Transparent;
             MovesHost.Content = _movesView;
             PokemonListPanel.Visibility = Visibility.Collapsed;
