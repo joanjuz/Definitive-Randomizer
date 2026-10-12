@@ -85,7 +85,8 @@ internal sealed class TrainerLogicHost
             int id=SelectedTrainer;
             var existingCap=template.LevelCaps?.Trainers.FirstOrDefault(r=>r.TrainerID==id);
             var existingRule=template.TrainerMoveRules?.Trainers.FirstOrDefault(r=>r.TrainerID==id);
-            if(existingCap is null&&existingRule is null)return result;
+            // Ofrecer la configuración individual aunque el template no tenga reglas previas.
+            // El usuario puede crear límites y reglas desde cero para el entrenador seleccionado.
             var cap=existingCap??new TrainerLevelCapTemplateEntry {TrainerID=id,Use=false};
             var rule=template.TrainerMoveRules?.Trainers.FirstOrDefault(r=>r.TrainerID==id)??new TrainerMoveRuleTemplateEntry {TrainerID=id,Use=false};
             string k=$"Rule.{id}.";
