@@ -1,0 +1,171 @@
+using System.ComponentModel;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Data;
+using System.Windows.Media;
+using ThreeDS.Progressive.Models;
+using ThreeDS.Progressive.Services;
+using Button=System.Windows.Controls.Button;
+using DataGrid=System.Windows.Controls.DataGrid;
+using DataGridColumnHeader=System.Windows.Controls.Primitives.DataGridColumnHeader;
+using DataGridRow=System.Windows.Controls.DataGridRow;
+using Binding=System.Windows.Data.Binding;
+using Control=System.Windows.Controls.Control;
+
+namespace ThreeDS.Progressive;
+
+/// <summary>Native WPF Gen7 TM table and actual tutor prices, without running old WinForms dialogs.</summary>
+internal sealed class MachineTutorView : UserControl
+{
+    private readonly GameProjectSession _project;
+    private GameMachineTutorService _service;
+    private readonly DataGrid _machineGrid,_tutorGrid;
+    private readonly Button _saveMachines,_savePrices;
+    private bool _dirtyMachines,_dirtyPrices;
+    private readonly TextBlock _status;
+    public bool HasPendingChanges=>_dirtyMachines||_dirtyPrices;
+    public bool ConfirmLeave()=>!HasPendingChanges||StudioDialog.Confirm(Window.GetWindow(this),
+        "Cambios sin guardar","Hay modificaciones de MT o precios pendientes.","Si continuás, se descartarán los cambios.");
+
+    internal MachineTutorView(GameProjectSession project)
+    {
+        _project=project;
+        _service=new(project);
+        var bg=(Brush)FindResource("Bg");
+        var panel=(Brush)FindResource("Panel");
+        var text=(Brush)FindResource("TextMain");
+        var soft=(Brush)FindResource("TextSoft");
+        var border=(Brush)FindResource("Stroke");
+        Background=bg;
+        var root=new DockPanel {Margin=new Thickness(22,20,22,20)};
+        Content=root;
+        var header=new StackPanel {Margin=new Thickness(0,0,0,14)};
+        DockPanel.SetDock(header,Dock.Top);root.Children.Add(header);
+        header.Children.Add(new TextBlock {Text="MT y tutores",FontSize=22,FontWeight=FontWeights.SemiBold,Foreground=text});
+        header.Children.Add(new TextBlock {Text="Tablas reales del proyecto · code.bin y Shop.cro. Los cambios se verifican antes de guardarse.",
+            TextWrapping=TextWrapping.Wrap,Margin=new Thickness(0,6,0,0),Foreground=soft});
+        var footer=new StackPanel {Margin=new Thickness(0,12,0,0)};
+        DockPanel.SetDock(footer,Dock.Bottom);root.Children.Add(footer);
+        _status=new TextBlock {Text="Seleccioná un movimiento o cambiá precios y confirmá el guardado.",
+            Foreground=soft,TextWrapping=TextWrapping.Wrap,Margin=new Thickness(0,0,0,8)};
+        footer.Children.Add(_status);
+        var tabs=new TabControl();
+        root.Children.Add(tabs);
+        var machines=new DockPanel {Margin=new Thickness(4)};
+        var commands=new WrapPanel {Margin=new Thickness(0,0,0,12)};
+        DockPanel.SetDock(commands,Dock.Top);machines.Children.Add(commands);
+        var random=new Button {Content="Randomizar MT",Margin=new Thickness(0,0,8,0)};
+        random.Click+=(_,_)=>TryAction(()=>
+        {
+            _service.RandomizeMachines();
+            _machineGrid.Items.Refresh();
+            _dirtyMachines=true;UpdateState();
+            _status.Text="Asignaciones de MT aleatorias preparadas en memoria. Revisá antes de guardar.";
+        });
+        _saveMachines=new Button {Content="Guardar MT",IsEnabled=false};
+        _saveMachines.Click+=(_,_)=>TryAction(()=>
+        {
+            _machineGrid.CommitEdit(DataGridEditingUnit.Cell,true);
+            _machineGrid.CommitEdit(DataGridEditingUnit.Row,true);
+            if(!StudioDialog.Confirm(Window.GetWindow(this),"Guardar MT",
+                "Se modificará code.bin y se registrarán las diferencias en el historial."))return;
+            _service.SaveMachines();_service=new GameMachineTutorService(_project);
+            Rebind();_dirtyMachines=false;UpdateState();
+            _status.Text="MT guardadas con verificación de code.bin e historial.";
+        });
+        commands.Children.Add(random);commands.Children.Add(_saveMachines);
+        machines.Children.Add(new TextBlock
+        {
+            Text="Solo se cambia la asignación de MT. La sincronización automática del texto descriptivo de objetos y las opciones Sanity/Follow Evolutions aún están pendientes.",
+            Foreground=soft,TextWrapping=TextWrapping.Wrap,Margin=new Thickness(0,43,0,0),
+            IsHitTestVisible=false,Visibility=Visibility.Collapsed
+        });
+        _machineGrid=BuildGrid();
+        _machineGrid.Columns.Add(new DataGridTextColumn {Header="MT",Binding=new Binding("Number"),IsReadOnly=true,Width=72});
+        _machineGrid.Columns.Add(new DataGridComboBoxColumn
+        {
+            Header="Movimiento",ItemsSource=_service.MoveChoices,DisplayMemberPath="Display",
+            SelectedValuePath="Id",SelectedValueBinding=new Binding("MoveId")
+            {Mode=BindingMode.TwoWay,UpdateSourceTrigger=UpdateSourceTrigger.PropertyChanged},
+            Width=new DataGridLength(400)
+        });
+        _machineGrid.CellEditEnding+=(_,_)=>{_dirtyMachines=true;UpdateState();};
+        machines.Children.Add(_machineGrid);
+        tabs.Items.Add(new TabItem {Header="MT",Content=machines});
+
+        var tutoring=new DockPanel {Margin=new Thickness(4)};
+        var tutorHeader=new StackPanel {Margin=new Thickness(0,0,0,12)};
+        DockPanel.SetDock(tutorHeader,Dock.Top);tutoring.Children.Add(tutorHeader);
+        tutorHeader.Children.Add(new TextBlock
+        {
+            Text="Movimientos de tutor detectados en Shop.cro. Se pueden editar los precios BP; cambiar los movimientos requiere sincronizar también el código de los tutores de USUM.",
+            Foreground=soft,TextWrapping=TextWrapping.Wrap,Margin=new Thickness(0,0,0,10)
+        });
+        var tutorActions=new WrapPanel();
+        tutorHeader.Children.Add(tutorActions);
+        var free=new Button {Content="Todos gratis (0 BP)",Margin=new Thickness(0,0,8,0)};
+        free.Click+=(_,_)=>{foreach(var row in _service.Tutors)row.Price=0;_dirtyPrices=true;UpdateState();_tutorGrid.Items.Refresh();};
+        _savePrices=new Button {Content="Guardar precios BP",IsEnabled=false};
+        _savePrices.Click+=(_,_)=>TryAction(()=>
+        {
+            _tutorGrid.CommitEdit(DataGridEditingUnit.Cell,true);
+            _tutorGrid.CommitEdit(DataGridEditingUnit.Row,true);
+            if(!StudioDialog.Confirm(Window.GetWindow(this),"Guardar precios de tutores",
+                "Se modificarán únicamente los bytes de precio de Shop.cro. Los movimientos y otros datos permanecerán intactos."))return;
+            _service.SaveTutorPrices();_service=new GameMachineTutorService(_project);
+            Rebind();_dirtyPrices=false;UpdateState();
+            _status.Text="Precios de tutores guardados y verificados.";
+        });
+        tutorActions.Children.Add(free);tutorActions.Children.Add(_savePrices);
+        _tutorGrid=BuildGrid();
+        _tutorGrid.Columns.Add(new DataGridTextColumn {Header="N.º",Binding=new Binding("Number"),IsReadOnly=true,Width=67});
+        _tutorGrid.Columns.Add(new DataGridTextColumn {Header="Sede",Binding=new Binding("Group"),IsReadOnly=true,Width=95});
+        _tutorGrid.Columns.Add(new DataGridTextColumn {Header="Movimiento",Binding=new Binding("MoveName"),IsReadOnly=true,Width=new DataGridLength(330)});
+        _tutorGrid.Columns.Add(new DataGridTextColumn
+        {
+            Header="Precio (BP)",Binding=new Binding("Price"){Mode=BindingMode.TwoWay,
+                UpdateSourceTrigger=UpdateSourceTrigger.LostFocus,ValidatesOnExceptions=true},Width=140
+        });
+        _tutorGrid.CellEditEnding+=(_,_)=>{_dirtyPrices=true;UpdateState();};
+        tutoring.Children.Add(_tutorGrid);
+        tabs.Items.Add(new TabItem {Header="Tutores · precios",Content=tutoring});
+        Rebind();
+    }
+    private DataGrid BuildGrid()
+    {
+        var grid=new DataGrid {AutoGenerateColumns=false,CanUserAddRows=false,CanUserDeleteRows=false,
+            CanUserResizeColumns=true,CanUserSortColumns=true,
+            Background=(Brush)FindResource("Panel"),Foreground=(Brush)FindResource("TextMain"),
+            RowBackground=(Brush)FindResource("Panel"),AlternatingRowBackground=(Brush)FindResource("Surface"),
+            HorizontalGridLinesBrush=(Brush)FindResource("Stroke"),
+            BorderBrush=(Brush)FindResource("Stroke"),BorderThickness=new Thickness(1),
+            RowHeight=34,HorizontalScrollBarVisibility=ScrollBarVisibility.Auto};
+        var style=new Style(typeof(DataGridColumnHeader));
+        style.Setters.Add(new Setter(Control.BackgroundProperty,(Brush)FindResource("Surface")));
+        style.Setters.Add(new Setter(Control.ForegroundProperty,(Brush)FindResource("TextMain")));
+        style.Setters.Add(new Setter(Control.PaddingProperty,new Thickness(10,8,10,8)));
+        grid.ColumnHeaderStyle=style;
+        var rowStyle=new Style(typeof(DataGridRow));
+        rowStyle.Setters.Add(new Setter(Control.ForegroundProperty,(Brush)FindResource("TextMain")));
+        grid.RowStyle=rowStyle;
+        return grid;
+    }
+    private void Rebind()
+    {
+        _machineGrid.ItemsSource=_service.Machines;
+        _tutorGrid.ItemsSource=_service.Tutors;
+        if(_machineGrid.Columns.OfType<DataGridComboBoxColumn>().FirstOrDefault() is { } selector)
+            selector.ItemsSource=_service.MoveChoices;
+        UpdateState();
+    }
+    private void UpdateState()
+    {
+        _saveMachines.IsEnabled=_dirtyMachines&&_service.CanEditTms;
+        _savePrices.IsEnabled=_dirtyPrices&&_service.CanEditTutorPrices;
+    }
+    private void TryAction(Action action)
+    {
+        try{action();}
+        catch(Exception ex){StudioDialog.Error(Window.GetWindow(this),"No se pudo completar la acción",ex.Message);}
+    }
+}
