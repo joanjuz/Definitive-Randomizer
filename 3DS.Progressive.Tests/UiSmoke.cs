@@ -258,6 +258,14 @@ internal static class UiSmoke
             Layout(machineView!,1170,720);
             check(((DockPanel)machineView!.Content).Children.OfType<TabControl>().Any(t=>t.Items.Count==2),
                 "WPF MT/Tutors navigation opens a real dual-tab editor");
+            var tutorTabs=((DockPanel)machineView.Content).Children.OfType<TabControl>().Single();
+            var tutorPane=(DockPanel)((TabItem)tutorTabs.Items[1]).Content;
+            var tutorHeader=tutorPane.Children.OfType<StackPanel>().First();
+            var compatibilityFlags=tutorHeader.Children.OfType<WrapPanel>()
+                .SelectMany(p=>p.Children.OfType<System.Windows.Controls.CheckBox>()).ToArray();
+            check(compatibilityFlags.Any(p=>p.Content?.ToString()?.StartsWith("Tutor Sanity")==true)
+                  &&compatibilityFlags.Any(p=>p.Content?.ToString()?.StartsWith("Follow Evolutions")==true),
+                "WPF tutors exposes independent Sanity and Follow Evolutions controls");
             Capture(machineView,"mt-tutores-editor.png");
             ((Button)main.FindName("LevelUpButton")).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             var levelUp=((ContentControl)main.FindName("SectionHost")).Content as LevelUpView;
