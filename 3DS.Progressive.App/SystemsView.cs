@@ -162,6 +162,12 @@ internal sealed class SystemsView : UserControl
             .IsEnabled=_project.Generation==7;
         AddButton(commands,"Level Up · Randomizar todos",()=>_navigate("LevelUp"));
         stack.Children.Add(summary);
+        var templates=Card("Global Template + Batch ROM Builder",
+            "Recetas originales v1/coverage8 con acciones y assets. Construcción .3ds con copia limpia por ROM, semilla única y manifiesto SHA-256 independiente.");
+        var templateCommands=new WrapPanel();((StackPanel)templates.Child).Children.Add(templateCommands);
+        AddButton(templateCommands,"Cargar / guardar Global Template",()=>_navigate("GlobalTemplate"));
+        AddButton(templateCommands,"Abrir Batch ROM Builder",()=>_navigate("BatchRom"));
+        stack.Children.Add(templates);
         var history=Card("Historial de ejecuciones",
             "Cada guardado confirmado registra el módulo, las opciones y los archivos afectados. Consultá el historial antes de iniciar otra randomización.");
         AddButton((StackPanel)history.Child,"Abrir historial",()=>_navigate("History"));
