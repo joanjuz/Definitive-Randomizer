@@ -122,6 +122,38 @@ internal static class SystemsExpansionChecks
         check(GameTutorCompatibilityService.ApplyFollowEvolutions(evoPersonal,evoSets)==0,
             "Tutor Follow Evolutions converges and is idempotent");
 
+        // TM parity: independent 100 TMHM flags, no tutor flags touched.
+        var tmPersonal=Enumerable.Range(0,5).Select(_=>
+            new pk3DS.Core.Structures.PersonalInfo.PersonalInfoSM(new byte[0x54])).ToArray();
+        var tmLearnsets=Enumerable.Range(0,5).Select(i=>
+            new Learnset6([255,255,255,255])
+            {
+                Moves=i==1?[77,88]:[],Levels=i==1?[1,5]:[]
+            }).ToArray();
+        ushort[] tmChoices=Enumerable.Range(1,100).Select(i=>(ushort)i).ToArray();
+        int tmSanityAdded=GameTmCompatibilityService.ApplySanity(tmPersonal,tmLearnsets,tmChoices);
+        check(tmSanityAdded==2&&tmPersonal[1].TMHM[76]&&tmPersonal[1].TMHM[87] &&
+            !tmPersonal[2].TMHM[76] &&
+            tmPersonal[1].TypeTutors.All(x=>!x) &&
+            tmPersonal[1].SpecialTutors.All(g=>g.All(x=>!x)),
+            "TM Sanity grants only learned MTs, leaving tutor compatibility untouched");
+        check(GameTmCompatibilityService.ApplySanity(tmPersonal,tmLearnsets,tmChoices)==0,
+            "TM Sanity is idempotent");
+
+        // A->B->C and A->D with a chain/branch; full inheritance to every target.
+        int tmFollowAdded=GameTmCompatibilityService.ApplyFollowEvolutions(
+            tmPersonal,evoSets,4);
+        check(tmFollowAdded==6&&Enumerable.Range(2,3).All(i=>
+            tmPersonal[i].TMHM[76]&&tmPersonal[i].TMHM[87]) &&
+            GameTmCompatibilityService.ApplyFollowEvolutions(tmPersonal,evoSets,4)==0,
+            "TM Follow Evolutions propagates every MT across chains/branches and converges");
+        // The source Personal record still consists entirely of zero-valued
+        // non-TM fields after applying both algorithms.
+        var tmSerialized=tmPersonal[1].Write();
+        check(tmSerialized.AsSpan(0,0x28).ToArray().All(x=>x==0)&&
+            tmSerialized.AsSpan(0x38).ToArray().All(x=>x==0),
+            "TM compatibility algorithms preserve every non-TM Personal field");
+
         using var f=new Fixture(GameVersion.USUM);
         var config=f.Game;
         // Shops must never fall back to hard-coded offsets or create a bogus
