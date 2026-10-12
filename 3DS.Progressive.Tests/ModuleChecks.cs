@@ -154,7 +154,7 @@ internal static class ModuleChecks
             check(EditorValues.Flatten(evolution.Read(2))["E0.Argument"]==16,version+" evolution changes respect scope");
             string export=Path.Combine(f.Root,"history.json");f.Session.History.Export(export);
             check(JsonSerializer.Deserialize<HistoryDocument>(File.ReadAllBytes(export))?.Entries.Count==f.Session.History.Read().Entries.Count,version+" history JSON exports the entire ordered journal");
-            var stale=trainers.Preview(EditorValues.Flatten(trainers.RandomOptions),[1]);byte[] source=File.ReadAllBytes(PathFor(f,"trdata"));source[^1]^=1;File.WriteAllBytes(PathFor(f,"trdata"),source);
+            var stale=trainers.Preview(options,[1]);byte[] source=File.ReadAllBytes(PathFor(f,"trdata"));source[^1]^=1;File.WriteAllBytes(PathFor(f,"trdata"),source);
             int countBefore=f.Session.History.Read().Entries.Count;
             reject(()=>trainers.Apply(stale),version+" trainer external edits reject a stale proposal");
             check(f.Session.History.Read().Entries.Count==countBefore,version+" failed writes never enter history");
