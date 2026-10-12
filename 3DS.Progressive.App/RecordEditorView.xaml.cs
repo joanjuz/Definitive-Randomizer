@@ -25,6 +25,7 @@ public partial class RecordEditorView : UserControl
     private int _id=-1;
     private EditorProposal? _proposal;
     private bool _templateMode;
+    private WildTableClipboard? _wildClipboard;
     private ProgressiveBstTable? _bstTable;
     internal IReadOnlyDictionary<string,FrameworkElement> FieldControls=>_fields;
     internal IReadOnlyDictionary<string,FrameworkElement> OptionControls=>_options;
@@ -40,6 +41,8 @@ public partial class RecordEditorView : UserControl
         }
         if(editor is ThreeDS.Progressive.Services.GameTrainerService)
             TrainerCapsButton.Visibility=TrainerMovesButton.Visibility=Visibility.Visible;
+        if(editor is ThreeDS.Progressive.Services.GameEncounterService wildClipboard && wildClipboard.SupportsWildTemplate)
+            WildCopyButton.Visibility=WildPasteButton.Visibility=WildPasteAreaButton.Visibility=Visibility.Visible;
         if(editor is ThreeDS.Progressive.Services.GameFieldItemsService)
             FieldExportButton.Visibility=Visibility.Visible;
         if(editor is ThreeDS.Progressive.Services.GameItemService)
@@ -851,6 +854,65 @@ public partial class RecordEditorView : UserControl
     {var dialog=new Microsoft.Win32.OpenFileDialog {Filter="Template de evoluciones|*.csv"};if(dialog.ShowDialog(Window.GetWindow(this))==true){TemplatePathText.Text=dialog.FileName;Invalidate();}}
     private void DefaultTemplate_Click(object sender,RoutedEventArgs e)
     {if(Editor is ITemplateProjectEditor template){TemplatePathText.Text=template.DefaultTemplatePath;Invalidate();}}
+    private void WildCopy_Click(object sender,RoutedEventArgs e)
+    {
+        if(Editor is not ThreeDS.Progressive.Services.GameEncounterService wild||_id<0)return;
+        if(_dirty)
+        {
+            StudioDialog.Error(Window.GetWindow(this),"Copiar tabla",
+                "Guardá o descartá primero los cambios pendientes de esta tabla.");
+            return;
+        }
+        try
+        {
+            _wildClipboard=wild.CopyWildTable(_id);
+            StatusText.Text=$"Tabla #{_id} copiada: {_wildClipboard.OccupiedNormalSlots} ranuras normales ocupadas. " +
+                "Elegí una tabla de destino y generá vista previa para pegar.";
+        }
+        catch(Exception ex){StudioDialog.Error(Window.GetWindow(this),"Copiar encuentros",ex.Message);}
+    }
+    private void WildPaste_Click(object sender,RoutedEventArgs e)=>PreviewWildPaste(false);
+    private void WildPasteArea_Click(object sender,RoutedEventArgs e)=>PreviewWildPaste(true);
+    private void PreviewWildPaste(bool allCompatible)
+    {
+        if(Editor is not ThreeDS.Progressive.Services.GameEncounterService wild||_id<0)return;
+        if(_wildClipboard is null)
+        {
+            StudioDialog.Notice(Window.GetWindow(this),"Pegar encuentros",
+                "Primero copiá una tabla de encuentros desde este proyecto.");
+            return;
+        }
+        if(_dirty)
+        {
+            StudioDialog.Error(Window.GetWindow(this),"Pegar encuentros",
+                "Guardá o descartá la edición individual antes de pegar una tabla.");
+            return;
+        }
+        try
+        {
+            int[] ids=allCompatible?wild.CompatibleWildTables(_wildClipboard,_id).ToArray():[_id];
+            var proposal=wild.PreviewPasteWild(_wildClipboard,ids);
+            _proposal=proposal;
+            _templateMode=false;
+            ToolTitle.Text=allCompatible?"Pegar tablas en área compatible":"Pegar tabla de encuentros";
+            TemplatePanel.Visibility=Visibility.Collapsed;
+            OptionsPanel.Visibility=Visibility.Collapsed;
+            FieldsScroll.Visibility=Visibility.Collapsed;
+            ToolsPanel.Visibility=Visibility.Visible;
+            SaveButton.IsEnabled=false;
+            ChangeList.ItemsSource=proposal.Changes;
+            ApplyButton.IsEnabled=proposal.Changes.Count>0;
+            ProposalText.Text=$"{proposal.Changes.Count} diferencias en {ids.Length} tablas. " +
+                "Las tablas incompatibles y otras áreas permanecen intactas. " +
+                "Ningún archivo ha sido modificado todavía.";
+            StatusText.Text="Vista previa lista · confirmá antes de aplicar el pegado.";
+        }
+        catch(Exception ex)
+        {
+            Invalidate();
+            StudioDialog.Error(Window.GetWindow(this),"Pegar encuentros",ex.Message);
+        }
+    }
     private void ImportOptions_Click(object sender,RoutedEventArgs e)
     {
         if(Editor is not IOptionTemplateProjectEditor editor)return;
