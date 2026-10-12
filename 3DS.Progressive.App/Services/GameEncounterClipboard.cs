@@ -27,11 +27,13 @@ public sealed partial class GameEncounterService
             NormalOccupied(values),new Dictionary<string,int>(values));
     }
 
-    internal IReadOnlyList<int> CompatibleWildTables(WildTableClipboard copy)
+    internal IReadOnlyList<int> CompatibleWildTables(WildTableClipboard copy,int destinationId)
     {
         EnsureClipboard(copy);
+        if(!_locations.TryGetValue(destinationId,out var destination))
+            throw new ArgumentOutOfRangeException(nameof(destinationId));
         var records=Records();
-        return _locations.Where(p=>p.Value.File==copy.SourceAreaFile)
+        return _locations.Where(p=>p.Value.File==destination.File)
             .Where(p=>NormalOccupied(EditorValues.Flatten(ReadRecord(p.Key,records)))
                 ==copy.OccupiedNormalSlots)
             .Select(p=>p.Key).Order().ToArray();
