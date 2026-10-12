@@ -277,6 +277,48 @@ internal sealed class SystemsView : UserControl
     }
     private void BuildSettings(StackPanel stack)
     {
+        var prefsLanguage=AppPreferences.Load();
+        var language=Card("Options → Language · Idioma de datos del juego",
+            "Selección original de pk3DS. Cambia los nombres, movimientos y textos que se LEEN " +
+            "de los archivos del juego, no el idioma de los textos fijos de la interfaz WPF. " +
+            "No traduce ni modifica los datos guardados en la ROM.");
+        var languagePanel=(StackPanel)language.Child;
+        var languagePicker=new System.Windows.Controls.ComboBox
+        {
+            MinWidth=260,HorizontalAlignment=System.Windows.HorizontalAlignment.Left,
+            ItemsSource=new[]{"カタカナ · Japonés", "漢字 · Japonés (kanji)", "English",
+                "Français", "Italiano", "Deutsch", "Español", "한국",
+                "中文 (简体)", "中文 (繁體)"},
+            SelectedIndex=prefsLanguage.GameTextLanguageIndex,
+            Margin=new Thickness(0,0,0,10)
+        };
+        languagePanel.Children.Add(languagePicker);
+        AddButton(languagePanel,"Guardar idioma y recargar proyecto",()=>
+        {
+            if(_project.Generation==6&&languagePicker.SelectedIndex>7)
+                throw new NotSupportedException("Los juegos Gen6 no admiten los dos últimos idiomas.");
+            prefsLanguage.GameTextLanguageIndex=languagePicker.SelectedIndex;
+            prefsLanguage.Save();
+            _navigate("ReloadLanguage");
+        });
+        stack.Children.Add(language);
+        var help=Card("Options → About pk3DS / About GARCs",
+            "Información de la aplicación y la distribución real de GARC del juego activo.");
+        var helpButtons=new WrapPanel();
+        ((StackPanel)help.Child).Children.Add(helpButtons);
+        AddButton(helpButtons,"About pk3DS",()=>StudioDialog.Notice(Window.GetWindow(this),
+            "Acerca de pk3DS Progressive",
+            "Interfaz 3DS Progressive sobre pk3DS.Core. Proyecto abierto: "+_project.GameName+
+            " · Gen "+_project.Generation+". Historial de modificaciones verificadas. " +
+            "Los parches binarios necesitan validación en runtime."));
+        AddButton(helpButtons,"About GARCs · Copiar listado",()=>
+        {
+            string result=string.Join(Environment.NewLine,_project.GameConfiguration.Files
+                .Select(x=>x.Name+" → "+_project.GameConfiguration.GetGARCFileName(x.Name)));
+            Clipboard.SetText(result);
+            _status.Text=$"Copiados {_project.GameConfiguration.Files.Count} GARCs reales al portapapeles.";
+        });
+        stack.Children.Add(help);
         var paths=Card("Carpetas predeterminadas · solo en este equipo",
             "Se guardan en AppData local, nunca en RomFS ni ExeFS. Se reutilizan al abrir proyectos y al crear backups.");
         var panel=(StackPanel)paths.Child;
