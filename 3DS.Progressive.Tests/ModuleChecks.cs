@@ -135,11 +135,11 @@ internal static class ModuleChecks
                 "Story Text full-bank vanilla dump round-trips without changes Gen "+version);
             string modifiedDump=fullDump.Replace("Primer diálogo","Primer diálogo editado",
                 StringComparison.Ordinal);
-            byte[] gameTextBefore=File.ReadAllBytes(PathFor(f,"gametext"));
-            byte[] storyBefore=File.ReadAllBytes(PathFor(f,"storytext"));
+            byte[] gameTextBefore=File.ReadAllBytes(PathFor(storyFixture,"gametext"));
+            byte[] storyBefore=File.ReadAllBytes(PathFor(storyFixture,"storytext"));
             var storyPreview=storyEditor.PreviewImportAll(modifiedDump);
             check(storyPreview.Changes.Count==1&&
-                  File.ReadAllBytes(PathFor(f,"storytext")).SequenceEqual(storyBefore),
+                  File.ReadAllBytes(PathFor(storyFixture,"storytext")).SequenceEqual(storyBefore),
                 "Story Text preview changes exactly one dialogue and does not write Gen "+version);
             reject(()=>storyEditor.PreviewImportAll(modifiedDump.Replace("Text File : 1","Text File : 9",
                 StringComparison.Ordinal)),
@@ -149,7 +149,7 @@ internal static class ModuleChecks
                 "Story Text refuses shifted/deleted dialogue lines Gen "+version);
             storyEditor.ApplyImportAll(storyPreview);
             check(storyEditor.Read(0)[1]=="Primer diálogo editado" &&
-                  File.ReadAllBytes(PathFor(f,"gametext")).SequenceEqual(gameTextBefore),
+                  File.ReadAllBytes(PathFor(storyFixture,"gametext")).SequenceEqual(gameTextBefore),
                 "Story Text save preserves Game Text and every other line Gen "+version);
 
             }
