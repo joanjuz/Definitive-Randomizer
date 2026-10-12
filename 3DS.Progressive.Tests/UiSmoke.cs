@@ -287,6 +287,17 @@ internal static class UiSmoke
             ((Button)main.FindName("GlobalTemplateButton")).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             check(((ContentControl)main.FindName("SectionHost")).Content is GlobalTemplateView,
                 "WPF Global Template menu opens lossless compatible import/export UI");
+            var globalView=((ContentControl)main.FindName("SectionHost")).Content as GlobalTemplateView;
+            if(globalView is not null)
+            {
+                Layout(globalView,1100,720);
+                var actionGrid=Walk(globalView).OfType<System.Windows.Controls.DataGrid>().First();
+                check(actionGrid.RowHeaderWidth==0&&actionGrid.ColumnHeaderStyle is not null &&
+                    actionGrid.ColumnHeaderStyle.Setters.OfType<Setter>().Any(x=>
+                        x.Property==System.Windows.Controls.Control.BackgroundProperty),
+                    "Global Template action table uses explicit dark column header instead of white default");
+                Capture(globalView,"global-template-dark.png");
+            }
             ((Button)main.FindName("BatchRomButton")).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             check(((ContentControl)main.FindName("SectionHost")).Content is BatchRomBuilderView,
                 "WPF Batch ROM Builder is native dark UI and no longer an inaccessible section");
