@@ -40,8 +40,9 @@ public sealed partial class GameMachineTutorService
         if(Tutors.Count!=_originalTutorMoves.Length || Tutors.Select(t=>t.Number).Where((n,i)=>n!=i+1).Any())
             throw new InvalidDataException("Orden o número de tutores alterado.");
         if(Tutors.Any(t=>t.MoveId<=0||t.MoveId>=_project.MoveNames.Count||
-                            t.MoveId>ushort.MaxValue||Legal.Z_Moves.Contains(t.MoveId)||
-                            TutorExceptions.Contains(t.MoveId)))
+                            t.MoveId>ushort.MaxValue||
+                            (t.MoveId!=_originalTutorMoves[t.Number-1]&&
+                             (Legal.Z_Moves.Contains(t.MoveId)||TutorExceptions.Contains(t.MoveId)))))
             throw new InvalidDataException("Hay movimientos de tutor inválidos o exclusivos de mecánicas especiales.");
         if(Tutors.Any(t=>t.Price is <0 or >65535))
             throw new InvalidDataException("Los precios de tutores deben estar entre 0 y 65535 BP.");
