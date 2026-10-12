@@ -1,6 +1,7 @@
 using System.IO;
 using pk3DS.Core;
 using pk3DS.Core.Structures;
+using pk3DS.Core.Randomizers;
 using ThreeDS.Progressive.Models;
 
 namespace ThreeDS.Progressive.Services;
@@ -48,15 +49,37 @@ public sealed class GameStaticEncounterService : ArchiveProjectEditor
         var slot=_slots[id];return data["encounterstatic"][slot.File].AsSpan(slot.Index*slot.Size,slot.Size).ToArray();
     }
     public override IReadOnlyList<EditorGroup> RandomOptions=>[
-        new("Randomización de especies",[
+        new("Especies permitidas",[
             Field("Species","Randomizar especies",1,0,1),
-            Field("BST","Tolerancia BST (%) · 0 = cualquier especie",0,0,100),
-            Field("LevelScale","Multiplicar niveles (%)",100,10,300),
+            Field("G1","Generación 1",1,0,1),Field("G2","Generación 2",1,0,1),
+            Field("G3","Generación 3",1,0,1),Field("G4","Generación 4",1,0,1),
+            Field("G5","Generación 5",1,0,1),Field("G6","Generación 6",1,0,1),
+            Field("G7","Generación 7",1,0,1),
+            Field("Legends","Permitir Pokémon legendarios",1,0,1),
+            Field("Events","Permitir Pokémon de evento",1,0,1),
+            Field("BST","Tolerancia BST (%) · 0 = libre",0,0,100),
+            Field("LegendToLegend","Reemplazar legendarios por legendarios",0,0,1),
+            Field("NoLegendGifts","Bloquear legendarios en regalos e intercambios",0,0,1)
+        ]),
+        new("Alcance de randomización",[
             Field("Gifts","Incluir regalos e iniciales",1,0,1),
             Field("Static","Incluir encuentros estáticos y Totems",1,0,1),
             Field("Trades","Incluir Pokémon ofrecidos en intercambios",1,0,1),
-            Field("ShinyLock","Conservar restricciones shiny",1,0,1)
-        ])
+            Field("LevelScale","Multiplicar niveles (%)",100,10,300),
+            Field("LevelFlat","Sumar niveles",0,-100,100)
+        ]),
+        new("Regalos, habilidades y objetos",[
+            Field("RandomItems","Randomizar objetos equipados",0,0,1),
+            Field("RandomAbilities","Randomizar slots de habilidad (regalos/estáticos)",0,0,1),
+            Field("GiftMoves","Randomizar movimiento especial de regalos",0,0,1),
+            Field("ShinyLock","Conservar restricciones shiny",1,0,1),
+            Field("RemoveLocks","Eliminar shiny locks (regalos/estáticos)",0,0,1)
+        ]),
+        new("Encuentros Totem y especiales",[
+            Field("TotemAura","Randomizar aura de Totem existente",0,0,1),
+            Field("ForceFinal","Usar evoluciones finales desde un nivel",0,0,1),
+            Field("FinalLevel","Nivel para evolución final",36,1,100)
+        ],false)
     ];
     protected override IReadOnlyList<EditorGroup> ReadRecord(int id,Dictionary<string,byte[][]> records)
     {
@@ -137,6 +160,33 @@ public sealed class GameStaticEncounterService : ArchiveProjectEditor
         }
         bytes.CopyTo(records["encounterstatic"][slot.File],slot.Index*slot.Size);
     }
+    private int PickFilteredSpecies(int original,int level,bool giftOrTrade,
+        IReadOnlyDictionary<string,int> options,Random random)
+    {
+        var filter=new SpeciesRandomizer(Config)
+        {
+            G1=options["G1"]==1,G2=options["G2"]==1,G3=options["G3"]==1,
+            G4=options["G4"]==1,G5=options["G5"]==1,G6=options["G6"]==1,
+            G7=options["G7"]==1,L=options["Legends"]==1,E=options["Events"]==1,rBST=false
+        };
+        var legendary=new HashSet<int>(Config.USUM?Legal.Legendary_USUM:Legal.Legendary_SM);
+        var pool=filter.GetAllowedSpeciesPool().Where(species=>species>0&&
+            species<=Config.MaxSpeciesID&&species<Config.Personal.Table.Length).ToArray();
+        if(options["NoLegendGifts"]==1&&giftOrTrade)
+            pool=pool.Where(id=>!legendary.Contains(id)&&!Legal.Mythical_USUM.Contains(id)).ToArray();
+        if(options["LegendToLegend"]==1&&legendary.Contains(original))
+            pool=pool.Where(legendary.Contains).ToArray();
+        if(options["ForceFinal"]==1&&level>=options["FinalLevel"])
+            pool=pool.Where(id=>Legal.FinalEvolutions_7.Contains(id)).ToArray();
+        int tolerance=options["BST"];
+        if(tolerance>0&&original>0&&original<Config.Personal.Table.Length)
+        {
+            int bst=Config.Personal[original].BST;
+            pool=pool.Where(id=>Math.Abs(Config.Personal[id].BST-bst)*100<=bst*tolerance).ToArray();
+        }
+        if(pool.Length==0)throw new InvalidDataException("Static Encounters: el filtro de generación, BST o legendarios no deja reemplazos válidos.");
+        return pool[random.Next(pool.Length)];
+    }
     protected override Dictionary<string,int> Randomize(int id,IReadOnlyDictionary<string,int> options,
         Dictionary<string,byte[][]> records,Random random)
     {
@@ -145,12 +195,36 @@ public sealed class GameStaticEncounterService : ArchiveProjectEditor
         if(!enabled||values["Species"]<=0)return values;
         if(options["Species"]==1&&values["Species"]>0)
         {
-            values["Species"]=PickSpecies(values["Species"],random,options["BST"]);
+            values["Species"]=PickFilteredSpecies(values["Species"],values["Level"],
+                slot.File!=1,options,random);
             values["Form"]=0;
         }
         if(values["Level"]>0)
-            values["Level"]=Math.Clamp((int)Math.Round(values["Level"]*options["LevelScale"]/100.0),1,100);
-        if(slot.File!=4&&options["ShinyLock"]==1)
+            values["Level"]=Math.Clamp((int)Math.Round(values["Level"]*options["LevelScale"]/100.0)
+                +options["LevelFlat"],1,100);
+        if(options["RandomItems"]==1&&values.ContainsKey("Item"))
+        {
+            int[] heldPool=[155,156,157,158,159,160,220,234,270,275,287,297,538];
+            var valid=heldPool.Where(item=>item<Config.GetText(TextName.ItemNames).Length).ToArray();
+            if(valid.Length>0)values["Item"]=valid[random.Next(valid.Length)];
+        }
+        if(options["RandomAbilities"]==1&&slot.File!=4&&values.ContainsKey("Ability"))
+            values["Ability"]=random.Next(0,3);
+        if(options["GiftMoves"]==1&&slot.File==0)
+        {
+            int[] moves=Enumerable.Range(1,Math.Min(Config.Moves.Length,621)-1)
+                .Where(move=>!Legal.Z_Moves.Contains(move)&&move is not (165 or 166 or 226))
+                .ToArray();
+            if(moves.Length>0)values["Move"]=moves[random.Next(moves.Length)];
+        }
+        if(options["TotemAura"]==1&&slot.File==1&&values["Aura"]>0)
+            values["Aura"]=random.Next(1,8);
+        if(slot.File!=4&&options["RemoveLocks"]==1)
+        {
+            values["ShinyLock"]=0;
+            if(slot.File==1)values["Shiny"]=1;
+        }
+        else if(slot.File!=4&&options["ShinyLock"]==1)
             values["ShinyLock"]=EditorValues.Flatten(ReadRecord(id,records))["ShinyLock"];
         return values;
     }
