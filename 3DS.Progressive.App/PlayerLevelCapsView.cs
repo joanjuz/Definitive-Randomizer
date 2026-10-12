@@ -32,6 +32,11 @@ internal sealed class PlayerLevelCapsView : UserControl
     private readonly Button _apply;
     private readonly StackPanel _operations;
     private LevelCapInstallPreview? _preview;
+    private bool _changed;
+    internal bool ConfirmLeave()=>!_changed&&_preview is null||StudioDialog.Confirm(
+        Window.GetWindow(this),"Player Level Caps pendiente",
+        "Hay flags, caps o una vista previa sin aplicar.",
+        "Si continuás, se descartan los cambios no guardados.");
     internal PlayerLevelCapsView(GameProjectSession project)
     {
         _service=new GamePlayerLevelCapService(project);
@@ -144,6 +149,7 @@ internal sealed class PlayerLevelCapsView : UserControl
         _grid.CellEditEnding+=(_,_)=>Invalidate();
         root.Children.Add(_grid);
         Reload(_service.StartingTable());
+        _changed=false;
         _operations.IsEnabled=_service.Supported;
         _grid.IsEnabled=_service.Supported;
         prepare.IsEnabled=_service.Supported;
@@ -156,7 +162,7 @@ internal sealed class PlayerLevelCapsView : UserControl
             catch(Exception ex){StudioDialog.Error(Window.GetWindow(button),"Player Level Caps",ex.Message);}};
         panel.Children.Add(button);return button;
     }
-    private void Invalidate(){_preview=null;if(_apply is not null)_apply.IsEnabled=false;}
+    private void Invalidate(){_changed=true;_preview=null;if(_apply is not null)_apply.IsEnabled=false;}
     private void Reload(LevelCapTable table)
     {
         _rows.Clear();
@@ -236,7 +242,7 @@ internal sealed class PlayerLevelCapsView : UserControl
         UiProgress.Begin("Instalando Player Level Caps y verificando ambos ejecutables…");
         try
         {
-            _service.Apply(proposed);Invalidate();
+            _service.Apply(proposed);Invalidate();_changed=false;
             _status.Text="Player Level Caps instalado y verificado. "+_service.Status;
         }
         finally{UiProgress.End();}
