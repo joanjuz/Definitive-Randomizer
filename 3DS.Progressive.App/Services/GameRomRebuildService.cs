@@ -34,10 +34,24 @@ internal sealed class GameRomRebuildService(GameProjectSession project)
                 string exefs=project.GameConfiguration.ExeFS;
                 string romfile=Path.Combine(stage,"romfs.bin");
                 string exefile=Path.Combine(stage,"exefs.bin");
+                if(!Directory.Exists(romfs))
+                    throw new DirectoryNotFoundException("No se encontró la carpeta RomFS del proyecto: "+romfs);
+                if(kind is not RomRebuildKind.RomFS && !Directory.Exists(exefs))
+                    throw new DirectoryNotFoundException("No se encontró la carpeta ExeFS del proyecto: "+exefs);
+                // Fail early rather than spending minutes rebuilding a large RomFS
+                // before discovering that the .3ds input is not extractable.
+                if(kind is RomRebuildKind.Full3DS or RomRebuildKind.Trimmed3DS)
+                    _=LocateExheader(root);
                 if(kind is RomRebuildKind.RomFS or RomRebuildKind.Full3DS or RomRebuildKind.Trimmed3DS)
                 {
                     UiProgress.Stage("RomFS · calculando metadatos y empaquetando archivos…");
-                    RomFS.BuildRomFS(romfs,romfile);
+                    // The original RomFS builder dereferences PB_Show.InvokeRequired
+                    // unconditionally. In this WPF worker there is no WinForms progress
+                    // bar unless we provide a lightweight, private instance. Omitting it
+                    // produces NullReferenceException during the first metadata/data pass.
+                    // Do not show a legacy window: only our dark WPF progress is visible.
+                    using(var legacyProgress=new System.Windows.Forms.ProgressBar())
+                        RomFS.BuildRomFS(romfs,romfile,PB_Show:legacyProgress);
                     if(!File.Exists(romfile)||new FileInfo(romfile).Length==0)
                         throw new IOException("RomFS no produjo una salida válida.");
                     UiProgress.Count("RomFS compilado",1,kind==RomRebuildKind.RomFS?2:4);
@@ -94,13 +108,22 @@ internal sealed class GameRomRebuildService(GameProjectSession project)
             BuildGate.Release();
         }
     }
-    private static string Build3ds(string stage,string root,string exefs,string romfs,bool trimmed)
+    private static string LocateExheader(string root)
     {
-        string? exheader=Directory.EnumerateFiles(root,"*",SearchOption.TopDirectoryOnly)
+        if(!Directory.Exists(root))
+            throw new DirectoryNotFoundException("La carpeta raíz de la ROM no existe: "+root);
+        string? path=Directory.EnumerateFiles(root,"*",SearchOption.TopDirectoryOnly)
             .FirstOrDefault(x=>Path.GetFileName(x).Contains("exheader",StringComparison.OrdinalIgnoreCase)
                 ||Path.GetExtension(x).Equals(".exh",StringComparison.OrdinalIgnoreCase));
-        if(exheader is null)throw new FileNotFoundException(
-            "Para Rebuild .3DS se requiere ExHeader extraído en la carpeta raíz.");
+        if(path is null)throw new FileNotFoundException(
+            "Para reconstruir un .3DS se requiere el ExHeader extraído en la carpeta raíz.");
+        if(new FileInfo(path).Length<0x800)
+            throw new InvalidDataException("El ExHeader está incompleto; se requieren al menos 0x800 bytes.");
+        return path;
+    }
+    private static string Build3ds(string stage,string root,string exefs,string romfs,bool trimmed)
+    {
+        string exheader=LocateExheader(root);
         UiProgress.Stage(trimmed?"Compilando Trimmed .3DS…":"Compilando .3DS completo…");
         var exh=new Exheader(exheader);
         string path=Path.Combine(stage,"result.3ds");
