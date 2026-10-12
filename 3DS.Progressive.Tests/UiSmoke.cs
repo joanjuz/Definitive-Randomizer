@@ -122,7 +122,7 @@ internal static class UiSmoke
             check(trainer.OptionControls.Keys.Any(k=>k.EndsWith(".CapUse",StringComparison.Ordinal))
                 && trainer.OptionControls.Keys.Any(k=>k.EndsWith(".MoveUse",StringComparison.Ordinal)),
                 "Trainer options expose level cap and move rules even without a saved template");
-            check(Walk(trainer).OfType<TabControl>().Any(t=>t.Items.Count==5
+            check(((StackPanel)trainer.FindName("OptionsPanel")).Children.OfType<TabControl>().Any(t=>t.Items.Count==5
                 && ((TabItem)t.Items[1]).Header?.ToString()=="Niveles y Level Caps"),
                 "Trainer randomizer shows five task-based panels");
             ((ComboBox)trainer.FindName("ScopeBox")).SelectedIndex=2;
