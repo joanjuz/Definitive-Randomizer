@@ -121,6 +121,7 @@ public sealed class GameMachineTutorService
             new BatchChange(r.Number,$"MT {r.Number:000}","Movimiento",
                 _project.GetMoveLabel(_originalTm[r.Number-1]),_project.GetMoveLabel(r.MoveId))).ToArray();
         _project.History.Commit([new FileChange(_codePath,current,output)],"MT y tutores","Editar MT",differences);
+        _project.RefreshMoveAssignments();
         // The shell refreshes assignment names only after project reload; do not trust cached IDs.
     }
     public void SaveTutorPrices()
