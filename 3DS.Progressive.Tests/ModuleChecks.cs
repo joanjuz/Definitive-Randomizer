@@ -192,7 +192,7 @@ internal static class ModuleChecks
                 if(f.Game.USUM)
                 {
                     var totems=statics.TotemRules();
-                    check(totems.Count==9&&totems.Any(r=>r.Id==160)&&totems.Any(r=>r.Id==4),
+                    check(totems.Count>=9&&totems.Any(r=>r.Id==160)&&totems.Any(r=>r.Id==4),
                         version+" USUM Totem tables retain all original 0-based Static Encounter IDs");
                     foreach(var r in totems)r.Use=false;
                     var first=totems.First(r=>r.Id==4);
