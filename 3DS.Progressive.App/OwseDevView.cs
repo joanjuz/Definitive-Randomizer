@@ -63,7 +63,7 @@ internal sealed class OwseDevView : UserControl
         grid.Children.Add(_zones);
         _details=new TextBox
         {
-            IsReadOnly=true,FontFamily=new FontFamily("Consolas"),FontSize=12,
+            IsReadOnly=true,FontFamily=new System.Windows.Media.FontFamily("Consolas"),FontSize=12,
             AcceptsReturn=true,TextWrapping=TextWrapping.NoWrap,
             VerticalScrollBarVisibility=ScrollBarVisibility.Auto,
             HorizontalScrollBarVisibility=ScrollBarVisibility.Auto,
