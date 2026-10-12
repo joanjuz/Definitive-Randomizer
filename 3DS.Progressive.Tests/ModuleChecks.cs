@@ -283,7 +283,8 @@ internal static class ModuleChecks
                 var wildOptions=EditorValues.Flatten(wildTemplateEditor.RandomOptions);
                 check(wildOptions["MegaForms"]==1&&wildOptions["G2"]==0&&
                       wildOptions["Events"]==1&&wildOptions["Progressive"]==1&&
-                      wildOptions["BST.1.MinLevel"]==41&&wildOptions["LevelScale"]==125,
+                      wildOptions["BST.1.MinLevel"]==41&&wildOptions["LevelScale"]==125&&
+                      wildOptions["ModifyLevel"]==1,
                     version+" Wild template v1 restores filters, level scale and Progressive BST controls");
                 string wildExport=wildTemplateEditor.CaptureOptions(wildOptions);
                 using var wildDoc=System.Text.Json.JsonDocument.Parse(wildExport);
@@ -292,6 +293,17 @@ internal static class ModuleChecks
                       wildRoot.GetProperty("progressiveBST").GetProperty("ranges").GetArrayLength()==2 &&
                       wildRoot.GetProperty("megaForms").GetBoolean(),
                     version+" Wild template v1 roundtrips unrecognized properties and ranges");
+                string withoutLevel=wildSource.Replace(
+                    "\"modifyLevel\":true","\"modifyLevel\":false",
+                    StringComparison.Ordinal);
+                wildTemplateEditor.RestoreOptions(withoutLevel);
+                var disabledWild=EditorValues.Flatten(wildTemplateEditor.RandomOptions);
+                check(disabledWild["ModifyLevel"]==0&&disabledWild["LevelScale"]==125&&
+                      !System.Text.Json.JsonDocument.Parse(
+                          wildTemplateEditor.CaptureOptions(disabledWild))
+                        .RootElement.GetProperty("modifyLevel").GetBoolean(),
+                    version+" Wild template keeps ModifyLevel disabled despite configured multiplier");
+                wildTemplateEditor.RestoreOptions(wildSource);
                 string tempWild=Path.Combine(f.Root,"wild-regression.json");
                 wildTemplateEditor.ExportOptions(tempWild,wildOptions);
                 var reloadedWild=new GameEncounterService(f.Session);
@@ -310,6 +322,15 @@ internal static class ModuleChecks
             }
             if(f.Game.Generation==7)
             {
+                check(GameEncounterService.ResolveProgressionLevel(2,4,
+                        [731,731,731],26)==26 &&
+                      GameEncounterService.ResolveProgressionLevel(0,0,
+                        [25,26,27],33)==33 &&
+                      GameEncounterService.ResolveProgressionLevel(5,9,
+                        [1,2,3],33)==9 &&
+                      GameEncounterService.ResolveProgressionLevel(1,255,
+                        [4,5,6],15)==100,
+                    version+" Progressive Wild uses area fallback for Pikipek/empty tables");
                 // Slot mode 1/3 must never randomize weather even if the
                 // Weather checkbox is enabled. Mode 2 also excludes regular.
                 check(GameEncounterService.ShouldRandomizeWildGroup(0,1,true,true)&&
@@ -396,6 +417,17 @@ internal static class ModuleChecks
                 int index=f.Game.XY?1:2;var after=Read(f,"encdata")[index];check(after[0]==0x7C&&after[^1]==0x9A,version+" encounter preserves map header/trailer");
                 check(Read(f,"encdata")[index+1].SequenceEqual(encBefore[index+1]),version+" unrelated encounter map remains byte-identical");
                 if(f.Game.ORAS)check(Read(f,"encdata")[1].AsSpan(32,0xF4).SequenceEqual(after.AsSpan(32,0xF4)),version+" ORAS map and shared EN mirror are synchronized");
+            }
+            if(f.Game.Generation==7)
+            {
+                var disabledOptions=EditorValues.Flatten(encounter.RandomOptions);
+                disabledOptions["ModifyLevel"]=0;
+                disabledOptions["LevelScale"]=180;
+                var frozen=encounter.Preview(disabledOptions,[1]);
+                check(!frozen.Changes.Any(change=>change.Field.Contains("Nivel",
+                    StringComparison.OrdinalIgnoreCase)) &&
+                      EditorValues.Flatten(encounter.Read(1))["Min"]==20,
+                    version+" Wild ModifyLevel false prevents level changes in preview");
             }
             options=EditorValues.Flatten(encounter.RandomOptions);options["LevelScale"]=150;
             var ep=encounter.Preview(options,[1]);encounter.Apply(ep);
