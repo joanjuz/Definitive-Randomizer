@@ -208,6 +208,22 @@ public sealed partial class GameEncounterService : ArchiveProjectEditor, IOption
             }
         }
     }
+    // SMWE's slot modes: 0=all, 1=regular, 2=SOS (incl. weather),
+    // 3=regular then copy into ordinary SOS. Weather must never be
+    // randomized in modes 1 and 3, regardless of its checkbox.
+    internal static bool ShouldRandomizeWildGroup(int group,int slotMode,
+        bool includeSos,bool includeWeather)
+    {
+        if(slotMode is <0 or >3)throw new ArgumentOutOfRangeException(nameof(slotMode));
+        return group switch
+        {
+            0 => slotMode!=2,
+            >=1 and <=7 => includeSos && slotMode is 0 or 2,
+            8 => includeSos && includeWeather && slotMode is 0 or 2,
+            _ => false
+        };
+    }
+
     protected override Dictionary<string,int> Randomize(int id,IReadOnlyDictionary<string,int> options,Dictionary<string,byte[][]> records,Random random)
     {
         var values=EditorValues.Flatten(ReadRecord(id,records));
