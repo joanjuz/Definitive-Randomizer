@@ -144,9 +144,6 @@ internal static class ModuleChecks
                       "UnknownFutureField":{"Payload":[1,2,3]}
                     }
                     """;
-            }
-            if(version==GameVersion.USUM)
-            {
                 var global=GlobalTemplateDocument.Parse(example,"USUM",7);
                 check(global.Version==1&&global.Coverage==8&&global.TrainerCapCount==1
                     &&global.PlayerCapCount==1&&global.Actions.Count==3,
