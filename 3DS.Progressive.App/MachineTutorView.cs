@@ -90,7 +90,7 @@ internal sealed class MachineTutorView : UserControl
             Header="Movimiento",ItemsSource=_service.MoveChoices,DisplayMemberPath="Display",
             SelectedValuePath="Id",SelectedValueBinding=new Binding("MoveId")
             {Mode=BindingMode.TwoWay,UpdateSourceTrigger=UpdateSourceTrigger.PropertyChanged},
-            Width=new DataGridLength(400)
+            Width=new DataGridLength(1,DataGridLengthUnitType.Star),MinWidth=300
         });
         _machineGrid.CellEditEnding+=(_,_)=>{_dirtyMachines=true;UpdateState();};
         machines.Children.Add(_machineGrid);
@@ -123,7 +123,7 @@ internal sealed class MachineTutorView : UserControl
         _tutorGrid=BuildGrid();
         _tutorGrid.Columns.Add(new DataGridTextColumn {Header="N.º",Binding=new Binding("Number"),IsReadOnly=true,Width=67});
         _tutorGrid.Columns.Add(new DataGridTextColumn {Header="Sede",Binding=new Binding("Group"),IsReadOnly=true,Width=95});
-        _tutorGrid.Columns.Add(new DataGridTextColumn {Header="Movimiento",Binding=new Binding("MoveName"),IsReadOnly=true,Width=new DataGridLength(330)});
+        _tutorGrid.Columns.Add(new DataGridTextColumn {Header="Movimiento",Binding=new Binding("MoveName"),IsReadOnly=true,Width=new DataGridLength(1,DataGridLengthUnitType.Star),MinWidth=260});
         _tutorGrid.Columns.Add(new DataGridTextColumn
         {
             Header="Precio (BP)",Binding=new Binding("Price"){Mode=BindingMode.TwoWay,
