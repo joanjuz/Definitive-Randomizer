@@ -119,6 +119,18 @@ internal static class UiSmoke
             Walk(trainer).OfType<Button>().First(b=>Equals(b.Content,"Descartar cambios")).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             check(((TextBox)trainer.FieldControls["P0.Level"]).Text=="10","WPF trainer discard restores the saved value");
             ((Button)trainer.FindName("RandomizerButton")).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            var trainerTabs=((StackPanel)trainer.FindName("OptionsPanel")).Children.OfType<TabControl>().Single();
+            trainerTabs.ApplyTemplate();
+            var firstTrainerTab=(TabItem)trainerTabs.Items[0];
+            firstTrainerTab.ApplyTemplate();
+            check(trainerTabs.Background is SolidColorBrush tabsBg && tabsBg.Color==Color.FromRgb(21,26,34)
+                && firstTrainerTab.Background is SolidColorBrush tabBg && tabBg.Color==Color.FromRgb(37,47,61),
+                "WPF trainer tab strip and panel use dark graphite brushes (no Windows white defaults)");
+            trainerTabs.SelectedIndex=4;
+            Layout(trainer,1170,720);Capture(trainer,"entrenadores-bst-dark.png");
+            check(trainerTabs.SelectedIndex==4,"WPF trainer BST tab remains selectable after dark template");
+            trainerTabs.SelectedIndex=0;
+
             check(trainer.OptionControls.Keys.Any(k=>k.EndsWith(".CapUse",StringComparison.Ordinal))
                 && trainer.OptionControls.Keys.Any(k=>k.EndsWith(".MoveUse",StringComparison.Ordinal)),
                 "Trainer options expose level cap and move rules even without a saved template");
