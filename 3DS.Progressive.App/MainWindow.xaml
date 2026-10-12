@@ -513,6 +513,10 @@
                 <TextBlock Text="3DS PROGRESSIVE · V0.8.0 PREVIEW"
                            DockPanel.Dock="Right" Foreground="{StaticResource TextSoft}"
                            FontSize="10" VerticalAlignment="Center"/>
+                <ProgressBar x:Name="OperationProgress" DockPanel.Dock="Right"
+                             Width="220" Height="7" Margin="12,0,16,0" IsIndeterminate="True"
+                             Visibility="Collapsed" Foreground="{StaticResource Accent}"
+                             Background="{StaticResource Surface}" VerticalAlignment="Center"/>
                 <TextBlock x:Name="StatusText" Text="Esperando proyecto extraído..."
                            Foreground="{StaticResource TextSoft}" TextTrimming="CharacterEllipsis"
                            VerticalAlignment="Center" FontSize="11"/>
