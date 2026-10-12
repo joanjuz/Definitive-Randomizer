@@ -6,8 +6,6 @@ using pk3DS.Core.Structures;
 using ThreeDS.Progressive.Models;
 using ThreeDS.Progressive.Services;
 
-namespace ThreeDS.Progressive.Tests;
-
 internal static class SystemsExpansionChecks
 {
     internal static void Run(Action<bool,string> check,Action<Action,string> reject)
