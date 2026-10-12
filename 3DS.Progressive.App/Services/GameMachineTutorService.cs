@@ -20,7 +20,8 @@ public sealed class TutorPriceRow : INotifyPropertyChanged
 {
     public int Number {get;init;}
     public string Group {get;init;}="";
-    public int MoveId {get;init;}
+    private int _moveId;
+    public int MoveId {get=>_moveId;set{if(_moveId==value)return;_moveId=value;Changed();}}
     public string MoveName {get;init;}="";
     private int _price;
     public int Price {get=>_price;set{if(_price==value)return;_price=value;Changed();}}
@@ -29,7 +30,7 @@ public sealed class TutorPriceRow : INotifyPropertyChanged
 }
 
 /// <summary>Reads exact active Gen7 TM code and Shop.cro tutor layout; writes only the verified table spans.</summary>
-public sealed class GameMachineTutorService
+public sealed partial class GameMachineTutorService
 {
     private readonly GameProjectSession _project;
     private readonly string _codePath,_shopPath;
@@ -38,11 +39,13 @@ public sealed class GameMachineTutorService
     private readonly int _tmOffset,_tutorOffset;
     private readonly ushort[] _originalTm;
     private readonly int[] _originalPrices;
+    private readonly int[] _originalTutorMoves;
     public IReadOnlyList<MachineMoveRow> Machines {get;}
     public IReadOnlyList<TutorPriceRow> Tutors {get;}
     public IReadOnlyList<MoveChoice> MoveChoices {get;}
     public bool CanEditTms=>Machines.Count==100;
     public bool CanEditTutorPrices=>_shopOriginal is not null && Tutors.Count>0;
+    public bool CanEditTutorMoves=>_project.GameConfiguration.USUM&&_shopOriginal is not null&&Tutors.Count==67;
     public GameMachineTutorService(GameProjectSession project)
     {
         _project=project;
@@ -94,6 +97,7 @@ public sealed class GameMachineTutorService
             }
         }
         Tutors=tutors;_originalPrices=prices.ToArray();
+        _originalTutorMoves=tutors.Select(t=>t.MoveId).ToArray();
     }
     public void RandomizeMachines()
     {
