@@ -18,7 +18,7 @@ internal sealed class BatchRomBuilderView : UserControl
     private readonly BatchRomExecution _engine;
     private readonly GameProjectSession _project;
     private readonly TextBox _template,_destination,_baseName,_count;
-    private readonly CheckBox _trimmed,_restore,_keepProjects;
+    private readonly CheckBox _trimmed,_restore,_keepProjects,_allowMismatch;
     private readonly TextBlock _summary,_progress;
     private readonly Button _build;
     private bool _busy;
@@ -48,6 +48,15 @@ internal sealed class BatchRomBuilderView : UserControl
         _progress=new TextBlock{Foreground=(Brush)FindResource("TextMain"),TextWrapping=TextWrapping.Wrap,
             Margin=new Thickness(0,0,0,7)};
         buttons.Children.Add(_progress);
+        _allowMismatch=new CheckBox
+        {
+            Content="Comprendo que los SHA-256 de algunos assets no coinciden; continuar con los archivos actuales",
+            Visibility=Visibility.Collapsed,Foreground=(Brush)FindResource("TextMain"),
+            Margin=new Thickness(0,5,0,10)
+        };
+        _allowMismatch.Checked+=(_,_)=>_build.IsEnabled=_ready is not null;
+        _allowMismatch.Unchecked+=(_,_)=>_build.IsEnabled=false;
+        buttons.Children.Add(_allowMismatch);
         var bar=new WrapPanel();
         buttons.Children.Add(bar);
         Add(bar,"Comprobar y previsualizar",Preview);
@@ -132,6 +141,11 @@ internal sealed class BatchRomBuilderView : UserControl
     private void Invalidate()
     {
         _ready=null;
+        if(_allowMismatch is not null)
+        {
+            _allowMismatch.IsChecked=false;
+            _allowMismatch.Visibility=Visibility.Collapsed;
+        }
         if(_build is not null)_build.IsEnabled=false;
     }
     private RomBatchOptions Settings()
@@ -150,11 +164,23 @@ internal sealed class BatchRomBuilderView : UserControl
             $"cobertura {document.Coverage} · {document.Actions.Count} acciones originales · " +
             $"{cfg.Count} ROMs · {(cfg.Trimmed?"Trimmed":"Full")} · " +
             $"SHA receta {document.Sha256[..14]}…";
+        var blocking=warnings.Where(w=>!BatchRomExecution.IsHashMismatch(w)).ToArray();
+        if(blocking.Length>0)
+        {
+            _progress.Text="Preflight detenido: "+string.Join(" | ",blocking);
+            _ready=null;_build.IsEnabled=false;_allowMismatch.Visibility=Visibility.Collapsed;
+            return;
+        }
         if(warnings.Count>0)
         {
-            _progress.Text="Preflight detenido: "+string.Join(" | ",warnings);
-            _ready=null;_build.IsEnabled=false;return;
+            _progress.Text="Advertencia SHA-256: "+string.Join(" | ",warnings)+
+                " · Para construir, marcá la autorización explícita de usar los archivos actuales.";
+            _allowMismatch.IsChecked=false;
+            _allowMismatch.Visibility=Visibility.Visible;
+            _ready=cfg with{AllowAssetMismatch=true};
+            _build.IsEnabled=false;return;
         }
+        _allowMismatch.Visibility=Visibility.Collapsed;
         _ready=cfg;_build.IsEnabled=true;
         _progress.Text="Validación previa correcta. La creación solo comienza al pulsar Construir ROMs.";
     }
