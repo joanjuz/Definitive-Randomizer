@@ -51,7 +51,11 @@ Alcance **Todo / Lista filtrada / Selección**, vista previa antes/después, **C
 - **Vista previa tutores** prepara las diferencias en `Shop.cro` y en la tabla nativa de `code.bin`; **Aplicar tutores y verificar** guarda ambas en una transacción con historial, tras confirmar y verificar hashes originales y tabla CRO.
 - Si solamente cambian precios, no se reescribe `code.bin`. Se conserva la edición de precios en SM, sin randomización de los 67 movimientos.
 - El editor de MT permanece disponible e independiente: no se cambian sus 100 posiciones al editar tutores. No permite guardar MT si hay tutores pendientes ni guardar tutores si hay MT pendientes.
-- Los presets **Tutor Sanity** y **Follow Evolutions** del original siguen pendientes de migración al editor WPF porque modifican además el GARC Personal y requieren pruebas propias.
+- Los presets **Tutor Sanity** y **Follow Evolutions** ya se integraron en WPF con casillas independientes y ejecución individual o conjunta. Sanity activa compatibilidad para los movimientos que cada Pokémon ya aprende por nivel; Follow Evolutions propaga compatibilidad por evolución (cadenas, ramas y formas) hasta punto fijo. Ambas operaciones solo agregan flags, nunca los eliminan.
+- La vista previa construye en memoria un GARC Personal nuevo desde los archivos activos `personal`, `levelup`, `evolution` y los 67 movimientos actuales de `Shop.cro`. Comprueba que solo cambien bytes de compatibilidad (0x38..0x45), reconstruye/verifica la tabla maestra y registra especies afectadas.
+- El guardado verifica SHA-256 de todos los archivos de origen y solo sustituye `personal` mediante una transacción con historial. `Shop.cro`, `code.bin`, `levelup` y `evolution` permanecen intactos, y se refresca la caché Pokémon tras el commit.
+- No se permite iniciar Sanity/Follow mientras haya MT, movimientos o precios de tutores pendientes de guardar; desmarcar/cambiar opciones invalida la vista previa anterior.
+- Pendiente validación manual sobre ambas ROMs para declarar paridad completa, además de las pruebas sintéticas CI.
 - Pendiente: validar la compatibilidad efectiva de movimientos enseñables in-game, y ambas ROMs Ultra Sol/Ultra Luna. Compilar no reemplaza esa prueba.
 
 ## Backup e historial
@@ -79,7 +83,7 @@ Prioridad de PNG: `%LOCALAPPDATA%\3DS Progressive\sprites\custom\entry-001.png`,
 
 ## Alcance pendiente
 
-La migración no está completa. Ya se integraron Static Encounters, Egg Moves, Level Up masivo, Player Caps, herramientas CRO, Type Chart Gen7, Global Template y Batch ROM Builder. Continúan pendientes las opciones completas de Progressive Wild, Tutor Sanity/Follow Evolutions y Story Text y módulos Gen6 especiales. En tiendas USUM se incorporaron la edición normal/BP, ranuras ampliables, randomización, caramelos raros y vitaminas con flags para EV 252. Quedan pendientes la sincronización bidireccional de sus opciones con Global Template y validación runtime de ambos juegos. Esta es una **preview**: no sustituye la versión estable WinForms ni se ha fusionado con ella.
+La migración no está completa. Ya se integraron Static Encounters, Egg Moves, Level Up masivo, Player Caps, herramientas CRO, Type Chart Gen7, Global Template y Batch ROM Builder. Continúan pendientes las opciones completas de Progressive Wild, Story Text y módulos Gen6 especiales. En tiendas USUM se incorporaron la edición normal/BP, ranuras ampliables, randomización, caramelos raros y vitaminas con flags para EV 252. Quedan pendientes la sincronización bidireccional de sus opciones con Global Template y validación runtime de ambos juegos. Esta es una **preview**: no sustituye la versión estable WinForms ni se ha fusionado con ella.
 
 Extraer el ZIP **completo** y ejecutar `3DS.Progressive.exe`; conservar la carpeta `custom_balance_templates` junto al ejecutable.
 
