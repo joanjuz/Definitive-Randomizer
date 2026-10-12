@@ -284,6 +284,12 @@ internal static class UiSmoke
                     levelUp.VisibleLearnset.Select(x=>(x.Level,x.Move)).SequenceEqual(before),
                     "WPF Discard preview restores the original species learnset");
             }
+            ((Button)main.FindName("GlobalTemplateButton")).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            check(((ContentControl)main.FindName("SectionHost")).Content is GlobalTemplateView,
+                "WPF Global Template menu opens lossless compatible import/export UI");
+            ((Button)main.FindName("BatchRomButton")).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            check(((ContentControl)main.FindName("SectionHost")).Content is BatchRomBuilderView,
+                "WPF Batch ROM Builder is native dark UI and no longer an inaccessible section");
             ((Button)main.FindName("MechanicsButton")).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             check(((ContentControl)main.FindName("SectionHost")).Content is SystemsView,
                 "WPF mechanics and CRO menu is active and opens real systems hub");
