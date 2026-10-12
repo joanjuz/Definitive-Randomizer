@@ -30,7 +30,39 @@ internal static class Program
         Application.EnableVisualStyles();
         Application.SetCompatibleTextRenderingDefault(false);
         ModernUI.EnableGlobalStyling();
-        if(args.Length==2&&args[0]=="--batch-bridge")
+        if(args.Length==2&&args[0]=="--relearner-preview")
+        {
+            var form=new Main();
+            form.Shown+=(_,_) =>
+            {
+                form.Hide();
+                try
+                {
+                    form.RunRelearnerPreviewBridge(args[1]);
+                    Environment.ExitCode=0;
+                }
+                catch(Exception ex)
+                {
+                    try
+                    {
+                        using var node=System.Text.Json.JsonDocument.Parse(
+                            System.IO.File.ReadAllText(args[1]));
+                        string? stage=node.RootElement.GetProperty("StageRoot").GetString();
+                        if(!string.IsNullOrWhiteSpace(stage))
+                        {
+                            System.IO.Directory.CreateDirectory(stage);
+                            System.IO.File.WriteAllText(
+                                System.IO.Path.Combine(stage,"relearner-preview-error.txt"),ex.ToString());
+                        }
+                    }
+                    catch { }
+                    Environment.ExitCode=1;
+                }
+                finally{Application.Exit();}
+            };
+            Application.Run(form);
+        }
+        else if(args.Length==2&&args[0]=="--batch-bridge")
         {
             var form=new Main();
             form.Shown+=async (_,_) =>
