@@ -112,6 +112,11 @@ internal sealed class SystemsView : UserControl
             "Editá ambas Mega formas, piedras y habilitación por especie sin perder los bytes originales. Rayquaza conserva su regla especial.");
         AddButton((StackPanel)mega.Child,"Abrir Mega Evolutions",()=>_navigate("MegaEvolutions"));
         stack.Children.Add(mega);
+        var typeChart=Card("Type Chart · Efectividad de tipos",
+            "Matriz editable de 18×18 para Gen7, con inmunidades, resistencias y supereficacia. Firma code.bin validada, vista previa e historial.");
+        AddButton((StackPanel)typeChart.Child,"Abrir Type Chart",()=>_navigate("TypeChart"))
+            .IsEnabled=_project.Generation==7;
+        stack.Children.Add(typeChart);
         var staticCard=Card("Parcheos de encuentros e intercambios",
             "Gift BST Baseline, Totem BST y Level Caps por ID, Trades Accept Any Pokémon y limpieza de diálogos españoles en encuentros estáticos.");
         AddButton((StackPanel)staticCard.Child,"Abrir Encuentros estáticos",()=>_navigate("StaticEncounters")).IsEnabled=
