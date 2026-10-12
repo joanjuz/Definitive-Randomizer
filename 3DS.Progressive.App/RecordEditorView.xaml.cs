@@ -10,6 +10,8 @@ using TextBox=System.Windows.Controls.TextBox;
 using ComboBox=System.Windows.Controls.ComboBox;
 using CheckBox=System.Windows.Controls.CheckBox;
 using Image=System.Windows.Controls.Image;
+using Button=System.Windows.Controls.Button;
+using TabControl=System.Windows.Controls.TabControl;
 using Brush=System.Windows.Media.Brush;
 
 namespace ThreeDS.Progressive;
@@ -218,13 +220,13 @@ public partial class RecordEditorView : UserControl
             int form=fields.TryGetValue(prefix+"Form",out var f)?f.Value:0;
             int level=fields.TryGetValue(prefix+"Level",out var l)?l.Value:1;
             string speciesName=species.Choices?.FirstOrDefault(c=>c.Id==species.Value)?.Display??$"Pokémon #{species.Value}";
-            var picture=new Image {Width=58,Height=58,Stretch=Stretch.Uniform,HorizontalAlignment=HorizontalAlignment.Center};
+            var picture=new Image {Width=58,Height=58,Stretch=Stretch.Uniform,HorizontalAlignment=System.Windows.HorizontalAlignment.Center};
             RenderOptions.SetBitmapScalingMode(picture,BitmapScalingMode.NearestNeighbor);
-            var fallback=new TextBlock {Text="…",FontSize=24,HorizontalAlignment=HorizontalAlignment.Center,
-                VerticalAlignment=VerticalAlignment.Center,Foreground=(Brush)FindResource("TextSoft")};
+            var fallback=new TextBlock {Text="…",FontSize=24,HorizontalAlignment=System.Windows.HorizontalAlignment.Center,
+                VerticalAlignment=System.Windows.VerticalAlignment.Center,Foreground=(Brush)FindResource("TextSoft")};
             var spriteHost=new Grid {Height=65};
             spriteHost.Children.Add(picture);spriteHost.Children.Add(fallback);
-            var cardContent=new StackPanel {HorizontalAlignment=HorizontalAlignment.Center};
+            var cardContent=new StackPanel {HorizontalAlignment=System.Windows.HorizontalAlignment.Center};
             cardContent.Children.Add(spriteHost);
             cardContent.Children.Add(new TextBlock {Text=speciesName,TextTrimming=TextTrimming.CharacterEllipsis,
                 Width=118,TextAlignment=TextAlignment.Center,FontSize=11,FontWeight=FontWeights.SemiBold});
