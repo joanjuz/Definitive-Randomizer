@@ -31,6 +31,8 @@ public partial class RecordEditorView : UserControl
     internal RecordEditorView(IProjectEditor editor,UiState? state)
     {
         Editor=editor;InitializeComponent();TitleText.Text=editor.Title;RandomizerButton.Content="Randomizar "+editor.Title.ToLowerInvariant();
+        if(editor is ThreeDS.Progressive.Services.GameTrainerService)
+            TrainerCapsButton.Visibility=TrainerMovesButton.Visibility=Visibility.Visible;
         if(editor is ITemplateProjectEditor template){TemplateButton.Visibility=Visibility.Visible;TemplateButton.Content=template.TemplateButton;TemplatePathText.Text=template.DefaultTemplatePath;}
         if(editor is IOptionTemplateProjectEditor optionTemplate)
         {ImportOptionsButton.Visibility=ExportOptionsButton.Visibility=Visibility.Visible;if(state?.Template is { } saved)optionTemplate.RestoreOptions(saved);}
@@ -388,6 +390,40 @@ public partial class RecordEditorView : UserControl
         catch(Exception ex){StudioDialog.Error(Window.GetWindow(this),"No se pudo guardar",ex.Message);}
     }
     private void Discard_Click(object sender,RoutedEventArgs e){if(_id>=0)Show(_id);}
+    private void TrainerCaps_Click(object sender,RoutedEventArgs e)=>OpenTrainerRuleTable(true);
+    private void TrainerMoves_Click(object sender,RoutedEventArgs e)=>OpenTrainerRuleTable(false);
+    private void OpenTrainerRuleTable(bool levelCaps)
+    {
+        if(Editor is not ThreeDS.Progressive.Services.GameTrainerService trainer)return;
+        if(!ConfirmLeave())return;
+        try
+        {
+            // Commit pending randomization controls before opening. Only change the
+            // template in memory; the ROM is untouched until Preview + Apply.
+            var options=Values(_options);
+            string captured=trainer.CaptureOptions(options);
+            trainer.RestoreOptions(captured);
+            var rows=trainer.GetRuleRows();
+            if(rows.Count==0)
+            {
+                StudioDialog.Notice(Window.GetWindow(this),"Sin candidatos",
+                    "Esta ROM no contiene en los archivos abiertos entrenadores importantes o jefes reconocidos por Progressive.");
+                return;
+            }
+            var dialog=new TrainerRulesWindow(rows,levelCaps){Owner=Window.GetWindow(this)};
+            if(dialog.ShowDialog()!=true)return;
+            trainer.UpdateRuleRows(dialog.Rows,levelCaps);
+            _loading=true;
+            try {BuildGroups(OptionsPanel,Editor.RandomOptions,_options,false);}
+            finally {_loading=false;}
+            Invalidate();
+            StatusText.Text=$"Reglas de {(levelCaps?"Level Caps":"movimientos")} actualizadas en memoria. Generá una vista previa para aplicar.";
+        }
+        catch(Exception ex)
+        {
+            StudioDialog.Error(Window.GetWindow(this),"No se pudieron editar las reglas",ex.Message);
+        }
+    }
     private void Randomizer_Click(object sender,RoutedEventArgs e)
     {
         if(!ConfirmLeave())return;if(_dirty&&_id>=0)Show(_id);Invalidate();
