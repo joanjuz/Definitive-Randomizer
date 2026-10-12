@@ -25,6 +25,7 @@ public partial class RecordEditorView : UserControl
     private int _id=-1;
     private EditorProposal? _proposal;
     private bool _templateMode;
+    private ProgressiveBstTable? _bstTable;
     internal IReadOnlyDictionary<string,FrameworkElement> FieldControls=>_fields;
     internal IReadOnlyDictionary<string,FrameworkElement> OptionControls=>_options;
     public RecordEditorView(IProjectEditor editor) : this(editor,null) { }
@@ -34,6 +35,8 @@ public partial class RecordEditorView : UserControl
         if(editor is ThreeDS.Progressive.Services.GameTrainerService)
             TrainerCapsButton.Visibility=TrainerMovesButton.Visibility=Visibility.Visible;
         if(editor is ITemplateProjectEditor template){TemplateButton.Visibility=Visibility.Visible;TemplateButton.Content=template.TemplateButton;TemplatePathText.Text=template.DefaultTemplatePath;}
+        if(editor is ThreeDS.Progressive.Services.GameEncounterService wild&&state is not null)
+            wild.RestoreRangeOptions(state.Options);
         if(editor is IOptionTemplateProjectEditor optionTemplate)
         {ImportOptionsButton.Visibility=ExportOptionsButton.Visibility=Visibility.Visible;if(state?.Template is { } saved)optionTemplate.RestoreOptions(saved);}
         RecordList.ItemsSource=editor.Entries;CountText.Text=editor.Entries.Count+" entradas";
@@ -52,11 +55,29 @@ public partial class RecordEditorView : UserControl
     internal UiState RememberOptions()
     {
         Dictionary<string,int> options;
-        try {options=Values(_options);}catch(ArgumentException){return new(new Dictionary<string,int>(),ScopeBox.SelectedIndex);}
+        try {options=OptionValues();}catch(ArgumentException){return new(new Dictionary<string,int>(),ScopeBox.SelectedIndex);}
         string? template=null;
         if(Editor is IOptionTemplateProjectEditor editor)
         {try{template=editor.CaptureOptions(options);}catch(ArgumentException){ }}
         return new(options,ScopeBox.SelectedIndex,template);
+    }
+    private Dictionary<string,int> OptionValues()
+    {
+        var values=Values(_options);
+        if(_bstTable is not null)
+        {
+            foreach(var pair in _bstTable.Capture())values[pair.Key]=pair.Value;
+            if(Editor is ThreeDS.Progressive.Services.GameEncounterService wild)
+                wild.RestoreRangeOptions(values);
+        }
+        return values;
+    }
+    private ProgressiveBstTable CreateBstTable(IEnumerable<EditorField> fields,bool wild=false)
+    {
+        var grid=new ProgressiveBstTable(fields,wild?999:1530);
+        grid.Changed+=Invalidate;
+        _bstTable=grid;
+        return grid;
     }
     // El editor individual conserva su estructura. El randomizador de entrenadores
     // organiza cada control vanilla/Progressive por función y no por el orden
@@ -64,6 +85,7 @@ public partial class RecordEditorView : UserControl
     private void BuildGroups(StackPanel panel,IEnumerable<EditorGroup> groups,Dictionary<string,FrameworkElement> controls,bool editor)
     {
         panel.Children.Clear();controls.Clear();
+        if(!editor)_bstTable=null;
         if(editor){_editorSections.Clear();_pokemonTabs.Clear();}
         var entries=groups.ToArray();
         if(!editor&&Editor is ThreeDS.Progressive.Services.GameTrainerService)
@@ -71,11 +93,24 @@ public partial class RecordEditorView : UserControl
             BuildTrainerTabs(panel,entries,controls);
             return;
         }
+        var wildRanges=!editor&&Editor is ThreeDS.Progressive.Services.GameEncounterService
+            ?entries.SelectMany(g=>g.Fields).Where(f=>f.Key.StartsWith("BST.",StringComparison.Ordinal)).ToArray()
+            :[];
         foreach(var group in entries)
+        {
+            var filtered=wildRanges.Length>0?
+                group with {Fields=group.Fields.Where(f=>!f.Key.StartsWith("BST.",StringComparison.Ordinal)).ToArray()}
+                :group;
+            if(filtered.Fields.Count==0)continue;
             panel.Children.Add(editor&&Editor is ThreeDS.Progressive.Services.GameTrainerService
-                &&group.Name.StartsWith("Pokémon ",StringComparison.Ordinal)
-                    ?BuildTrainerPokemonCard(group,controls)
-                    :BuildGroupCard(group,controls,editor));
+                &&filtered.Name.StartsWith("Pokémon ",StringComparison.Ordinal)
+                    ?BuildTrainerPokemonCard(filtered,controls)
+                    :BuildGroupCard(filtered,controls,editor));
+        }
+        if(wildRanges.Length>0)
+            panel.Children.Add(GroupBorder(new Expander {Header="Rangos BST progresivo",
+                IsExpanded=true,Foreground=(Brush)FindResource("TextMain"),
+                Content=CreateBstTable(wildRanges,true)}));
     }
     private readonly Dictionary<string,Expander> _editorSections=[];
     private int _trainerTabIndex;
@@ -92,21 +127,18 @@ public partial class RecordEditorView : UserControl
             {
                 var selected=group.Fields.Where(f=>TrainerOptionCategory(f.Key)==category).ToArray();
                 if(selected.Length==0)continue;
-                if(category==4&&selected.Any(f=>f.Key.StartsWith("BST.",StringComparison.Ordinal)))
-                {
-                    // Each BST interval is one card. Mixing columns from adjacent
-                    // intervals made the original form nearly impossible to read.
-                    foreach(var interval in selected.Where(f=>f.Key.StartsWith("BST.",StringComparison.Ordinal))
-                        .GroupBy(f=>int.Parse(f.Key.Split('.')[1])).OrderBy(g=>g.Key))
-                        container.Children.Add(BuildGroupCard(
-                            new EditorGroup($"Rango {interval.Key+1} · BST progresivo",interval.ToArray(),true),
-                            controls,false));
-                    continue;
-                }
+                selected=selected.Where(f=>!f.Key.StartsWith("BST.",StringComparison.Ordinal)).ToArray();
+                if(selected.Length==0)continue;
                 string label=group.Name is "Main" or "Opciones generales"
                     ?TrainerTabNames[category]:group.Name;
                 container.Children.Add(BuildGroupCard(group with
                 {Name=label,Fields=selected,Expanded=category==4||group.Expanded},controls,false));
+            }
+            if(category==4)
+            {
+                var ranges=groups.SelectMany(g=>g.Fields)
+                    .Where(f=>f.Key.StartsWith("BST.",StringComparison.Ordinal)).ToArray();
+                if(ranges.Length>0)container.Children.Add(CreateBstTable(ranges));
             }
             if(container.Children.Count==0)
                 container.Children.Add(new TextBlock {Text="No hay opciones adicionales para esta versión del juego.",
@@ -457,7 +489,7 @@ public partial class RecordEditorView : UserControl
         if(!ConfirmLeave())return;
         try
         {
-            var options=Values(_options);
+            var options=OptionValues();
             trainer.RestoreOptions(trainer.CaptureOptions(options));
             var rows=trainer.GetRuleRows();
             if(rows.Count==0)
@@ -509,7 +541,7 @@ public partial class RecordEditorView : UserControl
         try
         {
             int[] scope=ScopeBox.SelectedIndex switch {1=>RecordList.Items.Cast<RecordEntry>().Select(e=>e.Id).ToArray(),2=>_id>=0?[_id]:[],_=>Editor.Entries.Select(e=>e.Id).ToArray()};
-            _proposal=_templateMode&&Editor is ITemplateProjectEditor template?template.PreviewTemplate(TemplatePathText.Text,scope):Editor.Preview(Values(_options),scope);ChangeList.ItemsSource=_proposal.Changes;
+            _proposal=_templateMode&&Editor is ITemplateProjectEditor template?template.PreviewTemplate(TemplatePathText.Text,scope):Editor.Preview(OptionValues(),scope);ChangeList.ItemsSource=_proposal.Changes;
             ProposalText.Text=$"{_proposal.Changes.Count} cambios"+(_proposal.Seed==0?"":$" · semilla {_proposal.Seed}")+". Revisá la propuesta antes de aplicar.";
             ApplyButton.IsEnabled=_proposal.Changes.Count>0;
         }
@@ -537,7 +569,7 @@ public partial class RecordEditorView : UserControl
     {
         if(Editor is not IOptionTemplateProjectEditor editor)return;
         var dialog=new Microsoft.Win32.SaveFileDialog {Filter="Template de entrenadores Progressive|*.json",FileName="trainer-template.json"};if(dialog.ShowDialog(Window.GetWindow(this))!=true)return;
-        try{editor.ExportOptions(dialog.FileName,Values(_options));StudioDialog.Notice(Window.GetWindow(this),"Template exportado","Se conservaron las opciones, rangos y reglas de entrenadores.");}
+        try{editor.ExportOptions(dialog.FileName,OptionValues());StudioDialog.Notice(Window.GetWindow(this),"Template exportado","Se conservaron las opciones, rangos y reglas de entrenadores.");}
         catch(Exception ex){StudioDialog.Error(Window.GetWindow(this),"No se pudo exportar",ex.Message);}
     }
     private void Apply_Click(object sender,RoutedEventArgs e)
