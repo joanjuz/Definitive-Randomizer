@@ -18,6 +18,29 @@ internal sealed record RomBuildJournal(DateTimeOffset CompletedUtc,string Projec
 /// Every ROM is staged separately: source is never randomized directly.</summary>
 internal sealed class BatchRomExecution
 {
+    // Parity with BatchGen7ActionExecutor.Supported from the original executable.
+    private static readonly HashSet<string> SupportedActionIds=new(StringComparer.OrdinalIgnoreCase)
+    {
+        "rng.seed","moves.balance","moves.randomize","moves.metronome",
+        "personal.randomize","personal.modify-all","pokemon-stats.apply",
+        "personal.ban-trapping-abilities","evolutions.normalize","evolutions.randomize",
+        "evolutions.remove-trade","evolutions.every-level","level-up-moves.randomize",
+        "level-up-moves.metronome","egg-moves.randomize",
+        "tms.randomize","tms.sanity","tms.follow-evolutions","trainers.randomize",
+        "wild-encounters.randomize","wild-encounters.progressive",
+        "wild-encounters.scale-levels","wild-encounters.copy-sos",
+        "wild-encounters.modify-levels","starters.randomize",
+        "static-encounters.randomize","static-encounters.modify-levels",
+        "static-encounters.totem-level-caps","static-encounters.totem-bst",
+        "trades.accept-any","trades.randomize-offers","trades.hide-species-names",
+        "pickup.randomize","items.fix-economy","marts.randomize","marts.randomize-bp",
+        "marts.expanded-layout","marts.add-rare-candies","marts.add-ev-items",
+        "marts.free-mega-stones","marts.ban-ability-capsule",
+        "move-tutors.randomize","move-tutors.sanity","move-tutors.follow-evolutions",
+        "move-tutors.free","field-items.randomize","shiny-rate.apply",
+        "mega-evolution.unlock-from-start","battle.persistent-consumables",
+        "usum.move-relearner","player.level-caps"
+    };
     private readonly GameProjectSession _project;
     private readonly string _game;
     internal static string RunnerPath=>Path.Combine(AppContext.BaseDirectory,
@@ -46,6 +69,10 @@ internal sealed class BatchRomExecution
             throw new InvalidOperationException("El destino no puede estar dentro de la ROM de origen.");
         var template=GlobalTemplateDocument.Load(options.TemplatePath,_game,7);
         if(template.Actions.Count==0)throw new InvalidDataException("El template no tiene acciones de batch.");
+        var unsupported=template.Actions.Where(id=>!SupportedActionIds.Contains(id)).ToArray();
+        if(unsupported.Length>0)
+            throw new NotSupportedException("El ejecutor Gen7 original no admite estas acciones: "+
+                string.Join(", ",unsupported));
         if(template.Coverage<2)
             throw new InvalidDataException("ActionCoverageVersion insuficiente para replay automatizado.");
         foreach(int index in Enumerable.Range(1,options.Count))
@@ -123,8 +150,10 @@ internal sealed class BatchRomExecution
                 string path=Path.Combine(options.OutputDirectory,$"{options.BaseName}_{i:00}.3ds");
                 if(!File.Exists(path)||new FileInfo(path).Length<512)
                     throw new IOException("Falta un ROM final o su tamaño es inválido: "+path);
-                outputs.Add(new(i,path,Convert.ToHexString(SHA256.HashData(File.OpenRead(path))),
-                    new FileInfo(path).Length,i-1<seeds.Length?seeds[i-1]:null));
+                using var outputStream=File.OpenRead(path);
+                string hash=Convert.ToHexString(SHA256.HashData(outputStream));
+                outputs.Add(new(i,path,hash,new FileInfo(path).Length,
+                    i-1<seeds.Length?seeds[i-1]:null));
             }
             var document=new RomBuildJournal(DateTimeOffset.UtcNow,_project.ProjectRoot,
                 Path.GetFullPath(options.TemplatePath),template.Sha256,template.Actions,
