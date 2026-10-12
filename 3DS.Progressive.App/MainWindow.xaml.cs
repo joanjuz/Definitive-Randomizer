@@ -297,7 +297,9 @@ public partial class MainWindow : Window
         try
         {
             StatusText.Text="Generando backup de los archivos guardados…";
-            var progress=new Progress<BackupProgress>(p=>StatusText.Text=$"Backup: {p.Completed}/{p.Total} · {p.File}");
+            var progress=new Progress<BackupProgress>(p=>
+            UiProgress.Report($"Backup: {p.Completed}/{p.Total} · {p.File}",
+                p.Total>0?100d*p.Completed/p.Total:0));
             string path=await ProjectBackup.CreateAsync(project.ProjectRoot,folder.SelectedPath,project.GameName,progress,history:project.History.Read());
             StatusText.Text="Backup completo y verificado: "+path;
             prefs.DefaultBackupFolder=folder.SelectedPath;prefs.Save();
