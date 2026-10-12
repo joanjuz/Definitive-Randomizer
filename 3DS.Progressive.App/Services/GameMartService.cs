@@ -34,14 +34,15 @@ public sealed class MartShop
 }
 
 public sealed record MartShopPreview(byte[] Original, byte[] Output,
-    IReadOnlyList<BatchChange> Changes, Gen7ExpandedMartBuildReport Rebuild);
+    IReadOnlyList<BatchChange> Changes, Gen7ExpandedMartBuildReport Rebuild,
+    byte[]? ItemOriginal, byte[]? ItemOutput);
 
 /// <summary>
 /// USUM shop editing on detached bytes. Uses the same relocation-aware Core
 /// readers/builders as Progressive, never hard-coded stock Shop.cro offsets.
 /// The BP tuple is (ushort item, ushort price); counts remain fixed.
 /// </summary>
-public sealed class GameMartService
+public sealed partial class GameMartService
 {
     private static readonly string[] RegularNames =
     [
@@ -198,7 +199,10 @@ public sealed class GameMartService
             }
         if (changes.Count == 0 && !_original.AsSpan().SequenceEqual(updated))
             throw new InvalidDataException("El CRO cambió sin cambios de tiendas detectables.");
-        return new MartShopPreview((byte[])_original.Clone(), updated, changes, report);
+        var items = PrepareItemPatches();
+        changes.AddRange(items.Changes);
+        return new MartShopPreview((byte[])_original.Clone(), updated, changes, report,
+            items.Original, items.Output);
     }
 
     public void Apply(MartShopPreview preview)
@@ -206,12 +210,27 @@ public sealed class GameMartService
         if (preview.Changes.Count == 0)
             throw new InvalidOperationException("No hay cambios para guardar.");
         var fresh = Prepare();
-        if (!fresh.Output.AsSpan().SequenceEqual(preview.Output))
-            throw new InvalidOperationException("La tabla cambió desde la vista previa. Generá otra.");
+        if (!fresh.Output.AsSpan().SequenceEqual(preview.Output) ||
+            !(fresh.ItemOutput??[]).AsSpan().SequenceEqual(preview.ItemOutput??[]))
+            throw new InvalidOperationException("La propuesta cambió desde la vista previa. Generá otra.");
         byte[] onDisk = GarcTransaction.ReadUnchanged(_path, SHA256.HashData(_original));
-        _project.History.Commit([new FileChange(_path, onDisk, preview.Output)],
-            "Tiendas y BP", "Editar inventarios Shop.cro", preview.Changes,
-            new Dictionary<string,string> { ["Origen"] = "Shop.cro / relocaciones verificadas" });
+        var files = new List<FileChange> { new(_path, onDisk, preview.Output) };
+        if (preview.ItemOriginal is not null && preview.ItemOutput is not null)
+        {
+            var reference = _project.GameConfiguration.GetGARCReference("item");
+            string itemPath = Path.Combine(_project.GameConfiguration.RomFS, reference.Reference);
+            byte[] current = GarcTransaction.ReadUnchanged(itemPath,
+                SHA256.HashData(preview.ItemOriginal));
+            files.Add(new FileChange(itemPath, current, preview.ItemOutput));
+        }
+        _project.History.Commit(files, "Tiendas y BP",
+            _presets.Count == 0 ? "Editar tiendas" : "Aplicar presets de tiendas",
+            preview.Changes, new Dictionary<string,string>
+            {
+                ["Origen"] = "Shop.cro / relocaciones verificadas",
+                ["Acciones"] = string.Join(";", _presets),
+                ["Scope"] = "USUM tiendas normales y BP"
+            });
         _project.RefreshMoveAssignments();
     }
 
