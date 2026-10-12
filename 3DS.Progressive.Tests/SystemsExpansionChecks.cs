@@ -39,6 +39,28 @@ internal static class SystemsExpansionChecks
         reject(()=>UsumTutorCodePatch.Prepare(tutorCode,tutorMoves.Take(66).ToArray()),
             "USUM tutors reject incorrect 67-slot move count");
 
+        // Regression from user: "Solo tiendas especiales" with X protection
+        // unchecked MUST randomize all eight Mount Lanakila X items.
+        var trialShops=Enumerable.Range(0,28).Select(i=>new MartShop(i,false,$"Shop {i}",
+            i==27 ? Enumerable.Range(55,8).Select((id,k)=>new MartSlotRow(k+1,id))
+                  : [new MartSlotRow(1,50)])).ToArray();
+        int randomized=GameMartService.RandomizeSlots(trialShops,[],
+            [68,69,70,71,72,73,74,75],new Random(20261012),
+            bp:false,specialsOnly:true,protectX:false);
+        check(randomized>0 &&
+            trialShops[27].Rows.All(r=>r.ItemId>=68&&r.ItemId<=75) &&
+            trialShops.Take(8).All(s=>s.Rows[0].ItemId==50),
+            "USUM Monte Lanakila X items randomize with specials only + protect X unchecked");
+        var protectedShops=Enumerable.Range(0,28).Select(i=>new MartShop(i,false,$"Shop {i}",
+            i==27 ? Enumerable.Range(55,8).Select((id,k)=>new MartSlotRow(k+1,id))
+                  : [new MartSlotRow(1,50)])).ToArray();
+        GameMartService.RandomizeSlots(protectedShops,[],
+            [68,69,70,71,72,73,74,75],new Random(20261012),
+            bp:false,specialsOnly:true,protectX:true);
+        check(protectedShops[27].Rows.Select(r=>r.ItemId).SequenceEqual(Enumerable.Range(55,8)) &&
+            GameMartService.AbilityCapsuleUSUM==645,
+            "USUM preserves X items only when checked and uses fixed Ability Capsule ID 645");
+
         // Regression: deleting an ORIGINAL middle slot must work, reindex the
         // remaining entries and refuse the final slot or BP (fixed-size) rows.
         var regular=new MartShop(0,false,"Prueba regular",
