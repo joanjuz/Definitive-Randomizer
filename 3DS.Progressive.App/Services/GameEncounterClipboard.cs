@@ -16,6 +16,18 @@ public sealed partial class GameEncounterService
             throw new NotSupportedException("Copiar/pegar tablas de día, noche y SOS se implementa para Gen7.");
     }
 
+    internal int? PairedDayNightId(int id)
+    {
+        if(Config.Generation!=7||!_locations.TryGetValue(id,out var origin))
+            return null;
+        return _locations.Where(p=>p.Key!=id&&p.Value.File==origin.File&&
+                p.Value.Table==origin.Table&&p.Value.Offset!=origin.Offset)
+            .Select(p=>(int?)p.Key).FirstOrDefault();
+    }
+
+    internal string TimeOfDay(int id) =>
+        _locations.TryGetValue(id,out var location)&&location.Offset==4?"Día":"Noche";
+
     internal WildTableClipboard CopyWildTable(int id)
     {
         EnsureGen7Wild();
