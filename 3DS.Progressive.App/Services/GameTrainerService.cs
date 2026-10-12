@@ -32,7 +32,7 @@ public sealed class GameTrainerService : ArchiveProjectEditor,IOptionTemplatePro
         if(!OperatingSystem.IsWindows())return base.Preview(options,scope);
         var input=new Dictionary<string,int>(options);
         if(input.Remove("Species",out int species))input["CHK_RandomPKM"]=species;
-        if(input.Remove("LevelScale",out int scale)) {input["CHK_Level"]=1;input["NUD_LevelBoost"]=scale;}
+        if(input.Remove("LevelScale",out int scale)) {input["CHK_Level"]=1;input[Config.Generation==7?"NUD_LevelBoost":"NUD_Level"]=scale;}
         input.Remove("BST");
         EditorValues.Validate(RandomOptions,input);
         int[] ids=scope.Distinct().Order().ToArray();

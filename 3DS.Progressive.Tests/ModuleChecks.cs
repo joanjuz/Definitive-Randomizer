@@ -113,6 +113,7 @@ internal static class ModuleChecks
             var invalid=new Dictionary<string,int>(values){["P0.Level"]=101};byte[] saved=File.ReadAllBytes(PathFor(f,"trpoke"));
             reject(()=>trainers.Save(1,invalid),version+" trainer rejects out-of-range levels");check(File.ReadAllBytes(PathFor(f,"trpoke")).SequenceEqual(saved),version+" invalid trainer save is read-only");
             var options=EditorValues.Flatten(trainers.RandomOptions);options["LevelScale"]=120;
+            if(OperatingSystem.IsWindows()&&f.Game.Generation==6)options["CHK_StoryMEvos"]=0; // uniform synthetic mega types; story Mega guarantees are tested separately.
             var preview=trainers.Preview(options,[1]);var second=trainers.Preview(options,[1]);
             check(preview.Changes.Count>0&&preview.Seed!=second.Seed,version+" trainer randomization uses a fresh seed and real changes");
             check(File.ReadAllBytes(PathFor(f,"trpoke")).SequenceEqual(saved),version+" trainer preview is read-only");
