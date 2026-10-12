@@ -67,6 +67,7 @@ public sealed class GameMartService
     private readonly byte[] _original;
     private readonly ushort[][] _regularBefore;
     private readonly (ushort Item, ushort Price)[][] _bpBefore;
+    private readonly byte[] _tutorsBefore;
     public IReadOnlyList<MartShop> RegularShops { get; }
     public IReadOnlyList<MartShop> BpShops { get; }
 
@@ -85,6 +86,8 @@ public sealed class GameMartService
 
         _regularBefore = layout.RegularMarts.Inventories.Select(x => (ushort[])x.Clone()).ToArray();
         _bpBefore = ReadBP(_original, layout.BPItems);
+        _tutorsBefore = _original.AsSpan(checked((int)layout.BPTutors.DataStart),
+            layout.BPTutors.DataLength).ToArray();
         RegularShops = _regularBefore.Select((items, index) =>
             new MartShop(index, false, RegularNames[index],
                 items.Select((item, i) => new MartSlotRow(i + 1, item)))).ToArray();
@@ -154,6 +157,10 @@ public sealed class GameMartService
             }
         if (!Gen7ShopCroLayout.TryRead(updated, out var verified, out error))
             throw new InvalidDataException("La tabla final no pasó la validación CRO: " + error);
+        if (verified.BPTutors.DataLength != _tutorsBefore.Length ||
+            !_tutorsBefore.AsSpan().SequenceEqual(updated.AsSpan(
+                checked((int)verified.BPTutors.DataStart), verified.BPTutors.DataLength)))
+            throw new InvalidDataException("La tabla de tutores BP cambió durante la reconstrucción. No se guardará.");
         if (!verified.RegularMarts.Inventories.Select((items, index) =>
                 items.SequenceEqual(inventories[index])).All(x => x))
             throw new InvalidDataException("La comprobación de inventarios regulares no coincide.");
