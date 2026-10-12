@@ -1,6 +1,7 @@
 using System.IO;
 using pk3DS.Core;
 using pk3DS.Core.CTR;
+using pk3DS.Core.Randomizers;
 using ThreeDS.Progressive.Models;
 
 namespace ThreeDS.Progressive.Services;
@@ -56,9 +57,59 @@ public sealed class GameEncounterService : ArchiveProjectEditor
         if(Entries.Count==0)throw new InvalidDataException("No se encontraron tablas de encuentros editables.");
     }
     public override string Title=>"Encuentros";
-    public override IReadOnlyList<EditorGroup> RandomOptions=>[new("Randomización",[
-        Field("Species","Randomizar especies",1,0,1),Field("BST","Tolerancia BST (%) · 0 = cualquier BST",30,0,100),
-        Field("LevelScale","Escala de niveles (%)",100,1,1000),Field("SOS","Incluir aliados SOS y clima",1,0,1)])];
+    public override IReadOnlyList<EditorGroup> RandomOptions
+    {
+        get
+        {
+            var groups=new List<EditorGroup>
+            {
+                new("Especies permitidas",[
+                    Field("Species","Randomizar especies",1,0,1),
+                    Field("G1","Generación 1",1,0,1),Field("G2","Generación 2",1,0,1),
+                    Field("G3","Generación 3",1,0,1),Field("G4","Generación 4",1,0,1),
+                    Field("G5","Generación 5",1,0,1),Field("G6","Generación 6",1,0,1),
+                    Field("G7","Generación 7",Config.Generation==7?1:0,0,Config.Generation==7?1:0),
+                    Field("Legends","Incluir legendarios",0,0,1),
+                    Field("Events","Incluir legendarios de evento",0,0,1),
+                    Field("SimilarBST","Mantener BST similar",0,0,1),
+                    Field("BST","Tolerancia BST (%) · 0 = libre",30,0,100),
+                    Field("Progressive","BST progresivo por nivel",0,0,1)
+                ]),
+                new("Slots y SOS",[
+                    Field("SlotMode","Aleatorización: 0 Todo / 1 Normal / 2 SOS / 3 Copiar Normal a SOS",
+                        0,0,Config.Generation==7?3:0,
+                        [new(0,"Todas las tablas"),new(1,"Solo encuentros normales"),
+                         new(2,"Solo SOS"),new(3,"Normal + copiar a SOS")]),
+                    Field("SOS","Incluir aliados SOS y clima",1,0,1),
+                    Field("Weather","Randomizar fila SOS meteorológica",0,0,1)
+                ]),
+                new("Niveles",[
+                    Field("LevelScale","Multiplicador de niveles (%)",100,10,300),
+                    Field("LevelFlat","Ajuste plano (-100 a 100)",0,-100,100),
+                    Field("KeepRange","Mantener mínimo y máximo diferenciados",1,0,1)
+                ])
+            };
+            if(Config.Generation==7)
+            {
+                int[][] ranges=[
+                    [1,10,180,320],[11,20,220,380],[21,30,280,450],
+                    [31,40,340,520],[41,50,400,580],[51,100,480,680]
+                ];
+                foreach(int i in Enumerable.Range(0,ranges.Length))
+                {
+                    string prefix=$"BST.{i}.";
+                    groups.Add(new($"Rango BST {i+1}",[
+                        Field(prefix+"MinLevel","Nivel inicial",ranges[i][0],1,100),
+                        Field(prefix+"MaxLevel","Nivel final",ranges[i][1],1,100),
+                        Field(prefix+"MinBST","BST mínimo",ranges[i][2],1,999),
+                        Field(prefix+"MaxBST","BST máximo",ranges[i][3],1,999),
+                        Field(prefix+"FullRandom","Randomización libre en este rango",0,0,1)
+                    ],false));
+                }
+            }
+            return groups;
+        }
+    }
     private byte[] Table(int id,Dictionary<string,byte[][]> records)
     {
         var l=_locations[id];return Config.Generation==7?Mini.UnpackMini(records["encdata"][l.File],"EA")[l.Table]:records["encdata"][l.File];
@@ -140,15 +191,101 @@ public sealed class GameEncounterService : ArchiveProjectEditor
     protected override Dictionary<string,int> Randomize(int id,IReadOnlyDictionary<string,int> options,Dictionary<string,byte[][]> records,Random random)
     {
         var values=EditorValues.Flatten(ReadRecord(id,records));
-        foreach(string key in values.Keys.ToArray())
+        if(options["SimilarBST"]==1&&options["Progressive"]==1)
+            throw new ArgumentException("Elegí solo un modo BST: similar o progresivo.");
+        if(!Enumerable.Range(1,Config.Generation).Any(i=>options[$"G{i}"]==1))
+            throw new ArgumentException("Seleccioná al menos una generación.");
+        var picker=new SpeciesRandomizer(Config)
         {
-            if(key.EndsWith("Species")&&values[key]>0&&options["Species"]==1)
+            G1=options["G1"]==1,G2=options["G2"]==1,G3=options["G3"]==1,
+            G4=options["G4"]==1,G5=options["G5"]==1,G6=options["G6"]==1,
+            G7=Config.Generation==7&&options["G7"]==1,
+            L=options["Legends"]==1,E=options["Events"]==1,rBST=false
+        };
+        int[] allowed=picker.GetAllowedSpeciesPool().Where(species=>species>=1&&
+            species<=Config.MaxSpeciesID&&species<Config.Personal.Table.Length).ToArray();
+        if(allowed.Length==0)throw new InvalidDataException("El filtro no permite ninguna especie.");
+        var ranges=new List<(int MinLevel,int MaxLevel,int MinBST,int MaxBST,bool FullRandom)>();
+        if(options["Progressive"]==1)
+        {
+            if(Config.Generation!=7)throw new NotSupportedException("El modo Progressive Wild de esta vista solo admite Gen7.");
+            for(int i=0;i<6;i++)
             {
-                if(Config.Generation==7&&options["SOS"]==0&&!key.StartsWith("S0."))continue;
-                values[key]=PickSpecies(values[key],random,options["BST"]);values[key[..^7]+"Form"]=0;
+                string k=$"BST.{i}.";
+                int lo=options[k+"MinLevel"],hi=options[k+"MaxLevel"];
+                int min=options[k+"MinBST"],max=options[k+"MaxBST"];
+                if(lo>hi||min>max)throw new ArgumentException($"Rango BST {i+1}: valores invertidos.");
+                ranges.Add((lo,hi,min,max,options[k+"FullRandom"]==1));
             }
-            if((key=="Min"||key=="Max"||key.EndsWith(".Min")||key.EndsWith(".Max"))&&values[key]>0)
-                values[key]=Math.Clamp((int)Math.Round(values[key]*options["LevelScale"]/100.0),1,100);
+            ranges.Sort((a,b)=>a.MinLevel.CompareTo(b.MinLevel));
+            if(ranges[0].MinLevel!=1||ranges[^1].MaxLevel!=100||
+               Enumerable.Range(1,ranges.Count-1).Any(i=>ranges[i].MinLevel!=ranges[i-1].MaxLevel+1))
+                throw new ArgumentException("Los rangos Progressive BST deben cubrir niveles 1–100 sin huecos ni solapamientos.");
+        }
+        int level=Config.Generation==7?Math.Max(1,values["Max"]):Math.Max(1,values.GetValueOrDefault("S0.Max",1));
+        int[] pool=allowed;
+        if(options["Progressive"]==1)
+        {
+            var range=ranges.First(r=>level>=r.MinLevel&&level<=r.MaxLevel);
+            if(!range.FullRandom)pool=allowed.Where(species=>
+                Config.Personal[species].BST>=range.MinBST&&Config.Personal[species].BST<=range.MaxBST).ToArray();
+        }
+        else if(options["SimilarBST"]==1)
+        {
+            int original=values.FirstOrDefault(p=>p.Key.EndsWith("Species")&&p.Value>0).Value;
+            if(original>0&&original<Config.Personal.Table.Length)
+            {
+                int bst=Config.Personal[original].BST;
+                pool=allowed.Where(species=>Math.Abs(Config.Personal[species].BST-bst)*100<=bst*options["BST"]).ToArray();
+            }
+        }
+        if(pool.Length==0)throw new InvalidDataException("No hay especies válidas con los filtros BST seleccionados.");
+        int slotMode=options["SlotMode"];
+        foreach(string key in values.Keys.Where(k=>k.EndsWith("Species")).ToArray())
+        {
+            int group=-1;
+            if(Config.Generation==7&&key.StartsWith("S")&&key.Contains('.'))
+                int.TryParse(key[1..key.IndexOf('.')],out group);
+            bool weather=Config.Generation==7&&group==8;
+            bool isSos=Config.Generation==7&&group is >=1 and <=7;
+            bool allow=Config.Generation!=7||(
+                (weather?options["Weather"]==1&&options["SOS"]==1:
+                 isSos?options["SOS"]==1&&slotMode is 0 or 2:
+                 slotMode is not 2));
+            if(!allow||options["Species"]!=1||values[key]<=0)continue;
+            int chosen=pool[random.Next(pool.Length)];
+            values[key]=chosen;values[key[..^7]+"Form"]=0;
+        }
+        if(Config.Generation==7&&slotMode==3&&options["SOS"]==1)
+        {
+            for(int group=1;group<=7;group++)for(int i=0;i<10;i++)
+            {
+                string target=$"S{group}.{i}.",source=$"S0.{i}.";
+                if(values[target+"Species"]==0)continue;
+                values[target+"Species"]=values[source+"Species"];
+                values[target+"Form"]=values[source+"Form"];
+            }
+        }
+        int Scale(int x)=>Math.Clamp((int)Math.Round(x*options["LevelScale"]/100.0)+options["LevelFlat"],1,100);
+        if(Config.Generation==7)
+        {
+            int min=values["Min"],max=values["Max"];
+            values["Min"]=Scale(min);values["Max"]=Scale(max);
+            if(options["KeepRange"]==1&&min<max&&values["Max"]<=values["Min"]&&values["Min"]<100)
+                values["Max"]=values["Min"]+1;
+            if(values["Min"]>values["Max"])values["Max"]=values["Min"];
+        }
+        else
+        {
+            foreach(string key in values.Keys.Where(k=>k.EndsWith(".Min")).ToArray())
+            {
+                string maxKey=key[..^3]+".Max";if(!values.ContainsKey(maxKey))continue;
+                int lo=values[key],hi=values[maxKey];
+                values[key]=Scale(lo);values[maxKey]=Scale(hi);
+                if(options["KeepRange"]==1&&lo<hi&&values[maxKey]<=values[key]&&values[key]<100)
+                    values[maxKey]=values[key]+1;
+                if(values[key]>values[maxKey])values[maxKey]=values[key];
+            }
         }
         return values;
     }
