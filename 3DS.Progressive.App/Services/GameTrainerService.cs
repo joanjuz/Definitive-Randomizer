@@ -23,6 +23,9 @@ public sealed class GameTrainerService : ArchiveProjectEditor,IOptionTemplatePro
     public void RestoreOptions(string json)=>Original.Restore(json);
     public string CaptureOptions(IReadOnlyDictionary<string,int> options)=>Original.Capture(options);
     public void ExportOptions(string path,IReadOnlyDictionary<string,int> options)=>File.WriteAllText(path,Original.Capture(options));
+    public IReadOnlyList<TrainerRuleTableRow> GetRuleRows()=>Original.RuleRows();
+    public void UpdateRuleRows(IReadOnlyList<TrainerRuleTableRow> rows,bool levelCaps)
+        =>Original.Restore(Original.SaveRuleRows(rows,levelCaps));
     public override IReadOnlyList<EditorGroup> RandomOptions=>OperatingSystem.IsWindows()?Original.Options():[new("Randomización",[
         Field("Species","Randomizar especies",1,0,1),
         Field("BST","Tolerancia BST (%) · 0 = cualquier BST",30,0,100),
