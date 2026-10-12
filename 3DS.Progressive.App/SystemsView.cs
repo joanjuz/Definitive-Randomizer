@@ -316,7 +316,7 @@ internal sealed class SystemsView : UserControl
             string result=string.Join(Environment.NewLine,_project.GameConfiguration.Files
                 .Select(x=>x.Name+" → "+_project.GameConfiguration.GetGARCFileName(x.Name)));
             Clipboard.SetText(result);
-            _status.Text=$"Copiados {_project.GameConfiguration.Files.Count} GARCs reales al portapapeles.";
+            _status.Text=$"Copiados {_project.GameConfiguration.Files.Count()} GARCs reales al portapapeles.";
         });
         stack.Children.Add(help);
         var paths=Card("Carpetas predeterminadas · solo en este equipo",
