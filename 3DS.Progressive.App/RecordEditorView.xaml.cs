@@ -43,7 +43,8 @@ public partial class RecordEditorView : UserControl
         if(editor is ThreeDS.Progressive.Services.GameTrainerService)
             TrainerCapsButton.Visibility=TrainerMovesButton.Visibility=Visibility.Visible;
         if(editor is ThreeDS.Progressive.Services.GameEncounterService wildClipboard && wildClipboard.SupportsWildTemplate)
-            WildCopyButton.Visibility=WildPasteButton.Visibility=WildPasteAreaButton.Visibility=Visibility.Visible;
+            WildCopyButton.Visibility=WildPasteButton.Visibility=WildPasteAreaButton.Visibility=
+                WildDumpButton.Visibility=Visibility.Visible;
         if(editor is ThreeDS.Progressive.Services.GameFieldItemsService)
             FieldExportButton.Visibility=Visibility.Visible;
         if(editor is ThreeDS.Progressive.Services.GameItemService)
@@ -928,6 +929,21 @@ public partial class RecordEditorView : UserControl
     {var dialog=new Microsoft.Win32.OpenFileDialog {Filter="Template de evoluciones|*.csv"};if(dialog.ShowDialog(Window.GetWindow(this))==true){TemplatePathText.Text=dialog.FileName;Invalidate();}}
     private void DefaultTemplate_Click(object sender,RoutedEventArgs e)
     {if(Editor is ITemplateProjectEditor template){TemplatePathText.Text=template.DefaultTemplatePath;Invalidate();}}
+    private void WildDump_Click(object sender,RoutedEventArgs e)
+    {
+        if(Editor is not GameEncounterService wild)return;
+        try
+        {
+            var picker=new Microsoft.Win32.SaveFileDialog
+            {Filter="Reporte de encuentros (*.txt)|*.txt",FileName="encounter-tables.txt"};
+            if(picker.ShowDialog(Window.GetWindow(this))!=true)return;
+            System.IO.File.WriteAllText(picker.FileName,wild.ExportAllEncounterTables(),
+                System.Text.Encoding.UTF8);
+            StatusText.Text="Reporte de encuentros exportado. No se modificó la ROM.";
+        }
+        catch(Exception ex)
+        {StudioDialog.Error(Window.GetWindow(this),"Exportar encuentros",ex.Message);}
+    }
     private void WildCopy_Click(object sender,RoutedEventArgs e)
     {
         if(Editor is not ThreeDS.Progressive.Services.GameEncounterService wild||_id<0)return;
