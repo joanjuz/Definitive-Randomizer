@@ -63,6 +63,12 @@
              Click="EconomyTable_Click" Margin="0,0,0,10"/>
      <Button x:Name="FieldExportButton" Content="Exportar Field Items CSV" Visibility="Collapsed"
              Click="FieldExport_Click" Margin="0,0,0,10"/>
+     <Button x:Name="GiftBstButton" Content="Gift BST Baseline" Visibility="Collapsed"
+             Click="GiftBst_Click" Margin="0,0,0,8"/>
+     <Button x:Name="TotemCapsButton" Content="Totem Level Caps" Visibility="Collapsed"
+             Click="TotemCaps_Click" Margin="0,0,0,8"/>
+     <Button x:Name="TotemBstButton" Content="Totem BST" Visibility="Collapsed"
+             Click="TotemBst_Click" Margin="0,0,0,10"/>
      <Button x:Name="TrainerCapsButton" Content="Tabla de Level Caps" Visibility="Collapsed"
              Click="TrainerCaps_Click" Margin="0,0,0,8"/>
      <Button x:Name="TrainerMovesButton" Content="Tabla de Trainer Move Rules" Visibility="Collapsed"
