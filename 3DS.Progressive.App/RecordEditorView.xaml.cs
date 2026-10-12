@@ -53,7 +53,8 @@ public partial class RecordEditorView : UserControl
         if(editor is ITemplateProjectEditor template){TemplateButton.Visibility=Visibility.Visible;TemplateButton.Content=template.TemplateButton;TemplatePathText.Text=template.DefaultTemplatePath;}
         if(editor is ThreeDS.Progressive.Services.GameEncounterService wild&&state is not null)
             wild.RestoreRangeOptions(state.Options);
-        if(editor is IOptionTemplateProjectEditor optionTemplate)
+        if(editor is IOptionTemplateProjectEditor optionTemplate &&
+           (editor is not ThreeDS.Progressive.Services.GameEncounterService wildOptions || wildOptions.SupportsWildTemplate))
         {ImportOptionsButton.Visibility=ExportOptionsButton.Visibility=Visibility.Visible;
             if(editor is ThreeDS.Progressive.Services.GameEncounterService)
             {
@@ -79,7 +80,8 @@ public partial class RecordEditorView : UserControl
         Dictionary<string,int> options;
         try {options=OptionValues();}catch(ArgumentException){return new(new Dictionary<string,int>(),ScopeBox.SelectedIndex);}
         string? template=null;
-        if(Editor is IOptionTemplateProjectEditor editor)
+        if(Editor is IOptionTemplateProjectEditor editor &&
+           (Editor is not ThreeDS.Progressive.Services.GameEncounterService wildGen6 || wildGen6.SupportsWildTemplate))
         {try{template=editor.CaptureOptions(options);}catch(ArgumentException){ }}
         return new(options,ScopeBox.SelectedIndex,template);
     }
