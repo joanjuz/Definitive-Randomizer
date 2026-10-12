@@ -184,6 +184,9 @@ internal static class UiSmoke
             ((Button)main.FindName("EncountersButton")).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             var encounters=(RecordEditorView)((ContentControl)main.FindName("SectionHost")).Content;
             check(encounters.Editor is ThreeDS.Progressive.Services.GameEncounterService && encounters.FieldControls.ContainsKey("S8.0.Species"),"WPF Encounters includes SOS/weather controls");
+            check(((FrameworkElement)encounters.FindName("EncounterSpritePreview")).Visibility==Visibility.Visible
+                && ((WrapPanel)encounters.FindName("EncounterSpriteCards")).Children.Count==10,
+                "WPF encounter editor displays ten clickable original Pokémon sprite slots");
             Layout(encounters,1170,720);Capture(encounters,"encuentros-editor.png");
             ((Button)main.FindName("TrainersButton")).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             var remembered=(RecordEditorView)((ContentControl)main.FindName("SectionHost")).Content;
@@ -193,6 +196,9 @@ internal static class UiSmoke
             check(staticView.Editor is ThreeDS.Progressive.Services.GameStaticEncounterService
                 &&staticView.FieldControls.ContainsKey("ShinyLock"),
                 "WPF Static Encounters opens real Gen7 gift fields");
+            check(((FrameworkElement)staticView.FindName("EncounterSpritePreview")).Visibility==Visibility.Visible
+                && ((WrapPanel)staticView.FindName("EncounterSpriteCards")).Children.Count==1,
+                "WPF Static Encounters displays the Pokémon sprite for the selected gift");
             Layout(staticView,1170,720);Capture(staticView,"static-encounters-editor.png");
 
             // Supply a valid code.bin fixture for the native TM editor; unlike a dummy
