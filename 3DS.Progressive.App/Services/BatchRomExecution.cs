@@ -101,8 +101,8 @@ internal sealed class BatchRomExecution
             {
                 await Task.Delay(950);
                 if(!File.Exists(log))continue;
-                string[] lines=await File.ReadAllLinesAsync(log);
-                var current=lines.LastOrDefault(line=>line.StartsWith("ROM ",StringComparison.Ordinal))
+                string[] progressLines=await File.ReadAllLinesAsync(log);
+                var current=progressLines.LastOrDefault(line=>line.StartsWith("ROM ",StringComparison.Ordinal))
                     ??"Preparando y randomizando lotes…";
                 if(current!=last){progress(current);last=current;}
             }
@@ -123,7 +123,7 @@ internal sealed class BatchRomExecution
                 string path=Path.Combine(options.OutputDirectory,$"{options.BaseName}_{i:00}.3ds");
                 if(!File.Exists(path)||new FileInfo(path).Length<512)
                     throw new IOException("Falta un ROM final o su tamaño es inválido: "+path);
-                outputs.Add(new(i,path,Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(path))),
+                outputs.Add(new(i,path,Convert.ToHexString(SHA256.HashData(File.OpenRead(path))),
                     new FileInfo(path).Length,i-1<seeds.Length?seeds[i-1]:null));
             }
             var document=new RomBuildJournal(DateTimeOffset.UtcNow,_project.ProjectRoot,
