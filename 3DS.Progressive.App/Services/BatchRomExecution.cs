@@ -8,6 +8,23 @@ namespace ThreeDS.Progressive.Services;
 internal sealed record RomBatchOptions(string TemplatePath,string OutputDirectory,string BaseName,
     int Count,bool Trimmed,bool RestoreBackups,bool KeepEditableProjects,bool AllowAssetMismatch=false);
 
+internal sealed record BatchProgressSnapshot
+{
+    public string Status{get;init;}="";
+    public string Stage{get;init;}="";
+    public string Detail{get;init;}="";
+    public int CurrentRom{get;init;}
+    public int TotalRoms{get;init;}
+    public int CompletedRoms{get;init;}
+    public int Seed{get;init;}
+    public string Output{get;init;}="";
+    public int ActionsDone{get;init;}
+    public int ActionsTotal{get;init;}
+    public int? RebuildPercent{get;init;}
+    public double CurrentPercent{get;init;}
+    public double OverallPercent{get;init;}
+    public string ProgressKind{get;init;}="";
+}
 internal sealed record RomBuildArtifact(int Index,string File,string Sha256,long Bytes,int? Seed);
 internal sealed record RomBuildJournal(DateTimeOffset CompletedUtc,string Project,
     string Template,string TemplateSha256,IReadOnlyList<string> ActionIds,
@@ -97,7 +114,7 @@ internal sealed class BatchRomExecution
     }
     internal static bool IsHashMismatch(string warning)=>
         warning.StartsWith("SHA-256 distinto en ",StringComparison.Ordinal);
-    internal async Task<RomBuildJournal> RunAsync(RomBatchOptions options,Action<string> progress)
+    internal async Task<RomBuildJournal> RunAsync(RomBatchOptions options,Action<BatchProgressSnapshot> progress)
     {
         var (template,warnings)=Preflight(options);
         var blocking=warnings.Where(w=>!IsHashMismatch(w)).ToArray();
@@ -129,19 +146,29 @@ internal sealed class BatchRomExecution
                 }
             };
             if(!process.Start())throw new InvalidOperationException("No se pudo iniciar el constructor original.");
+            string progressFile=Path.Combine(options.OutputDirectory,
+                options.BaseName+"_batch-progress.json");
             string last="";
+            async Task Poll()
+            {
+                if(!File.Exists(progressFile))return;
+                try
+                {
+                    string json=await File.ReadAllTextAsync(progressFile);
+                    if(json==last)return;
+                    var snapshot=JsonSerializer.Deserialize<BatchProgressSnapshot>(json);
+                    if(snapshot is not null){last=json;progress(snapshot);}
+                }
+                catch(IOException){} // atomic replace during write
+                catch(JsonException){} // ignore incomplete old snapshot
+            }
             while(!process.HasExited)
             {
-                await Task.Delay(950);
-                if(!File.Exists(log))continue;
-                string[] progressLines;
-                try{progressLines=await File.ReadAllLinesAsync(log);}
-                catch(IOException){continue;} // WinForms may be atomically rewriting its log.
-                var current=progressLines.LastOrDefault(line=>line.StartsWith("ROM ",StringComparison.Ordinal))
-                    ??"Preparando y randomizando lotes…";
-                if(current!=last){progress(current);last=current;}
+                await Task.Delay(400);
+                await Poll();
             }
             await process.WaitForExitAsync();
+            await Poll();
             if(process.ExitCode!=0)
             {
                 string failure=Path.Combine(options.OutputDirectory,"3ds-progressive-batch-error.txt");
