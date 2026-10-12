@@ -101,10 +101,14 @@
                         <Button x:Name="GameTextButton" Content="≡  Historia y textos" Style="{StaticResource SidebarButton}" IsEnabled="False" Tag="GameText" Click="Section_Click"/>
                         <TextBlock Text="SISTEMAS" Style="{StaticResource SmallHeading}"
                                    Margin="12,25,0,12"/>
-                        <Button Content="◈  Mecánicas y CRO" Style="{StaticResource NavDisabled}"/>
-                        <Button Content="▧  Herramientas ROM" Style="{StaticResource NavDisabled}"/>
-                        <Button Content="⇄  Automatización" Style="{StaticResource NavDisabled}"/>
-                        <Button Content="⚙  Configuración" Style="{StaticResource NavDisabled}"/>
+                        <Button x:Name="MechanicsButton" Content="◈  Mecánicas y CRO"
+                                Style="{StaticResource SidebarButton}" IsEnabled="False" Tag="Mechanics" Click="Section_Click"/>
+                        <Button x:Name="RomToolsButton" Content="▧  Herramientas ROM"
+                                Style="{StaticResource SidebarButton}" IsEnabled="False" Tag="RomTools" Click="Section_Click"/>
+                        <Button x:Name="AutomationButton" Content="⇄  Automatización"
+                                Style="{StaticResource SidebarButton}" IsEnabled="False" Tag="Automation" Click="Section_Click"/>
+                        <Button x:Name="ConfigurationButton" Content="⚙  Configuración"
+                                Style="{StaticResource SidebarButton}" IsEnabled="False" Tag="Configuration" Click="Section_Click"/>
                         <Button x:Name="HistoryButton" Content="≡  Historial de cambios" Style="{StaticResource SidebarButton}" IsEnabled="False" Tag="History" Click="Section_Click"/>
                     </StackPanel>
                     </ScrollViewer>
