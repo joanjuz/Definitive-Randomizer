@@ -255,6 +255,16 @@ internal static class UiSmoke
             ((Button)main.FindName("MachineTutorButton")).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             var machineView=((ContentControl)main.FindName("SectionHost")).Content as MachineTutorView;
             check(machineView is not null,"WPF MT/Tutors navigation creates a native editor");
+            // MT compatibility is distinct from the Tutor checkboxes.
+            var machineTabs=((DockPanel)machineView!.Content).Children.OfType<TabControl>().Single();
+            var mtPane=(DockPanel)((TabItem)machineTabs.Items[0]).Content;
+            var tmFlags=mtPane.Children.OfType<StackPanel>().SelectMany(s=>s.Children.OfType<WrapPanel>())
+                .SelectMany(p=>p.Children.OfType<System.Windows.Controls.CheckBox>()).ToArray();
+            check(tmFlags.Any(p=>p.Content?.ToString()?.StartsWith("TM Sanity")==true)&&
+                  tmFlags.Any(p=>p.Content?.ToString()?.StartsWith("TM Follow Evolutions")==true),
+                "WPF MT panel exposes independent TM Sanity and Follow Evolutions");
+            check(main.FindName("StoryTextButton") is Button,
+                "WPF main navigation exposes Story Text separate from Game Text");
             Layout(machineView!,1170,720);
             check(((DockPanel)machineView!.Content).Children.OfType<TabControl>().Any(t=>t.Items.Count==2),
                 "WPF MT/Tutors navigation opens a real dual-tab editor");
