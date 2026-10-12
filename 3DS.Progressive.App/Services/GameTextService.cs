@@ -52,7 +52,8 @@ public sealed class GameTextService
             .Select(i=>new BatchChange(id,$"Archivo {id:000}","Línea "+i,before[i],after[i])).ToArray();
         _sha=_project.History.CommitGarc(_path,_reference,_sha,records,"Historia y textos",
             "Editar texto del juego",changes);
-        _config.InitializeGameText();
+        // Update only the modified loaded section; never discard the full localized text cache.
+        if(id<_config.GameTextStrings.Length)_config.GameTextStrings[id]=after;
     }
     public string Export(int id)=>string.Join(Environment.NewLine,Read(id).Select((line,i)=>$"[{i:0000}] {line}"));
 }
