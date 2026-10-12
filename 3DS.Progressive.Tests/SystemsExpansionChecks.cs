@@ -75,6 +75,53 @@ internal static class SystemsExpansionChecks
         var bp=new MartShop(0,true,"Prueba BP",[new MartSlotRow(1,1),new MartSlotRow(2,2)]);
         check(!GameMartService.TryRemoveRegularSlot(bp,bp.Rows[0]) && bp.Rows.Count==2,
             "USUM BP shops retain fixed row counts");
+        // Tutor Sanity must set only the existing level-up tutor compatibility,
+        // never overwrite unrelated Personal stats or grant arbitrary moves.
+        var sanityPersonal=new[]
+        {
+            new pk3DS.Core.Structures.PersonalInfo.PersonalInfoSM(new byte[0x54]),
+            new pk3DS.Core.Structures.PersonalInfo.PersonalInfoSM(new byte[0x54]),
+            new pk3DS.Core.Structures.PersonalInfo.PersonalInfoSM(new byte[0x54])
+        };
+        var sanityLearnsets=Enumerable.Range(0,3).Select(i=>
+            new Learnset6([255,255,255,255])
+            {
+                Moves=i==1?[520,77,15]:[],
+                Levels=i==1?[1,5,10]:[]
+            }).ToArray();
+        int sanityAdded=GameTutorCompatibilityService.ApplySanity(
+            sanityPersonal,sanityLearnsets,[77,78]);
+        check(sanityAdded==2&&sanityPersonal[1].TypeTutors[0]&&
+            sanityPersonal[1].SpecialTutors[0][0]&&
+            !sanityPersonal[1].SpecialTutors[0][1]&&
+            !sanityPersonal[2].SpecialTutors[0][0],
+            "Tutor Sanity adds only level-up-matching type and beach tutor flags");
+        check(GameTutorCompatibilityService.ApplySanity(sanityPersonal,sanityLearnsets,[77,78])==0 &&
+            sanityPersonal[1].Write().AsSpan(0,0x38).ToArray().All(z=>z==0),
+            "Tutor Sanity is idempotent and preserves all unrelated Personal bytes");
+
+        // Deliberately reverse chain traversal: A->B->C fixed-point must
+        // inherit even if B->C appears first, and branch A->D independently.
+        var evoPersonal=Enumerable.Range(0,5).Select(_=>
+            new pk3DS.Core.Structures.PersonalInfo.PersonalInfoSM(new byte[0x54])).ToArray();
+        evoPersonal[1].TypeTutors[2]=true;
+        evoPersonal[1].SpecialTutors[0][12]=true;
+        var evoRecords=Enumerable.Range(0,5).Select(_=>new byte[64]).ToArray();
+        void EvolutionTo(int from,int slot,int species)
+        {
+            BitConverter.GetBytes((ushort)4).CopyTo(evoRecords[from],slot*8);
+            BitConverter.GetBytes((ushort)species).CopyTo(evoRecords[from],slot*8+4);
+            evoRecords[from][slot*8+6]=0;
+        }
+        EvolutionTo(1,0,2);EvolutionTo(2,0,3);EvolutionTo(1,1,4);
+        var evoSets=evoRecords.Select(x=>new EvolutionSet7(x)).ToArray();
+        int inherited=GameTutorCompatibilityService.ApplyFollowEvolutions(evoPersonal,evoSets);
+        check(inherited==6&&Enumerable.Range(2,3).All(i=>
+            evoPersonal[i].TypeTutors[2]&&evoPersonal[i].SpecialTutors[0][12]),
+            "Tutor Follow Evolutions propagates compatibility over chains and branches");
+        check(GameTutorCompatibilityService.ApplyFollowEvolutions(evoPersonal,evoSets)==0,
+            "Tutor Follow Evolutions converges and is idempotent");
+
         using var f=new Fixture(GameVersion.USUM);
         var config=f.Game;
         // Shops must never fall back to hard-coded offsets or create a bogus
