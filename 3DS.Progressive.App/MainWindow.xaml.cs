@@ -31,6 +31,7 @@ public partial class MainWindow : Window
     private RecordEditorView? _recordView;
     private MachineTutorView? _machineTutorView;
     private LevelUpView? _levelUpView;
+    private GameTextView? _gameTextView;
     private readonly Dictionary<string,RecordEditorView.UiState> _sectionOptions=[];
     private bool _backupRunning;
     private IReadOnlyList<MoveChoice> _itemOptions = [];
@@ -123,6 +124,7 @@ public partial class MainWindow : Window
         if(_recordView is not null&&!_recordView.ConfirmLeave())return false;
         if(_machineTutorView is not null&&!_machineTutorView.ConfirmLeave())return false;
         if(_levelUpView is not null&&!_levelUpView.ConfirmLeave())return false;
+        if(_gameTextView is not null&&!_gameTextView.ConfirmLeave())return false;
         if(_recordView is not null)_sectionOptions[_recordView.Editor.Title]=_recordView.RememberOptions();
         if(_showingMoves&&_movesView is not null)
         {
@@ -148,14 +150,16 @@ public partial class MainWindow : Window
                 "MachineTutor"=>_machineTutorView=new MachineTutorView(_session),
                 "LevelUp"=>_levelUpView=new LevelUpView(_session),
                 "Items"=>CreateEditor(new GameItemService(_session)),
+                "FieldItems"=>CreateEditor(new GameFieldItemsService(_session)),
+                "GameText"=>_gameTextView=new GameTextView(_session),
                 "Evolutions"=>CreateEditor(new GameEvolutionService(_session)),
                 "History"=>new HistoryView(_session.History),
                 _=>throw new ArgumentException("Sección desconocida.")
             };
-            _recordView=view as RecordEditorView; if(section!="MachineTutor")_machineTutorView=null; if(section!="LevelUp")_levelUpView=null;SectionHost.Content=view;
+            _recordView=view as RecordEditorView; if(section!="MachineTutor")_machineTutorView=null; if(section!="LevelUp")_levelUpView=null; if(section!="GameText")_gameTextView=null;SectionHost.Content=view;
             PokemonListPanel.Visibility=PokemonEditorPanel.Visibility=PersonalToolsPanel.Visibility=PokemonInspectorPanel.Visibility=MovesHost.Visibility=Visibility.Collapsed;
             _personalTools.InvalidatePreview();SectionHost.Visibility=Visibility.Visible;_showingMoves=false;
-            PokemonNavButton.Background=MovesButton.Background=TrainersButton.Background=EncountersButton.Background=StaticEncountersButton.Background=MachineTutorButton.Background=LevelUpButton.Background=ItemsButton.Background=EvolutionsButton.Background=HistoryButton.Background=Brushes.Transparent;
+            PokemonNavButton.Background=MovesButton.Background=TrainersButton.Background=EncountersButton.Background=StaticEncountersButton.Background=MachineTutorButton.Background=LevelUpButton.Background=ItemsButton.Background=FieldItemsButton.Background=GameTextButton.Background=EvolutionsButton.Background=HistoryButton.Background=Brushes.Transparent;
             ((Button)sender).Background=new SolidColorBrush((Color)ColorConverter.ConvertFromString("#2B4059")!);
             StatusText.Text=section=="History"?"Historial persistente de cambios confirmados.":"Editor integrado · guardar registra los cambios en el historial.";
         }
@@ -186,7 +190,7 @@ public partial class MainWindow : Window
     {
         _session = candidate;
         _sectionOptions.Clear();
-        _recordView=null;_machineTutorView=null;_levelUpView=null;SectionHost.Content=null;
+        _recordView=null;_machineTutorView=null;_levelUpView=null;_gameTextView=null;SectionHost.Content=null;
         _movesView = null;
         MovesHost.Content = null;
         DisplayPokemon();
@@ -241,6 +245,8 @@ public partial class MainWindow : Window
         MachineTutorButton.IsEnabled=candidate.Generation==7;
         LevelUpButton.IsEnabled=true;
         ItemsButton.IsEnabled=true;
+        FieldItemsButton.IsEnabled=candidate.Generation==7;
+        GameTextButton.IsEnabled=true;
         ConfigurePersonalTools(candidate);
         PokemonList.SelectedIndex = 0;
         StatusText.Text = "Proyecto abierto en modo lectura. Guardar requiere confirmación.";
