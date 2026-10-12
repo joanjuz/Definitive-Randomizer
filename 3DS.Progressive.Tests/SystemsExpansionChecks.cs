@@ -119,6 +119,25 @@ internal static class SystemsExpansionChecks
         reject(()=>rebuild.BuildAsync(RomRebuildKind.RomFS,
                 Path.Combine(f.Session.ProjectRoot,"unsafe.romfs")).GetAwaiter().GetResult(),
             "Rebuild prevents writing output inside the source project");
+        // Regression for the exact user failure: the original RomFS writer
+        // requires a WinForms ProgressBar even from the new WPF background task.
+        // This must produce a real, readable IVFC without opening any window.
+        string rebuilt=Path.Combine(Path.GetTempPath(),"progressive-rebuild-smoke-"+
+            Guid.NewGuid().ToString("N")+".romfs");
+        byte[] personalBefore=File.ReadAllBytes(f.PersonalPath);
+        try
+        {
+            var rebuiltResult=rebuild.BuildAsync(RomRebuildKind.RomFS,rebuilt)
+                .GetAwaiter().GetResult();
+            check(File.Exists(rebuilt)&&rebuiltResult.Bytes>512&&
+                    Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(rebuilt)))==rebuiltResult.Hash,
+                "Rebuild RomFS succeeds on background task and verifies SHA-256 without null WinForms control");
+            var ivfc=new RomFS(rebuilt);
+            check(ivfc.SuperBlockHash.Length==32&&
+                    File.ReadAllBytes(f.PersonalPath).SequenceEqual(personalBefore),
+                "Rebuild produces a readable RomFS IVFC and does not modify the source project");
+        }
+        finally{if(File.Exists(rebuilt))File.Delete(rebuilt);}
         var shiny=new GameShinyRateService(f.Session);
         check(shiny.Read().Vanilla&&shiny.Read().AlwaysShinyOffset is not null,
             "Shiny Rate recognizes original PID routine and Everything Shiny signature");
