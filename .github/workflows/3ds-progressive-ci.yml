@@ -58,6 +58,10 @@ jobs:
           Copy-Item .\custom_balance_templates\evolutions_gen*.csv .\preview-output\LegacyBatch\custom_balance_templates\
           Copy-Item .\custom_balance_templates\pokemon_stats_gen7.csv .\preview-output\LegacyBatch\custom_balance_templates\
           Copy-Item .\preview-output\LegacyBatch\custom_balance_templates\* .\preview-output\custom_balance_templates\ -Force
+          Copy-Item .\pk3DS.WinForms\Templates\field_items.txt .\preview-output\custom_balance_templates\field_items.txt
+          if (!(Test-Path .\preview-output\custom_balance_templates\field_items.txt)) {
+            throw 'Packaged preview must contain field_items.txt at the shared root'
+          }
       - name: Adjuntar ejecutable de prueba
         uses: actions/upload-artifact@v4
         with:
