@@ -13,7 +13,7 @@ internal static class Program
     /// The main entry point for the application.
     /// </summary>
     [STAThread]
-    private static void Main()
+    private static void Main(string[] args)
     {
 #if !DEBUG
             // Add the event handler for handling UI thread exceptions to the event.
@@ -30,7 +30,40 @@ internal static class Program
         Application.EnableVisualStyles();
         Application.SetCompatibleTextRenderingDefault(false);
         ModernUI.EnableGlobalStyling();
-        Application.Run(new Main());
+        if(args.Length==2&&args[0]=="--batch-bridge")
+        {
+            var form=new Main();
+            form.Shown+=async (_,_) =>
+            {
+                form.Hide();
+                try
+                {
+                    await form.RunBatchBridge(args[1]);
+                    Environment.ExitCode=0;
+                }
+                catch(Exception ex)
+                {
+                    try
+                    {
+                        string? request=System.IO.File.ReadAllText(args[1]);
+                        using var node=System.Text.Json.JsonDocument.Parse(request);
+                        string? folder=node.RootElement.GetProperty("OutputDirectory").GetString();
+                        if(!string.IsNullOrWhiteSpace(folder))
+                        {
+                            System.IO.Directory.CreateDirectory(folder);
+                            System.IO.File.WriteAllText(
+                                System.IO.Path.Combine(folder,"3ds-progressive-batch-error.txt"),
+                                ex.ToString());
+                        }
+                    }
+                    catch { }
+                    Environment.ExitCode=1;
+                }
+                finally{Application.Exit();}
+            };
+            Application.Run(form);
+        }
+        else Application.Run(new Main());
     }
 
 #if !DEBUG
