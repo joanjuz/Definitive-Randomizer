@@ -90,7 +90,10 @@ public partial class RecordEditorView : UserControl
             {
                 var selected=group.Fields.Where(f=>TrainerOptionCategory(f.Key)==category).ToArray();
                 if(selected.Length==0)continue;
-                container.Children.Add(BuildGroupCard(group with {Fields=selected},controls,false));
+                string label=group.Name is "Main" or "Opciones generales"
+                    ?TrainerTabNames[category]:group.Name;
+                container.Children.Add(BuildGroupCard(group with
+                {Name=label,Fields=selected,Expanded=category==4||group.Expanded},controls,false));
             }
             if(container.Children.Count==0)
                 container.Children.Add(new TextBlock {Text="No hay opciones adicionales para esta versión del juego.",
