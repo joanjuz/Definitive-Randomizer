@@ -17,5 +17,6 @@
     <Content Include="..\custom_balance_templates\moves_gen*.csv" Link="custom_balance_templates\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
     <Content Include="..\custom_balance_templates\evolutions_gen*.csv" Link="custom_balance_templates\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
     <Content Include="..\pk3DS.WinForms\Templates\trainer_*.txt" Link="Templates\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <Content Include="..\pk3DS.WinForms\Resources\img\Pokemon Sprites\*.png" Link="Sprites\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>
