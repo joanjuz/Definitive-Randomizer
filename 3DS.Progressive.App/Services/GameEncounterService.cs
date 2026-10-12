@@ -11,6 +11,23 @@ public sealed class GameEncounterService : ArchiveProjectEditor
     private sealed record Location(int File,int Table,int Offset,int Map,string Name);
     private readonly Dictionary<int,Location> _locations=[];
     private readonly (string Name,int Count)[] _types;
+    private List<(int MinLevel,int MaxLevel,int MinBST,int MaxBST,bool FullRandom)> _bstRanges=
+    [
+        (1,10,180,320,false),(11,20,220,380,false),(21,30,280,450,false),
+        (31,40,340,520,false),(41,50,400,580,false),(51,100,480,680,false)
+    ];
+    internal void RestoreRangeOptions(IReadOnlyDictionary<string,int> values)
+    {
+        var groups=values.Where(p=>p.Key.StartsWith("BST.",StringComparison.Ordinal))
+            .GroupBy(p=>int.Parse(p.Key.Split('.')[1])).OrderBy(p=>p.Key).ToArray();
+        if(groups.Length==0)return;
+        _bstRanges=groups.Select(g=>
+        {
+            int V(string name)=>g.First(p=>p.Key.EndsWith("."+name,StringComparison.Ordinal)).Value;
+            return (V("MinLevel"),V("MaxLevel"),V("MinBST"),V("MaxBST"),V("FullRandom")==1);
+        }).ToList();
+    }
+
     public GameEncounterService(GameProjectSession project):base(project,"encdata")
     {
         _types=Config.XY?[("Hierba",12),("Hierba alta",12),("Flores rojas",12),("Flores amarillas",12),("Flores moradas",12),("Surf",5),("Golpe Roca",5),("Caña vieja",3),("Caña buena",3),("Supercaña",3),("Horda 60%",5),("Horda 35%",5),("Horda 5%",5)]
@@ -91,19 +108,16 @@ public sealed class GameEncounterService : ArchiveProjectEditor
             };
             if(Config.Generation==7)
             {
-                int[][] ranges=[
-                    [1,10,180,320],[11,20,220,380],[21,30,280,450],
-                    [31,40,340,520],[41,50,400,580],[51,100,480,680]
-                ];
-                foreach(int i in Enumerable.Range(0,ranges.Length))
+                for(int i=0;i<_bstRanges.Count;i++)
                 {
+                    var range=_bstRanges[i];
                     string prefix=$"BST.{i}.";
                     groups.Add(new($"Rango BST {i+1}",[
-                        Field(prefix+"MinLevel","Nivel inicial",ranges[i][0],1,100),
-                        Field(prefix+"MaxLevel","Nivel final",ranges[i][1],1,100),
-                        Field(prefix+"MinBST","BST mínimo",ranges[i][2],1,999),
-                        Field(prefix+"MaxBST","BST máximo",ranges[i][3],1,999),
-                        Field(prefix+"FullRandom","Randomización libre en este rango",0,0,1)
+                        Field(prefix+"MinLevel","Nivel inicial",range.MinLevel,1,100),
+                        Field(prefix+"MaxLevel","Nivel final",range.MaxLevel,1,100),
+                        Field(prefix+"MinBST","BST mínimo",range.MinBST,1,999),
+                        Field(prefix+"MaxBST","BST máximo",range.MaxBST,1,999),
+                        Field(prefix+"FullRandom","Randomización libre en este rango",range.FullRandom?1:0,0,1)
                     ],false));
                 }
             }
@@ -209,7 +223,7 @@ public sealed class GameEncounterService : ArchiveProjectEditor
         if(options["Progressive"]==1)
         {
             if(Config.Generation!=7)throw new NotSupportedException("El modo Progressive Wild de esta vista solo admite Gen7.");
-            for(int i=0;i<6;i++)
+            for(int i=0;i<_bstRanges.Count;i++)
             {
                 string k=$"BST.{i}.";
                 int lo=options[k+"MinLevel"],hi=options[k+"MaxLevel"];
