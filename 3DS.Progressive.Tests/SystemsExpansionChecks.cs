@@ -105,6 +105,20 @@ internal static class SystemsExpansionChecks
         byte[] after=File.ReadAllBytes(codePath);
         check(after[0x3000+typeSignature.Length]==8&&after[0x3000+typeSignature.Length+1]==0,
             "Type Chart saved only selected effectiveness cells");
+        // The general status bar reports real count-based completion; it does not
+        // invent percentages when no measurable total exists.
+        ThreeDS.Progressive.UiProgress.Begin("Test · progress");
+        check(ThreeDS.Progressive.UiProgress.Snapshot.Percent is null,
+            "General progress remains indeterminate when no measurable total exists");
+        ThreeDS.Progressive.UiProgress.Count("2/8 real files",2,8);
+        var progress=ThreeDS.Progressive.UiProgress.Snapshot;
+        check(progress.Percent==25&&progress.Completed==2&&progress.Total==8,
+            "General progress calculates true 25% from measured work");
+        ThreeDS.Progressive.UiProgress.End();
+        var rebuild=new GameRomRebuildService(f.Session);
+        reject(()=>rebuild.BuildAsync(RomRebuildKind.RomFS,
+                Path.Combine(f.Session.ProjectRoot,"unsafe.romfs")).GetAwaiter().GetResult(),
+            "Rebuild prevents writing output inside the source project");
         var shiny=new GameShinyRateService(f.Session);
         check(shiny.Read().Vanilla&&shiny.Read().AlwaysShinyOffset is not null,
             "Shiny Rate recognizes original PID routine and Everything Shiny signature");
