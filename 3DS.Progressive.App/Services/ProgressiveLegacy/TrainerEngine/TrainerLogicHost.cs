@@ -232,10 +232,20 @@ internal sealed class TrainerLogicHost
         if(template.TrainerMoveRules is { } moveRules &&
             values.TryGetValue("GlobalMoves.ResetUnlisted",out int resetRules))
             moveRules.ResetUnlistedTrainers=resetRules==1;
-        foreach(var pair in values.Where(p=>p.Key.StartsWith("BST.")))
+        var bst=values.Where(p=>p.Key.StartsWith("BST.",StringComparison.Ordinal))
+            .GroupBy(p=>int.Parse(p.Key.Split('.')[1])).OrderBy(p=>p.Key).ToArray();
+        if(bst.Length>0)
         {
-            var key=pair.Key.Split('.');var range=template.ProgressiveBST!.Ranges[int.Parse(key[1])];
-            switch(key[2]){case "MinLevel":range.MinLevel=pair.Value;break;case "MaxLevel":range.MaxLevel=pair.Value;break;case "MinBST":range.MinBST=pair.Value;break;case "MaxBST":range.MaxBST=pair.Value;break;case "FullRandom":range.FullRandom=pair.Value==1;break;}
+            template.ProgressiveBST??=new ProgressiveBSTTemplate();
+            template.ProgressiveBST.Ranges=bst.Select(g=>
+            {
+                int V(string field)=>g.First(p=>p.Key.EndsWith("."+field,StringComparison.Ordinal)).Value;
+                return new ProgressiveBSTTemplateRule
+                {
+                    MinLevel=V("MinLevel"),MaxLevel=V("MaxLevel"),
+                    MinBST=V("MinBST"),MaxBST=V("MaxBST"),FullRandom=V("FullRandom")==1
+                };
+            }).ToList();
         }
         foreach(int id in values.Keys.Where(k=>k.StartsWith("Rule.")).Select(k=>int.Parse(k.Split('.')[1])).Distinct())
         {
