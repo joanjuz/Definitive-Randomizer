@@ -301,8 +301,7 @@ internal static class UiSmoke
             if(fixture.Game.USUM&&hub is not null)
             {
                 Layout(hub,1150,720);
-                Walk(hub).OfType<Button>().First(x=>Equals(x.Content,"Abrir Player Level Caps"))
-                    .RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                hub.OpenPlayerCapsForChecks();
                 check(((ContentControl)main.FindName("SectionHost")).Content is PlayerLevelCapsView,
                     "WPF Player Level Caps opens researched USUM flags and CRO installer in the main application");
             }
