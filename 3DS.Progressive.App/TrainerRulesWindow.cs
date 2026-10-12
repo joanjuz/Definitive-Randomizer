@@ -10,6 +10,10 @@ using Color=System.Windows.Media.Color;
 using Button=System.Windows.Controls.Button;
 using CheckBox=System.Windows.Controls.CheckBox;
 using TextBox=System.Windows.Controls.TextBox;
+using DataGrid=System.Windows.Controls.DataGrid;
+using DataGridRow=System.Windows.Controls.DataGridRow;
+using DataGridCell=System.Windows.Controls.DataGridCell;
+using DataGridColumnHeader=System.Windows.Controls.Primitives.DataGridColumnHeader;
 
 namespace ThreeDS.Progressive;
 
@@ -133,7 +137,7 @@ internal sealed class TrainerRulesWindow : Window
         AddNumber("Ace actual","Ace",true);
         if(_caps)AddNumber("Cap (0 = Ace)","Cap");
         root.Children.Add(_grid);
-        _view.Filter=IsVisible;
+        _view.Filter=MatchesFilters;
         RefreshFilter();
     }
     private Button ActionButton(string label,Action action)
@@ -164,7 +168,7 @@ internal sealed class TrainerRulesWindow : Window
         {Header=header,Binding=new Binding(property){Mode=BindingMode.OneWay},
             IsReadOnly=true,Width=new DataGridLength(wide?280:105)});
     }
-    private bool IsVisible(object item)=>item is TrainerRuleTableRow row &&
+    private bool MatchesFilters(object item)=>item is TrainerRuleTableRow row &&
         (string.Equals(row.Group,"Boss",StringComparison.OrdinalIgnoreCase)
             ? _bosses.IsChecked==true:_important.IsChecked==true);
     private void FilterChanged(object sender,RoutedEventArgs e)=>RefreshFilter();
@@ -178,7 +182,7 @@ internal sealed class TrainerRulesWindow : Window
     {
         _grid.CommitEdit(DataGridEditingUnit.Cell,true);
         _grid.CommitEdit(DataGridEditingUnit.Row,true);
-        foreach(var row in _rows.Where(r=>IsVisible(r)))
+        foreach(var row in _rows.Where(r=>MatchesFilters(r)))
         {
             if(_caps)row.CapUse=selected;
             else row.MoveUse=selected;
