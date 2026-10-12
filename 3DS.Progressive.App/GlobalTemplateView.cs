@@ -64,7 +64,21 @@ internal sealed class GlobalTemplateView : UserControl
             Background=(Brush)FindResource("Panel"),Foreground=(Brush)FindResource("TextMain"),
             RowBackground=(Brush)FindResource("Panel"),AlternatingRowBackground=(Brush)FindResource("Surface"),
             BorderBrush=(Brush)FindResource("Stroke"),BorderThickness=new Thickness(1),
-            ItemsSource=_actions
+            ItemsSource=_actions,
+            GridLinesVisibility=DataGridGridLinesVisibility.Horizontal,
+            HorizontalGridLinesBrush=(Brush)FindResource("Stroke"),
+            ColumnHeaderHeight=36,
+            ColumnHeaderStyle=new Style(typeof(System.Windows.Controls.Primitives.DataGridColumnHeader))
+            {
+                Setters={
+                    new Setter(System.Windows.Controls.Control.BackgroundProperty,(Brush)FindResource("Surface")),
+                    new Setter(System.Windows.Controls.Control.ForegroundProperty,(Brush)FindResource("TextMain")),
+                    new Setter(System.Windows.Controls.Control.BorderBrushProperty,(Brush)FindResource("Stroke")),
+                    new Setter(System.Windows.Controls.Control.BorderThicknessProperty,new Thickness(0,0,1,1)),
+                    new Setter(System.Windows.Controls.Control.PaddingProperty,new Thickness(9,7,9,7)),
+                    new Setter(System.Windows.Controls.Control.FontWeightProperty,FontWeights.SemiBold)
+                }
+            }
         };
         grid.Columns.Add(new DataGridCheckBoxColumn{Header="Incluir en copia",Width=120,
             Binding=new Binding(nameof(ActionRow.Selected)){Mode=BindingMode.TwoWay,
