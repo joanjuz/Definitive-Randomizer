@@ -10,6 +10,35 @@ internal static class SystemsExpansionChecks
 {
     internal static void Run(Action<bool,string> check,Action<Action,string> reject)
     {
+        // Pure native ARM USUM lookup fixture: LDR r2,[pc,#0x70] points to
+        // the 67-slot table; no actual ROM data or fixed US/UM offsets needed.
+        byte[] tutorCode = new byte[0x1200];
+        BitConverter.GetBytes(0xE59F2070u).CopyTo(tutorCode,0x128);
+        BitConverter.GetBytes(0xE92D4070u).CopyTo(tutorCode,0x12C);
+        BitConverter.GetBytes(0xE3500043u).CopyTo(tutorCode,0x158);
+        BitConverter.GetBytes(0xE3A00029u).CopyTo(tutorCode,0x180);
+        BitConverter.GetBytes(0xE354002Bu).CopyTo(tutorCode,0x18C);
+        BitConverter.GetBytes(0x00100800u).CopyTo(tutorCode,0x1A0);
+        for(int i=0;i<67;i++)
+            BitConverter.GetBytes((ushort)(i+10)).CopyTo(tutorCode,0x800+i*2);
+        ushort[] tutorMoves = Enumerable.Range(0,67)
+            .Select(i=>(ushort)(i+100)).ToArray();
+        var patchedTutorCode=UsumTutorCodePatch.Prepare(tutorCode,tutorMoves);
+        check(patchedTutorCode.TableOffset==0x800&&patchedTutorCode.ChangedSlots==67
+            &&tutorMoves.SequenceEqual(Enumerable.Range(0,67)
+                .Select(i=>BitConverter.ToUInt16(patchedTutorCode.Output,0x800+i*2)))
+            &&tutorCode.AsSpan(0,0x800).SequenceEqual(patchedTutorCode.Output.AsSpan(0,0x800))
+            &&tutorCode.AsSpan(0x886).SequenceEqual(patchedTutorCode.Output.AsSpan(0x886)),
+            "USUM tutors patch only 67 x 2 native ARM code.bin bytes");
+        check(UsumTutorCodePatch.Prepare(patchedTutorCode.Output,tutorMoves).ChangedSlots==0,
+            "USUM tutors code.bin synchronization is idempotent");
+        var unknownTutorCode=(byte[])tutorCode.Clone();
+        unknownTutorCode[0x180]=0;
+        reject(()=>UsumTutorCodePatch.Prepare(unknownTutorCode,tutorMoves),
+            "USUM tutors refuse missing native compatibility signature");
+        reject(()=>UsumTutorCodePatch.Prepare(tutorCode,tutorMoves.Take(66).ToArray()),
+            "USUM tutors reject incorrect 67-slot move count");
+
         // Regression: deleting an ORIGINAL middle slot must work, reindex the
         // remaining entries and refuse the final slot or BP (fixed-size) rows.
         var regular=new MartShop(0,false,"Prueba regular",
