@@ -679,29 +679,46 @@ internal static class BatchGen7ActionExecutor
             .ToDictionary(z => z.Id, z => z, StringComparer.OrdinalIgnoreCase);
 
         RunMoves(actions);
+        BatchBridgeProgress.ActionGroup("Moves",actions.Keys,id=>id.StartsWith("moves.",StringComparison.OrdinalIgnoreCase));
         RunPersonal(actions);
+        BatchBridgeProgress.ActionGroup("Personal",actions.Keys,id=>id.StartsWith("personal.",StringComparison.OrdinalIgnoreCase)||id.StartsWith("pokemon-stats.",StringComparison.OrdinalIgnoreCase));
         RunEvolutions(actions);
+        BatchBridgeProgress.ActionGroup("Evolutions",actions.Keys,id=>id.StartsWith("evolutions.",StringComparison.OrdinalIgnoreCase));
         RunLevelUpMoves(actions);
+        BatchBridgeProgress.ActionGroup("LevelUpMoves",actions.Keys,id=>id.StartsWith("level-up-moves.",StringComparison.OrdinalIgnoreCase));
         RunEggMoves(actions);
+        BatchBridgeProgress.ActionGroup("EggMoves",actions.Keys,id=>id.StartsWith("egg-moves.",StringComparison.OrdinalIgnoreCase));
         RunTMs(actions);
+        BatchBridgeProgress.ActionGroup("TMs",actions.Keys,id=>id.StartsWith("tms.",StringComparison.OrdinalIgnoreCase));
 
         // Story progression invariant:
         // Totem Level Caps are applied and saved inside RunStaticEncounters
         // before trainer randomization. RunTrainers later reads those effective
         // static levels through USUMStoryMilestoneResolver.
         RunStaticEncounters(actions);
+        BatchBridgeProgress.ActionGroup("StaticEncounters",actions.Keys,id=>id.StartsWith("static-encounters.",StringComparison.OrdinalIgnoreCase)||id.StartsWith("starters.",StringComparison.OrdinalIgnoreCase)||id.StartsWith("trades.",StringComparison.OrdinalIgnoreCase));
 
         RunWildEncounters(actions, template.Wild);
+        BatchBridgeProgress.ActionGroup("WildEncounters",actions.Keys,id=>id.StartsWith("wild-encounters.",StringComparison.OrdinalIgnoreCase));
         RunPickup(actions);
+        BatchBridgeProgress.ActionGroup("Pickup",actions.Keys,id=>id.StartsWith("pickup.",StringComparison.OrdinalIgnoreCase));
         RunItemEconomy(actions);
+        BatchBridgeProgress.ActionGroup("ItemEconomy",actions.Keys,id=>id.StartsWith("items.",StringComparison.OrdinalIgnoreCase));
         RunMarts(actions);
+        BatchBridgeProgress.ActionGroup("Marts",actions.Keys,id=>id.StartsWith("marts.",StringComparison.OrdinalIgnoreCase));
         RunTutors(actions);
+        BatchBridgeProgress.ActionGroup("Tutors",actions.Keys,id=>id.StartsWith("move-tutors.",StringComparison.OrdinalIgnoreCase));
         RunFieldItems(actions);
+        BatchBridgeProgress.ActionGroup("FieldItems",actions.Keys,id=>id.StartsWith("field-items.",StringComparison.OrdinalIgnoreCase));
         RunShinyRate(actions);
+        BatchBridgeProgress.ActionGroup("ShinyRate",actions.Keys,id=>id.StartsWith("shiny-rate.",StringComparison.OrdinalIgnoreCase));
         RunTrainers(actions); // last: Better Movesets sees final moves/learnsets/stats.
+        BatchBridgeProgress.ActionGroup("Trainers",actions.Keys,id=>id.StartsWith("trainers.",StringComparison.OrdinalIgnoreCase));
 
         RunGameplayQoLPatches(actions);
+        BatchBridgeProgress.ActionGroup("GameplayQoLPatches",actions.Keys,id=>id.StartsWith("mega-evolution.",StringComparison.OrdinalIgnoreCase)||id.StartsWith("battle.",StringComparison.OrdinalIgnoreCase)||id.StartsWith("usum.",StringComparison.OrdinalIgnoreCase));
         RunPlayerLevelCaps(actions, template.LevelCaps);
+        BatchBridgeProgress.ActionGroup("PlayerLevelCaps",actions.Keys,id=>id.StartsWith("player.",StringComparison.OrdinalIgnoreCase));
         Main.SaveGameText();
     }
 
