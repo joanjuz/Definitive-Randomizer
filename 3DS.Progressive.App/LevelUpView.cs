@@ -29,9 +29,9 @@ internal sealed class LevelUpView : UserControl
     private readonly GameLevelUpService _service;
     private ObservableCollection<LevelUpMoveEntry> _rows=[];
     private readonly DataGrid _grid;
-    private readonly UniformGrid _compact=new() {Columns=3};
+    private readonly List<DataGrid> _moveColumns=[];
     private LevelUpMoveEntry? _selectedMove;
-    private int _compactColumns=3;
+    private readonly UniformGrid _columnHost=new() {Columns=3};
     private readonly ListBox _species;
     private readonly TextBox _search;
     private readonly Button _save;
@@ -96,14 +96,23 @@ internal sealed class LevelUpView : UserControl
         }
         Action("+ Añadir",Add);
         Action("− Quitar",Remove);
-        Action("Metrónomo",()=>{if(_rows.Count==0)return;foreach(var row in _rows)row.Move=118;_grid.Items.Refresh();Dirty();});
+        Action("Metrónomo",()=>{if(_rows.Count==0)return;foreach(var row in _rows)row.Move=118;RebuildCards();Dirty();});
         Action("Randomizar especie",Randomize);
         Action("Exportar CSV",Export);
-        var randomSettings=new Expander {Header="Opciones del randomizador original (todos los Pokémon)",
-            IsExpanded=false,Foreground=(Brush)FindResource("TextMain"),
-            Margin=new Thickness(0,0,0,12)};
-        var settingsBody=new StackPanel {Margin=new Thickness(10)};
-        randomSettings.Content=settingsBody;
+        var randomSettings=new Border
+        {
+            Background=(Brush)FindResource("Panel"),BorderBrush=(Brush)FindResource("Stroke"),
+            BorderThickness=new Thickness(1),CornerRadius=new CornerRadius(8),
+            Padding=new Thickness(12,8,12,8),Margin=new Thickness(0,0,0,12)
+        };
+        var settingsBody=new StackPanel();
+        randomSettings.Child=settingsBody;
+        settingsBody.Children.Add(new TextBlock
+        {
+            Text="RANDOMIZADOR ORIGINAL · TODOS LOS POKÉMON",
+            Foreground=(Brush)FindResource("TextMain"),FontWeight=FontWeights.SemiBold,
+            Margin=new Thickness(0,0,0,9)
+        });
         var settingsGrid=new UniformGrid {Columns=3};
         settingsBody.Children.Add(settingsGrid);
         void AddChoice(CheckBox choice,TextBox? value=null,string? label=null)
@@ -141,47 +150,62 @@ internal sealed class LevelUpView : UserControl
         bulkButtons.Children.Add(randomAll);bulkButtons.Children.Add(metronomeAll);
         bulkButtons.Children.Add(_applyBulk);
         DockPanel.SetDock(randomSettings,Dock.Top);right.Children.Add(randomSettings);
-        _grid=new DataGrid
+        // Like MT: three independent two-column DataGrids, each with normal
+        // 34px rows. No stretched cells and no hidden row-header strip.
+        for(int column=0;column<3;column++)
         {
-            AutoGenerateColumns=false,CanUserAddRows=false,CanUserDeleteRows=false,
-            ItemsSource=_rows,RowHeight=37,CanUserSortColumns=false,
-            Background=(Brush)FindResource("Panel"),Foreground=(Brush)FindResource("TextMain"),
-            RowBackground=(Brush)FindResource("Panel"),AlternatingRowBackground=(Brush)FindResource("Surface"),
-            BorderBrush=(Brush)FindResource("Stroke"),BorderThickness=new Thickness(1),
-            HorizontalGridLinesBrush=(Brush)FindResource("Stroke"),
-            HorizontalScrollBarVisibility=ScrollBarVisibility.Auto
-        };
-        var style=new Style(typeof(DataGridColumnHeader));
-        style.Setters.Add(new Setter(Control.BackgroundProperty,(Brush)FindResource("Surface")));
-        style.Setters.Add(new Setter(Control.ForegroundProperty,(Brush)FindResource("TextMain")));
-        style.Setters.Add(new Setter(Control.PaddingProperty,new Thickness(12,9,12,9)));
-        _grid.ColumnHeaderStyle=style;
-        var rowStyle=new Style(typeof(DataGridRow));
-        rowStyle.Setters.Add(new Setter(Control.ForegroundProperty,(Brush)FindResource("TextMain")));
-        _grid.RowStyle=rowStyle;
-        _grid.Columns.Add(new DataGridTextColumn
-        {
-            Header="Nivel",Binding=new Binding("Level"){Mode=BindingMode.TwoWay,
-                UpdateSourceTrigger=UpdateSourceTrigger.LostFocus,ValidatesOnExceptions=true},Width=95
-        });
-        _grid.Columns.Add(new DataGridComboBoxColumn
-        {
-            Header="Movimiento",ItemsSource=_service.Moves,DisplayMemberPath="Display",
-            SelectedValuePath="Id",SelectedValueBinding=new Binding("Move")
+            var table=new DataGrid
+            {
+                AutoGenerateColumns=false,CanUserAddRows=false,CanUserDeleteRows=false,
+                CanUserSortColumns=false,RowHeight=34,HeadersVisibility=DataGridHeadersVisibility.Column,
+                RowHeaderWidth=0,SelectionUnit=DataGridSelectionUnit.FullRow,
+                Background=(Brush)FindResource("Panel"),Foreground=(Brush)FindResource("TextMain"),
+                RowBackground=(Brush)FindResource("Panel"),
+                AlternatingRowBackground=(Brush)FindResource("Surface"),
+                BorderBrush=(Brush)FindResource("Stroke"),BorderThickness=new Thickness(1),
+                HorizontalGridLinesBrush=(Brush)FindResource("Stroke"),
+                HorizontalScrollBarVisibility=ScrollBarVisibility.Disabled,
+                VerticalScrollBarVisibility=ScrollBarVisibility.Hidden
+            };
+            var headStyle=new Style(typeof(DataGridColumnHeader));
+            headStyle.Setters.Add(new Setter(Control.BackgroundProperty,(Brush)FindResource("Surface")));
+            headStyle.Setters.Add(new Setter(Control.ForegroundProperty,(Brush)FindResource("TextMain")));
+            headStyle.Setters.Add(new Setter(Control.PaddingProperty,new Thickness(8,6,8,6)));
+            table.ColumnHeaderStyle=headStyle;
+            table.Columns.Add(new DataGridTextColumn
+            {
+                Header="Nivel",Width=62,Binding=new Binding("Level")
+                {Mode=BindingMode.TwoWay,UpdateSourceTrigger=UpdateSourceTrigger.LostFocus,
+                    ValidatesOnExceptions=true}
+            });
+            table.Columns.Add(new DataGridComboBoxColumn
+            {
+                Header="Movimiento",ItemsSource=_service.Moves,DisplayMemberPath="Display",
+                SelectedValuePath="Id",SelectedValueBinding=new Binding("Move")
                 {Mode=BindingMode.TwoWay,UpdateSourceTrigger=UpdateSourceTrigger.PropertyChanged},
-            Width=new DataGridLength(1,DataGridLengthUnitType.Star),MinWidth=220
-        });
-        _grid.CellEditEnding+=(_,_)=>Dirty();
-        // Dense multi-column cards replace the long one-record-per-full-width table.
-        // The original grid remains a binding source for the row-edit commands.
-        var compactScroll=new ScrollViewer {VerticalScrollBarVisibility=ScrollBarVisibility.Auto,
-            HorizontalScrollBarVisibility=ScrollBarVisibility.Disabled,Content=_compact};
-        right.Children.Add(compactScroll);
-        right.SizeChanged+=(_,_)=>
+                Width=new DataGridLength(1,DataGridLengthUnitType.Star),MinWidth=185
+            });
+            table.CellEditEnding+=(_,_)=>Dirty();
+            table.SelectionChanged+=(_,_)=>
+            {
+                if(table.SelectedItem is LevelUpMoveEntry row)
+                {
+                    _selectedMove=row;
+                    foreach(var other in _moveColumns.Where(g=>g!=table))other.SelectedItem=null;
+                }
+            };
+            table.Margin=new Thickness(column==0?0:8,0,0,0);
+            _moveColumns.Add(table);_columnHost.Children.Add(table);
+        }
+        _grid=_moveColumns[0]; // Legacy edit commands reference the first table.
+        var compactScroll=new ScrollViewer
         {
-            int columns=Math.Clamp((int)(right.ActualWidth/295),1,4);
-            if(columns!=_compactColumns){_compactColumns=columns;_compact.Columns=columns;}
+            VerticalScrollBarVisibility=ScrollBarVisibility.Auto,
+            HorizontalScrollBarVisibility=ScrollBarVisibility.Auto,Content=_columnHost
         };
+        right.Children.Add(compactScroll);
+        right.SizeChanged+=(_,_)=>_columnHost.Columns=right.ActualWidth>=820?3:
+            right.ActualWidth>=540?2:1;
         _loading=true;_species.SelectedIndex=0;_loading=false;
         if(_species.SelectedItem is PokemonListEntry p)Load(p.Index);
     }
@@ -250,34 +274,10 @@ internal sealed class LevelUpView : UserControl
     }
     private void RebuildCards()
     {
-        _compact.Children.Clear();
-        foreach(var row in _rows)
-        {
-            var border=new Border {Margin=new Thickness(0,0,9,9),Padding=new Thickness(9,7,9,7),
-                CornerRadius=new CornerRadius(7),BorderThickness=new Thickness(1),
-                BorderBrush=(Brush)FindResource("Stroke"),Background=(Brush)FindResource("Panel")};
-            void Select()
-            {
-                _selectedMove=row;
-                foreach(Border card in _compact.Children)card.BorderBrush=(Brush)FindResource("Stroke");
-                border.BorderBrush=(Brush)FindResource("Accent");
-            }
-            border.MouseLeftButtonDown+=(_,_)=>Select();
-            var slot=new Grid();
-            slot.ColumnDefinitions.Add(new ColumnDefinition {Width=new GridLength(58)});
-            slot.ColumnDefinitions.Add(new ColumnDefinition {Width=new GridLength(1,GridUnitType.Star)});
-            var level=new TextBox {Text=row.Level.ToString(),MinHeight=31,Margin=new Thickness(0,0,8,0),
-                ToolTip="Nivel al que se aprende el movimiento"};
-            level.LostFocus+=(_,_)=>{if(int.TryParse(level.Text,out int n)&&n is >=1 and <=100)
-            {if(row.Level!=n){row.Level=n;Dirty();}}else level.Text=row.Level.ToString();};
-            var moves=new ComboBox {ItemsSource=_service.Moves,DisplayMemberPath="Display",
-                SelectedValuePath="Id",SelectedValue=row.Move,MinHeight=31,FontSize=11};
-            moves.SelectionChanged+=(_,_)=>{if(moves.SelectedValue is int move&&row.Move!=move)
-            {row.Move=move;Dirty();}};
-            Grid.SetColumn(moves,1);slot.Children.Add(level);slot.Children.Add(moves);
-            border.Child=slot;
-            _compact.Children.Add(border);
-        }
+        // Partition instead of stretching each record across the available height.
+        int chunk=(_rows.Count+_moveColumns.Count-1)/_moveColumns.Count;
+        for(int i=0;i<_moveColumns.Count;i++)
+            _moveColumns[i].ItemsSource=_rows.Skip(i*chunk).Take(chunk).ToArray();
     }
     private void Filter()
     {
@@ -301,12 +301,16 @@ internal sealed class LevelUpView : UserControl
     {
         _current=id;
         _rows=new ObservableCollection<LevelUpMoveEntry>(_service.Read(id));
-        _grid.ItemsSource=_rows;RebuildCards();_dirty=false;_save.IsEnabled=false;
+        _selectedMove=null;RebuildCards();_dirty=false;_save.IsEnabled=false;
         _status.Text=$"Especie #{id:000} · {_rows.Count} movimientos de nivel.";
     }
     private void Commit()
     {
-        _grid.CommitEdit(DataGridEditingUnit.Cell,true);_grid.CommitEdit(DataGridEditingUnit.Row,true);
+        foreach(var table in _moveColumns)
+        {
+            table.CommitEdit(DataGridEditingUnit.Cell,true);
+            table.CommitEdit(DataGridEditingUnit.Row,true);
+        }
     }
     private void Dirty(){InvalidateBulk();_dirty=true;_save.IsEnabled=true;_status.Text="Cambios pendientes. Guardá antes de cambiar de especie.";}
     private void Add()
@@ -328,7 +332,7 @@ internal sealed class LevelUpView : UserControl
         if(valid.Length==0)return;
         var rng=new Random(System.Security.Cryptography.RandomNumberGenerator.GetInt32(int.MaxValue));
         foreach(var row in _rows)row.Move=valid[rng.Next(valid.Length)];
-        _grid.Items.Refresh();RebuildCards();Dirty();
+        RebuildCards();Dirty();
     }
     private void Save()
     {
