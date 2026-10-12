@@ -32,7 +32,7 @@ internal static class BatchBridgeProgress
     internal static void BeginRom(int index,int newSeed,string filename)
     {
         if(path is null)return;
-        currentRom=index;seed=newSeed;output=filename;actionsDone=0;
+        currentRom=index;seed=newSeed;output=filename;actionsDone=0;completedPhase=0;
         rebuildFraction=0;rebuilding=false;Counted.Clear();
         Stage("Preparar copia", "Creando copia limpia de la ROM",0);
     }
