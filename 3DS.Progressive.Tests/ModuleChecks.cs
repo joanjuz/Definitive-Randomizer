@@ -308,12 +308,60 @@ internal static class ModuleChecks
                     "\"game\":\""+wildGame+"\"","\"game\":\"XY\"",StringComparison.Ordinal)),
                     version+" Wild rejects templates for another game");
             }
+            if(f.Game.Generation==7)
+            {
+                // Same behavior as EncounterTable.CopySlotsToSOS: overwrite all
+                // seven ordinary SOS sets, INCLUDING previously empty slots.
+                var sosValues=new Dictionary<string,int>();
+                for(int slot=0;slot<10;slot++)
+                {
+                    sosValues[$"S0.{slot}.Species"]=slot+1;
+                    sosValues[$"S0.{slot}.Form"]=slot%2;
+                    for(int group=1;group<=7;group++)
+                    {
+                        sosValues[$"S{group}.{slot}.Species"]=group==1?55:0;
+                        sosValues[$"S{group}.{slot}.Form"]=group==1?5:0;
+                    }
+                }
+                for(int slot=0;slot<6;slot++)
+                {
+                    sosValues[$"S8.{slot}.Species"]=95;
+                    sosValues[$"S8.{slot}.Form"]=2;
+                }
+                WildSosRules.CopyRegularIntoSos(sosValues);
+                check(Enumerable.Range(1,7).All(group=>Enumerable.Range(0,10).All(slot=>
+                    sosValues[$"S{group}.{slot}.Species"]==slot+1&&
+                    sosValues[$"S{group}.{slot}.Form"]==slot%2))&&
+                    Enumerable.Range(0,6).All(slot=>sosValues[$"S8.{slot}.Species"]==95),
+                    version+" Wild Copy Normal -> SOS overwrites empty rows but preserves climate");
+                // Independent randomized allies: source species #1, ally pool
+                // #25/#26. Existing SOS species and weather are never changed.
+                for(int group=1;group<=7;group++)
+                    for(int slot=0;slot<10;slot++)
+                        sosValues[$"S{group}.{slot}.Species"]=group==1?55:0;
+                int filled=WildSosRules.FillMissingAllies(sosValues,[25,26],
+                    new Random(42),species=>species==25?1:2);
+                check(filled==60&&Enumerable.Range(2,6).All(group=>
+                    Enumerable.Range(0,10).All(slot=>
+                        sosValues[$"S{group}.{slot}.Species"] is 25 or 26 &&
+                        sosValues[$"S{group}.{slot}.Form"] is 1 or 2))&&
+                    Enumerable.Range(0,10).All(slot=>sosValues[$"S1.{slot}.Species"]==55)&&
+                    Enumerable.Range(0,6).All(slot=>sosValues[$"S8.{slot}.Species"]==95),
+                    version+" Wild Fill SOS randomizes only missing normal allies, not climate");
+            }
             var encounter=new GameEncounterService(f.Session);var encBefore=Read(f,"encdata");
             check(encounter.Entries.Count==(f.Game.Generation==7?4:2),version+" encounters expose maps and day/night separately");
             var ev=EditorValues.Flatten(encounter.Read(1));string prefix=f.Game.Generation==7?"S0.0.":"S0.";
             ev[prefix+"Species"]=25;ev[prefix+"Form"]=1;
             if(f.Game.Generation==7){ev["Min"]=20;ev["Max"]=25;ev["S8.0.Species"]=26;}
             else{ev[prefix+"Min"]=20;ev[prefix+"Max"]=25;}
+            if(f.Game.Generation==7)
+            {
+                ev["Rate0"]=11;
+                reject(()=>encounter.Save(1,ev),
+                    version+" Wild rejects encounter percentages not summing to 0/100");
+                ev["Rate0"]=10;
+            }
             encounter.Save(1,ev);var er=EditorValues.Flatten(new GameEncounterService(f.Session).Read(1));
             check(er[prefix+"Species"]==25&&er[prefix+"Form"]==1,version+" encounter species/forms save and reload");
             if(f.Game.Generation==7)
