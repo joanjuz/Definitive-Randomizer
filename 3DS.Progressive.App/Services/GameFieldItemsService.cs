@@ -89,9 +89,10 @@ public sealed class GameFieldItemsService : IProjectEditor
         if(!_locations.ContainsKey(id))throw new ArgumentOutOfRangeException(nameof(id));
         int value=ReadValue(id,new GARC.LazyGARC(Original()));
         var options=_project.ItemNames.Select((name,index)=>new MoveChoice(index,
-            string.IsNullOrWhiteSpace(name)?$"Objeto {index:000}":name)).ToArray();
+            string.IsNullOrWhiteSpace(name)?$"Objeto {index:000}":name)).ToList();
+        if(value>=options.Count)options.Add(new MoveChoice(value,$"Objeto personalizado ID {value}"));
         return [new("Recogible de la zona",[
-            new EditorField("Item","Objeto",value,0,Math.Min(65535,options.Length-1),options)
+            new EditorField("Item","Objeto",value,0,65535,options)
         ])];
     }
     private void Change(GARC.LazyGARC lazy,int id,int item)
@@ -118,6 +119,7 @@ public sealed class GameFieldItemsService : IProjectEditor
         _project.History.Commit([new FileChange(_path,source,proposed)],Title,"Editar Field Item",
             [new BatchChange(id,Entries[id-1].Name,"Objeto",GetItemName(before),GetItemName(after))]);
         _sha=SHA256.HashData(proposed);
+        _locations[id]=_locations[id] with {OriginalItem=after};
     }
     private bool Eligible(int id,IReadOnlyDictionary<string,int> settings)
     {
@@ -161,7 +163,14 @@ public sealed class GameFieldItemsService : IProjectEditor
     {
         if(proposal.Owner!=_owner)throw new InvalidOperationException("La propuesta pertenece a otra sesión.");
         _project.History.Commit(proposal.Files,Title,proposal.Action,proposal.Changes,proposal.Parameters);
-        _sha=SHA256.HashData(File.ReadAllBytes(_path));
+        byte[] bytes=File.ReadAllBytes(_path);
+        _sha=SHA256.HashData(bytes);
+        var source=new GARC.LazyGARC(bytes);
+        foreach(int id in _locations.Keys.ToArray())
+        {
+            var slot=_locations[id];
+            _locations[id]=slot with {OriginalItem=ReadValue(id,source)};
+        }
     }
     public string ExportCsv()
     {
