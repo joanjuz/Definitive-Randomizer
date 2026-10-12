@@ -117,6 +117,11 @@ internal sealed class SystemsView : UserControl
         AddButton((StackPanel)typeChart.Child,"Abrir Type Chart",()=>_navigate("TypeChart"))
             .IsEnabled=_project.Generation==7;
         stack.Children.Add(typeChart);
+        var shiny=Card("Shiny Rate · Frecuencia shiny",
+            "Rerolls PID y Everything Shiny usando el código ARM original. Firma verificada, vista previa, restaurar vanilla e historial.");
+        AddButton((StackPanel)shiny.Child,"Abrir Shiny Rate",()=>_navigate("ShinyRate"))
+            .IsEnabled=_project.Generation==7;
+        stack.Children.Add(shiny);
         var staticCard=Card("Parcheos de encuentros e intercambios",
             "Gift BST Baseline, Totem BST y Level Caps por ID, Trades Accept Any Pokémon y limpieza de diálogos españoles en encuentros estáticos.");
         AddButton((StackPanel)staticCard.Child,"Abrir Encuentros estáticos",()=>_navigate("StaticEncounters")).IsEnabled=
