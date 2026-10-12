@@ -79,8 +79,15 @@ public sealed partial class GameProjectSession
     public IReadOnlyList<string> AbilityNames { get; }
     public IReadOnlyList<string> ItemNames { get; }
     public IReadOnlyList<string> MoveNames { get; }
-    public IReadOnlyList<ushort> TmMoveIds { get; }
-    public IReadOnlyList<ushort> BeachTutorMoveIds { get; }
+    public IReadOnlyList<ushort> TmMoveIds { get; private set; }
+    public IReadOnlyList<ushort> BeachTutorMoveIds { get; private set; }
+    internal void RefreshMoveAssignments()
+    {
+        // Refresh after verified code.bin changes; the Pokémon inspector must not
+        // continue displaying stale TM assignments from the opening snapshot.
+        TmMoveIds=TryReadTmMoves(_config);
+        BeachTutorMoveIds=TryReadBeachTutorMoves(_config);
+    }
     public bool TmNamesAvailable => TmMoveIds.Count == 100;
     public bool BeachTutorNamesAvailable => BeachTutorMoveIds.Count > 0;
 
