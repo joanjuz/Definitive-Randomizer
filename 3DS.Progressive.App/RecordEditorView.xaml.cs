@@ -34,6 +34,8 @@ public partial class RecordEditorView : UserControl
         Editor=editor;InitializeComponent();TitleText.Text=editor.Title;RandomizerButton.Content="Randomizar "+editor.Title.ToLowerInvariant();
         if(editor is ThreeDS.Progressive.Services.GameTrainerService)
             TrainerCapsButton.Visibility=TrainerMovesButton.Visibility=Visibility.Visible;
+        if(editor is ThreeDS.Progressive.Services.GameFieldItemsService)
+            FieldExportButton.Visibility=Visibility.Visible;
         if(editor is ITemplateProjectEditor template){TemplateButton.Visibility=Visibility.Visible;TemplateButton.Content=template.TemplateButton;TemplatePathText.Text=template.DefaultTemplatePath;}
         if(editor is ThreeDS.Progressive.Services.GameEncounterService wild&&state is not null)
             wild.RestoreRangeOptions(state.Options);
@@ -481,6 +483,18 @@ public partial class RecordEditorView : UserControl
         catch(Exception ex){StudioDialog.Error(Window.GetWindow(this),"No se pudo guardar",ex.Message);}
     }
     private void Discard_Click(object sender,RoutedEventArgs e){if(_id>=0)Show(_id);}
+    private void FieldExport_Click(object sender,RoutedEventArgs e)
+    {
+        if(Editor is not ThreeDS.Progressive.Services.GameFieldItemsService field)return;
+        try
+        {
+            var picker=new Microsoft.Win32.SaveFileDialog {Filter="CSV|*.csv",FileName="field-items.csv"};
+            if(picker.ShowDialog(Window.GetWindow(this))!=true)return;
+            System.IO.File.WriteAllText(picker.FileName,field.ExportCsv(),System.Text.Encoding.UTF8);
+            StatusText.Text="Field Items exportados a CSV.";
+        }
+        catch(Exception ex){StudioDialog.Error(Window.GetWindow(this),"Error al exportar Field Items",ex.Message);}
+    }
     private void TrainerCaps_Click(object sender,RoutedEventArgs e)=>OpenTrainerRuleTable(true);
     private void TrainerMoves_Click(object sender,RoutedEventArgs e)=>OpenTrainerRuleTable(false);
     private void OpenTrainerRuleTable(bool levelCaps)
