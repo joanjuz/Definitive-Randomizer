@@ -329,12 +329,28 @@ internal static class UiSmoke
             ((Button)main.FindName("RomToolsButton")).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             check(((ContentControl)main.FindName("SectionHost")).Content is SystemsView,
                 "WPF ROM tools menu opens checksum and backup workflows");
+            var romTools=((ContentControl)main.FindName("SectionHost")).Content as SystemsView;
+            romTools?.OpenRebuildForChecks();
+            check(((ContentControl)main.FindName("SectionHost")).Content is RomRebuildView,
+                "WPF ROM Rebuild editor opens without legacy white dialogs");
+            ((Button)main.FindName("RomToolsButton")).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             ((Button)main.FindName("AutomationButton")).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             check(((ContentControl)main.FindName("SectionHost")).Content is SystemsView,
                 "WPF automation menu navigates existing safe randomizer engines");
             ((Button)main.FindName("ConfigurationButton")).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             check(((ContentControl)main.FindName("SectionHost")).Content is SystemsView,
                 "WPF configuration menu opens local-only folder defaults");
+            var options=((ContentControl)main.FindName("SectionHost")).Content as SystemsView;
+            if(options is not null)
+            {
+                Layout(options,1100,690);
+                var controls=Walk(options).OfType<ComboBox>().ToArray();
+                check(controls.Any(c=>c.Items.Count==10),
+                    "WPF Options language menu preserves all 10 vanilla pk3DS language choices");
+                check(Walk(options).OfType<Button>().Any(c=>
+                    Equals(c.Content,"Guardar idioma y recargar proyecto")),
+                    "WPF language menu offers real catalog reload, not inert language selector");
+            }
             ((Button)main.FindName("MechanicsButton")).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             var hub=((ContentControl)main.FindName("SectionHost")).Content as SystemsView;
             if(fixture.Game.USUM&&hub is not null)
