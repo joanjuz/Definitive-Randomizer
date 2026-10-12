@@ -211,9 +211,11 @@ internal static class UiSmoke
             File.WriteAllBytes(Path.Combine(fixture.Game.ExeFS,"code.bin"),code);
             ((Button)main.FindName("MachineTutorButton")).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             var machineView=((ContentControl)main.FindName("SectionHost")).Content as MachineTutorView;
-            check(machineView is not null && Walk(machineView).OfType<TabControl>().Any(t=>t.Items.Count==2),
+            check(machineView is not null,"WPF MT/Tutors navigation creates a native editor");
+            Layout(machineView!,1170,720);
+            check(((DockPanel)machineView!.Content).Children.OfType<TabControl>().Any(t=>t.Items.Count==2),
                 "WPF MT/Tutors navigation opens a real dual-tab editor");
-            if(machineView is not null){Layout(machineView,1170,720);Capture(machineView,"mt-tutores-editor.png");}
+            Capture(machineView,"mt-tutores-editor.png");
             ((Button)main.FindName("EvolutionsButton")).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             var evolutions=(RecordEditorView)((ContentControl)main.FindName("SectionHost")).Content;
             check(evolutions.Editor is ThreeDS.Progressive.Services.GameEvolutionService&&evolutions.FieldControls.ContainsKey("E7.Method"),"WPF Evolutions exposes all eight routes");
