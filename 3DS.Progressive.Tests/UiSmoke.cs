@@ -55,6 +55,25 @@ internal static class UiSmoke
             Border border=Walk(apply).OfType<Border>().First(b=>b.Name=="ButtonBorder");
             check(((SolidColorBrush)border.Background).Color==Color.FromRgb(38,55,74),"WPF disabled action has subdued logo-blue background Gen "+generation);
         }
+        // BST intervals are dynamically split/merged, not hardcoded to six.
+        var bstFields=new[]{
+            new EditorField("BST.0.MinLevel","Min",1,1,100),
+            new EditorField("BST.0.MaxLevel","Max",100,1,100),
+            new EditorField("BST.0.MinBST","MinBST",180,1,1530),
+            new EditorField("BST.0.MaxBST","MaxBST",680,1,1530),
+            new EditorField("BST.0.FullRandom","Libre",0,0,1)
+        };
+        var rangeTable=new ProgressiveBstTable(bstFields);
+        Layout(rangeTable,920,440);
+        check(rangeTable.Count==1,"WPF BST editor starts with its actual configured rows");
+        Walk(rangeTable).OfType<Button>().First(b=>Equals(b.Content,"+ Añadir rango"))
+            .RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        check(rangeTable.Count==2&&rangeTable.Capture().ContainsKey("BST.1.MaxLevel"),
+            "WPF BST add splits a range and serializes an extra row");
+        Walk(rangeTable).OfType<Button>().First(b=>Equals(b.Content,"− Quitar seleccionado"))
+            .RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        check(rangeTable.Count==1&&rangeTable.Capture()["BST.0.MaxLevel"]==100,
+            "WPF BST remove restores adjacent coverage");
         // Unlike the original generic inspector, native WPF rule tables keep
         // an independent Important/Boss filter without losing hidden edits.
         var candidates=new[]{
@@ -216,6 +235,25 @@ internal static class UiSmoke
             check(((DockPanel)machineView!.Content).Children.OfType<TabControl>().Any(t=>t.Items.Count==2),
                 "WPF MT/Tutors navigation opens a real dual-tab editor");
             Capture(machineView,"mt-tutores-editor.png");
+            ((Button)main.FindName("LevelUpButton")).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            var levelUp=((ContentControl)main.FindName("SectionHost")).Content as LevelUpView;
+            check(levelUp is not null,"WPF Level Up Moves navigation opens editable learned move table");
+            if(levelUp is not null){Layout(levelUp,1170,720);Capture(levelUp,"level-up-moves.png");}
+            ((Button)main.FindName("ItemsButton")).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            var items=((ContentControl)main.FindName("SectionHost")).Content as RecordEditorView;
+            check(items?.Editor is ThreeDS.Progressive.Services.GameItemService&&
+                items.FieldControls.ContainsKey("Price"),"WPF native Item editor exposes prices and attributes");
+            if(items is not null){Layout(items,1170,720);Capture(items,"objetos-editor.png");}
+            ((Button)main.FindName("FieldItemsButton")).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            var fieldItems=((ContentControl)main.FindName("SectionHost")).Content as RecordEditorView;
+            check(fieldItems?.Editor is ThreeDS.Progressive.Services.GameFieldItemsService
+                &&fieldItems.FieldControls.ContainsKey("Item"),
+                "WPF Field Items navigates to real EI/EB pickup editor");
+            if(fieldItems is not null){Layout(fieldItems,1170,720);Capture(fieldItems,"field-items-editor.png");}
+            ((Button)main.FindName("GameTextButton")).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            var gameTexts=((ContentControl)main.FindName("SectionHost")).Content as GameTextView;
+            check(gameTexts is not null,"WPF game story/text editor navigates without a separate window");
+            if(gameTexts is not null){Layout(gameTexts,1170,720);Capture(gameTexts,"historia-textos.png");}
             ((Button)main.FindName("EvolutionsButton")).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             var evolutions=(RecordEditorView)((ContentControl)main.FindName("SectionHost")).Content;
             check(evolutions.Editor is ThreeDS.Progressive.Services.GameEvolutionService&&evolutions.FieldControls.ContainsKey("E7.Method"),"WPF Evolutions exposes all eight routes");
