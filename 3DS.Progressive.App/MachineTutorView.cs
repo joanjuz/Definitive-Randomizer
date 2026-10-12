@@ -27,6 +27,8 @@ internal sealed class MachineTutorView : UserControl
     private readonly List<DataGrid> _machineColumns=[];
     private readonly List<DataGrid> _tutorColumns=[];
     private readonly Button _saveMachines,_savePrices;
+    private readonly Button _applyTutorChanges;
+    private TutorEditPreview? _tutorPreview;
     private bool _dirtyMachines,_dirtyPrices;
     private readonly TextBlock _status;
     public bool HasPendingChanges=>_dirtyMachines||_dirtyPrices;
@@ -129,28 +131,54 @@ internal sealed class MachineTutorView : UserControl
         DockPanel.SetDock(tutorHeader,Dock.Top);tutoring.Children.Add(tutorHeader);
         tutorHeader.Children.Add(new TextBlock
         {
-            Text="Movimientos de tutor detectados en Shop.cro. Se pueden editar los precios BP; cambiar los movimientos requiere sincronizar también el código de los tutores de USUM.",
+            Text="Tutores USUM: cambia los 67 movimientos y sus precios. Se verifican Shop.cro y la tabla de compatibilidad nativa de code.bin antes de aplicar los cambios.",
             Foreground=soft,TextWrapping=TextWrapping.Wrap,Margin=new Thickness(0,0,0,10)
         });
         var tutorActions=new WrapPanel();
         tutorHeader.Children.Add(tutorActions);
         var free=new Button {Content="Todos gratis (0 BP)",Margin=new Thickness(0,0,8,0)};
-        free.Click+=(_,_)=>{foreach(var row in _service.Tutors)row.Price=0;_dirtyPrices=true;UpdateState();foreach(var t in _tutorColumns)t.Items.Refresh();};
-        _savePrices=new Button {Content="Guardar precios BP",IsEnabled=false};
+        free.Click+=(_,_)=>{foreach(var row in _service.Tutors)row.Price=0;_dirtyPrices=true;_tutorPreview=null;UpdateState();foreach(var t in _tutorColumns)t.Items.Refresh();};
+        var randomTutors=new Button {Content="Randomizar tutores",Margin=new Thickness(0,0,8,0)};
+        randomTutors.Click+=(_,_)=>TryAction(()=>
+        {
+            int changed=_service.RandomizeTutorMoves();
+            _dirtyPrices=true;_tutorPreview=null;UpdateState();
+            foreach(var t in _tutorColumns)t.Items.Refresh();
+            _status.Text=$"{changed} movimientos de tutores preparados. Generá vista previa antes de aplicar.";
+        });
+        _savePrices=new Button {Content="Vista previa tutores",IsEnabled=false};
         _savePrices.Click+=(_,_)=>TryAction(()=>
         {
-            foreach(var grid in _tutorColumns)
-            {
-                grid.CommitEdit(DataGridEditingUnit.Cell,true);
-                grid.CommitEdit(DataGridEditingUnit.Row,true);
-            }
-            if(!StudioDialog.Confirm(Window.GetWindow(this),"Guardar precios de tutores",
-                "Se modificarán únicamente los bytes de precio de Shop.cro. Los movimientos y otros datos permanecerán intactos."))return;
-            _service.SaveTutorPrices();_service=new GameMachineTutorService(_project);
-            Rebind();_dirtyPrices=false;UpdateState();
-            _status.Text="Precios de tutores guardados y verificados.";
+            CommitTutorGrids();
+            _tutorPreview=_service.PreviewTutorEdits();
+            _applyTutorChanges.IsEnabled=_tutorPreview.Changes.Count>0;
+            string details=string.Join(Environment.NewLine,_tutorPreview.Changes.Take(12)
+                .Select(d=>$"{d.Name}: {d.Field} {d.Before} → {d.After}"));
+            _status.Text=$"{_tutorPreview.Changes.Count} cambios · " +
+                $"{_tutorPreview.CodeSlotsChanged} posiciones nativas en code.bin. " +
+                "Revisá la vista previa antes de aplicar.";
+            StudioDialog.Notice(Window.GetWindow(this),"Vista previa tutores",
+                $"{_tutorPreview.Changes.Count} diferencias y {_tutorPreview.CodeSlotsChanged} sincronizaciones en code.bin.",
+                details+(_tutorPreview.Changes.Count>12?Environment.NewLine+"…":""));
         });
-        tutorActions.Children.Add(free);tutorActions.Children.Add(_savePrices);
+        _applyTutorChanges=new Button {Content="Aplicar tutores y verificar",IsEnabled=false};
+        _applyTutorChanges.Click+=(_,_)=>TryAction(()=>
+        {
+            CommitTutorGrids();
+            if(_tutorPreview is null)return;
+            if(!StudioDialog.Confirm(Window.GetWindow(this),"Guardar tutores USUM",
+                "Se comprobarán y guardarán de forma conjunta Shop.cro y code.bin, " +
+                "sin alterar las otras tiendas ni las MT. ¿Continuar?"))return;
+            _service.ApplyTutorEdits(_tutorPreview);
+            _service=new GameMachineTutorService(_project);
+            _tutorPreview=null;_dirtyPrices=false;
+            Rebind();UpdateState();
+            _status.Text="Tutores USUM guardados; Shop.cro y code.bin sincronizados y verificados.";
+        });
+        tutorActions.Children.Add(free);
+        tutorActions.Children.Add(randomTutors);
+        tutorActions.Children.Add(_savePrices);
+        tutorActions.Children.Add(_applyTutorChanges);
         var tutorColumns=new UniformGrid {Columns=2};
         for(int i=0;i<2;i++)
         {
@@ -160,9 +188,11 @@ internal sealed class MachineTutorView : UserControl
                 {Header="N.º",Binding=new Binding("Number"),IsReadOnly=true,Width=46});
             table.Columns.Add(new DataGridTextColumn
                 {Header="Sede",Binding=new Binding("Group"),IsReadOnly=true,Width=80});
-            table.Columns.Add(new DataGridTextColumn
+            table.Columns.Add(new DataGridComboBoxColumn
                 {
-                    Header="Movimiento",Binding=new Binding("MoveName"),IsReadOnly=true,
+                    Header="Movimiento",ItemsSource=_service.MoveChoices,DisplayMemberPath="Display",
+                    SelectedValuePath="Id",SelectedValueBinding=new Binding("MoveId")
+                    {Mode=BindingMode.TwoWay,UpdateSourceTrigger=UpdateSourceTrigger.PropertyChanged},
                     Width=new DataGridLength(1,DataGridLengthUnitType.Star),MinWidth=170
                 });
             table.Columns.Add(new DataGridTextColumn
@@ -171,13 +201,21 @@ internal sealed class MachineTutorView : UserControl
                     {Mode=BindingMode.TwoWay,UpdateSourceTrigger=UpdateSourceTrigger.LostFocus,
                         ValidatesOnExceptions=true},Width=72
                 });
-            table.CellEditEnding+=(_,_)=>{_dirtyPrices=true;UpdateState();};
+            table.CellEditEnding+=(_,_)=>{_dirtyPrices=true;_tutorPreview=null;UpdateState();};
             _tutorColumns.Add(table);tutorColumns.Children.Add(table);
         }
         _tutorGrid=_tutorColumns[0];
         tutoring.Children.Add(tutorColumns);
-        tabs.Items.Add(new TabItem {Header="Tutores · precios",Content=tutoring});
+        tabs.Items.Add(new TabItem {Header="Tutores · movimientos y BP",Content=tutoring});
         Rebind();
+    }
+    private void CommitTutorGrids()
+    {
+        foreach(var grid in _tutorColumns)
+        {
+            grid.CommitEdit(DataGridEditingUnit.Cell,true);
+            grid.CommitEdit(DataGridEditingUnit.Row,true);
+        }
     }
     private DataGrid BuildGrid()
     {
@@ -212,13 +250,18 @@ internal sealed class MachineTutorView : UserControl
         }
         int count=(_service.Tutors.Count+_tutorColumns.Count-1)/_tutorColumns.Count;
         for(int i=0;i<_tutorColumns.Count;i++)
+        {
             _tutorColumns[i].ItemsSource=_service.Tutors.Skip(i*count).Take(count).ToArray();
+            if(_tutorColumns[i].Columns.OfType<DataGridComboBoxColumn>().FirstOrDefault() is { } combo)
+                combo.ItemsSource=_service.MoveChoices;
+        }
         UpdateState();
     }
     private void UpdateState()
     {
         _saveMachines.IsEnabled=_dirtyMachines&&_service.CanEditTms;
-        _savePrices.IsEnabled=_dirtyPrices&&_service.CanEditTutorPrices;
+        _savePrices.IsEnabled=_dirtyPrices&&_service.CanEditTutorMoves;
+        _applyTutorChanges.IsEnabled=_tutorPreview is { Changes.Count: >0 } && _dirtyPrices;
     }
     private void TryAction(Action action)
     {
