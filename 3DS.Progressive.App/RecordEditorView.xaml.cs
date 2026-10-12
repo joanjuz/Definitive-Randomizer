@@ -38,6 +38,12 @@ public partial class RecordEditorView : UserControl
             FieldExportButton.Visibility=Visibility.Visible;
         if(editor is ThreeDS.Progressive.Services.GameItemService)
             EconomyTableButton.Visibility=Visibility.Visible;
+        if(editor is ThreeDS.Progressive.Services.GameStaticEncounterService staticEditor)
+        {
+            GiftBstButton.Visibility=Visibility.Visible;
+            if(staticEditor.SupportsTotemRules)
+                TotemCapsButton.Visibility=TotemBstButton.Visibility=Visibility.Visible;
+        }
         if(editor is ITemplateProjectEditor template){TemplateButton.Visibility=Visibility.Visible;TemplateButton.Content=template.TemplateButton;TemplatePathText.Text=template.DefaultTemplatePath;}
         if(editor is ThreeDS.Progressive.Services.GameEncounterService wild&&state is not null)
             wild.RestoreRangeOptions(state.Options);
@@ -627,6 +633,52 @@ public partial class RecordEditorView : UserControl
             StatusText.Text="Field Items exportados a CSV.";
         }
         catch(Exception ex){StudioDialog.Error(Window.GetWindow(this),"Error al exportar Field Items",ex.Message);}
+    }
+    private void GiftBst_Click(object sender,RoutedEventArgs e)
+    {
+        if(Editor is not ThreeDS.Progressive.Services.GameStaticEncounterService service
+            ||!ConfirmLeave())return;
+        try
+        {
+            var preview=service.PreviewGiftBstBaseline();
+            if(preview.Changes.Count==0)
+            {
+                StudioDialog.Notice(Window.GetWindow(this),"Gift BST Baseline",
+                    "Los regalos ya tienen especies con los BST base indicados.");
+                return;
+            }
+            if(!StudioDialog.Confirm(Window.GetWindow(this),"Gift BST Baseline",
+                $"Se cambiarán {preview.Changes.Count} campos de regalos: índices 4–13 Squirtle (BST 314), otros no iniciales Arcanine (BST 555). Los iniciales 0–2 no se modifican."))return;
+            UiProgress.Begin("Guardando BST base de regalos…");
+            try{service.Apply(preview);}
+            finally{UiProgress.End();}
+            if(_id>=0)Show(_id);
+            StatusText.Text="Gift BST Baseline aplicada, verificada y registrada en el historial.";
+        }
+        catch(Exception ex)
+        {StudioDialog.Error(Window.GetWindow(this),"Error en Gift BST Baseline",ex.Message);}
+    }
+    private void TotemCaps_Click(object sender,RoutedEventArgs e)=>OpenTotemRules(false);
+    private void TotemBst_Click(object sender,RoutedEventArgs e)=>OpenTotemRules(true);
+    private void OpenTotemRules(bool bstMode)
+    {
+        if(Editor is not ThreeDS.Progressive.Services.GameStaticEncounterService service
+            ||!service.SupportsTotemRules||!ConfirmLeave())return;
+        try
+        {
+            var table=new TotemRulesView(service,bstMode);
+            table.Closed+=CloseTrainerRules;
+            table.Saved+=()=>
+            {
+                CloseTrainerRules();
+                if(_id>=0)Show(_id);
+                StatusText.Text="Reglas Totem guardadas en el GARC con historial.";
+            };
+            TrainerRulesHost.Content=table;
+            TrainerRulesHost.Visibility=Visibility.Visible;
+        }
+        catch(Exception ex)
+        {StudioDialog.Error(Window.GetWindow(this),"No se pudo abrir la tabla Totem",ex.Message);}
     }
     private void TrainerCaps_Click(object sender,RoutedEventArgs e)=>OpenTrainerRuleTable(true);
     private void TrainerMoves_Click(object sender,RoutedEventArgs e)=>OpenTrainerRuleTable(false);
