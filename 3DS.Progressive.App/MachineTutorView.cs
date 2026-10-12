@@ -5,6 +5,7 @@ using System.Windows.Data;
 using System.Windows.Media;
 using ThreeDS.Progressive.Models;
 using ThreeDS.Progressive.Services;
+using UserControl=System.Windows.Controls.UserControl;
 using Button=System.Windows.Controls.Button;
 using DataGrid=System.Windows.Controls.DataGrid;
 using DataGridColumnHeader=System.Windows.Controls.Primitives.DataGridColumnHeader;
