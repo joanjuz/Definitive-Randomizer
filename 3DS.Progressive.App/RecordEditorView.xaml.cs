@@ -129,7 +129,7 @@ public partial class RecordEditorView : UserControl
     private readonly Dictionary<string,Expander> _editorSections=[];
     private int _trainerTabIndex;
     private static readonly string[] TrainerTabNames=
-        ["Pokémon y equipos","Niveles y Level Caps","Movimientos y reglas","IA, objetos y combates","BST progresivo"];
+        ["Pokémon y equipos","Niveles de entrenadores","Movimientos y reglas","IA, objetos y combates","BST progresivo"];
 
     private void BuildTrainerTabs(StackPanel host,IReadOnlyList<EditorGroup> groups,Dictionary<string,FrameworkElement> controls)
     {
@@ -148,6 +148,13 @@ public partial class RecordEditorView : UserControl
                 container.Children.Add(BuildGroupCard(group with
                 {Name=label,Fields=selected,Expanded=category==4||group.Expanded},controls,false));
             }
+            if(category==1)
+                container.Children.Insert(0,new TextBlock
+                {
+                    Text="Estos límites afectan a los ENTRENADORES rivales. Los Player Level Caps son un parche distinto del código del jugador y se configuran por separado.",
+                    Foreground=(Brush)FindResource("TextSoft"),TextWrapping=TextWrapping.Wrap,
+                    Margin=new Thickness(10,9,10,15)
+                });
             if(category==4)
             {
                 var ranges=groups.SelectMany(g=>g.Fields)
@@ -657,8 +664,10 @@ public partial class RecordEditorView : UserControl
     }
     private void Back_Click(object sender,RoutedEventArgs e)
     {Invalidate();ToolsPanel.Visibility=Visibility.Collapsed;FieldsScroll.Visibility=Visibility.Visible;if(_id>=0)Show(_id);}
-    private void Preview_Click(object sender,RoutedEventArgs e)
+    private async void Preview_Click(object sender,RoutedEventArgs e)
     {
+        UiProgress.Begin("Generando vista previa de "+Editor.Title+"…");
+        await System.Windows.Threading.Dispatcher.Yield(System.Windows.Threading.DispatcherPriority.Background);
         try
         {
             int[] scope=ScopeBox.SelectedIndex switch {1=>RecordList.Items.Cast<RecordEntry>().Select(e=>e.Id).ToArray(),2=>_id>=0?[_id]:[],_=>Editor.Entries.Select(e=>e.Id).ToArray()};
@@ -667,6 +676,7 @@ public partial class RecordEditorView : UserControl
             ApplyButton.IsEnabled=_proposal.Changes.Count>0;
         }
         catch(Exception ex){Invalidate();ProposalText.Text=ex.Message;}
+        finally{UiProgress.End();}
     }
     private void Template_Click(object sender,RoutedEventArgs e)
     {
@@ -693,11 +703,14 @@ public partial class RecordEditorView : UserControl
         try{editor.ExportOptions(dialog.FileName,OptionValues());StudioDialog.Notice(Window.GetWindow(this),"Template exportado","Se conservaron las opciones, rangos y reglas de entrenadores.");}
         catch(Exception ex){StudioDialog.Error(Window.GetWindow(this),"No se pudo exportar",ex.Message);}
     }
-    private void Apply_Click(object sender,RoutedEventArgs e)
+    private async void Apply_Click(object sender,RoutedEventArgs e)
     {
         var proposal=_proposal;if(proposal is null)return;
         if(!StudioDialog.Confirm(Window.GetWindow(this),"Aplicar propuesta",$"Se guardarán {proposal.Changes.Count} cambios en {Editor.Title}."))return;
+        UiProgress.Begin("Guardando y verificando "+Editor.Title+"…");
+        await System.Windows.Threading.Dispatcher.Yield(System.Windows.Threading.DispatcherPriority.Background);
         try{Editor.Apply(proposal);Invalidate();ProposalText.Text="Propuesta guardada y verificada. El historial quedó actualizado.";}
         catch(Exception ex){Invalidate();ProposalText.Text=ex.Message;}
+        finally{UiProgress.End();}
     }
 }
