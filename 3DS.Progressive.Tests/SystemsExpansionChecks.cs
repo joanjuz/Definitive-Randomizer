@@ -54,6 +54,27 @@ internal static class SystemsExpansionChecks
         check(BitConverter.ToUInt16(raw,4)==151&&BitConverter.ToUInt16(raw,6)==0xCAFE,
             "Mega editor only edits activation item and preserves undocumented bytes");
 
+        // The optional USUM Mega unlock must preserve CRO structure and its
+        // original story-gate instruction, with a frozen preview.
+        string battlePath=Path.Combine(config.RomFS,"Battle.cro");
+        byte[] battle=new byte[0x9D300];
+        System.Text.Encoding.ASCII.GetBytes("CRO0").CopyTo(battle,0x80);
+        BitConverter.GetBytes(0x400).CopyTo(battle,0xB0);
+        BitConverter.GetBytes(0x9D000-0x400).CopyTo(battle,0xB4);
+        BitConverter.GetBytes(0x300).CopyTo(battle,0xB8);
+        BitConverter.GetBytes(0x10).CopyTo(battle,0xBC);
+        BitConverter.GetBytes(0x280).CopyTo(battle,0xC0);
+        new byte[]{0x01,0x00,0x00,0x0A}.CopyTo(battle,0x9CE24);
+        File.WriteAllBytes(battlePath,battle);
+        var unlock=new GameMegaUnlockService(f.Session);
+        var patch=unlock.Preview();
+        check(patch.Changes.Count==1&&File.ReadAllBytes(battlePath).SequenceEqual(battle),
+            "Mega from Start only stages the verified USUM CRO instruction without writing");
+        unlock.Apply(patch.File,patch.Changes);
+        check(File.ReadAllBytes(battlePath).AsSpan(0x9CE24,4)
+                .SequenceEqual(new byte[]{0x00,0xF0,0x20,0xE3})
+            &&unlock.Preview().Changes.Count==0,
+            "Mega from Start applies once and recognizes the installed hook");
         // Exercise both Gen7 code.bin patchers on compatible synthetic signatures.
         string codePath=Path.Combine(config.ExeFS,"code.bin");
         byte[] code=new byte[0x6000];
