@@ -260,7 +260,51 @@ internal static class UiSmoke
             ((Button)main.FindName("LevelUpButton")).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             var levelUp=((ContentControl)main.FindName("SectionHost")).Content as LevelUpView;
             check(levelUp is not null,"WPF Level Up Moves navigation opens editable learned move table");
-            if(levelUp is not null){Layout(levelUp,1170,720);Capture(levelUp,"level-up-moves.png");}
+            if(levelUp is not null)
+            {
+                Layout(levelUp,1170,720);
+                check(levelUp.MoveTables.Count==3&&levelUp.MoveTables.All(g=>
+                    g.Columns[0].Width.Value>=90&&g.RowHeaderWidth==0),
+                    "WPF Level Up tables have full 90px level columns and no white row-header strips");
+                var footerButton=Walk(levelUp).OfType<Button>().First(x=>Equals(x.Content,"Guardar movimientos"));
+                check(footerButton.IsEnabled==false,"WPF Save is disabled before editing");
+                Capture(levelUp,"level-up-moves.png");
+                var before=levelUp.VisibleLearnset.Select(x=>(x.Level,x.Move)).ToArray();
+                Walk(levelUp).OfType<Button>().First(x=>Equals(x.Content,"Metrónomo · Todos"))
+                    .RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                check(levelUp.HasGlobalPreview&&!footerButton.IsEnabled
+                    &&levelUp.MoveTables.All(g=>g.IsReadOnly)
+                    &&levelUp.VisibleLearnset.Count==1
+                    &&levelUp.VisibleLearnset[0].Move==118,
+                    "WPF global randomizer shows actual proposed Metronome learnset in the existing tables without writing");
+                Capture(levelUp,"level-up-preview.png");
+                Walk(levelUp).OfType<Button>().First(x=>Equals(x.Content,"Descartar vista previa"))
+                    .RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                check(!levelUp.HasGlobalPreview&&
+                    levelUp.VisibleLearnset.Select(x=>(x.Level,x.Move)).SequenceEqual(before),
+                    "WPF Discard preview restores the original species learnset");
+            }
+            ((Button)main.FindName("MechanicsButton")).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            check(((ContentControl)main.FindName("SectionHost")).Content is SystemsView,
+                "WPF mechanics and CRO menu is active and opens real systems hub");
+            ((Button)main.FindName("RomToolsButton")).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            check(((ContentControl)main.FindName("SectionHost")).Content is SystemsView,
+                "WPF ROM tools menu opens checksum and backup workflows");
+            ((Button)main.FindName("AutomationButton")).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            check(((ContentControl)main.FindName("SectionHost")).Content is SystemsView,
+                "WPF automation menu navigates existing safe randomizer engines");
+            ((Button)main.FindName("ConfigurationButton")).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            check(((ContentControl)main.FindName("SectionHost")).Content is SystemsView,
+                "WPF configuration menu opens local-only folder defaults");
+            ((Button)main.FindName("MechanicsButton")).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            var hub=((ContentControl)main.FindName("SectionHost")).Content as SystemsView;
+            if(fixture.Game.USUM&&hub is not null)
+            {
+                Walk(hub).OfType<Button>().First(x=>Equals(x.Content,"Abrir Player Level Caps"))
+                    .RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                check(((ContentControl)main.FindName("SectionHost")).Content is PlayerLevelCapsView,
+                    "WPF Player Level Caps opens researched USUM flags and CRO installer in the main application");
+            }
             ((Button)main.FindName("ItemsButton")).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             var items=((ContentControl)main.FindName("SectionHost")).Content as RecordEditorView;
             check(items?.Editor is ThreeDS.Progressive.Services.GameItemService&&
