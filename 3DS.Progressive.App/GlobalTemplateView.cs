@@ -132,6 +132,7 @@ internal sealed class GlobalTemplateView : UserControl
             .ToHashSet(StringComparer.OrdinalIgnoreCase));
         export.Validate(Game,_project.Generation);
         export.Save(dialog.FileName);
+        Use(GlobalTemplateDocument.Load(dialog.FileName,Game,_project.Generation));
         _status.Text=$"Guardado compatible v1: {export.Actions.Count} acciones; " +
             "parámetros, rangos, flags y assets no eliminados. Archivo fuente intacto.";
     }
