@@ -109,7 +109,7 @@
                                 Style="{StaticResource SidebarButton}" IsEnabled="False" Tag="RomTools" Click="Section_Click"/>
                         <Button x:Name="AutomationButton" Content="⇄  Automatización"
                                 Style="{StaticResource SidebarButton}" IsEnabled="False" Tag="Automation" Click="Section_Click"/>
-                        <Button x:Name="ConfigurationButton" Content="⚙  Configuración"
+                        <Button x:Name="ConfigurationButton" Content="⚙  Opciones e idioma"
                                 Style="{StaticResource SidebarButton}" IsEnabled="False" Tag="Configuration" Click="Section_Click"/>
                         <Button x:Name="GlobalTemplateButton" Content="▣  Global Template"
                                 Style="{StaticResource SidebarButton}" IsEnabled="False" Tag="GlobalTemplate" Click="Section_Click"/>
