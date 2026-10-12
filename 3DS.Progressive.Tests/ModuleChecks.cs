@@ -192,8 +192,40 @@ internal static class ModuleChecks
             reject(()=>trainers.Apply(stale),version+" trainer external edits reject a stale proposal");
             check(f.Session.History.Read().Entries.Count==countBefore,version+" failed writes never enter history");
         }
-        PortableHistoryChecks(check);BackupChecks(check,reject);BattleChecks(check,reject);RegressionFixes.Run(check,reject);
+        MachineTutorChecks(check,reject);\n        PortableHistoryChecks(check);BackupChecks(check,reject);BattleChecks(check,reject);RegressionFixes.Run(check,reject);
     }
+    private static void MachineTutorChecks(Action<bool,string> check,Action<Action,string> reject)
+    {
+        using var f=new Fixture(GameVersion.USUM);
+        string path=Path.Combine(f.Game.ExeFS,"code.bin");
+        byte[] code=new byte[0x402000];
+        byte[] signature=[0x03,0x40,0x03,0x41,0x03,0x42,0x03,0x43,0x03];
+        signature.CopyTo(code,0x400000);
+        int offset=0x400000+signature.Length+0x22;
+        for(int i=0;i<100;i++)Set16(code,offset+i*2,i+1);
+        code[0x401800]=0xAC;
+        File.WriteAllBytes(path,code);
+        var machine=new GameMachineTutorService(f.Session);
+        check(machine.CanEditTms&&machine.Machines.Count==100&&machine.Machines[0].MoveId==1,
+            "USUM MT editor locates actual code.bin signature and 100 moves");
+        machine.Machines[0].MoveId=15;
+        machine.SaveMachines();
+        byte[] saved=File.ReadAllBytes(path);
+        check(BitConverter.ToUInt16(saved,offset)==15&&saved[0x401800]==0xAC
+            &&saved.Length==code.Length&&saved.AsSpan(offset+2).SequenceEqual(code.AsSpan(offset+2)),
+            "USUM MT edit preserves every code.bin byte outside the edited assignment");
+        check(f.Session.TmMoveIds.Count==100&&f.Session.TmMoveIds[0]==15,
+            "TM save refreshes Pokémon inspector compatibility labels");
+        check(f.Session.History.Read().Entries.Last().Module=="MT y tutores",
+            "MT changes are recorded by portable project history");
+        var stale=new GameMachineTutorService(f.Session);
+        stale.Machines[0].MoveId=34;
+        byte[] external=File.ReadAllBytes(path);external[0x401800]^=1;File.WriteAllBytes(path,external);
+        int count=f.Session.History.Read().Entries.Count;
+        reject(()=>stale.SaveMachines(),"MT stale code.bin cannot be overwritten by another editor");
+        check(f.Session.History.Read().Entries.Count==count,"Failed MT edit does not pollute history");
+    }
+
     private static void PortableHistoryChecks(Action<bool,string> check)
     {
         using var f=new Fixture(GameVersion.USUM);
