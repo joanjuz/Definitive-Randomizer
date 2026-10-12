@@ -32,6 +32,9 @@ public partial class RecordEditorView : UserControl
         if(editor is IOptionTemplateProjectEditor optionTemplate)
         {ImportOptionsButton.Visibility=ExportOptionsButton.Visibility=Visibility.Visible;if(state?.Template is { } saved)optionTemplate.RestoreOptions(saved);}
         RecordList.ItemsSource=editor.Entries;CountText.Text=editor.Entries.Count+" entradas";
+        // Cargar las reglas del entrenador que realmente estará seleccionado, no las del ID por defecto del host.
+        if(editor is ThreeDS.Progressive.Services.GameTrainerService trainers&&editor.Entries.Count>0)
+            trainers.SelectOptionsEntry(editor.Entries[0].Id);
         _loading=true;
         var groups=editor.RandomOptions.Select(g=>g with {Fields=g.Fields.Select(f=>
             state is not null&&state.Options.TryGetValue(f.Key,out int value)&&value>=f.Min&&value<=f.Max
