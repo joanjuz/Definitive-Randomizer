@@ -193,6 +193,90 @@ internal sealed class MachineTutorView : UserControl
         tutorActions.Children.Add(randomTutors);
         tutorActions.Children.Add(_savePrices);
         tutorActions.Children.Add(_applyTutorChanges);
+        // These commands modify Personal GARC compatibility, not Shop.cro or code.bin.
+        // Keep the proposal isolated from unsaved TM/Tutor edits.
+        var compatibilityOptions=new WrapPanel {Margin=new Thickness(0,10,0,8)};
+        var sanityOption=new CheckBox
+        {
+            Content="Tutor Sanity · compatibilidad por nivel",
+            Margin=new Thickness(0,4,18,4),Foreground=text,
+            IsEnabled=_service.CanEditTutorMoves
+        };
+        var followOption=new CheckBox
+        {
+            Content="Follow Evolutions · heredar compatibilidad",
+            Margin=new Thickness(0,4,18,4),Foreground=text,
+            IsEnabled=_service.CanEditTutorMoves
+        };
+        compatibilityOptions.Children.Add(sanityOption);
+        compatibilityOptions.Children.Add(followOption);
+        tutorHeader.Children.Add(compatibilityOptions);
+        var compatibilityActions=new WrapPanel {Margin=new Thickness(0,0,0,8)};
+        tutorHeader.Children.Add(compatibilityActions);
+        GameTutorCompatibilityService? compatibilityService=null;
+        TutorCompatibilityPreview? compatibilityPreview=null;
+        var applyCompatibility=new Button
+        {
+            Content="Aplicar compatibilidad",
+            IsEnabled=false,Margin=new Thickness(0,0,8,0)
+        };
+        void InvalidateCompatibility()
+        {
+            compatibilityService=null;compatibilityPreview=null;
+            applyCompatibility.IsEnabled=false;
+        }
+        sanityOption.Checked+=(_,_)=>InvalidateCompatibility();
+        sanityOption.Unchecked+=(_,_)=>InvalidateCompatibility();
+        followOption.Checked+=(_,_)=>InvalidateCompatibility();
+        followOption.Unchecked+=(_,_)=>InvalidateCompatibility();
+        var previewCompatibility=new Button
+        {
+            Content="Vista previa compatibilidad",
+            IsEnabled=_service.CanEditTutorMoves,Margin=new Thickness(0,0,8,0)
+        };
+        previewCompatibility.Click+=(_,_)=>TryAction(()=>
+        {
+            CommitTutorGrids();
+            if(_dirtyPrices||_dirtyMachines)
+                throw new InvalidOperationException(
+                    "Guardá o descartá primero los cambios pendientes en MT o movimientos/precios de tutores.");
+            compatibilityService=new GameTutorCompatibilityService(_project);
+            compatibilityPreview=compatibilityService.Preview(sanityOption.IsChecked==true,
+                followOption.IsChecked==true);
+            applyCompatibility.IsEnabled=compatibilityPreview.Changes.Count>0;
+            string examples=string.Join(Environment.NewLine,compatibilityPreview.Changes.Take(16)
+                .Select(d=>$"{d.Name}: {d.Before} → {d.After} compatibilidades"));
+            _status.Text=$"Tutor Sanity: +{compatibilityPreview.AddedSanityFlags} · " +
+                $"Follow Evolutions: +{compatibilityPreview.AddedInheritedFlags} · " +
+                $"{compatibilityPreview.Changes.Count} Pokémon/formas afectados. " +
+                "No hay archivos modificados todavía.";
+            StudioDialog.Notice(Window.GetWindow(this),"Vista previa de compatibilidad",
+                $"Cambios preparados para {compatibilityPreview.Changes.Count} entradas de Personal.",
+                examples+(compatibilityPreview.Changes.Count>16?Environment.NewLine+"…":""));
+        });
+        applyCompatibility.Click+=(_,_)=>TryAction(()=>
+        {
+            if(compatibilityService is null||compatibilityPreview is null)return;
+            if(_dirtyPrices||_dirtyMachines)
+                throw new InvalidOperationException("Hay cambios de MT/tutores pendientes.");
+            if(!StudioDialog.Confirm(Window.GetWindow(this),"Aplicar compatibilidad",
+                $"¿Actualizar {compatibilityPreview.Changes.Count} entradas del GARC Personal? " +
+                "Los archivos Shop.cro, code.bin, Level Up y Evoluciones permanecerán intactos."))
+                return;
+            compatibilityService.Apply(compatibilityPreview);
+            InvalidateCompatibility();
+            _status.Text="Compatibilidad de tutores guardada, verificada y actualizada en Pokémon.";
+        });
+        compatibilityActions.Children.Add(previewCompatibility);
+        compatibilityActions.Children.Add(applyCompatibility);
+        tutorHeader.Children.Add(new TextBlock
+        {
+            Text="Sanity activa tutores para movimientos que el Pokémon aprende por nivel; " +
+                 "Follow Evolutions hereda la compatibilidad de preevoluciones. " +
+                 "Ambas acciones afectan únicamente compatibilidades del GARC Personal.",
+            Foreground=soft,TextWrapping=TextWrapping.Wrap,
+            Margin=new Thickness(0,0,0,8)
+        });
         var tutorColumns=new UniformGrid {Columns=2};
         for(int i=0;i<2;i++)
         {
