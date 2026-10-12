@@ -335,6 +335,31 @@ internal static class ModuleChecks
             check(EditorValues.Flatten(encounter.Read(1))[f.Game.Generation==7?"Min":"S0.Min"]==30,version+" encounter scaled levels use the selected scope");
             if(f.Game.Generation==7)
             {
+                // Copy a frozen day table, alter the night table, preview the
+                // paste and verify only the selected table is written.
+                var clipboard=encounter.CopyWildTable(1);
+                check(encounter.CompatibleWildTables(clipboard,2).Contains(1)&&
+                      encounter.CompatibleWildTables(clipboard,2).Contains(2),
+                      version+" Wild Paste All enumerates compatible day/night in destination area");
+                var night=EditorValues.Flatten(encounter.Read(2));
+                int changedSpecies=clipboard.Values["S0.0.Species"]==25?26:25;
+                night["S0.0.Species"]=changedSpecies;
+                encounter.Save(2,night);
+                byte[] unrelatedBefore=Read(f,"encdata")[20].ToArray();
+                var paste=encounter.PreviewPasteWild(clipboard,[2]);
+                check(paste.Changes.Count>0 &&
+                      EditorValues.Flatten(encounter.Read(2))["S0.0.Species"]==changedSpecies,
+                      version+" Wild paste creates a non-writing frozen preview");
+                reject(()=>encounter.PreviewPasteWild(clipboard with {ProjectRoot="X:/wrong-project"},[2]),
+                      version+" Wild paste rejects copied tables from another project");
+                encounter.Apply(paste);
+                var afterPaste=EditorValues.Flatten(encounter.Read(2));
+                check(clipboard.Values.All(pair=>afterPaste.TryGetValue(pair.Key,out int v)&&v==pair.Value) &&
+                      Read(f,"encdata")[20].SequenceEqual(unrelatedBefore),
+                      version+" Wild paste replays all encounter slots without touching another area");
+            }
+            if(f.Game.Generation==7)
+            {
                 var statics=new GameStaticEncounterService(f.Session);
                 check(statics.Entries.Count==202,version+" static encounters expose real Gifts, Totems and Trades");
                 var giftBefore=Read(f,"encounterstatic")[0];
