@@ -31,7 +31,7 @@
         <Grid.RowDefinitions>
             <RowDefinition Height="73"/>
             <RowDefinition Height="*"/>
-            <RowDefinition Height="39"/>
+            <RowDefinition Height="51"/>
         </Grid.RowDefinitions>
 
         <!-- Cabecera permanente -->
@@ -521,8 +521,12 @@
                 <TextBlock Text="3DS PROGRESSIVE · V0.8.0 PREVIEW"
                            DockPanel.Dock="Right" Foreground="{StaticResource TextSoft}"
                            FontSize="10" VerticalAlignment="Center"/>
+                <TextBlock x:Name="OperationPercent" DockPanel.Dock="Right"
+                           Foreground="{StaticResource TextMain}" FontWeight="SemiBold" FontSize="12"
+                           VerticalAlignment="Center" Visibility="Collapsed" Text="0%"/>
                 <ProgressBar x:Name="OperationProgress" DockPanel.Dock="Right"
-                             Width="220" Height="7" Margin="12,0,16,0" IsIndeterminate="True"
+                             Width="225" Height="12" Margin="12,0,10,0" IsIndeterminate="True"
+                             Minimum="0" Maximum="100" Value="0"
                              Visibility="Collapsed" Foreground="{StaticResource Accent}"
                              Background="{StaticResource Surface}" VerticalAlignment="Center"/>
                 <TextBlock x:Name="StatusText" Text="Esperando proyecto extraído..."
