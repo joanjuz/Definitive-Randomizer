@@ -301,6 +301,13 @@ internal static class UiSmoke
             ((Button)main.FindName("BatchRomButton")).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             check(((ContentControl)main.FindName("SectionHost")).Content is BatchRomBuilderView,
                 "WPF Batch ROM Builder is native dark UI and no longer an inaccessible section");
+            if(((ContentControl)main.FindName("SectionHost")).Content is BatchRomBuilderView batchView)
+            {
+                Layout(batchView,1160,760);
+                check(Walk(batchView).OfType<System.Windows.Controls.ProgressBar>().Count()>=2,
+                    "WPF Batch Builder has separate measured overall and current-ROM percentage bars");
+                Capture(batchView,"batch-rom-progress.png");
+            }
             ((Button)main.FindName("MechanicsButton")).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             check(((ContentControl)main.FindName("SectionHost")).Content is SystemsView,
                 "WPF mechanics and CRO menu is active and opens real systems hub");
