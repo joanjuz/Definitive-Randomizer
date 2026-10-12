@@ -279,7 +279,7 @@ public sealed class GameEncounterService : ArchiveProjectEditor
         {
             foreach(string key in values.Keys.Where(k=>k.EndsWith(".Min")).ToArray())
             {
-                string maxKey=key[..^3]+".Max";if(!values.ContainsKey(maxKey))continue;
+                string maxKey=key[..^3]+"Max";if(!values.ContainsKey(maxKey))continue;
                 int lo=values[key],hi=values[maxKey];
                 values[key]=Scale(lo);values[maxKey]=Scale(hi);
                 if(options["KeepRange"]==1&&lo<hi&&values[maxKey]<=values[key]&&values[key]<100)
