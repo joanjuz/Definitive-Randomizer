@@ -205,6 +205,11 @@ internal static class UiSmoke
             ((Button)main.FindName("EncountersButton")).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             var encounters=(RecordEditorView)((ContentControl)main.FindName("SectionHost")).Content;
             check(encounters.Editor is ThreeDS.Progressive.Services.GameEncounterService && encounters.FieldControls.ContainsKey("S8.0.Species"),"WPF Encounters includes SOS/weather controls");
+            check(((Button)encounters.FindName("ImportOptionsButton")).Visibility==Visibility.Visible &&
+                  ((Button)encounters.FindName("ExportOptionsButton")).Visibility==Visibility.Visible &&
+                  encounters.OptionControls.ContainsKey("MegaForms") &&
+                  encounters.OptionControls.ContainsKey("Progressive"),
+                  "WPF Wild shows v1 template controls, Mega forms and Progressive BST options");
             check(((FrameworkElement)encounters.FindName("EncounterSpritePreview")).Visibility==Visibility.Visible
                 && ((WrapPanel)encounters.FindName("EncounterSpriteCards")).Children.Count==10,
                 "WPF encounter editor displays ten clickable original Pokémon sprite slots");
