@@ -59,6 +59,10 @@ internal static class ModuleChecks
             TextFile.GetBytes(f.Game,["Hola","Primer texto"]),
             TextFile.GetBytes(f.Game,["Segunda sección","Con variables de ejemplo"])
         ]);
+        Write(f,"storytext",[
+            TextFile.GetBytes(f.Game,["Historia original","Primer diálogo"]),
+            TextFile.GetBytes(f.Game,["Segundo evento","La aventura continúa"])
+        ]);
         var learn=new Learnset6(new byte[4]) {Moves=[1,2,3,4,5,6],Levels=[1,1,1,1,5,10]};
         Write(f,"levelup",Enumerable.Range(0,840).Select(_=>learn.Write()).ToArray());
         if(gen==7)
@@ -118,6 +122,32 @@ internal static class ModuleChecks
         foreach(var version in new[]{GameVersion.XY,GameVersion.ORAS,GameVersion.SM,GameVersion.USUM})
         {
             using var f=new Fixture(version);CreateArchives(f);
+            // Story Text must round-trip vanilla's complete Unicode dump in
+            // every game, without touching Game Text or changing line indexes.
+            var storyEditor=new GameTextService(f.Session,story:true);
+            string fullDump=storyEditor.ExportAll();
+            var noChange=storyEditor.PreviewImportAll(fullDump);
+            check(noChange.Changes.Count==0,
+                "Story Text full-bank vanilla dump round-trips without changes Gen "+version);
+            string modifiedDump=fullDump.Replace("Primer diálogo","Primer diálogo editado",
+                StringComparison.Ordinal);
+            byte[] gameTextBefore=File.ReadAllBytes(PathFor(f,"gametext"));
+            byte[] storyBefore=File.ReadAllBytes(PathFor(f,"storytext"));
+            var storyPreview=storyEditor.PreviewImportAll(modifiedDump);
+            check(storyPreview.Changes.Count==1&&
+                  File.ReadAllBytes(PathFor(f,"storytext")).SequenceEqual(storyBefore),
+                "Story Text preview changes exactly one dialogue and does not write Gen "+version);
+            reject(()=>storyEditor.PreviewImportAll(modifiedDump.Replace("Text File : 1","Text File : 9",
+                StringComparison.Ordinal)),
+                "Story Text rejects mismatched bank identifiers Gen "+version);
+            reject(()=>storyEditor.PreviewImportAll(modifiedDump.Replace(
+                "Primer diálogo editado"+Environment.NewLine,"",StringComparison.Ordinal)),
+                "Story Text refuses shifted/deleted dialogue lines Gen "+version);
+            storyEditor.ApplyImportAll(storyPreview);
+            check(storyEditor.Read(0)[1]=="Primer diálogo editado" &&
+                  File.ReadAllBytes(PathFor(f,"gametext")).SequenceEqual(gameTextBefore),
+                "Story Text save preserves Game Text and every other line Gen "+version);
+
             if(version==GameVersion.USUM)
             {
                 const string example="""
