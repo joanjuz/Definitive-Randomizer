@@ -3,7 +3,7 @@ using ThreeDS.Progressive.Services;
 
 namespace ThreeDS.Progressive.Models;
 
-public sealed record RecordEntry(int Id,string Name) {public string Display=>$"{Name} · #{Id:000}";}
+public sealed record RecordEntry(int Id,string Name) {public string Display=>$"#{Id:000} · {Name}";}
 public sealed record EditorField(string Key,string Label,int Value,int Min,int Max,IReadOnlyList<MoveChoice>? Choices=null,int Scale=1);
 public sealed record EditorGroup(string Name,IReadOnlyList<EditorField> Fields,bool Expanded=true);
 public sealed class EditorProposal
