@@ -35,6 +35,17 @@ internal sealed class LevelUpView : UserControl
     private readonly TextBox _search;
     private readonly Button _save;
     private readonly TextBlock _status;
+    private LevelUpBatchPreview? _bulkPreview;
+    private readonly CheckBox _allowHms=new() {Content="Permitir MO / HM"};
+    private readonly CheckBox _biasByType=new() {Content="Sesgo por tipo (STAB)"};
+    private readonly CheckBox _expand=new() {Content="Expandir cantidad de movimientos"};
+    private readonly CheckBox _startFour=new() {Content="Comenzar con 4 movimientos"};
+    private readonly CheckBox _spread=new() {Content="Distribuir niveles uniformemente"};
+    private readonly CheckBox _excludeFixed=new() {Content="Excluir movimientos de daño fijo",IsChecked=true};
+    private readonly TextBox _stabPercent=new() {Text="15"};
+    private readonly TextBox _expandTo=new() {Text="25"};
+    private readonly TextBox _spreadTo=new() {Text="79"};
+    private Button? _applyBulk;
     private int _current;
     private bool _dirty,_loading;
     internal bool HasPendingChanges=>_dirty;
@@ -86,6 +97,48 @@ internal sealed class LevelUpView : UserControl
         Action("Metrónomo",()=>{if(_rows.Count==0)return;foreach(var row in _rows)row.Move=118;_grid.Items.Refresh();Dirty();});
         Action("Randomizar especie",Randomize);
         Action("Exportar CSV",Export);
+        var randomSettings=new Expander {Header="Opciones del randomizador original (todos los Pokémon)",
+            IsExpanded=false,Foreground=(Brush)FindResource("TextMain"),
+            Margin=new Thickness(0,0,0,12)};
+        var settingsBody=new StackPanel {Margin=new Thickness(10)};
+        randomSettings.Content=settingsBody;
+        var settingsGrid=new UniformGrid {Columns=3};
+        settingsBody.Children.Add(settingsGrid);
+        void AddChoice(CheckBox choice,TextBox? value=null,string? label=null)
+        {
+            var box=new StackPanel {Margin=new Thickness(0,0,12,10)};
+            box.Children.Add(choice);
+            if(value is not null)
+            {
+                box.Children.Add(new TextBlock {Text=label??"",FontSize=11,
+                    Foreground=(Brush)FindResource("TextSoft"),Margin=new Thickness(0,5,0,3)});
+                value.MinHeight=30;
+                box.Children.Add(value);
+                value.IsEnabled=choice.IsChecked==true;
+                choice.Checked+=(_,_)=>value.IsEnabled=true;
+                choice.Unchecked+=(_,_)=>value.IsEnabled=false;
+                value.TextChanged+=(_,_)=>InvalidateBulk();
+            }
+            choice.Checked+=(_,_)=>InvalidateBulk();
+            choice.Unchecked+=(_,_)=>InvalidateBulk();
+            settingsGrid.Children.Add(box);
+        }
+        _allowHms.IsChecked=_project.Generation==6;
+        AddChoice(_allowHms);AddChoice(_biasByType,_stabPercent,"Porcentaje STAB (0–100)");
+        AddChoice(_expand,_expandTo,"Movimientos por Pokémon (1–100)");
+        AddChoice(_startFour);AddChoice(_spread,_spreadTo,"Último nivel de aprendizaje (1–100)");
+        AddChoice(_excludeFixed);
+        var bulkButtons=new WrapPanel {Margin=new Thickness(0,4,0,4)};
+        settingsBody.Children.Add(bulkButtons);
+        var randomAll=new Button {Content="Generar vista previa · Randomizar TODOS",Margin=new Thickness(0,0,8,0)};
+        randomAll.Click+=(_,_)=>PrepareBulk(false);
+        var metronomeAll=new Button {Content="Metrónomo · Todos",Margin=new Thickness(0,0,8,0)};
+        metronomeAll.Click+=(_,_)=>PrepareBulk(true);
+        _applyBulk=new Button {Content="Aplicar propuesta global",IsEnabled=false};
+        _applyBulk.Click+=(_,_)=>ApplyBulk();
+        bulkButtons.Children.Add(randomAll);bulkButtons.Children.Add(metronomeAll);
+        bulkButtons.Children.Add(_applyBulk);
+        DockPanel.SetDock(randomSettings,Dock.Top);right.Children.Add(randomSettings);
         _grid=new DataGrid
         {
             AutoGenerateColumns=false,CanUserAddRows=false,CanUserDeleteRows=false,
@@ -129,6 +182,56 @@ internal sealed class LevelUpView : UserControl
         };
         _loading=true;_species.SelectedIndex=0;_loading=false;
         if(_species.SelectedItem is PokemonListEntry p)Load(p.Index);
+    }
+    private void InvalidateBulk()
+    {
+        _bulkPreview=null;
+        if(_applyBulk is not null)_applyBulk.IsEnabled=false;
+    }
+    private LevelUpRandomSettings ReadRandomOptions()
+    {
+        int Number(TextBox input,int min,int max,string label)
+        {
+            if(!int.TryParse(input.Text,out int number)||number<min||number>max)
+                throw new ArgumentException($"{label}: el valor debe estar entre {min} y {max}.");
+            return number;
+        }
+        return new LevelUpRandomSettings(
+            _allowHms.IsChecked==true,_biasByType.IsChecked==true,
+            Number(_stabPercent,0,100,"STAB"),_expand.IsChecked==true,
+            Number(_expandTo,1,100,"Movimientos"),_startFour.IsChecked==true,
+            _spread.IsChecked==true,Number(_spreadTo,1,100,"Nivel final"),
+            _excludeFixed.IsChecked==true);
+    }
+    private void PrepareBulk(bool metronome)
+    {
+        if(_dirty)
+        {
+            if(!ConfirmLeave())return;
+            Load(_current);
+        }
+        try
+        {
+            _bulkPreview=_service.PrepareRandomization(ReadRandomOptions(),metronome);
+            _applyBulk!.IsEnabled=_bulkPreview.Changes.Count>0;
+            _status.Text=$"Vista previa congelada: {_bulkPreview.Changes.Count} Pokémon con cambios. Confirmá para guardar.";
+        }
+        catch(Exception ex){InvalidateBulk();StudioDialog.Error(Window.GetWindow(this),
+            "Randomización Level Up",ex.Message);}
+    }
+    private void ApplyBulk()
+    {
+        if(_bulkPreview is not { } preview)return;
+        if(!StudioDialog.Confirm(Window.GetWindow(this),"Aplicar Level Up global",
+            $"Se escribirán los learnsets de {preview.Changes.Count} Pokémon. Esta operación queda registrada en el historial."))return;
+        try
+        {
+            _service.ApplyRandomization(preview);
+            InvalidateBulk();Load(_current);
+            _status.Text="Todos los learnsets aplicados, verificados y registrados en el historial.";
+        }
+        catch(Exception ex){InvalidateBulk();StudioDialog.Error(Window.GetWindow(this),
+            "Falló el guardado de Level Up",ex.Message);}
     }
     private void RebuildCards()
     {
