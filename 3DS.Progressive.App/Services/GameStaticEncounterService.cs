@@ -83,6 +83,131 @@ public sealed class GameStaticEncounterService : ArchiveProjectEditor
             Field("FinalLevel","Nivel para evolución final",36,1,100)
         ],false)
     ];
+    public bool SupportsTotemRules=>Config.USUM;
+    private static readonly int[] TotemEntryIds=[4,9,137,249,24,146,39,45,162,160,229,231];
+
+    /// <summary>Exact 0-based original Static Encounter indexes, not UI IDs.</summary>
+    public IReadOnlyList<TotemRuleRow> TotemRules()
+    {
+        if(!SupportsTotemRules)throw new NotSupportedException("Los Totem especiales requieren USUM.");
+        var records=Records();
+        var answer=new List<TotemRuleRow>();
+        foreach(int index in TotemEntryIds)
+        {
+            var id=_slots.FirstOrDefault(k=>k.Value.File==1&&k.Value.Index==index).Key;
+            if(id==0)continue;
+            var encounter=new EncounterStatic7(Entry(id,records));
+            int species=encounter.Species,bst=Config.Personal[species].BST;
+            try
+            {
+                int formIndex=Config.Personal.GetFormIndex(species,encounter.Form);
+                if(formIndex>=0&&formIndex<Config.Personal.Table.Length)
+                    bst=Config.Personal[formIndex].BST;
+            }
+            catch(ArgumentException){}catch(IndexOutOfRangeException){}
+            (int min,int max)=index switch
+            {
+                4 or 9=>(380,450),137=>(420,500),249=>(400,480),
+                24=>(440,520),146=>(420,500),39=>(440,520),
+                45=>(540,640),162=>(480,560),160=>(700,800),
+                229 or 231=>(520,680),_=>(300,600)
+            };
+            string group=index switch
+            {
+                4=>"Primer Totem (US)",9=>"Primer Totem (UM)",160=>"Ultra Necrozma",
+                229=>"Postgame US",231=>"Postgame UM",_=>"Totem de prueba"
+            };
+            answer.Add(new TotemRuleRow
+            {
+                Id=index,RecordId=id,Group=group,Name=SpeciesLabel(species),
+                CurrentPokemon=SpeciesLabel(species),CurrentLevel=encounter.Level,
+                CurrentBST=bst,LevelCap=encounter.Level,MinBST=min,MaxBST=max
+            });
+        }
+        return answer.OrderBy(x=>x.CurrentLevel).ThenBy(x=>x.Id).ToArray();
+    }
+
+    public EditorProposal PreviewGiftBstBaseline()
+    {
+        var records=Records();
+        var giftSlots=_slots.Where(x=>x.Value.File==0&&x.Value.Index>=3)
+            .OrderBy(x=>x.Value.Index).ToArray();
+        var changes=new List<BatchChange>();
+        foreach(var (id,slot) in giftSlots)
+        {
+            int desired=slot.Index is >=4 and <=13?7:59;
+            var before=ReadRecord(id,records);var values=EditorValues.Flatten(before);
+            values["Species"]=desired;values["Form"]=0;
+            WriteRecord(id,values,records);
+            changes.AddRange(EditorValues.Diff(id,Entries.First(x=>x.Id==id).Name,before,ReadRecord(id,records)));
+        }
+        return new EditorProposal(ProposalOwner,"Establecer BST base de regalos",0,Build(records),changes,
+            new Dictionary<string,string>
+            {
+                ["Scope"]="Regalos 3+, excluyendo iniciales 0-2",
+                ["Rule"]="Regalos 4-13: Squirtle / restantes: Arcanine"
+            });
+    }
+
+    public EditorProposal PreviewTotemRules(IReadOnlyList<TotemRuleRow> rules,bool bstMode)
+    {
+        if(!SupportsTotemRules)throw new NotSupportedException("Solo USUM.");
+        if(rules.GroupBy(x=>x.Id).Any(x=>x.Count()>1))
+            throw new ArgumentException("La tabla de Totem contiene índices duplicados.");
+        var records=Records();
+        var baseline=TotemRules().ToDictionary(r=>r.Id);
+        var random=new Random(System.Security.Cryptography.RandomNumberGenerator.GetInt32(int.MaxValue));
+        var changes=new List<BatchChange>();
+        foreach(var rule in rules.Where(x=>x.Use))
+        {
+            if(!baseline.TryGetValue(rule.Id,out var expected)||expected.RecordId!=rule.RecordId)
+                throw new ArgumentException($"ID Totem {rule.Id} no pertenece a esta ROM.");
+            int id=expected.RecordId;
+            var before=ReadRecord(id,records);
+            var values=EditorValues.Flatten(before);
+            if(bstMode)
+            {
+                if(rule.MinBST is <1 or >1530||rule.MaxBST is <1 or >1530||rule.MaxBST<rule.MinBST)
+                    throw new ArgumentException($"Totem {rule.Id}: intervalo BST inválido.");
+                var choices=Enumerable.Range(1,Math.Min(Config.MaxSpeciesID,Config.Personal.Table.Length-1))
+                    .Where(species=>Config.Personal[species].BST>=rule.MinBST
+                        &&Config.Personal[species].BST<=rule.MaxBST)
+                    .ToArray();
+                if(choices.Length==0)
+                    throw new InvalidDataException($"Totem {rule.Id}: no hay especies en el intervalo BST seleccionado.");
+                int[] alternatives=choices.Where(x=>x!=values["Species"]).ToArray();
+                values["Species"]=(alternatives.Length>0?alternatives:choices)[random.Next(
+                    alternatives.Length>0?alternatives.Length:choices.Length)];
+                values["Form"]=0;
+            }
+            else
+            {
+                if(rule.LevelCap is <0 or >100)
+                    throw new ArgumentException($"Totem {rule.Id}: cap fuera de 0–100.");
+                if(rule.LevelCap>0)values["Level"]=rule.LevelCap;
+            }
+            if(before[0].Value!=values["Species"]||before[0].Fields.Any(f=>f.Key=="Level"&&f.Value!=values["Level"]))
+            {
+                // Refresh learnable moves to the candidate's current level like the
+                // original Totem editor, but keep all unrelated static flags intact.
+                int species=values["Species"],level=values["Level"];
+                int formIndex=Config.Personal.GetFormIndex(species,values["Form"]);
+                if(formIndex>=0&&formIndex<Config.Learnsets.Length)
+                {
+                    int[] moves=Config.Learnsets[formIndex].GetEncounterMoves(level);
+                    for(int m=0;m<4;m++)values[$"Move{m}"]=m<moves.Length?moves[m]:0;
+                }
+            }
+            WriteRecord(id,values,records);
+            changes.AddRange(EditorValues.Diff(id,Entries.First(e=>e.Id==id).Name,before,ReadRecord(id,records)));
+        }
+        return new EditorProposal(ProposalOwner,bstMode?"Randomizar Totem BST":"Aplicar Totem Level Caps",0,
+            Build(records),changes,new Dictionary<string,string>
+            {
+                ["Scope"]=string.Join(",",rules.Where(x=>x.Use).Select(x=>x.Id)),
+                ["RuleType"]=bstMode?"TotemBST":"TotemLevelCaps"
+            });
+    }
     protected override IReadOnlyList<EditorGroup> ReadRecord(int id,Dictionary<string,byte[][]> records)
     {
         var slot=_slots[id];byte[] raw=Entry(id,records);
@@ -230,4 +355,25 @@ public sealed class GameStaticEncounterService : ArchiveProjectEditor
             values["ShinyLock"]=EditorValues.Flatten(ReadRecord(id,records))["ShinyLock"];
         return values;
     }
+}
+
+public sealed class TotemRuleRow : System.ComponentModel.INotifyPropertyChanged
+{
+    public int Id {get;init;}
+    public int RecordId {get;init;}
+    public string Group {get;init;}="";
+    public string Name {get;init;}="";
+    public string CurrentPokemon {get;init;}="";
+    public int CurrentLevel {get;init;}
+    public int CurrentBST {get;init;}
+    private bool _use=true;
+    public bool Use {get=>_use;set{_use=value;OnChanged(nameof(Use));}}
+    private int _cap;
+    public int LevelCap {get=>_cap;set{_cap=value;OnChanged(nameof(LevelCap));}}
+    private int _minBst;
+    public int MinBST {get=>_minBst;set{_minBst=value;OnChanged(nameof(MinBST));}}
+    private int _maxBst;
+    public int MaxBST {get=>_maxBst;set{_maxBst=value;OnChanged(nameof(MaxBST));}}
+    public event System.ComponentModel.PropertyChangedEventHandler? PropertyChanged;
+    private void OnChanged(string p)=>PropertyChanged?.Invoke(this,new System.ComponentModel.PropertyChangedEventArgs(p));
 }
