@@ -36,7 +36,11 @@ internal static class UiProgress
     internal static void Stage(string message)
     {
         OperationTelemetry snapshot;
-        lock(Gate){_stage=message;snapshot=Current(true);}
+        lock(Gate)
+        {
+            if(!Clock.IsRunning)return;
+            _stage=message;snapshot=Current(true);
+        }
         Telemetry?.Invoke(snapshot);
     }
     internal static void Report(string message,double percentage)
