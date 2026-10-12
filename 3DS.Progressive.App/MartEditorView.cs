@@ -11,6 +11,9 @@ using Button = System.Windows.Controls.Button;
 using ComboBox = System.Windows.Controls.ComboBox;
 using DataGrid = System.Windows.Controls.DataGrid;
 using ListBox = System.Windows.Controls.ListBox;
+using Panel = System.Windows.Controls.Panel;
+using TabControl = System.Windows.Controls.TabControl;
+using Control = System.Windows.Controls.Control;
 using UserControl = System.Windows.Controls.UserControl;
 
 namespace ThreeDS.Progressive;
