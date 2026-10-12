@@ -92,6 +92,16 @@ internal sealed class SystemsView : UserControl
         open.IsEnabled=_project.GameConfiguration.USUM;
         if(!_project.GameConfiguration.USUM)open.ToolTip="Solo validado para Ultra Sun y Ultra Moon.";
         stack.Children.Add(cap);
+        var patches=Card("USUM Relearner · Cafeterías y aprendizaje",
+            "Parche original CAFE.asm + Learn.asm en Ultra Sun / Ultra Moon. Copia aislada, vista previa de code.bin y StoryText, verificación de firmas e historial conjunto.");
+        AddButton((StackPanel)patches.Child,"Abrir USUM Relearner",()=>
+            _navigate("UsumRelearner")).IsEnabled=_project.GameConfiguration.USUM;
+        stack.Children.Add(patches);
+        var recipes=Card("CRO Recipes · Mecánicas personalizadas",
+            "Importar múltiples recetas JSON; resolver dependencias y relocaciones con el motor original, previsualizar Battle.cro y aplicar una sola transacción con historial.");
+        AddButton((StackPanel)recipes.Child,"Abrir CRO Recipes",()=>
+            _navigate("CroRecipes")).IsEnabled=_project.GameConfiguration.USUM;
+        stack.Children.Add(recipes);
         var staticCard=Card("Parcheos de encuentros e intercambios",
             "Gift BST Baseline, Totem BST y Level Caps por ID, Trades Accept Any Pokémon y limpieza de diálogos españoles en encuentros estáticos.");
         AddButton((StackPanel)staticCard.Child,"Abrir Encuentros estáticos",()=>_navigate("StaticEncounters")).IsEnabled=
