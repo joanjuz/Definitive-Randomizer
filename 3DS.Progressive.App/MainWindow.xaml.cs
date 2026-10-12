@@ -36,6 +36,7 @@ public partial class MainWindow : Window
     private CroRecipesView? _croRecipesView;
     private UsumRelearnerView? _relearnerView;
     private TypeChartView? _typeChartView;
+    private ShinyRateView? _shinyRateView;
     private GlobalTemplateView? _globalTemplateView;
     private BatchRomBuilderView? _batchRomView;
     private GameTextView? _gameTextView;
@@ -175,6 +176,7 @@ public partial class MainWindow : Window
         if(_croRecipesView is not null&&!_croRecipesView.ConfirmLeave())return false;
         if(_relearnerView is not null&&!_relearnerView.ConfirmLeave())return false;
         if(_typeChartView is not null&&!_typeChartView.ConfirmLeave())return false;
+        if(_shinyRateView is not null&&!_shinyRateView.ConfirmLeave())return false;
         if(_recordView is not null)_sectionOptions[_recordView.Editor.Title]=_recordView.RememberOptions();
         if(_showingMoves&&_movesView is not null)
         {
@@ -209,6 +211,7 @@ public partial class MainWindow : Window
                 "EggMoves"=>CreateEditor(new GameEggMoveService(_session)),
                 "MegaEvolutions"=>CreateEditor(new GameMegaEvolutionService(_session)),
                 "TypeChart"=>_typeChartView=new TypeChartView(_session),
+                "ShinyRate"=>_shinyRateView=new ShinyRateView(_session),
                 "PlayerCaps"=>new PlayerLevelCapsView(_session),
                 "CroRecipes"=>_croRecipesView=new CroRecipesView(_session),
                 "UsumRelearner"=>_relearnerView=new UsumRelearnerView(_session),
@@ -227,7 +230,7 @@ public partial class MainWindow : Window
                 "History"=>new HistoryView(_session.History),
                 _=>throw new ArgumentException("Sección desconocida.")
             };
-            _recordView=view as RecordEditorView;_playerCapsView=null;if(section!="CroRecipes")_croRecipesView=null;if(section!="UsumRelearner")_relearnerView=null;if(section!="TypeChart")_typeChartView=null; if(section!="MachineTutor")_machineTutorView=null; if(section!="LevelUp")_levelUpView=null; if(section!="GameText")_gameTextView=null;SectionHost.Content=view;
+            _recordView=view as RecordEditorView;_playerCapsView=null;if(section!="CroRecipes")_croRecipesView=null;if(section!="UsumRelearner")_relearnerView=null;if(section!="TypeChart")_typeChartView=null;if(section!="ShinyRate")_shinyRateView=null; if(section!="MachineTutor")_machineTutorView=null; if(section!="LevelUp")_levelUpView=null; if(section!="GameText")_gameTextView=null;SectionHost.Content=view;
             PokemonListPanel.Visibility=PokemonEditorPanel.Visibility=PersonalToolsPanel.Visibility=PokemonInspectorPanel.Visibility=MovesHost.Visibility=Visibility.Collapsed;
             _personalTools.InvalidatePreview();SectionHost.Visibility=Visibility.Visible;_showingMoves=false;
             PokemonNavButton.Background=MovesButton.Background=TrainersButton.Background=EncountersButton.Background=StaticEncountersButton.Background=MachineTutorButton.Background=LevelUpButton.Background=ItemsButton.Background=FieldItemsButton.Background=GameTextButton.Background=EvolutionsButton.Background=HistoryButton.Background=GlobalTemplateButton.Background=BatchRomButton.Background=MechanicsButton.Background=RomToolsButton.Background=AutomationButton.Background=ConfigurationButton.Background=Brushes.Transparent;
@@ -262,9 +265,9 @@ public partial class MainWindow : Window
             SectionHost.Visibility=Visibility.Visible;
             return;
         }
-        if(section is "CroRecipes" or "UsumRelearner" or "EggMoves" or "MegaEvolutions" or "TypeChart")
+        if(section is "CroRecipes" or "UsumRelearner" or "EggMoves" or "MegaEvolutions" or "TypeChart" or "ShinyRate")
         {
-            if(section is "EggMoves" or "MegaEvolutions" or "TypeChart"||_session.GameConfiguration.USUM)
+            if(section is "EggMoves" or "MegaEvolutions" or "TypeChart" or "ShinyRate"||_session.GameConfiguration.USUM)
                 Section_Click(new Button{Tag=section},new RoutedEventArgs());
             return;
         }
@@ -308,7 +311,7 @@ public partial class MainWindow : Window
     {
         _session = candidate;
         _sectionOptions.Clear();
-        _recordView=null;_machineTutorView=null;_levelUpView=null;_gameTextView=null;_playerCapsView=null;_croRecipesView=null;_relearnerView=null;_typeChartView=null;_globalTemplateView=null;_batchRomView=null;SectionHost.Content=null;
+        _recordView=null;_machineTutorView=null;_levelUpView=null;_gameTextView=null;_playerCapsView=null;_croRecipesView=null;_relearnerView=null;_typeChartView=null;_shinyRateView=null;_globalTemplateView=null;_batchRomView=null;SectionHost.Content=null;
         _movesView = null;
         MovesHost.Content = null;
         DisplayPokemon();
