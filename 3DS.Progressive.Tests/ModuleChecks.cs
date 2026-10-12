@@ -205,6 +205,24 @@ internal static class ModuleChecks
                     check(EditorValues.Flatten(statics.Read(first.RecordId))["Level"]==33
                         &&EditorValues.Flatten(statics.Read(totems.First(r=>r.Id==9).RecordId))["Level"]==10,
                         version+" Totem Level Caps apply only the selected ID");
+                    // Validate the coupled USUM trade selector hook + requests transaction.
+                    string patchCode=Path.Combine(f.Game.ExeFS,"code.bin");
+                    byte[] codeFixture=new byte[0x4B9C00+128];
+                    File.WriteAllBytes(patchCode,codeFixture);
+                    reject(()=>statics.PreviewTradeAcceptAny(),
+                        "USUM incompatible trade hook never writes to an unknown code.bin");
+                    new byte[]{0xEA,0x68,0xFD,0xEB}.CopyTo(codeFixture,0x2843F4);
+                    File.WriteAllBytes(patchCode,codeFixture);
+                    var tradePreview=statics.PreviewTradeAcceptAny();
+                    check(File.ReadAllBytes(patchCode).AsSpan(0x2843F4,4)
+                        .SequenceEqual(new byte[]{0xEA,0x68,0xFD,0xEB}),
+                        version+" trade selector patch preview is non-writing");
+                    statics.Apply(tradePreview);
+                    check(File.ReadAllBytes(patchCode).AsSpan(0x2843F4,4)
+                        .SequenceEqual(new byte[]{0x01,0xD6,0x08,0xEB})
+                        &&EditorValues.Flatten(statics.Read(statics.Entries.Count))["Request"]==0,
+                        version+" trades Accept Any atomically commits code hook and trade GARC");
+
                 }
                 var staticOptions=EditorValues.Flatten(statics.RandomOptions);
                 check(staticOptions.ContainsKey("G7")&&staticOptions.ContainsKey("RandomItems")
