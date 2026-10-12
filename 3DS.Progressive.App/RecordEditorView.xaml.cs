@@ -9,6 +9,7 @@ using UserControl=System.Windows.Controls.UserControl;
 using TextBox=System.Windows.Controls.TextBox;
 using ComboBox=System.Windows.Controls.ComboBox;
 using CheckBox=System.Windows.Controls.CheckBox;
+using Image=System.Windows.Controls.Image;
 using Brush=System.Windows.Media.Brush;
 
 namespace ThreeDS.Progressive;
