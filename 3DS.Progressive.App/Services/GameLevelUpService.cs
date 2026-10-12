@@ -62,9 +62,13 @@ public sealed class GameLevelUpService
         string name=Entries.First(e=>e.Index==species).Name;
         var before=string.Join("; ",original.Moves.Select((m,i)=>$"{original.Levels[i]}:{m}"));
         var after=string.Join("; ",ordered.Select(r=>$"{r.Level}:{r.Move}"));
-        _sha=_project.History.CommitGarc(_path,_config.GetGARCReference("levelup"),_sha,files,
-            "Level Up Moves","Editar movimientos por nivel",
+        byte[] source=GarcTransaction.ReadUnchanged(_path,_sha);
+        byte[] output=GarcTransaction.Build(source,_config.GetGARCReference("levelup"),files,
+            preserveRecordSize:false);
+        _project.History.Commit([new FileChange(_path,source,output)],"Level Up Moves",
+            "Editar movimientos por nivel",
             before==after?[]:[new BatchChange(species,name,"Aprendizaje por nivel",before,after)]);
+        _sha=SHA256.HashData(output);
         _config.InitializeLearnset();
     }
     public string ExportCsv()
