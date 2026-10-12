@@ -38,9 +38,9 @@ Movimientos,Aplicación confirmada y GARC verificado,BatchToolsView + servicios 
 Movimientos,Copia de cambios,BatchToolsView + servicios Studio,Implementado,Fixtures; inicialización WPF Windows en CI,Validación del usuario pendiente
 Pokémon,Balance CSV/templates,B_PokemonStatsTemplate_Click + CustomBalanceTemplates,Implementado,Fixtures; CSV; idempotencia; scope; stale CSV/textos/CRO; rollback,Template Gen7 incluido; nombres/IDs; stats 1–255; campos omitidos preservados
 Movimientos,Balance completo,B_BalanceMoves + Battle/CRO + descripciones,Implementado,Fixtures; CSV; idempotencia; scope; stale CSV/textos/CRO; rollback,Validación manual pendiente; firmas CRO originales; segunda pasada; Giro Vil v2 conservado
-Entrenadores,Editor y randomizadores completos,TrainerEditor6/7 + Progressive/Smart Items/Better Movesets,Parcial,Motor SMTE/RSTE/TrainerRand y pickers integrados,UI WPF todavía no alcanza paridad: ayudas Moves y gestor global de reglas pendientes; no declarar completo
+Entrenadores,Editor y randomizadores completos,GameTrainerService + TrainerLogicHost,Parcial,Motor SMTE/RSTE y paneles WPF reales,Faltan ayudas de selección Moves y validación de opciones vanilla/Progressive
 Encuentros,Tablas y Progressive Wild,WildEditor6/7 y sistemas Progressive,Parcial,Tablas Gen6/7; SOS/clima; randomización de especies/BST/niveles,Progressive Wild y templates específicos pendientes
-Automatización,Global Template y Batch ROM Builder,GlobalRandomizationTemplate y BatchRomBuilder,Pendiente,No disponible en Studio,Mantener opciones originales; no activar botones sin implementación
+Automatización,Global Template y Batch ROM Builder,GlobalTemplateView + BatchRomBuilderView,Parcial,Import/export de recetas y ejecutor original Gen7 integrados,Falta sincronización bidireccional RandSettings e integración runtime US/UM de lotes
 Movimientos,Templates con Battle.cro ampliado por Giro Vil V2,LegacyCroLayout + patchers originales,Implementado,Tabla maestra movida; segmento rodata; headroom; seis patchers,Una instalación como original; V2 intacto; firmas y guardado verificados
 Entrenadores,Editar datos y equipos de seis slots,GameTrainerService + TrainerPoke7,Implementado,XY/ORAS/SM/USUM sintéticos; bits/padding y cabeceras preservados,Guardar y registrar historial; IV/EV/naturaleza/shiny Gen7
 Entrenadores,Randomizar especies y escalar niveles,GameTrainerService,Implementado,BST; scope; RNG; propuesta congelada; stale,No sustituye todavía el sistema Progressive completo
@@ -55,8 +55,35 @@ Encuentros,Leer y guardar miembros comprimidos LZ11,GARC.LazyGARC original,Imple
 Entrenadores,Tema WPF en pestañas de randomización,App.xaml TabControl y TabItem,Implementado,Estilos Dark Graphite explícitos + CI WPF,Validación visual manual de la preview pendiente
 Entrenadores,Paneles Pokémon individuales Main IV/EV Moves,RecordEditorView.BuildTrainerPokemonCard,Implementado,Controles originales distribuidos sin perder claves + smoke Windows,No reproduce todavía ayudas de movimientos del WinForms original
 Entrenadores,IA como ocho flags con máscara conservada,RecordEditorView.AddTrainerAiBits,Implementado,Byte original expuesto con ocho casillas,Prueba manual de edición pendiente
-Entrenadores,Política global Level Caps y Moves,TrainerLogicHost GlobalCaps GlobalMoves,Parcial,Params de templates disponibles en WPF; preservación CurrentAceLevel,Gestión multientrenador desde interfaz específica y comprobación runtime pendientes
-Encuentros,Wild Progressive con todos los filtros y tipos de tabla,Wild7Randomizer/ProgressiveWildRandomizer,Pendiente,Motor existente en pk3DS.WinForms,WPF usa aún randomizador básico
-Encuentros,Panel día/noche con sprites y slots SOS/clima,SMWE + WinFormsUtil.GetSprite,Pendiente,Ejemplo de referencia capturas del usuario,Requiere rediseño con vista visual y tablas dinámicas
-Static Encounters,Editor Gifts Encounters Trades Totem y randomizador,StaticEncounterEditor7 + Progressive,Pendiente,Código vanilla y Progressive disponible,No existe módulo WPF
-MT Tutores Tiendas Caps,Editores de TM tutores economía player caps,WinForms Gen6 Gen7 + Progressive,Pendiente,Código original disponible,No existe paridad WPF de esos módulos
+Entrenadores,Política global Level Caps y Moves,TrainerRulesWindow + TrainerLogicHost,Parcial,Tablas multientrenador de caps y reglas de movimientos implementadas,Validación runtime de límites y reglas pendiente
+Encuentros,Wild Progressive con todos los filtros y tipos de tabla,GameEncounterService + ProgressiveWildRandomizer original,Parcial,BST progresivo por tabla y slots SOS disponibles en WPF,Paridad final de listas y template Wild y filtros especiales pendiente
+Encuentros,Panel día/noche con sprites y slots SOS/clima,GameEncounterService + RecordEditorView,Parcial,Tablas día/noche SOS/clima y vista de sprites existente,Faltan copy/paste completo layout visual de todas las tablas y pruebas runtime
+Static Encounters,Editor Gifts Encounters Trades Totem y randomizador,GameStaticEncounterService + Progressive,Parcial,Edición Gen7 regalos/estáticos/trades Totem BST/aura/caps y Accept Any disponible,Falta paridad completa de flujo vanilla y soporte Gen6 + pruebas runtime
+MT Tutores Tiendas Caps,Editores de TM tutores economía player caps,GameMachineTutorService + GameMartService + GamePlayerLevelCapService,Parcial,MT y tutores USUM sanity follow tiendas BP caps integrados,Faltan equivalentes Gen6 y validación integral runtime
+MT,TM Sanity / TM Follow Evolutions Gen7,GameTmCompatibilityService,Implementado; validación en juego pendiente,100 TMHM desde code.bin; vista previa y GARC Personal verificado,Evidencia de runtime requerida
+Tutores,Tutor Sanity / Follow Evolutions USUM,GameTutorCompatibilityService,Implementado; validación en juego pendiente,67 tutores Shop.cro; flags sin alterar MT,Evidencia de runtime requerida
+Tutores,Edición movimientos/precios USUM,GameMachineTutorEdits + UsumTutorCodePatch,Implementado; validación en juego pendiente,Sincronía Shop.cro y code.bin con historial,Evidencia de runtime requerida
+Tiendas,USUM Poké Marts y BP,GameMartService + GameMartPresets,Implementado; validación en juego pendiente,28 tiendas normales y 7 BP; precios vitaminas ID645 y ranuras,Evidencia de runtime requerida
+Story Text,Editor e importación/exportación total,GameTextService + GameTextView,Implementado; validación en juego pendiente,Bancos Game Text/Story Text separados; randomización de diálogos pendiente,Evidencia de runtime requerida
+Story Text,Randomización protegida de diálogos,pk3DS.WinForms/Subforms/TextEditor.cs,Pendiente,Aplicar solo si scripts variables y códigos de control preservados,Evidencia de runtime requerida
+Estructura ROM,Extracción CXI y 3DS,pk3DS.WinForms/Main.cs,Pendiente,El Rebuild no implica extracción,Evidencia de runtime requerida
+Estructura ROM,Rebuild RomFS ExeFS Full y Trimmed,GameRomRebuildService,Implementado; validación ampliada pendiente,Full 3DS validado por el usuario; probar cada formato en 8 variantes,Evidencia de runtime requerida
+CRO,Rebuild CRO/CRR manual,pk3DS.WinForms/Main.cs,Pendiente,Diferente de recetas CRO,Evidencia de runtime requerida
+Utilidades,Restore Original Files,pk3DS.WinForms/Main.cs,Parcial,Existe creación de backup; falta restauración guiada,Evidencia de runtime requerida
+Utilidades,SMDH Icon Editor y BCLIM,pk3DS.WinForms/Tools/Icon.cs + ToolsUI.cs,Pendiente,Paridad de editores gráficos y formatos,Evidencia de runtime requerida
+Utilidades,GARC Shuffler,pk3DS.WinForms/Tools/Shuffler.cs,Pendiente,No confundir con compresión LZ11,Evidencia de runtime requerida
+Utilidades,Title Screen Editor Gen6,pk3DS.WinForms/Subforms/Gen6/TitleScreenEditor6.cs,Pendiente,XY y ORAS,Evidencia de runtime requerida
+Utilidades,O-Powers Gen6,pk3DS.WinForms/Subforms/Gen6/OPower.cs,Pendiente,XY y ORAS,Evidencia de runtime requerida
+Entrenadores,Battle Maison Royal y Tree,pk3DS.WinForms/Subforms/Gen7/MaisonEditor7.cs,Pendiente,Migrar por juego,Evidencia de runtime requerida
+Objetos,Pickup Gen6/Gen7,pk3DS.WinForms/Subforms/Gen6/PickupEditor6.cs + Gen7/PickupEditor7.cs,Pendiente,"Motor presente, interfaz WPF ausente",Evidencia de runtime requerida
+Objetos,Field Items Gen6,GameFieldItemsService,Pendiente,Gen7 implementado; Gen6 requiere scripts,Evidencia de runtime requerida
+Gen6,MT MO Tutores tiendas y métodos especiales,pk3DS.WinForms/Subforms/Gen6,Pendiente,Migración específica XY/ORAS,Evidencia de runtime requerida
+Gen6,Type Chart y Shiny Rate,pk3DS.WinForms/Main.cs,Pendiente,Gen7 no valida Gen6,Evidencia de runtime requerida
+Static Encounters,Iniciales regalos especiales Totems y Trade completos,GameStaticEncounterService,Parcial,Gen7 disponible; cobertura vanilla y Gen6 incompleta,Evidencia de runtime requerida
+Wild,Templates Wild JSON v1,pk3DS.WinForms/Misc/WildRandomizerTemplate.cs,Pendiente,Importación/exportación de opciones desde editor WPF,Evidencia de runtime requerida
+Wild,Copiar y pegar tabla/área,pk3DS.WinForms/Subforms/Gen7/SMWE.cs,Pendiente,Preservar estructura y tamaños de encuentros,Evidencia de runtime requerida
+Wild,Filtros de formas Mega y Alola,pk3DS.Core/Randomizers/FormRandomizer.cs,Parcial,WPF actualmente fija forma 0 al randomizar,Evidencia de runtime requerida
+Automatización,Global Template bidireccional con WPF,GlobalTemplateView + editores WPF,Pendiente,Carga y exportación completas de RandSettings,Evidencia de runtime requerida
+Aplicación,Barra progreso general y feedback de etapas,UiProgress + MainWindow,Parcial,Batch ROM ya tiene barra dedicada; validar procesos prolongados,Evidencia de runtime requerida
+Aplicación,Protección frente a cierre inesperado,FileTransaction + ProjectHistory,Parcial,Rollback en excepción; no es transacción durable frente a apagón,Evidencia de runtime requerida
+Pruebas,Validación runtime 8 versiones,CI Windows + ROMs extraídas,Pendiente,XY Y OR AS S M US UM no sustituibles entre sí,Evidencia de runtime requerida
