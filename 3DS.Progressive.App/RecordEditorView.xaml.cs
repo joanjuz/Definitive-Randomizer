@@ -62,7 +62,7 @@ public partial class RecordEditorView : UserControl
     private void BuildGroups(StackPanel panel,IEnumerable<EditorGroup> groups,Dictionary<string,FrameworkElement> controls,bool editor)
     {
         panel.Children.Clear();controls.Clear();
-        if(editor)_editorSections.Clear();
+        if(editor){_editorSections.Clear();_pokemonTabs.Clear();}
         var entries=groups.ToArray();
         if(!editor&&Editor is ThreeDS.Progressive.Services.GameTrainerService)
         {
@@ -70,7 +70,10 @@ public partial class RecordEditorView : UserControl
             return;
         }
         foreach(var group in entries)
-            panel.Children.Add(BuildGroupCard(group,controls,editor));
+            panel.Children.Add(editor&&Editor is ThreeDS.Progressive.Services.GameTrainerService
+                &&group.Name.StartsWith("Pokémon ",StringComparison.Ordinal)
+                    ?BuildTrainerPokemonCard(group,controls)
+                    :BuildGroupCard(group,controls,editor));
     }
     private readonly Dictionary<string,Expander> _editorSections=[];
     private int _trainerTabIndex;
@@ -144,10 +147,54 @@ public partial class RecordEditorView : UserControl
             ||key.Contains("TypeTheme",StringComparison.OrdinalIgnoreCase))return 3;
         return 0;
     }
+    private readonly Dictionary<int,TabControl> _pokemonTabs=[];
+
+    private Border BuildTrainerPokemonCard(EditorGroup group,Dictionary<string,FrameworkElement> controls)
+    {
+        var tabs=new TabControl {Margin=new Thickness(0,8,0,0)};
+        string[] labels=["Principal","IV y EV","Movimientos"];
+        for(int i=0;i<labels.Length;i++)
+        {
+            int section=i;
+            var fields=group.Fields.Where(f=>TrainerPokemonSection(f.Key)==section).ToArray();
+            tabs.Items.Add(new TabItem {Header=labels[i],Content=BuildFieldsGrid(fields,controls,true)});
+        }
+        tabs.SelectedIndex=0;
+        int slot=group.Fields.FirstOrDefault()?.Key is { } key&&key.StartsWith("P",StringComparison.Ordinal)
+            &&key.IndexOf('.')>1&&int.TryParse(key[1..key.IndexOf('.')],out int index)?index:-1;
+        if(slot>=0)_pokemonTabs[slot]=tabs;
+        var expand=new Expander {Header=group.Name,IsExpanded=group.Expanded,
+            Foreground=(Brush)FindResource("TextMain"),Content=tabs};
+        foreach(var field in group.Fields)_editorSections[field.Key]=expand;
+        return GroupBorder(expand);
+    }
+    internal static int TrainerPokemonSection(string key)
+    {
+        string name=key[(key.LastIndexOf('.')+1)..];
+        if(name.StartsWith("Move",StringComparison.OrdinalIgnoreCase))return 2;
+        if(name.StartsWith("IV",StringComparison.OrdinalIgnoreCase)
+            ||name.StartsWith("EV",StringComparison.OrdinalIgnoreCase))return 1;
+        return 0;
+    }
     private Border BuildGroupCard(EditorGroup group,Dictionary<string,FrameworkElement> controls,bool editor)
     {
+        var grid=BuildFieldsGrid(group.Fields,controls,editor);
+        var expand=new Expander {Header=group.Name,IsExpanded=group.Expanded,
+            Foreground=(Brush)FindResource("TextMain"),Content=grid};
+        if(editor)foreach(var field in group.Fields)_editorSections[field.Key]=expand;
+        return GroupBorder(expand);
+    }
+    private Border GroupBorder(Expander expand)=>new()
+    {
+        Background=(Brush)FindResource("Panel"),BorderBrush=(Brush)FindResource("Stroke"),
+        BorderThickness=new Thickness(1),CornerRadius=new CornerRadius(10),
+        Padding=new Thickness(16),Margin=new Thickness(0,0,0,14),Child=expand
+    };
+    private UniformGrid BuildFieldsGrid(IReadOnlyList<EditorField> fields,
+        Dictionary<string,FrameworkElement> controls,bool editor)
+    {
         var grid=new UniformGrid {Columns=2,Margin=new Thickness(0,12,0,0)};
-        foreach(var field in group.Fields)
+        foreach(var field in fields)
         {
             var cell=new StackPanel {Margin=new Thickness(0,0,12,15)};
             bool isCheck=field.Choices is null&&field.Min==0&&field.Max==1;
@@ -174,14 +221,47 @@ public partial class RecordEditorView : UserControl
                 edit.TextChanged+=Input_Changed;input=edit;
             }
             input.Tag=editor;input.Uid=field.Scale.ToString(CultureInfo.InvariantCulture);
-            controls.Add(field.Key,input);cell.Children.Add(input);grid.Children.Add(cell);
+            controls.Add(field.Key,input);cell.Children.Add(input);
+            if(editor&&Editor is ThreeDS.Progressive.Services.GameTrainerService
+                &&field.Key=="AI"&&input is TextBox ai)
+                AddTrainerAiBits(cell,ai);
+            grid.Children.Add(cell);
         }
-        var expand=new Expander {Header=group.Name,IsExpanded=group.Expanded,
-            Foreground=(Brush)FindResource("TextMain"),Content=grid};
-        if(editor)foreach(var field in group.Fields)_editorSections[field.Key]=expand;
-        return new Border {Background=(Brush)FindResource("Panel"),BorderBrush=(Brush)FindResource("Stroke"),
-            BorderThickness=new Thickness(1),CornerRadius=new CornerRadius(10),
-            Padding=new Thickness(16),Margin=new Thickness(0,0,0,14),Child=expand};
+        return grid;
+    }
+    private void AddTrainerAiBits(StackPanel cell,TextBox value)
+    {
+        var flags=new WrapPanel {Margin=new Thickness(0,9,0,0)};
+        string[] names=["Básica","Fuerte","Experta","Dobles","Sin derrota","Battle Royale","Cambio Pokémon","Objetos"];
+        var inputs=new List<CheckBox>();
+        bool updating=false;
+        void FromNumber()
+        {
+            if(updating||!int.TryParse(value.Text,out int number)||number is <0 or >255)return;
+            updating=true;
+            for(int bit=0;bit<inputs.Count;bit++)inputs[bit].IsChecked=(number&(1<<bit))!=0;
+            updating=false;
+        }
+        void ToNumber()
+        {
+            if(updating)return;
+            updating=true;
+            int number=0;
+            for(int bit=0;bit<inputs.Count;bit++)if(inputs[bit].IsChecked==true)number|=1<<bit;
+            value.Text=number.ToString(CultureInfo.InvariantCulture);
+            updating=false;
+        }
+        for(int bit=0;bit<names.Length;bit++)
+        {
+            var check=new CheckBox {Content=names[bit],Margin=new Thickness(0,3,12,3)};
+            inputs.Add(check);flags.Children.Add(check);
+            check.Checked+=(_,_)=>ToNumber();check.Unchecked+=(_,_)=>ToNumber();
+        }
+        value.TextChanged+=(_,_)=>FromNumber();
+        FromNumber();
+        cell.Children.Add(new TextBlock {Text="Habilidades de IA",Foreground=(Brush)FindResource("TextSoft"),
+            FontSize=11,Margin=new Thickness(0,8,0,0)});
+        cell.Children.Add(flags);
     }
 
     private readonly ThreeDS.Progressive.Services.SpriteService _trainerSpriteService=new();
@@ -238,6 +318,7 @@ public partial class RecordEditorView : UserControl
             {
                 string key=$"P{current}.Species";
                 if(_editorSections.TryGetValue(key,out var section))section.IsExpanded=true;
+                if(_pokemonTabs.TryGetValue(current,out var tabs))tabs.SelectedIndex=0;
                 if(_fields.TryGetValue(key,out var control))control.BringIntoView();
             };
             TrainerTeamCards.Children.Add(card);
