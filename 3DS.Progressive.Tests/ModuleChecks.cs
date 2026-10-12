@@ -114,6 +114,7 @@ internal static class ModuleChecks
             reject(()=>trainers.Save(1,invalid),version+" trainer rejects out-of-range levels");check(File.ReadAllBytes(PathFor(f,"trpoke")).SequenceEqual(saved),version+" invalid trainer save is read-only");
             var options=EditorValues.Flatten(trainers.RandomOptions);options["LevelScale"]=120;
             if(OperatingSystem.IsWindows()&&f.Game.Generation==6)options["CHK_StoryMEvos"]=0; // uniform synthetic mega types; story Mega guarantees are tested separately.
+            var trainerOptions=new Dictionary<string,int>(options);
             var preview=trainers.Preview(options,[1]);var second=trainers.Preview(options,[1]);
             check(preview.Changes.Count>0&&preview.Seed!=second.Seed,version+" trainer randomization uses a fresh seed and real changes");
             check(File.ReadAllBytes(PathFor(f,"trpoke")).SequenceEqual(saved),version+" trainer preview is read-only");
@@ -154,7 +155,7 @@ internal static class ModuleChecks
             check(EditorValues.Flatten(evolution.Read(2))["E0.Argument"]==16,version+" evolution changes respect scope");
             string export=Path.Combine(f.Root,"history.json");f.Session.History.Export(export);
             check(JsonSerializer.Deserialize<HistoryDocument>(File.ReadAllBytes(export))?.Entries.Count==f.Session.History.Read().Entries.Count,version+" history JSON exports the entire ordered journal");
-            var stale=trainers.Preview(options,[1]);byte[] source=File.ReadAllBytes(PathFor(f,"trdata"));source[^1]^=1;File.WriteAllBytes(PathFor(f,"trdata"),source);
+            var stale=trainers.Preview(trainerOptions,[1]);byte[] source=File.ReadAllBytes(PathFor(f,"trdata"));source[^1]^=1;File.WriteAllBytes(PathFor(f,"trdata"),source);
             int countBefore=f.Session.History.Read().Entries.Count;
             reject(()=>trainers.Apply(stale),version+" trainer external edits reject a stale proposal");
             check(f.Session.History.Read().Entries.Count==countBefore,version+" failed writes never enter history");
