@@ -42,7 +42,7 @@ public partial class RecordEditorView : UserControl
         {
             GiftBstButton.Visibility=Visibility.Visible;
             if(staticEditor.SupportsTotemRules)
-                TotemCapsButton.Visibility=TotemBstButton.Visibility=Visibility.Visible;
+                TotemCapsButton.Visibility=TotemBstButton.Visibility=TradesAnyButton.Visibility=Visibility.Visible;
         }
         if(editor is ITemplateProjectEditor template){TemplateButton.Visibility=Visibility.Visible;TemplateButton.Content=template.TemplateButton;TemplatePathText.Text=template.DefaultTemplatePath;}
         if(editor is ThreeDS.Progressive.Services.GameEncounterService wild&&state is not null)
@@ -633,6 +633,32 @@ public partial class RecordEditorView : UserControl
             StatusText.Text="Field Items exportados a CSV.";
         }
         catch(Exception ex){StudioDialog.Error(Window.GetWindow(this),"Error al exportar Field Items",ex.Message);}
+    }
+    private void TradesAny_Click(object sender,RoutedEventArgs e)
+    {
+        if(Editor is not ThreeDS.Progressive.Services.GameStaticEncounterService service||
+           !service.SupportsTotemRules||!ConfirmLeave())return;
+        try
+        {
+            UiProgress.Begin("Verificando el parche de intercambios USUM…");
+            ThreeDS.Progressive.Models.EditorProposal proposal;
+            try{proposal=service.PreviewTradeAcceptAny();}
+            finally{UiProgress.End();}
+            if(proposal.Files.All(file=>!file.Changed))
+            {
+                StudioDialog.Notice(Window.GetWindow(this),"Trades Accept Any",
+                    "El selector y los intercambios ya están configurados. No hay cambios.");
+                return;
+            }
+            if(!StudioDialog.Confirm(Window.GetWindow(this),"Trades Accept Any",
+                "Se aplicarán conjuntamente las solicitudes de intercambio (especie 0) y el hook verificado de code.bin. Si hay firmas desconocidas, la operación se rechaza."))return;
+            UiProgress.Begin("Aplicando parche de intercambios y verificando archivos…");
+            try{service.Apply(proposal);}
+            finally{UiProgress.End();}
+            if(_id>=0)Show(_id);
+            StatusText.Text="Trades Accept Any aplicado en code.bin y encuentro estático con historial.";
+        }
+        catch(Exception ex){StudioDialog.Error(Window.GetWindow(this),"Trades Accept Any",ex.Message);}
     }
     private void GiftBst_Click(object sender,RoutedEventArgs e)
     {
