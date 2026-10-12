@@ -667,7 +667,8 @@ public partial class RecordEditorView : UserControl
     private async void Preview_Click(object sender,RoutedEventArgs e)
     {
         UiProgress.Begin("Generando vista previa de "+Editor.Title+"…");
-        await System.Windows.Threading.Dispatcher.Yield(System.Windows.Threading.DispatcherPriority.Background);
+        if(!StudioDialog.AutomatedChecks)
+            await System.Windows.Threading.Dispatcher.Yield(System.Windows.Threading.DispatcherPriority.Background);
         try
         {
             int[] scope=ScopeBox.SelectedIndex switch {1=>RecordList.Items.Cast<RecordEntry>().Select(e=>e.Id).ToArray(),2=>_id>=0?[_id]:[],_=>Editor.Entries.Select(e=>e.Id).ToArray()};
@@ -708,7 +709,8 @@ public partial class RecordEditorView : UserControl
         var proposal=_proposal;if(proposal is null)return;
         if(!StudioDialog.Confirm(Window.GetWindow(this),"Aplicar propuesta",$"Se guardarán {proposal.Changes.Count} cambios en {Editor.Title}."))return;
         UiProgress.Begin("Guardando y verificando "+Editor.Title+"…");
-        await System.Windows.Threading.Dispatcher.Yield(System.Windows.Threading.DispatcherPriority.Background);
+        if(!StudioDialog.AutomatedChecks)
+            await System.Windows.Threading.Dispatcher.Yield(System.Windows.Threading.DispatcherPriority.Background);
         try{Editor.Apply(proposal);Invalidate();ProposalText.Text="Propuesta guardada y verificada. El historial quedó actualizado.";}
         catch(Exception ex){Invalidate();ProposalText.Text=ex.Message;}
         finally{UiProgress.End();}
