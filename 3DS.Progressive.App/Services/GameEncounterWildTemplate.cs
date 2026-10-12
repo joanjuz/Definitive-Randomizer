@@ -99,6 +99,7 @@ public sealed partial class GameEncounterService
             ["SOS"]=1,
             ["Weather"]=candidate.SlotRandomizationOption is 0 or 2 ?1:0,
             ["Progressive"]=candidate.ProgressiveBST.Enabled?1:0,
+            ["ModifyLevel"]=candidate.ModifyLevel?1:0,
             ["LevelFlat"]=candidate.AdvancedLevelFlat,
             ["LevelScale"]=candidate.ModifyLevel
                 ?Math.Clamp((int)Math.Round(candidate.LevelAmplifier*100m),10,300)
@@ -139,7 +140,7 @@ public sealed partial class GameEncounterService
         template.AdvancedLevelFlat=Value("LevelFlat",0);
         template.AdvancedLevelMultiplier=Value("LevelScale",100);
         template.AdvancedKeepRange=On("KeepRange",true);
-        template.ModifyLevel=template.AdvancedLevelMultiplier!=100||template.AdvancedLevelFlat!=0;
+        template.ModifyLevel=On("ModifyLevel",true);
         template.LevelAmplifier=template.AdvancedLevelMultiplier/100m;
         template.ProgressiveBST??=new();
         template.ProgressiveBST.Enabled=On("Progressive");
