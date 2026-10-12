@@ -84,6 +84,7 @@ internal sealed class SystemsView : UserControl
         {StudioDialog.Error(Window.GetWindow(b),"Herramientas del sistema",ex.Message);}};
         panel.Children.Add(b);return b;
     }
+    internal void OpenRebuildForChecks()=>_navigate("Rebuild");
     internal void OpenPlayerCapsForChecks()=>_navigate("PlayerCaps");
     internal void OpenCroRecipesForChecks()=>_navigate("CroRecipes");
     internal void OpenRelearnerForChecks()=>_navigate("UsumRelearner");
