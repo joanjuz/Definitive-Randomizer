@@ -193,7 +193,7 @@ internal static class ModuleChecks
                 check(staticOptions.ContainsKey("G7")&&staticOptions.ContainsKey("RandomItems")
                     &&staticOptions.ContainsKey("RemoveLocks")&&staticOptions.ContainsKey("TotemAura"),
                     version+" static randomizer exposes vanilla-like pool and safe item/aura/lock toggles");
-                staticOptions["Species"]=0;staticOptions["LevelScale"]=120;
+                staticOptions["Species"]=0;staticOptions["ScaleLevels"]=1;staticOptions["LevelScale"]=120;
                 var staticPreview=statics.Preview(staticOptions,[1]);
                 check(staticPreview.Changes.Count>0
                     &&EditorValues.Flatten(statics.Read(1))["Level"]==5,
