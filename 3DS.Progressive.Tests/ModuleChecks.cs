@@ -192,7 +192,8 @@ internal static class ModuleChecks
             reject(()=>trainers.Apply(stale),version+" trainer external edits reject a stale proposal");
             check(f.Session.History.Read().Entries.Count==countBefore,version+" failed writes never enter history");
         }
-        MachineTutorChecks(check,reject);\n        PortableHistoryChecks(check);BackupChecks(check,reject);BattleChecks(check,reject);RegressionFixes.Run(check,reject);
+        MachineTutorChecks(check,reject);
+        PortableHistoryChecks(check);BackupChecks(check,reject);BattleChecks(check,reject);RegressionFixes.Run(check,reject);
     }
     private static void MachineTutorChecks(Action<bool,string> check,Action<Action,string> reject)
     {
