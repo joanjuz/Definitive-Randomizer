@@ -37,6 +37,10 @@ internal sealed class LevelUpView : UserControl
     private readonly Button _save;
     private readonly TextBlock _status;
     private LevelUpBatchPreview? _bulkPreview;
+    private IReadOnlyDictionary<int,IReadOnlyList<LevelUpMoveEntry>>? _proposedRows;
+    private readonly Button _discardBulk=new() {Content="Descartar vista previa",Visibility=Visibility.Collapsed};
+    private readonly TextBlock _previewBanner=new() {Visibility=Visibility.Collapsed};
+    private readonly List<Button> _editButtons=[];
     private readonly CheckBox _allowHms=new() {Content="Permitir MO / HM"};
     private readonly CheckBox _biasByType=new() {Content="Sesgo por tipo (STAB)"};
     private readonly CheckBox _expand=new() {Content="Expandir cantidad de movimientos"};
@@ -64,13 +68,21 @@ internal sealed class LevelUpView : UserControl
             FontSize=21,FontWeight=FontWeights.SemiBold,Foreground=(Brush)FindResource("TextMain")});
         header.Children.Add(new TextBlock {Text="Editá la lista real de movimientos de cada Pokémon y forma. Las filas se guardan ordenadas por nivel.",
             Foreground=(Brush)FindResource("TextSoft"),Margin=new Thickness(0,6,0,0)});
-        var footer=new DockPanel {Margin=new Thickness(0,12,0,0)};
+        // Explicit columns prevent the Save button from overlapping a long preview status.
+        var footer=new Grid {Margin=new Thickness(0,12,0,0)};
+        footer.ColumnDefinitions.Add(new ColumnDefinition {Width=new GridLength(1,GridUnitType.Star)});
+        footer.ColumnDefinitions.Add(new ColumnDefinition {Width=GridLength.Auto});
         DockPanel.SetDock(footer,Dock.Bottom);root.Children.Add(footer);
-        _status=new TextBlock {Text="Seleccioná una especie.",Foreground=(Brush)FindResource("TextSoft"),
-            TextWrapping=TextWrapping.Wrap,VerticalAlignment=VerticalAlignment.Center};
-        footer.Children.Add(_status);
-        _save=new Button {Content="Guardar movimientos",Padding=new Thickness(18,9,18,9),IsEnabled=false};
-        DockPanel.SetDock(_save,Dock.Right);footer.Children.Add(_save);
+        _status=new TextBlock
+        {
+            Text="Seleccioná una especie.",Foreground=(Brush)FindResource("TextSoft"),
+            TextWrapping=TextWrapping.Wrap,VerticalAlignment=VerticalAlignment.Center,
+            Margin=new Thickness(0,0,16,0)
+        };
+        Grid.SetColumn(_status,0);footer.Children.Add(_status);
+        _save=new Button {Content="Guardar movimientos",Padding=new Thickness(18,9,18,9),
+            IsEnabled=false,MinWidth=175};
+        Grid.SetColumn(_save,1);footer.Children.Add(_save);
         _save.Click+=(_,_)=>Save();
         var columns=new Grid();
         columns.ColumnDefinitions.Add(new ColumnDefinition {Width=new GridLength(242)});
@@ -94,10 +106,10 @@ internal sealed class LevelUpView : UserControl
             button.Click+=(_,_)=>callback();actions.Children.Add(button);
             return button;
         }
-        Action("+ Añadir",Add);
-        Action("− Quitar",Remove);
-        Action("Metrónomo",()=>{if(_rows.Count==0)return;foreach(var row in _rows)row.Move=118;RebuildCards();Dirty();});
-        Action("Randomizar especie",Randomize);
+        _editButtons.Add(Action("+ Añadir",Add));
+        _editButtons.Add(Action("− Quitar",Remove));
+        _editButtons.Add(Action("Metrónomo",()=>{if(_rows.Count==0)return;foreach(var row in _rows)row.Move=118;RebuildCards();Dirty();}));
+        _editButtons.Add(Action("Randomizar especie",Randomize));
         Action("Exportar CSV",Export);
         var randomSettings=new Border
         {
@@ -149,7 +161,14 @@ internal sealed class LevelUpView : UserControl
         _applyBulk.Click+=(_,_)=>ApplyBulk();
         bulkButtons.Children.Add(randomAll);bulkButtons.Children.Add(metronomeAll);
         bulkButtons.Children.Add(_applyBulk);
+        _discardBulk.Click+=(_,_)=>DiscardPreview();
+        _discardBulk.Margin=new Thickness(8,0,0,0);
+        bulkButtons.Children.Add(_discardBulk);
         DockPanel.SetDock(randomSettings,Dock.Top);right.Children.Add(randomSettings);
+        _previewBanner.Foreground=(Brush)FindResource("Accent");
+        _previewBanner.FontWeight=FontWeights.SemiBold;
+        _previewBanner.Margin=new Thickness(0,0,0,8);
+        DockPanel.SetDock(_previewBanner,Dock.Top);right.Children.Add(_previewBanner);
         // Like MT: three independent two-column DataGrids, each with normal
         // 34px rows. No stretched cells and no hidden row-header strip.
         for(int column=0;column<3;column++)
@@ -157,8 +176,8 @@ internal sealed class LevelUpView : UserControl
             var table=new DataGrid
             {
                 AutoGenerateColumns=false,CanUserAddRows=false,CanUserDeleteRows=false,
-                CanUserSortColumns=false,RowHeight=34,HeadersVisibility=DataGridHeadersVisibility.Column,
-                RowHeaderWidth=0,SelectionUnit=DataGridSelectionUnit.FullRow,
+                CanUserSortColumns=false,CanUserResizeColumns=false,RowHeight=34,HeadersVisibility=DataGridHeadersVisibility.Column,
+                RowHeaderWidth=0,MinColumnWidth=78,SelectionUnit=DataGridSelectionUnit.FullRow,
                 Background=(Brush)FindResource("Panel"),Foreground=(Brush)FindResource("TextMain"),
                 RowBackground=(Brush)FindResource("Panel"),
                 AlternatingRowBackground=(Brush)FindResource("Surface"),
@@ -174,7 +193,7 @@ internal sealed class LevelUpView : UserControl
             table.ColumnHeaderStyle=headStyle;
             table.Columns.Add(new DataGridTextColumn
             {
-                Header="Nivel",Width=62,Binding=new Binding("Level")
+                Header="Nivel",Width=90,MinWidth=90,Binding=new Binding("Level")
                 {Mode=BindingMode.TwoWay,UpdateSourceTrigger=UpdateSourceTrigger.LostFocus,
                     ValidatesOnExceptions=true}
             });
@@ -183,7 +202,7 @@ internal sealed class LevelUpView : UserControl
                 Header="Movimiento",ItemsSource=_service.Moves,DisplayMemberPath="Display",
                 SelectedValuePath="Id",SelectedValueBinding=new Binding("Move")
                 {Mode=BindingMode.TwoWay,UpdateSourceTrigger=UpdateSourceTrigger.PropertyChanged},
-                Width=new DataGridLength(1,DataGridLengthUnitType.Star),MinWidth=185
+                Width=new DataGridLength(1,DataGridLengthUnitType.Star),MinWidth=180
             });
             table.CellEditEnding+=(_,_)=>Dirty();
             table.SelectionChanged+=(_,_)=>
@@ -212,7 +231,41 @@ internal sealed class LevelUpView : UserControl
     private void InvalidateBulk()
     {
         _bulkPreview=null;
+        _proposedRows=null;
         if(_applyBulk is not null)_applyBulk.IsEnabled=false;
+        _discardBulk.Visibility=Visibility.Collapsed;
+        _previewBanner.Visibility=Visibility.Collapsed;
+        foreach(var table in _moveColumns)table.IsReadOnly=false;
+        foreach(var button in _editButtons)button.IsEnabled=true;
+    }
+    private void DiscardPreview()
+    {
+        InvalidateBulk();
+        Load(_current);
+        _status.Text="Vista previa descartada. Los archivos de la ROM permanecen intactos.";
+    }
+    private void ShowFrozenProposal(LevelUpBatchPreview proposal)
+    {
+        // Parse the exact GARC to be committed and show its rows for every species.
+        _proposedRows=_service.PreviewLearnsets(proposal);
+        foreach(var button in _editButtons)button.IsEnabled=false;
+        foreach(var table in _moveColumns)table.IsReadOnly=true;
+        _save.IsEnabled=false;
+        _discardBulk.Visibility=Visibility.Visible;
+        _previewBanner.Visibility=Visibility.Visible;
+        ShowCurrentLearnset();
+        _status.Text=$"VISTA PREVIA SIN GUARDAR · {proposal.Changes.Count} Pokémon afectados. " +
+            "Recorré las especies para inspeccionar sus movimientos; Aplicar propuesta global confirma el conjunto.";
+    }
+    private void ShowCurrentLearnset()
+    {
+        var proposal=_proposedRows;
+        var source=proposal is not null&&proposal.TryGetValue(_current,out var preview)
+            ?preview:_service.Read(_current);
+        _rows=new ObservableCollection<LevelUpMoveEntry>(
+            source.Select(r=>new LevelUpMoveEntry{Level=r.Level,Move=r.Move}));
+        _selectedMove=null;RebuildCards();_dirty=false;_save.IsEnabled=false;
+        _previewBanner.Text=proposal is null?"":$"VISTA PREVIA · Especie #{_current:000} · propuesta aún NO aplicada a la ROM";
     }
     private LevelUpRandomSettings ReadRandomOptions()
     {
@@ -248,7 +301,7 @@ internal sealed class LevelUpView : UserControl
             else
                 _bulkPreview=await Task.Run(()=>_service.PrepareRandomization(settings,metronome));
             _applyBulk!.IsEnabled=_bulkPreview.Changes.Count>0;
-            _status.Text=$"Vista previa congelada: {_bulkPreview.Changes.Count} Pokémon con cambios. Confirmá para guardar.";
+            ShowFrozenProposal(_bulkPreview);
         }
         catch(Exception ex){InvalidateBulk();StudioDialog.Error(Window.GetWindow(this),
             "Randomización Level Up",ex.Message);}
@@ -300,9 +353,9 @@ internal sealed class LevelUpView : UserControl
     private void Load(int id)
     {
         _current=id;
-        _rows=new ObservableCollection<LevelUpMoveEntry>(_service.Read(id));
-        _selectedMove=null;RebuildCards();_dirty=false;_save.IsEnabled=false;
-        _status.Text=$"Especie #{id:000} · {_rows.Count} movimientos de nivel.";
+        ShowCurrentLearnset();
+        if(_proposedRows is null)
+            _status.Text=$"Especie #{id:000} · {_rows.Count} movimientos de nivel.";
     }
     private void Commit()
     {
@@ -312,7 +365,7 @@ internal sealed class LevelUpView : UserControl
             table.CommitEdit(DataGridEditingUnit.Row,true);
         }
     }
-    private void Dirty(){InvalidateBulk();_dirty=true;_save.IsEnabled=true;_status.Text="Cambios pendientes. Guardá antes de cambiar de especie.";}
+    private void Dirty(){if(_proposedRows is not null)return;InvalidateBulk();_dirty=true;_save.IsEnabled=true;_status.Text="Cambios pendientes. Guardá antes de cambiar de especie.";}
     private void Add()
     {
         Commit();if(_rows.Count>=100)return;
