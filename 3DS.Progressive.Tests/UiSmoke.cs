@@ -104,6 +104,15 @@ internal static class UiSmoke
             ((Button)main.FindName("TrainersButton")).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             var trainer=(RecordEditorView)((ContentControl)main.FindName("SectionHost")).Content;
             check(trainer.Editor is ThreeDS.Progressive.Services.GameTrainerService,"WPF Trainers opens a real archive editor");
+            var pokemonTabs=(IDictionary)typeof(RecordEditorView)
+                .GetField("_pokemonTabs",BindingFlags.NonPublic|BindingFlags.Instance)!.GetValue(trainer)!;
+            check(pokemonTabs.Count==6 && pokemonTabs[0] is TabControl {Items.Count:3},
+                "WPF trainer team has six Pokémon editors with Main, IV/EV and Moves tabs");
+            var aiInput=(TextBox)trainer.FieldControls["AI"];
+            var aiParent=(StackPanel)aiInput.Parent;
+            check(aiInput.Text=="165"&&aiParent.Children.OfType<WrapPanel>().Any(p=>p.Children.Count==8),
+                "WPF Trainer AI mask has eight visual flags without losing the original byte value");
+
             check(((FrameworkElement)trainer.FindName("TrainerTeamPreview")).Visibility==Visibility.Visible
                 && ((StackPanel)trainer.FindName("TrainerTeamCards")).Children.Count>0,
                 "WPF trainer editor shows its Pokémon team cards");
@@ -131,6 +140,10 @@ internal static class UiSmoke
             check(trainerTabs.SelectedIndex==4,"WPF trainer BST tab remains selectable after dark template");
             trainerTabs.SelectedIndex=0;
 
+            check(trainer.OptionControls.ContainsKey("GlobalCaps.ApplyPrevious")
+                && trainer.OptionControls.ContainsKey("GlobalCaps.PreviousGap")
+                && trainer.OptionControls.ContainsKey("GlobalMoves.ResetUnlisted"),
+                "WPF exposes imported global Level Caps and Move Rules template policies");
             check(trainer.OptionControls.Keys.Any(k=>k.EndsWith(".CapUse",StringComparison.Ordinal))
                 && trainer.OptionControls.Keys.Any(k=>k.EndsWith(".MoveUse",StringComparison.Ordinal)),
                 "Trainer options expose level cap and move rules even without a saved template");
