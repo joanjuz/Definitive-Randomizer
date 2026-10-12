@@ -717,7 +717,7 @@ public partial class RSTE : Form
             GymE4Types.AddRange(Enumerable.Range(0, types.Length).ToArray());
         }
 
-        foreach (int t1 in rEnsureMEvo.Where(t1 => rTags[t1].Length != 0 && !TagTypes.ContainsKey(rTags[t1])))
+        foreach (int t1 in rEnsureMEvo.Where(t1 => t1 >= 0 && t1 < rTags.Length && rTags[t1].Length != 0 && !TagTypes.ContainsKey(rTags[t1])))
         {
             int t;
             if (rTags[t1].Contains("GYM") || rTags[t1].Contains("ELITE") || rTags[t1].Contains("CHAMPION"))

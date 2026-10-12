@@ -22,6 +22,12 @@ internal sealed class TrainerLogicHost
     private IDisposable Context()
     {
         Directory.CreateDirectory(_work);
+        string templates=Path.Combine(_work,"Templates");Directory.CreateDirectory(templates);
+        foreach(string name in new[]{"trainer_held_items.txt","trainer_better_movesets.txt"})
+        {
+            string source=Path.Combine(AppContext.BaseDirectory,"Templates",name),target=Path.Combine(templates,name);
+            if(File.Exists(source)&&!File.Exists(target))File.Copy(source,target);
+        }
         return Main.Enter(_work,_config);
     }
     private Form CreateOptions()
