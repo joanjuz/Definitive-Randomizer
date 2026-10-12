@@ -231,7 +231,11 @@ public sealed partial class GameProjectSession
                 "Estructura RomFS no reconocida por pk3DS (archivos detectados: " + count + ").");
 
         // El indice de idioma 2 es ingles, igual al valor por defecto del editor existente.
-        config.Initialize(romfs, exefs, 2);
+        var requestedLanguage=AppPreferences.Load().GameTextLanguageIndex;
+        // Gen6 original only exposes indices 0..7; unsupported selections
+        // revert to English without changing game files or settings.
+        config.Initialize(romfs,exefs,config.Generation==6&&requestedLanguage>7
+            ?2:requestedLanguage);
 
         var personalPath = Path.Combine(romfs, config.GetGARCFileName("personal"));
         if (!File.Exists(personalPath))
