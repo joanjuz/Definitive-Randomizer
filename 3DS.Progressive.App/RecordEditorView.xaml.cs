@@ -344,6 +344,53 @@ public partial class RecordEditorView : UserControl
             TrainerTeamCards.Children.Add(new TextBlock {Text="Este entrenador no tiene Pokémon en el equipo.",
                 Foreground=(Brush)FindResource("TextSoft"),Margin=new Thickness(6,12,6,12)});
     }
+    private void UpdateEncounterSprites(int id,IReadOnlyList<EditorGroup> groups)
+    {
+        EncounterSpriteCards.Children.Clear();
+        if(Editor is not ThreeDS.Progressive.Services.GameEncounterService
+            &&Editor is not ThreeDS.Progressive.Services.GameStaticEncounterService)
+        {
+            EncounterSpritePreview.Visibility=Visibility.Collapsed;
+            return;
+        }
+        var section=groups.FirstOrDefault(g=>g.Fields.Any(f=>f.Key=="Species"||
+            f.Key.EndsWith(".Species",StringComparison.Ordinal)));
+        if(section is null){EncounterSpritePreview.Visibility=Visibility.Collapsed;return;}
+        EncounterSpritePreview.Visibility=Visibility.Visible;
+        EncounterSpriteTitle.Text=section.Name.ToUpperInvariant()+" · SPRITES";
+        var entries=section.Fields.Where(f=>f.Key=="Species"||
+            f.Key.EndsWith(".Species",StringComparison.Ordinal)).Take(12).ToArray();
+        foreach(var field in entries)
+        {
+            string prefix=field.Key.EndsWith(".Species",StringComparison.Ordinal)
+                ?field.Key[..^7]:string.Empty;
+            int form=section.Fields.FirstOrDefault(f=>f.Key==prefix+"Form")?.Value??0;
+            int species=field.Value;
+            var picture=new Image {Width=52,Height=52,Stretch=Stretch.Uniform,
+                HorizontalAlignment=System.Windows.HorizontalAlignment.Center};
+            RenderOptions.SetBitmapScalingMode(picture,BitmapScalingMode.NearestNeighbor);
+            var fallback=new TextBlock {Text=species==0?"—":"…",FontSize=17,
+                Foreground=(Brush)FindResource("TextSoft"),
+                VerticalAlignment=System.Windows.VerticalAlignment.Center,
+                HorizontalAlignment=System.Windows.HorizontalAlignment.Center};
+            var art=new Grid {Height=56};art.Children.Add(picture);art.Children.Add(fallback);
+            var content=new StackPanel();content.Children.Add(art);
+            string label=field.Choices?.FirstOrDefault(c=>c.Id==species)?.Display??$"#{species}";
+            content.Children.Add(new TextBlock {Text=label,Width=95,
+                TextTrimming=TextTrimming.CharacterEllipsis,TextAlignment=TextAlignment.Center,FontSize=11});
+            var card=new Button {Content=content,Width=104,Margin=new Thickness(0,0,8,8),
+                Padding=new Thickness(3)};
+            string key=field.Key;
+            card.Click+=(_,_)=>
+            {
+                if(_editorSections.TryGetValue(key,out var expand))expand.IsExpanded=true;
+                if(_fields.TryGetValue(key,out var control))control.BringIntoView();
+            };
+            EncounterSpriteCards.Children.Add(card);
+            if(species>0)
+                _=LoadTeamSpriteAsync(picture,fallback,id,species,form,_trainerSpriteCancel!.Token);
+        }
+    }
     private static Dictionary<string,int> Values(Dictionary<string,FrameworkElement> controls)=>controls.ToDictionary(p=>p.Key,p=>p.Value switch
     {
         ComboBox {SelectedValue:int v}=>v,CheckBox check=>check.IsChecked==true?1:0,
@@ -368,7 +415,7 @@ public partial class RecordEditorView : UserControl
                 var groups=Editor.RandomOptions.Select(g=>g with {Fields=g.Fields.Select(f=>state is not null&&state.Options.TryGetValue(f.Key,out int value)?f with {Value=value}:f).ToArray()});
                 BuildGroups(OptionsPanel,groups,_options,false);
             }
-            _id=id;var record=Editor.Read(id);BuildGroups(FieldsPanel,record,_fields,true);UpdateTrainerTeam(id,record);SelectionText.Text=Editor.Entries.First(e=>e.Id==id).Display;_dirty=false;SaveButton.IsEnabled=false;StatusText.Text="Editor listo.";Invalidate();
+            _id=id;var record=Editor.Read(id);BuildGroups(FieldsPanel,record,_fields,true);UpdateTrainerTeam(id,record);UpdateEncounterSprites(id,record);SelectionText.Text=Editor.Entries.First(e=>e.Id==id).Display;_dirty=false;SaveButton.IsEnabled=false;StatusText.Text="Editor listo.";Invalidate();
         }
         finally{_loading=false;}
     }
