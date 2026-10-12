@@ -88,6 +88,90 @@ internal sealed class MachineTutorView : UserControl
             _status.Text="MT guardadas con verificación de code.bin e historial.";
         });
         commands.Children.Add(random);commands.Children.Add(_saveMachines);
+        // Native Gen7 TM compatibility: independent from tutor Sanity flags.
+        var tmCompatibilityControls=new StackPanel {Margin=new Thickness(0,0,0,10)};
+        DockPanel.SetDock(tmCompatibilityControls,Dock.Top);
+        machines.Children.Add(tmCompatibilityControls);
+        var tmFlags=new WrapPanel {Margin=new Thickness(0,0,0,8)};
+        var tmSanity=new CheckBox
+        {
+            Content="TM Sanity · movimientos aprendidos por nivel",
+            Foreground=text,Margin=new Thickness(0,3,18,3)
+        };
+        var tmFollow=new CheckBox
+        {
+            Content="TM Follow Evolutions · heredar compatibilidad",
+            Foreground=text,Margin=new Thickness(0,3,18,3)
+        };
+        tmFlags.Children.Add(tmSanity);
+        tmFlags.Children.Add(tmFollow);
+        tmCompatibilityControls.Children.Add(tmFlags);
+        GameTmCompatibilityService? tmCompatibilityService=null;
+        TmCompatibilityPreview? tmCompatibilityPreview=null;
+        var tmCompatibilityActions=new WrapPanel();
+        tmCompatibilityControls.Children.Add(tmCompatibilityActions);
+        var tmApplyCompatibility=new Button
+        {
+            Content="Aplicar compatibilidad MT",
+            IsEnabled=false,Margin=new Thickness(0,0,8,0)
+        };
+        void ClearTmProposal()
+        {
+            tmCompatibilityService=null;tmCompatibilityPreview=null;
+            tmApplyCompatibility.IsEnabled=false;
+        }
+        tmSanity.Checked+=(_,_)=>ClearTmProposal();
+        tmSanity.Unchecked+=(_,_)=>ClearTmProposal();
+        tmFollow.Checked+=(_,_)=>ClearTmProposal();
+        tmFollow.Unchecked+=(_,_)=>ClearTmProposal();
+        var tmPreviewCompatibility=new Button
+        {
+            Content="Vista previa compatibilidad MT",
+            Margin=new Thickness(0,0,8,0)
+        };
+        tmPreviewCompatibility.Click+=(_,_)=>TryAction(()=>
+        {
+            foreach(var table in _machineColumns)
+            {
+                table.CommitEdit(DataGridEditingUnit.Cell,true);
+                table.CommitEdit(DataGridEditingUnit.Row,true);
+            }
+            if(_dirtyMachines||_dirtyPrices)
+                throw new InvalidOperationException(
+                    "Guardá o descartá primero las ediciones de MT o tutores para usar sus datos activos.");
+            tmCompatibilityService=new GameTmCompatibilityService(_project);
+            tmCompatibilityPreview=tmCompatibilityService.Preview(
+                tmSanity.IsChecked==true,tmFollow.IsChecked==true);
+            tmApplyCompatibility.IsEnabled=tmCompatibilityPreview.Changes.Count>0;
+            var examples=string.Join(Environment.NewLine,tmCompatibilityPreview.Changes.Take(16)
+                .Select(d=>$"{d.Name}: {d.Before} → {d.After} compatibilidades MT"));
+            _status.Text=$"TM Sanity: +{tmCompatibilityPreview.AddedSanityFlags} · " +
+                $"Follow Evolutions: +{tmCompatibilityPreview.AddedInheritedFlags} · " +
+                $"{tmCompatibilityPreview.Changes.Count} entradas afectadas. Sin cambios de archivos.";
+            StudioDialog.Notice(Window.GetWindow(this),"Vista previa de compatibilidad MT",
+                $"{tmCompatibilityPreview.Changes.Count} registros del GARC Personal cambiarán.",
+                examples+(tmCompatibilityPreview.Changes.Count>16?Environment.NewLine+"…":""));
+        });
+        tmApplyCompatibility.Click+=(_,_)=>TryAction(()=>
+        {
+            if(tmCompatibilityService is null||tmCompatibilityPreview is null)return;
+            if(_dirtyMachines||_dirtyPrices)
+                throw new InvalidOperationException("Existen ediciones de MT/tutores pendientes.");
+            if(!StudioDialog.Confirm(Window.GetWindow(this),"Guardar compatibilidad MT",
+                $"¿Añadir compatibilidades a {tmCompatibilityPreview.Changes.Count} Pokémon/formas? " +
+                "Solo se modifican los bits TMHM en el GARC Personal."))return;
+            tmCompatibilityService.Apply(tmCompatibilityPreview);
+            ClearTmProposal();
+            _status.Text="TM Sanity/Follow Evolutions guardado y verificado en Personal.";
+        });
+        tmCompatibilityActions.Children.Add(tmPreviewCompatibility);
+        tmCompatibilityActions.Children.Add(tmApplyCompatibility);
+        tmCompatibilityControls.Children.Add(new TextBlock
+        {
+            Text="Sanity compara las MT actuales de code.bin con Level Up. " +
+                "Follow Evolutions hereda compatibilidad por cadenas, formas y ramas.",
+            Foreground=soft,TextWrapping=TextWrapping.Wrap
+        });
         machines.Children.Add(new TextBlock
         {
             Text="Solo se cambia la asignación de MT. La sincronización automática del texto descriptivo de objetos y las opciones Sanity/Follow Evolutions aún están pendientes.",
