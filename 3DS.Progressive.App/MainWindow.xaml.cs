@@ -260,6 +260,7 @@ public partial class MainWindow : Window
                     _globalTemplateView?.LoadedSourcePath),
 
                 "OWSE"=>new OwseDevView(_session),
+                "Rebuild"=>new RomRebuildView(_session),
                 "PokemonTools"=>new SystemsView(_session,"PokemonTools",NavigateSystem,
                     ()=>Backup_Click(BackupButton,new RoutedEventArgs()),OpenAutomatedPokemon),
                 "Mechanics"=>new SystemsView(_session,"Mechanics",NavigateSystem,
@@ -287,6 +288,11 @@ public partial class MainWindow : Window
     private void NavigateSystem(string section)
     {
         if(_session is null)return;
+        if(section=="ReloadLanguage")
+        {
+            _=ReloadProjectLanguageAsync();
+            return;
+        }
         var target=section switch
         {
             "Trainers"=>TrainersButton,"Encounters"=>EncountersButton,
@@ -308,13 +314,32 @@ public partial class MainWindow : Window
             SectionHost.Visibility=Visibility.Visible;
             return;
         }
-        if(section is "CroRecipes" or "UsumRelearner" or "EggMoves" or "MegaEvolutions" or "TypeChart" or "ShinyRate" or "OWSE")
+        if(section is "CroRecipes" or "UsumRelearner" or "EggMoves" or "MegaEvolutions" or "TypeChart" or "ShinyRate" or "OWSE" or "Rebuild")
         {
-            if(section is "EggMoves" or "MegaEvolutions" or "TypeChart" or "ShinyRate" or "OWSE"||_session.GameConfiguration.USUM)
+            if(section is "EggMoves" or "MegaEvolutions" or "TypeChart" or "ShinyRate" or "OWSE" or "Rebuild"||_session.GameConfiguration.USUM)
                 Section_Click(new Button{Tag=section},new RoutedEventArgs());
             return;
         }
         target?.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+    }
+    private async Task ReloadProjectLanguageAsync()
+    {
+        if(_session is null||!ConfirmDiscard()||!ConfirmAuxiliaryLeave())return;
+        string root=_session.ProjectRoot;
+        UiProgress.Begin("Options · Cargando textos del idioma seleccionado…");
+        UiProgress.Stage("Releyendo catálogos originales del juego…");
+        try
+        {
+            var candidate=await Task.Run(()=>GameProjectSession.Open(root));
+            LoadProject(candidate);
+            StatusText.Text="Idioma de datos aplicado: "+
+                AppPreferences.Load().GameTextLanguageIndex+". No se editó la ROM.";
+        }
+        catch(Exception ex)
+        {
+            StudioDialog.Error(this,"Idioma del juego",ex.Message);
+        }
+        finally{UiProgress.End();}
     }
     private void OpenAutomatedPokemon()
     {
