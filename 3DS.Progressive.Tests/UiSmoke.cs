@@ -64,7 +64,7 @@ internal static class UiSmoke
         foreach(bool caps in new[]{true,false})
         {
             var rulesWindow=new TrainerRulesWindow(candidates,caps);
-            rulesWindow.Show();
+            Layout(rulesWindow,1160,650);
             var important=(CheckBox)typeof(TrainerRulesWindow)
                 .GetField("_important",BindingFlags.NonPublic|BindingFlags.Instance)!.GetValue(rulesWindow)!;
             var bosses=(CheckBox)typeof(TrainerRulesWindow)
@@ -79,7 +79,7 @@ internal static class UiSmoke
             important.IsChecked=false;
             check(((System.Collections.IEnumerable)view).Cast<object>().Count()==0&&rulesWindow.Rows.Count==2,
                 "WPF trainer table filters preserve both hidden important and boss candidates");
-            rulesWindow.Close();
+            // Inline table stays hosted in the main editor; no modal window to close.
         }
         using(var fixture = new Fixture(GameVersion.USUM))
         {
