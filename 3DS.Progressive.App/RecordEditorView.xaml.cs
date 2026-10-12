@@ -5,6 +5,7 @@ using System.Windows.Controls.Primitives;
 using System.Windows.Data;
 using System.Windows.Media;
 using ThreeDS.Progressive.Models;
+using ThreeDS.Progressive.Services;
 using UserControl=System.Windows.Controls.UserControl;
 using TextBox=System.Windows.Controls.TextBox;
 using ComboBox=System.Windows.Controls.ComboBox;
