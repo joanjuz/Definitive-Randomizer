@@ -26,7 +26,7 @@ public sealed class GameMegaEvolutionService : ArchiveProjectEditor
             Field($"Slot{i}.Enabled","Habilitada",mega.Method[i]==1?1:0,0,1),
             Field($"Slot{i}.Item","Piedra activadora",mega.Argument[i],0,Project.ItemNames.Count-1,
                 Choices(TextName.ItemNames)),
-            Field($"Slot{i}.Form","Forma Mega resultante",mega.Form[i],0,Config.Personal[id].FormeCount-1)
+            Field($"Slot{i}.Form","Forma Mega resultante",mega.Form[i],0,Math.Max(0,Config.Personal[id].FormeCount-1))
         ],true)).ToArray();
     }
     protected override void WriteRecord(int id,IReadOnlyDictionary<string,int> fields,
