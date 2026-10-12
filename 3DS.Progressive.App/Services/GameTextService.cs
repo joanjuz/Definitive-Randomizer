@@ -50,8 +50,11 @@ public sealed class GameTextService
         var changes=Enumerable.Range(0,before.Length)
             .Where(i=>before[i]!=after[i])
             .Select(i=>new BatchChange(id,$"Archivo {id:000}","Línea "+i,before[i],after[i])).ToArray();
-        _sha=_project.History.CommitGarc(_path,_reference,_sha,records,"Historia y textos",
+        byte[] source=GarcTransaction.ReadUnchanged(_path,_sha);
+        byte[] output=GarcTransaction.Build(source,_reference,records,preserveRecordSize:false);
+        _project.History.Commit([new FileChange(_path,source,output)],"Historia y textos",
             "Editar texto del juego",changes);
+        _sha=SHA256.HashData(output);
         // Update only the modified loaded section; never discard the full localized text cache.
         if(id<_config.GameTextStrings.Length)_config.GameTextStrings[id]=after;
     }
