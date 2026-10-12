@@ -15,6 +15,7 @@ using ComboBox=System.Windows.Controls.ComboBox;
 using UserControl=System.Windows.Controls.UserControl;
 using Binding=System.Windows.Data.Binding;
 using Control=System.Windows.Controls.Control;
+using Panel=System.Windows.Controls.Panel;
 using DataGridColumnHeader=System.Windows.Controls.Primitives.DataGridColumnHeader;
 
 namespace ThreeDS.Progressive;
