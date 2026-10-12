@@ -32,6 +32,11 @@ public partial class RecordEditorView : UserControl
     internal RecordEditorView(IProjectEditor editor,UiState? state)
     {
         Editor=editor;InitializeComponent();TitleText.Text=editor.Title;RandomizerButton.Content="Randomizar "+editor.Title.ToLowerInvariant();
+        if(editor is ThreeDS.Progressive.Services.GameMegaEvolutionService)
+        {
+            RandomizerButton.Visibility=Visibility.Collapsed;
+            // Vanilla Mega Editor only offers manual slots, not a randomizer.
+        }
         if(editor is ThreeDS.Progressive.Services.GameTrainerService)
             TrainerCapsButton.Visibility=TrainerMovesButton.Visibility=Visibility.Visible;
         if(editor is ThreeDS.Progressive.Services.GameFieldItemsService)
