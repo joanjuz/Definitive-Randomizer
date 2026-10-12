@@ -104,6 +104,14 @@ internal sealed class SystemsView : UserControl
         AddButton((StackPanel)recipes.Child,"Abrir CRO Recipes",()=>
             _navigate("CroRecipes")).IsEnabled=_project.GameConfiguration.USUM;
         stack.Children.Add(recipes);
+        var learn=Card("Egg Moves · Movimientos huevo",
+            "Editor original Gen6/Gen7, especies y formas, aprendizaje y randomizador con tamaño y STAB configurables. Vista previa y guardado con historial.");
+        AddButton((StackPanel)learn.Child,"Abrir Egg Moves",()=>_navigate("EggMoves"));
+        stack.Children.Add(learn);
+        var mega=Card("Mega Evolutions · Evoluciones Mega",
+            "Editá ambas Mega formas, piedras y habilitación por especie sin perder los bytes originales. Rayquaza conserva su regla especial.");
+        AddButton((StackPanel)mega.Child,"Abrir Mega Evolutions",()=>_navigate("MegaEvolutions"));
+        stack.Children.Add(mega);
         var staticCard=Card("Parcheos de encuentros e intercambios",
             "Gift BST Baseline, Totem BST y Level Caps por ID, Trades Accept Any Pokémon y limpieza de diálogos españoles en encuentros estáticos.");
         AddButton((StackPanel)staticCard.Child,"Abrir Encuentros estáticos",()=>_navigate("StaticEncounters")).IsEnabled=
