@@ -17,6 +17,7 @@ internal sealed class RomRebuildView : UserControl
     private readonly TextBlock _detail;
     private readonly Button _run;
     private bool _busy;
+    internal bool ConfirmLeave()=>!_busy;
     internal RomRebuildView(GameProjectSession project)
     {
         _service=new GameRomRebuildService(project);
