@@ -157,13 +157,28 @@ internal sealed class SystemsView : UserControl
             UiProgress.Begin("Calculando hashes SHA-256 de los archivos de la ROM…");
             try
             {
-                var items=await Task.Run(()=>Directory.EnumerateFiles(root,"*",SearchOption.AllDirectories)
-                    .Where(f=>f.StartsWith(Path.Combine(root,"RomFS"),StringComparison.OrdinalIgnoreCase)
-                        ||f.StartsWith(Path.Combine(root,"ExeFS"),StringComparison.OrdinalIgnoreCase))
-                    .OrderBy(f=>f,StringComparer.OrdinalIgnoreCase)
-                    .Select(f=>new RomFile(Path.GetRelativePath(root,f),
-                        new FileInfo(f).Length,Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(f)))))
-                    .ToArray());
+                var items=await Task.Run(()=>
+                {
+                    UiProgress.Stage("Enumerando archivos RomFS/ExeFS…");
+                    var files=Directory.EnumerateFiles(root,"*",SearchOption.AllDirectories)
+                        .Where(f=>f.StartsWith(Path.Combine(root,"RomFS")+Path.DirectorySeparatorChar,
+                                StringComparison.OrdinalIgnoreCase)
+                            ||f.StartsWith(Path.Combine(root,"ExeFS")+Path.DirectorySeparatorChar,
+                                StringComparison.OrdinalIgnoreCase))
+                        .OrderBy(f=>f,StringComparer.OrdinalIgnoreCase).ToArray();
+                    var result=new List<RomFile>(files.Length);
+                    UiProgress.Count("Archivos localizados",0,Math.Max(files.Length,1));
+                    for(int i=0;i<files.Length;i++)
+                    {
+                        using var input=File.OpenRead(files[i]);
+                        string digest=Convert.ToHexString(SHA256.HashData(input));
+                        result.Add(new RomFile(Path.GetRelativePath(root,files[i]),
+                            input.Length,digest));
+                        UiProgress.Count("Calculando SHA-256 · "+Path.GetFileName(files[i]),
+                            i+1,Math.Max(files.Length,1));
+                    }
+                    return result.ToArray();
+                });
                 File.WriteAllText(target,JsonSerializer.Serialize(new
                 {
                     Game=_project.GameName,Project=Path.GetFileName(root),
