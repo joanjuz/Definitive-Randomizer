@@ -73,6 +73,7 @@ internal sealed class MartEditorView : UserControl
 
         _regularGrid = CreateGrid(false);
         _bpGrid = CreateGrid(true);
+        _regularGrid.SelectionChanged += (_, _) => UpdateButtons();
         _tabs.Items.Add(new TabItem { Header = "Tiendas normales", Content = Pane(false) });
         _tabs.Items.Add(new TabItem { Header = "Tiendas BP", Content = Pane(true) });
         _tabs.SelectionChanged += (_, e) =>
@@ -147,6 +148,26 @@ internal sealed class MartEditorView : UserControl
             SelectedValueBinding = new Binding(nameof(MartSlotRow.ItemId))
             { Mode = BindingMode.TwoWay, UpdateSourceTrigger = UpdateSourceTrigger.PropertyChanged }
         });
+        if (!bp)
+        {
+            var removeButton = new FrameworkElementFactory(typeof(Button));
+            removeButton.SetValue(Button.ContentProperty, "Quitar");
+            removeButton.SetValue(Button.PaddingProperty, new Thickness(9, 3, 9, 3));
+            removeButton.SetValue(Button.MarginProperty, new Thickness(3, 2, 3, 2));
+            removeButton.AddHandler(Button.ClickEvent, new RoutedEventHandler((sender, args) =>
+            {
+                if (sender is Button { DataContext: MartSlotRow row })
+                {
+                    DeleteSpecificRow(row);
+                    args.Handled = true;
+                }
+            }));
+            grid.Columns.Add(new DataGridTemplateColumn
+            {
+                Header = "Acción", Width = 90,
+                CellTemplate = new DataTemplate { VisualTree = removeButton }
+            });
+        }
         if (bp)
             grid.Columns.Add(new DataGridTextColumn
             {
@@ -254,8 +275,13 @@ internal sealed class MartEditorView : UserControl
     private void DeleteSlot()
     {
         CommitBoth();
+        if (_regularGrid.SelectedItem is MartSlotRow selected) DeleteSpecificRow(selected);
+    }
+    private void DeleteSpecificRow(MartSlotRow row)
+    {
         if (_regularPicker.SelectedItem is not MartShop shop ||
-            _regularGrid.SelectedItem is not MartSlotRow row || shop.Rows.Count <= 1) return;
+            shop.Rows.Count <= 1 || !shop.Rows.Contains(row)) return;
+        CommitBoth();
         shop.Rows.Remove(row);
         for (int i = 0; i < shop.Rows.Count; i++) shop.Rows[i].Number = i + 1;
         _regularGrid.Items.Refresh();
