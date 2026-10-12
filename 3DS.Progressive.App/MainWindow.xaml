@@ -103,6 +103,8 @@
                                    Margin="12,25,0,12"/>
                         <Button x:Name="MechanicsButton" Content="◈  Mecánicas y CRO"
                                 Style="{StaticResource SidebarButton}" IsEnabled="False" Tag="Mechanics" Click="Section_Click"/>
+                        <Button x:Name="PokemonToolsButton" Content="◈  Herramientas Pokémon"
+                                Style="{StaticResource SidebarButton}" IsEnabled="False" Tag="PokemonTools" Click="Section_Click"/>
                         <Button x:Name="RomToolsButton" Content="▧  Herramientas ROM"
                                 Style="{StaticResource SidebarButton}" IsEnabled="False" Tag="RomTools" Click="Section_Click"/>
                         <Button x:Name="AutomationButton" Content="⇄  Automatización"
