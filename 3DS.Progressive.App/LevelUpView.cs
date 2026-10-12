@@ -9,6 +9,7 @@ using ThreeDS.Progressive.Models;
 using ThreeDS.Progressive.Services;
 using Brush=System.Windows.Media.Brush;
 using Button=System.Windows.Controls.Button;
+using CheckBox=System.Windows.Controls.CheckBox;
 using UserControl=System.Windows.Controls.UserControl;
 using DataGrid=System.Windows.Controls.DataGrid;
 using DataGridRow=System.Windows.Controls.DataGridRow;
