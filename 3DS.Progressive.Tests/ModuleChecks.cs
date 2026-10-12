@@ -190,6 +190,9 @@ internal static class ModuleChecks
                     &&Read(f,"encounterstatic")[4][0x30]==0xAA,
                     version+" static trades preserve unrelated event flags when saving");
                 var staticOptions=EditorValues.Flatten(statics.RandomOptions);
+                check(staticOptions.ContainsKey("G7")&&staticOptions.ContainsKey("RandomItems")
+                    &&staticOptions.ContainsKey("RemoveLocks")&&staticOptions.ContainsKey("TotemAura"),
+                    version+" static randomizer exposes vanilla-like pool and safe item/aura/lock toggles");
                 staticOptions["Species"]=0;staticOptions["LevelScale"]=120;
                 var staticPreview=statics.Preview(staticOptions,[1]);
                 check(staticPreview.Changes.Count>0
@@ -204,6 +207,18 @@ internal static class ModuleChecks
                 version+" level-up moves are preserved and sorted when saving");
             check(new Learnset6(Read(f,"levelup")[2]).Moves[0]==1,
                 version+" level-up editing does not touch other Pokémon");
+            var bulkOriginal=File.ReadAllBytes(PathFor(f,"levelup"));
+            var bulkPreview=levelup.PrepareRandomization(
+                new LevelUpRandomSettings(f.Game.Generation==6,true,15,false,25,false,false,79,true),
+                metronome:true);
+            check(bulkPreview.Changes.Count>10&&
+                File.ReadAllBytes(PathFor(f,"levelup")).SequenceEqual(bulkOriginal),
+                version+" all-Pokémon Metronome preview is read-only and produces a frozen patch");
+            levelup.ApplyRandomization(bulkPreview);
+            check(levelup.Read(1).Count==1&&levelup.Read(1)[0].Move==118
+                &&levelup.Read(2)[0].Level==1,
+                version+" all-Pokémon Metronome applies safely through GARC history");
+
             var item=new GameItemService(f.Session);
             var iv=EditorValues.Flatten(item.Read(1));
             check(iv["Price"]==10,version+" item editor reads base 10-unit price");
