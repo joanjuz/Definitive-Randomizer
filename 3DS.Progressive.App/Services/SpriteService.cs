@@ -31,7 +31,11 @@ public sealed class SpriteService
         _customFolder = Path.Combine(root, "custom");
     }
 
-    public async Task<SpriteResult> GetSpriteAsync(int personalEntry, int speciesId, CancellationToken cancellationToken = default)
+    public Task<SpriteResult> GetSpriteAsync(int personalEntry, int speciesId, CancellationToken cancellationToken = default)
+        => GetSpriteAsync(personalEntry, speciesId, 0, cancellationToken);
+
+    // La forma se usa para resolver primero los recursos del pk3DS original.
+    public async Task<SpriteResult> GetSpriteAsync(int personalEntry, int speciesId, int form, CancellationToken cancellationToken = default)
     {
         if (speciesId is < 1 or > 1025)
             return new SpriteResult(null, "Sprite no disponible para esta entrada.");
@@ -41,6 +45,8 @@ public sealed class SpriteService
         string[] customCandidates =
         [
             Path.Combine(_customFolder, $"entry-{personalEntry:D3}.png"),
+            Path.Combine(_customFolder, $"species-{speciesId:D3}-form-{form}.png"),
+            Path.Combine(_customFolder, $"{speciesId}-{form}.png"),
             Path.Combine(_customFolder, $"species-{speciesId:D3}.png"),
             Path.Combine(_customFolder, $"{speciesId:D3}.png"),
             Path.Combine(_customFolder, $"{speciesId}.png")
@@ -60,6 +66,24 @@ public sealed class SpriteService
             {
                 // Un PNG corrupto no debe impedir mostrar un sprite valido del cache.
             }
+        }
+
+        // Usar los sprites originales empaquetados: sin internet y con formas alternativas.
+        // Los recursos personalizados conservan la prioridad.
+        string packaged = Path.Combine(AppContext.BaseDirectory, "Sprites");
+        string[] bundledCandidates = form > 0
+            ? [Path.Combine(packaged, $"{speciesId}-{form}.png"), Path.Combine(packaged, $"{speciesId}.png")]
+            : [Path.Combine(packaged, $"{speciesId}.png")];
+        foreach (string path in bundledCandidates)
+        {
+            if (!File.Exists(path)) continue;
+            try
+            {
+                return new SpriteResult(await LoadLocalAsync(path, cancellationToken), "Sprite original de pk3DS");
+            }
+            catch (OperationCanceledException) { throw; }
+            catch (IOException) { }
+            catch (Exception) { }
         }
 
         string cached = Path.Combine(_cacheFolder, $"{speciesId:D3}.png");
