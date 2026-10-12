@@ -313,6 +313,7 @@ internal sealed class BatchRomProgressDialog : Form
             PB_Current.Minimum = sourceMin;
             PB_Current.Maximum = sourceMax;
             PB_Current.Value = Math.Clamp(sourceValue, sourceMin, sourceMax);
+            BatchBridgeProgress.RebuildProgress(sourceValue-sourceMin,sourceMax-sourceMin);
         }
         catch
         {
