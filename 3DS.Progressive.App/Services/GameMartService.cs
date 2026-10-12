@@ -234,6 +234,18 @@ public sealed partial class GameMartService
         _project.RefreshMoveAssignments();
     }
 
+    // Shared by the row action and toolbar, so existing slots and newly added
+    // slots follow exactly the same rules. BP slots are intentionally fixed.
+    public static bool TryRemoveRegularSlot(MartShop shop, MartSlotRow row)
+    {
+        if (shop.IsBP || shop.Rows.Count <= 1 || !shop.Rows.Contains(row))
+            return false;
+        shop.Rows.Remove(row);
+        for (int i = 0; i < shop.Rows.Count; i++)
+            shop.Rows[i].Number = i + 1;
+        return true;
+    }
+
     public void FreeMegaStoneBP()
     {
         if (BpShops.Count <= 5)
