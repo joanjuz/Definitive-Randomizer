@@ -54,7 +54,13 @@ public partial class RecordEditorView : UserControl
         if(editor is ThreeDS.Progressive.Services.GameEncounterService wild&&state is not null)
             wild.RestoreRangeOptions(state.Options);
         if(editor is IOptionTemplateProjectEditor optionTemplate)
-        {ImportOptionsButton.Visibility=ExportOptionsButton.Visibility=Visibility.Visible;if(state?.Template is { } saved)optionTemplate.RestoreOptions(saved);}
+        {ImportOptionsButton.Visibility=ExportOptionsButton.Visibility=Visibility.Visible;
+            if(editor is ThreeDS.Progressive.Services.GameEncounterService)
+            {
+                ImportOptionsButton.Content="Cargar template Wild";
+                ExportOptionsButton.Content="Exportar template Wild";
+            }
+            if(state?.Template is { } saved)optionTemplate.RestoreOptions(saved);}
         RecordList.ItemsSource=editor.Entries;CountText.Text=editor.Entries.Count+" entradas";
         // Cargar las reglas del entrenador que realmente estará seleccionado, no las del ID por defecto del host.
         if(editor is ThreeDS.Progressive.Services.GameTrainerService trainers&&editor.Entries.Count>0)
@@ -846,15 +852,24 @@ public partial class RecordEditorView : UserControl
     private void ImportOptions_Click(object sender,RoutedEventArgs e)
     {
         if(Editor is not IOptionTemplateProjectEditor editor)return;
-        var dialog=new Microsoft.Win32.OpenFileDialog {Filter="Template de entrenadores Progressive|*.json"};if(dialog.ShowDialog(Window.GetWindow(this))!=true)return;
+        bool wild=Editor is ThreeDS.Progressive.Services.GameEncounterService;
+        var dialog=new Microsoft.Win32.OpenFileDialog
+        {Filter=wild?"Template Wild Progressive v1|*.json":"Template de entrenadores Progressive|*.json"};
+        if(dialog.ShowDialog(Window.GetWindow(this))!=true)return;
         try{editor.ImportOptions(dialog.FileName);_loading=true;BuildGroups(OptionsPanel,Editor.RandomOptions,_options,false);_loading=false;Randomizer_Click(sender,e);}
         catch(Exception ex){_loading=false;StudioDialog.Error(Window.GetWindow(this),"No se pudo cargar el template",ex.Message);}
     }
     private void ExportOptions_Click(object sender,RoutedEventArgs e)
     {
         if(Editor is not IOptionTemplateProjectEditor editor)return;
-        var dialog=new Microsoft.Win32.SaveFileDialog {Filter="Template de entrenadores Progressive|*.json",FileName="trainer-template.json"};if(dialog.ShowDialog(Window.GetWindow(this))!=true)return;
-        try{editor.ExportOptions(dialog.FileName,OptionValues());StudioDialog.Notice(Window.GetWindow(this),"Template exportado","Se conservaron las opciones, rangos y reglas de entrenadores.");}
+        bool wild=Editor is ThreeDS.Progressive.Services.GameEncounterService;
+        var dialog=new Microsoft.Win32.SaveFileDialog
+        {Filter=wild?"Template Wild Progressive v1|*.json":"Template de entrenadores Progressive|*.json",
+        FileName=wild?"wild-template.json":"trainer-template.json"};
+        if(dialog.ShowDialog(Window.GetWindow(this))!=true)return;
+        try{editor.ExportOptions(dialog.FileName,OptionValues());StudioDialog.Notice(Window.GetWindow(this),"Template exportado",
+            wild?"Se conservaron los filtros y rangos Progressive Wild v1.":
+            "Se conservaron las opciones, rangos y reglas de entrenadores.");}
         catch(Exception ex){StudioDialog.Error(Window.GetWindow(this),"No se pudo exportar",ex.Message);}
     }
     private async void Apply_Click(object sender,RoutedEventArgs e)
