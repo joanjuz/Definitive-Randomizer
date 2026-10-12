@@ -54,6 +54,9 @@ internal sealed class LevelUpView : UserControl
     private int _current;
     private bool _bulkBusy;
     private bool _dirty,_loading;
+    internal IReadOnlyList<DataGrid> MoveTables=>_moveColumns;
+    internal bool HasGlobalPreview=>_proposedRows is not null;
+    internal IReadOnlyList<LevelUpMoveEntry> VisibleLearnset=>_rows.ToArray();
     internal bool HasPendingChanges=>_dirty;
     internal bool ConfirmLeave()=>!_bulkBusy&&(!_dirty||StudioDialog.Confirm(Window.GetWindow(this),
         "Movimientos pendientes","La especie tiene movimientos sin guardar.","Si continuás, se descartarán estos cambios."));
