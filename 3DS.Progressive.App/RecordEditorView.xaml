@@ -74,6 +74,8 @@
      <TextBlock Text="El historial conserva los valores de una edición individual. Las operaciones masivas guardan la acción y sus opciones, con una semilla nueva para cada futura randomización." Foreground="{StaticResource TextSoft}" TextWrapping="Wrap" Margin="0,20,0,0"/>
     </StackPanel>
    </Border>
+   <ContentControl Grid.ColumnSpan="3" x:Name="TrainerRulesHost" Visibility="Collapsed"
+                   Background="{StaticResource Bg}"/>
   </Grid>
   <Border Grid.Row="2" Background="#111720" Padding="20,12" BorderBrush="{StaticResource Stroke}" BorderThickness="0,1,0,0"><TextBlock x:Name="StatusText" Text="Editor listo." FontSize="11" Foreground="{StaticResource TextSoft}" TextWrapping="Wrap"/></Border>
  </Grid>
