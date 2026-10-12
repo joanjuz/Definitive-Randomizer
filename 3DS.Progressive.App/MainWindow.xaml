@@ -95,6 +95,7 @@
                                 Style="{StaticResource SidebarButton}" IsEnabled="False" Tag="LevelUp" Click="Section_Click"/>
                         <Button x:Name="MachineTutorButton" Content="▣  MT y tutores" Style="{StaticResource SidebarButton}" IsEnabled="False" Tag="MachineTutor" Click="Section_Click"/>
                         <Button x:Name="ItemsButton" Content="▤  Objetos y economía" Style="{StaticResource SidebarButton}" IsEnabled="False" Tag="Items" Click="Section_Click"/>
+                        <Button x:Name="MartsButton" Content="▦  Tiendas y BP · USUM" Style="{StaticResource SidebarButton}" IsEnabled="False" Tag="Marts" Click="Section_Click"/>
                         <Button x:Name="FieldItemsButton" Content="♢  Field Items"
                                 Style="{StaticResource SidebarButton}" IsEnabled="False" Tag="FieldItems" Click="Section_Click"/>
                         <Button x:Name="EvolutionsButton" Content="◆  Evoluciones" Style="{StaticResource SidebarButton}" IsEnabled="False" Tag="Evolutions" Click="Section_Click"/>
