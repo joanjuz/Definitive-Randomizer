@@ -21,6 +21,13 @@ internal sealed class BatchBridgeRequest
     public bool AllowAssetMismatch {get;set;}
 }
 
+
+internal sealed class RelearnerBridgeRequest
+{
+    public string ProjectRoot{get;set;}=string.Empty;
+    public string StageRoot{get;set;}=string.Empty;
+}
+
 public partial class Main
 {
     internal async Task RunBatchBridge(string requestFile)
@@ -64,4 +71,27 @@ public partial class Main
         if(!File.Exists(report)||!File.ReadAllText(report).Contains("Completed:"))
             throw new IOException("Original batch executor did not report successful completion.");
     }
+    internal void RunRelearnerPreviewBridge(string requestFile)
+    {
+        var req=JsonSerializer.Deserialize<RelearnerBridgeRequest>(File.ReadAllText(requestFile))
+            ??throw new InvalidDataException("Solicitud Relearner vacía.");
+        string source=Path.GetFullPath(req.ProjectRoot);
+        string stage=Path.GetFullPath(req.StageRoot);
+        if(!Directory.Exists(source)||
+            stage.Equals(source,StringComparison.OrdinalIgnoreCase)||
+            stage.StartsWith(source.TrimEnd(Path.DirectorySeparatorChar)+Path.DirectorySeparatorChar,
+                StringComparison.OrdinalIgnoreCase))
+            throw new InvalidDataException("Carpeta de staging insegura.");
+        OpenQuick(source);
+        if(Config?.USUM!=true||string.IsNullOrWhiteSpace(ExHeaderPath))
+            throw new InvalidDataException("Se necesita una extracción USUM con RomFS, ExeFS y ExHeader.");
+        var config=Config;
+        string exHeader=ExHeaderPath;
+        BatchWorkspace.PrepareCleanCopy(source,stage,config,exHeader,false);
+        OpenQuick(stage);
+        if(Config?.USUM!=true)throw new InvalidDataException("La copia no se identificó como USUM.");
+        string report=USUMMoveRelearnerPatcher.Apply(ExeFSPath,Config);
+        File.WriteAllText(Path.Combine(stage,"relearner-preview-report.txt"),report);
+    }
+
 }
