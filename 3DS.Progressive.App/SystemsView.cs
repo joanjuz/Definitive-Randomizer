@@ -145,6 +145,11 @@ internal sealed class SystemsView : UserControl
     }
     private void BuildRomTools(StackPanel stack)
     {
+        var rebuild=Card("Rebuild · RomFS, ExeFS y .3DS",
+            "Reconstrucción original de pk3DS: RomFS, ExeFS, 3DS completo y Trimmed 3DS. " +
+            "Salida externa, staging temporal, verificación SHA-256 y progreso por etapas reales.");
+        AddButton((StackPanel)rebuild.Child,"Abrir Rebuild",()=>_navigate("Rebuild"));
+        stack.Children.Add(rebuild);
         var audit=Card("Auditoría de archivos de la ROM",
             "Inventario reproducible con rutas relativas, tamaño y SHA-256 de cada archivo extraído. Exporta un JSON para comparar respaldos o detectar archivos alterados; no modifica el juego.");
         var panel=(StackPanel)audit.Child;
