@@ -119,7 +119,7 @@ public sealed class GameStaticEncounterService : ArchiveProjectEditor
         {
             var enc=new EncounterStatic7(bytes);
             enc.Species=v["Species"];enc.Form=v["Form"];enc.Level=v["Level"];
-            enc.HeldItem=v["Item"];enc.Gender=v["Gender"];enc.Ability=v["Ability"];enc.Nature=v["Nature"];
+            if(v["Item"]!=enc.HeldItem)enc.HeldItem=v["Item"];enc.Gender=v["Gender"];enc.Ability=v["Ability"];enc.Nature=v["Nature"];
             bytes[6]=(byte)((bytes[6]&~3)|(v["Shiny"]==1?1:0)|(v["ShinyLock"]==1?2:0));
             enc.Aura=v["Aura"];enc.Allies=v["Allies"];
             enc.RelearnMoves=Enumerable.Range(0,4).Select(i=>v[$"Move{i}"]).ToArray();
@@ -128,7 +128,10 @@ public sealed class GameStaticEncounterService : ArchiveProjectEditor
         {
             var trade=new EncounterTrade7(bytes);
             trade.Species=v["Species"];trade.Form=v["Form"];trade.Level=v["Level"];
-            trade.TradeRequestSpecies=v["Request"];trade.HeldItem=v["Item"];
+            if(v["Request"]==0&&trade.TradeRequestSpecies!=0)
+                throw new NotSupportedException("Accept Any Pokémon requiere el parche del selector de intercambios USUM; no basta con poner 0 en el registro.");
+            trade.TradeRequestSpecies=v["Request"];
+            if(v["Item"]!=trade.HeldItem)trade.HeldItem=v["Item"];
             trade.Ability=v["Ability"];trade.Nature=v["Nature"];trade.Gender=v["Gender"];
             trade.TID=v["TID"];trade.SID=v["SID"];
         }
@@ -139,13 +142,14 @@ public sealed class GameStaticEncounterService : ArchiveProjectEditor
     {
         var slot=_slots[id];var values=EditorValues.Flatten(ReadRecord(id,records));
         bool enabled=slot.File switch{0=>options["Gifts"]==1,1=>options["Static"]==1,_=>options["Trades"]==1};
-        if(!enabled)return values;
+        if(!enabled||values["Species"]<=0)return values;
         if(options["Species"]==1&&values["Species"]>0)
         {
             values["Species"]=PickSpecies(values["Species"],random,options["BST"]);
             values["Form"]=0;
         }
-        values["Level"]=Math.Clamp((int)Math.Round(values["Level"]*options["LevelScale"]/100.0),1,100);
+        if(values["Level"]>0)
+            values["Level"]=Math.Clamp((int)Math.Round(values["Level"]*options["LevelScale"]/100.0),1,100);
         if(slot.File!=4&&options["ShinyLock"]==1)
             values["ShinyLock"]=EditorValues.Flatten(ReadRecord(id,records))["ShinyLock"];
         return values;
