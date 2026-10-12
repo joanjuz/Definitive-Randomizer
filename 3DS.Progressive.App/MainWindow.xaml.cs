@@ -58,12 +58,30 @@ public partial class MainWindow : Window
                 Dispatcher.BeginInvoke(()=>
                 {
                     OperationProgress.Visibility=busy?Visibility.Visible:Visibility.Collapsed;
+                    OperationProgress.IsIndeterminate=true;
+                    OperationPercent.Visibility=Visibility.Collapsed;
                     if(busy)StatusText.Text=message;
                 });
                 return;
             }
             OperationProgress.Visibility=busy?Visibility.Visible:Visibility.Collapsed;
+            OperationProgress.IsIndeterminate=true;
+            OperationPercent.Visibility=Visibility.Collapsed;
             if(busy)StatusText.Text=message;
+        };
+        UiProgress.Reported+=(message,percentage)=>
+        {
+            void Update()
+            {
+                OperationProgress.Visibility=Visibility.Visible;
+                OperationProgress.IsIndeterminate=false;
+                OperationProgress.Value=percentage;
+                OperationPercent.Visibility=Visibility.Visible;
+                OperationPercent.Text=$"{percentage:0.0}%";
+                StatusText.Text=message;
+            }
+            if(Dispatcher.CheckAccess())Update();
+            else Dispatcher.BeginInvoke((Action)Update);
         };
         PersonalToolsHost.Content = _personalTools;
         _personalTools.BackRequested += ClosePersonalTools;
