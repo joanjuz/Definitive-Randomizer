@@ -115,6 +115,24 @@ internal static class SystemsExpansionChecks
         check(progress.Percent==25&&progress.Completed==2&&progress.Total==8,
             "General progress calculates true 25% from measured work");
         ThreeDS.Progressive.UiProgress.End();
+        // Reproduces the WinForms handle failure that occurred specifically in
+        // CTRUtil.WriteROM during the final .3DS phase. The real rebuild uses
+        // Task.Run, so check Control.Invoke on an unshown ProgressBar there too.
+        bool ctrProgressWorks=Task.Run(() =>
+        {
+            using var progressBar=GameRomRebuildService.CreateLegacyProgressBar();
+            progressBar.Invoke((Action)(() =>
+            {
+                progressBar.Minimum=0;
+                progressBar.Maximum=2;
+                progressBar.Value=0;
+                progressBar.Step=1;
+                progressBar.PerformStep();
+            }));
+            return progressBar.IsHandleCreated && progressBar.Value==1;
+        }).GetAwaiter().GetResult();
+        check(ctrProgressWorks,
+            "Rebuild .3DS initializes native progress handle before CTRUtil.Invoke");
         var rebuild=new GameRomRebuildService(f.Session);
         reject(()=>rebuild.BuildAsync(RomRebuildKind.RomFS,
                 Path.Combine(f.Session.ProjectRoot,"unsafe.romfs")).GetAwaiter().GetResult(),
