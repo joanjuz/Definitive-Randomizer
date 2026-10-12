@@ -65,5 +65,94 @@ public sealed class GameTextService
         // Update only the modified loaded section; never discard the full localized text cache.
         if(!_story && id<_config.GameTextStrings.Length)_config.GameTextStrings[id]=after;
     }
+    // Vanilla TextEditor-compatible full-bank dump. Keep escaped in-game
+    // control sequences untouched; visually stripped dumps cannot be imported.
+    public string ExportAll()
+    {
+        var files=ReadRecords();
+        var sb=new System.Text.StringBuilder();
+        for(int i=0;i<files.Length;i++)
+        {
+            sb.AppendLine("~~~~~~~~~~~~~~~");
+            sb.AppendLine("Text File : "+i);
+            sb.AppendLine("~~~~~~~~~~~~~~~");
+            foreach(string line in new TextFile(_config,files[i],_config.RemapCharacters).Lines)
+                sb.AppendLine(line);
+        }
+        return sb.ToString();
+    }
+
+    public TextBankPreview PreviewImportAll(string dump)
+    {
+        if(string.IsNullOrWhiteSpace(dump))
+            throw new InvalidDataException("El archivo de importación está vacío.");
+        byte[] original=GarcTransaction.ReadUnchanged(_path,_sha);
+        var files=new GARC.MemGARC(original).Files;
+        using var reader=new StringReader(dump);
+        var changes=new List<BatchChange>();
+        string? separator=null;
+        for(int i=0;i<files.Length;i++)
+        {
+            separator ??=reader.ReadLine();
+            if(separator!="~~~~~~~~~~~~~~~")
+                throw new InvalidDataException($"Falta el separador del archivo {i}.");
+            string header=reader.ReadLine()??"";
+            if(header!="Text File : "+i)
+                throw new InvalidDataException($"Se esperaba 'Text File : {i}', encontrado '{header}'.");
+            if(reader.ReadLine()!="~~~~~~~~~~~~~~~")
+                throw new InvalidDataException($"Falta el encabezado completo de archivo {i}.");
+            var lines=new List<string>();
+            string? next;
+            while((next=reader.ReadLine()) is not null && next!="~~~~~~~~~~~~~~~")
+                lines.Add(next);
+            separator=next;
+            string[] before=new TextFile(_config,files[i],_config.RemapCharacters).Lines;
+            if(lines.Count!=before.Length)
+                throw new InvalidDataException($"Archivo {i}: {lines.Count} líneas recibidas; " +
+                    $"{before.Length} esperadas. No se moverán referencias de scripts.");
+            if(before.SequenceEqual(lines))continue;
+            byte[] encoded=TextFile.GetBytes(_config,lines.ToArray(),_config.RemapCharacters);
+            var verified=new TextFile(_config,encoded,_config.RemapCharacters).Lines;
+            if(!verified.SequenceEqual(lines))
+                throw new InvalidDataException($"Archivo {i}: códigos de control o texto no reversibles.");
+            for(int line=0;line<lines.Count;line++)
+                if(before[line]!=lines[line])
+                    changes.Add(new BatchChange(i,$"Archivo {i:000}",$"Línea {line}",before[line],lines[line]));
+            files[i]=encoded;
+        }
+        if(separator is not null||reader.ReadLine() is not null)
+            throw new InvalidDataException("El archivo importado contiene bancos de texto adicionales.");
+        byte[] output=changes.Count==0?(byte[])original.Clone():
+            GarcTransaction.Build(original,_reference,files,preserveRecordSize:false);
+        if(changes.Count>0)
+        {
+            var rebuilt=new GARC.MemGARC(output).Files;
+            if(rebuilt.Length!=files.Length||
+               rebuilt.Where((bytes,i)=>!bytes.AsSpan().SequenceEqual(files[i])).Any())
+                throw new InvalidDataException("No se pudo verificar el GARC de texto reconstruido.");
+        }
+        return new TextBankPreview(original,output,changes,_story);
+    }
+
+    public void ApplyImportAll(TextBankPreview preview)
+    {
+        ArgumentNullException.ThrowIfNull(preview);
+        if(preview.Story!=_story||preview.Changes.Count==0)
+            throw new ArgumentException("No hay diferencias válidas para este banco de texto.");
+        byte[] current=GarcTransaction.ReadUnchanged(_path,_sha);
+        if(!current.AsSpan().SequenceEqual(preview.Original))
+            throw new IOException("El GARC cambió desde la vista previa de importación.");
+        _project.History.Commit([new FileChange(_path,current,preview.Output)],
+            "Historia y textos",_story?"Importar Story Text completo":"Importar Game Text completo",
+            preview.Changes,new Dictionary<string,string>
+            {["Bank"]=_story?"storytext":"gametext",["Language"]=_config.Language.ToString(),
+             ["Scope"]="All"});
+        _sha=SHA256.HashData(preview.Output);
+        if(!_story)_config.InitializeGameText();
+    }
+
     public string Export(int id)=>string.Join(Environment.NewLine,Read(id).Select((line,i)=>$"[{i:0000}] {line}"));
 }
+
+public sealed record TextBankPreview(byte[] Original,byte[] Output,
+    IReadOnlyList<BatchChange> Changes,bool Story);
