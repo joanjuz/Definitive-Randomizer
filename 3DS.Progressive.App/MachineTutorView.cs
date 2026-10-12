@@ -73,6 +73,8 @@ internal sealed class MachineTutorView : UserControl
         _saveMachines=new Button {Content="Guardar MT",IsEnabled=false};
         _saveMachines.Click+=(_,_)=>TryAction(()=>
         {
+            if(_dirtyPrices)
+                throw new InvalidOperationException("Primero guardá o descartá los cambios pendientes de tutores.");
             foreach(var table in _machineColumns)
             {
                 table.CommitEdit(DataGridEditingUnit.Cell,true);
@@ -138,7 +140,7 @@ internal sealed class MachineTutorView : UserControl
         tutorHeader.Children.Add(tutorActions);
         var free=new Button {Content="Todos gratis (0 BP)",Margin=new Thickness(0,0,8,0)};
         free.Click+=(_,_)=>{foreach(var row in _service.Tutors)row.Price=0;_dirtyPrices=true;_tutorPreview=null;UpdateState();foreach(var t in _tutorColumns)t.Items.Refresh();};
-        var randomTutors=new Button {Content="Randomizar tutores",Margin=new Thickness(0,0,8,0)};
+        var randomTutors=new Button {Content="Randomizar tutores",Margin=new Thickness(0,0,8,0),IsEnabled=_service.CanEditTutorMoves};
         randomTutors.Click+=(_,_)=>TryAction(()=>
         {
             int changed=_service.RandomizeTutorMoves();
@@ -150,6 +152,18 @@ internal sealed class MachineTutorView : UserControl
         _savePrices.Click+=(_,_)=>TryAction(()=>
         {
             CommitTutorGrids();
+            if(_dirtyMachines)
+                throw new InvalidOperationException("Primero guardá o descartá los cambios pendientes de MT.");
+            if(!_service.CanEditTutorMoves)
+            {
+                if(!StudioDialog.Confirm(Window.GetWindow(this),"Guardar precios de tutores",
+                    "Se actualizarán únicamente los precios de Shop.cro. ¿Continuar?"))return;
+                _service.SaveTutorPrices();
+                _service=new GameMachineTutorService(_project);
+                _dirtyPrices=false;_tutorPreview=null;Rebind();
+                _status.Text="Precios de tutores guardados y verificados.";
+                return;
+            }
             _tutorPreview=_service.PreviewTutorEdits();
             _applyTutorChanges.IsEnabled=_tutorPreview.Changes.Count>0;
             string details=string.Join(Environment.NewLine,_tutorPreview.Changes.Take(12)
@@ -260,7 +274,7 @@ internal sealed class MachineTutorView : UserControl
     private void UpdateState()
     {
         _saveMachines.IsEnabled=_dirtyMachines&&_service.CanEditTms;
-        _savePrices.IsEnabled=_dirtyPrices&&_service.CanEditTutorMoves;
+        _savePrices.IsEnabled=_dirtyPrices&&_service.CanEditTutorPrices;
         _applyTutorChanges.IsEnabled=_tutorPreview is { Changes.Count: >0 } && _dirtyPrices;
     }
     private void TryAction(Action action)
