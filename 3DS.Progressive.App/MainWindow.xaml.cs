@@ -32,6 +32,7 @@ public partial class MainWindow : Window
     private RecordEditorView? _recordView;
     private MachineTutorView? _machineTutorView;
     private LevelUpView? _levelUpView;
+    private PlayerLevelCapsView? _playerCapsView;
     private GameTextView? _gameTextView;
     private readonly Dictionary<string,RecordEditorView.UiState> _sectionOptions=[];
     private bool _backupRunning;
@@ -147,6 +148,7 @@ public partial class MainWindow : Window
         if(_machineTutorView is not null&&!_machineTutorView.ConfirmLeave())return false;
         if(_levelUpView is not null&&!_levelUpView.ConfirmLeave())return false;
         if(_gameTextView is not null&&!_gameTextView.ConfirmLeave())return false;
+        if(_playerCapsView is not null&&!_playerCapsView.ConfirmLeave())return false;
         if(_recordView is not null)_sectionOptions[_recordView.Editor.Title]=_recordView.RememberOptions();
         if(_showingMoves&&_movesView is not null)
         {
@@ -190,7 +192,7 @@ public partial class MainWindow : Window
                 "History"=>new HistoryView(_session.History),
                 _=>throw new ArgumentException("Sección desconocida.")
             };
-            _recordView=view as RecordEditorView; if(section!="MachineTutor")_machineTutorView=null; if(section!="LevelUp")_levelUpView=null; if(section!="GameText")_gameTextView=null;SectionHost.Content=view;
+            _recordView=view as RecordEditorView;_playerCapsView=null; if(section!="MachineTutor")_machineTutorView=null; if(section!="LevelUp")_levelUpView=null; if(section!="GameText")_gameTextView=null;SectionHost.Content=view;
             PokemonListPanel.Visibility=PokemonEditorPanel.Visibility=PersonalToolsPanel.Visibility=PokemonInspectorPanel.Visibility=MovesHost.Visibility=Visibility.Collapsed;
             _personalTools.InvalidatePreview();SectionHost.Visibility=Visibility.Visible;_showingMoves=false;
             PokemonNavButton.Background=MovesButton.Background=TrainersButton.Background=EncountersButton.Background=StaticEncountersButton.Background=MachineTutorButton.Background=LevelUpButton.Background=ItemsButton.Background=FieldItemsButton.Background=GameTextButton.Background=EvolutionsButton.Background=HistoryButton.Background=MechanicsButton.Background=RomToolsButton.Background=AutomationButton.Background=ConfigurationButton.Background=Brushes.Transparent;
@@ -216,7 +218,7 @@ public partial class MainWindow : Window
         {
             // The Player Caps editor is hosted as its own full-width view.
             if(!ConfirmDiscard()||!ConfirmAuxiliaryLeave())return;
-            var view=new PlayerLevelCapsView(_session);
+            var view=_playerCapsView=new PlayerLevelCapsView(_session);
             _recordView=null;_machineTutorView=null;_levelUpView=null;_gameTextView=null;
             SectionHost.Content=view;
             PokemonListPanel.Visibility=PokemonEditorPanel.Visibility=PersonalToolsPanel.Visibility=
@@ -264,7 +266,7 @@ public partial class MainWindow : Window
     {
         _session = candidate;
         _sectionOptions.Clear();
-        _recordView=null;_machineTutorView=null;_levelUpView=null;_gameTextView=null;SectionHost.Content=null;
+        _recordView=null;_machineTutorView=null;_levelUpView=null;_gameTextView=null;_playerCapsView=null;SectionHost.Content=null;
         _movesView = null;
         MovesHost.Content = null;
         DisplayPokemon();
