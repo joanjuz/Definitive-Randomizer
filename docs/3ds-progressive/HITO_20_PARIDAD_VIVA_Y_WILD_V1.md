@@ -58,9 +58,23 @@ Vivillon y Minior. Se añade la opción de permitir formas Mega/batalla y se
 utiliza el `Random` de la propuesta para que cada preview conserve sus resultados.
 Antes se escribía siempre forma 0 en las nuevas especies.
 
-### Seguridad y pruebas
+#### Copiar y pegar tablas de encuentros Gen7
+
+El editor ahora incluye «Copiar tabla actual», «Pegar en tabla seleccionada»
+y «Pegar en área · mismas ranuras». La copia conserva las especies, formas,
+niveles, tasas y slots SOS/clima del día o noche seleccionados. «Pegar en área»
+filtra las tablas del **mapa de destino** por la cantidad de encuentros
+normales ocupados, como el B_PasteAll original. «Pegar en tabla» aplica a un
+destino individual y solicita confirmación.
+
+La vista previa usa las estructuras existentes, preserva bits desconocidos
+y evita copiar datos desde otro proyecto o versión. El cambio se registra en
+el historial mediante EditorProposal, sin escribir durante la preparación.
+
+## Seguridad y pruebas
 
 - Regresiones JSON de importación/exportación y relectura de rangos.
+- Regresiones de copiar/pegar día/noche, aislando áreas ajenas y proyectos incompatibles.
 - Rechazo de versión o juego equivocados, y de intervalos BST discontinuos.
 - Prueba WPF de presencia de las opciones de template y formas Mega.
 - Sin cambios al GARC hasta aprobar una propuesta de randomización.
@@ -69,8 +83,8 @@ Antes se escribía siempre forma 0 en las nuevas especies.
 
 ## Pendiente para cerrar Progressive Wild
 
-1. Copy/Paste de tabla y de área con compatibilidad de tamaños y comprobación
-   de todos los slots, sin modificar otras zonas.
+1. Validar Copy/Paste de tabla y área, ahora implementado, contra SMWE
+   en ROMs reales y con tablas de tamaños/slots heterogéneos.
 2. Grillas con sprites y filas día/noche/SOS/clima plenamente comparables
    al editor SMWE original; filtros y previsualización visual completa.
 3. Comparación control por control de filtros, reglas y defaults de Wild7Randomizer
