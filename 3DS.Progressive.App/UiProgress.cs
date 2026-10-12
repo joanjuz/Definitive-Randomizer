@@ -5,5 +5,7 @@ internal static class UiProgress
 {
     internal static event Action<string,bool>? Changed;
     internal static void Begin(string message)=>Changed?.Invoke(message,true);
+    internal static event Action<string,double>? Reported;
+    internal static void Report(string message,double percentage)=>Reported?.Invoke(message,Math.Clamp(percentage,0,100));
     internal static void End()=>Changed?.Invoke("",false);
 }
