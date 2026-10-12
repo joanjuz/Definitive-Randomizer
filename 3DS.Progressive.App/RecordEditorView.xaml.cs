@@ -92,6 +92,17 @@ public partial class RecordEditorView : UserControl
             {
                 var selected=group.Fields.Where(f=>TrainerOptionCategory(f.Key)==category).ToArray();
                 if(selected.Length==0)continue;
+                if(category==4&&selected.Any(f=>f.Key.StartsWith("BST.",StringComparison.Ordinal)))
+                {
+                    // Each BST interval is one card. Mixing columns from adjacent
+                    // intervals made the original form nearly impossible to read.
+                    foreach(var interval in selected.Where(f=>f.Key.StartsWith("BST.",StringComparison.Ordinal))
+                        .GroupBy(f=>int.Parse(f.Key.Split('.')[1])).OrderBy(g=>g.Key))
+                        container.Children.Add(BuildGroupCard(
+                            new EditorGroup($"Rango {interval.Key+1} · BST progresivo",interval.ToArray(),true),
+                            controls,false));
+                    continue;
+                }
                 string label=group.Name is "Main" or "Opciones generales"
                     ?TrainerTabNames[category]:group.Name;
                 container.Children.Add(BuildGroupCard(group with
