@@ -63,6 +63,8 @@
              Click="EconomyTable_Click" Margin="0,0,0,10"/>
      <Button x:Name="FieldExportButton" Content="Exportar Field Items CSV" Visibility="Collapsed"
              Click="FieldExport_Click" Margin="0,0,0,10"/>
+     <Button x:Name="TradesNamesButton" Content="Trades · Ocultar nombres (ES)" Visibility="Collapsed"
+             Click="TradesNames_Click" Margin="0,0,0,8"/>
      <Button x:Name="TradesAnyButton" Content="Trades · Accept Any Pokémon" Visibility="Collapsed"
              Click="TradesAny_Click" Margin="0,0,0,8"/>
      <Button x:Name="GiftBstButton" Content="Gift BST Baseline" Visibility="Collapsed"
