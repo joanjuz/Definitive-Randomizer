@@ -21,6 +21,8 @@ internal sealed class BatchRomBuilderView : UserControl
     private readonly CheckBox _trimmed,_restore,_keepProjects,_allowMismatch;
     private readonly TextBlock _summary,_progress;
     private readonly Button _build;
+    private readonly ProgressBar _overallBar,_romBar;
+    private readonly TextBlock _overallLabel,_romLabel,_currentStep;
     private bool _busy;
     private RomBatchOptions? _ready;
     internal BatchRomBuilderView(GameProjectSession project,string? suggestedTemplate=null)
@@ -48,6 +50,28 @@ internal sealed class BatchRomBuilderView : UserControl
         _progress=new TextBlock{Foreground=(Brush)FindResource("TextMain"),TextWrapping=TextWrapping.Wrap,
             Margin=new Thickness(0,0,0,7)};
         buttons.Children.Add(_progress);
+        var progressCard=new Border
+        {
+            Background=(Brush)FindResource("Panel"),
+            BorderBrush=(Brush)FindResource("Stroke"),BorderThickness=new Thickness(1),
+            CornerRadius=new CornerRadius(9),Padding=new Thickness(14),
+            Margin=new Thickness(0,5,0,10)
+        };
+        buttons.Children.Add(progressCard);
+        var progressPanel=new StackPanel();
+        progressCard.Child=progressPanel;
+        _overallLabel=new TextBlock{Text="Lote · esperando",Foreground=(Brush)FindResource("TextMain"),
+            FontWeight=FontWeights.SemiBold,Margin=new Thickness(0,0,0,6)};
+        progressPanel.Children.Add(_overallLabel);
+        _overallBar=NewBar();progressPanel.Children.Add(_overallBar);
+        _romLabel=new TextBlock{Text="ROM actual · esperando",Foreground=(Brush)FindResource("TextMain"),
+            Margin=new Thickness(0,10,0,6)};
+        progressPanel.Children.Add(_romLabel);
+        _romBar=NewBar();progressPanel.Children.Add(_romBar);
+        _currentStep=new TextBlock{Foreground=(Brush)FindResource("TextSoft"),
+            TextWrapping=TextWrapping.Wrap,Margin=new Thickness(0,9,0,0),
+            Text="Durante la ejecución se mostrarán acciones completadas y la fase de reconstrucción."};
+        progressPanel.Children.Add(_currentStep);
         _allowMismatch=new CheckBox
         {
             Content="Comprendo que los SHA-256 de algunos assets no coinciden; continuar con los archivos actuales",
@@ -131,6 +155,25 @@ internal sealed class BatchRomBuilderView : UserControl
         if(!_engine.BackendAvailable)_progress.Text=
             "El ejecutor original no está empaquetado. El botón Construir solo se habilitará al incluir LegacyBatch.";
     }
+    private ProgressBar NewBar()=>new()
+    {
+        Minimum=0,Maximum=100,Value=0,Height=13,IsIndeterminate=false,
+        Foreground=(Brush)FindResource("Accent"),
+        Background=(Brush)FindResource("Surface")
+    };
+    private void UpdateProgress(BatchProgressSnapshot p)
+    {
+        _overallBar.Value=Math.Clamp(p.OverallPercent,0,100);
+        _romBar.Value=Math.Clamp(p.CurrentPercent,0,100);
+        _overallLabel.Text=$"Lote · {p.CompletedRoms}/{p.TotalRoms} ROMs verificadas · {p.OverallPercent:0.0}%";
+        _romLabel.Text=$"ROM {p.CurrentRom}/{p.TotalRoms} · {p.CurrentPercent:0.0}% · Seed {p.Seed}";
+        _currentStep.Text=$"{p.Stage}: {p.Detail} · Acciones: {p.ActionsDone}/{p.ActionsTotal}"+
+            (p.RebuildPercent is int pct?$" · Reconstrucción: {pct}%":"")+
+            "\nPorcentaje de pasos completados, no estimación del tiempo restante.";
+        _progress.Text=$"{p.Output} · {p.Stage}";
+        UiProgress.Report($"Batch ROM {p.CurrentRom}/{p.TotalRoms}: {p.Stage} · "+
+            $"{p.ActionsDone}/{p.ActionsTotal} acciones",p.OverallPercent);
+    }
     private Button Add(System.Windows.Controls.Panel target,string label,Action run)
     {
         var b=new Button{Content=label,Margin=new Thickness(0,0,9,7)};
@@ -194,11 +237,16 @@ internal sealed class BatchRomBuilderView : UserControl
         UiProgress.Begin("Batch ROM Builder · creando copias aisladas…");
         try
         {
-            var manifest=await _engine.RunAsync(options,message=>
-                Dispatcher.BeginInvoke(()=>_progress.Text=message));
+            _overallBar.Value=_romBar.Value=0;
+            _overallLabel.Text=$"Lote · 0/{options.Count} ROMs verificadas";
+            var manifest=await _engine.RunAsync(options,snapshot=>
+                Dispatcher.BeginInvoke(()=>UpdateProgress(snapshot)));
             _summary.Text=$"Batch completado · {manifest.Roms.Count} ROMs · " +
                 $"informe SHA-256: {options.BaseName}_batch-manifest.json";
             _progress.Text="ROMs generadas y verificadas. Semillas e historial en la carpeta de salida.";
+            _overallBar.Value=_romBar.Value=100;
+            _overallLabel.Text=$"Lote completado · {manifest.Roms.Count} ROMs verificadas · 100%";
+            _romLabel.Text="Todas las ROMs terminadas";
             StudioDialog.Notice(Window.GetWindow(this),"Batch ROM Builder",
                 $"Construidas y verificadas {manifest.Roms.Count} ROMs.",options.OutputDirectory);
         }
