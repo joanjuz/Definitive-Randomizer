@@ -36,6 +36,8 @@ public partial class RecordEditorView : UserControl
             TrainerCapsButton.Visibility=TrainerMovesButton.Visibility=Visibility.Visible;
         if(editor is ThreeDS.Progressive.Services.GameFieldItemsService)
             FieldExportButton.Visibility=Visibility.Visible;
+        if(editor is ThreeDS.Progressive.Services.GameItemService)
+            EconomyTableButton.Visibility=Visibility.Visible;
         if(editor is ITemplateProjectEditor template){TemplateButton.Visibility=Visibility.Visible;TemplateButton.Content=template.TemplateButton;TemplatePathText.Text=template.DefaultTemplatePath;}
         if(editor is ThreeDS.Progressive.Services.GameEncounterService wild&&state is not null)
             wild.RestoreRangeOptions(state.Options);
@@ -483,6 +485,24 @@ public partial class RecordEditorView : UserControl
         catch(Exception ex){StudioDialog.Error(Window.GetWindow(this),"No se pudo guardar",ex.Message);}
     }
     private void Discard_Click(object sender,RoutedEventArgs e){if(_id>=0)Show(_id);}
+    private void EconomyTable_Click(object sender,RoutedEventArgs e)
+    {
+        if(Editor is not ThreeDS.Progressive.Services.GameItemService items||!ConfirmLeave())return;
+        try
+        {
+            var table=new EconomyPriceView(items);
+            table.Closed+=CloseTrainerRules;
+            table.Saved+=()=>
+            {
+                CloseTrainerRules();
+                if(_id>=0)Show(_id);
+                StatusText.Text="Economía actualizada, guardada y verificada.";
+            };
+            TrainerRulesHost.Content=table;
+            TrainerRulesHost.Visibility=Visibility.Visible;
+        }
+        catch(Exception ex){StudioDialog.Error(Window.GetWindow(this),"No se pudo abrir Fix Economy",ex.Message);}
+    }
     private void FieldExport_Click(object sender,RoutedEventArgs e)
     {
         if(Editor is not ThreeDS.Progressive.Services.GameFieldItemsService field)return;
