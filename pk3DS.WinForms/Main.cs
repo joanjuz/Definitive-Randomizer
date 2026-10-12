@@ -31,6 +31,10 @@ namespace pk3DS.WinForms;
 
 public sealed partial class Main : Form
 {
+    private static bool IsWpfBridge =>
+        Environment.GetCommandLineArgs().Skip(1).Any(a =>
+            a is "--batch-bridge" or "--relearner-preview");
+
     public Main()
     {
         // Initialize the Main Form
@@ -56,7 +60,7 @@ public sealed partial class Main : Form
         var settings = Properties.Settings.Default;
         CB_Lang.SelectedIndex = settings.Language;
         var path = settings.GamePath;
-        if (!string.IsNullOrWhiteSpace(path))
+        if (!IsWpfBridge && !string.IsNullOrWhiteSpace(path))
         {
             try
             {
@@ -931,7 +935,7 @@ public sealed partial class Main : Form
         foreach (string f in folders.Where(f => new DirectoryInfo(f).Name.Contains("exe", StringComparison.OrdinalIgnoreCase) && Directory.Exists(f)))
             CheckIfExeFS(f);
 
-        if (count > 3)
+        if (count > 3 && !IsWpfBridge)
             WinFormsUtil.Alert("pk3DS will function best if you keep your Game Files folder clean and free of unnecessary folders.");
 
         // Enable buttons if applicable
