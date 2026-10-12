@@ -68,6 +68,21 @@ internal sealed class GameTextView : UserControl
         var export=new Button {Content="Exportar TXT"};
         DockPanel.SetDock(export,Dock.Right);footer.Children.Add(export);
         export.Click+=(_,_)=>Export();
+        if(story)
+        {
+            var exportAll=new Button
+            {
+                Content="Exportar banco completo",Margin=new Thickness(0,0,8,0)
+            };
+            DockPanel.SetDock(exportAll,Dock.Right);footer.Children.Add(exportAll);
+            exportAll.Click+=(_,_)=>TryExportAll();
+            var importAll=new Button
+            {
+                Content="Importar banco completo",Margin=new Thickness(0,0,8,0)
+            };
+            DockPanel.SetDock(importAll,Dock.Right);footer.Children.Add(importAll);
+            importAll.Click+=(_,_)=>TryImportAll();
+        }
         var content=new Grid();content.ColumnDefinitions.Add(new ColumnDefinition {Width=new GridLength(230)});
         content.ColumnDefinitions.Add(new ColumnDefinition {Width=new GridLength(1,GridUnitType.Star)});
         root.Children.Add(content);
@@ -153,6 +168,60 @@ internal sealed class GameTextView : UserControl
             Load(_id);_status.Text="Texto guardado, verificado y registrado en el historial.";
         }
         catch(Exception ex){StudioDialog.Error(Window.GetWindow(this),"No se pudo guardar el texto",ex.Message);}
+    }
+    private void TryExportAll()
+    {
+        try
+        {
+            var picker=new Microsoft.Win32.SaveFileDialog
+            {
+                Filter="Texto Unicode original|*.txt",
+                FileName="storytext-banco-completo.txt"
+            };
+            if(picker.ShowDialog(Window.GetWindow(this))!=true)return;
+            File.WriteAllText(picker.FileName,_service.ExportAll(),
+                System.Text.Encoding.Unicode);
+            _status.Text="Banco completo exportado en UTF-16, con códigos de control intactos.";
+        }
+        catch(Exception ex)
+        {StudioDialog.Error(Window.GetWindow(this),"Exportar Story Text",ex.Message);}
+    }
+    private void TryImportAll()
+    {
+        try
+        {
+            _grid.CommitEdit(DataGridEditingUnit.Cell,true);
+            _grid.CommitEdit(DataGridEditingUnit.Row,true);
+            if(_dirty)
+                throw new InvalidOperationException(
+                    "Guardá o descartá primero las líneas editadas de este archivo.");
+            var picker=new Microsoft.Win32.OpenFileDialog
+            {
+                Filter="Texto Unicode original|*.txt"
+            };
+            if(picker.ShowDialog(Window.GetWindow(this))!=true)return;
+            string dump=File.ReadAllText(picker.FileName,System.Text.Encoding.Unicode);
+            TextBankPreview preview=_service.PreviewImportAll(dump);
+            if(preview.Changes.Count==0)
+            {
+                _status.Text="El banco importado es idéntico; no hay cambios.";
+                return;
+            }
+            string examples=string.Join(Environment.NewLine,preview.Changes.Take(12)
+                .Select(d=>$"{d.Name}, {d.Field}: {d.Before} → {d.After}"));
+            StudioDialog.Notice(Window.GetWindow(this),"Vista previa Story Text",
+                $"{preview.Changes.Count} líneas diferentes. Ninguna referencia cambia de posición.",
+                examples+(preview.Changes.Count>12?Environment.NewLine+"…":""));
+            if(!StudioDialog.Confirm(Window.GetWindow(this),"Aplicar banco Story Text",
+                $"¿Aplicar {preview.Changes.Count} cambios al GARC Story Text del idioma activo? " +
+                "El guardado se registrará en el historial y no modificará Game Text."))
+                return;
+            _service.ApplyImportAll(preview);
+            Load(_id);
+            _status.Text=$"Importación verificada: {preview.Changes.Count} líneas modificadas.";
+        }
+        catch(Exception ex)
+        {StudioDialog.Error(Window.GetWindow(this),"Importar Story Text",ex.Message);}
     }
     private void Export()
     {
