@@ -37,12 +37,12 @@ internal sealed class RomRebuildView : UserControl
             TextWrapping=TextWrapping.Wrap,Foreground=(Brush)FindResource("TextSoft"),
             Margin=new Thickness(0,8,0,16)
         });
-        _kind=new ComboBox{MinWidth=310,HorizontalAlignment=HorizontalAlignment.Left,
+        _kind=new ComboBox{MinWidth=310,HorizontalAlignment=System.Windows.HorizontalAlignment.Left,
             ItemsSource=new[]{"RomFS (.romfs)", "ExeFS (.exefs)", ".3DS completo", "Trimmed .3DS"},
             SelectedIndex=0,Margin=new Thickness(0,0,0,10)};
         panel.Children.Add(_kind);
         _run=new Button{Content="Seleccionar salida y reconstruir…",
-            HorizontalAlignment=HorizontalAlignment.Left,Margin=new Thickness(0,0,0,12)};
+            HorizontalAlignment=System.Windows.HorizontalAlignment.Left,Margin=new Thickness(0,0,0,12)};
         _run.Click+=async(_,_)=>await BuildAsync();
         panel.Children.Add(_run);
         var card=new Border{Background=(Brush)FindResource("Panel"),
