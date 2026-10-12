@@ -50,7 +50,7 @@ internal sealed class GameRomRebuildService(GameProjectSession project)
                     // bar unless we provide a lightweight, private instance. Omitting it
                     // produces NullReferenceException during the first metadata/data pass.
                     // Do not show a legacy window: only our dark WPF progress is visible.
-                    using(var legacyProgress=new System.Windows.Forms.ProgressBar())
+                    using(var legacyProgress=CreateLegacyProgressBar())
                         RomFS.BuildRomFS(romfs,romfile,PB_Show:legacyProgress);
                     if(!File.Exists(romfile)||new FileInfo(romfile).Length==0)
                         throw new IOException("RomFS no produjo una salida válida.");
@@ -75,7 +75,7 @@ internal sealed class GameRomRebuildService(GameProjectSession project)
                     string? code=prepared.FirstOrDefault(path=>Path.GetFileName(path)
                         .Contains("code",StringComparison.OrdinalIgnoreCase));
                     if(code is null)throw new InvalidDataException("ExeFS necesita code.bin.");
-                    using(var progressBar=new System.Windows.Forms.ProgressBar())
+                    using(var progressBar=CreateLegacyProgressBar())
                         _=new BLZCoder(["-en",code],progressBar);
                     if(!ExeFS.PackExeFS(prepared.ToArray(),exefile))
                         throw new IOException("El motor ExeFS rechazó los archivos temporales.");
@@ -108,6 +108,17 @@ internal sealed class GameRomRebuildService(GameProjectSession project)
             BuildGate.Release();
         }
     }
+    // CTRUtil.WriteROM calls ProgressBar.Invoke directly, even when the
+    // .3DS build runs without a WinForms window. A newly constructed control
+    // has no native handle and throws before the ROM data is written.
+    // Create its handle on this same rebuild worker thread: Invoke then runs
+    // synchronously and no legacy window or WinForms message loop is needed.
+    internal static System.Windows.Forms.ProgressBar CreateLegacyProgressBar()
+    {
+        var progressBar=new System.Windows.Forms.ProgressBar();
+        _=progressBar.Handle;
+        return progressBar;
+    }
     private static string LocateExheader(string root)
     {
         if(!Directory.Exists(root))
@@ -127,7 +138,9 @@ internal sealed class GameRomRebuildService(GameProjectSession project)
         UiProgress.Stage(trimmed?"Compilando Trimmed .3DS…":"Compilando .3DS completo…");
         var exh=new Exheader(exheader);
         string path=Path.Combine(stage,"result.3ds");
-        if(!CTRUtil.BuildROM(true,"Nintendo",exefs,romfs,exheader,exh.GetSerial(),path,trimmed))
+        using var legacyProgress=CreateLegacyProgressBar();
+        if(!CTRUtil.BuildROM(true,"Nintendo",exefs,romfs,exheader,exh.GetSerial(),path,trimmed,
+                PB_Show:legacyProgress))
             throw new IOException("El motor original CTRUtil no completó la ROM.");
         UiProgress.Count("ROM .3DS empaquetada",3,4);
         return path;
