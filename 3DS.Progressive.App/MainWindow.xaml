@@ -91,6 +91,8 @@
                         <Button x:Name="StaticEncountersButton" Content="◉  Encuentros estáticos"
                                 Style="{StaticResource SidebarButton}" IsEnabled="False" Tag="StaticEncounters" Click="Section_Click"/>
                         <Button x:Name="MovesButton" Content="◇  Movimientos" Style="{StaticResource SidebarButton}" IsEnabled="False" Click="Moves_Click"/>
+                        <Button x:Name="LevelUpButton" Content="↗  Level Up Moves"
+                                Style="{StaticResource SidebarButton}" IsEnabled="False" Tag="LevelUp" Click="Section_Click"/>
                         <Button x:Name="MachineTutorButton" Content="▣  MT y tutores" Style="{StaticResource SidebarButton}" IsEnabled="False" Tag="MachineTutor" Click="Section_Click"/>
                         <Button Content="▤  Objetos y tiendas" Style="{StaticResource NavDisabled}"/>
                         <Button x:Name="EvolutionsButton" Content="◆  Evoluciones" Style="{StaticResource SidebarButton}" IsEnabled="False" Tag="Evolutions" Click="Section_Click"/>
