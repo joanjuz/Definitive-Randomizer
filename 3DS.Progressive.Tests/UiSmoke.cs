@@ -208,7 +208,9 @@ internal static class UiSmoke
             check(((Button)encounters.FindName("ImportOptionsButton")).Visibility==Visibility.Visible &&
                   ((Button)encounters.FindName("ExportOptionsButton")).Visibility==Visibility.Visible &&
                   encounters.OptionControls.ContainsKey("MegaForms") &&
-                  encounters.OptionControls.ContainsKey("Progressive"),
+                  encounters.OptionControls.ContainsKey("Progressive") &&
+                  ((Button)encounters.FindName("WildCopyButton")).Visibility==Visibility.Visible &&
+                  ((Button)encounters.FindName("WildPasteAreaButton")).Visibility==Visibility.Visible,
                   "WPF Wild shows v1 template controls, Mega forms and Progressive BST options");
             check(((FrameworkElement)encounters.FindName("EncounterSpritePreview")).Visibility==Visibility.Visible
                 && ((WrapPanel)encounters.FindName("EncounterSpriteCards")).Children.Count==10,
