@@ -292,11 +292,16 @@ public sealed partial class Main : Form
 
         if (dependencyWarnings.Count != 0)
         {
-            if (externalOptions is not null)
+            if (externalOptions is not null && (!externalOptions.AllowAssetMismatch ||
+                dependencyWarnings.Any(w => !w.StartsWith("SHA-256 distinto", StringComparison.OrdinalIgnoreCase)
+                && !w.Contains("SHA-256",StringComparison.OrdinalIgnoreCase))))
                 throw new InvalidDataException("Los assets difieren; no se permite replay automático: "+
                     string.Join(" | ",dependencyWarnings));
+            if(externalOptions?.AllowAssetMismatch==true)
+                BatchRuntime.Log("Advertencia autorizada: assets con SHA-256 distinto: "+
+                    string.Join(" | ",dependencyWarnings));
             string warningText = string.Join(Environment.NewLine, dependencyWarnings.Select(z => "- " + z));
-            if (WinFormsUtil.Prompt(
+            if (externalOptions is null && WinFormsUtil.Prompt(
                     MessageBoxButtons.YesNo,
                     "Some files used by this template have changed since it was saved:",
                     warningText,
