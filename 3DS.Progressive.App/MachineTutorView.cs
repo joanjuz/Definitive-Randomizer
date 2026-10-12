@@ -6,6 +6,8 @@ using System.Windows.Media;
 using ThreeDS.Progressive.Models;
 using ThreeDS.Progressive.Services;
 using UserControl=System.Windows.Controls.UserControl;
+using TabControl=System.Windows.Controls.TabControl;
+using Brush=System.Windows.Media.Brush;
 using Button=System.Windows.Controls.Button;
 using DataGrid=System.Windows.Controls.DataGrid;
 using DataGridColumnHeader=System.Windows.Controls.Primitives.DataGridColumnHeader;
