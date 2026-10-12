@@ -34,6 +34,7 @@ internal sealed class SystemsView : UserControl
             Text=section switch
             {
                 "Mechanics"=>"Mecánicas y CRO",
+                "PokemonTools"=>"Herramientas Pokémon",
                 "RomTools"=>"Herramientas ROM",
                 "Automation"=>"Automatización",
                 _=>"Configuración"
@@ -52,6 +53,7 @@ internal sealed class SystemsView : UserControl
         switch(section)
         {
             case "Mechanics":BuildMechanics(stack);break;
+            case "PokemonTools":BuildPokemonTools(stack);break;
             case "RomTools":BuildRomTools(stack);break;
             case "Automation":BuildAutomation(stack);break;
             default:BuildSettings(stack);break;
@@ -104,6 +106,18 @@ internal sealed class SystemsView : UserControl
         AddButton((StackPanel)recipes.Child,"Abrir CRO Recipes",()=>
             _navigate("CroRecipes")).IsEnabled=_project.GameConfiguration.USUM;
         stack.Children.Add(recipes);
+        var staticCard=Card("Parcheos de encuentros e intercambios",
+            "Gift BST Baseline, Totem BST y Level Caps por ID, Trades Accept Any Pokémon y limpieza de diálogos españoles en encuentros estáticos.");
+        AddButton((StackPanel)staticCard.Child,"Abrir Encuentros estáticos",()=>_navigate("StaticEncounters")).IsEnabled=
+            _project.Generation==7;
+        stack.Children.Add(staticCard);
+        var item=Card("Objetos y economía",
+            "Fix Economy aplica precios UPR-ZX con vista previa, filtros y guardado verificado. Los parches adicionales de CRO se incorporarán separadamente cuando existan firmas comprobadas.");
+        AddButton((StackPanel)item.Child,"Abrir editor de objetos",()=>_navigate("Items"));
+        stack.Children.Add(item);
+    }
+    private void BuildPokemonTools(StackPanel stack)
+    {
         var learn=Card("Egg Moves · Movimientos huevo",
             "Editor original Gen6/Gen7, especies y formas, aprendizaje y randomizador con tamaño y STAB configurables. Vista previa y guardado con historial.");
         AddButton((StackPanel)learn.Child,"Abrir Egg Moves",()=>_navigate("EggMoves"));
@@ -122,15 +136,12 @@ internal sealed class SystemsView : UserControl
         AddButton((StackPanel)shiny.Child,"Abrir Shiny Rate",()=>_navigate("ShinyRate"))
             .IsEnabled=_project.Generation==7;
         stack.Children.Add(shiny);
-        var staticCard=Card("Parcheos de encuentros e intercambios",
-            "Gift BST Baseline, Totem BST y Level Caps por ID, Trades Accept Any Pokémon y limpieza de diálogos españoles en encuentros estáticos.");
-        AddButton((StackPanel)staticCard.Child,"Abrir Encuentros estáticos",()=>_navigate("StaticEncounters")).IsEnabled=
-            _project.Generation==7;
-        stack.Children.Add(staticCard);
-        var item=Card("Objetos y economía",
-            "Fix Economy aplica precios UPR-ZX con vista previa, filtros y guardado verificado. Los parches adicionales de CRO se incorporarán separadamente cuando existan firmas comprobadas.");
-        AddButton((StackPanel)item.Child,"Abrir editor de objetos",()=>_navigate("Items"));
-        stack.Children.Add(item);
+        var owse=Card("OWSE [Dev] · Mapas y scripts",
+            "Explorador experimental de zonas USUM, entradas de encuentros y scripts. " +
+            "El análisis es de solo lectura hasta comprobar la compatibilidad de edición.");
+        AddButton((StackPanel)owse.Child,"Abrir OWSE [Dev]",()=>_navigate("OWSE"))
+            .IsEnabled=_project.Generation==7;
+        stack.Children.Add(owse);
     }
     private void BuildRomTools(StackPanel stack)
     {
