@@ -204,6 +204,8 @@ public partial class MainWindow : Window
                 "FieldItems"=>CreateEditor(new GameFieldItemsService(_session)),
                 "GameText"=>_gameTextView=new GameTextView(_session),
                 "Evolutions"=>CreateEditor(new GameEvolutionService(_session)),
+                "EggMoves"=>CreateEditor(new GameEggMoveService(_session)),
+                "MegaEvolutions"=>CreateEditor(new GameMegaEvolutionService(_session)),
                 "PlayerCaps"=>new PlayerLevelCapsView(_session),
                 "CroRecipes"=>_croRecipesView=new CroRecipesView(_session),
                 "UsumRelearner"=>_relearnerView=new UsumRelearnerView(_session),
@@ -257,9 +259,9 @@ public partial class MainWindow : Window
             SectionHost.Visibility=Visibility.Visible;
             return;
         }
-        if(section is "CroRecipes" or "UsumRelearner")
+        if(section is "CroRecipes" or "UsumRelearner" or "EggMoves" or "MegaEvolutions")
         {
-            if(_session.GameConfiguration.USUM)
+            if(section is "EggMoves" or "MegaEvolutions"||_session.GameConfiguration.USUM)
                 Section_Click(new Button{Tag=section},new RoutedEventArgs());
             return;
         }
