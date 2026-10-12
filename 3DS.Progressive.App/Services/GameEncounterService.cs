@@ -261,9 +261,9 @@ public sealed partial class GameEncounterService : ArchiveProjectEditor, IOption
             bool weather=Config.Generation==7&&group==8;
             bool isSos=Config.Generation==7&&group is >=1 and <=7;
             bool allow=Config.Generation!=7||(
-                (weather?options["Weather"]==1&&options["SOS"]==1:
-                 isSos?options["SOS"]==1&&slotMode is 0 or 2:
-                 slotMode is not 2));
+                weather?ShouldRandomizeWildGroup(8,slotMode,options["SOS"]==1,options["Weather"]==1):
+                isSos?ShouldRandomizeWildGroup(group,slotMode,options["SOS"]==1,options["Weather"]==1):
+                slotMode is not 2);
             if(!allow||options["Species"]!=1||values[key]<=0)continue;
             int[] slotPool=pool;
             if(options["SimilarBST"]==1&&values[key]<Config.Personal.Table.Length)
