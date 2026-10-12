@@ -82,6 +82,7 @@ internal sealed class SystemsView : UserControl
         {StudioDialog.Error(Window.GetWindow(b),"Herramientas del sistema",ex.Message);}};
         panel.Children.Add(b);return b;
     }
+    internal void OpenPlayerCapsForChecks()=>_navigate("PlayerCaps");
     private void BuildMechanics(StackPanel stack)
     {
         var cap=Card("Player Level Caps · USUM",
