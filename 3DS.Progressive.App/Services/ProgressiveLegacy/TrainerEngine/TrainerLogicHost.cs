@@ -112,6 +112,64 @@ internal sealed class TrainerLogicHost
             return result;
         }
     }
+
+    // The complete candidate set is computed by the actual pk3DS engine.
+    // It carries the UPRZX Important/Boss classification and audited ace level.
+    internal IReadOnlyList<TrainerRuleTableRow> RuleRows()=>OnSta(()=>
+    {
+        lock(Gate)
+        {
+            using var context=Context();using var form=CreateOptions();
+            var candidates=Field(form,"LevelCapRules") as List<TrainerLevelCapRule>??[];
+            var template=_template??(TrainerRandomizerTemplate)Call(form,"CaptureTrainerTemplate")!;
+            return candidates.Select(c=>
+            {
+                var cap=template.LevelCaps?.Trainers.FirstOrDefault(x=>x.TrainerID==c.TrainerID);
+                var move=template.TrainerMoveRules?.Trainers.FirstOrDefault(x=>x.TrainerID==c.TrainerID);
+                return new TrainerRuleTableRow
+                {
+                    Id=c.TrainerID,Group=c.Group,Trainer=c.Trainer,Ace=c.CurrentAceLevel,
+                    CapUse=cap?.Use??c.Enabled,Cap=cap?.LevelCap??c.LevelCap,
+                    Max3=cap?.NerfTeam??c.NerfTeam,Mega=cap?.Mega??c.GuaranteeMega,
+                    ZMove=cap?.ZMove??c.GuaranteeZMove,
+                    MoveUse=move?.Use??true,MinPower=move?.MinMovePower??0,
+                    StrongStat=move?.StrongStat??false,Tolerance=move?.MixedTolerance??15,
+                    AllowStatus=move?.AllowStatusMoves??true,Better=move?.BetterMovesets??true,
+                    SmartItems=move?.SmartItems??true,EVs=move?.EVs??-1
+                };
+            }).OrderBy(x=>x.Ace).ThenBy(x=>x.Id).ToArray();
+        }
+    });
+    internal string SaveRuleRows(IReadOnlyList<TrainerRuleTableRow> rows,bool caps)
+    {
+        if(_template is null)throw new InvalidOperationException("No hay configuración de entrenadores cargada.");
+        var template=JsonSerializer.Deserialize<TrainerRandomizerTemplate>(JsonSerializer.Serialize(_template))!;
+        var known=RuleRows().Select(r=>r.Id).ToHashSet();
+        if(rows.Select(r=>r.Id).Distinct().Count()!=rows.Count || rows.Any(r=>!known.Contains(r.Id)))
+            throw new ArgumentException("La tabla contiene IDs de entrenadores inválidos o duplicados.");
+        template.LevelCaps??=new();template.TrainerMoveRules??=new();
+        foreach(var row in rows)
+        {
+            if(caps)
+            {
+                var cap=template.LevelCaps.Trainers.FirstOrDefault(r=>r.TrainerID==row.Id);
+                if(cap is null){cap=new TrainerLevelCapTemplateEntry{TrainerID=row.Id};template.LevelCaps.Trainers.Add(cap);}
+                cap.Use=row.CapUse;cap.LevelCap=row.Cap;cap.NerfTeam=row.Max3;
+                cap.Mega=row.Mega;cap.ZMove=row.ZMove;cap.CurrentAceLevel=row.Ace;
+            }
+            else
+            {
+                var move=template.TrainerMoveRules.Trainers.FirstOrDefault(r=>r.TrainerID==row.Id);
+                if(move is null){move=new TrainerMoveRuleTemplateEntry{TrainerID=row.Id};template.TrainerMoveRules.Trainers.Add(move);}
+                move.Use=row.MoveUse;move.MinMovePower=row.MinPower;move.StrongStat=row.StrongStat;
+                move.MixedTolerance=row.Tolerance;move.AllowStatusMoves=row.AllowStatus;
+                move.BetterMovesets=row.Better;move.SmartItems=row.SmartItems;move.EVs=row.EVs;
+            }
+        }
+        TrainerRandomizerTemplateFile.Validate(template,_config.Version.ToString());
+        _template=template;
+        return JsonSerializer.Serialize(template);
+    }
     internal string Capture(IReadOnlyDictionary<string,int> options)=>OnSta(()=>CaptureCore(options));
     private string CaptureCore(IReadOnlyDictionary<string,int> options)
     {
