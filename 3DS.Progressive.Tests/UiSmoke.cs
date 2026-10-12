@@ -104,6 +104,8 @@ internal static class UiSmoke
         {
             ModuleChecks.CreateArchives(fixture);
             main.LoadProject(fixture.Session);
+            check(((Button)main.FindName("MartsButton")).IsEnabled,
+                "WPF USUM exposes Mart/BP editor in main navigation");
             Layout((FrameworkElement)main.Content,1390,845);
             check(((TextBlock)main.FindName("DirtyBadgeText")).Text=="Guardado","WPF preserves original custom Z IDs while loading Pokemon");
             var personal=(BatchToolsView)((ContentControl)main.FindName("PersonalToolsHost")).Content;
