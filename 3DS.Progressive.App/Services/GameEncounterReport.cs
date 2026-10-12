@@ -13,6 +13,7 @@ public sealed partial class GameEncounterService
         sb.AppendLine("Juego: "+(Config.USUM?"Ultra Sol / Ultra Luna":
             Config.Generation==7?"Sol / Luna":Config.ORAS?"Omega Ruby / Alpha Sapphire":"X / Y"));
         sb.AppendLine("Tablas: "+Entries.Count);
+        string[] speciesNames=Config.GetText(pk3DS.Core.TextName.SpeciesNames);
         foreach(var entry in Entries)
         {
             var groups=ReadRecord(entry.Id,data);
@@ -39,9 +40,8 @@ public sealed partial class GameEncounterService
                         string prefix=$"S{group}.{slot}.";
                         int species=fields[prefix+"Species"];
                         int form=fields[prefix+"Form"];
-                        string name=species==0?"(vacío)":species<Config.MaxSpeciesID+1
-                            ?Config.GetText(pk3DS.Core.TextName.SpeciesNames)[species]
-                            :$"ID {species}";
+                        string name=species==0?"(vacío)":species<speciesNames.Length
+                            ?speciesNames[species]:$"ID {species}";
                         sb.AppendLine($"  #{slot+1:00} · {name} [ID {species}, forma {form}]");
                     }
                 }
