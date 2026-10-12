@@ -7,6 +7,7 @@ on:
       - "3DS.Progressive.App/**"
       - "3DS.Progressive.Tests/**"
       - "pk3DS.Core/**"
+      - "pk3DS.WinForms/**"
       - "custom_balance_templates/moves_gen*.csv"
       - "custom_balance_templates/pokemon_stats_gen7.csv"
       - ".github/workflows/3ds-progressive-ci.yml"
@@ -49,6 +50,14 @@ jobs:
           retention-days: 14
       - name: Publicar version preliminar autocontenida
         run: dotnet publish .\3DS.Progressive.App\3DS.Progressive.App.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -o .\preview-output
+      - name: Publicar motor original Gen7 para Batch ROM Builder
+        run: |
+          dotnet publish .\pk3DS.WinForms\pk3DS.WinForms.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -o .\preview-output\LegacyBatch
+          New-Item -ItemType Directory -Force .\preview-output\LegacyBatch\custom_balance_templates | Out-Null
+          Copy-Item .\custom_balance_templates\moves_gen*.csv .\preview-output\LegacyBatch\custom_balance_templates\
+          Copy-Item .\custom_balance_templates\evolutions_gen*.csv .\preview-output\LegacyBatch\custom_balance_templates\
+          Copy-Item .\custom_balance_templates\pokemon_stats_gen7.csv .\preview-output\LegacyBatch\custom_balance_templates\
+          Copy-Item .\preview-output\LegacyBatch\custom_balance_templates\* .\preview-output\custom_balance_templates\ -Force
       - name: Adjuntar ejecutable de prueba
         uses: actions/upload-artifact@v4
         with:
