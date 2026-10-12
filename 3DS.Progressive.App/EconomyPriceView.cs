@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using System.Collections.ObjectModel;
 using System.Windows;
 using System.Windows.Controls;
@@ -57,12 +58,12 @@ internal sealed class EconomyPriceView : UserControl
         Command("Incluir visibles",()=>SetVisible(true));
         Command("Excluir visibles",()=>SetVisible(false));
         Command("Restablecer UPR-ZX",ResetDefaults);
-        var bottom=new DockPanel {Margin=new Thickness(0,12,0,0)};
+        var bottom=new DockPanel {Margin=new Thickness(0,12,0,0),LastChildFill=false};
         DockPanel.SetDock(bottom,Dock.Bottom);root.Children.Add(bottom);
         _status=new TextBlock {Foreground=(Brush)FindResource("TextSoft"),
             Text="Revisá y ajustá las filas incluidas.",VerticalAlignment=VerticalAlignment.Center,
             TextWrapping=TextWrapping.Wrap};
-        bottom.Children.Add(_status);
+        DockPanel.SetDock(_status,Dock.Left);bottom.Children.Add(_status);
         var close=new Button {Content="Volver",Margin=new Thickness(8,0,0,0)};
         close.Click+=(_,_)=>Closed?.Invoke();
         DockPanel.SetDock(close,Dock.Right);bottom.Children.Add(close);
