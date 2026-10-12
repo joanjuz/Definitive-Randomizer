@@ -292,8 +292,7 @@ internal sealed class MartEditorView : UserControl
         if (_regularPicker.SelectedItem is not MartShop shop ||
             shop.Rows.Count <= 1 || !shop.Rows.Contains(row)) return;
         CommitBoth();
-        shop.Rows.Remove(row);
-        for (int i = 0; i < shop.Rows.Count; i++) shop.Rows[i].Number = i + 1;
+        if (!GameMartService.TryRemoveRegularSlot(shop, row)) return;
         _regularGrid.Items.Refresh();
         UpdateButtons();
     }
