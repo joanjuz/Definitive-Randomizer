@@ -73,8 +73,8 @@ public sealed class GameLevelUpService
         foreach(var entry in Entries)
             foreach(var row in Read(entry.Index))
             {
-                string species=\"" + entry.Name.Replace("\"","\"\"") + "\"";
-                string moveName=\"" + _project.GetMoveLabel(row.Move).Replace("\"","\"\"") + "\"";
+                string species="\"" + entry.Name.Replace("\"","\"\"") + "\"";
+                string moveName="\"" + _project.GetMoveLabel(row.Move).Replace("\"","\"\"") + "\"";
                 lines.Add($"{entry.Index},{species},{row.Level},{row.Move},{moveName}");
             }
         return string.Join(Environment.NewLine,lines);
