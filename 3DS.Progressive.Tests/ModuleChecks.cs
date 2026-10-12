@@ -234,6 +234,31 @@ internal static class ModuleChecks
                     &&EditorValues.Flatten(statics.Read(1))["Level"]==5,
                     version+" static randomizer preview is frozen and leaves ROM unchanged");
             }
+            if(f.Game.Generation==7)
+            {
+                // Expand the fixture into genuine multiple gift entries without
+                // changing the earlier original archive regression expectations.
+                var path=PathFor(f,"encounterstatic");
+                byte[] original=File.ReadAllBytes(path);
+                var entries=new GARC.MemGARC(original).Files;
+                byte[] sourceGift=entries[0];
+                byte[] gifts20=new byte[sourceGift.Length*20];
+                for(int i=0;i<20;i++)sourceGift.CopyTo(gifts20,i*sourceGift.Length);
+                entries[0]=gifts20;
+                var rebuilt=GarcTransaction.Build(original,f.Game.GetGARCReference("encounterstatic"),
+                    entries,preserveRecordSize:false);
+                File.WriteAllBytes(path,rebuilt);
+                var baselineEditor=new GameStaticEncounterService(f.Session);
+                var giftProposal=baselineEditor.PreviewGiftBstBaseline();
+                check(giftProposal.Changes.Count>0,version+" Gift BST Baseline previews actual affected gifts");
+                baselineEditor.Apply(giftProposal);
+                var after=Read(f,"encounterstatic")[0];
+                check(after.AsSpan(0,sourceGift.Length*3).SequenceEqual(gifts20.AsSpan(0,sourceGift.Length*3))
+                    &&BitConverter.ToUInt16(after,sourceGift.Length*4)==7
+                    &&BitConverter.ToUInt16(after,sourceGift.Length*3)==59
+                    &&BitConverter.ToUInt16(after,sourceGift.Length*14)==59,
+                    version+" Gift BST Baseline preserves starters and assigns exact Squirtle/Arcanine bands");
+            }
             var levelup=new GameLevelUpService(f.Session);
             check(levelup.Read(1).Count==6,version+" original level-up learnsets are loaded");
             var rows=levelup.Read(1).ToArray();rows[0].Move=12;rows[0].Level=2;
