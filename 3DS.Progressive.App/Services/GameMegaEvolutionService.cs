@@ -15,6 +15,8 @@ public sealed class GameMegaEvolutionService : ArchiveProjectEditor
             .Select(i=>new RecordEntry(i,Project.Entries.FirstOrDefault(x=>x.Index==i)?.Name
                 ?? $"Pokémon #{i:000}")).ToArray();
     }
+    internal bool GameIsUsum=>Config.USUM;
+    internal GameProjectSession Session=>Project;
     public override string Title=>"Mega Evolutions";
     public override IReadOnlyList<EditorGroup> RandomOptions=>[];
     protected override IReadOnlyList<EditorGroup> ReadRecord(int id,Dictionary<string,byte[][]> data)
