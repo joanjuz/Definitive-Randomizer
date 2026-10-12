@@ -48,6 +48,9 @@ internal static class ModuleChecks
             headers[id]=h;teams[id]=team;
         }
         Write(f,"trdata",headers);Write(f,"trpoke",teams);
+        var learn=new Learnset6(new byte[4]) {Moves=[1,2,3,4,5,6],Levels=[1,1,1,1,5,10]};
+        Write(f,"levelup",Enumerable.Range(0,840).Select(_=>learn.Write()).ToArray());
+        if(gen==7){byte[] statics=new byte[0x38*200];for(int j=0;j<200;j++)statics[j*0x38+4]=20;Write(f,"encounterstatic",[[],statics]);}
         var evolutions=Enumerable.Range(0,840).Select(i=>
         {
             byte[] data=new byte[gen==7?64:48];Set16(data,0,4);Set16(data,2,16);Set16(data,4,2);
@@ -115,7 +118,7 @@ internal static class ModuleChecks
             check(File.ReadAllBytes(PathFor(f,"trpoke")).SequenceEqual(saved),version+" trainer preview is read-only");
             reject(()=>new GameTrainerService(f.Session).Apply(preview),version+" trainer cross-session proposal is rejected");
             trainers.Apply(preview);check(EditorValues.Flatten(trainers.Read(1))["P0.Level"]==54,version+" trainer level scaling applies to the frozen scope");
-            var history=f.Session.History.Read();check(history.Entries.Count==3&&history.Entries[^1].Parameters.ContainsKey("Seed"),version+" trainer history records all successful actions and parameters");
+            var history=f.Session.History.Read();check(history.Entries.Count==3&&history.Entries[^1].Kind=="Action"&&history.Entries[^1].Changes.Count==0&&!history.Entries[^1].Parameters.ContainsKey("Seed")&&history.Entries[^1].Parameters["SeedPolicy"]=="FreshPerRun",version+" trainer history records all successful actions and parameters");
             check(history.Entries[0].Changes.Any(c=>c.Key=="P0.Level"&&c.Field=="Pokémon 1 · Nivel"&&c.Before=="10"&&c.After=="45"),version+" history identifies the team slot and includes before/after values");
             check(new ProjectHistory(f.Root,f.Game.Version.ToString()).Read().Entries.Count==history.Entries.Count,version+" project history survives reopening");
             var encounter=new GameEncounterService(f.Session);var encBefore=Read(f,"encdata");
@@ -155,7 +158,7 @@ internal static class ModuleChecks
             reject(()=>trainers.Apply(stale),version+" trainer external edits reject a stale proposal");
             check(f.Session.History.Read().Entries.Count==countBefore,version+" failed writes never enter history");
         }
-        PortableHistoryChecks(check);BackupChecks(check,reject);BattleChecks(check,reject);
+        PortableHistoryChecks(check);BackupChecks(check,reject);BattleChecks(check,reject);RegressionFixes.Run(check,reject);
     }
     private static void PortableHistoryChecks(Action<bool,string> check)
     {
@@ -201,7 +204,7 @@ internal static class ModuleChecks
         using var f=new Fixture(GameVersion.USUM);byte[] expanded=ExpandedBattle();
         check(Legacy.Gen7BrutalSwingSelfConfusionPatcher.IsInstalled(expanded),"synthetic expanded CRO contains the exact validated Giro Vil V2 payload");
         check(Legacy.LegacyCroLayout.Compatible(expanded),"verified Giro Vil V2 expansion is an accepted legacy layout");
-        check(Legacy.LegacyCroLayout.StockOffset(expanded,0x105EF0)==0x106EF0,"stock registries follow the inserted code page");
+        check(Legacy.LegacyCroLayout.StockOffset(expanded,0x105EF0)==0xF9100,"stock registries follow the inserted code page");
         string path=Path.Combine(f.Game.RomFS,"Battle.cro");File.WriteAllBytes(path,expanded);
         string csv=Path.Combine(f.Root,"combined.csv");File.WriteAllText(csv,"Move,BattlePatch\n171,Gen7NightmareSleepV76\n96,Gen7MeditateV73\n693,Gen7BrutalSwingSelfConfusionV1\n");
         var service=new GameMoveService(f.Session);var settings=new BatchSettings {TemplatePath=csv,MoveDescriptions=false};
@@ -215,15 +218,15 @@ internal static class ModuleChecks
         byte[] foreign=(byte[])expanded.Clone();foreign[0x1FDE4]^=1;
         check(!Legacy.LegacyCroLayout.Compatible(foreign),"expanded foreign CROs are rejected rather than accepted by size alone");
     }
-    private static byte[] ExpandedBattle()
+    internal static byte[] ExpandedBattle()
     {
-        byte[] data=new byte[0x13D000];const uint code=0x180,rodata=0xFF000,sectionData=0x12F000,relocations=0x130000;
+        byte[] data=new byte[0x13D060];const uint code=0x180,rodata=0xFE000,sectionData=0x12F000,relocations=0x130000;
         Set32(data,0x80,0x304F5243);Set32(data,0x90,(uint)data.Length);
         Set32(data,0xB0,code);Set32(data,0xB4,rodata-code);Set32(data,0xB8,sectionData);Set32(data,0xBC,0x8000);
         Set32(data,0xC8,0x140);Set32(data,0xCC,4);Set32(data,0x128,relocations);Set32(data,0x12C,759);
         Set32(data,0x140,code);Set32(data,0x144,rodata-code);Set32(data,0x14C,rodata);Set32(data,0x150,sectionData-rodata);Set32(data,0x158,sectionData);Set32(data,0x15C,0x8000);
         for(int i=0;i<759;i++)Set32(data,(int)relocations+i*12,3);
-        const uint table=0x106DF0,handler=0xF8000,timing=0xF8100,function=0xF8200;
+        const uint table=0xF9000,handler=0xF8000,timing=0xF8100,function=0xF8200;
         Set32(data,0x873EC,344);Set32(data,(int)table,693);
         Reloc(755,sectionData,table);Reloc(756,table+4,handler);Reloc(757,handler+16,timing);Reloc(758,timing+4,function);
         Set32(data,(int)handler,0xE3A01001);Set32(data,(int)handler+4,0xE5801000);Set32(data,(int)handler+8,0xE59F0000);Set32(data,(int)handler+12,0xE12FFF1E);data[timing]=4;
@@ -236,7 +239,7 @@ internal static class ModuleChecks
         foreach(var pair in new Dictionary<int,uint>{{0xB24F4,0xE92D4FF0},{0xB24F8,0xE24DD04C},{0xB26F8,0xE1A07005},{0xB2714,0xE1A00004},{0xB2728,0xE1A00006},{0xB2790,0xE28DD04C},{0xB2794,0xE8BD8FF0},{0x841C8,0xE5900000},{0x841CC,0xE1A00C00},{0x841D0,0xE1A00DA0},{0x841D4,0xE12FFF1E},{0x92298,0xE5900008},{0x9229C,0xE1A00000},{0x922A0,0xE92D4070}})Set32(data,pair.Key,pair.Value);
         foreach(var pair in new Dictionary<int,int>{{0xB2704,0xB08BC},{0xB2718,0x8205C},{0xB272C,0x841C8},{0xB274C,0x876F8},{0xB2774,0x89CC4},{0xB278C,0x7CCF4}})Set32(data,pair.Key,0xEB000000u|((uint)((pair.Value-pair.Key-8)/4)&0xFFFFFF));
         var meditate=typeof(Legacy.Gen7MeditateV73Patcher);Copy(meditate,"CombinedPayload",0xFCB00);Copy(meditate,"Recipient1",0xC34E0);Copy(meditate,"Recipient2",0xC34E8);
-        Copy(meditate,"ProtectId",0x106EF0);Copy(meditate,"DetectId",0x106EF8);Copy(meditate,"PurifyId",0x1077B0);
+        Copy(meditate,"ProtectId",(int)table+0x100);Copy(meditate,"DetectId",(int)table+0x108);Copy(meditate,"PurifyId",(int)table+0x9C0);
         Set32(data,0x8731C,0xEA01D5F7);Set32(data,0x87388,0xEA01D5EC);
         return data;
         void Copy(Type t,string name,int at)=>((byte[])t.GetField(name,BindingFlags.NonPublic|BindingFlags.Static)!.GetValue(null)!).CopyTo(data,at);

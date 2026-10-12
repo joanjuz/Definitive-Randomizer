@@ -4,7 +4,7 @@ using ThreeDS.Progressive.Services;
 namespace ThreeDS.Progressive.Models;
 
 public sealed record RecordEntry(int Id,string Name) {public string Display=>$"{Name} · #{Id:000}";}
-public sealed record EditorField(string Key,string Label,int Value,int Min,int Max,IReadOnlyList<MoveChoice>? Choices=null);
+public sealed record EditorField(string Key,string Label,int Value,int Min,int Max,IReadOnlyList<MoveChoice>? Choices=null,int Scale=1);
 public sealed record EditorGroup(string Name,IReadOnlyList<EditorField> Fields,bool Expanded=true);
 public sealed class EditorProposal
 {
@@ -14,9 +14,23 @@ public sealed class EditorProposal
     public int Seed {get;}
     public IReadOnlyList<BatchChange> Changes {get;}
     internal IReadOnlyDictionary<string,string> Parameters {get;}
+    internal IReadOnlyList<(string Path,byte[] Fingerprint)> Dependencies {get;}
     internal EditorProposal(Guid owner,string action,int seed,IEnumerable<FileChange> files,
-        IEnumerable<BatchChange> changes,IReadOnlyDictionary<string,string> parameters)
-    {Owner=owner;Action=action;Seed=seed;Files=files.ToArray();Changes=changes.ToArray();Parameters=new Dictionary<string,string>(parameters);}
+        IEnumerable<BatchChange> changes,IReadOnlyDictionary<string,string> parameters,IEnumerable<(string Path,byte[] Fingerprint)>? dependencies=null)
+    {Owner=owner;Action=action;Seed=seed;Files=files.ToArray();Changes=changes.ToArray();Parameters=new Dictionary<string,string>(parameters);Dependencies=dependencies?.ToArray()??[];}
+}
+public interface ITemplateProjectEditor
+{
+    string TemplateButton {get;}
+    string DefaultTemplatePath {get;}
+    EditorProposal PreviewTemplate(string path,IReadOnlyList<int> scope);
+}
+public interface IOptionTemplateProjectEditor
+{
+    void ImportOptions(string path);
+    void ExportOptions(string path,IReadOnlyDictionary<string,int> options);
+    string CaptureOptions(IReadOnlyDictionary<string,int> options);
+    void RestoreOptions(string json);
 }
 public interface IProjectEditor
 {

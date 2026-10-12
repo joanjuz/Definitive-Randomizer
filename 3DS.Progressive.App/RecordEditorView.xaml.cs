@@ -15,18 +15,22 @@ namespace ThreeDS.Progressive;
 
 public partial class RecordEditorView : UserControl
 {
-    internal sealed record UiState(IReadOnlyDictionary<string,int> Options,int Scope);
+    internal sealed record UiState(IReadOnlyDictionary<string,int> Options,int Scope,string? Template=null);
     internal IProjectEditor Editor {get;}
     private readonly Dictionary<string,FrameworkElement> _fields=[],_options=[];
     private bool _loading,_dirty;
     private int _id=-1;
     private EditorProposal? _proposal;
+    private bool _templateMode;
     internal IReadOnlyDictionary<string,FrameworkElement> FieldControls=>_fields;
     internal IReadOnlyDictionary<string,FrameworkElement> OptionControls=>_options;
     public RecordEditorView(IProjectEditor editor) : this(editor,null) { }
     internal RecordEditorView(IProjectEditor editor,UiState? state)
     {
         Editor=editor;InitializeComponent();TitleText.Text=editor.Title;RandomizerButton.Content="Randomizar "+editor.Title.ToLowerInvariant();
+        if(editor is ITemplateProjectEditor template){TemplateButton.Visibility=Visibility.Visible;TemplateButton.Content=template.TemplateButton;TemplatePathText.Text=template.DefaultTemplatePath;}
+        if(editor is IOptionTemplateProjectEditor optionTemplate)
+        {ImportOptionsButton.Visibility=ExportOptionsButton.Visibility=Visibility.Visible;if(state?.Template is { } saved)optionTemplate.RestoreOptions(saved);}
         RecordList.ItemsSource=editor.Entries;CountText.Text=editor.Entries.Count+" entradas";
         _loading=true;
         var groups=editor.RandomOptions.Select(g=>g with {Fields=g.Fields.Select(f=>
@@ -39,14 +43,12 @@ public partial class RecordEditorView : UserControl
     }
     internal UiState RememberOptions()
     {
-        var options=new Dictionary<string,int>();
-        foreach(var pair in _options)
-        {
-            if(pair.Value is ComboBox {SelectedValue:int v})options[pair.Key]=v;
-            else if(pair.Value is CheckBox check)options[pair.Key]=check.IsChecked==true?1:0;
-            else if(pair.Value is TextBox text&&int.TryParse(text.Text,NumberStyles.Integer,CultureInfo.InvariantCulture,out int number))options[pair.Key]=number;
-        }
-        return new(options,ScopeBox.SelectedIndex);
+        Dictionary<string,int> options;
+        try {options=Values(_options);}catch(ArgumentException){return new(new Dictionary<string,int>(),ScopeBox.SelectedIndex);}
+        string? template=null;
+        if(Editor is IOptionTemplateProjectEditor editor)
+        {try{template=editor.CaptureOptions(options);}catch(ArgumentException){ }}
+        return new(options,ScopeBox.SelectedIndex,template);
     }
     private void BuildGroups(StackPanel panel,IEnumerable<EditorGroup> groups,Dictionary<string,FrameworkElement> controls,bool editor)
     {
@@ -72,9 +74,9 @@ public partial class RecordEditorView : UserControl
                 }
                 else
                 {
-                    var text=new TextBox {Text=field.Value.ToString(CultureInfo.InvariantCulture)};text.TextChanged+=Input_Changed;input=text;
+                    var text=new TextBox {Text=(field.Value/(decimal)field.Scale).ToString(CultureInfo.InvariantCulture)};text.TextChanged+=Input_Changed;input=text;
                 }
-                input.Tag=editor;controls.Add(field.Key,input);cell.Children.Add(input);grid.Children.Add(cell);
+                input.Tag=editor;input.Uid=field.Scale.ToString(CultureInfo.InvariantCulture);controls.Add(field.Key,input);cell.Children.Add(input);grid.Children.Add(cell);
             }
             var expand=new Expander {Header=group.Name,IsExpanded=group.Expanded,Foreground=(Brush)FindResource("TextMain"),Content=grid};
             panel.Children.Add(new Border {Background=(Brush)FindResource("Panel"),BorderBrush=(Brush)FindResource("Stroke"),BorderThickness=new Thickness(1),CornerRadius=new CornerRadius(10),Padding=new Thickness(16),Margin=new Thickness(0,0,0,14),Child=expand});
@@ -83,7 +85,7 @@ public partial class RecordEditorView : UserControl
     private static Dictionary<string,int> Values(Dictionary<string,FrameworkElement> controls)=>controls.ToDictionary(p=>p.Key,p=>p.Value switch
     {
         ComboBox {SelectedValue:int v}=>v,CheckBox check=>check.IsChecked==true?1:0,
-        TextBox text when int.TryParse(text.Text,NumberStyles.Integer,CultureInfo.InvariantCulture,out int v)=>v,
+        TextBox text when decimal.TryParse(text.Text.Replace(',','.'),NumberStyles.Number,CultureInfo.InvariantCulture,out decimal v)=>checked((int)(v*int.Parse(text.Uid))),
         _=>throw new ArgumentException("Hay un campo que no contiene un número válido.")
     });
     private void Input_Changed(object sender,RoutedEventArgs e)
@@ -95,7 +97,17 @@ public partial class RecordEditorView : UserControl
     private void Show(int id)
     {
         _loading=true;
-        try{_id=id;BuildGroups(FieldsPanel,Editor.Read(id),_fields,true);SelectionText.Text=Editor.Entries.First(e=>e.Id==id).Display;_dirty=false;SaveButton.IsEnabled=false;StatusText.Text="Editor listo.";Invalidate();}
+        try
+        {
+            if(Editor is ThreeDS.Progressive.Services.GameTrainerService trainer)
+            {
+                var state=_options.Count>0?RememberOptions():null;
+                trainer.SelectOptionsEntry(id);
+                var groups=Editor.RandomOptions.Select(g=>g with {Fields=g.Fields.Select(f=>state is not null&&state.Options.TryGetValue(f.Key,out int value)?f with {Value=value}:f).ToArray()});
+                BuildGroups(OptionsPanel,groups,_options,false);
+            }
+            _id=id;BuildGroups(FieldsPanel,Editor.Read(id),_fields,true);SelectionText.Text=Editor.Entries.First(e=>e.Id==id).Display;_dirty=false;SaveButton.IsEnabled=false;StatusText.Text="Editor listo.";Invalidate();
+        }
         finally{_loading=false;}
     }
     private void Selection_Changed(object sender,SelectionChangedEventArgs e)
@@ -130,6 +142,7 @@ public partial class RecordEditorView : UserControl
     private void Randomizer_Click(object sender,RoutedEventArgs e)
     {
         if(!ConfirmLeave())return;if(_dirty&&_id>=0)Show(_id);Invalidate();
+        _templateMode=false;ToolTitle.Text="Randomizar";TemplatePanel.Visibility=Visibility.Collapsed;OptionsPanel.Visibility=Visibility.Visible;
         FieldsScroll.Visibility=Visibility.Collapsed;ToolsPanel.Visibility=Visibility.Visible;
         SaveButton.IsEnabled=false;ProposalText.Text="Configurá las opciones y generá una vista previa.";ChangeList.ItemsSource=null;
     }
@@ -140,11 +153,36 @@ public partial class RecordEditorView : UserControl
         try
         {
             int[] scope=ScopeBox.SelectedIndex switch {1=>RecordList.Items.Cast<RecordEntry>().Select(e=>e.Id).ToArray(),2=>_id>=0?[_id]:[],_=>Editor.Entries.Select(e=>e.Id).ToArray()};
-            _proposal=Editor.Preview(Values(_options),scope);ChangeList.ItemsSource=_proposal.Changes;
-            ProposalText.Text=$"{_proposal.Changes.Count} cambios · semilla {_proposal.Seed}. Revisá la propuesta antes de aplicar.";
+            _proposal=_templateMode&&Editor is ITemplateProjectEditor template?template.PreviewTemplate(TemplatePathText.Text,scope):Editor.Preview(Values(_options),scope);ChangeList.ItemsSource=_proposal.Changes;
+            ProposalText.Text=$"{_proposal.Changes.Count} cambios"+(_proposal.Seed==0?"":$" · semilla {_proposal.Seed}")+". Revisá la propuesta antes de aplicar.";
             ApplyButton.IsEnabled=_proposal.Changes.Count>0;
         }
         catch(Exception ex){Invalidate();ProposalText.Text=ex.Message;}
+    }
+    private void Template_Click(object sender,RoutedEventArgs e)
+    {
+        if(!ConfirmLeave())return;if(_dirty&&_id>=0)Show(_id);Invalidate();_templateMode=true;
+        ToolTitle.Text="Template de evoluciones";TemplatePanel.Visibility=Visibility.Visible;OptionsPanel.Visibility=Visibility.Collapsed;
+        FieldsScroll.Visibility=Visibility.Collapsed;ToolsPanel.Visibility=Visibility.Visible;SaveButton.IsEnabled=false;ChangeList.ItemsSource=null;
+        ProposalText.Text="Se conservarán las evoluciones originales y se añadirán o actualizarán las rutas del CSV, como en pk3DS Progressive.";
+    }
+    private void ChooseTemplate_Click(object sender,RoutedEventArgs e)
+    {var dialog=new Microsoft.Win32.OpenFileDialog {Filter="Template de evoluciones|*.csv"};if(dialog.ShowDialog(Window.GetWindow(this))==true){TemplatePathText.Text=dialog.FileName;Invalidate();}}
+    private void DefaultTemplate_Click(object sender,RoutedEventArgs e)
+    {if(Editor is ITemplateProjectEditor template){TemplatePathText.Text=template.DefaultTemplatePath;Invalidate();}}
+    private void ImportOptions_Click(object sender,RoutedEventArgs e)
+    {
+        if(Editor is not IOptionTemplateProjectEditor editor)return;
+        var dialog=new Microsoft.Win32.OpenFileDialog {Filter="Template de entrenadores Progressive|*.json"};if(dialog.ShowDialog(Window.GetWindow(this))!=true)return;
+        try{editor.ImportOptions(dialog.FileName);_loading=true;BuildGroups(OptionsPanel,Editor.RandomOptions,_options,false);_loading=false;Randomizer_Click(sender,e);}
+        catch(Exception ex){_loading=false;StudioDialog.Error(Window.GetWindow(this),"No se pudo cargar el template",ex.Message);}
+    }
+    private void ExportOptions_Click(object sender,RoutedEventArgs e)
+    {
+        if(Editor is not IOptionTemplateProjectEditor editor)return;
+        var dialog=new Microsoft.Win32.SaveFileDialog {Filter="Template de entrenadores Progressive|*.json",FileName="trainer-template.json"};if(dialog.ShowDialog(Window.GetWindow(this))!=true)return;
+        try{editor.ExportOptions(dialog.FileName,Values(_options));StudioDialog.Notice(Window.GetWindow(this),"Template exportado","Se conservaron las opciones, rangos y reglas de entrenadores.");}
+        catch(Exception ex){StudioDialog.Error(Window.GetWindow(this),"No se pudo exportar",ex.Message);}
     }
     private void Apply_Click(object sender,RoutedEventArgs e)
     {

@@ -17,7 +17,12 @@
     <ScrollViewer x:Name="FieldsScroll" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Background="Transparent"><StackPanel x:Name="FieldsPanel"/></ScrollViewer>
     <Grid x:Name="ToolsPanel" Visibility="Collapsed"><Grid.RowDefinitions><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
      <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Background="Transparent"><StackPanel>
-      <TextBlock Text="Randomizar" FontSize="22" FontWeight="SemiBold" Margin="0,0,0,15"/><StackPanel x:Name="OptionsPanel"/>
+      <TextBlock x:Name="ToolTitle" Text="Randomizar" FontSize="22" FontWeight="SemiBold" Margin="0,0,0,15"/>
+      <StackPanel x:Name="TemplatePanel" Visibility="Collapsed" Margin="0,0,0,15">
+       <TextBlock Text="Template CSV de pk3DS Progressive" Foreground="{StaticResource TextSoft}" Margin="0,0,0,8"/>
+       <TextBox x:Name="TemplatePathText" IsReadOnly="True" TextWrapping="Wrap"/>
+       <WrapPanel Margin="0,10,0,0"><Button Content="Elegir CSV…" Click="ChooseTemplate_Click" Margin="0,0,8,8"/><Button Content="Usar Progressive" Click="DefaultTemplate_Click" Margin="0,0,0,8"/></WrapPanel>
+      </StackPanel><StackPanel x:Name="OptionsPanel"/>
       <TextBlock x:Name="ProposalText" TextWrapping="Wrap" Foreground="{StaticResource TextSoft}" Margin="0,12"/>
       <ListBox x:Name="ChangeList" MaxHeight="600" ScrollViewer.HorizontalScrollBarVisibility="Disabled">
        <ListBox.ItemTemplate><DataTemplate><StackPanel Margin="4,7"><TextBlock Text="{Binding Name}" FontWeight="SemiBold"/><TextBlock Text="{Binding Field}" Foreground="{StaticResource TextSoft}"/><TextBlock Text="{Binding Before}" TextWrapping="Wrap"/><TextBlock Text="{Binding After}" TextWrapping="Wrap" Foreground="{StaticResource Accent}"/></StackPanel></DataTemplate></ListBox.ItemTemplate>
@@ -32,12 +37,15 @@
    <Border Grid.Column="2" Background="{StaticResource Panel}" BorderBrush="{StaticResource Stroke}" BorderThickness="1,0,0,0" Padding="18,22">
     <StackPanel><TextBlock Text="INSPECTOR" Foreground="{StaticResource TextSoft}" FontSize="11" Margin="0,0,0,12"/>
      <Button x:Name="RandomizerButton" Content="Randomizar" Click="Randomizer_Click" Margin="0,0,0,10"/>
+     <Button x:Name="TemplateButton" Content="Template de evoluciones" Visibility="Collapsed" Click="Template_Click" Margin="0,0,0,10"/>
+     <Button x:Name="ImportOptionsButton" Content="Cargar template de entrenadores" Visibility="Collapsed" Click="ImportOptions_Click" Margin="0,0,0,10"/>
+     <Button x:Name="ExportOptionsButton" Content="Exportar template de entrenadores" Visibility="Collapsed" Click="ExportOptions_Click" Margin="0,0,0,10"/>
      <TextBlock x:Name="SelectionText" TextWrapping="Wrap" FontSize="18" FontWeight="SemiBold" Margin="0,13"/>
      <Button x:Name="SaveButton" Content="Guardar cambios" Click="Save_Click" IsEnabled="False" Margin="0,0,0,10"/>
      <Button Content="Descartar cambios" Click="Discard_Click" Margin="0,0,0,18"/>
      <TextBlock Text="Alcance de randomización" Foreground="{StaticResource TextSoft}" Margin="0,0,0,8"/>
      <ComboBox x:Name="ScopeBox" SelectedIndex="0" SelectionChanged="Scope_Changed"><ComboBoxItem Content="Todas las entradas"/><ComboBoxItem Content="Lista filtrada"/><ComboBoxItem Content="Entrada seleccionada"/></ComboBox>
-     <TextBlock Text="Los cambios se guardan al confirmar. El historial conserva los valores anteriores, los nuevos y los parámetros de cada acción." Foreground="{StaticResource TextSoft}" TextWrapping="Wrap" Margin="0,20,0,0"/>
+     <TextBlock Text="El historial conserva los valores de una edición individual. Las operaciones masivas guardan la acción y sus opciones, con una semilla nueva para cada futura randomización." Foreground="{StaticResource TextSoft}" TextWrapping="Wrap" Margin="0,20,0,0"/>
     </StackPanel>
    </Border>
   </Grid>

@@ -1,0 +1,58 @@
+// Copied from pk3DS Progressive at 2a0db04. Original randomization logic; isolated app adapters.
+#nullable disable
+namespace ThreeDS.Progressive.Services.ProgressiveLegacy;
+
+public sealed class TrainerLevelCapRule
+{
+    public bool Enabled { get; set; } = true;
+    public int TrainerID { get; set; }
+    public string Group { get; set; } = string.Empty;
+    public string Trainer { get; set; } = string.Empty;
+    public int CurrentAceLevel { get; set; }
+
+    // 0 means dynamic Ace. In USUM main story it follows audited story scaling; otherwise it uses the globally scaled ace fallback.
+    public int LevelCap { get; set; }
+
+    // Per-trainer option: reduce this selected important battle to at most 3 Pokémon.
+    // The strongest-level ace is always preserved.
+    public bool NerfTeam { get; set; }
+
+    // Per-trainer option: force the selected important battle to have a Mega-capable ace.
+    public bool GuaranteeMega { get; set; }
+
+    // Gen 7 only: force one Pokémon in this important battle to hold a compatible Z-Crystal.
+    public bool GuaranteeZMove { get; set; }
+
+    // Per-trainer option: force randomized trainer moves to have at least this power.
+    // 0 means disabled.
+    public int MinMovePower { get; set; }
+
+    public TrainerLevelCapRule Clone()
+    {
+        return new TrainerLevelCapRule
+        {
+            Enabled = Enabled,
+            TrainerID = TrainerID,
+            Group = Group,
+            Trainer = Trainer,
+            CurrentAceLevel = CurrentAceLevel,
+            LevelCap = LevelCap,
+            NerfTeam = NerfTeam,
+            GuaranteeMega = GuaranteeMega,
+            GuaranteeZMove = GuaranteeZMove,
+            MinMovePower = MinMovePower,
+        };
+    }
+}
+
+public sealed class TrainerLevelCapStage
+{
+    public int TrainerID { get; set; }
+    public int OriginalAceLevel { get; set; }
+    public int LevelCap { get; set; }
+    public bool GuaranteeMega { get; set; }
+
+    // Gen 7 only: force one Pokémon in this important battle to hold a compatible Z-Crystal.
+    public bool GuaranteeZMove { get; set; }
+    public int MinMovePower { get; set; }
+}

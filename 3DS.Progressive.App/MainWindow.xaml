@@ -504,7 +504,7 @@
         <Border Grid.Row="2" Background="#111720" BorderBrush="{StaticResource Stroke}"
                 BorderThickness="0,1,0,0">
             <DockPanel Margin="18,0" LastChildFill="True">
-                <TextBlock Text="3DS PROGRESSIVE · V0.7.0 PREVIEW"
+                <TextBlock Text="3DS PROGRESSIVE · V0.8.0 PREVIEW"
                            DockPanel.Dock="Right" Foreground="{StaticResource TextSoft}"
                            FontSize="10" VerticalAlignment="Center"/>
                 <TextBlock x:Name="StatusText" Text="Esperando proyecto extraído..."

@@ -4,7 +4,7 @@ using ThreeDS.Progressive.Models;
 
 namespace ThreeDS.Progressive.Services;
 
-public sealed class GameEvolutionService : ArchiveProjectEditor
+public sealed class GameEvolutionService : ArchiveProjectEditor,ITemplateProjectEditor
 {
     public GameEvolutionService(GameProjectSession project):base(project,"evolution")
     {
@@ -13,6 +13,30 @@ public sealed class GameEvolutionService : ArchiveProjectEditor
             Project.Entries.FirstOrDefault(p=>p.Index==i)?.Name??(i<species.Length?species[i]:$"Entrada {i}"))).ToArray();
     }
     public override string Title=>"Evoluciones";
+    public string TemplateButton=>"Template de evoluciones";
+    public string DefaultTemplatePath=>Path.Combine(AppContext.BaseDirectory,"custom_balance_templates",$"evolutions_gen{Config.Generation}.csv");
+    public EditorProposal PreviewTemplate(string path,IReadOnlyList<int> scope)
+    {
+        path=Path.GetFullPath(path);byte[] source=File.ReadAllBytes(path);byte[] hash=System.Security.Cryptography.SHA256.HashData(source);
+        int[] ids=scope.Distinct().Order().ToArray();
+        if(ids.Length==0||ids.Any(id=>!Entries.Any(e=>e.Id==id)))throw new ArgumentException("El alcance no contiene evoluciones válidas.");
+        var names=Config.GetText(TextName.SpeciesNames);var items=Config.GetText(TextName.ItemNames);
+        var rows=EvolutionTemplates.Load(path,names,items,Config.Generation);
+        var selected=rows.Where(r=>ids.Contains(r.Source)).ToArray();
+        if(selected.Length==0)throw new InvalidDataException("No hay filas del template dentro del alcance elegido.");
+        var records=Records();var changes=new List<BatchChange>();
+        foreach(var group in selected.GroupBy(r=>r.Source))
+        {
+            int id=group.Key;var before=ReadRecord(id,records);var values=EditorValues.Flatten(before);
+            EvolutionTemplates.Apply(values,group,Config.Generation);
+            EditorValues.Validate(before,values);WriteRecord(id,values,records);
+            changes.AddRange(EditorValues.Diff(id,Entries.First(e=>e.Id==id).Name,before,ReadRecord(id,records)));
+        }
+        GarcTransaction.ReadUnchanged(path,hash);
+        return new(ProposalOwner,"Template de evoluciones",0,Build(records),changes,new Dictionary<string,string>
+        {{"ActionId","evolutions.normalize"},{"Scope",ids.Length==Entries.Count?"All":string.Join(",",ids)},
+         {"TemplateFile",Path.GetFileName(path)},{"TemplateSha256",Convert.ToHexString(hash)},{"TemplateCSV",System.Text.Encoding.UTF8.GetString(source)}},[(path,hash)]);
+    }
     public override IReadOnlyList<EditorGroup> RandomOptions=>[new("Evoluciones y acceso",[
         Field("Species","Randomizar destinos de evolución",1,0,1),
         Field("BST","Tolerancia BST del destino (%) · 0 = libre",30,0,100),

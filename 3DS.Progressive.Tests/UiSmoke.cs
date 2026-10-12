@@ -13,6 +13,7 @@ internal static class UiSmoke
 {
     internal static void Run(Action<bool,string> check)
     {
+        StudioDialog.AutomatedChecks=true;
         var app = new ThreeDS.Progressive.App();
         app.InitializeComponent();
         var main = new MainWindow();
@@ -110,7 +111,7 @@ internal static class UiSmoke
             check(((TextBox)trainer.FieldControls["P0.Level"]).Text=="10","WPF trainer discard restores the saved value");
             ((Button)trainer.FindName("RandomizerButton")).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             ((ComboBox)trainer.FindName("ScopeBox")).SelectedIndex=2;
-            ((TextBox)trainer.OptionControls["LevelScale"]).Text="160";
+            ((TextBox)trainer.OptionControls["NUD_LevelBoost"]).Text="1.6";
             ((Button)trainer.FindName("PreviewButton")).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             check(((Button)trainer.FindName("ApplyButton")).IsEnabled,"WPF trainer randomizer produces a scoped proposal");
             Layout(trainer,1170,720);Capture(trainer,"entrenadores-randomizar.png");
@@ -120,7 +121,7 @@ internal static class UiSmoke
             Layout(encounters,1170,720);Capture(encounters,"encuentros-editor.png");
             ((Button)main.FindName("TrainersButton")).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             var remembered=(RecordEditorView)((ContentControl)main.FindName("SectionHost")).Content;
-            check(((TextBox)remembered.OptionControls["LevelScale"]).Text=="160"&&((ComboBox)remembered.FindName("ScopeBox")).SelectedIndex==2,"WPF module options and scope survive navigation");
+            check(((TextBox)remembered.OptionControls["NUD_LevelBoost"]).Text=="1.6"&&((ComboBox)remembered.FindName("ScopeBox")).SelectedIndex==2,"WPF module options and scope survive navigation");
             ((Button)main.FindName("EvolutionsButton")).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             var evolutions=(RecordEditorView)((ContentControl)main.FindName("SectionHost")).Content;
             check(evolutions.Editor is ThreeDS.Progressive.Services.GameEvolutionService&&evolutions.FieldControls.ContainsKey("E7.Method"),"WPF Evolutions exposes all eight routes");

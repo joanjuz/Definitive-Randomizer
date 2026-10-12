@@ -72,12 +72,9 @@ public sealed partial class GameMoveService
                     (_, message) => errors.Add(message));
                 if (result < 0) throw new InvalidDataException("El archivo de combate no coincide con las versiones compatibles del template. " + string.Join(" ", errors));
                 byte[] after = File.ReadAllBytes(staged);
-                // A second pass must recognize the fully installed state and be idempotent.
-                int again = Legacy.CustomBattleEffectPatcher.ApplyExternalPatches(_config.Generation, requests,
-                    (_, message) => errors.Add(message));
-                if (again < 0 || !File.ReadAllBytes(staged).AsSpan().SequenceEqual(after))
-                    throw new InvalidDataException("Los parches de combate no superaron la verificación de segunda aplicación. "
-                        + string.Join(" ", errors));
+                // Match MoveEditor7: install the requested effects once. Giro Vil relocates
+                // the move registry; running stock-address installers again is not a validator.
+                // Every installer checks its signatures; FileTransaction verifies frozen output.
                 var change = new FileChange(croPath, before, after);
                 if (change.Changed)
                 {

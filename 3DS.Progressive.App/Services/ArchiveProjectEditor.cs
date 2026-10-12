@@ -10,7 +10,7 @@ public abstract class ArchiveProjectEditor : IProjectEditor
 {
     protected readonly GameProjectSession Project;
     protected readonly GameConfig Config;
-    private readonly Guid _owner=Guid.NewGuid();
+    protected readonly Guid ProposalOwner=Guid.NewGuid();
     private int _lastSeed=-1;
     private readonly Dictionary<TextName,IReadOnlyList<MoveChoice>> _choices=[];
     private IReadOnlyList<MoveChoice>? _speciesChoices;
@@ -29,8 +29,12 @@ public abstract class ArchiveProjectEditor : IProjectEditor
     public abstract string Title {get;}
     public IReadOnlyList<RecordEntry> Entries {get;protected set;}=[];
     public abstract IReadOnlyList<EditorGroup> RandomOptions {get;}
-    protected Dictionary<string,byte[][]> Records()=>_archives.ToDictionary(p=>p.Key,
-        p=>new GARC.MemGARC(GarcTransaction.ReadUnchanged(p.Value.Path,p.Value.Hash)).Files);
+    protected Dictionary<string,byte[][]> Records()=>_archives.ToDictionary(p=>p.Key,p=>
+    {
+        byte[] source=GarcTransaction.ReadUnchanged(p.Value.Path,p.Value.Hash);
+        return p.Key=="encdata"?new LazyGARCFile(new GARC.LazyGARC(source),p.Value.Ref,p.Value.Path).Files:
+            new GARC.MemGARC(source).Files;
+    });
     protected abstract IReadOnlyList<EditorGroup> ReadRecord(int id,Dictionary<string,byte[][]> records);
     protected abstract void WriteRecord(int id,IReadOnlyDictionary<string,int> values,Dictionary<string,byte[][]> records);
     protected abstract Dictionary<string,int> Randomize(int id,IReadOnlyDictionary<string,int> options,
@@ -42,9 +46,9 @@ public abstract class ArchiveProjectEditor : IProjectEditor
         WriteRecord(id,values,records);var after=ReadRecord(id,records);
         var changes=EditorValues.Diff(id,Entries.First(e=>e.Id==id).Name,before,after);
         if(changes.Count==0)return;
-        Commit(new(_owner,"Editar "+Title,0,Build(records),changes,new Dictionary<string,string>()));
+        Commit(new(ProposalOwner,"Editar "+Title,0,Build(records),changes,new Dictionary<string,string>()));
     }
-    public EditorProposal Preview(IReadOnlyDictionary<string,int> options,IReadOnlyList<int> scope)
+    public virtual EditorProposal Preview(IReadOnlyDictionary<string,int> options,IReadOnlyList<int> scope)
     {
         EditorValues.Validate(RandomOptions,options);
         int[] ids=scope.Distinct().Order().ToArray();
@@ -59,16 +63,25 @@ public abstract class ArchiveProjectEditor : IProjectEditor
         }
         var parameters=options.ToDictionary(p=>p.Key,p=>p.Value.ToString(System.Globalization.CultureInfo.InvariantCulture));
         parameters["Seed"]=seed.ToString();parameters["Scope"]=string.Join(",",ids);
-        return new(_owner,"Randomizar "+Title,seed,Build(records),changes,parameters);
+        return new(ProposalOwner,"Randomizar "+Title,seed,Build(records),changes,parameters);
     }
-    private IReadOnlyList<FileChange> Build(Dictionary<string,byte[][]> records)=>_archives.Select(p=>
+    private protected IReadOnlyList<FileChange> Build(Dictionary<string,byte[][]> records)=>_archives.Select(p=>
     {
         byte[] source=GarcTransaction.ReadUnchanged(p.Value.Path,p.Value.Hash);
-        return new FileChange(p.Value.Path,source,GarcTransaction.Build(source,p.Value.Ref,records[p.Key],preserveRecordSize:false));
+        if(p.Key!="encdata")return new FileChange(p.Value.Path,source,GarcTransaction.Build(source,p.Value.Ref,records[p.Key],preserveRecordSize:false));
+        var lazy=new GARC.LazyGARC(source);
+        for(int i=0;i<records[p.Key].Length;i++)
+            if(!lazy[i].AsSpan().SequenceEqual(records[p.Key][i]))lazy[i]=records[p.Key][i];
+        byte[] output=lazy.Save();
+        var verify=new GARC.LazyGARC(output);
+        for(int i=0;i<records[p.Key].Length;i++)
+            if(!verify[i].AsSpan().SequenceEqual(records[p.Key][i]))throw new InvalidDataException("Falló la verificación de encuentros comprimidos.");
+        return new FileChange(p.Value.Path,source,output);
     }).ToArray();
     public void Apply(EditorProposal proposal)
     {
-        if(proposal.Owner!=_owner)throw new InvalidOperationException("La propuesta pertenece a otra sesión.");
+        if(proposal.Owner!=ProposalOwner)throw new InvalidOperationException("La propuesta pertenece a otra sesión.");
+        foreach(var dependency in proposal.Dependencies)GarcTransaction.ReadUnchanged(dependency.Path,dependency.Fingerprint);
         Commit(proposal);
     }
     private void Commit(EditorProposal proposal)

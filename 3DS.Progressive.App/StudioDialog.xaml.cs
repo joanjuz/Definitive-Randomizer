@@ -7,6 +7,7 @@ namespace ThreeDS.Progressive;
 /// <summary>Diálogos accesibles y estilizados para todos los módulos de Studio.</summary>
 public partial class StudioDialog : Window
 {
+    internal static bool AutomatedChecks {get;set;}
     public StudioDialog()
     {
         InitializeComponent();
@@ -15,18 +16,21 @@ public partial class StudioDialog : Window
 
     public static bool Confirm(Window? owner, string title, string message, string? details = null)
     {
+        if(AutomatedChecks)return true;
         var dlg = Create(owner, title, message, details, "!", "Continuar", true);
         return dlg.ShowDialog() == true;
     }
 
     public static void Notice(Window? owner, string title, string message, string? details = null)
     {
+        if(AutomatedChecks)return;
         var dlg = Create(owner, title, message, details, "i", "Entendido", false);
         dlg.ShowDialog();
     }
 
     public static void Error(Window? owner, string title, string message)
     {
+        if(AutomatedChecks)throw new InvalidOperationException(title+": "+message);
         var dlg = Create(owner, title, message, null, "!", "Entendido", false);
         dlg.ShowDialog();
     }

@@ -7,7 +7,7 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <AssemblyName>3DS.Progressive</AssemblyName>
-    <Version>0.7.0</Version>
+    <Version>0.8.0</Version>
     <RootNamespace>ThreeDS.Progressive</RootNamespace>
   </PropertyGroup>
   <ItemGroup>
@@ -15,5 +15,6 @@
     <ProjectReference Include="..\pk3DS.Core\pk3DS.Core.csproj" />
     <Content Include="..\custom_balance_templates\pokemon_stats_gen7.csv" Link="custom_balance_templates\pokemon_stats_gen7.csv" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
     <Content Include="..\custom_balance_templates\moves_gen*.csv" Link="custom_balance_templates\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <Content Include="..\custom_balance_templates\evolutions_gen*.csv" Link="custom_balance_templates\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

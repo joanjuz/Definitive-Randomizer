@@ -5,8 +5,9 @@ using ThreeDS.Progressive.Models;
 
 namespace ThreeDS.Progressive.Services;
 
-public sealed class GameTrainerService : ArchiveProjectEditor
+public sealed class GameTrainerService : ArchiveProjectEditor,IOptionTemplateProjectEditor
 {
+    private ProgressiveLegacy.TrainerLogicHost? _original;
     public GameTrainerService(GameProjectSession project):base(project,"trdata","trpoke")
     {
         var records=Records();if(records["trdata"].Length!=records["trpoke"].Length)
@@ -16,10 +17,51 @@ public sealed class GameTrainerService : ArchiveProjectEditor
             .Select(i=>new RecordEntry(i,i<names.Length?names[i]:$"Entrenador {i}")).ToArray();
     }
     public override string Title=>"Entrenadores";
-    public override IReadOnlyList<EditorGroup> RandomOptions=>[new("Randomización",[
+    private ProgressiveLegacy.TrainerLogicHost Original=>_original??=new(Config,Records()["trdata"],Records()["trpoke"]);
+    public void SelectOptionsEntry(int id) {if(OperatingSystem.IsWindows())Original.SelectedTrainer=id;}
+    public void ImportOptions(string path)=>Original.Restore(File.ReadAllText(path));
+    public void RestoreOptions(string json)=>Original.Restore(json);
+    public string CaptureOptions(IReadOnlyDictionary<string,int> options)=>Original.Capture(options);
+    public void ExportOptions(string path,IReadOnlyDictionary<string,int> options)=>File.WriteAllText(path,Original.Capture(options));
+    public override IReadOnlyList<EditorGroup> RandomOptions=>OperatingSystem.IsWindows()?Original.Options():[new("Randomización",[
         Field("Species","Randomizar especies",1,0,1),
         Field("BST","Tolerancia BST (%) · 0 = cualquier BST",30,0,100),
         Field("LevelScale","Escala de niveles (%)",100,1,1000)])];
+    public override EditorProposal Preview(IReadOnlyDictionary<string,int> options,IReadOnlyList<int> scope)
+    {
+        if(!OperatingSystem.IsWindows())return base.Preview(options,scope);
+        var input=new Dictionary<string,int>(options);
+        if(input.Remove("Species",out int species))input["CHK_RandomPKM"]=species;
+        if(input.Remove("LevelScale",out int scale)) {input["CHK_Level"]=1;input["NUD_LevelBoost"]=scale;}
+        input.Remove("BST");
+        EditorValues.Validate(RandomOptions,input);
+        int[] ids=scope.Distinct().Order().ToArray();
+        if(ids.Length==0||ids.Any(id=>!Entries.Any(e=>e.Id==id)))throw new ArgumentException("El alcance no contiene entrenadores válidos.");
+        var records=Records();var dependencies=new List<(string Path,byte[] Fingerprint)>();
+        foreach(string name in new[]{"personal","move","levelup","evolution","eggmove","encounterstatic"})
+        {
+            string path=Path.Combine(Config.RomFS,Config.GetGARCReference(name).Reference);
+            if(File.Exists(path))dependencies.Add((path,System.Security.Cryptography.SHA256.HashData(File.ReadAllBytes(path))));
+        }
+        foreach(string path in Directory.EnumerateFiles(Config.ExeFS).Where(p=>Path.GetFileNameWithoutExtension(p).Contains("code")))
+            dependencies.Add((path,System.Security.Cryptography.SHA256.HashData(File.ReadAllBytes(path))));
+        Config.InitializePersonal();Config.InitializeMoves();Config.InitializeLearnset();Config.InitializeEvos();
+        int seed=System.Security.Cryptography.RandomNumberGenerator.GetInt32(int.MaxValue);
+        var engine=new ProgressiveLegacy.TrainerLogicHost(Config,records["trdata"],records["trpoke"]);
+        engine.Restore(Original.Capture(input));
+        var output=engine.Run(input,seed);
+        var changes=new List<BatchChange>();
+        foreach(int id in ids)
+        {
+            var before=ReadRecord(id,records);
+            records["trdata"][id]=output.Headers[id];records["trpoke"][id]=output.Teams[id];
+            changes.AddRange(EditorValues.Diff(id,Entries.First(e=>e.Id==id).Name,before,ReadRecord(id,records)));
+        }
+        foreach(var d in dependencies)GarcTransaction.ReadUnchanged(d.Path,d.Fingerprint);
+        return new(ProposalOwner,"Randomizar Entrenadores",seed,Build(records),changes,
+            new Dictionary<string,string>{{"ActionId","trainers.randomize"},{"Scope",ids.Length==Entries.Count?"All":string.Join(",",ids)},
+                {"Controls",System.Text.Json.JsonSerializer.Serialize(input)},{"TrainerTemplate",engine.Capture(input)}},dependencies);
+    }
     protected override IReadOnlyList<EditorGroup> ReadRecord(int id,Dictionary<string,byte[][]> records)
     {
         byte[] header=records["trdata"][id],team=records["trpoke"][id];int o=Config.ORAS?4:0;

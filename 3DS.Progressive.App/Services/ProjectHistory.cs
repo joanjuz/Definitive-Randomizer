@@ -9,7 +9,7 @@ namespace ThreeDS.Progressive.Services;
 public sealed record HistoryFile(string Path, string BeforeSha256, string AfterSha256);
 public sealed record HistoryEntry(Guid Id, DateTimeOffset Time, string Module, string Action,
     IReadOnlyList<BatchChange> Changes, IReadOnlyDictionary<string,string> Parameters,
-    IReadOnlyList<HistoryFile> Files);
+    IReadOnlyList<HistoryFile> Files,string Kind="Edit",int ChangedValueCount=0);
 public sealed record HistoryDocument(int Version, string Game, string Project, IReadOnlyList<HistoryEntry> Entries);
 
 /// <summary>The journal participates in the same verified commit as the edited game files.</summary>
@@ -33,8 +33,8 @@ public sealed class ProjectHistory
     public HistoryDocument Read()
     {
         lock(_gate) return File.Exists(_path)
-            ? JsonSerializer.Deserialize<HistoryDocument>(File.ReadAllBytes(_path),Json)
-                ?? throw new InvalidDataException("El historial no tiene un formato válido.")
+            ? Normalize(JsonSerializer.Deserialize<HistoryDocument>(File.ReadAllBytes(_path),Json)
+                ?? throw new InvalidDataException("El historial no tiene un formato válido."))
             : new(1,_game,Path.GetFileName(_root),[]);
     }
     internal void Commit(IReadOnlyList<FileChange> files,string module,string action,
@@ -48,16 +48,40 @@ public sealed class ProjectHistory
             // File.Replace requires a target. Initializing the empty journal changes no game data.
             if(!File.Exists(_path)) File.WriteAllBytes(_path,JsonSerializer.SerializeToUtf8Bytes(Read(),Json));
             byte[] source=File.ReadAllBytes(_path);
-            var document=JsonSerializer.Deserialize<HistoryDocument>(source,Json)
-                ?? throw new InvalidDataException("No se puede leer el historial.");
-            var entry=new HistoryEntry(Guid.NewGuid(),DateTimeOffset.UtcNow,module,action,changes.ToArray(),
-                new Dictionary<string,string>(parameters??new Dictionary<string,string>()),
-                actual.Select(f=>new HistoryFile(Path.GetRelativePath(_root,f.Path),Hash(f.Original()),Hash(f.Proposed()))).ToArray());
-            byte[] proposed=JsonSerializer.SerializeToUtf8Bytes(document with {Entries=document.Entries.Append(entry).ToArray()},Json);
+            var document=Normalize(JsonSerializer.Deserialize<HistoryDocument>(source,Json)
+                ?? throw new InvalidDataException("No se puede leer el historial."));
+            var values=changes.ToArray();
+            var options=new Dictionary<string,string>(parameters??new Dictionary<string,string>());
+            bool bulk=options.ContainsKey("Scope")||options.ContainsKey("Settings");
+            if(bulk)
+            {
+                options.Remove("Seed");
+                options["SeedPolicy"]=action.StartsWith("Randomizar",StringComparison.Ordinal)?"FreshPerRun":"NotRandom";
+                if(options.TryGetValue("Settings",out string? settings))
+                {
+                    var node=System.Text.Json.Nodes.JsonNode.Parse(settings)?.AsObject();
+                    node?.Remove("Seed");if(node is not null)options["Settings"]=node.ToJsonString();
+                }
+            }
+            var entry=new HistoryEntry(Guid.NewGuid(),DateTimeOffset.UtcNow,module,action,bulk?[]:values,options,
+                actual.Select(f=>new HistoryFile(Path.GetRelativePath(_root,f.Path),Hash(f.Original()),Hash(f.Proposed()))).ToArray(),bulk?"Action":"Edit",values.Length);
+            byte[] proposed=JsonSerializer.SerializeToUtf8Bytes(document with {Version=2,Entries=document.Entries.Append(entry).ToArray()},Json);
             FileTransaction.Commit([..actual,new FileChange(_path,source,proposed)]);
         }
     }
     public void Export(string path) => File.WriteAllBytes(path,JsonSerializer.SerializeToUtf8Bytes(Read(),Json));
+    private static HistoryDocument Normalize(HistoryDocument document)=>document with
+    {
+        Version=2,Entries=document.Entries.Select(entry=>
+        {
+            if(entry.Kind=="Action"||!entry.Parameters.ContainsKey("Scope")&&!entry.Parameters.ContainsKey("Settings"))return entry;
+            var parameters=new Dictionary<string,string>(entry.Parameters);parameters.Remove("Seed");
+            parameters["SeedPolicy"]=entry.Action.StartsWith("Randomizar",StringComparison.Ordinal)?"FreshPerRun":"NotRandom";
+            if(parameters.TryGetValue("Settings",out var settings))
+            {var node=System.Text.Json.Nodes.JsonNode.Parse(settings)?.AsObject();node?.Remove("Seed");if(node is not null)parameters["Settings"]=node.ToJsonString();}
+            return entry with {Kind="Action",ChangedValueCount=entry.Changes.Count,Changes=[],Parameters=parameters};
+        }).ToArray()
+    };
     internal byte[] CommitGarc(string path,pk3DS.Core.GARCReference reference,byte[] fingerprint,byte[][] records,
         string module,string action,IEnumerable<BatchChange> changes,IReadOnlyDictionary<string,string>? parameters=null,bool mini=false)
     {

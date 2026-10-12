@@ -34,11 +34,12 @@ public sealed class HistoryView : UserControl
         var scroll=new ScrollViewer {Content=details,VerticalScrollBarVisibility=ScrollBarVisibility.Auto,HorizontalScrollBarVisibility=ScrollBarVisibility.Disabled};Grid.SetColumn(scroll,1);body.Children.Add(scroll);
         var entries=history.Read().Entries.Reverse().ToArray();
         var list=new ListBox();body.Children.Add(list);
-        foreach(var entry in entries)list.Items.Add(new ListBoxItem {Tag=entry,Content=new TextBlock {Text=$"{entry.Time.ToLocalTime():dd/MM/yyyy HH:mm:ss}\n{entry.Module} · {entry.Action}\n{entry.Changes.Count} cambios",TextWrapping=TextWrapping.Wrap,Margin=new Thickness(3,7,3,7)}});
+        foreach(var entry in entries)list.Items.Add(new ListBoxItem {Tag=entry,Content=new TextBlock {Text=$"{entry.Time.ToLocalTime():dd/MM/yyyy HH:mm:ss}\n{entry.Module} · {entry.Action}\n"+(entry.Kind=="Action"?"Acción y opciones · "+entry.ChangedValueCount+" valores afectados":entry.Changes.Count+" cambios"),TextWrapping=TextWrapping.Wrap,Margin=new Thickness(3,7,3,7)}});
         list.SelectionChanged+=(_,_)=>
         {
             if(list.SelectedItem is not ListBoxItem {Tag:HistoryEntry entry})return;details.Children.Clear();
             Add(entry.Action,true);Add(entry.Time.ToLocalTime().ToString("dd/MM/yyyy HH:mm:ss"));
+            if(entry.Kind=="Action")Add("Se conserva la acción y sus opciones. Las randomizaciones usarán una semilla nueva en cada ROM.");
             foreach(var change in entry.Changes){Add(change.Name+" · "+change.Field,true);Add(change.Before+" → "+change.After);}
             if(entry.Parameters.Count>0){Add("Parámetros",true);foreach(var parameter in entry.Parameters)Add(parameter.Key+": "+parameter.Value);}
             Add("Archivos verificados",true);foreach(var file in entry.Files)Add(file.Path+"\n"+file.BeforeSha256+" → "+file.AfterSha256);
