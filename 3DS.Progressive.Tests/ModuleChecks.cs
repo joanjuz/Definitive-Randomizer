@@ -48,6 +48,16 @@ internal static class ModuleChecks
             headers[id]=h;teams[id]=team;
         }
         Write(f,"trdata",headers);Write(f,"trpoke",teams);
+        var items=Enumerable.Range(0,60).Select(i=>
+        {
+            var obj=new Item {BuyPrice=i==0?0:i*10};
+            return obj.Write();
+        }).ToArray();
+        Write(f,"item",items);
+        Write(f,"gametext",[
+            TextFile.GetBytes(f.Game,["Hola","Primer texto"]),
+            TextFile.GetBytes(f.Game,["Segunda sección","Con variables de ejemplo"])
+        ]);
         var learn=new Learnset6(new byte[4]) {Moves=[1,2,3,4,5,6],Levels=[1,1,1,1,5,10]};
         Write(f,"levelup",Enumerable.Range(0,840).Select(_=>learn.Write()).ToArray());
         if(gen==7)
@@ -68,6 +78,12 @@ internal static class ModuleChecks
         if(gen==7)
         {
             encounters=Enumerable.Range(0,22).Select(_=>Array.Empty<byte>()).ToArray();
+            // Field Items EI (visible) and EB (hidden) stored in the ED area node.
+            byte[] ei=new byte[120];ei[0]=1;Set16(ei,52,17);
+            byte[] eb=new byte[120];eb[0]=1;Set16(eb,58,18);
+            byte[][] ed=Enumerable.Range(0,12).Select(_=>Array.Empty<byte>()).ToArray();
+            ed[10]=Mini.PackMini([ei],"EI");ed[11]=Mini.PackMini([eb],"EB");
+            encounters[0]=Mini.PackMini(ed,"ED");
             foreach(int file in new[]{9,20})
             {
                 byte[] pair=new byte[0x2CC];pair[0]=0x7A;
@@ -179,6 +195,42 @@ internal static class ModuleChecks
                 check(staticPreview.Changes.Count>0
                     &&EditorValues.Flatten(statics.Read(1))["Level"]==5,
                     version+" static randomizer preview is frozen and leaves ROM unchanged");
+            }
+            var levelup=new GameLevelUpService(f.Session);
+            check(levelup.Read(1).Count==6,version+" original level-up learnsets are loaded");
+            var rows=levelup.Read(1).ToArray();rows[0].Move=12;rows[0].Level=2;
+            levelup.Save(1,rows);
+            check(levelup.Read(1)[0].Move==12&&levelup.Read(1)[0].Level==1,
+                version+" level-up moves are preserved and sorted when saving");
+            check(new Learnset6(Read(f,"levelup")[2]).Moves[0]==1,
+                version+" level-up editing does not touch other Pokémon");
+            var item=new GameItemService(f.Session);
+            var iv=EditorValues.Flatten(item.Read(1));
+            check(iv["Price"]==10,version+" item editor reads base 10-unit price");
+            iv["Price"]=200;item.Save(1,iv);
+            check(EditorValues.Flatten(item.Read(1))["Price"]==200,
+                version+" item price changes are saved in item GARC");
+            check(EditorValues.Flatten(item.Read(2))["Price"]==20,
+                version+" other items stay intact");
+            var texts=new GameTextService(f.Session);
+            check(texts.Read(0)[0]=="Hola",version+" game text original codec parses file");
+            texts.Save(0,["Hola editada","Primer texto"]);
+            check(texts.Read(0)[0]=="Hola editada"&&texts.Read(1)[0]=="Segunda sección",
+                version+" text editing persists and preserves unrelated files");
+            if(f.Game.Generation==7)
+            {
+                var fieldItems=new GameFieldItemsService(f.Session);
+                check(fieldItems.Entries.Count==2,version+" EI and EB Field Item locations are detected");
+                var one=EditorValues.Flatten(fieldItems.Read(1));
+                check(one["Item"]==17,version+" EI item reads real ED/EI area layout");
+                one["Item"]=19;fieldItems.Save(1,one);
+                check(EditorValues.Flatten(fieldItems.Read(1))["Item"]==19
+                    &&EditorValues.Flatten(fieldItems.Read(2))["Item"]==18,
+                    version+" Field Item edit preserves adjacent EB");
+                var fieldOptions=EditorValues.Flatten(fieldItems.RandomOptions);
+                var fieldPreview=fieldItems.Preview(fieldOptions,[1,2]);
+                check(fieldPreview.Seed>=0&&fieldPreview.Files.Count==1,
+                    version+" Field Items produce a frozen scoped preview");
             }
             var evolution=new GameEvolutionService(f.Session);var e=EditorValues.Flatten(evolution.Read(1));e["E0.Method"]=5;evolution.Save(1,e);
             options=EditorValues.Flatten(evolution.RandomOptions);options["Species"]=0;options["Trade"]=1;options["TradeLevel"]=40;
