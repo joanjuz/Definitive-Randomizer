@@ -5,6 +5,7 @@ using ThreeDS.Progressive.Services;
 using Brush=System.Windows.Media.Brush;
 using Button=System.Windows.Controls.Button;
 using UserControl=System.Windows.Controls.UserControl;
+using WpfApplication=System.Windows.Application;
 using UniformGrid=System.Windows.Controls.Primitives.UniformGrid;
 
 namespace ThreeDS.Progressive;
@@ -79,7 +80,7 @@ internal sealed class TypeChartView : UserControl
         "Tabla de tipos con cambios sin guardar","Los cambios de efectividad se descartarán al salir. ¿Continuar?");
     private static TextBlock Header(string label)=>new()
     {
-        Text=label,Foreground=(Brush)Application.Current.FindResource("TextSoft"),
+        Text=label,Foreground=(Brush)WpfApplication.Current.FindResource("TextSoft"),
         TextTrimming=TextTrimming.CharacterEllipsis,TextAlignment=TextAlignment.Center,
         VerticalAlignment=VerticalAlignment.Center,
         Margin=new Thickness(1),MinWidth=59,FontSize=11,
