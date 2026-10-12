@@ -176,6 +176,9 @@ public sealed partial class GameEncounterService : ArchiveProjectEditor, IOption
         if(Config.Generation==7)
         {
             if(v["Min"]>v["Max"])throw new ArgumentException("El nivel mínimo supera al máximo.");
+            int probability=Enumerable.Range(0,10).Sum(i=>v["Rate"+i]);
+            if(probability is not (0 or 100))
+                throw new ArgumentException($"Las probabilidades de encuentros deben sumar 0% o 100%, no {probability}%.");
             table[o]=(byte)v["Min"];table[o+1]=(byte)v["Max"];
             for(int i=0;i<10;i++)table[o+2+i]=(byte)v["Rate"+i];
             for(int group=0;group<9;group++)for(int i=0;i<(group==8?6:10);i++)
@@ -276,29 +279,10 @@ public sealed partial class GameEncounterService : ArchiveProjectEditor, IOption
                 ?PickWildForm(chosen,random,options["MegaForms"]==1):0;
         }
         if(Config.Generation==7&&slotMode==3&&options["SOS"]==1)
-        {
-            for(int group=1;group<=7;group++)for(int i=0;i<10;i++)
-            {
-                string target=$"S{group}.{i}.",source=$"S0.{i}.";
-                if(values[target+"Species"]==0)continue;
-                values[target+"Species"]=values[source+"Species"];
-                values[target+"Form"]=values[source+"Form"];
-            }
-        }
-        if(Config.Generation==7&&options["AllCanCallAllies"]==1)
-        {
-            // Vanilla Wild7Randomizer semantics: fill only missing ordinary SOS
-            // species from the matching normal slot, never overwrite existing
-            // partners or meteorological SOS encounters.
-            for(int group=1;group<=7;group++)
-                for(int i=0;i<10;i++)
-                {
-                    string original=$"S0.{i}.",ally=$"S{group}.{i}.";
-                    if(values[original+"Species"]==0||values[ally+"Species"]!=0)continue;
-                    values[ally+"Species"]=values[original+"Species"];
-                    values[ally+"Form"]=values[original+"Form"];
-                }
-        }
+            WildSosRules.CopyRegularIntoSos(values);
+        if(Config.Generation==7&&options["SOS"]==1&&options["AllCanCallAllies"]==1)
+            WildSosRules.FillMissingAllies(values,pool,random,
+                species=>PickWildForm(species,random,options["MegaForms"]==1));
         int Scale(int x)=>x==0?0:Math.Clamp((int)Math.Round(x*options["LevelScale"]/100.0)+options["LevelFlat"],1,100);
         if(Config.Generation==7)
         {
