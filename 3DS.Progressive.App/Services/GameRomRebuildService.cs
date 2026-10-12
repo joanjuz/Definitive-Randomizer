@@ -48,8 +48,23 @@ internal sealed class GameRomRebuildService(GameProjectSession project)
                     string[] source=Directory.GetFiles(exefs, "*",SearchOption.TopDirectoryOnly);
                     if(source.Length is <1 or >10)
                         throw new InvalidDataException("ExeFS requiere entre 1 y 10 archivos.");
-                    if(!ExeFS.PackExeFS(source,exefile))
-                        throw new IOException("El motor ExeFS rechazó los archivos originales.");
+                    string stageExe=Path.Combine(stage,"ExeFS-input");
+                    Directory.CreateDirectory(stageExe);
+                    var prepared=new List<string>(source.Length);
+                    foreach(string path in source)
+                    {
+                        string copied=Path.Combine(stageExe,Path.GetFileName(path));
+                        File.Copy(path,copied);
+                        prepared.Add(copied);
+                    }
+                    UiProgress.Stage("ExeFS · BLZ comprimiendo code.bin en copia temporal…");
+                    string? code=prepared.FirstOrDefault(path=>Path.GetFileName(path)
+                        .Contains("code",StringComparison.OrdinalIgnoreCase));
+                    if(code is null)throw new InvalidDataException("ExeFS necesita code.bin.");
+                    using(var progressBar=new System.Windows.Forms.ProgressBar())
+                        _=new BLZCoder(["-en",code],progressBar);
+                    if(!ExeFS.PackExeFS(prepared.ToArray(),exefile))
+                        throw new IOException("El motor ExeFS rechazó los archivos temporales.");
                     if(!File.Exists(exefile)||new FileInfo(exefile).Length<=0x200)
                         throw new IOException("ExeFS no produjo una salida válida.");
                     UiProgress.Count("ExeFS compilado",
