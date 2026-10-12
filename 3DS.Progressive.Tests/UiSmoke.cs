@@ -308,6 +308,21 @@ internal static class UiSmoke
                     "WPF Batch Builder has separate measured overall and current-ROM percentage bars");
                 Capture(batchView,"batch-rom-progress.png");
             }
+            ((Button)main.FindName("PokemonToolsButton")).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            var pokemonTools=((ContentControl)main.FindName("SectionHost")).Content as SystemsView;
+            check(pokemonTools is not null,"WPF separates original editors into Pokémon Tools");
+            if(pokemonTools is not null)
+            {
+                Layout(pokemonTools,1130,690);
+                var labels=Walk(pokemonTools).OfType<TextBlock>().Select(t=>t.Text).ToArray();
+                check(labels.Any(t=>t?.Contains("Egg Moves")==true)&&
+                    labels.Any(t=>t?.Contains("Mega Evolutions")==true)&&
+                    labels.Any(t=>t?.Contains("Type Chart")==true)&&
+                    labels.Any(t=>t?.Contains("Shiny Rate")==true)&&
+                    labels.Any(t=>t?.Contains("OWSE")==true),
+                    "Pokémon Tools hosts all original editors and read-only OWSE Dev entry");
+                Capture(pokemonTools,"pokemon-tools-dark.png");
+            }
             ((Button)main.FindName("MechanicsButton")).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             check(((ContentControl)main.FindName("SectionHost")).Content is SystemsView,
                 "WPF mechanics and CRO menu is active and opens real systems hub");
