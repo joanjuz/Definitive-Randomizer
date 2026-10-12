@@ -29,13 +29,22 @@ Las descripciones se escriben en el banco español (idioma 6), conservando los d
 
 Alcance **Todo / Lista filtrada / Selección**, vista previa antes/después, **Copiar tabla guardada** y **Copiar cambios**. Cambiar parámetros, selección o el editor invalida la propuesta.
 
+## Tiendas y BP (USUM) · Hito 19
+
+- Menú **Edición → Tiendas y BP · USUM**; 28 tiendas normales y 7 tiendas BP.
+- Editar ID de objeto y precio BP, añadir o eliminar ranuras en tiendas normales, poner a 0 BP las megapiedras de Battle Tree.
+- Resolución de `Shop.cro` mediante `Gen7ShopCroLayout` y reconstrucción segura mediante `Gen7ExpandedMartTable`: soporta CROs previamente expandidos, sin offsets fijos.
+- Vista previa con diferencias, relectura del CRO, protección ante cambios externos y guardado conjunto con historial. El editor NO modifica `code.bin`, el GARC de objetos ni el precio de venta de los objetos.
+- Los presets de randomización y vitaminas/EV requieren una fase posterior; no presentarlos como implementados.
+- Requiere prueba manual sobre una extracción real de Ultra Sun y Ultra Moon antes de declarar paridad completa.
+
 ## Backup e historial
 
 **Generar backup**, junto a **Abrir proyecto**, permite elegir una carpeta fuera del proyecto. Guarda un ZIP de todos los archivos presentes, un manifiesto SHA-256 y el historial. Relee y verifica el ZIP y las fuentes antes de finalizar; un fallo o cancelación elimina el archivo parcial. Representa los archivos guardados al pulsar el botón; las ediciones pendientes en el formulario todavía no están guardadas. No se generan backups automáticos.
 
 **Historial** versión 2 distingue edición individual y acción masiva. Una edición conserva valores anteriores/nuevos y su clave/slot. Una operación masiva conserva acción, opciones, alcance, reglas/template y hashes de auditoría; no conserva resultados por Pokémon ni una semilla fija. La política de randomización es una semilla nueva en cada futura ROM. Los historiales v1 se normalizan al leer/exportar y se actualizan al próximo guardado confirmado. Persiste en `3ds-progressive-history.json`, junto a RomFS/ExeFS, y viaja con el proyecto/backup.
 
-El historial versionado es una base para ampliar el Global Template. La importación/reproducción del Global Template original y Batch ROM Builder todavía no están migradas a esta interfaz.
+El historial versionado es una base para ampliar el Global Template. Global Template y Batch ROM Builder están incorporados mediante importación JSON v1/coverage8 y ejecución aislada del motor Gen7 original; aún falta sincronizar automáticamente todas las opciones de los editores WPF con el template global.
 
 ## Guardado y pruebas
 
@@ -54,7 +63,7 @@ Prioridad de PNG: `%LOCALAPPDATA%\3DS Progressive\sprites\custom\entry-001.png`,
 
 ## Alcance pendiente
 
-La migración no está completa. Quedan Progressive Wild completo, los otros módulos de encuentros, asignaciones MT/tutores, economía/tiendas, textos/historia y automatización global. Otros módulos permanecen deshabilitados. Esta es una **preview**, no sustituye el release estable WinForms ni realiza merge a la rama estable.
+La migración no está completa. Ya se integraron Static Encounters, Egg Moves, Level Up masivo, Player Caps, herramientas CRO, Type Chart Gen7, Global Template y Batch ROM Builder. Continúan pendientes las opciones completas de Progressive Wild, asignación de movimientos a tutores USUM (sincronizando código), Story Text y módulos Gen6 especiales. En tiendas USUM se incorporó la edición normal/BP con ranuras ampliables, pero falta portar los presets avanzados de vitaminas, caramelos raros y randomización del editor original. Esta es una **preview**: no sustituye la versión estable WinForms ni se ha fusionado con ella.
 
 Extraer el ZIP **completo** y ejecutar `3DS.Progressive.exe`; conservar la carpeta `custom_balance_templates` junto al ejecutable.
 
