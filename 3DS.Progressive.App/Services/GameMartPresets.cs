@@ -27,7 +27,7 @@ public sealed partial class GameMartService
         ["Resist Wing","Pluma Aguante"],["Genius Wing","Pluma Intelecto"],
         ["Clever Wing","Pluma Mente"],["Swift Wing","Pluma Ímpetu","Pluma Impetu"]
     ];
-    private const int AbilityCapsuleUSUM = 645;
+    internal const int AbilityCapsuleUSUM = 645;
     private bool _setCandyPrice, _setKeyPrice, _enableVitamin252, _banCapsule;
     private int[] _vitaminIds = [];
     private readonly List<string> _presets = [];
@@ -53,23 +53,35 @@ public sealed partial class GameMartService
         int[] pool=ItemPool.Where(id=>id>0&&id<_project.ItemNames.Count&&
             (!_banCapsule||id!=AbilityCapsuleUSUM)).ToArray();
         if(pool.Length==0)throw new InvalidDataException("No hay objetos válidos para randomizar.");
-        var rng=new Random(RandomNumberGenerator.GetInt32(int.MaxValue));
+        int count=RandomizeSlots(RegularShops,BpShops,pool,
+            new Random(RandomNumberGenerator.GetInt32(int.MaxValue)),bp,specialsOnly,protectX);
+        _presets.Add(bp?"marts.randomize-bp":specialsOnly?"marts.randomize:special-only":"marts.randomize");
+        return count;
+    }
+
+    // Separated from GameProjectSession so the exact Mount Lanakila/X-item
+    // scenario can be regression-tested without a real Shop.cro.
+    internal static int RandomizeSlots(IReadOnlyList<MartShop> regular,IReadOnlyList<MartShop> bpShops,
+        IReadOnlyList<int> allowed,Random rng,bool bp,bool specialsOnly,bool protectX)
+    {
+        int[] pool=allowed.ToArray();
+        if(pool.Length==0)throw new InvalidDataException("El pool de objetos está vacío.");
         void Shuffle()
         {
             for(int i=pool.Length-1;i>0;i--)
             {int j=rng.Next(i+1);(pool[i],pool[j])=(pool[j],pool[i]);}
         }
         Shuffle();int cursor=0,count=0;
-        IEnumerable<MartShop> shops=bp?BpShops:RegularShops.Skip(specialsOnly?8:0);
+        IEnumerable<MartShop> shops=bp?bpShops:regular.Skip(specialsOnly?8:0);
         foreach(var shop in shops)
             foreach(var row in shop.Rows)
             {
                 int before=row.ItemId;
                 if(!bp&&(ProtectedItems.Contains(before)||(protectX&&SpeedrunXItems.Contains(before))))continue;
-                // When X protection is disabled, X-only shops such as Mount Lanakila
-                // must actually randomize. Never re-roll another X item for an X slot.
                 if(cursor==pool.Length){Shuffle();cursor=0;}
                 int next=pool[cursor++];
+                // Disabling protection must actually change a store made solely
+                // of X items. Never replace an X item with another X item.
                 if(next==before||(!protectX&&SpeedrunXItems.Contains(before)&&SpeedrunXItems.Contains(next)))
                 {
                     int search=0;
@@ -84,7 +96,6 @@ public sealed partial class GameMartService
                 }
                 row.ItemId=next;count++;
             }
-        _presets.Add(bp?"marts.randomize-bp":specialsOnly?"marts.randomize:special-only":"marts.randomize");
         return count;
     }
     public int AddRareCandies()
