@@ -33,6 +33,8 @@ public partial class MainWindow : Window
     private MachineTutorView? _machineTutorView;
     private LevelUpView? _levelUpView;
     private PlayerLevelCapsView? _playerCapsView;
+    private GlobalTemplateView? _globalTemplateView;
+    private BatchRomBuilderView? _batchRomView;
     private GameTextView? _gameTextView;
     private readonly Dictionary<string,RecordEditorView.UiState> _sectionOptions=[];
     private bool _backupRunning;
@@ -181,6 +183,10 @@ public partial class MainWindow : Window
                 "GameText"=>_gameTextView=new GameTextView(_session),
                 "Evolutions"=>CreateEditor(new GameEvolutionService(_session)),
                 "PlayerCaps"=>new PlayerLevelCapsView(_session),
+                "GlobalTemplate"=>_globalTemplateView??=new GlobalTemplateView(_session),
+                "BatchRom"=>_batchRomView??=new BatchRomBuilderView(_session,
+                    _globalTemplateView?.LoadedSourcePath),
+
                 "Mechanics"=>new SystemsView(_session,"Mechanics",NavigateSystem,
                     ()=>Backup_Click(BackupButton,new RoutedEventArgs()),OpenAutomatedPokemon),
                 "RomTools"=>new SystemsView(_session,"RomTools",NavigateSystem,
@@ -195,7 +201,7 @@ public partial class MainWindow : Window
             _recordView=view as RecordEditorView;_playerCapsView=null; if(section!="MachineTutor")_machineTutorView=null; if(section!="LevelUp")_levelUpView=null; if(section!="GameText")_gameTextView=null;SectionHost.Content=view;
             PokemonListPanel.Visibility=PokemonEditorPanel.Visibility=PersonalToolsPanel.Visibility=PokemonInspectorPanel.Visibility=MovesHost.Visibility=Visibility.Collapsed;
             _personalTools.InvalidatePreview();SectionHost.Visibility=Visibility.Visible;_showingMoves=false;
-            PokemonNavButton.Background=MovesButton.Background=TrainersButton.Background=EncountersButton.Background=StaticEncountersButton.Background=MachineTutorButton.Background=LevelUpButton.Background=ItemsButton.Background=FieldItemsButton.Background=GameTextButton.Background=EvolutionsButton.Background=HistoryButton.Background=MechanicsButton.Background=RomToolsButton.Background=AutomationButton.Background=ConfigurationButton.Background=Brushes.Transparent;
+            PokemonNavButton.Background=MovesButton.Background=TrainersButton.Background=EncountersButton.Background=StaticEncountersButton.Background=MachineTutorButton.Background=LevelUpButton.Background=ItemsButton.Background=FieldItemsButton.Background=GameTextButton.Background=EvolutionsButton.Background=HistoryButton.Background=GlobalTemplateButton.Background=BatchRomButton.Background=MechanicsButton.Background=RomToolsButton.Background=AutomationButton.Background=ConfigurationButton.Background=Brushes.Transparent;
             ((Button)sender).Background=new SolidColorBrush((Color)ColorConverter.ConvertFromString("#2B4059")!);
             StatusText.Text=section=="History"?"Historial persistente de cambios confirmados.":"Editor integrado · guardar registra los cambios en el historial.";
         }
@@ -212,6 +218,7 @@ public partial class MainWindow : Window
             "StaticEncounters"=>StaticEncountersButton,"MachineTutor"=>MachineTutorButton,
             "LevelUp"=>LevelUpButton,"Items"=>ItemsButton,"GameText"=>GameTextButton,
             "History"=>HistoryButton,"PlayerCaps"=>MechanicsButton,
+            "GlobalTemplate"=>GlobalTemplateButton,"BatchRom"=>BatchRomButton,
             _=>null
         };
         if(section=="PlayerCaps")
@@ -266,7 +273,7 @@ public partial class MainWindow : Window
     {
         _session = candidate;
         _sectionOptions.Clear();
-        _recordView=null;_machineTutorView=null;_levelUpView=null;_gameTextView=null;_playerCapsView=null;SectionHost.Content=null;
+        _recordView=null;_machineTutorView=null;_levelUpView=null;_gameTextView=null;_playerCapsView=null;_globalTemplateView=null;_batchRomView=null;SectionHost.Content=null;
         _movesView = null;
         MovesHost.Content = null;
         DisplayPokemon();
@@ -324,6 +331,7 @@ public partial class MainWindow : Window
         FieldItemsButton.IsEnabled=candidate.Generation==7;
         GameTextButton.IsEnabled=true;
         MechanicsButton.IsEnabled=RomToolsButton.IsEnabled=AutomationButton.IsEnabled=ConfigurationButton.IsEnabled=true;
+        GlobalTemplateButton.IsEnabled=BatchRomButton.IsEnabled=true;
         ConfigurePersonalTools(candidate);
         PokemonList.SelectedIndex = 0;
         StatusText.Text = "Proyecto abierto en modo lectura. Guardar requiere confirmación.";
