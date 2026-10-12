@@ -55,6 +55,32 @@ internal static class UiSmoke
             Border border=Walk(apply).OfType<Border>().First(b=>b.Name=="ButtonBorder");
             check(((SolidColorBrush)border.Background).Color==Color.FromRgb(38,55,74),"WPF disabled action has subdued logo-blue background Gen "+generation);
         }
+        // Unlike the original generic inspector, native WPF rule tables keep
+        // an independent Important/Boss filter without losing hidden edits.
+        var candidates=new[]{
+            new TrainerRuleTableRow{Id=9,Group="Important",Trainer="Entrenador importante",Ace=15,CapUse=true},
+            new TrainerRuleTableRow{Id=23,Group="Boss",Trainer="Jefe",Ace=20,CapUse=true}
+        };
+        foreach(bool caps in new[]{true,false})
+        {
+            var rulesWindow=new TrainerRulesWindow(candidates,caps);
+            rulesWindow.Show();
+            var important=(CheckBox)typeof(TrainerRulesWindow)
+                .GetField("_important",BindingFlags.NonPublic|BindingFlags.Instance)!.GetValue(rulesWindow)!;
+            var bosses=(CheckBox)typeof(TrainerRulesWindow)
+                .GetField("_bosses",BindingFlags.NonPublic|BindingFlags.Instance)!.GetValue(rulesWindow)!;
+            var view=(System.ComponentModel.ICollectionView)typeof(TrainerRulesWindow)
+                .GetField("_view",BindingFlags.NonPublic|BindingFlags.Instance)!.GetValue(rulesWindow)!;
+            check(((System.Collections.IEnumerable)view).Cast<object>().Count()==2,
+                "WPF trainer table initially shows important trainers and bosses");
+            bosses.IsChecked=false;
+            check(((System.Collections.IEnumerable)view).Cast<object>().Count()==1,
+                "WPF Boss filter hides bosses without discarding their records");
+            important.IsChecked=false;
+            check(((System.Collections.IEnumerable)view).Cast<object>().Count()==0&&rulesWindow.Rows.Count==2,
+                "WPF trainer table filters preserve both hidden important and boss candidates");
+            rulesWindow.Close();
+        }
         using(var fixture = new Fixture(GameVersion.USUM))
         {
             ModuleChecks.CreateArchives(fixture);
