@@ -219,6 +219,28 @@ internal static class UiSmoke
                 && ((WrapPanel)staticView.FindName("EncounterSpriteCards")).Children.Count==1,
                 "WPF Static Encounters displays the Pokémon sprite for the selected gift");
             Layout(staticView,1170,720);Capture(staticView,"static-encounters-editor.png");
+            if(fixture.Game.USUM)
+            {
+                check(((Button)staticView.FindName("TotemCapsButton")).Visibility==Visibility.Visible
+                    &&((Button)staticView.FindName("TotemBstButton")).Visibility==Visibility.Visible,
+                    "WPF USUM static encounter exposes Totem Caps and Totem BST tools");
+                ((Button)staticView.FindName("TotemCapsButton")).RaiseEvent(
+                    new RoutedEventArgs(Button.ClickEvent));
+                var host=(ContentControl)staticView.FindName("TrainerRulesHost");
+                check(host.Visibility==Visibility.Visible&&host.Content is TotemRulesView,
+                    "WPF Totem Caps opens embedded dark table without extra windows");
+                if(host.Content is TotemRulesView cap)
+                {Layout(cap,1150,680);Capture(cap,"totem-caps-dark.png");}
+                ((Button)Walk(host).OfType<Button>().First(x=>Equals(x.Content,"Volver")))
+                    .RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                ((Button)staticView.FindName("TotemBstButton")).RaiseEvent(
+                    new RoutedEventArgs(Button.ClickEvent));
+                check(host.Content is TotemRulesView,"WPF Totem BST opens its independent table");
+                if(host.Content is TotemRulesView bst)
+                {Layout(bst,1150,680);Capture(bst,"totem-bst-dark.png");}
+                ((Button)Walk(host).OfType<Button>().First(x=>Equals(x.Content,"Volver")))
+                    .RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            }
 
             // Supply a valid code.bin fixture for the native TM editor; unlike a dummy
             // navigation card this exercises loading actual Gen7 TM assignments.
