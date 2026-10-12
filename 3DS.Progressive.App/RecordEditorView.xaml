@@ -79,6 +79,12 @@
              Click="TrainerCaps_Click" Margin="0,0,0,8"/>
      <Button x:Name="TrainerMovesButton" Content="Tabla de Trainer Move Rules" Visibility="Collapsed"
              Click="TrainerMoves_Click" Margin="0,0,0,10"/>
+     <Button x:Name="WildCopyButton" Content="Copiar tabla actual" Visibility="Collapsed"
+             Click="WildCopy_Click" Margin="0,0,0,8"/>
+     <Button x:Name="WildPasteButton" Content="Pegar en tabla seleccionada" Visibility="Collapsed"
+             Click="WildPaste_Click" Margin="0,0,0,8"/>
+     <Button x:Name="WildPasteAreaButton" Content="Pegar en área · mismas ranuras" Visibility="Collapsed"
+             Click="WildPasteArea_Click" Margin="0,0,0,10"/>
      <Button x:Name="TemplateButton" Content="Template de evoluciones" Visibility="Collapsed" Click="Template_Click" Margin="0,0,0,10"/>
      <Button x:Name="ImportOptionsButton" Content="Cargar template de entrenadores" Visibility="Collapsed" Click="ImportOptions_Click" Margin="0,0,0,10"/>
      <Button x:Name="ExportOptionsButton" Content="Exportar template de entrenadores" Visibility="Collapsed" Click="ExportOptions_Click" Margin="0,0,0,10"/>
