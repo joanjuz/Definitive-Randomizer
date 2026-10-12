@@ -121,10 +121,14 @@ internal static class ModuleChecks
     {
         foreach(var version in new[]{GameVersion.XY,GameVersion.ORAS,GameVersion.SM,GameVersion.USUM})
         {
-            using var f=new Fixture(version);CreateArchives(f);
+            // Isolated fixture: import correctly writes history, but existing
+            // module no-op regression assumes a pristine project history.
+            {
+                using var storyFixture=new Fixture(version);
+                CreateArchives(storyFixture);
             // Story Text must round-trip vanilla's complete Unicode dump in
             // every game, without touching Game Text or changing line indexes.
-            var storyEditor=new GameTextService(f.Session,story:true);
+            var storyEditor=new GameTextService(storyFixture.Session,story:true);
             string fullDump=storyEditor.ExportAll();
             var noChange=storyEditor.PreviewImportAll(fullDump);
             check(noChange.Changes.Count==0,
@@ -148,6 +152,8 @@ internal static class ModuleChecks
                   File.ReadAllBytes(PathFor(f,"gametext")).SequenceEqual(gameTextBefore),
                 "Story Text save preserves Game Text and every other line Gen "+version);
 
+            }
+            using var f=new Fixture(version);CreateArchives(f);
             if(version==GameVersion.USUM)
             {
                 const string example="""
