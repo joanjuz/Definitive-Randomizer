@@ -204,6 +204,7 @@ public sealed partial class GameProjectSession
     /// </summary>
     public static GameProjectSession Open(string root)
     {
+        UiProgress.Stage("Verificando raíz, RomFS y ExeFS…");
         root = Path.GetFullPath(root);
         if (!Directory.Exists(root))
             throw new DirectoryNotFoundException("La carpeta seleccionada no existe.");
@@ -225,6 +226,7 @@ public sealed partial class GameProjectSession
         string a = Path.Combine(romfs, "a");
         int count = Directory.EnumerateFiles(a, "*", SearchOption.AllDirectories)
             .Count(f => Path.GetFileName(f).Length == 1);
+        UiProgress.Stage("Identificando juego por su estructura de GARC…");
         var config = new GameConfig(count);
         if (config.Version == GameVersion.Invalid)
             throw new InvalidDataException(
@@ -234,6 +236,7 @@ public sealed partial class GameProjectSession
         var requestedLanguage=AppPreferences.Load().GameTextLanguageIndex;
         // Gen6 original only exposes indices 0..7; unsupported selections
         // revert to English without changing game files or settings.
+        UiProgress.Stage("Cargando catálogos originales y localización…");
         config.Initialize(romfs,exefs,config.Generation==6&&requestedLanguage>7
             ?2:requestedLanguage);
 
@@ -241,6 +244,7 @@ public sealed partial class GameProjectSession
         if (!File.Exists(personalPath))
             throw new FileNotFoundException("No se encontro la tabla personal del proyecto.", personalPath);
 
+        UiProgress.Stage("Indexando especies, formas, movimientos y objetos…");
         return new GameProjectSession(config, root, personalPath);
     }
 
