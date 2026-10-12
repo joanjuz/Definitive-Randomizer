@@ -50,37 +50,196 @@ public partial class RecordEditorView : UserControl
         {try{template=editor.CaptureOptions(options);}catch(ArgumentException){ }}
         return new(options,ScopeBox.SelectedIndex,template);
     }
+    // El editor individual conserva su estructura. El randomizador de entrenadores
+    // organiza cada control vanilla/Progressive por función y no por el orden
+    // accidental del formulario WinForms original.
     private void BuildGroups(StackPanel panel,IEnumerable<EditorGroup> groups,Dictionary<string,FrameworkElement> controls,bool editor)
     {
         panel.Children.Clear();controls.Clear();
-        foreach(var group in groups)
+        if(editor)_editorSections.Clear();
+        var entries=groups.ToArray();
+        if(!editor&&Editor is ThreeDS.Progressive.Services.GameTrainerService)
         {
-            var grid=new UniformGrid {Columns=2,Margin=new Thickness(0,12,0,0)};
-            foreach(var field in group.Fields)
-            {
-                var cell=new StackPanel {Margin=new Thickness(0,0,12,15)};
-                cell.Children.Add(new TextBlock {Text=field.Label,TextWrapping=TextWrapping.Wrap,Foreground=(Brush)FindResource("TextSoft"),FontSize=12,Margin=new Thickness(0,0,0,6)});
-                FrameworkElement input;
-                if(field.Choices is { } choices)
-                {
-                    if(!choices.Any(c=>c.Id==field.Value))choices=choices.Append(new MoveChoice(field.Value,$"ID {field.Value} (personalizado)")).ToArray();
-                    var combo=new ComboBox {ItemsSource=choices,DisplayMemberPath="Display",SelectedValuePath="Id",SelectedValue=field.Value,MaxDropDownHeight=300};
-                    combo.SelectionChanged+=Input_Changed;input=combo;
-                }
-                else if(field.Min==0&&field.Max==1)
-                {
-                    var check=new CheckBox {IsChecked=field.Value==1,Content="Activado",Margin=new Thickness(0,7,0,7)};
-                    check.Checked+=Input_Changed;check.Unchecked+=Input_Changed;input=check;
-                }
-                else
-                {
-                    var text=new TextBox {Text=(field.Value/(decimal)field.Scale).ToString(CultureInfo.InvariantCulture)};text.TextChanged+=Input_Changed;input=text;
-                }
-                input.Tag=editor;input.Uid=field.Scale.ToString(CultureInfo.InvariantCulture);controls.Add(field.Key,input);cell.Children.Add(input);grid.Children.Add(cell);
-            }
-            var expand=new Expander {Header=group.Name,IsExpanded=group.Expanded,Foreground=(Brush)FindResource("TextMain"),Content=grid};
-            panel.Children.Add(new Border {Background=(Brush)FindResource("Panel"),BorderBrush=(Brush)FindResource("Stroke"),BorderThickness=new Thickness(1),CornerRadius=new CornerRadius(10),Padding=new Thickness(16),Margin=new Thickness(0,0,0,14),Child=expand});
+            BuildTrainerTabs(panel,entries,controls);
+            return;
         }
+        foreach(var group in entries)
+            panel.Children.Add(BuildGroupCard(group,controls,editor));
+    }
+    private readonly Dictionary<string,Expander> _editorSections=[];
+    private int _trainerTabIndex;
+    private static readonly string[] TrainerTabNames=
+        ["Pokémon y equipos","Niveles y Level Caps","Movimientos y reglas","IA, objetos y combates","BST progresivo"];
+
+    private void BuildTrainerTabs(StackPanel host,IReadOnlyList<EditorGroup> groups,Dictionary<string,FrameworkElement> controls)
+    {
+        var tabs=new TabControl {Margin=new Thickness(0,0,0,12)};
+        for(int category=0;category<TrainerTabNames.Length;category++)
+        {
+            var container=new StackPanel();
+            foreach(var group in groups)
+            {
+                var selected=group.Fields.Where(f=>TrainerOptionCategory(f.Key)==category).ToArray();
+                if(selected.Length==0)continue;
+                container.Children.Add(BuildGroupCard(group with {Fields=selected},controls,false));
+            }
+            if(container.Children.Count==0)
+                container.Children.Add(new TextBlock {Text="No hay opciones adicionales para esta versión del juego.",
+                    Foreground=(Brush)FindResource("TextSoft"),TextWrapping=TextWrapping.Wrap,Margin=new Thickness(8,16,8,16)});
+            tabs.Items.Add(new TabItem {Header=TrainerTabNames[category],Content=container});
+        }
+        tabs.SelectionChanged+=(_,e)=>
+        {
+            if(ReferenceEquals(e.Source,tabs))_trainerTabIndex=tabs.SelectedIndex;
+        };
+        tabs.SelectedIndex=Math.Clamp(_trainerTabIndex,0,tabs.Items.Count-1);
+        host.Children.Add(tabs);
+    }
+
+    internal static int TrainerOptionCategory(string key)
+    {
+        if(key.StartsWith("BST.",StringComparison.OrdinalIgnoreCase)
+            ||key.Contains("ProgressiveBST",StringComparison.OrdinalIgnoreCase)
+            ||key=="CHK_BST")return 4;
+        if(key.StartsWith("Rule.",StringComparison.OrdinalIgnoreCase))
+        {
+            var name=key[(key.LastIndexOf('.')+1)..];
+            if(name is "CapUse" or "LevelCap")return 1;
+            if(name is "MoveUse" or "Power" or "Strong" or "Tolerance" or "Status" or "Better" or "EV")return 2;
+            if(name is "Mega" or "ZMove" or "Smart")return 3;
+            return 0;
+        }
+        if(key.Contains("Level",StringComparison.OrdinalIgnoreCase)
+            ||key.Contains("Cap",StringComparison.OrdinalIgnoreCase)
+            ||key.Contains("Curve",StringComparison.OrdinalIgnoreCase)
+            ||key.Contains("PreviousTrainer",StringComparison.OrdinalIgnoreCase)
+            ||key=="CHK_L")return 1;
+        if(key.Contains("Move",StringComparison.OrdinalIgnoreCase)
+            ||key.Contains("STAB",StringComparison.OrdinalIgnoreCase)
+            ||key.Contains("Damage",StringComparison.OrdinalIgnoreCase)
+            ||key.Contains("StrongStat",StringComparison.OrdinalIgnoreCase)
+            ||key.Contains("Fixed",StringComparison.OrdinalIgnoreCase)
+            ||key.Contains("Power",StringComparison.OrdinalIgnoreCase)
+            ||key.Contains("Metronome",StringComparison.OrdinalIgnoreCase)
+            ||key.Contains("Tolerance",StringComparison.OrdinalIgnoreCase)
+            ||key=="CB_Moves")return 2;
+        if(key.Contains("Item",StringComparison.OrdinalIgnoreCase)
+            ||key.Contains("Class",StringComparison.OrdinalIgnoreCase)
+            ||key.Contains("AI",StringComparison.OrdinalIgnoreCase)
+            ||key.Contains("Double",StringComparison.OrdinalIgnoreCase)
+            ||key.Contains("Mega",StringComparison.OrdinalIgnoreCase)
+            ||key.Contains("Shiny",StringComparison.OrdinalIgnoreCase)
+            ||key.Contains("Ability",StringComparison.OrdinalIgnoreCase)
+            ||key.Contains("Money",StringComparison.OrdinalIgnoreCase)
+            ||key.Contains("Gift",StringComparison.OrdinalIgnoreCase)
+            ||key.Contains("Gym",StringComparison.OrdinalIgnoreCase)
+            ||key.Contains("ZMove",StringComparison.OrdinalIgnoreCase)
+            ||key.Contains("Battle",StringComparison.OrdinalIgnoreCase)
+            ||key.Contains("TypeTheme",StringComparison.OrdinalIgnoreCase))return 3;
+        return 0;
+    }
+    private Border BuildGroupCard(EditorGroup group,Dictionary<string,FrameworkElement> controls,bool editor)
+    {
+        var grid=new UniformGrid {Columns=2,Margin=new Thickness(0,12,0,0)};
+        foreach(var field in group.Fields)
+        {
+            var cell=new StackPanel {Margin=new Thickness(0,0,12,15)};
+            bool isCheck=field.Choices is null&&field.Min==0&&field.Max==1;
+            if(!isCheck)
+                cell.Children.Add(new TextBlock {Text=field.Label,TextWrapping=TextWrapping.Wrap,
+                    Foreground=(Brush)FindResource("TextSoft"),FontSize=12,Margin=new Thickness(0,0,0,6)});
+            FrameworkElement input;
+            if(field.Choices is { } choices)
+            {
+                if(!choices.Any(c=>c.Id==field.Value))
+                    choices=choices.Append(new MoveChoice(field.Value,$"ID {field.Value} (personalizado)")).ToArray();
+                var combo=new ComboBox {ItemsSource=choices,DisplayMemberPath="Display",SelectedValuePath="Id",
+                    SelectedValue=field.Value,MaxDropDownHeight=300};
+                combo.SelectionChanged+=Input_Changed;input=combo;
+            }
+            else if(isCheck)
+            {
+                var check=new CheckBox {IsChecked=field.Value==1,Content=field.Label,Margin=new Thickness(0,7,0,7)};
+                check.Checked+=Input_Changed;check.Unchecked+=Input_Changed;input=check;
+            }
+            else
+            {
+                var edit=new TextBox {Text=(field.Value/(decimal)field.Scale).ToString(CultureInfo.InvariantCulture)};
+                edit.TextChanged+=Input_Changed;input=edit;
+            }
+            input.Tag=editor;input.Uid=field.Scale.ToString(CultureInfo.InvariantCulture);
+            controls.Add(field.Key,input);cell.Children.Add(input);grid.Children.Add(cell);
+        }
+        var expand=new Expander {Header=group.Name,IsExpanded=group.Expanded,
+            Foreground=(Brush)FindResource("TextMain"),Content=grid};
+        if(editor)foreach(var field in group.Fields)_editorSections[field.Key]=expand;
+        return new Border {Background=(Brush)FindResource("Panel"),BorderBrush=(Brush)FindResource("Stroke"),
+            BorderThickness=new Thickness(1),CornerRadius=new CornerRadius(10),
+            Padding=new Thickness(16),Margin=new Thickness(0,0,0,14),Child=expand};
+    }
+
+    private readonly ThreeDS.Progressive.Services.SpriteService _trainerSpriteService=new();
+    private System.Threading.CancellationTokenSource? _trainerSpriteCancel;
+    private async System.Threading.Tasks.Task LoadTeamSpriteAsync(Image picture,TextBlock fallback,
+        int trainerId,int speciesId,int form,System.Threading.CancellationToken token)
+    {
+        try
+        {
+            var result=await _trainerSpriteService.GetSpriteAsync(speciesId,speciesId,form,token);
+            if(token.IsCancellationRequested||_id!=trainerId)return;
+            picture.Source=result.Image;
+            fallback.Visibility=result.Image is null?Visibility.Visible:Visibility.Collapsed;
+            if(result.Image is null)fallback.Text="?";
+        }
+        catch(System.OperationCanceledException) { }
+    }
+    private void UpdateTrainerTeam(int id,IReadOnlyList<EditorGroup> groups)
+    {
+        _trainerSpriteCancel?.Cancel();
+        _trainerSpriteCancel?.Dispose();
+        _trainerSpriteCancel=new System.Threading.CancellationTokenSource();
+        TrainerTeamCards.Children.Clear();
+        if(Editor is not ThreeDS.Progressive.Services.GameTrainerService)
+        {
+            TrainerTeamPreview.Visibility=Visibility.Collapsed;
+            return;
+        }
+        TrainerTeamPreview.Visibility=Visibility.Visible;
+        int count=groups.FirstOrDefault()?.Fields.FirstOrDefault(f=>f.Key=="Count")?.Value??0;
+        for(int slot=0;slot<Math.Min(6,count);slot++)
+        {
+            string prefix=$"P{slot}.";
+            var fields=groups.SelectMany(g=>g.Fields).Where(f=>f.Key.StartsWith(prefix)).ToDictionary(f=>f.Key);
+            if(!fields.TryGetValue(prefix+"Species",out var species))continue;
+            int form=fields.TryGetValue(prefix+"Form",out var f)?f.Value:0;
+            int level=fields.TryGetValue(prefix+"Level",out var l)?l.Value:1;
+            string speciesName=species.Choices?.FirstOrDefault(c=>c.Id==species.Value)?.Display??$"Pokémon #{species.Value}";
+            var picture=new Image {Width=58,Height=58,Stretch=Stretch.Uniform,HorizontalAlignment=HorizontalAlignment.Center};
+            RenderOptions.SetBitmapScalingMode(picture,BitmapScalingMode.NearestNeighbor);
+            var fallback=new TextBlock {Text="…",FontSize=24,HorizontalAlignment=HorizontalAlignment.Center,
+                VerticalAlignment=VerticalAlignment.Center,Foreground=(Brush)FindResource("TextSoft")};
+            var spriteHost=new Grid {Height=65};
+            spriteHost.Children.Add(picture);spriteHost.Children.Add(fallback);
+            var cardContent=new StackPanel {HorizontalAlignment=HorizontalAlignment.Center};
+            cardContent.Children.Add(spriteHost);
+            cardContent.Children.Add(new TextBlock {Text=speciesName,TextTrimming=TextTrimming.CharacterEllipsis,
+                Width=118,TextAlignment=TextAlignment.Center,FontSize=11,FontWeight=FontWeights.SemiBold});
+            cardContent.Children.Add(new TextBlock {Text=$"Nv. {level}"+(form>0?$" · Forma {form}":""),
+                TextAlignment=TextAlignment.Center,FontSize=11,Foreground=(Brush)FindResource("TextSoft")});
+            var card=new Button {Content=cardContent,Width=134,Margin=new Thickness(0,4,8,8),Padding=new Thickness(4)};
+            int current=slot;
+            card.Click+=(_,_)=>
+            {
+                string key=$"P{current}.Species";
+                if(_editorSections.TryGetValue(key,out var section))section.IsExpanded=true;
+                if(_fields.TryGetValue(key,out var control))control.BringIntoView();
+            };
+            TrainerTeamCards.Children.Add(card);
+            _=LoadTeamSpriteAsync(picture,fallback,id,species.Value,form,_trainerSpriteCancel.Token);
+        }
+        if(count==0)
+            TrainerTeamCards.Children.Add(new TextBlock {Text="Este entrenador no tiene Pokémon en el equipo.",
+                Foreground=(Brush)FindResource("TextSoft"),Margin=new Thickness(6,12,6,12)});
     }
     private static Dictionary<string,int> Values(Dictionary<string,FrameworkElement> controls)=>controls.ToDictionary(p=>p.Key,p=>p.Value switch
     {
@@ -106,7 +265,7 @@ public partial class RecordEditorView : UserControl
                 var groups=Editor.RandomOptions.Select(g=>g with {Fields=g.Fields.Select(f=>state is not null&&state.Options.TryGetValue(f.Key,out int value)?f with {Value=value}:f).ToArray()});
                 BuildGroups(OptionsPanel,groups,_options,false);
             }
-            _id=id;BuildGroups(FieldsPanel,Editor.Read(id),_fields,true);SelectionText.Text=Editor.Entries.First(e=>e.Id==id).Display;_dirty=false;SaveButton.IsEnabled=false;StatusText.Text="Editor listo.";Invalidate();
+            _id=id;var record=Editor.Read(id);BuildGroups(FieldsPanel,record,_fields,true);UpdateTrainerTeam(id,record);SelectionText.Text=Editor.Entries.First(e=>e.Id==id).Display;_dirty=false;SaveButton.IsEnabled=false;StatusText.Text="Editor listo.";Invalidate();
         }
         finally{_loading=false;}
     }
