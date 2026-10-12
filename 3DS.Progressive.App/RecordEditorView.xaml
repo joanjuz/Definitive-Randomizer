@@ -100,6 +100,8 @@
              Click="TrainerCaps_Click" Margin="0,0,0,8"/>
      <Button x:Name="TrainerMovesButton" Content="Tabla de Trainer Move Rules" Visibility="Collapsed"
              Click="TrainerMoves_Click" Margin="0,0,0,10"/>
+     <Button x:Name="WildDumpButton" Content="Exportar reporte de encuentros" Visibility="Collapsed"
+             Click="WildDump_Click" Margin="0,0,0,8"/>
      <Button x:Name="WildCopyButton" Content="Copiar tabla actual" Visibility="Collapsed"
              Click="WildCopy_Click" Margin="0,0,0,8"/>
      <Button x:Name="WildPasteButton" Content="Pegar en tabla seleccionada" Visibility="Collapsed"
