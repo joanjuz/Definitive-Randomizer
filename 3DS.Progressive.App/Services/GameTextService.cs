@@ -14,16 +14,21 @@ public sealed class GameTextService
     private readonly string _path;
     private readonly GARCReference _reference;
     private byte[] _sha;
+    private readonly bool _story;
+    public string BankName=>_story?"Story Text":"Game Text";
     public IReadOnlyList<RecordEntry> Entries {get;}
-    public GameTextService(GameProjectSession project)
+    public GameTextService(GameProjectSession project,bool story=false)
     {
-        _project=project;_config=project.GameConfiguration;
-        var original=_config.GetGARCReference("gametext");
+        _project=project;_config=project.GameConfiguration;_story=story;
+        string bank=story?"storytext":"gametext";
+        var original=_config.GetGARCReference(bank);
         _reference=original.LanguageVariant?original.GetRelativeGARC(_config.Language):original;
-        _path=Path.Combine(_config.RomFS,_config.GetGARCFileName("gametext"));
+        _path=Path.Combine(_config.RomFS,_config.GetGARCFileName(bank));
+        if(!File.Exists(_path))throw new FileNotFoundException("No se encontró el GARC de "+BankName+" en el idioma seleccionado.",_path);
         _sha=SHA256.HashData(File.ReadAllBytes(_path));
         int count=new GARC.MemGARC(File.ReadAllBytes(_path)).Files.Length;
-        Entries=Enumerable.Range(0,count).Select(i=>new RecordEntry(i,$"Archivo de texto {i:000}")).ToArray();
+        Entries=Enumerable.Range(0,count).Select(i=>new RecordEntry(i,
+            _story?$"Diálogo / evento {i:000}":$"Archivo de texto {i:000}")).ToArray();
     }
     private byte[][] ReadRecords()=>new GARC.MemGARC(GarcTransaction.ReadUnchanged(_path,_sha)).Files;
     public IReadOnlyList<string> Read(int id)
@@ -53,10 +58,12 @@ public sealed class GameTextService
         byte[] source=GarcTransaction.ReadUnchanged(_path,_sha);
         byte[] output=GarcTransaction.Build(source,_reference,records,preserveRecordSize:false);
         _project.History.Commit([new FileChange(_path,source,output)],"Historia y textos",
-            "Editar texto del juego",changes);
+            _story?"Editar Story Text":"Editar Game Text",changes,
+            new Dictionary<string,string>{{"Bank",_story?"storytext":"gametext"},
+                {"Language",_config.Language.ToString()}});
         _sha=SHA256.HashData(output);
         // Update only the modified loaded section; never discard the full localized text cache.
-        if(id<_config.GameTextStrings.Length)_config.GameTextStrings[id]=after;
+        if(!_story && id<_config.GameTextStrings.Length)_config.GameTextStrings[id]=after;
     }
     public string Export(int id)=>string.Join(Environment.NewLine,Read(id).Select((line,i)=>$"[{i:0000}] {line}"));
 }
