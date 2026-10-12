@@ -140,6 +140,7 @@ public partial class MainWindow : Window
             {
                 "Trainers"=>CreateEditor(new GameTrainerService(_session)),
                 "Encounters"=>CreateEditor(new GameEncounterService(_session)),
+                "StaticEncounters"=>CreateEditor(new GameStaticEncounterService(_session)),
                 "Evolutions"=>CreateEditor(new GameEvolutionService(_session)),
                 "History"=>new HistoryView(_session.History),
                 _=>throw new ArgumentException("Sección desconocida.")
@@ -147,7 +148,7 @@ public partial class MainWindow : Window
             _recordView=view as RecordEditorView;SectionHost.Content=view;
             PokemonListPanel.Visibility=PokemonEditorPanel.Visibility=PersonalToolsPanel.Visibility=PokemonInspectorPanel.Visibility=MovesHost.Visibility=Visibility.Collapsed;
             _personalTools.InvalidatePreview();SectionHost.Visibility=Visibility.Visible;_showingMoves=false;
-            PokemonNavButton.Background=MovesButton.Background=TrainersButton.Background=EncountersButton.Background=EvolutionsButton.Background=HistoryButton.Background=Brushes.Transparent;
+            PokemonNavButton.Background=MovesButton.Background=TrainersButton.Background=EncountersButton.Background=StaticEncountersButton.Background=EvolutionsButton.Background=HistoryButton.Background=Brushes.Transparent;
             ((Button)sender).Background=new SolidColorBrush((Color)ColorConverter.ConvertFromString("#2B4059")!);
             StatusText.Text=section=="History"?"Historial persistente de cambios confirmados.":"Editor integrado · guardar registra los cambios en el historial.";
         }
@@ -229,6 +230,7 @@ public partial class MainWindow : Window
         PersonalActions.IsEnabled = true;
         MovesButton.IsEnabled = true;
         TrainersButton.IsEnabled = EncountersButton.IsEnabled = EvolutionsButton.IsEnabled = HistoryButton.IsEnabled = BackupButton.IsEnabled = true;
+        StaticEncountersButton.IsEnabled=candidate.Generation==7;
         ConfigurePersonalTools(candidate);
         PokemonList.SelectedIndex = 0;
         StatusText.Text = "Proyecto abierto en modo lectura. Guardar requiere confirmación.";
