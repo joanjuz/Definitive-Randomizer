@@ -41,6 +41,9 @@ public partial class MainWindow : Window
     private BatchRomBuilderView? _batchRomView;
     private GameTextView? _gameTextView;
     private readonly Dictionary<string,RecordEditorView.UiState> _sectionOptions=[];
+    private readonly System.Windows.Threading.DispatcherTimer _operationTimer=new()
+        {Interval=TimeSpan.FromSeconds(1)};
+    private bool _globalOperationActive;
     private bool _backupRunning;
     private IReadOnlyList<MoveChoice> _itemOptions = [];
     private IReadOnlyList<MoveChoice> _moveOptions = [];
@@ -84,6 +87,43 @@ public partial class MainWindow : Window
             }
             if(Dispatcher.CheckAccess())Update();
             else Dispatcher.BeginInvoke((Action)Update);
+        };
+        UiProgress.Telemetry+=snapshot=>
+        {
+            void Update()
+            {
+                _globalOperationActive=snapshot.Busy;
+                OperationStageText.Visibility=snapshot.Busy?Visibility.Visible:Visibility.Collapsed;
+                OperationElapsedText.Visibility=snapshot.Busy?Visibility.Visible:Visibility.Collapsed;
+                if(snapshot.Busy)
+                {
+                    OperationStageText.Text=snapshot.Stage+
+                        (snapshot.Completed is int count&&snapshot.Total is int total
+                            ?$" · {count:N0}/{total:N0}":"");
+                    OperationElapsedText.Text=snapshot.Elapsed.ToString(@"mm\:ss");
+                    if(snapshot.Percent is double percent)
+                    {
+                        OperationProgress.IsIndeterminate=false;
+                        OperationProgress.Value=percent;
+                        OperationPercent.Visibility=Visibility.Visible;
+                        OperationPercent.Text=$"{percent:0.#}%";
+                    }
+                    else
+                    {
+                        OperationProgress.IsIndeterminate=true;
+                        OperationPercent.Visibility=Visibility.Collapsed;
+                    }
+                    if(!_operationTimer.IsEnabled)_operationTimer.Start();
+                }
+                else _operationTimer.Stop();
+            }
+            if(Dispatcher.CheckAccess())Update();
+            else Dispatcher.BeginInvoke((Action)Update);
+        };
+        _operationTimer.Tick+=(_,_) =>
+        {
+            if(_globalOperationActive)
+                OperationElapsedText.Text=UiProgress.Snapshot.Elapsed.ToString(@"mm\:ss");
         };
         PersonalToolsHost.Content = _personalTools;
         _personalTools.BackRequested += ClosePersonalTools;
