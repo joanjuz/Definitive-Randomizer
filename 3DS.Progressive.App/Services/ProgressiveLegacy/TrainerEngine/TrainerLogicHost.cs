@@ -40,7 +40,8 @@ internal sealed class TrainerLogicHost
         if(_template is not null)Call(form,"ApplyTrainerTemplate",_template,false);
         return form;
     }
-    internal IReadOnlyList<EditorGroup> Options()
+    internal IReadOnlyList<EditorGroup> Options()=>OnSta(OptionsCore);
+    private IReadOnlyList<EditorGroup> OptionsCore()
     {
         lock(Gate)
         {
@@ -58,14 +59,14 @@ internal sealed class TrainerLogicHost
                     fields.Add(new(number.Name,NumberLabel(number.Name),checked((int)(number.Value*scale)),checked((int)(number.Minimum*scale)),checked((int)(number.Maximum*scale)),Scale:scale));
                 }
                 else if(control is ComboBox combo&&combo.Items.Count>0&&!string.IsNullOrEmpty(combo.Name))
-                    fields.Add(new(combo.Name,Translate(combo.Name.Replace("CB_","").Replace('_',' ')),Math.Max(0,combo.SelectedIndex),0,combo.Items.Count-1,
+                    fields.Add(new(combo.Name,ComboLabel(combo.Name),Math.Max(0,combo.SelectedIndex),0,combo.Items.Count-1,
                         combo.Items.Cast<object>().Select((item,i)=>new MoveChoice(i,Translate(item.ToString()??""))).ToArray()));
             }
             foreach(var radios in controls.OfType<RadioButton>().GroupBy(r=>r.Parent))
             {
                 var list=radios.ToArray();if(list.Length==0)continue;string group=Group(list[0]);
                 if(!groups.TryGetValue(group,out var fields))groups[group]=fields=[];
-                fields.Add(new("Radio:"+radios.Key!.Name,Translate(radios.Key.Text),Math.Max(0,Array.FindIndex(list,r=>r.Checked)),0,list.Length-1,
+                fields.Add(new("Radio:"+radios.Key!.Name,string.IsNullOrWhiteSpace(radios.Key.Text)?"Origen de movimientos":Translate(radios.Key.Text),Math.Max(0,Array.FindIndex(list,r=>r.Checked)),0,list.Length-1,
                     list.Select((r,i)=>new MoveChoice(i,Translate(r.Text))).ToArray()));
             }
             var template=(TrainerRandomizerTemplate)Call(form,"CaptureTrainerTemplate")!;
@@ -92,7 +93,8 @@ internal sealed class TrainerLogicHost
             return result;
         }
     }
-    internal string Capture(IReadOnlyDictionary<string,int> options)
+    internal string Capture(IReadOnlyDictionary<string,int> options)=>OnSta(()=>CaptureCore(options));
+    private string CaptureCore(IReadOnlyDictionary<string,int> options)
     {
         lock(Gate){using var context=Context();using var form=CreateOptions();Configure(form,options);_template=(TrainerRandomizerTemplate)Call(form,"CaptureTrainerTemplate")!;return JsonSerializer.Serialize(_template);}
     }
@@ -101,7 +103,8 @@ internal sealed class TrainerLogicHost
         var template=JsonSerializer.Deserialize<TrainerRandomizerTemplate>(json,new JsonSerializerOptions{PropertyNameCaseInsensitive=true})??throw new InvalidDataException("Template de entrenadores vacío.");
         TrainerRandomizerTemplateFile.Validate(template,_config.Version.ToString());_template=template;
     }
-    internal (byte[][] Headers,byte[][] Teams) Run(IReadOnlyDictionary<string,int> options,int seed)
+    internal (byte[][] Headers,byte[][] Teams) Run(IReadOnlyDictionary<string,int> options,int seed)=>OnSta(()=>RunCore(options,seed));
+    private (byte[][] Headers,byte[][] Teams) RunCore(IReadOnlyDictionary<string,int> options,int seed)
     {
         lock(Gate)
         {
@@ -173,6 +176,13 @@ internal sealed class TrainerLogicHost
     {yield return root;foreach(Control child in root.Controls)foreach(var item in Walk(child))yield return item;}
     private static string Group(Control control)
     {for(var p=control.Parent;p is not null;p=p.Parent)if(p is GroupBox or TabPage&&!string.IsNullOrWhiteSpace(p.Text))return Translate(p.Text);return "Opciones generales";}
+    private static string ComboLabel(string name)=>name switch
+    {
+        "CB_SmartHeldItemMode"=>"Calidad Smart Items · normales",
+        "CB_SmartHeldItemModeImportant"=>"Calidad Smart Items · importantes",
+        "CB_SmartHeldItemModeBoss"=>"Calidad Smart Items · jefes",
+        _=>System.Text.RegularExpressions.Regex.Replace(name.Replace("CB_", ""), "([a-z])([A-Z])", "$1 $2").Replace('_',' ')
+    };
     private static string NumberLabel(string name)=>name switch
     {
         "NUD_LevelBoost"=>"Multiplicador de niveles","NUD_RMin"=>"Pokémon mínimos por equipo","NUD_RMax"=>"Pokémon máximos por equipo",
@@ -185,6 +195,15 @@ internal sealed class TrainerLogicHost
     {
         var words=new Dictionary<string,string>(StringComparer.OrdinalIgnoreCase){["Pokemon"]="Pokémon",["Trainer"]="Entrenadores",["Moves"]="Movimientos",["Rules"]="Reglas",["Level Caps"]="Límites de nivel",["Randomize Pokemon"]="Randomizar especies",["Randomize Class"]="Randomizar clase",["Random Held Items"]="Objetos equipados aleatorios",["Don't Modify"]="Conservar",["Randomize All"]="Randomizar todos",["Level Up Only"]="Solo por nivel",["Metronome"]="Metrónomo",["Normal"]="Normal",["Strong"]="Fuerte",["Competitive"]="Competitivo",["Include TMs"]="Incluir MT",["Max AI"]="IA máxima",["Ban Bad Items"]="Excluir objetos poco útiles",["Item Clause"]="No repetir objetos en el equipo"};
         return words.TryGetValue(text.Trim(),out string? value)?value:text.Replace("Normal trainers","Entrenadores normales").Replace("Important trainers","Entrenadores importantes").Replace("Bosses","Jefes");
+    }
+    private static T OnSta<T>(Func<T> action)
+    {
+        if(Thread.CurrentThread.GetApartmentState()==ApartmentState.STA)return action();
+        T result=default!;Exception? failure=null;
+        var thread=new Thread(()=>{try{result=action();}catch(Exception ex){failure=ex;}});
+        thread.SetApartmentState(ApartmentState.STA);thread.Start();thread.Join();
+        if(failure is not null)System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(failure).Throw();
+        return result;
     }
     private static void ClearMoveCaches()
     {
