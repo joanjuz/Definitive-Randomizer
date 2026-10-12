@@ -186,7 +186,7 @@ public sealed class GameStaticEncounterService : ArchiveProjectEditor
                     throw new ArgumentException($"Totem {rule.Id}: cap fuera de 0–100.");
                 if(rule.LevelCap>0)values["Level"]=rule.LevelCap;
             }
-            if(before[0].Value!=values["Species"]||before[0].Fields.Any(f=>f.Key=="Level"&&f.Value!=values["Level"]))
+            if(EditorValues.Flatten(before)["Species"]!=values["Species"]||EditorValues.Flatten(before)["Level"]!=values["Level"])
             {
                 // Refresh learnable moves to the candidate's current level like the
                 // original Totem editor, but keep all unrelated static flags intact.
