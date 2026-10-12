@@ -95,8 +95,10 @@
                                 Style="{StaticResource SidebarButton}" IsEnabled="False" Tag="LevelUp" Click="Section_Click"/>
                         <Button x:Name="MachineTutorButton" Content="▣  MT y tutores" Style="{StaticResource SidebarButton}" IsEnabled="False" Tag="MachineTutor" Click="Section_Click"/>
                         <Button x:Name="ItemsButton" Content="▤  Objetos y economía" Style="{StaticResource SidebarButton}" IsEnabled="False" Tag="Items" Click="Section_Click"/>
+                        <Button x:Name="FieldItemsButton" Content="♢  Field Items"
+                                Style="{StaticResource SidebarButton}" IsEnabled="False" Tag="FieldItems" Click="Section_Click"/>
                         <Button x:Name="EvolutionsButton" Content="◆  Evoluciones" Style="{StaticResource SidebarButton}" IsEnabled="False" Tag="Evolutions" Click="Section_Click"/>
-                        <Button Content="≡  Historia y textos" Style="{StaticResource NavDisabled}"/>
+                        <Button x:Name="GameTextButton" Content="≡  Historia y textos" Style="{StaticResource SidebarButton}" IsEnabled="False" Tag="GameText" Click="Section_Click"/>
                         <TextBlock Text="SISTEMAS" Style="{StaticResource SmallHeading}"
                                    Margin="12,25,0,12"/>
                         <Button Content="◈  Mecánicas y CRO" Style="{StaticResource NavDisabled}"/>
