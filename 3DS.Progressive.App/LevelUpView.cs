@@ -48,10 +48,11 @@ internal sealed class LevelUpView : UserControl
     private readonly TextBox _spreadTo=new() {Text="79"};
     private Button? _applyBulk;
     private int _current;
+    private bool _bulkBusy;
     private bool _dirty,_loading;
     internal bool HasPendingChanges=>_dirty;
-    internal bool ConfirmLeave()=>!_dirty||StudioDialog.Confirm(Window.GetWindow(this),
-        "Movimientos pendientes","La especie tiene movimientos sin guardar.","Si continuás, se descartarán estos cambios.");
+    internal bool ConfirmLeave()=>!_bulkBusy&&(!_dirty||StudioDialog.Confirm(Window.GetWindow(this),
+        "Movimientos pendientes","La especie tiene movimientos sin guardar.","Si continuás, se descartarán estos cambios."));
     internal LevelUpView(GameProjectSession project)
     {
         _project=project;_service=new(project);Background=(Brush)FindResource("Bg");
@@ -204,27 +205,39 @@ internal sealed class LevelUpView : UserControl
             _spread.IsChecked==true,Number(_spreadTo,1,100,"Nivel final"),
             _excludeFixed.IsChecked==true);
     }
-    private void PrepareBulk(bool metronome)
+    private async void PrepareBulk(bool metronome)
     {
         if(_dirty)
         {
             if(!ConfirmLeave())return;
             Load(_current);
         }
+        LevelUpRandomSettings settings;
+        try{settings=ReadRandomOptions();}
+        catch(Exception ex){StudioDialog.Error(Window.GetWindow(this),"Opciones Level Up",ex.Message);return;}
+        _bulkBusy=true;IsEnabled=false;UiProgress.Begin(
+            metronome?"Preparando Metrónomo para todos los Pokémon…":"Randomizando learnsets de todos los Pokémon…");
         try
         {
-            _bulkPreview=_service.PrepareRandomization(ReadRandomOptions(),metronome);
+            if(StudioDialog.AutomatedChecks)
+                _bulkPreview=_service.PrepareRandomization(settings,metronome);
+            else
+                _bulkPreview=await Task.Run(()=>_service.PrepareRandomization(settings,metronome));
             _applyBulk!.IsEnabled=_bulkPreview.Changes.Count>0;
             _status.Text=$"Vista previa congelada: {_bulkPreview.Changes.Count} Pokémon con cambios. Confirmá para guardar.";
         }
         catch(Exception ex){InvalidateBulk();StudioDialog.Error(Window.GetWindow(this),
             "Randomización Level Up",ex.Message);}
+        finally{_bulkBusy=false;IsEnabled=true;UiProgress.End();}
     }
-    private void ApplyBulk()
+    private async void ApplyBulk()
     {
         if(_bulkPreview is not { } preview)return;
         if(!StudioDialog.Confirm(Window.GetWindow(this),"Aplicar Level Up global",
             $"Se escribirán los learnsets de {preview.Changes.Count} Pokémon. Esta operación queda registrada en el historial."))return;
+        _bulkBusy=true;IsEnabled=false;UiProgress.Begin("Aplicando y verificando learnsets globales…");
+        if(!StudioDialog.AutomatedChecks)
+            await System.Windows.Threading.Dispatcher.Yield(System.Windows.Threading.DispatcherPriority.Background);
         try
         {
             _service.ApplyRandomization(preview);
@@ -233,6 +246,7 @@ internal sealed class LevelUpView : UserControl
         }
         catch(Exception ex){InvalidateBulk();StudioDialog.Error(Window.GetWindow(this),
             "Falló el guardado de Level Up",ex.Message);}
+        finally{_bulkBusy=false;IsEnabled=true;UiProgress.End();}
     }
     private void RebuildCards()
     {
@@ -294,7 +308,7 @@ internal sealed class LevelUpView : UserControl
     {
         _grid.CommitEdit(DataGridEditingUnit.Cell,true);_grid.CommitEdit(DataGridEditingUnit.Row,true);
     }
-    private void Dirty(){_dirty=true;_save.IsEnabled=true;_status.Text="Cambios pendientes. Guardá antes de cambiar de especie.";}
+    private void Dirty(){InvalidateBulk();_dirty=true;_save.IsEnabled=true;_status.Text="Cambios pendientes. Guardá antes de cambiar de especie.";}
     private void Add()
     {
         Commit();if(_rows.Count>=100)return;
