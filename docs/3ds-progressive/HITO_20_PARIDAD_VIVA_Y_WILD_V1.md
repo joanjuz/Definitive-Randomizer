@@ -124,6 +124,33 @@ progresivas con tablas inaccesibles.
 6. Pruebas de reproducción de varios randomizados con templates v1 y Roundtrip,
    incluidos proyectos que ya tienen CRO o LZ11 parcheados.
 
+## Progressive Wild — niveles y tablas especiales (fase siguiente)
+
+Al comparar el algoritmo WPF con `ProgressiveWildRandomizer` original se
+identificaron dos diferencias de comportamiento que podían producir resultados
+inconsistentes incluso con un template Wild válido.
+
+1. **Cálculo del tier de BST**: una tabla real usa su máximo nivel original.
+   Si es una tabla interna sin niveles, sin especies regulares o compuesta
+   únicamente por Pikipek (ID 731), obtiene el nivel de referencia del área.
+   Este fallback considera exclusivamente tablas utilizables y el diccionario
+   `Gen7SlotDumper.InaccessibleUnused_SM/USUM` combinado con las zonas
+   asociadas al mapa; si no hay ninguna utilizable, recurre al máximo nivel
+   de todas las tablas. Los niveles de referencia se congelan antes de
+   randomizar el alcance seleccionado, de modo que el escalado de tablas
+   anteriores no cambie la progresión de las posteriores.
+2. **Activación del escalado**: la opción «Modificar niveles» forma parte
+   explícita de los controles WPF. Un template con `modifyLevel=false`
+   ya no aumenta ni disminuye niveles aunque conserve un multiplicador
+   avanzado diferente de 100 %. Importar/exportar respeta el valor original;
+   el valor predeterminado de la interfaz sigue habilitado para conservar
+   el comportamiento de las versiones preview previas.
+
+Se añaden regresiones de tier normal, tabla Pikipek, tabla vacía, límites
+1–100, desactivación de niveles e importación/exportación JSON sin pérdida
+de la casilla. Ninguno de estos cambios se considera validado dentro del
+juego hasta las pruebas separadas de Sol/Luna y Ultra Sol/Ultra Luna.
+
 ## Próximos módulos
 
 Después de cerrar Wild: completar Static Encounter (incluido Gen6), entrenadores,
