@@ -80,9 +80,9 @@ Objetos,Field Items Gen6,GameFieldItemsService,Pendiente,Gen7 implementado; Gen6
 Gen6,MT MO Tutores tiendas y métodos especiales,pk3DS.WinForms/Subforms/Gen6,Pendiente,Migración específica XY/ORAS,Evidencia de runtime requerida
 Gen6,Type Chart y Shiny Rate,pk3DS.WinForms/Main.cs,Pendiente,Gen7 no valida Gen6,Evidencia de runtime requerida
 Static Encounters,Iniciales regalos especiales Totems y Trade completos,GameStaticEncounterService,Parcial,Gen7 disponible; cobertura vanilla y Gen6 incompleta,Evidencia de runtime requerida
-Wild,Templates Wild JSON v1,pk3DS.WinForms/Misc/WildRandomizerTemplate.cs,Pendiente,Importación/exportación de opciones desde editor WPF,Evidencia de runtime requerida
-Wild,Copiar y pegar tabla/área,pk3DS.WinForms/Subforms/Gen7/SMWE.cs,Pendiente,Preservar estructura y tamaños de encuentros,Evidencia de runtime requerida
-Wild,Filtros de formas Mega y Alola,pk3DS.Core/Randomizers/FormRandomizer.cs,Parcial,WPF actualmente fija forma 0 al randomizar,Evidencia de runtime requerida
+Wild,Templates Wild JSON v1,GameEncounterWildTemplate + RecordEditorView,Implementado; validar en juego,Import/export JSON v1 y rangos BST desde WPF con regresiones,Sin equivalencia total de Wild7Randomizer y runtime pendiente
+Wild,Copiar y pegar tabla/área,GameEncounterClipboard + RecordEditorView,Implementado; validar en juego,Copy/Paste y paste área compatible con preview e historial,Pruebas con ROMs reales todavía pendientes
+Wild,Filtros de formas Mega y Alola,GameEncounterWildTemplate + FormRandomizer semántica,Parcial,Formas Mega Alola Vivillon Minior con RNG de preview determinista,Faltan opciones exhaustivas y pruebas runtime por especie
 Automatización,Global Template bidireccional con WPF,GlobalTemplateView + editores WPF,Pendiente,Carga y exportación completas de RandSettings,Evidencia de runtime requerida
 Aplicación,Barra progreso general y feedback de etapas,UiProgress + MainWindow,Parcial,Batch ROM ya tiene barra dedicada; validar procesos prolongados,Evidencia de runtime requerida
 Aplicación,Protección frente a cierre inesperado,FileTransaction + ProjectHistory,Parcial,Rollback en excepción; no es transacción durable frente a apagón,Evidencia de runtime requerida
