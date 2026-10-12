@@ -172,6 +172,16 @@ public sealed partial class GameProjectSession
         return [];
     }
 
+    // Reconcile Personal cached records and fingerprint after a verified
+    // ProjectHistory commit from another editor (e.g. Tutor Sanity).
+    // This prevents the Pokémon inspector / subsequent personal saves from
+    // reading stale compatibility data.
+    internal void RefreshPersonalAfterExternalEdit()
+    {
+        _diskFingerprint=SHA256.HashData(File.ReadAllBytes(_personalPath));
+        _config.InitializePersonal();
+    }
+
     public bool SupportsGen7Personal => _config.Generation == 7;
     public int EntryCount => _config.GARCPersonal.FileCount - 1;
 
