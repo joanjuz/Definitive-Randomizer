@@ -149,6 +149,69 @@ public sealed class GameStaticEncounterService : ArchiveProjectEditor
             });
     }
 
+    private const int TradeHookOffset=0x2843F4;
+    private const int TradeWrapperOffset=0x4B9C00;
+    private static readonly byte[] TradeCleanHook=[0xEA,0x68,0xFD,0xEB];
+    private static readonly byte[] TradePatchedHook=[0x01,0xD6,0x08,0xEB];
+    private static readonly byte[] TradePatchedWrapper=[
+        0x00,0x00,0x51,0xE3,0x1E,0xFF,0x2F,0x01,0xE5,0x92,0xF4,0xEA
+    ];
+    private string TradeCodePath()
+    {
+        string dir=Config.ExeFS;
+        if(!Directory.Exists(dir))throw new DirectoryNotFoundException("ExeFS no disponible.");
+        string[] candidates=[Path.Combine(dir,".code.bin"),Path.Combine(dir,"code.bin")];
+        return candidates.FirstOrDefault(File.Exists)
+            ??Directory.EnumerateFiles(dir,"*code*.bin").FirstOrDefault()
+            ??throw new FileNotFoundException("Se requiere el code.bin descomprimido de USUM.");
+    }
+    private static bool HasBytes(byte[] bytes,int offset,byte[] expected)=>
+        offset>=0&&offset+expected.Length<=bytes.Length
+            &&bytes.AsSpan(offset,expected.Length).SequenceEqual(expected);
+    private bool HasTradePatch()
+    {
+        if(!Config.USUM)return false;
+        var data=File.ReadAllBytes(TradeCodePath());
+        return HasBytes(data,TradeHookOffset,TradePatchedHook)
+            &&HasBytes(data,TradeWrapperOffset,TradePatchedWrapper);
+    }
+    public EditorProposal PreviewTradeAcceptAny()
+    {
+        if(!Config.USUM)throw new NotSupportedException("Accept Any Pokémon solo admite Ultra Sun/Ultra Moon.");
+        string codePath=TradeCodePath();
+        byte[] source=File.ReadAllBytes(codePath);
+        if(source.Length<TradeWrapperOffset+TradePatchedWrapper.Length)
+            throw new InvalidDataException("code.bin incompleto para el parche de intercambios.");
+        bool cleanHook=HasBytes(source,TradeHookOffset,TradeCleanHook);
+        bool patchedHook=HasBytes(source,TradeHookOffset,TradePatchedHook);
+        bool cleanWrapper=HasBytes(source,TradeWrapperOffset,new byte[12]);
+        bool patchedWrapper=HasBytes(source,TradeWrapperOffset,TradePatchedWrapper);
+        if((!cleanHook&&!patchedHook)||(!cleanWrapper&&!patchedWrapper))
+            throw new InvalidDataException("Firma del hook USUM incompatible o zona code-cave ya utilizada. Ningún byte fue escrito.");
+        byte[] patched=(byte[])source.Clone();
+        TradePatchedHook.CopyTo(patched,TradeHookOffset);
+        TradePatchedWrapper.CopyTo(patched,TradeWrapperOffset);
+        var data=Records();var changes=new List<BatchChange>();
+        foreach(var pair in _slots.Where(k=>k.Value.File==4))
+        {
+            int id=pair.Key;var before=ReadRecord(id,data);
+            var slot=pair.Value;
+            var raw=Entry(id,data);
+            var trade=new EncounterTrade7(raw);
+            if(trade.TradeRequestSpecies==0)continue;
+            trade.TradeRequestSpecies=0;
+            raw.CopyTo(data["encounterstatic"][slot.File],slot.Index*slot.Size);
+            changes.AddRange(EditorValues.Diff(id,Entries.First(x=>x.Id==id).Name,before,ReadRecord(id,data)));
+        }
+        return new EditorProposal(ProposalOwner,"Trades Accept Any Pokémon",0,
+            [..Build(data),new FileChange(codePath,source,patched)],changes,
+            new Dictionary<string,string>
+            {
+                ["Scope"]="Todos los intercambios USUM",
+                ["Patch"]="TradeHook 2843F4 / Wrapper 4B9C00",
+                ["Integrity"]="Hook original y code-cave comprobados; escritura atómica de los dos archivos"
+            });
+    }
     public EditorProposal PreviewTotemRules(IReadOnlyList<TotemRuleRow> rules,bool bstMode)
     {
         if(!SupportsTotemRules)throw new NotSupportedException("Solo USUM.");
@@ -278,8 +341,8 @@ public sealed class GameStaticEncounterService : ArchiveProjectEditor
         {
             var trade=new EncounterTrade7(bytes);
             trade.Species=v["Species"];trade.Form=v["Form"];trade.Level=v["Level"];
-            if(v["Request"]==0&&trade.TradeRequestSpecies!=0)
-                throw new NotSupportedException("Accept Any Pokémon requiere el parche del selector de intercambios USUM; no basta con poner 0 en el registro.");
+            if(v["Request"]==0&&trade.TradeRequestSpecies!=0&&!HasTradePatch())
+                throw new NotSupportedException("Para aceptar cualquier Pokémon, aplicá primero el parche del selector de intercambios USUM.");
             trade.TradeRequestSpecies=v["Request"];
             if(v["Item"]!=trade.HeldItem)trade.HeldItem=v["Item"];
             trade.Ability=v["Ability"];trade.Nature=v["Nature"];trade.Gender=v["Gender"];
