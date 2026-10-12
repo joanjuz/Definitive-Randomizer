@@ -109,8 +109,7 @@ internal sealed class RomRebuildView : UserControl
                 Directory.CreateDirectory(folder);
                 diagnostics=Path.Combine(folder,"rebuild-errors.log");
                 File.AppendAllText(diagnostics,
-                    $"[{DateTimeOffset.Now:O}] Kind={kind} Stage={stage}\n{ex}\n---\n"
-                        .Replace("\\\n","\n"));
+                    $"[{DateTimeOffset.Now:O}] Kind={kind} Stage={stage}\\n{ex}\\n---\\n");
             }
             catch(IOException){}catch(UnauthorizedAccessException){}
             _detail.Text="La reconstrucción se detuvo; el proyecto de origen no fue modificado.\n"+
