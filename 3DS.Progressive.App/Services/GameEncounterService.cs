@@ -103,7 +103,7 @@ public sealed partial class GameEncounterService : ArchiveProjectEditor, IOption
                     Field("AllCanCallAllies","Cualquier Pokémon puede pedir ayuda SOS (rellenar slots vacíos)",0,0,1)
                 ]),
                 new("Niveles",[
-                    Field("LevelScale","Multiplicador de niveles (%)",100,10,300),
+                    Field("LevelScale","Multiplicador de niveles (%)",100,1,500),
                     Field("LevelFlat","Ajuste plano (-100 a 100)",0,-100,100),
                     Field("KeepRange","Mantener mínimo y máximo diferenciados",1,0,1)
                 ])
@@ -123,7 +123,8 @@ public sealed partial class GameEncounterService : ArchiveProjectEditor, IOption
                     ],false));
                 }
             }
-            return groups;
+            return _wildTemplateDefaults is null ? groups : groups.Select(g=>g with
+            {Fields=g.Fields.Select(f=>f with {Value=WildDefault(f.Key,f.Value)}).ToArray()}).ToArray();
         }
     }
     private byte[] Table(int id,Dictionary<string,byte[][]> records)
