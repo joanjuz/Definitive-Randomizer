@@ -6,7 +6,7 @@ using ThreeDS.Progressive.Models;
 
 namespace ThreeDS.Progressive.Services;
 
-public sealed class GameEncounterService : ArchiveProjectEditor
+public sealed partial class GameEncounterService : ArchiveProjectEditor, IOptionTemplateProjectEditor
 {
     private sealed record Location(int File,int Table,int Offset,int Map,string Name);
     private readonly Dictionary<int,Location> _locations=[];
@@ -89,6 +89,7 @@ public sealed class GameEncounterService : ArchiveProjectEditor
                     Field("Legends","Incluir legendarios",0,0,1),
                     Field("Events","Incluir legendarios de evento",0,0,1),
                     Field("SimilarBST","Mantener BST similar",0,0,1),
+                    Field("MegaForms","Permitir formas Mega/batalla durante la randomización",0,0,1),
                     Field("BST","Tolerancia BST (%) · 0 = libre",30,0,100),
                     Field("Progressive","BST progresivo por nivel",0,0,1)
                 ]),
@@ -98,7 +99,7 @@ public sealed class GameEncounterService : ArchiveProjectEditor
                         [new(0,"Todas las tablas"),new(1,"Solo encuentros normales"),
                          new(2,"Solo SOS"),new(3,"Normal + copiar a SOS")]),
                     Field("SOS","Incluir aliados SOS y clima",1,0,1),
-                    Field("Weather","Randomizar fila SOS meteorológica",0,0,1),
+                    Field("Weather","Randomizar fila SOS meteorológica",1,0,1),
                     Field("AllCanCallAllies","Cualquier Pokémon puede pedir ayuda SOS (rellenar slots vacíos)",0,0,1)
                 ]),
                 new("Niveles",[
@@ -269,7 +270,9 @@ public sealed class GameEncounterService : ArchiveProjectEditor
                     throw new InvalidDataException($"No hay reemplazos dentro de la tolerancia BST del slot {key}.");
             }
             int chosen=slotPool[random.Next(slotPool.Length)];
-            values[key]=chosen;values[key[..^7]+"Form"]=0;
+            values[key]=chosen;
+            values[key[..^7]+"Form"]=Config.Generation==7
+                ?PickWildForm(chosen,random,options["MegaForms"]==1):0;
         }
         if(Config.Generation==7&&slotMode==3&&options["SOS"]==1)
         {
