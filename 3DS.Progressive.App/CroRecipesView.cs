@@ -6,6 +6,7 @@ using ThreeDS.Progressive.Services;
 using Brush=System.Windows.Media.Brush;
 using Button=System.Windows.Controls.Button;
 using UserControl=System.Windows.Controls.UserControl;
+using ListBox=System.Windows.Controls.ListBox;
 
 namespace ThreeDS.Progressive;
 
