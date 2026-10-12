@@ -212,6 +212,16 @@ internal static class UiSmoke
                   ((Button)encounters.FindName("WildCopyButton")).Visibility==Visibility.Visible &&
                   ((Button)encounters.FindName("WildPasteAreaButton")).Visibility==Visibility.Visible,
                   "WPF Wild shows v1 template controls, Mega forms and Progressive BST options");
+            var wildGroupPicker=(ComboBox)encounters.FindName("EncounterGroupPicker");
+            check(wildGroupPicker.Items.Count==9 &&
+                  ((WrapPanel)encounters.FindName("EncounterPairCards")).Children.Count==10 &&
+                  ((FrameworkElement)encounters.FindName("EncounterPairPreview")).Visibility==Visibility.Visible,
+                  "WPF Wild shows all nine group options and side-by-side Day/Night sprites");
+            wildGroupPicker.SelectedIndex=8;
+            check(((WrapPanel)encounters.FindName("EncounterSpriteCards")).Children.Count==6 &&
+                  ((WrapPanel)encounters.FindName("EncounterPairCards")).Children.Count==6,
+                  "WPF Wild weather SOS has six visible sprites for both Day and Night");
+            wildGroupPicker.SelectedIndex=0;
             check(((FrameworkElement)encounters.FindName("EncounterSpritePreview")).Visibility==Visibility.Visible
                 && ((WrapPanel)encounters.FindName("EncounterSpriteCards")).Children.Count==10,
                 "WPF encounter editor displays ten clickable original Pokémon sprite slots");
