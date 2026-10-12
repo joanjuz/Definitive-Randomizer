@@ -18,11 +18,12 @@ using Control=System.Windows.Controls.Control;
 using Binding=System.Windows.Data.Binding;
 using Brushes=System.Windows.Media.Brushes;
 using Orientation=System.Windows.Controls.Orientation;
+using UserControl=System.Windows.Controls.UserControl;
 
 namespace ThreeDS.Progressive;
 
 /// <summary>Dark, native WPF replacement for pk3DS's complete Important/Boss rule tables.</summary>
-internal sealed class TrainerRulesWindow : Window
+internal sealed class TrainerRulesWindow : UserControl
 {
     private readonly ObservableCollection<TrainerRuleTableRow> _rows;
     private readonly ICollectionView _view;
@@ -30,6 +31,8 @@ internal sealed class TrainerRulesWindow : Window
     private readonly CheckBox _important,_bosses;
     private readonly bool _caps;
     private readonly TextBlock _count;
+    internal event Action<IReadOnlyList<TrainerRuleTableRow>>? Accepted;
+    internal event Action? Cancelled;
     public IReadOnlyList<TrainerRuleTableRow> Rows=>_rows.ToArray();
     private Brush Panel=> (Brush)FindResource("Panel");
     private Brush Surface=> (Brush)FindResource("Surface");
@@ -40,13 +43,10 @@ internal sealed class TrainerRulesWindow : Window
     internal TrainerRulesWindow(IEnumerable<TrainerRuleTableRow> rows,bool caps)
     {
         _caps=caps;
-        Title=caps?"Límites de nivel — entrenadores importantes y jefes"
-            :"Reglas de movimientos — entrenadores importantes y jefes";
-        Width=1160;Height=760;MinWidth=810;MinHeight=510;
-        WindowStartupLocation=WindowStartupLocation.CenterOwner;
+        Background=(Brush)FindResource("Bg");
         _rows=new ObservableCollection<TrainerRuleTableRow>(rows);
         _view=CollectionViewSource.GetDefaultView(_rows);
-        var root=new DockPanel {Margin=new Thickness(18)};
+        var root=new DockPanel {Margin=new Thickness(18),Background=(Brush)FindResource("Bg")};
         Content=root;
 
         var top=new StackPanel {Margin=new Thickness(0,0,0,14)};
@@ -82,7 +82,7 @@ internal sealed class TrainerRulesWindow : Window
         bottom.Children.Add(actions);
         var selectAll=ActionButton("Seleccionar visibles",()=>SetVisible(true));
         var selectNone=ActionButton("Deseleccionar visibles",()=>SetVisible(false));
-        var cancel=ActionButton("Cancelar",()=>{DialogResult=false;Close();});
+        var cancel=ActionButton("Volver al randomizador",()=>Cancelled?.Invoke());
         var apply=ActionButton("Aceptar",Accept);
         apply.Background=(Brush)FindResource("Selected");
         foreach(var button in new[]{selectAll,selectNone,cancel,apply})
@@ -202,9 +202,9 @@ internal sealed class TrainerRulesWindow : Window
             : r.MinPower is <0 or >250 || r.Tolerance is <0 or >255 || r.EVs is <-1 or >252);
         if(invalid is not null)
         {
-            StudioDialog.Error(this,"Regla inválida",$"Entrenador {invalid.Id}: comprobá el límite o los valores de movimientos (potencia 0–250, tolerancia 0–255, EV -1–252).");
+            StudioDialog.Error(Window.GetWindow(this),"Regla inválida",$"Entrenador {invalid.Id}: comprobá el límite o los valores de movimientos (potencia 0–250, tolerancia 0–255, EV -1–252).");
             return;
         }
-        DialogResult=true;Close();
+        Accepted?.Invoke(Rows);
     }
 }
