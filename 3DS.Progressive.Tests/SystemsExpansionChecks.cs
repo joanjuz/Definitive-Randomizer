@@ -41,7 +41,7 @@ internal static class SystemsExpansionChecks
 
         byte[][] mega=Enumerable.Range(0,840).Select(_=>new byte[16]).ToArray();
         // First Mega slot, original undocumented u6 field preserved.
-        BitConverter.GetBytes((ushort)1).CopyTo(mega[1],0);
+        BitConverter.GetBytes((ushort)0).CopyTo(mega[1],0);
         BitConverter.GetBytes((ushort)1).CopyTo(mega[1],2);
         BitConverter.GetBytes((ushort)150).CopyTo(mega[1],4);
         BitConverter.GetBytes((ushort)0xCAFE).CopyTo(mega[1],6);
