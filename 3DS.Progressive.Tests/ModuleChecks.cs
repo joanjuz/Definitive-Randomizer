@@ -189,6 +189,23 @@ internal static class ModuleChecks
                 check(BitConverter.ToUInt16(Read(f,"encounterstatic")[4],0x2C)==133
                     &&Read(f,"encounterstatic")[4][0x30]==0xAA,
                     version+" static trades preserve unrelated event flags when saving");
+                if(f.Game.USUM)
+                {
+                    var totems=statics.TotemRules();
+                    check(totems.Count==12&&totems.Any(r=>r.Id==160)&&totems.Any(r=>r.Id==4),
+                        version+" USUM Totem tables retain all original 0-based Static Encounter IDs");
+                    foreach(var r in totems)r.Use=false;
+                    var first=totems.First(r=>r.Id==4);
+                    first.Use=true;first.LevelCap=33;
+                    byte[] untouched=Read(f,"encounterstatic")[1].ToArray();
+                    var proposal=statics.PreviewTotemRules(totems,false);
+                    check(proposal.Changes.Count>0&&Read(f,"encounterstatic")[1].SequenceEqual(untouched),
+                        version+" Totem Level Caps preview never writes to the GARC");
+                    statics.Apply(proposal);
+                    check(EditorValues.Flatten(statics.Read(first.RecordId))["Level"]==33
+                        &&EditorValues.Flatten(statics.Read(totems.First(r=>r.Id==9).RecordId))["Level"]==10,
+                        version+" Totem Level Caps apply only the selected ID");
+                }
                 var staticOptions=EditorValues.Flatten(statics.RandomOptions);
                 check(staticOptions.ContainsKey("G7")&&staticOptions.ContainsKey("RandomItems")
                     &&staticOptions.ContainsKey("RemoveLocks")&&staticOptions.ContainsKey("TotemAura"),
