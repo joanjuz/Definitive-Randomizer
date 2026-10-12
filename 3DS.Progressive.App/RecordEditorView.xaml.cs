@@ -32,8 +32,9 @@ public partial class RecordEditorView : UserControl
     internal RecordEditorView(IProjectEditor editor,UiState? state)
     {
         Editor=editor;InitializeComponent();TitleText.Text=editor.Title;RandomizerButton.Content="Randomizar "+editor.Title.ToLowerInvariant();
-        if(editor is ThreeDS.Progressive.Services.GameMegaEvolutionService)
+        if(editor is ThreeDS.Progressive.Services.GameMegaEvolutionService mega)
         {
+            if(mega.GameIsUsum)MegaUnlockButton.Visibility=Visibility.Visible;
             RandomizerButton.Visibility=Visibility.Collapsed;
             // Vanilla Mega Editor only offers manual slots, not a randomizer.
         }
@@ -692,6 +693,28 @@ public partial class RecordEditorView : UserControl
             StatusText.Text="Trades Accept Any aplicado en code.bin y encuentro estático con historial.";
         }
         catch(Exception ex){StudioDialog.Error(Window.GetWindow(this),"Trades Accept Any",ex.Message);}
+    }
+    private void MegaUnlock_Click(object sender,RoutedEventArgs e)
+    {
+        if(Editor is not ThreeDS.Progressive.Services.GameMegaEvolutionService mega||!ConfirmLeave())return;
+        try
+        {
+            var engine=new ThreeDS.Progressive.Services.GameMegaUnlockService(mega.Session);
+            var proposal=engine.Preview();
+            if(!proposal.File.Changed)
+            {
+                StudioDialog.Notice(Window.GetWindow(this),"Mega desde el inicio",
+                    "Este Battle.cro ya contiene el parche de desbloqueo Mega.");
+                return;
+            }
+            if(!StudioDialog.Confirm(Window.GetWindow(this),"Desbloquear Mega Evolution",
+                "Se sustituirá la instrucción ARM verificada en Battle.cro y se recalcularán los hashes CRO. ¿Continuar?"))return;
+            UiProgress.Begin("Parcheando Battle.cro · Mega Evolution desde el inicio…");
+            try{engine.Apply(proposal.File,proposal.Changes);}
+            finally{UiProgress.End();}
+            StatusText.Text="Desbloqueo Mega instalado, verificado y registrado en historial.";
+        }
+        catch(Exception ex){StudioDialog.Error(Window.GetWindow(this),"Mega Evolution",ex.Message);}
     }
     private void GiftBst_Click(object sender,RoutedEventArgs e)
     {
