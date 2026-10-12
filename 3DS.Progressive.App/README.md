@@ -58,6 +58,24 @@ Alcance **Todo / Lista filtrada / Selección**, vista previa antes/después, **C
 - Pendiente validación manual sobre ambas ROMs para declarar paridad completa, además de las pruebas sintéticas CI.
 - Pendiente: validar la compatibilidad efectiva de movimientos enseñables in-game, y ambas ROMs Ultra Sol/Ultra Luna. Compilar no reemplaza esa prueba.
 
+## MT Sanity / TM Follow Evolutions · Gen7
+
+- En **MT y tutores → MT** existen casillas independientes **TM Sanity** y **TM Follow Evolutions**, cada una ejecutable sola o junto con la otra.
+- Se reutilizan los algoritmos originales de `TMEditor7`: Sanity habilita MT para movimientos ya aprendidos por nivel; Follow Evolutions hereda las 100 posiciones TMHM por evolución, incluidas formas alternativas, cadenas y ramas (hasta convergencia).
+- Se toman los 100 IDs de MT activos de `code.bin`, no de nombres, listas vanilla ni de presets fijos. La vista previa informa cuántas compatibilidades se añadirán.
+- Solo se modifican los bytes de TMHM (0x28–0x37) del GARC Personal, reconstruyendo la tabla maestra. La verificación rechaza cualquier cambio a compatibilidades de tutores u otros campos. Se comparan hashes del Personal, `code.bin`, Level Up y Evoluciones antes del commit con historial.
+- Si hay MT o tutores pendientes de guardar, el proceso exige resolverlos antes. El resultado refresca los registros Pokémon ya cargados.
+- Implementado para Gen7 (SM y USUM). Gen6 se abordará en su fase específica.
+
+## Story Text · edición de diálogos
+
+- **Story Text · diálogos** aparece en Edición como módulo distinto de **Game Text**, para Gen6/Gen7 con banco del idioma activo presente. Se usa el mismo códec original `TextFile` con códigos de control y cifrado.
+- Editar un archivo de historia con sus líneas identificadas; se valida la reversibilidad de la codificación y se conserva número y orden de mensajes antes de guardar con historial.
+- Exportar un archivo a TXT, o exportar el banco completo en formato Unicode UTF-16 compatible con `TextEditor` vanilla (incluye encabezados `Text File : N` y preserva las secuencias `\\n`, `\\r`, `\\c` y variables).
+- Importar un banco completo con vista previa de diferencias; rechazar archivos incompletos, índices diferentes, líneas de más o de menos y códigos que no pasan la comprobación de ida y vuelta. Escribe únicamente el GARC Story Text localizado y no toca Game Text.
+- El barajado aleatorio de diálogos que ofrece el editor vanilla queda pendiente de migración: no conviene activarlo sin añadir una vista previa segura para referencias a variables y scripts.
+- Requiere validación manual del diálogo dentro del juego con Ultra Sol y Ultra Luna antes de declarar paridad runtime.
+
 ## Backup e historial
 
 **Generar backup**, junto a **Abrir proyecto**, permite elegir una carpeta fuera del proyecto. Guarda un ZIP de todos los archivos presentes, un manifiesto SHA-256 y el historial. Relee y verifica el ZIP y las fuentes antes de finalizar; un fallo o cancelación elimina el archivo parcial. Representa los archivos guardados al pulsar el botón; las ediciones pendientes en el formulario todavía no están guardadas. No se generan backups automáticos.
@@ -83,7 +101,7 @@ Prioridad de PNG: `%LOCALAPPDATA%\3DS Progressive\sprites\custom\entry-001.png`,
 
 ## Alcance pendiente
 
-La migración no está completa. Ya se integraron Static Encounters, Egg Moves, Level Up masivo, Player Caps, herramientas CRO, Type Chart Gen7, Global Template y Batch ROM Builder. Continúan pendientes las opciones completas de Progressive Wild, Story Text y módulos Gen6 especiales. En tiendas USUM se incorporaron la edición normal/BP, ranuras ampliables, randomización, caramelos raros y vitaminas con flags para EV 252. Quedan pendientes la sincronización bidireccional de sus opciones con Global Template y validación runtime de ambos juegos. Esta es una **preview**: no sustituye la versión estable WinForms ni se ha fusionado con ella.
+La migración no está completa. Ya se integraron Static Encounters, Egg Moves, Level Up masivo, Player Caps, herramientas CRO, Type Chart Gen7, Global Template y Batch ROM Builder. Continúan pendientes las opciones completas de Progressive Wild, el barajado de Story Text y módulos Gen6 especiales. En tiendas USUM se incorporaron la edición normal/BP, ranuras ampliables, randomización, caramelos raros y vitaminas con flags para EV 252. Quedan pendientes la sincronización bidireccional de sus opciones con Global Template y validación runtime de ambos juegos. Esta es una **preview**: no sustituye la versión estable WinForms ni se ha fusionado con ella.
 
 Extraer el ZIP **completo** y ejecutar `3DS.Progressive.exe`; conservar la carpeta `custom_balance_templates` junto al ejecutable.
 
