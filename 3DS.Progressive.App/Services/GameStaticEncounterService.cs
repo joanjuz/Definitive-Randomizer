@@ -60,7 +60,7 @@ public sealed class GameStaticEncounterService : ArchiveProjectEditor
             Field("SimilarBST","Limitar especies por BST similar",0,0,1),
             Field("BST","Tolerancia BST (%) · 0 = libre",30,0,100),
             Field("LegendToLegend","Reemplazar legendarios por legendarios",0,0,1),
-            Field("NoLegendGifts","Bloquear legendarios en regalos e intercambios",0,0,1)
+            Field("NoLegendGifts","Bloquear legendarios en regalos e intercambios",1,0,1)
         ]),
         new("Alcance de randomización",[
             Field("Gifts","Incluir regalos e iniciales",1,0,1),
@@ -83,6 +83,7 @@ public sealed class GameStaticEncounterService : ArchiveProjectEditor
             Field("FinalLevel","Nivel para evolución final",36,1,100)
         ],false)
     ];
+    internal GameProjectSession ProjectSession=>Project;
     public bool SupportsTotemRules=>Config.USUM;
     private static readonly int[] TotemEntryIds=[4,9,137,249,24,146,39,45,162,160,229,231];
 
@@ -363,7 +364,8 @@ public sealed class GameStaticEncounterService : ArchiveProjectEditor
         var pool=filter.GetAllowedSpeciesPool().Where(species=>species>0&&
             species<=Config.MaxSpeciesID&&species<Config.Personal.Table.Length).ToArray();
         if(options["NoLegendGifts"]==1&&giftOrTrade)
-            pool=pool.Where(id=>!legendary.Contains(id)&&!Legal.Mythical_USUM.Contains(id)).ToArray();
+            pool=pool.Where(id=>!legendary.Contains(id)&&!Legal.Mythical_USUM.Contains(id)
+                &&id is not (772 or 789 or 790 or 803)).ToArray();
         if(options["LegendToLegend"]==1&&legendary.Contains(original))
             pool=pool.Where(legendary.Contains).ToArray();
         if(options["ForceFinal"]==1&&level>=options["FinalLevel"])
