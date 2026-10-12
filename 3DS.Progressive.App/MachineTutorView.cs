@@ -25,6 +25,7 @@ internal sealed class MachineTutorView : UserControl
     private GameMachineTutorService _service;
     private readonly DataGrid _machineGrid,_tutorGrid;
     private readonly List<DataGrid> _machineColumns=[];
+    private readonly List<DataGrid> _tutorColumns=[];
     private readonly Button _saveMachines,_savePrices;
     private bool _dirtyMachines,_dirtyPrices;
     private readonly TextBlock _status;
@@ -134,12 +135,15 @@ internal sealed class MachineTutorView : UserControl
         var tutorActions=new WrapPanel();
         tutorHeader.Children.Add(tutorActions);
         var free=new Button {Content="Todos gratis (0 BP)",Margin=new Thickness(0,0,8,0)};
-        free.Click+=(_,_)=>{foreach(var row in _service.Tutors)row.Price=0;_dirtyPrices=true;UpdateState();_tutorGrid.Items.Refresh();};
+        free.Click+=(_,_)=>{foreach(var row in _service.Tutors)row.Price=0;_dirtyPrices=true;UpdateState();foreach(var t in _tutorColumns)t.Items.Refresh();};
         _savePrices=new Button {Content="Guardar precios BP",IsEnabled=false};
         _savePrices.Click+=(_,_)=>TryAction(()=>
         {
-            _tutorGrid.CommitEdit(DataGridEditingUnit.Cell,true);
-            _tutorGrid.CommitEdit(DataGridEditingUnit.Row,true);
+            foreach(var grid in _tutorColumns)
+            {
+                grid.CommitEdit(DataGridEditingUnit.Cell,true);
+                grid.CommitEdit(DataGridEditingUnit.Row,true);
+            }
             if(!StudioDialog.Confirm(Window.GetWindow(this),"Guardar precios de tutores",
                 "Se modificarán únicamente los bytes de precio de Shop.cro. Los movimientos y otros datos permanecerán intactos."))return;
             _service.SaveTutorPrices();_service=new GameMachineTutorService(_project);
@@ -147,17 +151,31 @@ internal sealed class MachineTutorView : UserControl
             _status.Text="Precios de tutores guardados y verificados.";
         });
         tutorActions.Children.Add(free);tutorActions.Children.Add(_savePrices);
-        _tutorGrid=BuildGrid();
-        _tutorGrid.Columns.Add(new DataGridTextColumn {Header="N.º",Binding=new Binding("Number"),IsReadOnly=true,Width=67});
-        _tutorGrid.Columns.Add(new DataGridTextColumn {Header="Sede",Binding=new Binding("Group"),IsReadOnly=true,Width=95});
-        _tutorGrid.Columns.Add(new DataGridTextColumn {Header="Movimiento",Binding=new Binding("MoveName"),IsReadOnly=true,Width=new DataGridLength(1,DataGridLengthUnitType.Star),MinWidth=260});
-        _tutorGrid.Columns.Add(new DataGridTextColumn
+        var tutorColumns=new UniformGrid {Columns=2};
+        for(int i=0;i<2;i++)
         {
-            Header="Precio (BP)",Binding=new Binding("Price"){Mode=BindingMode.TwoWay,
-                UpdateSourceTrigger=UpdateSourceTrigger.LostFocus,ValidatesOnExceptions=true},Width=140
-        });
-        _tutorGrid.CellEditEnding+=(_,_)=>{_dirtyPrices=true;UpdateState();};
-        tutoring.Children.Add(_tutorGrid);
+            var table=BuildGrid();
+            table.Margin=new Thickness(i==0?0:9,0,0,0);
+            table.Columns.Add(new DataGridTextColumn
+                {Header="N.º",Binding=new Binding("Number"),IsReadOnly=true,Width=46});
+            table.Columns.Add(new DataGridTextColumn
+                {Header="Sede",Binding=new Binding("Group"),IsReadOnly=true,Width=80});
+            table.Columns.Add(new DataGridTextColumn
+                {
+                    Header="Movimiento",Binding=new Binding("MoveName"),IsReadOnly=true,
+                    Width=new DataGridLength(1,DataGridLengthUnitType.Star),MinWidth=170
+                });
+            table.Columns.Add(new DataGridTextColumn
+                {
+                    Header="BP",Binding=new Binding("Price")
+                    {Mode=BindingMode.TwoWay,UpdateSourceTrigger=UpdateSourceTrigger.LostFocus,
+                        ValidatesOnExceptions=true},Width=72
+                });
+            table.CellEditEnding+=(_,_)=>{_dirtyPrices=true;UpdateState();};
+            _tutorColumns.Add(table);tutorColumns.Children.Add(table);
+        }
+        _tutorGrid=_tutorColumns[0];
+        tutoring.Children.Add(tutorColumns);
         tabs.Items.Add(new TabItem {Header="Tutores · precios",Content=tutoring});
         Rebind();
     }
@@ -169,7 +187,9 @@ internal sealed class MachineTutorView : UserControl
             RowBackground=(Brush)FindResource("Panel"),AlternatingRowBackground=(Brush)FindResource("Surface"),
             HorizontalGridLinesBrush=(Brush)FindResource("Stroke"),
             BorderBrush=(Brush)FindResource("Stroke"),BorderThickness=new Thickness(1),
-            RowHeight=34,HorizontalScrollBarVisibility=ScrollBarVisibility.Auto};
+            RowHeight=34,HeadersVisibility=DataGridHeadersVisibility.Column,RowHeaderWidth=0,
+            HorizontalScrollBarVisibility=ScrollBarVisibility.Auto,
+            VerticalScrollBarVisibility=ScrollBarVisibility.Auto};
         var style=new Style(typeof(DataGridColumnHeader));
         style.Setters.Add(new Setter(Control.BackgroundProperty,(Brush)FindResource("Surface")));
         style.Setters.Add(new Setter(Control.ForegroundProperty,(Brush)FindResource("TextMain")));
@@ -190,7 +210,9 @@ internal sealed class MachineTutorView : UserControl
             if(table.Columns.OfType<DataGridComboBoxColumn>().FirstOrDefault() is { } selector)
                 selector.ItemsSource=_service.MoveChoices;
         }
-        _tutorGrid.ItemsSource=_service.Tutors;
+        int count=(_service.Tutors.Count+_tutorColumns.Count-1)/_tutorColumns.Count;
+        for(int i=0;i<_tutorColumns.Count;i++)
+            _tutorColumns[i].ItemsSource=_service.Tutors.Skip(i*count).Take(count).ToArray();
         UpdateState();
     }
     private void UpdateState()
