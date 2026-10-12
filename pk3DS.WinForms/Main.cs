@@ -352,6 +352,8 @@ public sealed partial class Main : Form
             string.Empty,
         };
         File.WriteAllLines(logPath, log, Encoding.UTF8);
+        if(externalOptions is not null)
+            BatchBridgeProgress.Start(options.OutputDirectory,options.BaseName,options.Count,template.Actions.Count);
 
         GameConfig originalConfig = Config;
         string originalExHeader = ExHeaderPath;
@@ -383,12 +385,14 @@ public sealed partial class Main : Form
                 string outputPath = Path.Combine(options.OutputDirectory, $"{options.BaseName}_{i:00}.3ds");
 
                 progressDialog.BeginRom(i, options.Count, seed, Path.GetFileName(outputPath));
+                BatchBridgeProgress.BeginRom(i,seed,Path.GetFileName(outputPath));
 
                 progressDialog.SetStage("Preparing clean staging copy...");
                 UpdateStatus($"[Batch {i}/{options.Count}] Preparing clean staging copy...", false);
                 int restored = await Task.Run(() =>
                     BatchWorkspace.PrepareCleanCopy(originalRoot, activeStage, originalConfig, originalExHeader, options.RestoreBackups));
                 progressDialog.AppendLog($"Clean staging copy ready. Restored {restored} original backup file(s).");
+                BatchBridgeProgress.Step("Copia completa",$"Restaurados {restored} respaldos en la copia limpia");
 
                 if (progressDialog.CancelRequested)
                     throw new OperationCanceledException("Batch build cancelled by user.");
@@ -405,6 +409,7 @@ public sealed partial class Main : Form
                 }))
                 {
                     progressDialog.SetStage("Opening clean staging copy...");
+                    BatchBridgeProgress.Stage("Abriendo copia limpia","Detectando RomFS, ExeFS y ExHeader");
                     string stageRomFS = Path.Combine(activeStage, Path.GetRelativePath(originalRoot, originalConfig.RomFS));
                     string stageExeFS = string.IsNullOrWhiteSpace(originalConfig.ExeFS)
                         ? string.Empty
@@ -417,17 +422,20 @@ public sealed partial class Main : Form
                     if (Config is null || Config.Generation != 7 || !string.Equals(CurrentGlobalTemplateGame, game, StringComparison.OrdinalIgnoreCase))
                         throw new InvalidDataException("The staging copy did not reopen as the same Generation 7 game.");
 
+                    BatchBridgeProgress.Step("Juego cargado","RomFS y ExeFS identificados");
                     progressDialog.SetStage("Applying Global ROM Template...");
                     Application.DoEvents();
                     GlobalRandomizationTemplateFile.Apply(template, game);
                     Util.ReseedRand(seed);
                     BatchRuntime.Log($"Seed = {seed}");
+                    BatchBridgeProgress.Step("Template aplicado","Iniciando las acciones de la receta");
                     BatchRuntime.Log($"Replaying {template.Actions.Count} action(s)...");
                     BatchGen7ActionExecutor.Execute(template);
 
                     if (File.Exists(outputPath))
                         File.Delete(outputPath);
 
+                    BatchBridgeProgress.BeginRebuild(Path.GetFileName(outputPath));
                     progressDialog.BeginRebuild(Path.GetFileName(outputPath));
                     UpdateStatus($"[Batch {i}/{options.Count}] Rebuilding {Path.GetFileName(outputPath)}...");
                     string exeFS = ExeFSPath;
@@ -453,6 +461,7 @@ public sealed partial class Main : Form
                         throw new IOException($"CTRUtil finished without creating '{outputPath}'.");
 
                     progressDialog.EndRebuild();
+                    BatchBridgeProgress.EndRebuild();
                     completed++;
                     log.Add($"ROM {i:00}");
                     log.Add($"Seed: {seed}");
@@ -504,6 +513,7 @@ public sealed partial class Main : Form
                 }
                 UpdateStatus($"[Batch {i}/{options.Count}] Complete: {Path.GetFileName(outputPath)}");
                 progressDialog.CompleteRom(i, Path.GetFileName(outputPath));
+                BatchBridgeProgress.CompleteRom(i);
                 Application.DoEvents();
             }
 
@@ -515,6 +525,7 @@ public sealed partial class Main : Form
                 log.Add($"Cancelled by user after {completed}/{options.Count} ROM(s): {DateTime.Now:yyyy-MM-dd HH:mm:ss}");
                 File.WriteAllLines(logPath, log, Encoding.UTF8);
                 progressDialog.MarkCancelled(completed, options.Count);
+                BatchBridgeProgress.End(false);
                 if(externalOptions is null)WinFormsUtil.Alert(
                     "Batch ROM build cancelled.",
                     $"Completed ROMs kept: {completed}/{options.Count}.",
@@ -526,6 +537,7 @@ public sealed partial class Main : Form
                 log.Add($"Completed: {DateTime.Now:yyyy-MM-dd HH:mm:ss}");
                 File.WriteAllLines(logPath, log, Encoding.UTF8);
                 progressDialog.MarkCompleted(completed);
+                BatchBridgeProgress.End(true);
                 if(externalOptions is null)WinFormsUtil.Alert(
                     "Batch ROM build complete!",
                     $"Created {completed} ROM(s).",
@@ -552,6 +564,7 @@ public sealed partial class Main : Form
             log.Add(ex.ToString());
             try { File.WriteAllLines(logPath, log, Encoding.UTF8); } catch { }
             progressDialog.MarkFailed(ex.Message);
+            BatchBridgeProgress.Failure(ex.Message);
 
             if(externalOptions is not null)throw;
             WinFormsUtil.Alert(
