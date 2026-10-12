@@ -35,14 +35,24 @@ Alcance **Todo / Lista filtrada / Selección**, vista previa antes/después, **C
 - Editar ID de objeto y precio BP, añadir o eliminar ranuras en tiendas normales, poner a 0 BP las megapiedras de Battle Tree.
 - Resolución de `Shop.cro` mediante `Gen7ShopCroLayout` y reconstrucción segura mediante `Gen7ExpandedMartTable`: soporta CROs previamente expandidos, sin offsets fijos.
 - Vista previa con diferencias, relectura del CRO, protección ante cambios externos y guardado conjunto con historial. El editor NO modifica `code.bin`, el GARC de objetos ni el precio de venta de los objetos.
-- Segunda fase: Randomizar tiendas normales y BP con el pool original de Gen7; en tiendas normales se protegen MT y opcionalmente los objetos X, y se puede limitar a tiendas especiales. Las opciones están en la misma vista WPF.
+- Segunda fase: Randomizar tiendas normales y BP con el pool original de Gen7; en tiendas normales se protegen MT y opcionalmente los objetos X, y se puede limitar a tiendas especiales. Si los objetos X no se protegen, sus ranuras (incluido Monte Lanakila) se sustituyen por objetos distintos que no sean X. Las opciones están en la misma vista WPF.
 - Se añaden Caramelos Raros a las ocho tiendas de progreso sin sustituir ranuras preexistentes, fijando su precio a 10.
 - Preset de vitaminas: seis vitaminas reales (no plumas), migración de plumas antiguas, Caramelo Raro, Escama Corazón desde 3 pruebas y Piedra Activadora desde 5 pruebas. Valida la subida EV específica de cada vitamina, activa `AddEVAbove100` y establece su precio a 200, sin parchear `code.bin`.
-- Prohibir Cápsula Habilidad elimina/reemplaza su presencia en tiendas normales y BP y la excluye de las randomizaciones posteriores en la misma sesión. El botón conserva el precio BP anterior.
+- Prohibir Cápsula Habilidad usa exclusivamente ID de objeto 645 en USUM (independiente del idioma) para sustituirla en tiendas normales y BP y excluirla de posteriores randomizaciones en la sesión. El botón conserva el precio BP anterior.
 - Todas las modificaciones de `Shop.cro` y, cuando corresponde, del GARC `item` se preparan en memoria y se guardan conjuntamente con `ProjectHistory.Commit` tras confirmar la vista previa; se vuelve a validar el archivo original mediante fingerprint SHA-256. Los bytes de la tabla de tutores BP se verifican idénticos.
 - Se corrigió la eliminación de ranuras existentes: además del botón de selección, cada fila tiene la acción **Quitar**. No se permite eliminar el último objeto; las tiendas BP mantienen su tamaño fijo.
 - **No implementado todavía**: aplicar automáticamente estos presets al Global Template desde los cambios WPF; el Batch ROM Builder sigue ejecutando las acciones del template con el motor WinForms original. Requiere validación manual con ROM US/UM.
 - Requiere prueba manual sobre una extracción real de Ultra Sun y Ultra Moon antes de declarar paridad completa.
+
+## Tutores USUM · sincronización Shop.cro / code.bin
+
+- En **MT y tutores → Tutores · movimientos y BP**: los 67 movimientos y sus precios BP son editables directamente, con randomización de movimientos únicos o cambio manual por ranura.
+- El motor de sincronización WPF `UsumTutorCodePatch` reutiliza la firma estructural ARM validada de `USUMTutorCodeSyncPatcher`; no depende de offsets de Ultra Sun/Ultra Moon. Rechaza firmas ausentes, comprimidas o ambiguas sin guardar.
+- **Vista previa tutores** prepara las diferencias en `Shop.cro` y en la tabla nativa de `code.bin`; **Aplicar tutores y verificar** guarda ambas en una transacción con historial, tras confirmar y verificar hashes originales y tabla CRO.
+- Si solamente cambian precios, no se reescribe `code.bin`. Se conserva la edición de precios en SM, sin randomización de los 67 movimientos.
+- El editor de MT permanece disponible e independiente: no se cambian sus 100 posiciones al editar tutores. No permite guardar MT si hay tutores pendientes ni guardar tutores si hay MT pendientes.
+- Los presets **Tutor Sanity** y **Follow Evolutions** del original siguen pendientes de migración al editor WPF porque modifican además el GARC Personal y requieren pruebas propias.
+- Pendiente: validar la compatibilidad efectiva de movimientos enseñables in-game, y ambas ROMs Ultra Sol/Ultra Luna. Compilar no reemplaza esa prueba.
 
 ## Backup e historial
 
@@ -69,7 +79,7 @@ Prioridad de PNG: `%LOCALAPPDATA%\3DS Progressive\sprites\custom\entry-001.png`,
 
 ## Alcance pendiente
 
-La migración no está completa. Ya se integraron Static Encounters, Egg Moves, Level Up masivo, Player Caps, herramientas CRO, Type Chart Gen7, Global Template y Batch ROM Builder. Continúan pendientes las opciones completas de Progressive Wild, asignación de movimientos a tutores USUM (sincronizando código), Story Text y módulos Gen6 especiales. En tiendas USUM se incorporaron la edición normal/BP, ranuras ampliables, randomización, caramelos raros y vitaminas con flags para EV 252. Quedan pendientes la sincronización bidireccional de sus opciones con Global Template y validación runtime de ambos juegos. Esta es una **preview**: no sustituye la versión estable WinForms ni se ha fusionado con ella.
+La migración no está completa. Ya se integraron Static Encounters, Egg Moves, Level Up masivo, Player Caps, herramientas CRO, Type Chart Gen7, Global Template y Batch ROM Builder. Continúan pendientes las opciones completas de Progressive Wild, Tutor Sanity/Follow Evolutions y Story Text y módulos Gen6 especiales. En tiendas USUM se incorporaron la edición normal/BP, ranuras ampliables, randomización, caramelos raros y vitaminas con flags para EV 252. Quedan pendientes la sincronización bidireccional de sus opciones con Global Template y validación runtime de ambos juegos. Esta es una **preview**: no sustituye la versión estable WinForms ni se ha fusionado con ella.
 
 Extraer el ZIP **completo** y ejecutar `3DS.Progressive.exe`; conservar la carpeta `custom_balance_templates` junto al ejecutable.
 
