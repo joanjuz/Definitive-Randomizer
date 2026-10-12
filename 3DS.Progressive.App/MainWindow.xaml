@@ -109,6 +109,10 @@
                                 Style="{StaticResource SidebarButton}" IsEnabled="False" Tag="Automation" Click="Section_Click"/>
                         <Button x:Name="ConfigurationButton" Content="⚙  Configuración"
                                 Style="{StaticResource SidebarButton}" IsEnabled="False" Tag="Configuration" Click="Section_Click"/>
+                        <Button x:Name="GlobalTemplateButton" Content="▣  Global Template"
+                                Style="{StaticResource SidebarButton}" IsEnabled="False" Tag="GlobalTemplate" Click="Section_Click"/>
+                        <Button x:Name="BatchRomButton" Content="▣  Batch ROM Builder"
+                                Style="{StaticResource SidebarButton}" IsEnabled="False" Tag="BatchRom" Click="Section_Click"/>
                         <Button x:Name="HistoryButton" Content="≡  Historial de cambios" Style="{StaticResource SidebarButton}" IsEnabled="False" Tag="History" Click="Section_Click"/>
                     </StackPanel>
                     </ScrollViewer>
