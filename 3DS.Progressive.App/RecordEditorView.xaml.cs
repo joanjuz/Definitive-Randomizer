@@ -435,7 +435,8 @@ public partial class RecordEditorView : UserControl
         CollectionViewSource.GetDefaultView(RecordList.ItemsSource).Filter=o=>o is RecordEntry entry&&
             (entry.Name.Contains(text,StringComparison.OrdinalIgnoreCase)||entry.Id.ToString().Contains(text));
     }
-    public bool ConfirmLeave()=>!_dirty||StudioDialog.Confirm(Window.GetWindow(this),"Cambios pendientes","Hay modificaciones sin guardar.","Si continuás, se descartará la edición actual.");
+    public bool ConfirmLeave()=>TrainerRulesHost.Visibility!=Visibility.Visible&&
+        (!_dirty||StudioDialog.Confirm(Window.GetWindow(this),"Cambios pendientes","Hay modificaciones sin guardar.","Si continuás, se descartará la edición actual."));
     private void Save_Click(object sender,RoutedEventArgs e)
     {
         if(_id<0)return;
@@ -456,31 +457,43 @@ public partial class RecordEditorView : UserControl
         if(!ConfirmLeave())return;
         try
         {
-            // Commit pending randomization controls before opening. Only change the
-            // template in memory; the ROM is untouched until Preview + Apply.
             var options=Values(_options);
-            string captured=trainer.CaptureOptions(options);
-            trainer.RestoreOptions(captured);
+            trainer.RestoreOptions(trainer.CaptureOptions(options));
             var rows=trainer.GetRuleRows();
             if(rows.Count==0)
             {
                 StudioDialog.Notice(Window.GetWindow(this),"Sin candidatos",
-                    "Esta ROM no contiene en los archivos abiertos entrenadores importantes o jefes reconocidos por Progressive.");
+                    "No se encontraron entrenadores importantes ni jefes en los datos de este proyecto.");
                 return;
             }
-            var dialog=new TrainerRulesWindow(rows,levelCaps){Owner=Window.GetWindow(this)};
-            if(dialog.ShowDialog()!=true)return;
-            trainer.UpdateRuleRows(dialog.Rows,levelCaps);
-            _loading=true;
-            try {BuildGroups(OptionsPanel,Editor.RandomOptions,_options,false);}
-            finally {_loading=false;}
-            Invalidate();
-            StatusText.Text=$"Reglas de {(levelCaps?"Level Caps":"movimientos")} actualizadas en memoria. Generá una vista previa para aplicar.";
+            var table=new TrainerRulesWindow(rows,levelCaps);
+            table.Cancelled+=CloseTrainerRules;
+            table.Accepted+=edited=>
+            {
+                try
+                {
+                    trainer.UpdateRuleRows(edited,levelCaps);
+                    _loading=true;
+                    try{BuildGroups(OptionsPanel,Editor.RandomOptions,_options,false);}
+                    finally{_loading=false;}
+                    Invalidate();
+                    CloseTrainerRules();
+                    StatusText.Text=$"Tabla de {(levelCaps?"Level Caps":"movimientos")} actualizada. Generá una vista previa antes de guardar.";
+                }
+                catch(Exception ex)
+                {StudioDialog.Error(Window.GetWindow(this),"No se pudieron guardar las reglas",ex.Message);}
+            };
+            TrainerRulesHost.Content=table;
+            TrainerRulesHost.Visibility=Visibility.Visible;
+            StatusText.Text="Editando tabla de entrenadores dentro de Progressive.";
         }
         catch(Exception ex)
-        {
-            StudioDialog.Error(Window.GetWindow(this),"No se pudieron editar las reglas",ex.Message);
-        }
+        {StudioDialog.Error(Window.GetWindow(this),"No se pudo abrir la tabla",ex.Message);}
+    }
+    private void CloseTrainerRules()
+    {
+        TrainerRulesHost.Visibility=Visibility.Collapsed;
+        TrainerRulesHost.Content=null;
     }
     private void Randomizer_Click(object sender,RoutedEventArgs e)
     {
