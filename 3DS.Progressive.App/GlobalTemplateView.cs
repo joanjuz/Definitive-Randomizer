@@ -23,6 +23,7 @@ internal sealed class GlobalTemplateView : UserControl
     private readonly Button _save;
     private GlobalTemplateDocument? _loaded;
     internal GlobalTemplateDocument? LoadedTemplate=>_loaded?.Clone();
+    internal string? LoadedSourcePath=>_loaded?.SourcePath;
     private string Game=>_project.GameConfiguration.USUM?"USUM":
         _project.GameConfiguration.SM?"SM":_project.GameConfiguration.ORAS?"ORAS":"XY";
     internal GlobalTemplateView(GameProjectSession project)
