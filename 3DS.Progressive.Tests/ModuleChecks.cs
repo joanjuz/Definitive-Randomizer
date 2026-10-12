@@ -50,7 +50,14 @@ internal static class ModuleChecks
         Write(f,"trdata",headers);Write(f,"trpoke",teams);
         var learn=new Learnset6(new byte[4]) {Moves=[1,2,3,4,5,6],Levels=[1,1,1,1,5,10]};
         Write(f,"levelup",Enumerable.Range(0,840).Select(_=>learn.Write()).ToArray());
-        if(gen==7){byte[] statics=new byte[0x38*200];for(int j=0;j<200;j++)statics[j*0x38+4]=20;Write(f,"encounterstatic",[[],statics]);}
+        if(gen==7)
+        {
+            byte[] statics=new byte[0x38*200];
+            for(int j=0;j<200;j++){statics[j*0x38+4]=20;statics[j*0x38+3]=10;}
+            byte[] gifts=new byte[0x14];gifts[0]=1;gifts[3]=5;gifts[4]=0xA2;
+            byte[] trades=new byte[0x34];trades[0]=1;trades[5]=10;trades[0x2C]=25;trades[0x30]=0xAA;
+            Write(f,"encounterstatic",[gifts,statics,[],[],trades]);
+        }
         var evolutions=Enumerable.Range(0,840).Select(i=>
         {
             byte[] data=new byte[gen==7?64:48];Set16(data,0,4);Set16(data,2,16);Set16(data,4,2);
@@ -148,6 +155,31 @@ internal static class ModuleChecks
             options=EditorValues.Flatten(encounter.RandomOptions);options["LevelScale"]=150;
             var ep=encounter.Preview(options,[1]);encounter.Apply(ep);
             check(EditorValues.Flatten(encounter.Read(1))[f.Game.Generation==7?"Min":"S0.Min"]==30,version+" encounter scaled levels use the selected scope");
+            if(f.Game.Generation==7)
+            {
+                var statics=new GameStaticEncounterService(f.Session);
+                check(statics.Entries.Count==202,version+" static encounters expose real Gifts, Totems and Trades");
+                var giftBefore=Read(f,"encounterstatic")[0];
+                var gift=EditorValues.Flatten(statics.Read(1));
+                check(gift["Species"]==1&&gift["Level"]==5&&gift["ShinyLock"]==1,
+                    version+" static gift fields read exact binary structure");
+                gift["Species"]=25;statics.Save(1,gift);
+                byte[] giftAfter=Read(f,"encounterstatic")[0];
+                check(BitConverter.ToUInt16(giftAfter,0)==25&&giftAfter[4]==giftBefore[4],
+                    version+" static gift edit preserves unknown gender/lock bits");
+                var trade=EditorValues.Flatten(statics.Read(statics.Entries.Count));
+                check(trade["Request"]==25,version+" static trades expose requested Pokémon separately");
+                trade["Request"]=133;statics.Save(statics.Entries.Count,trade);
+                check(BitConverter.ToUInt16(Read(f,"encounterstatic")[4],0x2C)==133
+                    &&Read(f,"encounterstatic")[4][0x30]==0xAA,
+                    version+" static trades preserve unrelated event flags when saving");
+                var staticOptions=EditorValues.Flatten(statics.RandomOptions);
+                staticOptions["Species"]=0;staticOptions["LevelScale"]=120;
+                var staticPreview=statics.Preview(staticOptions,[1]);
+                check(staticPreview.Changes.Count>0
+                    &&EditorValues.Flatten(statics.Read(1))["Level"]==5,
+                    version+" static randomizer preview is frozen and leaves ROM unchanged");
+            }
             var evolution=new GameEvolutionService(f.Session);var e=EditorValues.Flatten(evolution.Read(1));e["E0.Method"]=5;evolution.Save(1,e);
             options=EditorValues.Flatten(evolution.RandomOptions);options["Species"]=0;options["Trade"]=1;options["TradeLevel"]=40;
             var evolve=evolution.Preview(options,[1]);evolution.Apply(evolve);e=EditorValues.Flatten(evolution.Read(1));
