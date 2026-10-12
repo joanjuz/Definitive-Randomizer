@@ -212,6 +212,21 @@ internal static class ModuleChecks
                 version+" item price changes are saved in item GARC");
             check(EditorValues.Flatten(item.Read(2))["Price"]==20,
                 version+" other items stay intact");
+            if(f.Game.Generation==7)
+            {
+                var prices=item.PriceRows().ToArray();
+                check(prices[0].TargetBuy==3000&&prices[1].TargetBuy==800,
+                    version+" economy preset is based on original UPR-ZX targets");
+                foreach(var row in prices)row.Included=false;
+                prices[0].Included=true;prices[0].TargetBuy=3400;
+                var economy=item.PreviewEconomy(prices);
+                check(economy.Changes.Count==1&&EditorValues.Flatten(item.Read(1))["Price"]==200,
+                    version+" economy grid provides frozen one-item price proposal");
+                item.Apply(economy);
+                check(EditorValues.Flatten(item.Read(1))["Price"]==3400&&
+                    EditorValues.Flatten(item.Read(2))["Price"]==20,
+                    version+" economy apply writes only included items");
+            }
             var texts=new GameTextService(f.Session);
             check(texts.Read(0)[0]=="Hola",version+" game text original codec parses file");
             texts.Save(0,["Hola editada","Primer texto"]);
