@@ -104,12 +104,27 @@ internal static class UiSmoke
             ((Button)main.FindName("TrainersButton")).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             var trainer=(RecordEditorView)((ContentControl)main.FindName("SectionHost")).Content;
             check(trainer.Editor is ThreeDS.Progressive.Services.GameTrainerService,"WPF Trainers opens a real archive editor");
+            check(((FrameworkElement)trainer.FindName("TrainerTeamPreview")).Visibility==Visibility.Visible
+                && ((StackPanel)trainer.FindName("TrainerTeamCards")).Children.Count>0,
+                "WPF trainer editor shows its Pokémon team cards");
+            check(File.Exists(Path.Combine(AppContext.BaseDirectory,"Sprites","1.png")),
+                "Original Pokémon sprites are bundled for offline views");
+            check(RecordEditorView.TrainerOptionCategory("NUD_LevelBoost")==1
+                && RecordEditorView.TrainerOptionCategory("CB_Moves")==2
+                && RecordEditorView.TrainerOptionCategory("BST.0.MinBST")==4,
+                "Trainer UI assigns level caps, moves and progressive BST to separate panels");
             Layout(trainer,1170,720);Capture(trainer,"entrenadores-editor.png");
             ((TextBox)trainer.FieldControls["P0.Level"]).Text="44";
             check(((Button)trainer.FindName("SaveButton")).IsEnabled,"WPF trainer editing marks unsaved changes");
             Walk(trainer).OfType<Button>().First(b=>Equals(b.Content,"Descartar cambios")).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             check(((TextBox)trainer.FieldControls["P0.Level"]).Text=="10","WPF trainer discard restores the saved value");
             ((Button)trainer.FindName("RandomizerButton")).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            check(trainer.OptionControls.Keys.Any(k=>k.EndsWith(".CapUse",StringComparison.Ordinal))
+                && trainer.OptionControls.Keys.Any(k=>k.EndsWith(".MoveUse",StringComparison.Ordinal)),
+                "Trainer options expose level cap and move rules even without a saved template");
+            check(Walk(trainer).OfType<TabControl>().Any(t=>t.Items.Count==5
+                && ((TabItem)t.Items[1]).Header?.ToString()=="Niveles y Level Caps"),
+                "Trainer randomizer shows five task-based panels");
             ((ComboBox)trainer.FindName("ScopeBox")).SelectedIndex=2;
             ((TextBox)trainer.OptionControls["NUD_LevelBoost"]).Text="1.6";
             ((Button)trainer.FindName("PreviewButton")).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
