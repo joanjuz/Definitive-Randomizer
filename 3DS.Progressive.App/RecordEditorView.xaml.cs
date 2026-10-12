@@ -130,6 +130,8 @@ public partial class RecordEditorView : UserControl
             }
         }
         WireExclusive(controls,"SimilarBST","Progressive");
+        if(!editor&&Editor is ThreeDS.Progressive.Services.GameStaticEncounterService)
+            WireExclusive(controls,"ShinyLock","RemoveLocks");
     }
     private static void WireExclusive(Dictionary<string,FrameworkElement> fields,string a,string b)
     {
@@ -278,6 +280,8 @@ public partial class RecordEditorView : UserControl
         ("CHK_RandomDoubleBattles",["NUD_DoubleBattleChance"]),
         ("CHK_Level",["NUD_LevelBoost"]),
         ("SimilarBST",["BST"]),
+        ("ScaleLevels",["LevelScale","LevelFlat"]),
+        ("ForceFinal",["FinalLevel"]),
         ("CHK_StrongStat",["NUD_StrongStatTolerance","CHK_StrongStatNormalTrainers",
             "CHK_StrongStatImportantTrainers","CHK_StrongStatBosses"]),
         ("CHK_BetterMovesets",["CHK_BetterMovesetsIncludeTMs",
