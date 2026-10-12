@@ -98,7 +98,8 @@ public sealed class GameEncounterService : ArchiveProjectEditor
                         [new(0,"Todas las tablas"),new(1,"Solo encuentros normales"),
                          new(2,"Solo SOS"),new(3,"Normal + copiar a SOS")]),
                     Field("SOS","Incluir aliados SOS y clima",1,0,1),
-                    Field("Weather","Randomizar fila SOS meteorológica",0,0,1)
+                    Field("Weather","Randomizar fila SOS meteorológica",0,0,1),
+                    Field("AllCanCallAllies","Cualquier Pokémon puede pedir ayuda SOS (rellenar slots vacíos)",0,0,1)
                 ]),
                 new("Niveles",[
                     Field("LevelScale","Multiplicador de niveles (%)",100,10,300),
@@ -279,6 +280,20 @@ public sealed class GameEncounterService : ArchiveProjectEditor
                 values[target+"Species"]=values[source+"Species"];
                 values[target+"Form"]=values[source+"Form"];
             }
+        }
+        if(Config.Generation==7&&options["AllCanCallAllies"]==1)
+        {
+            // Vanilla Wild7Randomizer semantics: fill only missing ordinary SOS
+            // species from the matching normal slot, never overwrite existing
+            // partners or meteorological SOS encounters.
+            for(int group=1;group<=7;group++)
+                for(int i=0;i<10;i++)
+                {
+                    string original=$"S0.{i}.",ally=$"S{group}.{i}.";
+                    if(values[original+"Species"]==0||values[ally+"Species"]!=0)continue;
+                    values[ally+"Species"]=values[original+"Species"];
+                    values[ally+"Form"]=values[original+"Form"];
+                }
         }
         int Scale(int x)=>x==0?0:Math.Clamp((int)Math.Round(x*options["LevelScale"]/100.0)+options["LevelFlat"],1,100);
         if(Config.Generation==7)
