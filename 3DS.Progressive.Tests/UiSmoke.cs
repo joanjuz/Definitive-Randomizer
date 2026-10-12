@@ -243,7 +243,17 @@ internal static class UiSmoke
             var items=((ContentControl)main.FindName("SectionHost")).Content as RecordEditorView;
             check(items?.Editor is ThreeDS.Progressive.Services.GameItemService&&
                 items.FieldControls.ContainsKey("Price"),"WPF native Item editor exposes prices and attributes");
-            if(items is not null){Layout(items,1170,720);Capture(items,"objetos-editor.png");}
+            if(items is not null)
+            {
+                Layout(items,1170,720);Capture(items,"objetos-editor.png");
+                ((Button)items.FindName("EconomyTableButton")).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                var economy=((ContentControl)items.FindName("TrainerRulesHost"));
+                check(economy.Visibility==Visibility.Visible&&economy.Content is EconomyPriceView,
+                    "WPF Fix Economy uses full-width in-app grid, not a new window");
+                if(economy.Content is EconomyPriceView ev){Layout(ev,1160,720);Capture(ev,"economy-price-table.png");}
+                ((Button)Walk(economy).OfType<Button>().First(x=>Equals(x.Content,"Volver")))
+                    .RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            }
             ((Button)main.FindName("FieldItemsButton")).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             var fieldItems=((ContentControl)main.FindName("SectionHost")).Content as RecordEditorView;
             check(fieldItems?.Editor is ThreeDS.Progressive.Services.GameFieldItemsService
