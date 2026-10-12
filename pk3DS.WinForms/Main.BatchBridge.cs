@@ -18,6 +18,7 @@ internal sealed class BatchBridgeRequest
     public bool Trimmed {get;set;}
     public bool RestoreBackups {get;set;}=true;
     public bool KeepEditableProjects {get;set;}
+    public bool AllowAssetMismatch {get;set;}
 }
 
 public partial class Main
@@ -56,7 +57,8 @@ public partial class Main
             Count=job.Count,
             Trimmed=job.Trimmed,
             RestoreBackups=job.RestoreBackups,
-            KeepEditableProjects=job.KeepEditableProjects
+            KeepEditableProjects=job.KeepEditableProjects,
+            AllowAssetMismatch=job.AllowAssetMismatch
         });
         string report=Path.Combine(output,job.BaseName+"_batch.txt");
         if(!File.Exists(report)||!File.ReadAllText(report).Contains("Completed:"))
