@@ -14,6 +14,10 @@ using DataGrid=System.Windows.Controls.DataGrid;
 using DataGridRow=System.Windows.Controls.DataGridRow;
 using DataGridCell=System.Windows.Controls.DataGridCell;
 using DataGridColumnHeader=System.Windows.Controls.Primitives.DataGridColumnHeader;
+using Control=System.Windows.Controls.Control;
+using Binding=System.Windows.Data.Binding;
+using Brushes=System.Windows.Media.Brushes;
+using Orientation=System.Windows.Controls.Orientation;
 
 namespace ThreeDS.Progressive;
 
@@ -61,7 +65,7 @@ internal sealed class TrainerRulesWindow : Window
         filters.Children.Add(_important);filters.Children.Add(_bosses);
         _important.Checked+=FilterChanged;_important.Unchecked+=FilterChanged;
         _bosses.Checked+=FilterChanged;_bosses.Unchecked+=FilterChanged;
-        _count=new TextBlock {Foreground=TextSoft,VerticalAlignment=VerticalAlignment.Center,Margin=new Thickness(6,3)};
+        _count=new TextBlock {Foreground=TextSoft,VerticalAlignment=VerticalAlignment.Center,Margin=new Thickness(6,3,6,3)};
         filters.Children.Add(_count);
 
         var bottom=new StackPanel {Margin=new Thickness(0,12,0,0)};
@@ -142,7 +146,7 @@ internal sealed class TrainerRulesWindow : Window
     }
     private Button ActionButton(string label,Action action)
     {
-        var button=new Button {Content=label,MinWidth=110,Padding=new Thickness(14,8)};
+        var button=new Button {Content=label,MinWidth=110,Padding=new Thickness(14,8,14,8)};
         button.Click+=(_,_)=>action();return button;
     }
     private void AddCheck(string header,string property)
