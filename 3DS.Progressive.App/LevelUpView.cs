@@ -230,6 +230,7 @@ internal sealed class LevelUpView : UserControl
     }
     private void InvalidateBulk()
     {
+        bool hadPreview=_proposedRows is not null;
         _bulkPreview=null;
         _proposedRows=null;
         if(_applyBulk is not null)_applyBulk.IsEnabled=false;
@@ -237,6 +238,7 @@ internal sealed class LevelUpView : UserControl
         _previewBanner.Visibility=Visibility.Collapsed;
         foreach(var table in _moveColumns)table.IsReadOnly=false;
         foreach(var button in _editButtons)button.IsEnabled=true;
+        if(hadPreview&&_current>0)Load(_current);
     }
     private void DiscardPreview()
     {
