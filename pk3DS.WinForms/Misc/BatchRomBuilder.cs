@@ -22,6 +22,7 @@ internal sealed class BatchRomBuildOptions
     public bool Trimmed { get; set; }
     public bool RestoreBackups { get; set; } = true;
     public bool KeepEditableProjects { get; set; }
+    public bool AllowAssetMismatch { get; set; }
 }
 
 internal sealed class BatchRomBuilderDialog : Form
