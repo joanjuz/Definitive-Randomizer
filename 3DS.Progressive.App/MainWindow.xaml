@@ -88,6 +88,8 @@
                                 Background="#2B4059" FontWeight="SemiBold"/>
                         <Button x:Name="TrainersButton" Content="⚔  Entrenadores" Style="{StaticResource SidebarButton}" IsEnabled="False" Tag="Trainers" Click="Section_Click"/>
                         <Button x:Name="EncountersButton" Content="◎  Encuentros" Style="{StaticResource SidebarButton}" IsEnabled="False" Tag="Encounters" Click="Section_Click"/>
+                        <Button x:Name="StaticEncountersButton" Content="◉  Encuentros estáticos"
+                                Style="{StaticResource SidebarButton}" IsEnabled="False" Tag="StaticEncounters" Click="Section_Click"/>
                         <Button x:Name="MovesButton" Content="◇  Movimientos" Style="{StaticResource SidebarButton}" IsEnabled="False" Click="Moves_Click"/>
                         <Button Content="▣  MT y tutores" Style="{StaticResource NavDisabled}"/>
                         <Button Content="▤  Objetos y tiendas" Style="{StaticResource NavDisabled}"/>
