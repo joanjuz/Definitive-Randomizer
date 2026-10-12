@@ -14,7 +14,18 @@
     </StackPanel><ListBox x:Name="RecordList" DisplayMemberPath="Display" SelectionChanged="Selection_Changed"/></DockPanel>
    </Border>
    <Grid Grid.Column="1" Margin="22,20">
-    <ScrollViewer x:Name="FieldsScroll" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Background="Transparent"><StackPanel x:Name="FieldsPanel"/></ScrollViewer>
+    <ScrollViewer x:Name="FieldsScroll" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Background="Transparent">
+     <StackPanel>
+      <Border x:Name="TrainerTeamPreview" Background="{StaticResource Panel}" BorderBrush="{StaticResource Stroke}" BorderThickness="1" CornerRadius="10" Margin="0,0,0,16" Padding="14" Visibility="Collapsed">
+       <StackPanel>
+        <TextBlock Text="EQUIPO DEL ENTRENADOR" Foreground="{StaticResource TextSoft}" FontSize="11" FontWeight="SemiBold"/>
+        <TextBlock Text="Elegí un Pokémon para acceder a sus opciones." Foreground="{StaticResource TextSoft}" FontSize="11" Margin="0,4,0,8"/>
+        <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled"><StackPanel x:Name="TrainerTeamCards" Orientation="Horizontal"/></ScrollViewer>
+       </StackPanel>
+      </Border>
+      <StackPanel x:Name="FieldsPanel"/>
+     </StackPanel>
+    </ScrollViewer>
     <Grid x:Name="ToolsPanel" Visibility="Collapsed"><Grid.RowDefinitions><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
      <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Background="Transparent"><StackPanel>
       <TextBlock x:Name="ToolTitle" Text="Randomizar" FontSize="22" FontWeight="SemiBold" Margin="0,0,0,15"/>
