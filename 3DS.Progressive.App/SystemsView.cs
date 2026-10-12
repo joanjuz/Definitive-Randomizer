@@ -168,6 +168,12 @@ internal sealed class SystemsView : UserControl
             finally{UiProgress.End();}
         });
         stack.Children.Add(audit);
+        var lz=Card("LZ11 · Compresión y descompresión",
+            "Compatible con pk3DS vanilla. Seleccioná un archivo de hasta 15 MB y un destino nuevo; no reemplaza el archivo original.");
+        var lzButtons=new WrapPanel();((StackPanel)lz.Child).Children.Add(lzButtons);
+        AddButton(lzButtons,"Descomprimir LZ11…",()=>_ = RunLz11Async(true));
+        AddButton(lzButtons,"Comprimir LZ11…",()=>_ = RunLz11Async(false));
+        stack.Children.Add(lz);
         var backup=Card("Backup completo verificado",
             "Copia de trabajo y su historial. Se utiliza el mismo motor ProjectBackup del editor, sin duplicar ni cambiar su política.");
         AddButton((StackPanel)backup.Child,"Crear backup del proyecto…",_backup);
@@ -179,6 +185,46 @@ internal sealed class SystemsView : UserControl
         AddButton(buttons,"Level Up Moves",()=>_navigate("LevelUp"));
         AddButton(buttons,"Historia y textos",()=>_navigate("GameText"));
         stack.Children.Add(exports);
+    }
+    private async Task RunLz11Async(bool decompress)
+    {
+        var input=new Microsoft.Win32.OpenFileDialog{Title=decompress?"LZ11 · Archivo comprimido":"LZ11 · Archivo original"};
+        if(input.ShowDialog(Window.GetWindow(this))!=true)return;
+        if(new FileInfo(input.FileName).Length>15*1024*1024)
+        {
+            StudioDialog.Error(Window.GetWindow(this),"LZ11","El motor vanilla limita esta operación a 15 MB.");return;
+        }
+        var output=new Microsoft.Win32.SaveFileDialog
+        {
+            Title=decompress?"Guardar archivo descomprimido":"Guardar archivo LZ11",
+            FileName=Path.GetFileNameWithoutExtension(input.FileName)+(decompress?"_dec.bin":".lz")
+        };
+        if(output.ShowDialog(Window.GetWindow(this))!=true)return;
+        string source=Path.GetFullPath(input.FileName),dest=Path.GetFullPath(output.FileName);
+        if(File.Exists(dest)||string.Equals(source,dest,StringComparison.OrdinalIgnoreCase))
+        {
+            StudioDialog.Error(Window.GetWindow(this),"LZ11",
+                "El destino debe ser un archivo nuevo y distinto del original.");return;
+        }
+        UiProgress.Begin(decompress?"LZ11 · Descomprimiendo…":"LZ11 · Comprimiendo…");
+        try
+        {
+            await Task.Run(()=>
+            {
+                if(decompress)pk3DS.Core.CTR.LZSS.Decompress(source,dest);
+                else pk3DS.Core.CTR.LZSS.Compress(source,dest);
+            });
+            if(!File.Exists(dest)||new FileInfo(dest).Length==0)
+                throw new InvalidDataException("El motor no generó un archivo de salida válido.");
+            _status.Text=$"LZ11 completado: {Path.GetFileName(dest)} · "+
+                $"{new FileInfo(dest).Length:N0} bytes. Archivo fuente intacto.";
+        }
+        catch(Exception ex)
+        {
+            try{if(File.Exists(dest))File.Delete(dest);}catch(IOException){}
+            StudioDialog.Error(Window.GetWindow(this),"LZ11",ex.Message);
+        }
+        finally{UiProgress.End();}
     }
     private void BuildAutomation(StackPanel stack)
     {
