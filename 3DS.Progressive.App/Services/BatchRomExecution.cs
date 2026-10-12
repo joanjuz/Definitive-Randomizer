@@ -69,6 +69,8 @@ internal sealed class BatchRomExecution
             throw new InvalidOperationException("El destino no puede estar dentro de la ROM de origen.");
         var template=GlobalTemplateDocument.Load(options.TemplatePath,_game,7);
         if(template.Actions.Count==0)throw new InvalidDataException("El template no tiene acciones de batch.");
+        if(template.SettingsCount==0)
+            throw new InvalidDataException("Este template se creó solo desde historial: no contiene RandSettings. Importá y guardá una receta completa antes de construir.");
         var unsupported=template.Actions.Where(id=>!SupportedActionIds.Contains(id)).ToArray();
         if(unsupported.Length>0)
             throw new NotSupportedException("El ejecutor Gen7 original no admite estas acciones: "+
@@ -128,7 +130,9 @@ internal sealed class BatchRomExecution
             {
                 await Task.Delay(950);
                 if(!File.Exists(log))continue;
-                string[] progressLines=await File.ReadAllLinesAsync(log);
+                string[] progressLines;
+                try{progressLines=await File.ReadAllLinesAsync(log);}
+                catch(IOException){continue;} // WinForms may be atomically rewriting its log.
                 var current=progressLines.LastOrDefault(line=>line.StartsWith("ROM ",StringComparison.Ordinal))
                     ??"Preparando y randomizando lotes…";
                 if(current!=last){progress(current);last=current;}
