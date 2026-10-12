@@ -293,8 +293,9 @@ public sealed partial class Main : Form
         if (dependencyWarnings.Count != 0)
         {
             if (externalOptions is not null && (!externalOptions.AllowAssetMismatch ||
-                dependencyWarnings.Any(w => !w.StartsWith("SHA-256 distinto", StringComparison.OrdinalIgnoreCase)
-                && !w.Contains("SHA-256",StringComparison.OrdinalIgnoreCase))))
+                dependencyWarnings.Any(w => !w.StartsWith(
+                    "Template dependency changed since this global template was saved:",
+                    StringComparison.OrdinalIgnoreCase))))
                 throw new InvalidDataException("Los assets difieren; no se permite replay automático: "+
                     string.Join(" | ",dependencyWarnings));
             if(externalOptions?.AllowAssetMismatch==true)
