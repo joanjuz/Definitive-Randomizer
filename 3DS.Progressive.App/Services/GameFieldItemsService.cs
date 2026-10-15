@@ -11,7 +11,7 @@ namespace ThreeDS.Progressive.Services;
 /// USUM/SM Field Items based on the original Progressive EI / EB detection.
 /// Only touched area files are serialized; a frozen preview always precedes bulk edits.
 /// </summary>
-public sealed class GameFieldItemsService : IProjectEditor
+public sealed partial class GameFieldItemsService : IProjectEditor,IOptionTemplateProjectEditor
 {
     private sealed record FieldSlot(int Area,int SubFile,int Offset,string Source,int OriginalItem);
     private readonly GameProjectSession _project;
@@ -22,11 +22,11 @@ public sealed class GameFieldItemsService : IProjectEditor
     private byte[] _sha;
     public string Title=>"Field Items";
     public IReadOnlyList<RecordEntry> Entries {get;}
-    public IReadOnlyList<EditorGroup> RandomOptions=>[
+    private IReadOnlyList<EditorGroup> BaseRandomOptions=>[
         new("Shuffle seguro de objetos recogibles",[
             new("IncludeEI","Incluir pickups EI",1,0,1),
             new("IncludeEB","Incluir pickups ocultos EB",1,0,1),
-            new("ExcludeMachines","Excluir MT y MO",1,0,1),
+            new("ExcludeMachines","Excluir MT",1,0,1),
             new("ExcludeKey","Excluir objetos clave",1,0,1)
         ])
     ];
@@ -135,7 +135,8 @@ public sealed class GameFieldItemsService : IProjectEditor
         }
         return true;
     }
-    public EditorProposal Preview(IReadOnlyDictionary<string,int> options,IReadOnlyList<int> scope)
+    public EditorProposal Preview(IReadOnlyDictionary<string,int> options,IReadOnlyList<int> scope)=>Preview(options,scope,RandomNumberGenerator.GetInt32(int.MaxValue));
+    internal EditorProposal Preview(IReadOnlyDictionary<string,int> options,IReadOnlyList<int> scope,int seed)
     {
         EditorValues.Validate(RandomOptions,options);
         if(scope.Any(id=>!_locations.ContainsKey(id)))throw new ArgumentException("La selección contiene Field Items inválidos.");
@@ -144,7 +145,16 @@ public sealed class GameFieldItemsService : IProjectEditor
         byte[] source=Original();var lazy=new GARC.LazyGARC(source);
         int[] original=ids.Select(id=>ReadValue(id,lazy)).ToArray();
         int[] shuffled=(int[])original.Clone();
-        int seed=RandomNumberGenerator.GetInt32(int.MaxValue);var random=new Random(seed);
+        var random=new Random(seed);
+        int[] eligible=(_itemTemplate.AllowedItems.Length>0?_itemTemplate.AllowedItems:original).Where(_itemTemplate.Allows).Distinct().Where(item=>
+        {
+            string name=GetItemName(item).ToLowerInvariant();
+            if(options["ExcludeMachines"]==1&&(item is >=328 and <=434||name.StartsWith("tm")||name.StartsWith("mt")))return false;
+            if(options["ExcludeKey"]==1&&new[]{"ticket","key","llave","pase","tarjeta","fósil","fosil","bicicleta","scanner","card"}.Any(name.Contains))return false;
+            return true;
+        }).ToArray();
+        if(eligible.Length==0)throw new InvalidDataException("La plantilla y los filtros dejan el catálogo vacío.");
+        for(int i=0;i<shuffled.Length;i++)if(_itemTemplate.AllowedItems.Length>0||!_itemTemplate.Allows(shuffled[i]))shuffled[i]=eligible[random.Next(eligible.Length)];
         for(int i=shuffled.Length-1;i>0;i--){int j=random.Next(i+1);(shuffled[i],shuffled[j])=(shuffled[j],shuffled[i]);}
         var changes=new List<BatchChange>();
         for(int i=0;i<ids.Length;i++)
@@ -157,7 +167,7 @@ public sealed class GameFieldItemsService : IProjectEditor
         byte[] output=lazy.Save();
         return new EditorProposal(_owner,"Randomizar Field Items",seed,
             [new FileChange(_path,source,output)],changes,
-            new Dictionary<string,string> {["Scope"]=string.Join(",",ids),["Seed"]=seed.ToString()});
+            new Dictionary<string,string> {["ActionId"]="field-items.randomize",["Scope"]=ids.Length==Entries.Count?"All":string.Join(",",ids),["Seed"]=seed.ToString()});
     }
     public void Apply(EditorProposal proposal)
     {

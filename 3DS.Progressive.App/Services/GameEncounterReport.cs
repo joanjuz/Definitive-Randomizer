@@ -9,7 +9,7 @@ public sealed partial class GameEncounterService
     {
         var data=Records();
         var sb=new StringBuilder(1024*64);
-        sb.AppendLine("3DS Progressive · reporte de encuentros");
+        sb.AppendLine("Definitive Randomizer · reporte de encuentros");
         sb.AppendLine("Juego: "+(Config.USUM?"Ultra Sol / Ultra Luna":
             Config.Generation==7?"Sol / Luna":Config.ORAS?"Omega Ruby / Alpha Sapphire":"X / Y"));
         sb.AppendLine("Tablas: "+Entries.Count);

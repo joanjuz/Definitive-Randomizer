@@ -1,5 +1,8 @@
 using System.IO;
 using pk3DS.Core;
+using pk3DS.Core.Randomizers;
+using pk3DS.Core.Structures;
+using System.Security.Cryptography;
 using ThreeDS.Progressive.Models;
 
 namespace ThreeDS.Progressive.Services;
@@ -37,11 +40,35 @@ public sealed class GameEvolutionService : ArchiveProjectEditor,ITemplateProject
         {{"ActionId","evolutions.normalize"},{"Scope",ids.Length==Entries.Count?"All":string.Join(",",ids)},
          {"TemplateFile",Path.GetFileName(path)},{"TemplateSha256",Convert.ToHexString(hash)},{"TemplateCSV",System.Text.Encoding.UTF8.GetString(source)}},[(path,hash)]);
     }
-    public override IReadOnlyList<EditorGroup> RandomOptions=>[new("Evoluciones y acceso",[
+    public override IReadOnlyList<EditorGroup> RandomOptions=>[new("Operación",[
+        Field("Operation","Motor de evoluciones",0,0,3,[new(0,"Ajustes personalizados"),new(1,"Randomizador original"),new(2,"Evolucionar en cada nivel · original"),new(3,"Eliminar intercambios · original")])]),
+        new("Filtros del motor original",[
+        Field("OriginalBST","Especies con BST similar",0,0,1),Field("Experience","Mismo crecimiento de experiencia",0,0,1),
+        Field("Type","Compartir tipo con especie previa",0,0,1),Field("Legends","Permitir legendarios",1,0,1),Field("Events","Permitir míticos",1,0,1)]),
+        new("Ajustes personalizados",[
         Field("Species","Randomizar destinos de evolución",1,0,1),
         Field("BST","Tolerancia BST del destino (%) · 0 = libre",30,0,100),
         Field("Trade","Cambiar evoluciones por intercambio a nivel",0,0,1),
         Field("TradeLevel","Nivel para evoluciones por intercambio",37,1,100)])];
+    public override EditorProposal Preview(IReadOnlyDictionary<string,int> options,IReadOnlyList<int> scope)
+    {
+        EditorValues.Validate(RandomOptions,options);
+        if(options["Operation"]==0)return base.Preview(options,scope);
+        int[] ids=scope.Distinct().Order().ToArray();
+        if(ids.Length==0||ids.Any(id=>!Entries.Any(e=>e.Id==id)))throw new ArgumentException("El alcance no contiene evoluciones válidas.");
+        var records=Records();var sets=records["evolution"].Select(bytes=>Config.Generation==6?(EvolutionSet)new EvolutionSet6(bytes):new EvolutionSet7(bytes)).ToArray();
+        var engine=new EvolutionRandomizer(Config,sets);
+        engine.Randomizer.rBST=options["OriginalBST"]==1;engine.Randomizer.rEXP=options["Experience"]==1;
+        engine.Randomizer.rType=options["Type"]==1;engine.Randomizer.L=options["Legends"]==1;engine.Randomizer.E=options["Events"]==1;
+        int seed=RandomNumberGenerator.GetInt32(int.MaxValue);Util.ReseedRand(seed);engine.Randomizer.Initialize();
+        switch(options["Operation"]){case 1:engine.Execute();break;case 2:engine.ExecuteEvolveEveryLevel();engine.Execute();break;case 3:engine.ExecuteTrade();break;}
+        var changes=new List<BatchChange>();
+        foreach(int id in ids){var before=ReadRecord(id,records);records["evolution"][id]=sets[id].Write();changes.AddRange(EditorValues.Diff(id,Entries.First(e=>e.Id==id).Name,before,ReadRecord(id,records)));}
+        var parameters=options.ToDictionary(p=>p.Key,p=>p.Value.ToString(System.Globalization.CultureInfo.InvariantCulture));
+        parameters["Scope"]=string.Join(",",ids);parameters["Seed"]=seed.ToString();
+        parameters["ActionId"]=options["Operation"] switch{1=>"evolutions.randomize",2=>"evolutions.every-level",_=>"evolutions.remove-trade"};
+        return new(ProposalOwner,"Evoluciones · motor original",seed,Build(records),changes,parameters);
+    }
     protected override IReadOnlyList<EditorGroup> ReadRecord(int id,Dictionary<string,byte[][]> records)
     {
         byte[] record=records["evolution"][id];int size=Config.Generation==7?8:6;

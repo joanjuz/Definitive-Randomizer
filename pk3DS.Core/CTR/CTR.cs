@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.IO;
 using System.Linq;
 using System.Security.Cryptography;
@@ -272,7 +272,7 @@ public static class CTRUtil
             if (!trimmed)
             {
                 OutFileStream.Seek((NCSD.Header.OffsetSizeTable[NCSD.NCCH_Array.Count - 1].Offset * MEDIA_UNIT_SIZE) + (NCSD.Header.OffsetSizeTable[NCSD.NCCH_Array.Count - 1].Size * MEDIA_UNIT_SIZE), SeekOrigin.Begin);
-                ulong TotalLen = NCSD.Header.MediaSize * MEDIA_UNIT_SIZE;
+                ulong TotalLen = (ulong)NCSD.Header.MediaSize * MEDIA_UNIT_SIZE;
                 byte[] Buffer = Enumerable.Repeat((byte)0xFF, 0x400000).ToArray();
                 UpdateTB(TB_Progress, "Writing NCSD Padding...");
                 while ((ulong)OutFileStream.Position < TotalLen)

@@ -1,4 +1,4 @@
-using System.IO;
+﻿using System.IO;
 using pk3DS.Core;
 using pk3DS.Core.CTR;
 using pk3DS.Core.Randomizers;
@@ -27,6 +27,10 @@ public sealed partial class GameEncounterService : ArchiveProjectEditor, IOption
             return (V("MinLevel"),V("MaxLevel"),V("MinBST"),V("MaxBST"),V("FullRandom")==1);
         }).ToList();
     }
+
+    // Gen7 shares encdata with map/event resources: only every eleventh
+    // member at index 9 contains encounter tables. Keep all other members opaque.
+    protected override bool NeedsArchiveRecord(string archive,int index)=>Config.Generation!=7||archive!="encdata"||index%11==9;
 
     public GameEncounterService(GameProjectSession project):base(project,"encdata")
     {
@@ -94,6 +98,11 @@ public sealed partial class GameEncounterService : ArchiveProjectEditor, IOption
                     Field("Events","Incluir legendarios de evento",0,0,1),
                     Field("SimilarBST","Mantener BST similar",0,0,1),
                     Field("MegaForms","Permitir formas Mega/batalla durante la randomización",0,0,1),
+                    Field("AlolanForms","Permitir formas de Alola",1,0,1),
+                    Field("UniquePerTable","Priorizar especies distintas en cada fila",0,0,1),
+                    Field("RelaxBST","Usar BST más cercano si la tolerancia queda vacía",0,0,1),
+                    Field("SkipInaccessible","No randomizar tablas inaccesibles (Gen7)",0,0,1),
+                    Field("PreservePlaceholders","Proteger tablas internas de Pikipek",0,0,1),
                     Field("BST","Tolerancia BST (%) · 0 = libre",30,0,100),
                     Field("Progressive","BST progresivo por nivel",0,0,1)
                 ]),
@@ -113,7 +122,6 @@ public sealed partial class GameEncounterService : ArchiveProjectEditor, IOption
                     Field("KeepRange","Mantener mínimo y máximo diferenciados",1,0,1)
                 ])
             };
-            if(Config.Generation==7)
             {
                 for(int i=0;i<_bstRanges.Count;i++)
                 {
@@ -232,6 +240,15 @@ public sealed partial class GameEncounterService : ArchiveProjectEditor, IOption
     protected override Dictionary<string,int> Randomize(int id,IReadOnlyDictionary<string,int> options,Dictionary<string,byte[][]> records,Random random)
     {
         var values=EditorValues.Flatten(ReadRecord(id,records));
+        // Optional safeguards; both default off for vanilla backward compatibility.
+        if(Config.Generation==7)
+        {
+            if(options["SkipInaccessible"]==1 && !AccessibleForProgression(_locations[id]))
+                return values;
+            if(options["PreservePlaceholders"]==1 &&
+               Enumerable.Range(0,10).All(i=>values[$"S0.{i}.Species"]==731))
+                return values;
+        }
         if(options["SimilarBST"]==1&&options["Progressive"]==1)
             throw new ArgumentException("Elegí solo un modo BST: similar o progresivo.");
         if(!Enumerable.Range(1,Config.Generation).Any(i=>options[$"G{i}"]==1))
@@ -249,7 +266,6 @@ public sealed partial class GameEncounterService : ArchiveProjectEditor, IOption
         var ranges=new List<(int MinLevel,int MaxLevel,int MinBST,int MaxBST,bool FullRandom)>();
         if(options["Progressive"]==1)
         {
-            if(Config.Generation!=7)throw new NotSupportedException("El modo Progressive Wild de esta vista solo admite Gen7.");
             for(int i=0;i<_bstRanges.Count;i++)
             {
                 string k=$"BST.{i}.";
@@ -268,7 +284,7 @@ public sealed partial class GameEncounterService : ArchiveProjectEditor, IOption
             :Config.Generation==7?Math.Max(1,values["Max"]):
                 Math.Max(1,values.GetValueOrDefault("S0.Max",1));
         int[] pool=allowed;
-        if(options["Progressive"]==1)
+        if(Config.Generation==7&&options["Progressive"]==1)
         {
             var range=ranges.First(r=>level>=r.MinLevel&&level<=r.MaxLevel);
             if(!range.FullRandom)pool=allowed.Where(species=>
@@ -277,6 +293,7 @@ public sealed partial class GameEncounterService : ArchiveProjectEditor, IOption
         // Similar BST is slot-specific, never based on the first species of the area.
         if(pool.Length==0)throw new InvalidDataException("No hay especies válidas con los filtros BST seleccionados.");
         int slotMode=options["SlotMode"];
+        var usedByRow=new Dictionary<int,HashSet<int>>();
         foreach(string key in values.Keys.Where(k=>k.EndsWith("Species")).ToArray())
         {
             int group=-1;
@@ -290,23 +307,43 @@ public sealed partial class GameEncounterService : ArchiveProjectEditor, IOption
                 slotMode is not 2);
             if(!allow||options["Species"]!=1||values[key]<=0)continue;
             int[] slotPool=pool;
+            if(Config.Generation==6&&options["Progressive"]==1)
+            {
+                string prefix=key[..^7];
+                int slotLevel=Math.Max(1,Math.Max(values.GetValueOrDefault(prefix+"Min"),values.GetValueOrDefault(prefix+"Max")));
+                var range=ranges.First(r=>slotLevel>=r.MinLevel&&slotLevel<=r.MaxLevel);
+                if(!range.FullRandom)slotPool=allowed.Where(species=>Config.Personal[species].BST>=range.MinBST&&Config.Personal[species].BST<=range.MaxBST).ToArray();
+                if(slotPool.Length==0)throw new InvalidDataException($"No hay especies BST válidas para el slot {key} a nivel {slotLevel}.");
+            }
             if(options["SimilarBST"]==1&&values[key]<Config.Personal.Table.Length)
             {
                 int bst=Config.Personal[values[key]].BST;
-                slotPool=allowed.Where(species=>Math.Abs(Config.Personal[species].BST-bst)*100<=bst*options["BST"]).ToArray();
+                slotPool=WildSelectionPolicy.SimilarBstPool(allowed,
+                    species=>Config.Personal[species].BST,bst,options["BST"],
+                    options["RelaxBST"]==1);
                 if(slotPool.Length==0)
-                    throw new InvalidDataException($"No hay reemplazos dentro de la tolerancia BST del slot {key}.");
+                    throw new InvalidDataException($"No hay reemplazos dentro de la tolerancia BST del slot {key}. " +
+                        "Aumentá la tolerancia o habilitá el fallback BST.");
             }
-            int chosen=slotPool[random.Next(slotPool.Length)];
+            if(options["UniquePerTable"]==1)
+            {
+                if(!usedByRow.TryGetValue(group,out var used))
+                    usedByRow[group]=used=new HashSet<int>();
+                slotPool=WildSelectionPolicy.PreferUnseen(slotPool,used);
+            }
+            int chosen=WildSpeciesSelection.ChooseReplacement(slotPool,values[key],random);
+            if(options["UniquePerTable"]==1)usedByRow[group].Add(chosen);
             values[key]=chosen;
             values[key[..^7]+"Form"]=Config.Generation==7
-                ?PickWildForm(chosen,random,options["MegaForms"]==1):0;
+                ?PickWildForm(chosen,random,options["MegaForms"]==1,
+                    options["AlolanForms"]==1):0;
         }
         if(Config.Generation==7&&slotMode==3&&options["SOS"]==1)
             WildSosRules.CopyRegularIntoSos(values);
         if(Config.Generation==7&&options["SOS"]==1&&options["AllCanCallAllies"]==1)
             WildSosRules.FillMissingAllies(values,pool,random,
-                species=>PickWildForm(species,random,options["MegaForms"]==1));
+                species=>PickWildForm(species,random,options["MegaForms"]==1,
+                    options["AlolanForms"]==1),options["UniquePerTable"]==1);
         int Scale(int x)=>x==0?0:Math.Clamp((int)Math.Round(x*options["LevelScale"]/100.0)+options["LevelFlat"],1,100);
         if(Config.Generation==7&&options["ModifyLevel"]==0)return values;
         if(Config.Generation==7)

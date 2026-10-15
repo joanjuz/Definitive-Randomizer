@@ -1,4 +1,4 @@
-using System.Diagnostics;
+﻿using System.Diagnostics;
 
 namespace ThreeDS.Progressive;
 
@@ -14,6 +14,25 @@ internal static class UiProgress
     private static string _title="",_stage="";
     private static double? _percentage;
     private static int? _completed,_total;
+    private static int _interactionLocks;
+    internal static event Action<bool>? InteractionLockChanged;
+    internal static bool IsInteractionBlocked {get{lock(Gate)return _interactionLocks>0;}}
+    internal static IDisposable BlockInteraction()
+    {
+        lock(Gate)_interactionLocks++;
+        InteractionLockChanged?.Invoke(true);
+        return new InteractionScope();
+    }
+    private sealed class InteractionScope : IDisposable
+    {
+        private int _disposed;
+        public void Dispose()
+        {
+            if(System.Threading.Interlocked.Exchange(ref _disposed,1)!=0)return;
+            bool unlocked;lock(Gate)unlocked=--_interactionLocks==0;
+            if(unlocked)InteractionLockChanged?.Invoke(false);
+        }
+    }
     internal static event Action<string,bool>? Changed;
     internal static event Action<string,double>? Reported;
     internal static event Action<OperationTelemetry>? Telemetry;

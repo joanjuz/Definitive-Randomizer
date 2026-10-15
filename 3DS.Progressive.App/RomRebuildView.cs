@@ -1,4 +1,4 @@
-using System.IO;
+﻿using System.IO;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
@@ -85,12 +85,13 @@ internal sealed class RomRebuildView : UserControl
         if(!StudioDialog.Confirm(Window.GetWindow(this),"Reconstruir ROM",
             $"Se reconstruirá {kind} con el motor pk3DS original en una ruta temporal. "+
             "Puede tardar varios minutos. ¿Continuar?"))return;
+        using var interaction=UiProgress.BlockInteraction();
         _busy=true;_run.IsEnabled=false;_kind.IsEnabled=false;
         UiProgress.Begin("Rebuild · "+kind);
         try
         {
             var result=await _service.BuildAsync(kind,picker.FileName);
-            _detail.Text=$"Reconstrucción terminada y verificada.\n"+
+            _detail.Text=$"Reconstrucción terminada. Integridad del archivo verificada.\n"+
                 $"Archivo: {result.File}\nTamaño: {result.Bytes:N0} bytes\n"+
                 $"SHA-256: {result.Hash}\nLa carpeta fuente no fue modificada.";
             StudioDialog.Notice(Window.GetWindow(this),"Rebuild completado",

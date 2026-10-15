@@ -518,6 +518,7 @@ public partial class RSTE : Form
     public static int rSmartTrainerItemMode = 1;
     public static TrainerHeldItemTemplate rTrainerHeldItemTemplate;
     public static TrainerBetterMovesetTemplate rTrainerBetterMovesetTemplate;
+    public static TrainerMoveSettingsTemplate rGlobalMoveSettings;
     public static bool rUseLevelCaps, rLevelCapsApplyPrevious, rLevelCapsGuaranteeMega;
     public static bool rRandomDoubleBattles;
     public static int rRandomDoubleBattleChance;
@@ -665,6 +666,7 @@ public partial class RSTE : Form
         rSmartTrainerItemMode = 1;
         rTrainerHeldItemTemplate = null;
         rTrainerBetterMovesetTemplate = null;
+        rGlobalMoveSettings=null;
         rLevelCapPreviousGap = 2;
         rLevelCapCurvePower = 1.6m;
         rProgressiveBSTRules = [];
@@ -839,7 +841,7 @@ public partial class RSTE : Form
 
             // Final per-trainer Smart Items pass.
             // Runs once after moves are finalized so held items match the final moveset.
-            ApplySmartTrainerItemsToTrainer(t, itemvals, mevo, moveRule);
+            ApplySmartTrainerItemsToTrainer(t, itemvals, mevo, moveRule, GlobalSmartQuality(i));
 
             trdata[i] = t.Write();
             trpoke[i] = t.WriteTeam();
@@ -850,9 +852,9 @@ public partial class RSTE : Form
     }
 
 
-    private static void ApplySmartTrainerItemsToTrainer(TrainerData6 trainer, ushort[] itemvals, bool mevo, TrainerMoveRule moveRule)
+    private static void ApplySmartTrainerItemsToTrainer(TrainerData6 trainer, ushort[] itemvals, bool mevo, TrainerMoveRule moveRule, int quality=2)
     {
-        if (rTrainerHeldItemTemplate is not null)
+        if (rTrainerHeldItemTemplate is not null && rGlobalMoveSettings?.SmartItems != true)
             return;
 
         // v4.9.5 overload for per-trainer Smart Items from Trainer Move Rules.
@@ -893,7 +895,7 @@ public partial class RSTE : Form
                 slotPool,
                 pk.Ability,
                 rFinalEvo != null && rFinalEvo.Contains(pk.Species),
-                2
+                quality
             );
 
             pk.Item = (ushort)Math.Max(0, smartItem);
@@ -961,7 +963,7 @@ public partial class RSTE : Form
 
             var trainer = new TrainerData6(trdata[rule.TrainerID], trpoke[rule.TrainerID], Main.Config.ORAS);
             int ace = GetAceLevel(trainer);
-            int cap = rule.LevelCap == 0 ? ace : rule.LevelCap;
+            int cap = rule.LevelCap == 0 ? Randomizer.GetModifiedLevel(ace,rLevel?rLevelMultiplier:0) : rule.LevelCap;
 
             stages.Add(new TrainerLevelCapStage
             {
@@ -994,31 +996,17 @@ public partial class RSTE : Form
         var exact = stages.FirstOrDefault(s => s.TrainerID == trainerID);
         if (exact is not null)
         {
-            forceExactLevel = true;
+            forceExactLevel = rLevelCapRules.First(r=>r.Enabled&&r.TrainerID==trainerID).LevelCap>0;
             return exact.LevelCap;
         }
 
         if (!rLevelCapsApplyPrevious)
             return null;
 
-        var next = stages.FirstOrDefault(s => trainerAce <= s.OriginalAceLevel);
-        if (next is null)
-            return null;
-
-        int nextIndex = stages.IndexOf(next);
-        TrainerLevelCapStage previous = nextIndex > 0 ? stages[nextIndex - 1] : null;
-
-        // Preserve the game's original trainer curve instead of flattening everyone far below the cap.
-        // If the next important trainer moved by +N levels, regular trainers before it also move by +N.
-        int endTarget = ClampLevel(next.LevelCap - rLevelCapPreviousGap);
-        int deltaToNextCap = endTarget - next.OriginalAceLevel;
-        int target = ClampLevel(trainerAce + deltaToNextCap);
-
-        // Do not let trainers after a previous cap fall below that previous cap when caps were raised.
-        if (previous is not null && trainerAce > previous.OriginalAceLevel)
-            target = Math.Max(target, previous.LevelCap);
-
-        return ClampLevel(target);
+        var next = stages.Where(s=>trainerAce<=s.OriginalAceLevel).OrderBy(s=>s.OriginalAceLevel).ThenBy(s=>s.LevelCap).FirstOrDefault();
+        if(next is null)return null;
+        var previous=stages.Where(s=>s.OriginalAceLevel<next.OriginalAceLevel).OrderByDescending(s=>s.OriginalAceLevel).ThenBy(s=>s.LevelCap).FirstOrDefault();
+        return pk3DS.Core.Randomizers.TrainerLevelProgression.Target(trainerAce,previous?.OriginalAceLevel??1,previous?.LevelCap??1,next.OriginalAceLevel,next.LevelCap,rLevelCapPreviousGap,(double)rLevelCapCurvePower);
     }
 
     private static bool ShouldGuaranteeMega(int trainerID, int trainerAce, List<TrainerLevelCapStage> stages)
@@ -1031,10 +1019,28 @@ public partial class RSTE : Form
 
     private static TrainerMoveRule GetTrainerMoveRule(int trainerID)
     {
-        var rule = rTrainerMoveRules?.FirstOrDefault(r => r.Enabled && r.TrainerID == trainerID);
-        return rule?.Clone();
+        var rule = rTrainerMoveRules?.FirstOrDefault(r => r.Enabled && r.TrainerID == trainerID)?.Clone();
+        if(rGlobalMoveSettings?.StrongStat==true&&GlobalMoveCategory(trainerID,rGlobalMoveSettings.StrongStatNormalTrainers??true,rGlobalMoveSettings.StrongStatImportantTrainers??true,rGlobalMoveSettings.StrongStatBosses??true))
+        {rule??=new TrainerMoveRule{TrainerID=trainerID,BetterMovesets=false,SmartItems=false};rule.UseStrongestAttackStat=true;rule.MixedTolerance=rGlobalMoveSettings.StrongStatTolerance??15;}
+        if(rGlobalMoveSettings is {SmartItems:true} m&&GlobalMoveCategory(trainerID,m.SmartItemsNormalTrainers,m.SmartItemsImportantTrainers,m.SmartItemsBosses))
+        {rule??=new TrainerMoveRule{TrainerID=trainerID,BetterMovesets=false};rule.SmartItems=true;}
+        return rule;
+    }
+    private static int GlobalSmartQuality(int id)
+    {
+        var m=rGlobalMoveSettings;if(m is null||!m.SmartItems)return 2;
+        bool boss=(Main.Config.ORAS?UPRZXBossTrainers_ORAS:UPRZXBossTrainers_XY).Contains(id);
+        bool important=(Main.Config.ORAS?UPRZXImportantTrainers_ORAS:UPRZXImportantTrainers_XY).Contains(id);
+        int value=boss?m.SmartItemModeBosses:important?m.SmartItemModeImportantTrainers:m.SmartItemModeNormalTrainers;
+        return value<0?m.SmartItemMode:value;
     }
 
+    private static bool GlobalMoveCategory(int id,bool normal,bool important,bool boss)
+    {
+        bool isBoss=(Main.Config.ORAS?UPRZXBossTrainers_ORAS:UPRZXBossTrainers_XY).Contains(id);
+        bool isImportant=(Main.Config.ORAS?UPRZXImportantTrainers_ORAS:UPRZXImportantTrainers_XY).Contains(id);
+        return isBoss?boss:isImportant?important:normal;
+    }
     private static int ClampMovePower(int power)
     {
         if (power < 0)
@@ -1239,7 +1245,8 @@ public partial class RSTE : Form
                     move.rDMG ? move.rDMGCount : 0,
                     pk.Ability,
                     6,
-                    teamWeatherMask
+                    teamWeatherMask,
+                    rGlobalMoveSettings?.BetterMovesetsIncludeTMs??false
                 );
                 for (int m = 0; m < 4; m++)
                     pk.Moves[m] = (ushort)pkMoves[m];
@@ -1329,6 +1336,7 @@ public partial class RSTE : Form
 
         if (!rBetterMovesets)
             return false;
+        if(rGlobalMoveSettings is {} settings&&!GlobalMoveCategory(trainerID,settings.BetterMovesetsNormalTrainers,settings.BetterMovesetsImportantTrainers,settings.BetterMovesetsBosses))return false;
 
         return rTrainerBetterMovesetTemplate?.ShouldApply(trainerID, isImportantTrainer, trainerGroup, level) ?? true;
     }

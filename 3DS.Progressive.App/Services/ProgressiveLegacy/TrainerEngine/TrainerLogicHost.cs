@@ -1,4 +1,4 @@
-using System.IO;
+﻿using System.IO;
 using System.Reflection;
 using System.Text.Json;
 using System.Windows.Forms;
@@ -57,12 +57,13 @@ internal sealed class TrainerLogicHost
             var groups=new Dictionary<string,List<EditorField>>();
             foreach(var control in controls)
             {
+                if(_config.Generation==6&&control.Name=="CB_SmartHeldItemMode")continue;
                 string group=Group(control);if(!groups.TryGetValue(group,out var fields))groups[group]=fields=[];
                 if(control is CheckBox check&&!string.IsNullOrEmpty(check.Name))fields.Add(new(check.Name,Translate(check.Text),check.Checked?1:0,0,1));
                 else if(control is NumericUpDown number&&!string.IsNullOrEmpty(number.Name))
                 {
                     int scale=(int)Math.Pow(10,number.DecimalPlaces);
-                    fields.Add(new(number.Name,NumberLabel(number.Name),checked((int)(number.Value*scale)),checked((int)(number.Minimum*scale)),checked((int)(number.Maximum*scale)),Scale:scale));
+                    fields.Add(new(number.Name,NumberLabel(number.Name),checked((int)(number.Value*scale)),checked((int)(number.Minimum*scale)),checked((int)(number.Maximum*scale)),Scale:number.Name is "NUD_Level" or "NUD_LevelBoost"?1:scale));
                 }
                 else if(control is ComboBox combo&&combo.Items.Count>0&&!string.IsNullOrEmpty(combo.Name))
                     fields.Add(new(combo.Name,ComboLabel(combo.Name),Math.Max(0,combo.SelectedIndex),0,combo.Items.Count-1,
@@ -75,7 +76,7 @@ internal sealed class TrainerLogicHost
                 fields.Add(new("Radio:"+radios.Key!.Name,string.IsNullOrWhiteSpace(radios.Key.Text)?"Origen de movimientos":Translate(radios.Key.Text),Math.Max(0,Array.FindIndex(list,r=>r.Checked)),0,list.Length-1,
                     list.Select((r,i)=>new MoveChoice(i,Translate(r.Text))).ToArray()));
             }
-            var template=(TrainerRandomizerTemplate)Call(form,"CaptureTrainerTemplate")!;
+            var template=CaptureState(form);
             _template=template;
             var result=groups.Where(g=>g.Value.Count>0).Select(g=>new EditorGroup(g.Key,g.Value)).ToList();
             if(template.ProgressiveBST is {Ranges:var ranges})
@@ -86,7 +87,7 @@ internal sealed class TrainerLogicHost
             // Mantener la semántica JSON del template original y su estado al navegar.
             if(template.LevelCaps is { } caps)
                 result.Add(new("Política global de Level Caps",[
-                    F("GlobalCaps.ApplyPrevious","Aplicar a entrenadores anteriores",caps.ApplyToPreviousTrainers?1:0,0,1),
+                    F("GlobalCaps.ApplyPrevious","Escalado progresivo de entrenadores sin cap",caps.ApplyToPreviousTrainers?1:0,0,1),
                     F("GlobalCaps.PreviousGap","Separación de nivel con entrenadores anteriores",caps.PreviousTrainerGap,0,20),
                     F("GlobalCaps.ResetUnlisted","Restablecer entrenadores sin reglas",caps.ResetUnlistedTrainers?1:0,0,1)
                 ],false));
@@ -94,6 +95,33 @@ internal sealed class TrainerLogicHost
                 result.Add(new("Política global de reglas de movimientos",[
                     F("GlobalMoves.ResetUnlisted","Restablecer reglas de entrenadores no listados",moveRules.ResetUnlistedTrainers?1:0,0,1)
                 ],false));
+            if(_config.Generation==6)
+            {
+                var moves=template.MoveSettings??new();
+                result.Add(new("Priorizar mejor estadística",[
+                    F("GlobalMoves.StrongStat","Priorizar mejor estadística ofensiva",moves.StrongStat==true?1:0,0,1),
+                    F("GlobalMoves.Tolerance","Tolerancia de atacante mixto",moves.StrongStatTolerance??15,0,100),
+                    F("GlobalMoves.StrongNormal","Mejor estadística: normales",moves.StrongStatNormalTrainers!=false?1:0,0,1),F("GlobalMoves.StrongImportant","Mejor estadística: importantes",moves.StrongStatImportantTrainers!=false?1:0,0,1),F("GlobalMoves.StrongBoss","Mejor estadística: jefes",moves.StrongStatBosses!=false?1:0,0,1),
+                    F("GlobalMoves.BetterNormal","Movimientos mejorados: normales",moves.BetterMovesetsNormalTrainers?1:0,0,1),F("GlobalMoves.BetterImportant","Movimientos mejorados: importantes",moves.BetterMovesetsImportantTrainers?1:0,0,1),F("GlobalMoves.BetterBoss","Movimientos mejorados: jefes",moves.BetterMovesetsBosses?1:0,0,1)
+                ],true));
+            }
+            if(_config.Generation==6)
+            {
+                var better=result.SelectMany(g=>g.Fields).Where(f=>f.Key is "CHK_BetterMovesets" or "CHK_BetterMovesetsIncludeTMs" or "GlobalMoves.BetterNormal" or "GlobalMoves.BetterImportant" or "GlobalMoves.BetterBoss").ToArray();
+                result=result.Select(g=>g with {Fields=g.Fields.Except(better).ToArray()}).Where(g=>g.Fields.Count>0).ToList();
+                result.Add(new("Movimientos mejorados",[..better,F("GlobalMoves.IncludeTMs","Incluir MT/MO compatibles",template.MoveSettings?.BetterMovesetsIncludeTMs==true?1:0,0,1)]));
+                var m=template.MoveSettings??new();
+                result.Add(new("Smart Items",[
+                    F("GlobalItems.Smart","Smart Items",m.SmartItems?1:0,0,1),
+                    F("GlobalItems.Normal","Entrenadores normales",m.SmartItemsNormalTrainers?1:0,0,1),F("GlobalItems.Important","Entrenadores importantes",m.SmartItemsImportantTrainers?1:0,0,1),F("GlobalItems.Boss","Jefes",m.SmartItemsBosses?1:0,0,1),
+                    Quality("GlobalItems.QualityNormal","Calidad · normales",m.SmartItemModeNormalTrainers<0?m.SmartItemMode:m.SmartItemModeNormalTrainers),
+                    Quality("GlobalItems.QualityImportant","Calidad · importantes",m.SmartItemModeImportantTrainers<0?m.SmartItemMode:m.SmartItemModeImportantTrainers),
+                    Quality("GlobalItems.QualityBoss","Calidad · jefes",m.SmartItemModeBosses<0?m.SmartItemMode:m.SmartItemModeBosses)
+                ]));
+            }
+            var held=result.SelectMany(g=>g.Fields).Where(f=>f.Key.StartsWith("GlobalItems.",StringComparison.Ordinal)||f.Key.StartsWith("CHK_SmartItems",StringComparison.Ordinal)||f.Key.StartsWith("CB_SmartHeldItemMode",StringComparison.Ordinal)||f.Key is "CHK_RandomItems" or "CHK_BanBadItems" or "CHK_ItemClause" or "CHK_SmartHeldItems").ToArray();
+            result=result.Select(g=>g with {Fields=g.Fields.Except(held).ToArray()}).Where(g=>g.Fields.Count>0).ToList();
+            if(held.Length>0)result.Add(new("Objetos equipados",held));
             int id=SelectedTrainer;
             var existingCap=template.LevelCaps?.Trainers.FirstOrDefault(r=>r.TrainerID==id);
             var existingRule=template.TrainerMoveRules?.Trainers.FirstOrDefault(r=>r.TrainerID==id);
@@ -105,10 +133,9 @@ internal sealed class TrainerLogicHost
             result.Add(new($"Reglas del entrenador #{id:000}",[
                 F(k+"CapUse","Aplicar límite individual",cap.Use?1:0,0,1),F(k+"LevelCap","Nivel límite · 0 = Ace dinámico",cap.LevelCap,0,100),
                 F(k+"Nerf","Máximo tres Pokémon",cap.NerfTeam?1:0,0,1),F(k+"Mega","Garantizar Mega",cap.Mega?1:0,0,1),F(k+"ZMove","Garantizar movimiento Z",cap.ZMove?1:0,0,1),
-                F(k+"MoveUse","Aplicar regla de movimientos/objetos",rule.Use?1:0,0,1),F(k+"Power","Potencia mínima · 0 = desactivar",rule.MinMovePower,0,250),
-                F(k+"Strong","Usar el ataque más fuerte",rule.StrongStat?1:0,0,1),F(k+"Tolerance","Tolerancia de atacante mixto",rule.MixedTolerance,0,100),
-                F(k+"Status","Permitir movimientos de estado",rule.AllowStatusMoves?1:0,0,1),F(k+"Better","Better Movesets individual",rule.BetterMovesets?1:0,0,1),
-                F(k+"Smart","Smart Items individual",rule.SmartItems?1:0,0,1),F(k+"EV","EV en las dos stats más fuertes · -1 = conservar",rule.EVs,-1,252)],false));
+                F(k+"MoveUse","Aplicar regla de movimientos",rule.Use?1:0,0,1),
+                F(k+"Status","Permitir movimientos de estado",rule.AllowStatusMoves?1:0,0,1),F(k+"EV","EV en las dos stats más fuertes · -1 = conservar",rule.EVs,-1,252)],false));
+            if(_config.Generation!=7)result=result.Select(group=>group with {Fields=group.Fields.Where(field=>!field.Key.EndsWith(".ZMove",StringComparison.Ordinal)).ToArray()}).ToList();
             return result;
         }
     }
@@ -131,7 +158,7 @@ internal sealed class TrainerLogicHost
                     Id=c.TrainerID,Group=c.Group,Trainer=c.Trainer,Ace=c.CurrentAceLevel,
                     CapUse=cap?.Use??c.Enabled,Cap=cap?.LevelCap??c.LevelCap,
                     Max3=cap?.NerfTeam??c.NerfTeam,Mega=cap?.Mega??c.GuaranteeMega,
-                    ZMove=cap?.ZMove??c.GuaranteeZMove,
+                    ZMove=cap?.ZMove??c.GuaranteeZMove,SupportsZMoves=_config.Generation==7,
                     MoveUse=move?.Use??true,MinPower=move?.MinMovePower??0,
                     StrongStat=move?.StrongStat??false,Tolerance=move?.MixedTolerance??15,
                     AllowStatus=move?.AllowStatusMoves??true,Better=move?.BetterMovesets??true,
@@ -155,15 +182,15 @@ internal sealed class TrainerLogicHost
                 var cap=template.LevelCaps.Trainers.FirstOrDefault(r=>r.TrainerID==row.Id);
                 if(cap is null){cap=new TrainerLevelCapTemplateEntry{TrainerID=row.Id};template.LevelCaps.Trainers.Add(cap);}
                 cap.Use=row.CapUse;cap.LevelCap=row.Cap;cap.NerfTeam=row.Max3;
-                cap.Mega=row.Mega;cap.ZMove=row.ZMove;cap.CurrentAceLevel=row.Ace;
+                cap.Mega=row.Mega;if(_config.Generation==7)cap.ZMove=row.ZMove;cap.CurrentAceLevel=row.Ace;
             }
             else
             {
                 var move=template.TrainerMoveRules.Trainers.FirstOrDefault(r=>r.TrainerID==row.Id);
                 if(move is null){move=new TrainerMoveRuleTemplateEntry{TrainerID=row.Id};template.TrainerMoveRules.Trainers.Add(move);}
-                move.Use=row.MoveUse;move.MinMovePower=row.MinPower;move.StrongStat=row.StrongStat;
-                move.MixedTolerance=row.Tolerance;move.AllowStatusMoves=row.AllowStatus;
-                move.BetterMovesets=row.Better;move.SmartItems=row.SmartItems;move.EVs=row.EVs;
+                move.Use=row.MoveUse;move.MinMovePower=0;move.StrongStat=false;
+                move.MixedTolerance=15;move.AllowStatusMoves=row.AllowStatus;
+                move.BetterMovesets=false;move.SmartItems=false;move.EVs=row.EVs;
             }
         }
         TrainerRandomizerTemplateFile.Validate(template,_config.Version.ToString());
@@ -173,11 +200,29 @@ internal sealed class TrainerLogicHost
     internal string Capture(IReadOnlyDictionary<string,int> options)=>OnSta(()=>CaptureCore(options));
     private string CaptureCore(IReadOnlyDictionary<string,int> options)
     {
-        lock(Gate){using var context=Context();using var form=CreateOptions();Configure(form,options);_template=(TrainerRandomizerTemplate)Call(form,"CaptureTrainerTemplate")!;return JsonSerializer.Serialize(_template);}
+        lock(Gate){using var context=Context();using var form=CreateOptions();Configure(form,options);_template=CaptureState(form);return JsonSerializer.Serialize(_template);}
+    }
+    private TrainerRandomizerTemplate CaptureState(Form form)
+    {
+        var result=(TrainerRandomizerTemplate)Call(form,"CaptureTrainerTemplate")!;
+        // Legacy forms capture only enabled candidates and Gen6 omits some rule
+        // metadata. The WPF rule editors own the complete imported/authored lists.
+        // Keep those lists; Configure updates the selected rule explicitly below.
+        if(_template?.LevelCaps is { } caps&&result.LevelCaps is { } currentCaps)
+        {
+            currentCaps.Trainers=JsonSerializer.Deserialize<List<TrainerLevelCapTemplateEntry>>(JsonSerializer.Serialize(caps.Trainers))!;
+            currentCaps.ResetUnlistedTrainers=caps.ResetUnlistedTrainers;
+        }
+        if(_template?.TrainerMoveRules is { } moves&&result.TrainerMoveRules is { } currentMoves)
+        {
+            currentMoves.Trainers=JsonSerializer.Deserialize<List<TrainerMoveRuleTemplateEntry>>(JsonSerializer.Serialize(moves.Trainers))!;
+            currentMoves.ResetUnlistedTrainers=moves.ResetUnlistedTrainers;
+        }
+        return result;
     }
     internal void Restore(string json)
     {
-        var template=JsonSerializer.Deserialize<TrainerRandomizerTemplate>(json,new JsonSerializerOptions{PropertyNameCaseInsensitive=true})??throw new InvalidDataException("Template de entrenadores vacío.");
+        var template=JsonSerializer.Deserialize<TrainerRandomizerTemplate>(json,new JsonSerializerOptions{PropertyNameCaseInsensitive=true,Converters={new System.Text.Json.Serialization.JsonStringEnumConverter()}})??throw new InvalidDataException("Template de entrenadores vacío.");
         TrainerRandomizerTemplateFile.Validate(template,_config.Version.ToString());_template=template;
     }
     internal (byte[][] Headers,byte[][] Teams) Run(IReadOnlyDictionary<string,int> options,int seed)=>OnSta(()=>RunCore(options,seed));
@@ -222,7 +267,20 @@ internal sealed class TrainerLogicHost
                 if(radios is not null&&pair.Value>=0&&pair.Value<radios.Length)radios[pair.Value].Checked=true;
             }
         }
-        var template=(TrainerRandomizerTemplate)Call(form,"CaptureTrainerTemplate")!;
+        var template=CaptureState(form);
+        if(_config.Generation==6&&values.ContainsKey("GlobalMoves.StrongStat"))
+        {
+            template.MoveSettings??=new();var m=template.MoveSettings;
+            m.BetterMovesetsIncludeTMs=values.GetValueOrDefault("GlobalMoves.IncludeTMs")==1;
+            m.StrongStat=values["GlobalMoves.StrongStat"]==1;m.StrongStatTolerance=values["GlobalMoves.Tolerance"];
+            m.StrongStatNormalTrainers=values["GlobalMoves.StrongNormal"]==1;m.StrongStatImportantTrainers=values["GlobalMoves.StrongImportant"]==1;m.StrongStatBosses=values["GlobalMoves.StrongBoss"]==1;
+            if(values.ContainsKey("GlobalItems.Smart"))
+            {
+                m.SmartItems=values["GlobalItems.Smart"]==1;m.SmartItemsNormalTrainers=values["GlobalItems.Normal"]==1;m.SmartItemsImportantTrainers=values["GlobalItems.Important"]==1;m.SmartItemsBosses=values["GlobalItems.Boss"]==1;
+                m.SmartItemModeNormalTrainers=values["GlobalItems.QualityNormal"];m.SmartItemModeImportantTrainers=values["GlobalItems.QualityImportant"];m.SmartItemModeBosses=values["GlobalItems.QualityBoss"];
+            }
+            m.BetterMovesetsNormalTrainers=values["GlobalMoves.BetterNormal"]==1;m.BetterMovesetsImportantTrainers=values["GlobalMoves.BetterImportant"]==1;m.BetterMovesetsBosses=values["GlobalMoves.BetterBoss"]==1;
+        }
         if(template.LevelCaps is { } caps)
         {
             if(values.TryGetValue("GlobalCaps.ApplyPrevious",out int previous))caps.ApplyToPreviousTrainers=previous==1;
@@ -256,16 +314,17 @@ internal sealed class TrainerLogicHost
             var cap=template.LevelCaps.Trainers.FirstOrDefault(r=>r.TrainerID==id);
             if(cap is null){cap=new TrainerLevelCapTemplateEntry{TrainerID=id};template.LevelCaps.Trainers.Add(cap);}
             cap.Use=V("CapUse")==1;cap.LevelCap=V("LevelCap");cap.NerfTeam=V("Nerf")==1;
-            cap.Mega=V("Mega")==1;cap.ZMove=V("ZMove")==1;
+            cap.Mega=V("Mega")==1;if(_config.Generation==7)cap.ZMove=V("ZMove")==1;
             var rule=template.TrainerMoveRules.Trainers.FirstOrDefault(r=>r.TrainerID==id);
             if(rule is null){rule=new TrainerMoveRuleTemplateEntry{TrainerID=id};template.TrainerMoveRules.Trainers.Add(rule);}
-            rule.Use=V("MoveUse")==1;rule.MinMovePower=V("Power");rule.StrongStat=V("Strong")==1;
-            rule.MixedTolerance=V("Tolerance");rule.AllowStatusMoves=V("Status")==1;
-            rule.BetterMovesets=V("Better")==1;rule.SmartItems=V("Smart")==1;rule.EVs=V("EV");
+            rule.Use=V("MoveUse")==1;rule.MinMovePower=0;rule.StrongStat=false;
+            rule.MixedTolerance=15;rule.AllowStatusMoves=V("Status")==1;
+            rule.BetterMovesets=false;rule.SmartItems=false;rule.EVs=V("EV");
         }
         TrainerRandomizerTemplateFile.Validate(template,_config.Version.ToString());
         _template=template;Call(form,"ApplyTrainerTemplate",template,false);
     }
+    private static EditorField Quality(string key,string label,int value)=>new(key,label,value,0,2,[new(0,"Normal"),new(1,"Fuerte"),new(2,"Competitivo")]);
     private static EditorField F(string key,string label,int value,int min,int max)=>new(key,label,value,min,max);
     private static byte[][] Clone(byte[][] source)=>source.Select(r=>(byte[])r.Clone()).ToArray();
     private static object? Field(object obj,string name)=>obj.GetType().GetField(name,Private)?.GetValue(obj);
@@ -288,7 +347,7 @@ internal sealed class TrainerLogicHost
     };
     private static string NumberLabel(string name)=>name switch
     {
-        "NUD_LevelBoost"=>"Multiplicador de niveles","NUD_RMin"=>"Pokémon mínimos por equipo","NUD_RMax"=>"Pokémon máximos por equipo",
+        "NUD_LevelBoost"=>"Nivel (%) · 120 = nivel 20 → 24", "NUD_Level"=>"Nivel (%) · 120 = nivel 20 → 24","NUD_RMin"=>"Pokémon mínimos por equipo","NUD_RMax"=>"Pokémon máximos por equipo",
         "NUD_Shiny"=>"Probabilidad shiny (%)","NUD_Damage"=>"Mínimo de movimientos ofensivos","NUD_STAB"=>"Mínimo de movimientos STAB",
         "NUD_StrongStatTolerance"=>"Tolerancia de atacante mixto","NUD_DoubleBattleChance"=>"Probabilidad de combate doble (%)",
         "NUD_ForceFullyEvolvedLevel"=>"Evolucionar totalmente desde nivel","NUD_LevelPower"=>"Potencia de la curva de niveles",
@@ -296,7 +355,7 @@ internal sealed class TrainerLogicHost
     };
     private static string Translate(string text)
     {
-        var words=new Dictionary<string,string>(StringComparer.OrdinalIgnoreCase){["Pokemon"]="Pokémon",["Trainer"]="Entrenadores",["Moves"]="Movimientos",["Rules"]="Reglas",["Level Caps"]="Límites de nivel",["Randomize Pokemon"]="Randomizar especies",["Randomize Class"]="Randomizar clase",["Random Held Items"]="Objetos equipados aleatorios",["Don't Modify"]="Conservar",["Randomize All"]="Randomizar todos",["Level Up Only"]="Solo por nivel",["Metronome"]="Metrónomo",["Normal"]="Normal",["Strong"]="Fuerte",["Competitive"]="Competitivo",["Include TMs"]="Incluir MT",["Max AI"]="IA máxima",["Ban Bad Items"]="Excluir objetos poco útiles",["Item Clause"]="No repetir objetos en el equipo",["Randomize by BST"]="Randomizar por BST",["Progressive BST"]="BST progresivo",["Random Shinies"]="Randomizar shinies",["Random Abilities (1, 2, or Hidden)"]="Randomizar habilidades (1, 2 u oculta)",["Random Trainer Classes"]="Randomizar clases de entrenador",["Double battles"]="Combates dobles",["Better Movesets"]="Movimientos mejorados",["Strong Stat"]="Priorizar mejor estadística",["Max Trainer AI"]="IA máxima de entrenador"};
+        var words=new Dictionary<string,string>(StringComparer.OrdinalIgnoreCase){["Pokemon"]="Pokémon",["Trainer"]="Entrenadores",["Moves"]="Movimientos",["Rules"]="Reglas",["Level Caps"]="Límites de nivel",["Randomize Pokemon"]="Randomizar especies",["Randomize Class"]="Randomizar clase",["Random Held Items"]="Objetos equipados aleatorios",["Don't Modify"]="Conservar",["Randomize All"]="Randomizar todos",["Level Up Only"]="Solo por nivel",["Metronome"]="Metrónomo",["Normal"]="Normal",["Strong"]="Fuerte",["Competitive"]="Competitivo",["Include TMs"]="Incluir MT",["Max AI"]="IA máxima",["Ban Bad Items"]="Excluir objetos poco útiles",["Item Clause"]="No repetir objetos en el equipo",["Randomize by BST"]="Randomizar por BST",["Progressive BST"]="BST progresivo",["Random Shinies"]="Randomizar shinies",["Random Abilities (1, 2, or Hidden)"]="Randomizar habilidades (1, 2 u oculta)",["Random Trainer Classes"]="Randomizar clases de entrenador",["Double battles"]="Combates dobles",["Multiply PKM Level by"]="Multiplicar nivel (%) · 100 conserva, 120 aumenta 20 %",["Better Movesets"]="Movimientos mejorados",["Strong Stat"]="Priorizar mejor estadística",["Max Trainer AI"]="IA máxima de entrenador"};
         return words.TryGetValue(text.Trim(),out string? value)?value:text.Replace("Normal trainers","Entrenadores normales").Replace("Important trainers","Entrenadores importantes").Replace("Bosses","Jefes");
     }
     private static T OnSta<T>(Func<T> action)

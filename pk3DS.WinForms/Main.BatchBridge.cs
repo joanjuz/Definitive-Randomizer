@@ -52,8 +52,8 @@ public partial class Main
             $"{job.BaseName}_{i:00}.3ds"))))
             throw new IOException("Target .3ds already exists; refusing silent overwrite.");
         OpenQuick(source);
-        if(Config is null||Config.Generation!=7)
-            throw new InvalidDataException("Batch source must be a fully extracted Gen7 game.");
+        if(Config is null||Config.Generation is not (6 or 7))
+            throw new InvalidDataException("Batch source must be a fully extracted XY/ORAS/SM/USUM game.");
         // In the original builder the loading UI and ROM replay share the exact
         // same backend path. Only the dialog is replaced by WPF configuration.
         await ShowBatchRomBuilder(new BatchRomBuildOptions

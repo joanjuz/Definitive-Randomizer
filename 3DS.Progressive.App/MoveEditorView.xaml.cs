@@ -17,6 +17,8 @@ namespace ThreeDS.Progressive;
 public partial class MoveEditorView : System.Windows.Controls.UserControl
 {
     private readonly BatchToolsView _tools = new();
+    internal MasterBatchState? CaptureGlobalState()=>_tools.CaptureGlobalState();
+    internal void RestoreGlobalState(MasterBatchState state)=>_tools.RestoreGlobalState(state);
     private readonly GameMoveService _moves;
     private MoveListEntry? _selected;
     private MoveValues? _saved;
@@ -50,7 +52,8 @@ public partial class MoveEditorView : System.Windows.Controls.UserControl
                 _moves.ApplyMovePreview(preview);
                 if (_selected is not null) ShowMove(_selected);
                 StatusLabel.Text = $"{preview.Action}: {preview.ChangedCount} movimientos guardados y verificados.";
-            }, _moves.ExportMoveTable);
+            }, _moves.ExportMoveTable,defaultBattlePatches:!project.GameConfiguration.SM,supportsBalance:_moves.SupportsProgressiveBalance);
+        BalanceMovesButton.Visibility=_moves.SupportsProgressiveBalance?Visibility.Visible:Visibility.Collapsed;
         ZMoveCard.Visibility = _moves.SupportsZMoves ? Visibility.Visible : Visibility.Collapsed;
         QualityBox.ItemsSource = _moves.Qualities;
         InflictBox.ItemsSource = _moves.Inflictions;

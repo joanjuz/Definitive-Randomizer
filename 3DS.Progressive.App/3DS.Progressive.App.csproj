@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
     <TargetFramework>net10.0-windows</TargetFramework>
@@ -7,16 +7,35 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <AssemblyName>3DS.Progressive</AssemblyName>
+    <Product>Definitive Randomizer</Product>
+    <Title>Definitive Randomizer</Title>
     <Version>0.8.0</Version>
     <RootNamespace>ThreeDS.Progressive</RootNamespace>
   </PropertyGroup>
   <ItemGroup>
+    <Content Include="..\pk3DS.WinForms\catch_zone_patches\*.json" Link="catch_zone_patches\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
     <InternalsVisibleTo Include="3DS.Progressive.Tests" />
+    <Content Include="Tools\Mobipeg\**\*" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
     <ProjectReference Include="..\pk3DS.Core\pk3DS.Core.csproj" />
-    <Content Include="..\custom_balance_templates\pokemon_stats_gen7.csv" Link="custom_balance_templates\pokemon_stats_gen7.csv" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <ProjectReference Include="..\pk3DS.WinForms\pk3DS.WinForms.csproj" ReferenceOutputAssembly="false"
+      AdditionalProperties="BaseOutputPath=$(MSBuildProjectDirectory)\obj\LegacyBatch\" />
+    <Content Include="..\custom_balance_templates\pokemon_stats_gen*.csv" Link="custom_balance_templates\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
     <Content Include="..\custom_balance_templates\moves_gen*.csv" Link="custom_balance_templates\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
     <Content Include="..\custom_balance_templates\evolutions_gen*.csv" Link="custom_balance_templates\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
     <Content Include="..\pk3DS.WinForms\Templates\trainer_*.txt" Link="Templates\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
     <Content Include="..\pk3DS.WinForms\Resources\img\Pokemon Sprites\*.png" Link="Sprites\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+  </ItemGroup>
+  <PropertyGroup>
+    <LegacyBatchOutput>$(MSBuildProjectDirectory)\obj\LegacyBatch\$(Configuration)\$(TargetFramework)</LegacyBatchOutput>
+  </PropertyGroup>
+  <ItemGroup>
+    <Content Include="$(LegacyBatchOutput)\pk3DS.WinForms.exe;$(LegacyBatchOutput)\pk3DS.WinForms.dll;$(LegacyBatchOutput)\pk3DS.Core.dll;$(LegacyBatchOutput)\pk3DS.WinForms.deps.json;$(LegacyBatchOutput)\pk3DS.WinForms.runtimeconfig.json"
+      Link="LegacyBatch\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <Content Include="..\custom_balance_templates\*.csv;..\custom_balance_templates\*.json"
+      Link="LegacyBatch\custom_balance_templates\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <Content Include="..\pk3DS.WinForms\Templates\trainer_*.txt"
+      Link="LegacyBatch\Templates\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <Content Include="..\pk3DS.WinForms\catch_zone_patches\*.json"
+      Link="LegacyBatch\catch_zone_patches\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

@@ -1,4 +1,4 @@
-﻿using pk3DS.Core;
+using pk3DS.Core;
 using pk3DS.Core.Randomizers;
 using System;
 using System.Collections.Generic;
@@ -58,6 +58,11 @@ internal static class Gen6TradePatcher
         TradePatchProfile profile = config.ORAS ? ORAS : XY;
         string codePath = GetCodePath(exefsPath);
         byte[] data = File.ReadAllBytes(codePath);
+        if(config.ORAS)
+        {
+            var selectors=Gen6TradeSelectorProfile.Resolve(data);
+            profile=profile with { ExtraBytePatches=ORASPcSelectPatches.Select((patch,i)=>patch with {Offset=selectors[i]}).ToArray() };
+        }
 
         int maxOffset = profile.RequestSpeciesOffsets
             .Concat(profile.OfferSpeciesOffsets)

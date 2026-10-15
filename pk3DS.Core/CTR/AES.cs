@@ -1,4 +1,5 @@
-﻿using System;
+using System;
+using System.Buffers.Binary;
 using System.Collections.Generic;
 using System.Linq;
 using System.Security.Cryptography;
@@ -38,7 +39,7 @@ public class AesCtr
             Encryptor.TransformBlock(Counter.ManageBufferCounters(BlockLength), 0, BlockLength, outputBuffer, outputOffset + i);
             for (int BlockWalker = i; BlockWalker < i + BlockLength; BlockWalker += 8)
             {
-                Array.Copy(BitConverter.GetBytes(BitConverter.ToInt64(outputBuffer, outputOffset + BlockWalker) ^ BitConverter.ToInt64(inputBuffer, inputOffset + BlockWalker)), 0, outputBuffer, outputOffset + BlockWalker, 8);
+                BinaryPrimitives.WriteInt64LittleEndian(outputBuffer.AsSpan(outputOffset + BlockWalker, 8), BitConverter.ToInt64(outputBuffer, outputOffset + BlockWalker) ^ BitConverter.ToInt64(inputBuffer, inputOffset + BlockWalker));
             }
         }
         return inputCount;

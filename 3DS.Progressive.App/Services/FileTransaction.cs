@@ -1,4 +1,4 @@
-using System.IO;
+﻿using System.IO;
 using System.Security.Cryptography;
 
 namespace ThreeDS.Progressive.Services;
@@ -6,7 +6,19 @@ namespace ThreeDS.Progressive.Services;
 /// <summary>Frozen bytes and a source fingerprint; never holds the live configuration.</summary>
 internal sealed class FileChange(string path, byte[] original, byte[] proposed)
 {
-    internal string Path { get; } = System.IO.Path.GetFullPath(path);
+    internal string Path { get; } = ExistingFilePath(path);
+    // File.Replace adopts the destination spelling on Windows. RomFS lookup is
+    // case sensitive, so retain the existing directory entry even if a caller
+    // used a different spelling (for example DLLBattle versus DllBattle).
+    private static string ExistingFilePath(string path)
+    {
+        string full = System.IO.Path.GetFullPath(path);
+        string? directory = System.IO.Path.GetDirectoryName(full);
+        if (directory is null || !Directory.Exists(directory)) return full;
+        string name = System.IO.Path.GetFileName(full);
+        return Directory.EnumerateFiles(directory)
+            .FirstOrDefault(candidate => string.Equals(System.IO.Path.GetFileName(candidate), name, StringComparison.OrdinalIgnoreCase)) ?? full;
+    }
     private readonly byte[] _original = (byte[])original.Clone();
     private readonly byte[] _proposed = (byte[])proposed.Clone();
     internal byte[] Fingerprint { get; } = SHA256.HashData(original);
@@ -18,7 +30,7 @@ internal sealed class FileChange(string path, byte[] original, byte[] proposed)
 /// <summary>Stage every file, check every source, then replace. Roll back failures from memory.</summary>
 internal static class FileTransaction
 {
-    internal static void Commit(IReadOnlyList<FileChange> files, Action<int>? afterReplace = null)
+    internal static void Commit(IReadOnlyList<FileChange> files, Action<int>? afterReplace = null,RecoveryJournal? recovery=null)
     {
         if (files.Select(f => f.Path).Distinct(StringComparer.OrdinalIgnoreCase).Count() != files.Count)
             throw new InvalidDataException("La propuesta contiene un archivo repetido.");
@@ -29,9 +41,9 @@ internal static class FileTransaction
             foreach (var f in files)
             {
                 GarcTransaction.ReadUnchanged(f.Path, f.Fingerprint);
-                string temp = f.Path + ".studio-" + Guid.NewGuid().ToString("N") + ".tmp";
+                string temp = recovery?.TemporaryPath(f.Path)??f.Path + ".studio-" + Guid.NewGuid().ToString("N") + ".tmp";
                 temporary.Add(f.Path, temp);
-                File.WriteAllBytes(temp, f.Proposed());
+                WriteFlushed(temp, f.Proposed());
                 if (!File.ReadAllBytes(temp).AsSpan().SequenceEqual(f.Proposed()))
                     throw new IOException("No coincide la propuesta preparada: " + f.Path);
             }
@@ -46,6 +58,7 @@ internal static class FileTransaction
                     throw new IOException("Falló la relectura del archivo guardado: " + f.Path);
                 afterReplace?.Invoke(replaced.Count);
             }
+            recovery?.Finish(true);
         }
         catch (Exception failure)
         {
@@ -58,7 +71,7 @@ internal static class FileTransaction
                     if (!File.ReadAllBytes(f.Path).AsSpan().SequenceEqual(f.Proposed()))
                         throw new IOException("El archivo fue modificado por otro proceso.");
                     string temp = temporary[f.Path];
-                    File.WriteAllBytes(temp, f.Original());
+                    WriteFlushed(temp, f.Original());
                     File.Replace(temp, f.Path, null);
                     if (!File.ReadAllBytes(f.Path).AsSpan().SequenceEqual(f.Original()))
                         throw new IOException("La restauración no coincide.");
@@ -68,6 +81,7 @@ internal static class FileTransaction
             if (rollbackFailures.Count != 0)
                 throw new IOException("Falló la aplicación y no se pudieron restablecer todos los archivos. "
                     + string.Join("; ", rollbackFailures), failure);
+            recovery?.Finish(false);
             throw;
         }
         finally
@@ -76,4 +90,6 @@ internal static class FileTransaction
                 if (File.Exists(temp)) File.Delete(temp);
         }
     }
+    private static void WriteFlushed(string path,byte[] bytes)
+    {using var stream=new FileStream(path,FileMode.Create,FileAccess.Write,FileShare.None);stream.Write(bytes);stream.Flush(true);}
 }

@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.IO;
@@ -3728,12 +3728,6 @@ public partial class SMTE : Form
             if (!ApplyCapsToPreviousTrainers)
                 return null;
 
-            if (GetTrainerImportanceCategory(trainerID) !=
-                TrainerImportanceCategory.Regular)
-            {
-                return null;
-            }
-
             return GetUSUMStoryScaledTarget(
                 trainerID,
                 trainerAce,
@@ -3755,50 +3749,10 @@ public partial class SMTE : Form
         if (!ApplyCapsToPreviousTrainers)
             return null;
 
-        var nextLegacy =
-            stages.FirstOrDefault(
-                stage =>
-                    trainerAce <=
-                    stage.OriginalAceLevel);
-
-        if (nextLegacy is null)
-            return null;
-
-        int nextIndex =
-            stages.IndexOf(nextLegacy);
-
-        TrainerLevelCapStage previousLegacy =
-            nextIndex > 0
-                ? stages[nextIndex - 1]
-                : null;
-
-        int legacyEndTarget =
-            ClampLevel(
-                nextLegacy.LevelCap -
-                PreviousTrainerGap);
-
-        int legacyDelta =
-            legacyEndTarget -
-            nextLegacy.OriginalAceLevel;
-
-        int legacyTarget =
-            ClampLevel(
-                trainerAce +
-                legacyDelta);
-
-        if (previousLegacy is not null &&
-            trainerAce >
-            previousLegacy.OriginalAceLevel)
-        {
-            legacyTarget =
-                Math.Max(
-                    legacyTarget,
-                    previousLegacy.LevelCap);
-        }
-
-        return Math.Max(
-            MinimumTrainerLevel,
-            ClampLevel(legacyTarget));
+        var nextLegacy=stages.Where(s=>trainerAce<=s.OriginalAceLevel).OrderBy(s=>s.OriginalAceLevel).ThenBy(s=>s.LevelCap).FirstOrDefault();
+        if(nextLegacy is null)return null;
+        var previousLegacy=stages.Where(s=>s.OriginalAceLevel<nextLegacy.OriginalAceLevel).OrderByDescending(s=>s.OriginalAceLevel).ThenBy(s=>s.LevelCap).FirstOrDefault();
+        return pk3DS.Core.Randomizers.TrainerLevelProgression.Target(trainerAce,previousLegacy?.OriginalAceLevel??1,previousLegacy?.LevelCap??1,nextLegacy.OriginalAceLevel,nextLegacy.LevelCap,PreviousTrainerGap);
     }
 
     private bool ShouldNerfTrainerTeam(int trainerID)

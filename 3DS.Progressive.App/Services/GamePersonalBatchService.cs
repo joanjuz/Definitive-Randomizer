@@ -41,9 +41,9 @@ public sealed partial class GameProjectSession
         var statRows = Array.Empty<PokemonStatTemplates.PokemonStatPatchRow>();
         if (s.PersonalTemplate)
         {
-            if (action != BatchAction.PersonalModify || Generation != 7)
-                throw new ArgumentException("El template de estadísticas corresponde a Modificar Pokémon de Gen 7.");
-            string path = Path.GetFullPath(s.TemplatePath ?? Path.Combine(AppContext.BaseDirectory, "custom_balance_templates", "pokemon_stats_gen7.csv"));
+            if (action != BatchAction.PersonalModify || Generation is not (6 or 7))
+                throw new ArgumentException("El template de estadísticas corresponde a Modificar Pokémon.");
+            string path = Path.GetFullPath(s.TemplatePath ?? Path.Combine(AppContext.BaseDirectory, "custom_balance_templates", $"pokemon_stats_gen{Generation}.csv"));
             dependencies.Add((path, SHA256.HashData(File.ReadAllBytes(path))));
             string[] names = Enumerable.Range(0, EntryCount).Select(id => Entries.FirstOrDefault(e => e.Index == id)?.Name ?? "—").ToArray();
             statRows = PokemonStatTemplates.Load(path, names);

@@ -15,14 +15,15 @@ public sealed partial class GameMachineTutorService
 {
     private static readonly int[] TutorExceptions=[165,621,166,226];
 
-    public int RandomizeTutorMoves()
+    public int RandomizeTutorMoves()=>RandomizeTutorMoves(RandomNumberGenerator.GetInt32(int.MaxValue));
+    public int RandomizeTutorMoves(int seed)
     {
         if(!CanEditTutorMoves)throw new NotSupportedException("Solo USUM con 67 ranuras de tutores verificadas.");
-        var pool=Enumerable.Range(1,_project.MoveNames.Count-1)
+        var pool=Enumerable.Range(1,Math.Max(0,Math.Min(_project.MoveNames.Count,_project.GameConfiguration.Moves.Length)-1))
             .Where(id=>id<=ushort.MaxValue&&!Legal.Z_Moves.Contains(id)&&
                 !TutorExceptions.Contains(id)).ToArray();
         if(pool.Length<Tutors.Count)throw new InvalidDataException("No hay suficientes movimientos válidos de tutor.");
-        var rng=new Random(RandomNumberGenerator.GetInt32(int.MaxValue));
+        var rng=new Random(seed);
         for(int i=pool.Length-1;i>0;i--){int j=rng.Next(i+1);(pool[i],pool[j])=(pool[j],pool[i]);}
         int differences=0;
         for(int i=0;i<Tutors.Count;i++)
@@ -39,7 +40,7 @@ public sealed partial class GameMachineTutorService
             throw new NotSupportedException("La edición completa de tutores requiere una tabla USUM de 67 ranuras.");
         if(Tutors.Count!=_originalTutorMoves.Length || Tutors.Select(t=>t.Number).Where((n,i)=>n!=i+1).Any())
             throw new InvalidDataException("Orden o número de tutores alterado.");
-        if(Tutors.Any(t=>t.MoveId<=0||t.MoveId>=_project.MoveNames.Count||
+        if(Tutors.Any(t=>t.MoveId<=0||t.MoveId>=Math.Min(_project.MoveNames.Count,_project.GameConfiguration.Moves.Length)||
                             t.MoveId>ushort.MaxValue||
                             (t.MoveId!=_originalTutorMoves[t.Number-1]&&
                              (Legal.Z_Moves.Contains(t.MoveId)||TutorExceptions.Contains(t.MoveId)))))

@@ -1,4 +1,4 @@
-using System.IO;
+﻿using System.IO;
 using System.ComponentModel;
 using System.Collections.ObjectModel;
 using System.Windows;
@@ -29,16 +29,28 @@ public partial class MainWindow : Window
     private CancellationTokenSource? _spriteCancellation;
     private MoveEditorView? _movesView;
     private bool _showingMoves;
+    private MachineCompatibilityState? _gen6CompatibilityState;
+    private TutorCompatibilityState? _gen6TutorCompatibilityState;
     private RecordEditorView? _recordView;
+    private Gen7MartState? _gen7MartState;
+    private MartEditorView CreateMartView(){var view=new MartEditorView(_session!);if(_gen7MartState is not null)view.RestoreRecipe(_gen7MartState);return view;}
+    private Gen7MachineState? _gen7MachineState;
     private MachineTutorView? _machineTutorView;
+    private MachineTutorView CreateMachineTutorView(){var view=new MachineTutorView(_session!);if(_gen7MachineState is not null)view.RestoreRecipe(_gen7MachineState);return view;}
     private MartEditorView? _martView;
+    private Gen6MartView? _mart6View;
     private LevelUpView? _levelUpView;
     private PlayerLevelCapsView? _playerCapsView;
     private CroRecipesView? _croRecipesView;
     private UsumRelearnerView? _relearnerView;
     private TypeChartView? _typeChartView;
     private ShinyRateView? _shinyRateView;
+    private ShinyRateOptions? _shinyOptions;
     private RomRebuildView? _romRebuildView;
+    private CroIntegrityView? _croIntegrityView;
+    private CatchZonesView? _catchZonesView;
+    private PickupView? _pickupView;
+    private RomExtractionView? _romExtractionView;
     private GlobalTemplateView? _globalTemplateView;
     private BatchRomBuilderView? _batchRomView;
     private GameTextView? _gameTextView;
@@ -59,6 +71,11 @@ public partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
+        UiProgress.InteractionLockChanged+=blocked=>
+        {
+            void Apply(){if(Content is UIElement shell)shell.IsEnabled=!blocked;}
+            if(Dispatcher.CheckAccess())Apply();else Dispatcher.Invoke(Apply);
+        };
         UiProgress.Changed+=(message,busy)=>
         {
             if(!Dispatcher.CheckAccess())
@@ -177,6 +194,19 @@ public partial class MainWindow : Window
         PokemonEditorPanel.Visibility = Visibility.Visible;
     }
 
+    private void ExtractRom_Click(object sender,RoutedEventArgs e)
+    {
+        if(!ConfirmDiscard()||!ConfirmAuxiliaryLeave())return;
+        _romExtractionView=new RomExtractionView(_session?.ProjectRoot);
+        SectionHost.Content=_romExtractionView;
+        _recordView=null;_machineTutorView=null;_martView=null;_mart6View=null;_levelUpView=null;_gameTextView=null;_storyTextView=null;
+        _playerCapsView=null;_croRecipesView=null;_relearnerView=null;_typeChartView=null;_shinyRateView=null;
+        _romRebuildView=null;_croIntegrityView=null;_catchZonesView=null;_pickupView=null;_globalTemplateView=null;_batchRomView=null;
+        PokemonListPanel.Visibility=PokemonEditorPanel.Visibility=PersonalToolsPanel.Visibility=
+            PokemonInspectorPanel.Visibility=MovesHost.Visibility=Visibility.Collapsed;
+        SectionHost.Visibility=Visibility.Visible;_showingMoves=false;
+        StatusText.Text="Extracción de ROM descifrada en una carpeta nueva.";
+    }
     private async void OpenProject_Click(object sender, RoutedEventArgs e)
     {
         if (!ConfirmDiscard() || !ConfirmAuxiliaryLeave())
@@ -211,9 +241,15 @@ public partial class MainWindow : Window
 
     private bool ConfirmAuxiliaryLeave()
     {
+        if(SectionHost.Content is TitleScreenView titleScreen&&!titleScreen.ConfirmLeave())return false;
+        if(SectionHost.Content is TitleResourcesView titleResources&&!titleResources.ConfirmLeave())return false;
+        if(SectionHost.Content is GarcShuffleView shuffle&&!shuffle.ConfirmLeave())return false;
+        if(SectionHost.Content is IconView icon&&!icon.ConfirmLeave())return false;
+        if(SectionHost.Content is SelectedRestoreView selectedRestore&&!selectedRestore.ConfirmLeave())return false;
         if(_recordView is not null&&!_recordView.ConfirmLeave())return false;
         if(_machineTutorView is not null&&!_machineTutorView.ConfirmLeave())return false;
         if(_martView is not null&&!_martView.ConfirmLeave())return false;
+        if(_mart6View is not null&&!_mart6View.ConfirmLeave())return false;
         if(_levelUpView is not null&&!_levelUpView.ConfirmLeave())return false;
         if(_gameTextView is not null&&!_gameTextView.ConfirmLeave())return false;
         if(_storyTextView is not null&&!_storyTextView.ConfirmLeave())return false;
@@ -223,7 +259,17 @@ public partial class MainWindow : Window
         if(_typeChartView is not null&&!_typeChartView.ConfirmLeave())return false;
         if(_shinyRateView is not null&&!_shinyRateView.ConfirmLeave())return false;
         if(_romRebuildView is not null&&!_romRebuildView.ConfirmLeave())return false;
+        if(_pickupView is not null&&!_pickupView.ConfirmLeave())return false;
+        if(_croIntegrityView is not null&&!_croIntegrityView.ConfirmLeave())return false;
+        if(_catchZonesView is not null&&!_catchZonesView.ConfirmLeave())return false;
+        if(_romExtractionView is not null&&!_romExtractionView.ConfirmLeave())return false;
+        if(_martView is not null)_gen7MartState=_martView.RememberRecipe();
+        if(_machineTutorView is not null)_gen7MachineState=_machineTutorView.RememberRecipe();
+        if(_shinyRateView is not null)_shinyOptions=_shinyRateView.RememberOptions();
+        if(SectionHost.Content is Gen6TutorView tutors)_gen6TutorCompatibilityState=tutors.RememberCompatibility();
+        if(SectionHost.Content is Gen6MachineView machines)_gen6CompatibilityState=machines.RememberCompatibility();
         if(_recordView is not null)_sectionOptions[_recordView.Editor.Title]=_recordView.RememberOptions();
+        if(_mart6View is not null)_sectionOptions[_mart6View.Editor.Title]=_mart6View.RememberOptions();
         if(_showingMoves&&_movesView is not null)
         {
             bool pending=_movesView.HasPendingChanges;
@@ -233,42 +279,69 @@ public partial class MainWindow : Window
         return true;
     }
 
+    private int _sectionLoadVersion;
     private async void Section_Click(object sender,RoutedEventArgs e)
     {
         if(_session is null||sender is not Button {Tag:string section})return;
+        if(!ProjectFeatureAvailability.Supports(_session,section))return;
         if(!ConfirmDiscard()||!ConfirmAuxiliaryLeave())return;
         if(HasUnsavedChanges()&&_previous is not null)ShowEntry(_previous);
+        using var interaction=section=="Encounters"?UiProgress.BlockInteraction():null;
+        int loadVersion=++_sectionLoadVersion;
         UiProgress.Begin("Cargando "+section+"…");
         if(!StudioDialog.AutomatedChecks)
             await Dispatcher.InvokeAsync(()=>{},System.Windows.Threading.DispatcherPriority.Background);
         try
         {
+            GameEncounterService? encounterEditor=null;
+            if(section=="Encounters")
+            {
+                var session=_session;
+                encounterEditor=StudioDialog.AutomatedChecks?new GameEncounterService(session):
+                    await Task.Run(()=>new GameEncounterService(session));
+                if(loadVersion!=_sectionLoadVersion||!ReferenceEquals(_session,session))return;
+            }
             UserControl view=section switch
             {
                 "Trainers"=>CreateEditor(new GameTrainerService(_session)),
-                "Encounters"=>CreateEditor(new GameEncounterService(_session)),
-                "StaticEncounters"=>CreateEditor(new GameStaticEncounterService(_session)),
-                "MachineTutor"=>_machineTutorView=new MachineTutorView(_session),
+                "Encounters"=>CreateEditor(encounterEditor!),
+                "StaticEncounters"=>CreateEditor(_session.Generation==6 ? new GameStaticEncounter6Service(_session) : new GameStaticEncounterService(_session)),
+                "Tutor6" when _session.GameConfiguration.ORAS=>new Gen6TutorView(_session,CreateEditor(new GameTutor6Service(_session)),_gen6TutorCompatibilityState),
+                "MachineTutor"=>_session.Generation==6 ? new Gen6MachineView(_session,CreateEditor(new GameMachine6Service(_session)),_gen6CompatibilityState) : _machineTutorView=CreateMachineTutorView(),
                 "LevelUp"=>_levelUpView=new LevelUpView(_session),
                 "Items"=>CreateEditor(new GameItemService(_session)),
-                "Marts"=>_martView=new MartEditorView(_session),
-                "FieldItems"=>CreateEditor(new GameFieldItemsService(_session)),
+                "PersistentItems" when _session.GameConfiguration.USUM=>CreateEditor(new GamePersistentItemsService(_session)),
+                "Marts"=>_session.Generation==6 ? _mart6View=new Gen6MartView(_session,_sectionOptions.GetValueOrDefault("Tiendas · Gen6")) : _martView=CreateMartView(),
+                "FieldItems"=>CreateEditor(_session.Generation==6?new GameFieldItems6Service(_session):new GameFieldItemsService(_session)),
                 "GameText"=>_gameTextView=new GameTextView(_session),
                 "StoryText"=>_storyTextView=new GameTextView(_session,story:true),
                 "Evolutions"=>CreateEditor(new GameEvolutionService(_session)),
                 "EggMoves"=>CreateEditor(new GameEggMoveService(_session)),
                 "MegaEvolutions"=>CreateEditor(new GameMegaEvolutionService(_session)),
+                "FacilityNormal"=>CreateEditor(new GameBattleFacilityService(_session,false)),
+                "FacilityAlternate"=>CreateEditor(new GameBattleFacilityService(_session,true)),
                 "TypeChart"=>_typeChartView=new TypeChartView(_session),
-                "ShinyRate"=>_shinyRateView=new ShinyRateView(_session),
+                "ShinyRate"=>_shinyRateView=new ShinyRateView(_session,_shinyOptions),
                 "PlayerCaps"=>new PlayerLevelCapsView(_session),
                 "CroRecipes"=>_croRecipesView=new CroRecipesView(_session),
                 "UsumRelearner"=>_relearnerView=new UsumRelearnerView(_session),
-                "GlobalTemplate"=>_globalTemplateView??=new GlobalTemplateView(_session),
+                "GlobalTemplate"=>_globalTemplateView??=new GlobalTemplateView(_session,RestoreGlobalOptions,CaptureGlobalOptions,RestoreGlobalOptionsAsync),
                 "BatchRom"=>_batchRomView??=new BatchRomBuilderView(_session,
                     _globalTemplateView?.LoadedSourcePath),
 
                 "OWSE"=>new OwseDevView(_session),
                 "Rebuild"=>_romRebuildView=new RomRebuildView(_session),
+                "CroIntegrity"=>_croIntegrityView=new CroIntegrityView(_session),
+                "GarcShuffle" when _session.Generation==6=>new GarcShuffleView(_session),
+                "TitleScreen6" when _session.Generation==6=>new TitleResourcesView(_session),
+                "TitleScreen7" when _session.Generation==7=>new TitleResourcesView(_session),
+                "Graphics"=>new GraphicsView(),
+                "SMDH"=>new IconView(_session),
+                "RestoreSelected"=>new SelectedRestoreView(_session,ReloadAfterSelectedRestore),
+                "CatchZones"=>_catchZonesView=new CatchZonesView(_session),
+                "Pickup"=>_pickupView=new PickupView(_session),
+                "OPower"=>CreateEditor(new GameOPowerService(_session)),
+                "Trade6"=>CreateEditor(new GameTrade6Service(_session)),
                 "PokemonTools"=>new SystemsView(_session,"PokemonTools",NavigateSystem,
                     ()=>Backup_Click(BackupButton,new RoutedEventArgs()),OpenAutomatedPokemon),
                 "Mechanics"=>new SystemsView(_session,"Mechanics",NavigateSystem,
@@ -282,7 +355,7 @@ public partial class MainWindow : Window
                 "History"=>new HistoryView(_session.History),
                 _=>throw new ArgumentException("Sección desconocida.")
             };
-            _recordView=view as RecordEditorView;_playerCapsView=null;if(section!="CroRecipes")_croRecipesView=null;if(section!="UsumRelearner")_relearnerView=null;if(section!="TypeChart")_typeChartView=null;if(section!="ShinyRate")_shinyRateView=null;if(section!="Rebuild")_romRebuildView=null; if(section!="MachineTutor")_machineTutorView=null; if(section!="Marts")_martView=null; if(section!="LevelUp")_levelUpView=null; if(section!="GameText")_gameTextView=null;if(section!="StoryText")_storyTextView=null;SectionHost.Content=view;
+            _recordView=view is Gen6MachineView gen6Machines?gen6Machines.Editor:view is Gen6TutorView gen6Tutors?gen6Tutors.Editor:view as RecordEditorView;_playerCapsView=null;if(section!="CroRecipes")_croRecipesView=null;if(section!="UsumRelearner")_relearnerView=null;if(section!="TypeChart")_typeChartView=null;if(section!="ShinyRate")_shinyRateView=null;if(section!="Rebuild")_romRebuildView=null;if(section!="Pickup")_pickupView=null;if(section!="CroIntegrity")_croIntegrityView=null;if(section!="CatchZones")_catchZonesView=null;_romExtractionView=null; if(section!="MachineTutor")_machineTutorView=null; if(section!="Marts"||_session.Generation==6)_martView=null;if(section!="Marts"||_session.Generation==7)_mart6View=null; if(section!="LevelUp")_levelUpView=null; if(section!="GameText")_gameTextView=null;if(section!="StoryText")_storyTextView=null;SectionHost.Content=view;
             PokemonListPanel.Visibility=PokemonEditorPanel.Visibility=PersonalToolsPanel.Visibility=PokemonInspectorPanel.Visibility=MovesHost.Visibility=Visibility.Collapsed;
             _personalTools.InvalidatePreview();SectionHost.Visibility=Visibility.Visible;_showingMoves=false;
             PokemonNavButton.Background=MovesButton.Background=TrainersButton.Background=EncountersButton.Background=StaticEncountersButton.Background=MachineTutorButton.Background=LevelUpButton.Background=ItemsButton.Background=MartsButton.Background=FieldItemsButton.Background=GameTextButton.Background=StoryTextButton.Background=EvolutionsButton.Background=HistoryButton.Background=GlobalTemplateButton.Background=BatchRomButton.Background=PokemonToolsButton.Background=MechanicsButton.Background=RomToolsButton.Background=AutomationButton.Background=ConfigurationButton.Background=Brushes.Transparent;
@@ -295,6 +368,7 @@ public partial class MainWindow : Window
 
     private void NavigateSystem(string section)
     {
+        if(section=="Extraction"){ExtractRom_Click(ExtractRomButton,new RoutedEventArgs());return;}
         if(_session is null)return;
         if(section=="ReloadLanguage")
         {
@@ -310,21 +384,26 @@ public partial class MainWindow : Window
             "GlobalTemplate"=>GlobalTemplateButton,"BatchRom"=>BatchRomButton,
             _=>null
         };
+        if(_session is null||!ProjectFeatureAvailability.Supports(_session,section))return;
         if(section=="PlayerCaps")
         {
             // The Player Caps editor is hosted as its own full-width view.
             if(!ConfirmDiscard()||!ConfirmAuxiliaryLeave())return;
             var view=_playerCapsView=new PlayerLevelCapsView(_session);
-            _recordView=null;_machineTutorView=null;_martView=null;_levelUpView=null;_gameTextView=null;_storyTextView=null;
+            _recordView=null;_machineTutorView=null;_martView=null;_mart6View=null;_levelUpView=null;_gameTextView=null;_storyTextView=null;
             SectionHost.Content=view;
             PokemonListPanel.Visibility=PokemonEditorPanel.Visibility=PersonalToolsPanel.Visibility=
                 PokemonInspectorPanel.Visibility=MovesHost.Visibility=Visibility.Collapsed;
             SectionHost.Visibility=Visibility.Visible;
             return;
         }
-        if(section is "CroRecipes" or "UsumRelearner" or "EggMoves" or "MegaEvolutions" or "TypeChart" or "ShinyRate" or "OWSE" or "Rebuild")
+        if(section is "TitleScreen6" or "TitleScreen7" or "Tutor6" or "RestoreSelected" or "Graphics" or "SMDH" or "GarcShuffle")
+        {Section_Click(new Button{Tag=section},new RoutedEventArgs());return;}
+        if(section is "FacilityNormal" or "FacilityAlternate")
+        {Section_Click(new Button{Tag=section},new RoutedEventArgs());return;}
+        if(section is "CroRecipes" or "UsumRelearner" or "EggMoves" or "MegaEvolutions" or "TypeChart" or "ShinyRate" or "OWSE" or "Rebuild" or "CroIntegrity" or "Pickup" or "OPower" or "CatchZones" or "Trade6")
         {
-            if(section is "EggMoves" or "MegaEvolutions" or "TypeChart" or "ShinyRate" or "OWSE" or "Rebuild"||_session.GameConfiguration.USUM)
+            if(section is "EggMoves" or "MegaEvolutions" or "TypeChart" or "ShinyRate" or "OWSE" or "Rebuild" or "CroIntegrity" or "Pickup" or "OPower" or "CatchZones" or "Trade6"||_session.GameConfiguration.USUM)
                 Section_Click(new Button{Tag=section},new RoutedEventArgs());
             return;
         }
@@ -355,8 +434,104 @@ public partial class MainWindow : Window
         DisplayPokemon();
         PersonalAction_Click(new Button{Tag="PersonalRandomize"},new RoutedEventArgs());
     }
-    private RecordEditorView CreateEditor(IProjectEditor editor)=>new(editor,_sectionOptions.GetValueOrDefault(editor.Title));
+    private RecordEditorView CreateEditor(IProjectEditor editor)
+    {
+        var view=new RecordEditorView(editor,_sectionOptions.GetValueOrDefault(editor.Title));
+        if(editor is GameFieldItems6Service fieldItems)
+        {
+            var export=(Button)view.FindName("FieldExportButton");export.Visibility=Visibility.Visible;
+            export.Click+=(_,_)=>
+            {
+                try
+                {
+                    var picker=new Microsoft.Win32.SaveFileDialog{Filter="CSV|*.csv",FileName="field-items-gen6.csv"};
+                    if(picker.ShowDialog(this)!=true)return;
+                    File.WriteAllText(picker.FileName,fieldItems.ExportCsv(),System.Text.Encoding.UTF8);
+                    ((TextBlock)view.FindName("StatusText")).Text="Objetos de campo Gen6 exportados a CSV.";
+                }
+                catch(Exception ex){StudioDialog.Error(this,"Error al exportar objetos de campo",ex.Message);}
+            };
+        }
+        if(editor is GameBattleFacilityService facility)
+        {
+            var export=(Button)view.FindName("FieldExportButton");export.Visibility=Visibility.Visible;export.Content="Exportar instalación…";
+            export.Click+=(_,_)=>
+            {
+                try{var picker=new Microsoft.Win32.SaveFileDialog{Filter="Texto|*.txt",FileName="battle-facility.txt"};if(picker.ShowDialog(this)==true)File.WriteAllText(picker.FileName,facility.ExportText(),System.Text.Encoding.UTF8);}
+                catch(Exception ex){StudioDialog.Error(this,"Error al exportar instalación",ex.Message);}
+            };
+        }
+        if(editor is GameOPowerService or GameBattleFacilityService)
+        {
+            ((FrameworkElement)view.FindName("RandomizerButton")).Visibility=Visibility.Collapsed;
+            var scope=(FrameworkElement)view.FindName("ScopeBox");scope.Visibility=Visibility.Collapsed;
+            if(scope.Parent is System.Windows.Controls.Panel host)
+            {
+                int index=host.Children.IndexOf(scope);if(index>0)host.Children[index-1].Visibility=Visibility.Collapsed;
+                if(index+1<host.Children.Count&&host.Children[index+1] is TextBlock hint)hint.Text="Los cambios confirmados se verifican y quedan registrados en el historial.";
+            }
+        }
+        return view;
+    }
 
+    private void RestoreGlobalOptions(GlobalTemplateDocument document)=>PrepareGlobalOptions(document)();
+    private async Task RestoreGlobalOptionsAsync(GlobalTemplateDocument document)
+    {
+        var apply=await Task.Run(()=>PrepareGlobalOptions(document));
+        apply();
+    }
+    private Action PrepareGlobalOptions(GlobalTemplateDocument document)
+    {
+        if(_session is null)return ()=>{};
+        NativeMasterBatchBridge.ValidateSession(_session,document,forReplay:false);
+        NativeGen7MachineBridge.ValidateSession(_session,document,forReplay:false);
+        var machineRecipe=NativeGen7MachineBridge.Read(document);
+        _=NativeGen7MartBridge.ValidateSession(_session,document,forReplay:false);var martRecipe=NativeGen7MartBridge.Read(document);
+        var personalMaster=NativeMasterBatchBridge.Read(document,"Personal");var movesMaster=NativeMasterBatchBridge.Read(document,"Moves");
+        // Validate on isolated services before replacing any remembered UI state.
+        var editors=GlobalEditorTemplateBridge.Editors(_session)
+            .Where(row=>GlobalEditorTemplateBridge.HasSettings(document,row.Key,_session.Generation)).Select(row=>row.Create()).ToArray();
+        var shiny=ShinyRateTemplate.Read(document);
+        if(shiny is not null)_=new GameShinyRateService(_session).Preview(shiny.Rerolls,shiny.Everything);
+        var compatibility=_session.Generation==6?MachineCompatibilityTemplate.Read(document):null;
+        var tutorCompatibility=_session.GameConfiguration.ORAS?TutorCompatibilityTemplate.Read(document):null;
+        var states=editors.Select(editor=>(editor.Title,State:GlobalEditorTemplateBridge.Restore(document,editor,_session.Generation))).ToArray();
+        return ()=>
+        {
+        if(martRecipe is not null){_gen7MartState=martRecipe;_martView?.RestoreRecipe(martRecipe);}
+        if(machineRecipe is not null){_gen7MachineState=machineRecipe;_machineTutorView?.RestoreRecipe(machineRecipe);}
+        if(personalMaster is not null)_personalTools.RestoreGlobalState(personalMaster);
+        if(movesMaster is not null){_movesView??=new MoveEditorView(_session);_movesView.RestoreGlobalState(movesMaster);}
+        if(shiny is not null)_shinyOptions=shiny;
+        if(compatibility is not null)_gen6CompatibilityState=compatibility;
+        if(tutorCompatibility is not null)_gen6TutorCompatibilityState=tutorCompatibility;
+        foreach(var (title,state) in states)if(state is not null)_sectionOptions[title]=state;
+        };
+    }
+    private void CaptureGlobalOptions(GlobalTemplateDocument document)
+    {
+        if(_session is null)return;
+        if(_mart6View is not null)_sectionOptions[_mart6View.Editor.Title]=_mart6View.RememberOptions();
+        if(_personalTools.CaptureGlobalState() is {} personalMaster)NativeMasterBatchBridge.Capture(document,personalMaster,_session.Generation);
+        if(_movesView?.CaptureGlobalState() is {} movesMaster)NativeMasterBatchBridge.Capture(document,movesMaster,_session.Generation);
+        if(_shinyOptions is not null)ShinyRateTemplate.Capture(document,_shinyOptions);
+        if(_session.Generation==7){if(_martView is not null)_gen7MartState=_martView.RememberRecipe();if(_gen7MartState is not null)NativeGen7MartBridge.Capture(document,_gen7MartState);}
+        if(_session.Generation==7){if(_machineTutorView is not null)_gen7MachineState=_machineTutorView.RememberRecipe();if(_gen7MachineState is not null)NativeGen7MachineBridge.Capture(document,_gen7MachineState);}
+        if(_session.Generation==6&&_gen6CompatibilityState is not null)MachineCompatibilityTemplate.Capture(document,_gen6CompatibilityState);
+        if(_session.GameConfiguration.ORAS&&_gen6TutorCompatibilityState is not null)TutorCompatibilityTemplate.Capture(document,_gen6TutorCompatibilityState);
+        foreach(var row in GlobalEditorTemplateBridge.Editors(_session))
+        {
+            if(_sectionOptions.TryGetValue(row.Title,out var state))
+                GlobalEditorTemplateBridge.Capture(document,row.Create(),state,_session.Generation);
+        }
+    }
+
+    private async Task ReloadAfterSelectedRestore()
+    {
+        if(_session is null)return;string root=_session.ProjectRoot;
+        var restored=await Task.Run(()=>GameProjectSession.Open(root,recoverInterruptedSave:false));LoadProject(restored);
+        StatusText.Text="Archivos seleccionados restaurados, verificados y registrados en el historial.";
+    }
     private async void Backup_Click(object sender,RoutedEventArgs e)
     {
         if(_session is null||_backupRunning)return;
@@ -384,12 +559,32 @@ public partial class MainWindow : Window
         catch(Exception ex){IsEnabled=true;StudioDialog.Error(this,"No se pudo generar el backup",ex.Message);StatusText.Text=ex.Message;}
         finally{_backupRunning=false;IsEnabled=true;UiProgress.End();}
     }
+    private async void RestoreBackup_Click(object sender,RoutedEventArgs e)
+    {
+        if(_backupRunning||_globalOperationActive)return;
+        var input=new Microsoft.Win32.OpenFileDialog{Filter="Backup Definitive Randomizer|*.zip",Title="Respaldo que se verificará antes de restaurar"};
+        if(input.ShowDialog(this)!=true)return;
+        _backupRunning=true;IsEnabled=false;UiProgress.Begin("Verificando respaldo completo…");
+        try
+        {
+            var plan=await ProjectRestore.InspectAsync(input.FileName);
+            IsEnabled=true;
+            if(!StudioDialog.Confirm(this,"Respaldo verificado",$"{plan.Game} · {plan.Files:N0} archivos · {plan.Bytes:N0} bytes", "Se creará una carpeta nueva. El historial exportado se conserva como referencia y no sustituye el historial activo."))return;
+            var folder=new Microsoft.Win32.OpenFolderDialog{Title="Carpeta donde se creará el proyecto restaurado"};if(folder.ShowDialog(this)!=true)return;
+            string destination=Path.Combine(folder.FolderName,"Definitive_restaurado_"+DateTime.Now.ToString("yyyyMMdd_HHmmss"));
+            IsEnabled=false;var restored=await ProjectRestore.RestoreAsync(plan,destination);
+            StatusText.Text="Respaldo restaurado y verificado: "+restored;
+            IsEnabled=true;StudioDialog.Notice(this,"Restauración completada","Abrí el proyecto desde la carpeta restaurada.",restored);
+        }
+        catch(Exception ex){IsEnabled=true;StudioDialog.Error(this,"Restauración de respaldo",ex.Message);}
+        finally{_backupRunning=false;IsEnabled=true;UiProgress.End();}
+    }
 
     internal void LoadProject(GameProjectSession candidate)
     {
         _session = candidate;
         _sectionOptions.Clear();
-        _recordView=null;_machineTutorView=null;_levelUpView=null;_gameTextView=null;_playerCapsView=null;_croRecipesView=null;_relearnerView=null;_typeChartView=null;_shinyRateView=null;_romRebuildView=null;_globalTemplateView=null;_batchRomView=null;SectionHost.Content=null;
+        _recordView=null;_machineTutorView=null;_martView=null;_mart6View=null;_levelUpView=null;_gameTextView=null;_playerCapsView=null;_croRecipesView=null;_relearnerView=null;_typeChartView=null;_shinyRateView=null;_romRebuildView=null;_croIntegrityView=null;_catchZonesView=null;_pickupView=null;_romExtractionView=null;_globalTemplateView=null;_batchRomView=null;_gen7MartState=null;_gen7MachineState=null;_gen6CompatibilityState=null;_gen6TutorCompatibilityState=null;_shinyOptions=null;SectionHost.Content=null;
         _movesView = null;
         MovesHost.Content = null;
         DisplayPokemon();
@@ -440,12 +635,15 @@ public partial class MainWindow : Window
         PersonalActions.IsEnabled = true;
         MovesButton.IsEnabled = true;
         TrainersButton.IsEnabled = EncountersButton.IsEnabled = EvolutionsButton.IsEnabled = HistoryButton.IsEnabled = BackupButton.IsEnabled = true;
-        StaticEncountersButton.IsEnabled=candidate.Generation==7;
-        MachineTutorButton.IsEnabled=candidate.Generation==7;
+        StaticEncountersButton.IsEnabled=candidate.Generation is 6 or 7;
+        MachineTutorButton.IsEnabled=candidate.Generation is 6 or 7;
         LevelUpButton.IsEnabled=true;
         ItemsButton.IsEnabled=true;
-        MartsButton.IsEnabled=candidate.GameConfiguration.USUM;
-        FieldItemsButton.IsEnabled=candidate.Generation==7;
+        MartsButton.IsEnabled=ProjectFeatureAvailability.Supports(candidate,"Marts");
+        MartsButton.Visibility=MartsButton.IsEnabled?Visibility.Visible:Visibility.Collapsed;
+        MartsButton.Content=candidate.Generation==6?"▦  Tiendas · Gen6":candidate.GameConfiguration.USUM?"▦  Tiendas y BP · USUM":"▦  Tiendas y BP · SM";
+        MachineTutorButton.Content=candidate.Generation==6?"▣  MT y MO · Gen6":"▣  MT y tutores";
+        FieldItemsButton.IsEnabled=true;
         GameTextButton.IsEnabled=true;
         try
         {
@@ -811,7 +1009,7 @@ public partial class MainWindow : Window
 
     private void DisplayPokemon()
     {
-        _recordView=null;_martView=null;SectionHost.Visibility=Visibility.Collapsed;SectionHost.Content=null;
+        _recordView=null;_martView=null;_mart6View=null;SectionHost.Visibility=Visibility.Collapsed;SectionHost.Content=null;
         TrainersButton.Background=EncountersButton.Background=EvolutionsButton.Background=HistoryButton.Background=Brushes.Transparent;
         _showingMoves = false;
         PokemonListPanel.Visibility = Visibility.Visible;
@@ -838,7 +1036,7 @@ public partial class MainWindow : Window
         try
         {
             _movesView ??= new MoveEditorView(_session);
-            _recordView=null;_martView=null;SectionHost.Visibility=Visibility.Collapsed;SectionHost.Content=null;
+            _recordView=null;_martView=null;_mart6View=null;SectionHost.Visibility=Visibility.Collapsed;SectionHost.Content=null;
             TrainersButton.Background=EncountersButton.Background=EvolutionsButton.Background=HistoryButton.Background=Brushes.Transparent;
             MovesHost.Content = _movesView;
             PokemonListPanel.Visibility = Visibility.Collapsed;
@@ -850,7 +1048,7 @@ public partial class MainWindow : Window
             _showingMoves = true;
             PokemonNavButton.Background = Brushes.Transparent;
             MovesButton.Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#2B4059")!);
-            StatusText.Text = "Movimientos · edición integrada en 3DS Progressive.";
+            StatusText.Text = "Movimientos · edición integrada en Definitive Randomizer.";
         }
         catch (Exception ex)
         {

@@ -5,6 +5,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
 using ThreeDS.Progressive.Models;
+using ThreeDS.Progressive.Services;
 using CheckBox = System.Windows.Controls.CheckBox;
 using TextBox = System.Windows.Controls.TextBox;
 using Color = System.Windows.Media.Color;
@@ -28,6 +29,8 @@ public partial class BatchToolsView : UserControl
     private bool _configured;
     private bool _building;
     private bool _moves;
+    private bool _defaultBattlePatches=true;
+    private bool _supportsBalance=true;
     private int _generation;
     private bool _hms;
     private bool _special;
@@ -40,13 +43,42 @@ public partial class BatchToolsView : UserControl
     internal BatchAction ActiveAction => _action;
     internal int LastSeed => _lastSeed;
 
+    private bool _globalOpened;
+    internal MasterBatchState? CaptureGlobalState()
+    {
+        if(!_configured||!_globalOpened)return null;
+        var settings=ReadSettings();
+        foreach(var pair in _numbers)
+            if(decimal.TryParse(pair.Value.Box.Text,NumberStyles.Number,CultureInfo.CurrentCulture,out var value)&&value>=pair.Value.Min&&value<=pair.Value.Max&&typeof(BatchSettings).GetProperty(pair.Key) is {} property)
+                property.SetValue(settings,Convert.ChangeType(value,property.PropertyType,CultureInfo.InvariantCulture));
+        return new(_action,settings,ScopeBox.SelectedIndex);
+    }
+    internal void RestoreGlobalState(MasterBatchState state)
+    {
+        if(_generation!=7&&(state.Settings.SetCall)||_generation!=6&&(state.Settings.Hms||state.Settings.FullHms)||!_special&&(state.Settings.SpecialTutors||state.Settings.FullSpecialTutors))throw new ArgumentException("Opciones incompatibles con el juego actual.");
+        OpenAction(state.Action);_building=true;
+        try
+        {
+            foreach(var pair in _checks)
+            {
+                int slot=Array.IndexOf(new[]{"HP","ATK","DEF","SPE","SPA","SPD"},pair.Key);
+                if(slot>=0)pair.Value.IsChecked=state.Settings.StatSlots[slot];
+                else if(typeof(BatchSettings).GetProperty(pair.Key)?.GetValue(state.Settings) is bool value)pair.Value.IsChecked=value;
+            }
+            foreach(var pair in _numbers)if(typeof(BatchSettings).GetProperty(pair.Key)?.GetValue(state.Settings) is IFormattable value)pair.Value.Box.Text=value.ToString(null,CultureInfo.CurrentCulture);
+            _templatePath=state.Settings.TemplatePath;ScopeBox.SelectedIndex=state.Scope;TemplateName.Text=_templatePath is null?"Template incluido":Path.GetFileName(_templatePath);
+        }
+        finally{_building=false;UpdateDependencies();InvalidatePreview();}
+    }
     public BatchToolsView() => InitializeComponent();
 
     public void Configure(bool moves, int generation, bool hms, bool special, bool banActive,
         Func<bool> prepare, Func<int, IReadOnlyList<int>> scope,
         Func<BatchAction, BatchSettings, IReadOnlyList<int>, BatchPreview> generate, Action<BatchPreview> apply,
-        Func<IReadOnlyList<int>, string> export)
+        Func<IReadOnlyList<int>, string> export,bool defaultBattlePatches=true,bool supportsBalance=true)
     {
+        _supportsBalance=supportsBalance;
+        _defaultBattlePatches=defaultBattlePatches;
         _moves = moves; _generation = generation; _hms = hms; _special = special; _banActive = banActive;
         _prepare = prepare; _scope = scope; _generate = generate; _apply = apply; _export = export;
         _configured = true;
@@ -54,15 +86,16 @@ public partial class BatchToolsView : UserControl
         _checks.Clear(); _numbers.Clear();
         _templatePath = null;
         TemplateName.Text = _moves ? "Balance Progressive incluido" : "Estadísticas Progressive incluidas";
-        OpenAction(moves ? BatchAction.MoveRandomize : BatchAction.PersonalRandomize);
+        OpenAction(moves ? BatchAction.MoveRandomize : BatchAction.PersonalRandomize);_globalOpened=false;
     }
 
     public void OpenAction(BatchAction action)
     {
+        if(action==BatchAction.MoveBalance&&!_supportsBalance)throw new ArgumentException("El balance Progressive no está disponible en Sol/Luna.");
         bool valid = _moves ? action is BatchAction.MoveRandomize or BatchAction.Metronome or BatchAction.MoveBalance
             : action is BatchAction.PersonalRandomize or BatchAction.PersonalModify;
         if (!valid) throw new ArgumentException("Esta acción no pertenece al editor actual.");
-        RememberOptions();
+        RememberOptions();_globalOpened=true;
         _action = action;
         ActionTitle.Text = action switch
         {
@@ -115,9 +148,9 @@ public partial class BatchToolsView : UserControl
                     ActionHelp.Text = "En el alcance elegido: Metrónomo (118) tendrá 40 PP; Placaje (33), 1 PP; los demás, 0 PP. Solo modifica PP.";
                     break;
                 case BatchAction.MoveBalance:
-                    Check("BattlePatches", "Aplicar mecánicas de combate del template", true);
-                    Check("MoveDescriptions", "Actualizar descripciones en español", true);
-                    ActionHelp.Text = "Usa los templates de pk3DS Progressive. Revisá los movimientos y archivos de combate antes de aplicar.";
+                    Check("BattlePatches", "Aplicar mecánicas de combate del template", _defaultBattlePatches);
+                    Check("MoveDescriptions", "Actualizar descripciones en español", _defaultBattlePatches);
+                    ActionHelp.Text = _defaultBattlePatches?"Usa los templates de pk3DS Progressive. Revisá los movimientos y archivos de combate antes de aplicar.":"En Sol/Luna, el balance inicia con datos de movimientos. Las mecánicas de combate de un CSV se verifican contra Battle.cro antes de guardar.";
                     break;
                 case BatchAction.PersonalRandomize:
                     Check("Stats", "Variar estadísticas base"); Number("Deviation", "Variación de estadísticas (%)", 25, 0, 100);
@@ -138,7 +171,7 @@ public partial class BatchToolsView : UserControl
                     ActionHelp.Text = "Usa el motor de pk3DS. La variación y el barajado protegen a los Pokémon con 1 PS. Los parámetros y la semilla se aplican a los registros guardados.";
                     break;
                 case BatchAction.PersonalModify:
-                    if (_generation == 7) Check("PersonalTemplate", "Aplicar estadísticas desde un template Progressive");
+                    Check("PersonalTemplate", "Aplicar estadísticas desde un template Progressive");
                     Check("RemoveEvs", "Quitar EV otorgados"); Check("SlowGrowth", "Curva de experiencia lenta");
                     Check("ScaleExperience", "Escalar experiencia base"); Number("ExperiencePercent", "Experiencia base (%)", 100, 0, 10000);
                     Check("ClearCompatibility", "Quitar MT y tutores (conservar MO de Gen 6)");

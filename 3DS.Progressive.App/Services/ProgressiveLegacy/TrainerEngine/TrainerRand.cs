@@ -227,6 +227,7 @@ public partial class TrainerRand : Form
     private CheckBox CHK_ItemClause;
     private ComboBox CB_SmartHeldItemMode;
     private CheckBox CHK_BetterMovesets;
+    private TrainerMoveSettingsTemplate _globalMoveSettings=new();
 
     private List<ProgressiveBSTRule> ProgressiveBSTRules = GetDefaultProgressiveBSTRules();
     private List<TrainerLevelCapRule> LevelCapRules = [];
@@ -471,6 +472,7 @@ public partial class TrainerRand : Form
         RSTE.rRandomDoubleBattleChance = (int)NUD_DoubleBattleChance.Value;
         RSTE.rNoFixedDamage = CHK_NoFixedDamage.Checked;
         RSTE.rBetterMovesets = CHK_BetterMovesets?.Checked ?? false;
+        RSTE.rGlobalMoveSettings=_globalMoveSettings;
 
         RSTE.rMove = CB_Moves.SelectedIndex == 1;
         RSTE.rNoMove = CB_Moves.SelectedIndex == 2;
@@ -651,6 +653,16 @@ public partial class TrainerRand : Form
             {
                 Source = (TrainerMoveSource)Math.Clamp(CB_Moves.SelectedIndex, 0, 3),
                 BetterMovesets = CHK_BetterMovesets.Checked,
+                BetterMovesetsIncludeTMs=_globalMoveSettings.BetterMovesetsIncludeTMs,
+                BetterMovesetsNormalTrainers=_globalMoveSettings.BetterMovesetsNormalTrainers,
+                BetterMovesetsImportantTrainers=_globalMoveSettings.BetterMovesetsImportantTrainers,
+                BetterMovesetsBosses=_globalMoveSettings.BetterMovesetsBosses,
+                SmartItems=_globalMoveSettings.SmartItems,SmartItemsNormalTrainers=_globalMoveSettings.SmartItemsNormalTrainers,SmartItemsImportantTrainers=_globalMoveSettings.SmartItemsImportantTrainers,SmartItemsBosses=_globalMoveSettings.SmartItemsBosses,
+                SmartItemMode=_globalMoveSettings.SmartItemMode,SmartItemModeNormalTrainers=_globalMoveSettings.SmartItemModeNormalTrainers,SmartItemModeImportantTrainers=_globalMoveSettings.SmartItemModeImportantTrainers,SmartItemModeBosses=_globalMoveSettings.SmartItemModeBosses,
+                StrongStat=_globalMoveSettings.StrongStat,StrongStatTolerance=_globalMoveSettings.StrongStatTolerance,
+                StrongStatNormalTrainers=_globalMoveSettings.StrongStatNormalTrainers,
+                StrongStatImportantTrainers=_globalMoveSettings.StrongStatImportantTrainers,
+                StrongStatBosses=_globalMoveSettings.StrongStatBosses,
                 ForceHighPower = CHK_ForceHighPower.Checked,
                 HighPowerLevel = (int)NUD_ForceHighPower.Value,
                 NoFixedDamage = CHK_NoFixedDamage.Checked,
@@ -717,6 +729,7 @@ public partial class TrainerRand : Form
         if (template.MoveSettings is not null)
         {
             var moves = template.MoveSettings;
+            _globalMoveSettings=moves;
             CB_Moves.SelectedIndex = Math.Clamp((int)moves.Source, 0, Math.Max(0, CB_Moves.Items.Count - 1));
             CHK_BetterMovesets.Checked = moves.BetterMovesets;
             CHK_ForceHighPower.Checked = moves.ForceHighPower;

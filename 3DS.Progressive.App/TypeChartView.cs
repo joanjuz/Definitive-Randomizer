@@ -10,7 +10,7 @@ using UniformGrid=System.Windows.Controls.Primitives.UniformGrid;
 
 namespace ThreeDS.Progressive;
 
-/// <summary>18x18 in-app type effectiveness matrix, parity with Gen7 TypeChart7.</summary>
+/// <summary>18x18 in-app type effectiveness matrix, Gen6 and Gen7 vanilla layouts.</summary>
 internal sealed class TypeChartView : UserControl
 {
     private readonly GameTypeChartService _service;
@@ -18,6 +18,10 @@ internal sealed class TypeChartView : UserControl
     private readonly Button[,] _buttons=new Button[18,18];
     private readonly Button _apply;
     private readonly byte[] _original,_draft;
+    private byte[]? _normalTable;
+    private readonly System.Windows.Controls.CheckBox _inverse=new(){Content="Combate inverso (incluye inmunidades)",Margin=new Thickness(0,4,10,8)};
+    internal byte[] DraftTable=>(byte[])_draft.Clone();
+    internal void SetInverse(bool enabled)=>_inverse.IsChecked=enabled;
     private (FileChange File,IReadOnlyList<ThreeDS.Progressive.Models.BatchChange> Changes)? _proposal;
     internal TypeChartView(GameProjectSession project)
     {
@@ -31,19 +35,22 @@ internal sealed class TypeChartView : UserControl
             FontSize=23,FontWeight=FontWeights.SemiBold,Foreground=(Brush)FindResource("TextMain")});
         top.Children.Add(new TextBlock{Text="Filas: tipo atacante · Columnas: tipo defensor. " +
             "Pulsá una casilla para alternar inmunidad ×0, resistencia ×½, daño ×1 y supereficaz ×2. " +
-            "No se escribe code.bin hasta confirmar la vista previa.",
+            "Los cambios se guardan después de confirmar la vista previa.",
             TextWrapping=TextWrapping.Wrap,Foreground=(Brush)FindResource("TextSoft"),
             Margin=new Thickness(0,5,0,7)});
         _state=new TextBlock{Foreground=(Brush)FindResource("TextSoft"),Margin=new Thickness(0,0,0,8),
             Text="Tabla original cargada, sin modificaciones."};
         top.Children.Add(_state);
+        _inverse.Checked+=(_,_)=>{_normalTable=(byte[])_draft.Clone();GameTypeChartService.Inverse(_draft).CopyTo(_draft,0);InvalidateInverse();};
+        _inverse.Unchecked+=(_,_)=>{if(_normalTable is not null)_normalTable.CopyTo(_draft,0);_normalTable=null;InvalidateInverse();};
+        top.Children.Add(_inverse);
         var buttons=new WrapPanel();top.Children.Add(buttons);
         var preview=new Button{Content="Generar vista previa",Margin=new Thickness(0,0,8,5)};
         preview.Click+=(_,_)=>Preview();buttons.Children.Add(preview);
         _apply=new Button{Content="Aplicar cambios",Margin=new Thickness(0,0,8,5),IsEnabled=false};
         _apply.Click+=(_,_)=>Apply();buttons.Children.Add(_apply);
         var reset=new Button{Content="Restaurar valores al abrir",Margin=new Thickness(0,0,8,5)};
-        reset.Click+=(_,_)=>{Array.Copy(_original,_draft,_draft.Length);_proposal=null;_apply.IsEnabled=false;
+        reset.Click+=(_,_)=>{_inverse.IsChecked=false;Array.Copy(_original,_draft,_draft.Length);_proposal=null;_apply.IsEnabled=false;
             Refresh();_state.Text="Valores originales restaurados en memoria, sin escribir.";};
         buttons.Children.Add(reset);
         var scroll=new ScrollViewer{VerticalScrollBarVisibility=ScrollBarVisibility.Auto,
@@ -78,6 +85,7 @@ internal sealed class TypeChartView : UserControl
     internal int ChangedCount=>_draft.Where((v,i)=>v!=_original[i]).Count();
     internal bool ConfirmLeave()=>ChangedCount==0||StudioDialog.Confirm(Window.GetWindow(this),
         "Tabla de tipos con cambios sin guardar","Los cambios de efectividad se descartarán al salir. ¿Continuar?");
+    private void InvalidateInverse(){_proposal=null;_apply.IsEnabled=false;Refresh();_state.Text="Modo de efectividad actualizado en memoria. Generá vista previa antes de aplicar.";}
     private static TextBlock Header(string label)=>new()
     {
         Text=label,Foreground=(Brush)WpfApplication.Current.FindResource("TextSoft"),
@@ -104,7 +112,7 @@ internal sealed class TypeChartView : UserControl
     {
         try
         {
-            var proposal=_service.Preview(_draft);
+            var proposal=_service.Preview(_draft,repairCro:true);
             _proposal=proposal;
             _apply.IsEnabled=proposal.Changes.Count>0;
             _state.Text=$"{proposal.Changes.Count} relaciones modificadas · vista previa congelada, "+
@@ -116,7 +124,7 @@ internal sealed class TypeChartView : UserControl
     {
         if(_proposal is not { } candidate)return;
         if(!StudioDialog.Confirm(Window.GetWindow(this),"Guardar Type Chart",
-            $"Se aplicarán {candidate.Changes.Count} cambios de efectividad en code.bin. ¿Continuar?"))return;
+            $"Se aplicarán {candidate.Changes.Count} cambios de efectividad en la tabla de tipos. ¿Continuar?"))return;
         try
         {
             _service.Apply(candidate.File,candidate.Changes);

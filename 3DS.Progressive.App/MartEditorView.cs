@@ -23,6 +23,9 @@ namespace ThreeDS.Progressive;
 /// <summary>Native dark WPF editor for real USUM Shop.cro regular/BP inventories.</summary>
 internal sealed class MartEditorView : UserControl
 {
+    private readonly CheckBox[] _recipeFlags=Enumerable.Range(0,6).Select(_=>new CheckBox()).ToArray();
+    internal Gen7MartState RememberRecipe()=>new(_recipeFlags[0].IsChecked==true,_recipeFlags[1].IsChecked==true,_recipeFlags[2].IsChecked==true,_recipeFlags[3].IsChecked==true,_recipeFlags[4].IsChecked==true,_recipeFlags[5].IsChecked==true,_specialOnly.IsChecked==true,_protectX.IsChecked==true);
+    internal void RestoreRecipe(Gen7MartState s){bool[] flags=[s.RandomRegular,s.RandomBP,s.Candies,s.Vitamins,s.FreeMega,s.BanCapsule];for(int i=0;i<flags.Length;i++)_recipeFlags[i].IsChecked=flags[i];_specialOnly.IsChecked=s.SpecialsOnly;_protectX.IsChecked=s.ProtectX;}
     private readonly GameProjectSession _project;
     private GameMartService _service;
     private MartShopPreview? _pending;
@@ -33,7 +36,7 @@ internal sealed class MartEditorView : UserControl
     private readonly ListBox _changes = new() { Height = 126 };
     private readonly TextBlock _status;
     private readonly Button _apply;
-    private readonly Button _add, _delete, _freeMega;
+    private readonly Button _add, _delete;
     private readonly CheckBox _specialOnly = new() { Content = "Solo tiendas especiales", Margin = new Thickness(0, 5, 16, 10) };
     private readonly CheckBox _protectX = new() { Content = "Conservar objetos X", IsChecked = true, Margin = new Thickness(0, 5, 16, 10) };
     private readonly TabControl _tabs = new();
@@ -56,26 +59,23 @@ internal sealed class MartEditorView : UserControl
         root.Children.Add(heading);
         heading.Children.Add(new TextBlock
         {
-            Text = "Tiendas y BP · Ultra Sol / Ultra Luna",
+            Text = project.GameConfiguration.USUM?"Tiendas y BP · Ultra Sol / Ultra Luna":"Tiendas y BP · Sol / Luna",
             FontSize = 23, FontWeight = FontWeights.SemiBold, Foreground = foreground
         });
         heading.Children.Add(new TextBlock
         {
-            Text = "28 tiendas normales con ranuras ampliables y 7 tiendas BP con precios editables. " +
-                   "Lectura real de Shop.cro mediante relocaciones; cambios aislados hasta confirmar.",
+            Text = project.GameConfiguration.USUM?"28 tiendas normales con ranuras ampliables y 7 tiendas BP con precios editables. " +
+                   "Lectura real de Shop.cro mediante relocaciones; cambios aislados hasta confirmar.":"24 tiendas normales y 6 tiendas BP con ranuras fijas y precios editables. Cambios aislados hasta confirmar.",
             Foreground = soft, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 4, 0, 10)
         });
+        heading.Children.Add(new TextBlock{Text="Opciones de la vista previa y de Global/Batch",Foreground=soft});
+        var recipes=new WrapPanel();string[] labels=["Randomizar tiendas","Randomizar BP","Caramelos raros",project.GameConfiguration.USUM?"Vitaminas 252 EV":"Objetos de entrenamiento EV","Megapiedras gratis (en BP)","Prohibir Cápsula Habilidad"];
+        for(int i=0;i<_recipeFlags.Length;i++){_recipeFlags[i].Content=labels[i];_recipeFlags[i].Foreground=foreground;_recipeFlags[i].Margin=new Thickness(0,4,12,8);recipes.Children.Add(_recipeFlags[i]);}heading.Children.Add(recipes);
         var actions = new WrapPanel();
         heading.Children.Add(actions);
         _add = Add(actions, "+ Añadir ranura", AddSlot);
         _delete = Add(actions, "− Eliminar ranura", DeleteSlot);
-        _freeMega = Add(actions, "Megapiedras gratis (0 BP)", FreeMega);
-        Add(actions, "Randomizar tiendas", () => Preset(() => _service.RandomizeShops(false,
-            _specialOnly.IsChecked == true, _protectX.IsChecked == true), "Randomización tiendas"));
-        Add(actions, "Randomizar BP", () => Preset(() => _service.RandomizeShops(true), "Randomización BP"));
-        Add(actions, "+ Caramelos raros", () => Preset(_service.AddRareCandies, "Caramelos raros"));
-        Add(actions, "+ Vitaminas · 252 EV", () => Preset(_service.AddVitamins252, "Vitaminas 252 EV"));
-        Add(actions, "Prohibir Cápsula Habilidad", () => Preset(_service.BanAbilityCapsule, "Cápsula Habilidad"));
+        if(!_service.SupportsExpansion)_add.Visibility=_delete.Visibility=Visibility.Collapsed;
         heading.Children.Add(new WrapPanel { Children = { _specialOnly, _protectX } });
         Add(actions, "Generar vista previa", Preview);
         _apply = Add(actions, "Aplicar y verificar", Apply);
@@ -113,6 +113,9 @@ internal sealed class MartEditorView : UserControl
         };
         bottom.Children.Add(_status);
         BindShops();
+        foreach(var flag in _recipeFlags){flag.Checked+=(_,_)=>Dirty();flag.Unchecked+=(_,_)=>Dirty();}
+        _specialOnly.Checked+=(_,_)=>Dirty();_specialOnly.Unchecked+=(_,_)=>Dirty();
+        _protectX.Checked+=(_,_)=>Dirty();_protectX.Unchecked+=(_,_)=>Dirty();
     }
 
     private static Button Add(Panel parent, string label, Action action)
@@ -158,7 +161,7 @@ internal sealed class MartEditorView : UserControl
             SelectedValueBinding = new Binding(nameof(MartSlotRow.ItemId))
             { Mode = BindingMode.TwoWay, UpdateSourceTrigger = UpdateSourceTrigger.PropertyChanged }
         });
-        if (!bp)
+        if (!bp && _service.SupportsExpansion)
         {
             var removeButton = new FrameworkElementFactory(typeof(Button));
             removeButton.SetValue(Button.ContentProperty, "Quitar");
@@ -267,7 +270,6 @@ internal sealed class MartEditorView : UserControl
         _add.IsEnabled = regular;
         _delete.IsEnabled = regular && _regularPicker.SelectedItem is MartShop shop &&
             shop.Rows.Count > 1 && _regularGrid.SelectedItem is MartSlotRow;
-        _freeMega.IsEnabled = _service.BpShops.Count > 5;
     }
     private void AddSlot()
     {
@@ -322,7 +324,12 @@ internal sealed class MartEditorView : UserControl
         CommitBoth();
         try
         {
-            _pending = _service.Prepare();
+            var draft=new GameMartService(_project);
+            for(int i=0;i<_service.RegularShops.Count;i++)
+            {draft.RegularShops[i].Rows.Clear();foreach(var row in _service.RegularShops[i].Rows)draft.RegularShops[i].Rows.Add(new(row.Number,row.ItemId,row.Price));}
+            for(int i=0;i<_service.BpShops.Count;i++)for(int j=0;j<_service.BpShops[i].Rows.Count;j++)
+            {draft.BpShops[i].Rows[j].ItemId=_service.BpShops[i].Rows[j].ItemId;draft.BpShops[i].Rows[j].Price=_service.BpShops[i].Rows[j].Price;}
+            _pending = NativeGen7MartBridge.Prepare(draft,RememberRecipe(),System.Security.Cryptography.RandomNumberGenerator.GetInt32(int.MaxValue));
             _changes.ItemsSource = _pending.Changes.Take(150)
                 .Select(c => $"{c.Name} · {c.Field}: {c.Before} → {c.After}").ToArray();
             _apply.IsEnabled = _pending.Changes.Count > 0;

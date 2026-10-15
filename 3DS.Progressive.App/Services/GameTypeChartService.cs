@@ -4,7 +4,7 @@ using ThreeDS.Progressive.Models;
 
 namespace ThreeDS.Progressive.Services;
 
-/// <summary>Exact Gen7 pk3DS TypeChart7 signature; in-memory edits until verified commit.</summary>
+/// <summary>Gen6 vanilla CRO offsets and Gen7 TypeChart7 signature; in-memory edits until verified commit.</summary>
 internal sealed class GameTypeChartService
 {
     private const int TypeCount=18;
@@ -21,17 +21,23 @@ internal sealed class GameTypeChartService
     internal GameTypeChartService(GameProjectSession project)
     {
         _project=project;
-        if(project.Generation!=7)throw new NotSupportedException("La tabla de tipos Gen6 usa otro patrón; este editor es Gen7.");
         string exe=project.GameConfiguration.ExeFS;
-        _codePath=new[]{Path.Combine(exe,".code.bin"),Path.Combine(exe,"code.bin")}
+        _codePath=project.Generation==6 ? Path.Combine(project.GameConfiguration.RomFS,"DllBattle.cro") : new[]{Path.Combine(exe,".code.bin"),Path.Combine(exe,"code.bin")}
             .FirstOrDefault(File.Exists)??throw new FileNotFoundException("Falta code.bin sin comprimir.");
         byte[] source=File.ReadAllBytes(_codePath);
-        if(source.Length%0x200!=0)throw new InvalidDataException("code.bin no está descomprimido.");
+        if(project.Generation==7&&source.Length%0x200!=0)throw new InvalidDataException("code.bin no está descomprimido.");
         _fingerprint=SHA256.HashData(source);
         _=FindOffset(source);
     }
-    private static int FindOffset(byte[] raw)
+    private int FindOffset(byte[] raw)
     {
+        if(_project.Generation==6)
+        {
+            int offset=_project.GameConfiguration.ORAS?0xDB428:0xD12A8;
+            if(raw.Length<offset+TypeCount*TypeCount||!raw.AsSpan(0x80,4).SequenceEqual("CRO0"u8)||raw.AsSpan(offset,TypeCount*TypeCount).ToArray().Any(x=>x is not (0 or 2 or 4 or 8)))
+                throw new InvalidDataException("DllBattle.cro no contiene una tabla de tipos Gen6 válida.");
+            return offset;
+        }
         int at=raw.AsSpan().IndexOf(Signature);
         if(at<0||at+Signature.Length+TypeCount*TypeCount>raw.Length)
             throw new InvalidDataException("No se encontró la firma de la tabla de tipos Gen7.");
@@ -42,12 +48,17 @@ internal sealed class GameTypeChartService
             throw new InvalidDataException("Valores no reconocidos en la tabla de tipos del ejecutable.");
         return start;
     }
+    internal static byte[] Inverse(byte[] table)
+    {
+        if(table.Length!=324||table.Any(v=>v is not (0 or 2 or 4 or 8)))throw new ArgumentException("Tabla de tipos inválida.");
+        return table.Select(v=>(byte)(v switch {0 or 2=>8,8=>2,_=>4})).ToArray();
+    }
     internal byte[] Read()
     {
         byte[] source=GarcTransaction.ReadUnchanged(_codePath,_fingerprint);
         return source.AsSpan(FindOffset(source),TypeCount*TypeCount).ToArray();
     }
-    internal (FileChange File,IReadOnlyList<BatchChange> Changes) Preview(byte[] changed)
+    internal (FileChange File,IReadOnlyList<BatchChange> Changes) Preview(byte[] changed,bool repairCro=false)
     {
         if(changed.Length!=TypeCount*TypeCount||changed.Any(x=>x is not (0 or 2 or 4 or 8)))
             throw new ArgumentException("La tabla debe contener 324 valores 0, 2, 4 u 8.");
@@ -63,6 +74,7 @@ internal sealed class GameTypeChartService
             changes.Add(new(i/TypeCount,Types[i/TypeCount],
                 "Defiende "+Types[i%TypeCount],original[i].ToString(),changed[i].ToString()));
         }
+        if(repairCro&&_project.Generation==6&&changes.Count>0)result=CroIntegrity.Rebuild(result);
         return(new FileChange(_codePath,before,result),changes);
     }
     internal void Apply(FileChange file,IReadOnlyList<BatchChange> changes)
@@ -70,7 +82,7 @@ internal sealed class GameTypeChartService
         GarcTransaction.ReadUnchanged(file.Path,file.Fingerprint);
         _project.History.Commit([file],"Mecánicas y CRO","Editar tabla de tipos",changes,
             new Dictionary<string,string>{{"CellsChanged",changes.Count.ToString()},
-                {"CodeSHA",Convert.ToHexString(_fingerprint)}});
+                {"SourceSHA",Convert.ToHexString(_fingerprint)}});
         _fingerprint=SHA256.HashData(File.ReadAllBytes(_codePath));
     }
 }

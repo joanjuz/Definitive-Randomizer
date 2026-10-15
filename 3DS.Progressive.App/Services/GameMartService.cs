@@ -74,11 +74,26 @@ public sealed partial class GameMartService
 
     public GameMartService(GameProjectSession project)
     {
-        if (!project.GameConfiguration.USUM)
-            throw new NotSupportedException("La edición estructural de tiendas necesita USUM y su layout CRO verificado.");
+        if (project.Generation!=7)
+            throw new NotSupportedException("El editor de tiendas necesita SM o USUM.");
         _project = project;
         _path = Path.Combine(project.GameConfiguration.RomFS, "Shop.cro");
         _original = File.ReadAllBytes(_path);
+        if(!project.GameConfiguration.USUM)
+        {
+            if(_original.Length<0x180||!_original.AsSpan(0x80,4).SequenceEqual("CRO0"u8))throw new InvalidDataException("Shop.cro SM no tiene cabecera CRO0.");
+            _smRegularOffset=FindSmTable(_original,SmRegularSignature,SmRegularCounts.Sum()*2);
+            _smBpOffset=FindSmTable(_original,SmBpSignature,SmBpCounts.Sum()*4);
+            if(_smRegularOffset<_smBpOffset+SmBpCounts.Sum()*4&&_smBpOffset<_smRegularOffset+SmRegularCounts.Sum()*2)throw new InvalidDataException("Las tablas SM se superponen.");
+            int cursor=_smRegularOffset;
+            _regularBefore=SmRegularCounts.Select(count=>{var items=new ushort[count];for(int i=0;i<count;i++,cursor+=2)items[i]=BitConverter.ToUInt16(_original,cursor);return items;}).ToArray();
+            cursor=_smBpOffset;
+            _bpBefore=SmBpCounts.Select(count=>{var items=new (ushort Item,ushort Price)[count];for(int i=0;i<count;i++,cursor+=4)items[i]=(BitConverter.ToUInt16(_original,cursor),BitConverter.ToUInt16(_original,cursor+2));return items;}).ToArray();
+            _tutorsBefore=[];
+            RegularShops=_regularBefore.Select((items,i)=>new MartShop(i,false,RegularNames[i],items.Select((item,slot)=>new MartSlotRow(slot+1,item)))).ToArray();
+            BpShops=_bpBefore.Select((items,i)=>new MartShop(i,true,BpNames[i],items.Select((item,slot)=>new MartSlotRow(slot+1,item.Item,item.Price)))).ToArray();
+            Validate();return;
+        }
         if (!Gen7ShopCroLayout.TryRead(_original, out var layout, out string error))
             throw new InvalidDataException("Shop.cro no tiene el layout USUM reconocido: " + error);
         if (layout.RegularMarts.Inventories.Count != RegularNames.Length ||
@@ -136,6 +151,7 @@ public sealed partial class GameMartService
     public MartShopPreview Prepare()
     {
         Validate();
+        if(!SupportsExpansion)return PrepareSm();
         ushort[][] inventories = RegularShops
             .Select(shop => shop.Rows.Select(row => checked((ushort)row.ItemId)).ToArray())
             .ToArray();
@@ -229,7 +245,7 @@ public sealed partial class GameMartService
             {
                 ["Origen"] = "Shop.cro / relocaciones verificadas",
                 ["Acciones"] = string.Join(";", _presets),
-                ["Scope"] = "USUM tiendas normales y BP"
+                ["Scope"] = _project.GameConfiguration.USUM?"USUM tiendas normales y BP":"SM tiendas normales y BP"
             });
         _project.RefreshMoveAssignments();
     }

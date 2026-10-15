@@ -11,6 +11,7 @@ public sealed class TrainerRuleTableRow
     public int Cap {get;set;}
     public bool Max3 {get;set;}
     public bool Mega {get;set;}
+    public bool SupportsZMoves {get;set;}=true;
     public bool ZMove {get;set;}
     public bool MoveUse {get;set;}=true;
     public int MinPower {get;set;}

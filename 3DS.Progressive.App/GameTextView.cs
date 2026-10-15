@@ -14,6 +14,7 @@ using DataGridRow=System.Windows.Controls.DataGridRow;
 using DataGridColumnHeader=System.Windows.Controls.Primitives.DataGridColumnHeader;
 using Button=System.Windows.Controls.Button;
 using TextBox=System.Windows.Controls.TextBox;
+using ComboBox=System.Windows.Controls.ComboBox;
 using ListBox=System.Windows.Controls.ListBox;
 using Control=System.Windows.Controls.Control;
 using Binding=System.Windows.Data.Binding;
@@ -37,13 +38,14 @@ internal sealed class GameTextView : UserControl
     private readonly DataGrid _grid;
     private readonly ListBox _files;
     private readonly TextBox _filter;
+    private readonly ComboBox _tagFilter;
     private readonly TextBlock _status;
     private readonly Button _save;
-    private bool _dirty,_loading;
+    private bool _dirty,_loading,_searching;
     private int _id=-1;
     internal bool HasPendingChanges=>_dirty;
-    internal bool ConfirmLeave()=>!_dirty||StudioDialog.Confirm(Window.GetWindow(this),
-        "Cambios de texto pendientes","Hay líneas editadas sin guardar.","Si continuás, se descartarán.");
+    internal bool ConfirmLeave()=>!_searching&&(!_dirty||StudioDialog.Confirm(Window.GetWindow(this),
+        "Cambios de texto pendientes","Hay líneas editadas sin guardar.","Si continuás, se descartarán."));
     internal GameTextView(GameProjectSession project,bool story=false)
     {
         _service=new(project,story);Background=(Brush)FindResource("Bg");
@@ -54,8 +56,8 @@ internal sealed class GameTextView : UserControl
         heading.Children.Add(new TextBlock {Text=story?"Story Text · diálogos e historia":"Game Text · textos generales",FontSize=22,
             FontWeight=FontWeights.SemiBold,Foreground=(Brush)FindResource("TextMain")});
         heading.Children.Add(new TextBlock {Text=story?
-            "Bancos originales de diálogos y eventos. Conservá los códigos [VAR ...], cambios de línea y el orden de cada mensaje para evitar scripts dañados.":
-            "Archivos de texto de la ROM. Se conserva el número y orden de líneas para no romper referencias de scripts.",
+            "Diálogos de personajes y eventos de la historia. Buscá una frase que veas en el juego para encontrar su archivo y línea. Los números no indican el orden de la historia. Conservá los códigos [VAR ...], cambios de línea y el orden de cada mensaje para evitar scripts dañados.":
+            "Nombres y descripciones de Pokémon, movimientos, objetos, entrenadores y mensajes de interfaz. Los archivos conocidos indican su contenido. Se conserva el número y orden de líneas para no romper referencias.",
             Foreground=(Brush)FindResource("TextSoft"),TextWrapping=TextWrapping.Wrap});
         var footer=new DockPanel {Margin=new Thickness(0,12,0,0)};
         DockPanel.SetDock(footer,Dock.Bottom);root.Children.Add(footer);
@@ -70,6 +72,12 @@ internal sealed class GameTextView : UserControl
         export.Click+=(_,_)=>Export();
         if(story)
         {
+            var randomizers=new WrapPanel{Margin=new Thickness(0,10,0,0)};heading.Children.Add(randomizers);
+            foreach(bool all in new[]{false,true})
+            {
+                var randomize=new Button{Content=all?"Randomizar diálogos del banco":"Randomizar diálogos del archivo",Margin=new Thickness(0,0,8,8)};
+                randomize.Click+=(_,_)=>TryRandomize(all);randomizers.Children.Add(randomize);
+            }
             var exportAll=new Button
             {
                 Content="Exportar banco completo",Margin=new Thickness(0,0,8,0)
@@ -83,15 +91,26 @@ internal sealed class GameTextView : UserControl
             DockPanel.SetDock(importAll,Dock.Right);footer.Children.Add(importAll);
             importAll.Click+=(_,_)=>TryImportAll();
         }
-        var content=new Grid();content.ColumnDefinitions.Add(new ColumnDefinition {Width=new GridLength(230)});
+        var content=new Grid();content.ColumnDefinitions.Add(new ColumnDefinition {Width=new GridLength(310)});
         content.ColumnDefinitions.Add(new ColumnDefinition {Width=new GridLength(1,GridUnitType.Star)});
         root.Children.Add(content);
         var left=new DockPanel {Margin=new Thickness(0,0,12,0)};
         Grid.SetColumn(left,0);content.Children.Add(left);
-        _filter=new TextBox {Margin=new Thickness(0,0,0,8)};
+        var filterLabel=new TextBlock{Text="Filtrar archivos por número, categoría o etiqueta",Foreground=(Brush)FindResource("TextSoft"),TextWrapping=TextWrapping.Wrap,Margin=new Thickness(0,0,0,4)};
+        DockPanel.SetDock(filterLabel,Dock.Top);left.Children.Add(filterLabel);
+        _tagFilter=new ComboBox{ItemsSource=new[]{"Todas las etiquetas","Sin clasificar"}.Concat(GameTextService.TagChoices),SelectedIndex=0,Margin=new Thickness(0,0,0,8)};
+        DockPanel.SetDock(_tagFilter,Dock.Top);left.Children.Add(_tagFilter);_tagFilter.SelectionChanged+=(_,_)=>Filter();
+        _filter=new TextBox {Margin=new Thickness(0,0,0,8),ToolTip="Ejemplos: movimientos, objetos, Pokémon o 013. Para buscar frases usá Buscar en todo el banco."};
         _filter.TextChanged+=(_,_)=>Filter();
         DockPanel.SetDock(_filter,Dock.Top);left.Children.Add(_filter);
-        _files=new ListBox {ItemsSource=_service.Entries,DisplayMemberPath="Display"};
+        _files=new ListBox {ItemsSource=_service.Entries};
+        var fileText=new FrameworkElementFactory(typeof(TextBlock));
+        fileText.SetBinding(TextBlock.TextProperty,new Binding("Display"));
+        fileText.SetBinding(TextBlock.ToolTipProperty,new Binding("Display"));
+        fileText.SetValue(TextBlock.TextWrappingProperty,TextWrapping.Wrap);
+        fileText.SetValue(TextBlock.MaxWidthProperty,270d);
+        fileText.SetValue(TextBlock.MarginProperty,new Thickness(3,4,3,4));
+        _files.ItemTemplate=new DataTemplate{VisualTree=fileText};
         _files.SelectionChanged+=(_,_)=>SelectFile();
         left.Children.Add(_files);
         _grid=new DataGrid
@@ -120,16 +139,61 @@ internal sealed class GameTextView : UserControl
         });
         _grid.CellEditEnding+=(_,_)=>MarkDirty();
         Grid.SetColumn(_grid,1);content.Children.Add(_grid);
+        var tagging=new WrapPanel{Margin=new Thickness(0,8,0,4)};heading.Children.Add(tagging);
+        tagging.Children.Add(new TextBlock{Text="Etiquetar el archivo seleccionado: ",VerticalAlignment=VerticalAlignment.Center,Foreground=(Brush)FindResource("TextSoft")});
+        var tagChoice=new ComboBox{ItemsSource=GameTextService.TagChoices,SelectedIndex=0,MinWidth=180};tagging.Children.Add(tagChoice);
+        var addTag=new Button{Content="Añadir etiqueta",Margin=new Thickness(8,0,0,0)};tagging.Children.Add(addTag);
+        var clearTags=new Button{Content="Quitar etiquetas",Margin=new Thickness(8,0,0,0)};tagging.Children.Add(clearTags);
+        void UpdateTags(bool clear)
+        {
+            if(_id<0||_searching)return;
+            try
+            {
+                _service.SetTags(_id,clear?Array.Empty<string>():_service.Tags(_id).Append((string)tagChoice.SelectedItem));
+                _loading=true;_files.ItemsSource=_service.Entries;_files.SelectedItem=_service.Entries.First(e=>e.Id==_id);_loading=false;Filter();
+                _status.Text="Etiquetas guardadas localmente para este proyecto e idioma. No se modificaron textos de la ROM.";
+            }
+            catch(Exception ex){StudioDialog.Error(Window.GetWindow(this),"Etiquetas",ex.Message);}
+        }
+        addTag.Click+=(_,_)=>UpdateTags(false);clearTags.Click+=(_,_)=>UpdateTags(true);
+        heading.Children.Add(new TextBlock{Text="Las etiquetas de historia, NPCs e intercambios las asignás vos: no se deducen del número de archivo. Se guardan en tu perfil local por proyecto e idioma.",Foreground=(Brush)FindResource("TextSoft"),TextWrapping=TextWrapping.Wrap});
+        heading.Children.Add(new TextBlock{Text=_service.Location,Foreground=(Brush)FindResource("TextSoft"),Margin=new Thickness(0,6,0,0)});
+        heading.Children.Add(new TextBlock{Text="Localizar una frase en todo el banco (idioma activo). Los resultados muestran archivo y línea originales; hacé doble clic para editar. La búsqueda consulta el texto guardado.",TextWrapping=TextWrapping.Wrap,Foreground=(Brush)FindResource("TextSoft"),Margin=new Thickness(0,8,0,4)});
+        var searchBar=new DockPanel();heading.Children.Add(searchBar);
+        var searchButton=new Button{Content="Buscar en todo el banco",Margin=new Thickness(8,0,0,0)};DockPanel.SetDock(searchButton,Dock.Right);searchBar.Children.Add(searchButton);
+        var query=new TextBox{ToolTip="Escribí parte del diálogo, nombre o descripción. No distingue mayúsculas."};searchBar.Children.Add(query);
+        var results=new ListBox{DisplayMemberPath="Display",MaxHeight=160,Visibility=Visibility.Collapsed,Margin=new Thickness(0,6,0,0)};heading.Children.Add(results);
+        async void FindText()
+        {
+            if(_searching||string.IsNullOrWhiteSpace(query.Text))return;
+            _searching=true;searchButton.IsEnabled=false;_files.IsEnabled=false;_grid.IsReadOnly=true;_save.IsEnabled=false;
+            try
+            {
+                string term=query.Text;_status.Text="Buscando en los archivos del banco…";
+                var hits=await Task.Run(()=>_service.Search(term));results.ItemsSource=hits;results.Visibility=Visibility.Visible;
+                _status.Text=hits.Count==500?"Se muestran las primeras 500 coincidencias. Especificá una frase más precisa.":$"{hits.Count} coincidencias. Doble clic en un resultado para abrir su archivo y línea.";
+            }
+            catch(Exception ex){StudioDialog.Error(Window.GetWindow(this),"Buscar textos",ex.Message);}
+            finally{_searching=false;searchButton.IsEnabled=true;_files.IsEnabled=true;_grid.IsReadOnly=false;_save.IsEnabled=_dirty;}
+        }
+        searchButton.Click+=(_,_)=>FindText();query.KeyDown+=(_,e)=>{if(e.Key==System.Windows.Input.Key.Enter){e.Handled=true;FindText();}};
+        results.MouseDoubleClick+=(_,_)=>
+        {
+            if(results.SelectedItem is not TextSearchHit hit||!ConfirmLeave())return;
+            _loading=true;_tagFilter.SelectedIndex=0;_filter.Clear();_files.SelectedItem=_service.Entries.First(e=>e.Id==hit.FileId);_loading=false;
+            Load(hit.FileId);var row=_rows.FirstOrDefault(r=>r.Index==hit.Line);
+            if(row is not null){_grid.SelectedItem=row;_grid.ScrollIntoView(row);}
+        };
         _loading=true;_files.SelectedIndex=0;_loading=false;
         if(_files.SelectedItem is RecordEntry entry)Load(entry.Id);
     }
     private void Filter()
     {
-        if(_files.ItemsSource is null)return;
+        if(_files?.ItemsSource is null)return;
         string needle=_filter.Text.Trim();
         var view=CollectionViewSource.GetDefaultView(_files.ItemsSource);
-        view.Filter=x=>x is RecordEntry r&&(r.Id.ToString().Contains(needle)||
-            r.Name.Contains(needle,StringComparison.OrdinalIgnoreCase));
+        string tag=_tagFilter.SelectedItem as string??"Todas las etiquetas";
+        view.Filter=x=>x is RecordEntry r&&(tag=="Todas las etiquetas"||(tag=="Sin clasificar"?_service.Tags(r.Id).Count==0:_service.Tags(r.Id).Contains(tag)))&&(r.Id.ToString().Contains(needle)||r.Name.Contains(needle,StringComparison.OrdinalIgnoreCase));
         view.Refresh();
     }
     private void SelectFile()
@@ -151,13 +215,17 @@ internal sealed class GameTextView : UserControl
                 new GameTextRow{Index=index,Value=value}));
             _grid.ItemsSource=_rows;
             _id=id;_dirty=false;_save.IsEnabled=false;
-            _status.Text=$"Archivo {id:000} · {_rows.Count} líneas.";
+            _loading=true;_files.ItemsSource=_service.Entries;_files.SelectedItem=_service.Entries.First(e=>e.Id==id);_loading=false;Filter();
+            string sample=strings.FirstOrDefault(t=>!string.IsNullOrWhiteSpace(t))??"Archivo sin mensajes visibles";
+            sample=sample.Replace("\r"," ").Replace("\n"," ");if(sample.Length>180)sample=sample[..180]+"…";
+            _status.Text=$"{_service.Entries.First(e=>e.Id==id).Display} · {_rows.Count} líneas · Muestra: {sample}";
         }
         catch(Exception ex){StudioDialog.Error(Window.GetWindow(this),"Texto no compatible",ex.Message);}
     }
     private void MarkDirty(){_dirty=true;_save.IsEnabled=true;_status.Text="Texto modificado. Guardá antes de salir.";}
     private void Save()
     {
+        if(_searching)return;
         try
         {
             _grid.CommitEdit(DataGridEditingUnit.Cell,true);
@@ -168,6 +236,22 @@ internal sealed class GameTextView : UserControl
             Load(_id);_status.Text="Texto guardado, verificado y registrado en el historial.";
         }
         catch(Exception ex){StudioDialog.Error(Window.GetWindow(this),"No se pudo guardar el texto",ex.Message);}
+    }
+    private void TryRandomize(bool all)
+    {
+        if(_searching)return;
+        try
+        {
+            _grid.CommitEdit(DataGridEditingUnit.Cell,true);_grid.CommitEdit(DataGridEditingUnit.Row,true);
+            if(_dirty)throw new InvalidOperationException("Guardá o descartá primero las líneas editadas.");
+            var preview=_service.PreviewRandomize(all?null:_id,System.Security.Cryptography.RandomNumberGenerator.GetInt32(int.MaxValue));
+            if(preview.Changes.Count==0){_status.Text="No hay diálogos literales diferentes para mezclar.";return;}
+            string examples=string.Join(Environment.NewLine,preview.Changes.Take(12).Select(change=>$"{change.Name}, {change.Field}: {change.Before} → {change.After}"));
+            StudioDialog.Notice(Window.GetWindow(this),"Vista previa de diálogos",$"{preview.Changes.Count} líneas diferentes; variables, códigos y posiciones protegidos.",examples);
+            if(!StudioDialog.Confirm(Window.GetWindow(this),"Aplicar diálogos",$"¿Guardar {preview.Changes.Count} cambios de Story Text en el idioma activo?"))return;
+            _service.ApplyRandomize(preview);Load(_id);_status.Text=$"Diálogos mezclados y verificados · semilla {preview.Seed}.";
+        }
+        catch(Exception ex){StudioDialog.Error(Window.GetWindow(this),"Randomizar diálogos",ex.Message);}
     }
     private void TryExportAll()
     {
@@ -188,6 +272,7 @@ internal sealed class GameTextView : UserControl
     }
     private void TryImportAll()
     {
+        if(_searching)return;
         try
         {
             _grid.CommitEdit(DataGridEditingUnit.Cell,true);

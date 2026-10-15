@@ -14,7 +14,7 @@
             <Border Grid.Row="0" Background="#263447" CornerRadius="12,12,0,0"
                     MouseLeftButtonDown="Header_MouseLeftButtonDown">
                 <Grid Margin="19,0">
-                    <TextBlock x:Name="TitleLabel" Text="3DS Progressive" FontWeight="SemiBold"
+                    <TextBlock x:Name="TitleLabel" Text="Definitive Randomizer" FontWeight="SemiBold"
                                VerticalAlignment="Center" FontSize="15"/>
                     <Button HorizontalAlignment="Right" Width="30" Height="29"
                             Content="×" Padding="0" BorderThickness="0" Background="Transparent"

@@ -30,7 +30,7 @@
                 </Grid.ColumnDefinitions>
                 <StackPanel VerticalAlignment="Center">
                     <TextBlock Text="Movimientos" FontSize="21" FontWeight="SemiBold"/>
-                    <TextBlock Text="3DS Progressive · Editor GARC" FontSize="12"
+                    <TextBlock Text="Definitive Randomizer · Editor GARC" FontSize="12"
                                Foreground="{StaticResource TextSoft}" Margin="0,4,0,0"/>
                 </StackPanel>
 

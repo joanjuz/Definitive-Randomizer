@@ -1,4 +1,4 @@
-using System.IO;
+﻿using System.IO;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
@@ -13,7 +13,7 @@ using UniformGrid=System.Windows.Controls.Primitives.UniformGrid;
 
 namespace ThreeDS.Progressive;
 
-/// <summary>Batch ROM Builder panel: native dark UI; original Gen7 engine in a separate hidden process.</summary>
+/// <summary>Batch ROM Builder panel: native dark UI; original Gen6/Gen7 engines in a separate hidden process.</summary>
 internal sealed class BatchRomBuilderView : UserControl
 {
     private readonly BatchRomExecution _engine;
@@ -39,7 +39,7 @@ internal sealed class BatchRomBuilderView : UserControl
         title.Children.Add(new TextBlock
         {
             Text="Genera ROMs .3ds a partir de copias independientes. Cada una utiliza una semilla distinta " +
-                "y reproduce el Global Template con el motor completo de pk3DS Progressive.",
+                "y reproduce las acciones compatibles del Global Template. La comprobación previa muestra las acciones no disponibles para este juego.",
             Foreground=(Brush)FindResource("TextSoft"),TextWrapping=TextWrapping.Wrap,
             Margin=new Thickness(0,5,0,3)
         });
@@ -97,7 +97,7 @@ internal sealed class BatchRomBuilderView : UserControl
         var fields=new StackPanel();settings.Child=fields;
         void Label(string text)=>fields.Children.Add(new TextBlock{Text=text,
             Foreground=(Brush)FindResource("TextSoft"),Margin=new Thickness(0,8,0,5)});
-        Label("Global Template JSON · compatible con DEFINITIVO.json");
+        Label("Global Template JSON");
         var fileRow=new DockPanel();
         fields.Children.Add(fileRow);
         var browse=Add(fileRow,"Elegir…",()=>
@@ -200,10 +200,16 @@ internal sealed class BatchRomBuilderView : UserControl
             _trimmed.IsChecked==true,_restore.IsChecked==true,_keepProjects.IsChecked==true);
     }
     internal void SelectTemplate(string path){_template.Text=path;Invalidate();}
-    private void Preview()
+    private async void Preview()
     {
+        if(_busy)return;
+        using var interaction=UiProgress.BlockInteraction();
+        _busy=true;IsEnabled=false;
+        try
+        {
         var cfg=Settings();
-        var (document,warnings)=_engine.Preflight(cfg);
+        _progress.Text="Comprobando compatibilidad y archivos…";
+        var (document,warnings)=await _engine.PreflightAsync(cfg);
         _summary.Text=$"Template: {document.Name} · formato {document.Version} · " +
             $"cobertura {document.Coverage} · {document.Actions.Count} acciones originales · " +
             $"{cfg.Count} ROMs · {(cfg.Trimmed?"Trimmed":"Full")} · " +
@@ -227,6 +233,9 @@ internal sealed class BatchRomBuilderView : UserControl
         _allowMismatch.Visibility=Visibility.Collapsed;
         _ready=cfg;_build.IsEnabled=true;
         _progress.Text="Validación previa correcta. La creación solo comienza al pulsar Construir ROMs.";
+        }
+        catch(Exception ex){_ready=null;_build.IsEnabled=false;StudioDialog.Error(Window.GetWindow(this),"Comprobar Batch",ex.Message);}
+        finally{_busy=false;IsEnabled=true;}
     }
     private async Task BuildAsync()
     {
@@ -234,6 +243,7 @@ internal sealed class BatchRomBuilderView : UserControl
         if(!StudioDialog.Confirm(Window.GetWindow(this),"Construir ROMs",
             $"Se crearán {options.Count} ROMs con semillas distintas en {options.OutputDirectory}. "+
             "El proyecto de origen no se sobrescribe. ¿Continuar?"))return;
+        using var interaction=UiProgress.BlockInteraction();
         _busy=true;IsEnabled=false;
         UiProgress.Begin("Batch ROM Builder · creando copias aisladas…");
         try

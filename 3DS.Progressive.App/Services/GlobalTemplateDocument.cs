@@ -50,7 +50,7 @@ internal sealed class GlobalTemplateDocument
         new(new JsonObject
         {
             ["Version"]=1,["ActionCoverageVersion"]=8,
-            ["Name"]="3DS Progressive · Configuración actual",
+            ["Name"]="Definitive Randomizer · Configuración actual",
             ["Game"]=game,["Generation"]=generation,
             ["SavedUtc"]=DateTime.UtcNow.ToString("O"),
             ["RandSettings"]=new JsonArray(),
@@ -115,6 +115,8 @@ internal sealed class GlobalTemplateDocument
         }
     }
     internal GlobalTemplateDocument Clone()=>new((JsonObject)_root.DeepClone(),SourcePath);
+    internal JsonNode? Section(string key)=>_root[key]?.DeepClone();
+    internal void SetSection(string key,JsonNode? value)=>_root[key]=value?.DeepClone();
     internal void Save(string path)
     {
         if(SourcePath is not null &&

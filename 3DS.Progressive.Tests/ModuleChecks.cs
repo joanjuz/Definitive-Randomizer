@@ -286,12 +286,20 @@ internal static class ModuleChecks
                       wildOptions["BST.1.MinLevel"]==41&&wildOptions["LevelScale"]==125&&
                       wildOptions["ModifyLevel"]==1,
                     version+" Wild template v1 restores filters, level scale and Progressive BST controls");
+                wildOptions["AlolanForms"]=0;
+                wildOptions["UniquePerTable"]=1;
+                wildOptions["RelaxBST"]=1;
+                wildOptions["SkipInaccessible"]=1;
+                wildOptions["PreservePlaceholders"]=1;
                 string wildExport=wildTemplateEditor.CaptureOptions(wildOptions);
                 using var wildDoc=System.Text.Json.JsonDocument.Parse(wildExport);
                 var wildRoot=wildDoc.RootElement;
                 check(wildRoot.GetProperty("futureFlag").GetString()=="preserve-me" &&
                       wildRoot.GetProperty("progressiveBST").GetProperty("ranges").GetArrayLength()==2 &&
-                      wildRoot.GetProperty("megaForms").GetBoolean(),
+                      wildRoot.GetProperty("megaForms").GetBoolean() &&
+                      !wildRoot.GetProperty("alolanForms").GetBoolean() &&
+                      wildRoot.GetProperty("uniquePerTable").GetBoolean() &&
+                      wildRoot.GetProperty("skipInaccessible").GetBoolean(),
                     version+" Wild template v1 roundtrips unrecognized properties and ranges");
                 string withoutLevel=wildSource.Replace(
                     "\"modifyLevel\":true","\"modifyLevel\":false",
@@ -308,7 +316,9 @@ internal static class ModuleChecks
                 wildTemplateEditor.ExportOptions(tempWild,wildOptions);
                 var reloadedWild=new GameEncounterService(f.Session);
                 reloadedWild.ImportOptions(tempWild);
-                check(EditorValues.Flatten(reloadedWild.RandomOptions)["BST.1.MaxBST"]==730,
+                check(EditorValues.Flatten(reloadedWild.RandomOptions)["BST.1.MaxBST"]==730 &&
+                      EditorValues.Flatten(reloadedWild.RandomOptions)["UniquePerTable"]==1 &&
+                      EditorValues.Flatten(reloadedWild.RandomOptions)["AlolanForms"]==0,
                     version+" Wild template v1 can be exported and imported through disk");
                 reject(()=>wildTemplateEditor.RestoreOptions(wildSource.Replace(
                     "\"version\":1","\"version\":9",StringComparison.Ordinal)),
@@ -343,6 +353,42 @@ internal static class ModuleChecks
                       GameEncounterService.ShouldRandomizeWildGroup(8,2,true,true)&&
                       !GameEncounterService.ShouldRandomizeWildGroup(8,0,true,false),
                       version+" Wild normal/SOS/copy slot modes preserve weather correctly");
+                var selectionRandom=new Random(7117);
+                check(Enumerable.Range(0,128).All(_=>
+                          WildSpeciesSelection.ChooseReplacement([25,26,27],25,selectionRandom) is 26 or 27) &&
+                      WildSpeciesSelection.ChooseReplacement([25,25,26],25,new Random(7))==26 &&
+                      WildSpeciesSelection.ChooseReplacement([25],25,new Random(7))==25 &&
+                      WildSpeciesSelection.ChooseReplacement([25,25],25,new Random(7))==25,
+                    version+" Wild never re-rolls same species when an alternative exists");
+                reject(()=>WildSpeciesSelection.ChooseReplacement([],25,new Random(1)),
+                    version+" Wild refuses an empty species pool");
+                // Full-Wild closure: BST resolution, diversity and strict fallback.
+                check(WildSelectionPolicy.PreferUnseen([20,21,22],new HashSet<int>{20,22})
+                          .SequenceEqual([21]) &&
+                      WildSelectionPolicy.PreferUnseen([20],new HashSet<int>{20})
+                          .SequenceEqual([20]),
+                      version+" Wild diversity prioritizes unseen species with safe fallback");
+                check(WildSelectionPolicy.SimilarBstPool([1,2,3],
+                          id=>id switch {1=>300,2=>450,_=>600},400,10,false).Length==0 &&
+                      WildSelectionPolicy.SimilarBstPool([1,2,3],
+                          id=>id switch {1=>300,2=>450,_=>600},400,10,true)
+                          .SequenceEqual([2]) &&
+                      WildSelectionPolicy.SimilarBstPool([1,2,3],
+                          id=>id switch {1=>300,2=>450,_=>600},400,0,false)
+                          .SequenceEqual([1,2,3]),
+                      version+" Wild similar-BST nearest fallback is optional");
+                var rangeEditor=new GameEncounterService(f.Session);
+                int originalRanges=rangeEditor.RandomOptions.Count(g=>g.Name.StartsWith("Rango BST"));
+                check(rangeEditor.SplitLongestWildRange() &&
+                      rangeEditor.RandomOptions.Count(g=>g.Name.StartsWith("Rango BST"))==originalRanges+1,
+                    version+" Wild BST range splitter updates WPF options");
+                check(rangeEditor.MergeLastWildRange() &&
+                      rangeEditor.RandomOptions.Count(g=>g.Name.StartsWith("Rango BST"))==originalRanges,
+                    version+" Wild BST range merger restores valid row count");
+                var auditOptions=EditorValues.Flatten(rangeEditor.RandomOptions);
+                check(rangeEditor.DiagnoseWild(auditOptions).Contains("Especies disponibles:") &&
+                      rangeEditor.DiagnoseWild(auditOptions).Contains("Rangos BST progresivos:")==false,
+                    version+" Wild diagnostic is available without modifying archives");
                 // Same behavior as EncounterTable.CopySlotsToSOS: overwrite all
                 // seven ordinary SOS sets, INCLUDING previously empty slots.
                 var sosValues=new Dictionary<string,int>();
@@ -381,6 +427,17 @@ internal static class ModuleChecks
                     Enumerable.Range(0,10).All(slot=>sosValues[$"S1.{slot}.Species"]==55)&&
                     Enumerable.Range(0,6).All(slot=>sosValues[$"S8.{slot}.Species"]==95),
                     version+" Wild Fill SOS randomizes only missing normal allies, not climate");
+                for(int slot=0;slot<10;slot++)sosValues[$"S0.{slot}.Species"]=25;
+                for(int group=2;group<=7;group++)
+                    for(int slot=0;slot<10;slot++)sosValues[$"S{group}.{slot}.Species"]=0;
+                int distinctAllies=WildSosRules.FillMissingAllies(sosValues,[25,26],
+                    new Random(11),_=>0);
+                check(distinctAllies==60&&Enumerable.Range(2,6).All(group=>
+                          Enumerable.Range(0,10).All(slot=>
+                              sosValues[$"S{group}.{slot}.Species"]==26)) &&
+                      Enumerable.Range(0,10).All(slot=>sosValues[$"S1.{slot}.Species"]==55) &&
+                      Enumerable.Range(0,6).All(slot=>sosValues[$"S8.{slot}.Species"]==95),
+                    version+" Wild SOS excludes the regular species if an alternative exists");
             }
             var encounter=new GameEncounterService(f.Session);var encBefore=Read(f,"encdata");
             check(encounter.Entries.Count==(f.Game.Generation==7?4:2),version+" encounters expose maps and day/night separately");

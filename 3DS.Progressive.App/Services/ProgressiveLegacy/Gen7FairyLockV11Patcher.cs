@@ -1,4 +1,4 @@
-// Ported from pk3DS.WinForms/Misc/Gen7FairyLockV11Patcher.cs at f459e40.
+﻿// Ported from pk3DS.WinForms/Misc/Gen7FairyLockV11Patcher.cs at f459e40.
 // App IO and verified CRO layout adapters differ; original battle instructions are preserved.
 #nullable disable
 using System;
@@ -119,7 +119,9 @@ internal static class Gen7FairyLockV11Patcher
         bool alreadyFinal =
             ReadUInt32(data,Descriptor) == FinalEvent &&
             target == FinalHandler &&
-            Match(data,Cave,FinalPayload);
+            // The allocator may reuse zero padding after the 60-byte function.
+            // Validate every instruction through POP, without treating unused padding as code.
+            Match(data,Cave,FinalPayload[..60]);
 
         if (alreadyFinal)
             return 0;

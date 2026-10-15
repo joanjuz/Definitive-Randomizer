@@ -32,16 +32,19 @@ public sealed class ProjectHistory
     }
     public HistoryDocument Read()
     {
-        lock(_gate) return File.Exists(_path)
+        lock(_gate){RecoveryJournal.Recover(_path+".pending",_root,_path);return File.Exists(_path)
             ? Normalize(JsonSerializer.Deserialize<HistoryDocument>(File.ReadAllBytes(_path),Json)
                 ?? throw new InvalidDataException("El historial no tiene un formato válido."))
-            : new(1,_game,Path.GetFileName(_root),[]);
+            : new(1,_game,Path.GetFileName(_root),[]);}
     }
+    internal void RecoverPending(){lock(_gate)RecoveryJournal.Recover(_path+".pending",_root,_path);}
+    internal void RejectPending(){if(Directory.Exists(_path+".pending"))throw new IOException("El proyecto tiene un guardado interrumpido. La lectura de diagnóstico no lo modifica; abrilo en la aplicación para recuperarlo.");}
     internal void Commit(IReadOnlyList<FileChange> files,string module,string action,
         IEnumerable<BatchChange> changes,IReadOnlyDictionary<string,string>? parameters=null)
     {
         lock(_gate)
         {
+            RecoverPending();
             var actual=files.Where(f=>f.Changed).ToArray();
             if(actual.Length==0)return;
             Directory.CreateDirectory(Path.GetDirectoryName(_path)!);
@@ -66,7 +69,9 @@ public sealed class ProjectHistory
             var entry=new HistoryEntry(Guid.NewGuid(),DateTimeOffset.UtcNow,module,action,bulk?[]:values,options,
                 actual.Select(f=>new HistoryFile(Path.GetRelativePath(_root,f.Path),Hash(f.Original()),Hash(f.Proposed()))).ToArray(),bulk?"Action":"Edit",values.Length);
             byte[] proposed=JsonSerializer.SerializeToUtf8Bytes(document with {Version=2,Entries=document.Entries.Append(entry).ToArray()},Json);
-            FileTransaction.Commit([..actual,new FileChange(_path,source,proposed)]);
+            FileChange[] commit=[..actual,new FileChange(_path,source,proposed)];
+            using var recovery=RecoveryJournal.Begin(_path+".pending",_root,_path,commit);
+            FileTransaction.Commit(commit,recovery:recovery);
         }
     }
     public void Export(string path) => File.WriteAllBytes(path,JsonSerializer.SerializeToUtf8Bytes(Read(),Json));

@@ -1,4 +1,4 @@
-using System.IO;
+﻿using System.IO;
 using System.Security.Cryptography;
 using pk3DS.Core;
 using pk3DS.Core.CTR;
@@ -10,10 +10,12 @@ namespace ThreeDS.Progressive.Services;
 
 public sealed partial class GameMoveService
 {
+    public bool SupportsProgressiveBalance=>_config.Generation==6||_config.USUM;
     public string DefaultTemplatePath => Path.Combine(AppContext.BaseDirectory, "custom_balance_templates", $"moves_gen{_config.Generation}.csv");
 
     private BatchPreview PreviewMoveTemplate(BatchSettings settings, IReadOnlyList<int> scope)
     {
+        if(!SupportsProgressiveBalance)throw new InvalidOperationException("El balance de movimientos Progressive está disponible en XY, ORAS y USUM; no en Sol/Luna.");
         int[] ids = scope.Distinct().Order().ToArray();
         byte[] moveSource = GarcTransaction.ReadUnchanged(_path, _sha);
         byte[][] outer = new GARC.MemGARC(moveSource).Files;
@@ -60,10 +62,11 @@ public sealed partial class GameMoveService
                 throw new InvalidDataException("Las descripciones de este template requieren aplicar también sus mecánicas de combate.");
             if (requests.Count > 0 && settings.BattlePatches)
             {
-                string croName = _config.Generation == 7 ? "Battle.cro" : "DLLBattle.cro";
+                string croName = _config.Generation == 7 ? "Battle.cro" : "DllBattle.cro";
                 string croPath = Path.Combine(_config.RomFS, croName);
                 if (!File.Exists(croPath)) throw new FileNotFoundException($"El template requiere {croName}. No se modificó el proyecto.", croPath);
                 byte[] before = File.ReadAllBytes(croPath);
+                if (_config.Generation == 6) Gen6KingShieldSignature.Validate(before);
                 dependencies.Add((croPath, SHA256.HashData(before)));
                 string staged = Path.Combine(Legacy.Main.RomFSPath, croName);
                 File.WriteAllBytes(staged, before);
@@ -115,6 +118,7 @@ public sealed partial class GameMoveService
         byte[][] records = archive.Files;
         if (textRef.Index >= records.Length) throw new InvalidDataException("El banco de textos está incompleto.");
         string[] lines = new TextFile(_config, records[textRef.Index], false).Lines;
+        string[] originalLines = (string[])lines.Clone();
         foreach (var row in descriptions)
         {
             if (row.Move >= lines.Length) throw new InvalidDataException($"El movimiento {row.Move} no tiene una entrada de descripción.");
@@ -124,7 +128,22 @@ public sealed partial class GameMoveService
                 "Descripción en español", lines[row.Move].Replace("\\n", "\n"), text.Replace("\\n", "\n")));
             lines[row.Move] = text;
         }
-        byte[] serialized = TextFile.GetBytes(_config, lines);
+        byte[] encoded = TextFile.GetBytes(_config, lines);
+        // Preserve original encrypted lines that the template does not edit. The vanilla
+        // writer trims strings, which otherwise changes whitespace in real text banks.
+        byte[][] encryptedLines = new byte[lines.Length][];
+        for (int i = 0; i < lines.Length; i++)
+        {
+            byte[] bank = lines[i] == originalLines[i] ? records[textRef.Index] : encoded;
+            int section = checked((int)BitConverter.ToUInt32(bank, 12));
+            int table = checked(section + 4 + i * 8);
+            int offset = checked(section + BitConverter.ToInt32(bank, table));
+            int length = checked(BitConverter.ToUInt16(bank, table + 4) * 2);
+            if (offset < 0 || offset > bank.Length - length) throw new InvalidDataException("Línea de descripción fuera del banco.");
+            encryptedLines[i] = bank.AsSpan(offset, length).ToArray();
+        }
+        var rebuilt = new TextFile(_config, records[textRef.Index], false) { LineData = encryptedLines };
+        byte[] serialized = rebuilt.Data;
         if (!new TextFile(_config, serialized, false).Lines.SequenceEqual(lines))
             throw new InvalidDataException("Las descripciones no superaron la relectura.");
         // Rebuild only the modified text entry. Every other bank entry stays byte-for-byte intact.

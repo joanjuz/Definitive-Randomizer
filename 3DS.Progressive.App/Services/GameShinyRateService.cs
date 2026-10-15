@@ -38,10 +38,19 @@ internal sealed class GameShinyRateService
     internal sealed record ShinyState(bool Vanilla,int Rerolls,int? AlwaysShinyOffset,bool AlwaysShiny);
     private static (ShinyState State,int Offset) Decode(byte[] raw)
     {
-        int sig=raw.AsSpan().IndexOf(PidSignature);
-        if(sig<4||raw.AsSpan(sig+1).IndexOf(PidSignature)>=0)
-            throw new InvalidDataException("No se encontró una firma PID única y compatible.");
-        int offset=sig-4;
+        // ORAS has other loops sharing this suffix. Identify the PID loop by
+        // its original LDRB instruction or a supported MOV reroll replacement.
+        var candidates=new List<int>();int search=0;
+        while(search<=raw.Length-PidSignature.Length)
+        {
+            int found=raw.AsSpan(search).IndexOf(PidSignature);if(found<0)break;
+            int sig=search+found;search=sig+1;if(sig<4)continue;
+            int at=sig-4;
+            if(raw.AsSpan(at,4).SequenceEqual(VanillaReroll)||
+               raw[at+2]==0xA0&&raw[at+3]==0xE3&&Instructions.Any(row=>row.Instr==BitConverter.ToUInt16(raw,at)))candidates.Add(at);
+        }
+        if(candidates.Count!=1)throw new InvalidDataException("No se encontró una rutina PID única con instrucción de rerolls compatible.");
+        int offset=candidates[0];
         bool vanilla=raw.AsSpan(offset,4).SequenceEqual(VanillaReroll);
         int current=125;
         if(!vanilla)

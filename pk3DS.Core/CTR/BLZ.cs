@@ -46,8 +46,11 @@ public class BLZCoder
 
     private readonly ProgressBar pBar1;
 
+    private int progressStep = 1, lastProgress = -1, progressMaximum;
+    private readonly Action<int,int> progress;
     private void InitProgress(int max)
     {
+        progressMaximum=max;progressStep=Math.Max(1,max/200);lastProgress=-progressStep;
         if (pBar1.InvokeRequired)
         {
             pBar1.Invoke((MethodInvoker)delegate { pBar1.Minimum = 0; pBar1.Step = 1; pBar1.Value = 0; pBar1.Maximum = max; });
@@ -57,6 +60,8 @@ public class BLZCoder
 
     private void SetProgressPosition(int pos)
     {
+        if(pos<progressMaximum && pos-lastProgress<progressStep)return;
+        lastProgress=pos;progress?.Invoke(pos,progressMaximum);
         if (pBar1.InvokeRequired)
         {
             pBar1.Invoke((MethodInvoker)delegate { pBar1.Value = pos; });
@@ -64,8 +69,9 @@ public class BLZCoder
         else { pBar1.Value = pos; }
     }
 
-    public BLZCoder(string[] args, ProgressBar pBar = null)
+    public BLZCoder(string[] args, ProgressBar pBar = null, Action<int,int> progress = null)
     {
+        this.progress=progress;
         int cmd, mode = 0;
         if (pBar == null) pBar1 = new ProgressBar();
         pBar1 = pBar;
@@ -467,13 +473,13 @@ public class BLZCoder
         return pak_buffer;
     }
 
-    private class SearchPair(int l, int p)
+    private readonly struct SearchPair(int l, int p)
     {
         public readonly int l = l;
         public readonly int p = p;
     }
 
-    private static SearchPair SEARCH(int p, IList<byte> raw_buffer, int raw, int raw_end)
+    private static SearchPair SEARCH(int p, byte[] raw_buffer, int raw, int raw_end)
     {
         int l = BLZ_THRESHOLD;
         int max = raw >= BLZ_N ? BLZ_N : raw;

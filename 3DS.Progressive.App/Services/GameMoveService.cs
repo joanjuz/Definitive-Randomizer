@@ -39,9 +39,9 @@ public sealed partial class GameMoveService
                 string.IsNullOrWhiteSpace(names[id]) ? $"Movimiento {id:000}" : names[id]))
             .ToArray();
         Types = _config.GetText(TextName.Types);
-        AllMoveNames = Enumerable.Range(0, names.Length).Select(i =>
+        AllMoveNames = Enumerable.Range(0, Math.Min(names.Length,_config.Moves.Length)).Select(i =>
             new MoveChoice(i, string.IsNullOrWhiteSpace(names[i]) ? (i == 0 ? "Ninguno" : $"Movimiento {i:000}") :
-                names[i] + (i is >= 622 and < 658 ? (i % 2 == 0 ? " (Físico)" : " (Especial)") : "")))
+                names[i] + (_config.Generation==7 && i is >= 622 and < 658 ? (i % 2 == 0 ? " (Físico)" : " (Especial)") : "")))
             .ToArray();
     }
 

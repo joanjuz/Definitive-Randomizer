@@ -16,7 +16,7 @@ public sealed record TmCompatibilityPreview(
 
 /// <summary>
 /// WPF port of TMEditor7.ApplyTMSanity / ApplyTMFollowEvolutions.
-/// Operates only on 100 TMHM bits (Personal 0x28..0x37).
+/// Operates on active TM/HM bits (Personal 0x28..0x37), preserving padding bits.
 /// Reads real MT assignments from code.bin; never touches Shop.cro.
 /// </summary>
 public sealed class GameTmCompatibilityService
@@ -25,31 +25,35 @@ public sealed class GameTmCompatibilityService
     private readonly string _personalPath, _codePath, _learnsetPath, _evolutionPath;
     private readonly byte[] _personalOriginal, _codeHash, _learnsetOriginal, _evolutionOriginal;
     private readonly ushort[] _tmMoves;
+    private readonly int _recordSize;
     private readonly GARCReference _personalRef;
 
     public GameTmCompatibilityService(GameProjectSession project)
     {
         _project=project;
         var config=project.GameConfiguration;
-        if(config.Generation!=7)
-            throw new NotSupportedException("TM Sanity / Follow Evolutions solo se admiten para Gen7.");
+        if(config.Generation is not (6 or 7))throw new NotSupportedException("Compatibilidad MT/MO requiere Gen6 o Gen7.");
+        _recordSize=config.Generation==7?PersonalInfoSM.SIZE:config.ORAS?PersonalInfoORAS.SIZE:PersonalInfoXY.SIZE;
         _personalRef=config.GetGARCReference("personal");
         _personalPath=Path.Combine(config.RomFS,config.GetGARCFileName("personal"));
         _learnsetPath=Path.Combine(config.RomFS,config.GetGARCFileName("levelup"));
         _evolutionPath=Path.Combine(config.RomFS,config.GetGARCFileName("evolution"));
-        _codePath=Directory.EnumerateFiles(config.ExeFS)
-            .FirstOrDefault(p=>Path.GetFileName(p).Contains("code",StringComparison.OrdinalIgnoreCase))
+        _codePath=new[]{".code.bin","code.bin"}.Select(name=>Path.Combine(config.ExeFS,name)).FirstOrDefault(File.Exists)
             ??throw new FileNotFoundException("Falta code.bin para identificar las MT actuales.");
         _personalOriginal=File.ReadAllBytes(_personalPath);
         _learnsetOriginal=File.ReadAllBytes(_learnsetPath);
         _evolutionOriginal=File.ReadAllBytes(_evolutionPath);
         _codeHash=SHA256.HashData(File.ReadAllBytes(_codePath));
         // Use the same already-validated signature + offsets as the MT editor.
-        _tmMoves=new GameMachineTutorService(project).Machines
-            .Select(row=>checked((ushort)row.MoveId)).ToArray();
-        if(_tmMoves.Length!=100 || _tmMoves.Any(x=>x<=0||x>=project.MoveNames.Count))
-            throw new InvalidDataException("code.bin no contiene 100 MT válidas para el catálogo del proyecto.");
+        _tmMoves=config.Generation==7?new GameMachineTutorService(project).Machines.Select(row=>checked((ushort)row.MoveId)).ToArray():
+            EditorValues.Flatten(new GameMachine6Service(project).Read(1)).Where(row=>row.Key.StartsWith("TM")||row.Key.StartsWith("HM")).OrderBy(row=>row.Key.StartsWith("HM")?1:0).ThenBy(row=>row.Key,StringComparer.Ordinal).Select(row=>checked((ushort)row.Value)).ToArray();
+        int expected=config.Generation==7?100:config.ORAS?107:105;
+        if(_tmMoves.Length!=expected || _tmMoves.Any(x=>x<=0||x>=project.MoveNames.Count))
+            throw new InvalidDataException("code.bin no contiene una tabla MT/MO válida para el catálogo del proyecto.");
     }
+
+    private PersonalInfo DecodePersonal(byte[] record)=>_project.Generation==7?new PersonalInfoSM((byte[])record.Clone()):
+        _project.GameConfiguration.ORAS?new PersonalInfoORAS((byte[])record.Clone()):new PersonalInfoXY((byte[])record.Clone());
 
     public TmCompatibilityPreview Preview(bool sanity,bool follow)
     {
@@ -58,23 +62,23 @@ public sealed class GameTmCompatibilityService
         byte[][] records=new GARC.MemGARC(_personalOriginal).Files;
         byte[][] learnBytes=new GARC.MemGARC(_learnsetOriginal).Files;
         byte[][] evolutionBytes=new GARC.MemGARC(_evolutionOriginal).Files;
-        if(records.Length<3||records[^1].Length!=(records.Length-1)*PersonalInfoSM.SIZE)
-            throw new InvalidDataException("El GARC Personal no contiene una tabla maestra Gen7 coherente.");
+        if(records.Length<3||records[^1].Length!=(records.Length-1)*_recordSize)
+            throw new InvalidDataException("El GARC Personal no contiene una tabla maestra coherente.");
         int count=records.Length-1;
-        var table=new PersonalInfoSM[count];
+        var table=new PersonalInfo[count];
         for(int i=0;i<count;i++)
         {
-            if(records[i].Length!=PersonalInfoSM.SIZE)
-                throw new InvalidDataException($"Personal #{i} no tiene longitud 0x54.");
-            table[i]=new PersonalInfoSM((byte[])records[i].Clone());
-            if(table[i].TMHM.Length<100)
+            if(records[i].Length!=_recordSize)
+                throw new InvalidDataException($"Personal #{i} tiene longitud incompatible.");
+            table[i]=DecodePersonal(records[i]);
+            if(table[i].TMHM.Length<_tmMoves.Length)
                 throw new InvalidDataException($"Personal #{i} no contiene los 100 bits de MT.");
         }
         var learnsets=learnBytes.Select(b=>new Learnset6(b)).ToArray();
-        var evolutions=evolutionBytes.Select(b=>new EvolutionSet7(b)).ToArray();
+        var evolutions=evolutionBytes.Select(b=>_project.Generation==6?(EvolutionSet)new EvolutionSet6(b):new EvolutionSet7(b)).ToArray();
         int sanityAdded=sanity?ApplySanity(table,learnsets,_tmMoves):0;
         int followAdded=follow?ApplyFollowEvolutions(table,evolutions,
-            _project.GameConfiguration.MaxSpeciesID):0;
+            _project.GameConfiguration.MaxSpeciesID,_tmMoves.Length):0;
         var changes=new List<BatchChange>();
         for(int i=0;i<count;i++)
         {
@@ -86,7 +90,7 @@ public sealed class GameTmCompatibilityService
                     (offset<0x28||offset>=0x38)).Any())
                 throw new InvalidDataException("Las MT intentaron modificar datos ajenos a TMHM.");
             if(updated.AsSpan().SequenceEqual(records[i]))continue;
-            int before=new PersonalInfoSM((byte[])records[i].Clone()).TMHM.Count(x=>x);
+            int before=DecodePersonal(records[i]).TMHM.Count(x=>x);
             int after=table[i].TMHM.Count(x=>x);
             if(after<before)throw new InvalidDataException("Se intentó eliminar compatibilidad de MT.");
             string name=_project.Entries.FirstOrDefault(x=>x.Index==i)?.Name??$"Pokémon #{i}";
@@ -138,14 +142,14 @@ public sealed class GameTmCompatibilityService
     }
 
     /// <summary>Gen7 MT flags for already known moves, using the current code.bin map.</summary>
-    internal static int ApplySanity(PersonalInfoSM[] personal,Learnset6[] learnsets,
-        IReadOnlyList<ushort> tmMoves)
+    internal static int ApplySanity(PersonalInfo[] personal,Learnset6[] learnsets,
+        IReadOnlyList<ushort> tmMoves,Func<PersonalInfo,bool[]>? selectFlags=null)
     {
         int added=0;
         for(int species=1;species<Math.Min(personal.Length,learnsets.Length);species++)
         {
             var learned=learnsets[species].Moves.ToHashSet();
-            var flags=personal[species].TMHM;
+            var flags=selectFlags?.Invoke(personal[species])??personal[species].TMHM;
             for(int tm=0;tm<Math.Min(tmMoves.Count,flags.Length);tm++)
                 if(tmMoves[tm]>0&&!flags[tm]&&learned.Contains(tmMoves[tm]))
                 {flags[tm]=true;added++;}
@@ -154,8 +158,8 @@ public sealed class GameTmCompatibilityService
     }
 
     /// <summary>Exact Gen7 TMEditor7 form-aware propagation over chains and branches.</summary>
-    internal static int ApplyFollowEvolutions(PersonalInfoSM[] personal,
-        EvolutionSet7[] evolutions,int maxSpecies)
+    internal static int ApplyFollowEvolutions(PersonalInfo[] personal,
+        EvolutionSet[] evolutions,int maxSpecies,int machineCount=100,Func<PersonalInfo,bool[]>? selectFlags=null)
     {
         var edges=new HashSet<(int Source,int Target)>();
         for(int species=1;species<=Math.Min(maxSpecies,personal.Length-1);species++)
@@ -187,8 +191,8 @@ public sealed class GameTmCompatibilityService
             changed=false;
             foreach(var (source,target) in edges)
             {
-                var from=personal[source].TMHM;var to=personal[target].TMHM;
-                for(int tm=0;tm<Math.Min(100,Math.Min(from.Length,to.Length));tm++)
+                var from=selectFlags?.Invoke(personal[source])??personal[source].TMHM;var to=selectFlags?.Invoke(personal[target])??personal[target].TMHM;
+                for(int tm=0;tm<Math.Min(machineCount,Math.Min(from.Length,to.Length));tm++)
                     if(from[tm]&&!to[tm]){to[tm]=true;added++;changed=true;}
             }
         }while(changed);

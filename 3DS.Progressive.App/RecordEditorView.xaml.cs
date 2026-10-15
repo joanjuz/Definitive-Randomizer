@@ -33,7 +33,8 @@ public partial class RecordEditorView : UserControl
     public RecordEditorView(IProjectEditor editor) : this(editor,null) { }
     internal RecordEditorView(IProjectEditor editor,UiState? state)
     {
-        Editor=editor;InitializeComponent();TitleText.Text=editor.Title;RandomizerButton.Content="Randomizar "+editor.Title.ToLowerInvariant();
+        Editor=editor;
+        if(editor is GameEncounterService wildRanges6&&state is not null)wildRanges6.RestoreRangeOptions(state.Options);InitializeComponent();TitleText.Text=editor.Title;RandomizerButton.Content="Randomizar "+editor.Title.ToLowerInvariant();
         if(editor is ThreeDS.Progressive.Services.GameMegaEvolutionService mega)
         {
             if(mega.GameIsUsum)MegaUnlockButton.Visibility=Visibility.Visible;
@@ -44,7 +45,8 @@ public partial class RecordEditorView : UserControl
             TrainerCapsButton.Visibility=TrainerMovesButton.Visibility=Visibility.Visible;
         if(editor is ThreeDS.Progressive.Services.GameEncounterService wildClipboard && wildClipboard.SupportsWildTemplate)
             WildCopyButton.Visibility=WildPasteButton.Visibility=WildPasteAreaButton.Visibility=
-                WildDumpButton.Visibility=Visibility.Visible;
+                WildDumpButton.Visibility=WildAddRangeButton.Visibility=
+                WildRemoveRangeButton.Visibility=WildAuditButton.Visibility=Visibility.Visible;
         if(editor is ThreeDS.Progressive.Services.GameFieldItemsService)
             FieldExportButton.Visibility=Visibility.Visible;
         if(editor is ThreeDS.Progressive.Services.GameItemService)
@@ -66,6 +68,8 @@ public partial class RecordEditorView : UserControl
                 ImportOptionsButton.Content="Cargar template Wild";
                 ExportOptionsButton.Content="Exportar template Wild";
             }
+            if(editor is GameFieldItems6Service or GameFieldItemsService)
+            {ImportOptionsButton.Content="Importar plantilla de objetos";ExportOptionsButton.Content="Exportar plantilla de objetos";}
             if(state?.Template is { } saved)optionTemplate.RestoreOptions(saved);}
         RecordList.ItemsSource=editor.Entries;CountText.Text=editor.Entries.Count+" entradas";
         // Cargar las reglas del entrenador que realmente estará seleccionado, no las del ID por defecto del host.
@@ -87,12 +91,14 @@ public partial class RecordEditorView : UserControl
         string? template=null;
         if(Editor is IOptionTemplateProjectEditor editor &&
            (Editor is not ThreeDS.Progressive.Services.GameEncounterService wildGen6 || wildGen6.SupportsWildTemplate))
-        {try{template=editor.CaptureOptions(options);}catch(ArgumentException){ }}
+        {try{template=editor.CaptureOptions(options);}catch(Exception ex) when(ex is ArgumentException or System.IO.InvalidDataException){ }}
         return new(options,ScopeBox.SelectedIndex,template);
     }
     private Dictionary<string,int> OptionValues()
     {
         var values=Values(_options);
+        if(Editor is ThreeDS.Progressive.Services.GameEncounterService {SupportsWildTemplate:false})
+            foreach(var pair in EditorValues.Flatten(Editor.RandomOptions))values.TryAdd(pair.Key,pair.Value);
         if(_bstTable is not null)
         {
             foreach(var pair in _bstTable.Capture())values[pair.Key]=pair.Value;
@@ -117,6 +123,11 @@ public partial class RecordEditorView : UserControl
         if(!editor)_bstTable=null;
         if(editor){_editorSections.Clear();_pokemonTabs.Clear();}
         var entries=groups.ToArray();
+        if(!editor&&Editor is ThreeDS.Progressive.Services.GameEncounterService {SupportsWildTemplate:false})
+        {
+            string[] gen7Only=["G7","AlolanForms","SkipInaccessible","PreservePlaceholders","SlotMode","SOS","Weather","AllCanCallAllies"];
+            entries=entries.Select(g=>g with {Fields=g.Fields.Where(f=>!gen7Only.Contains(f.Key)).ToArray()}).ToArray();
+        }
         if(!editor&&Editor is ThreeDS.Progressive.Services.GameTrainerService)
         {
             BuildTrainerTabs(panel,entries,controls);
@@ -228,6 +239,8 @@ public partial class RecordEditorView : UserControl
 
     internal static int TrainerOptionCategory(string key)
     {
+        if(key.StartsWith("GlobalItems.",StringComparison.Ordinal))return 3;
+        if(key.StartsWith("GlobalMoves.",StringComparison.Ordinal))return 2;
         if(key.StartsWith("BST.",StringComparison.OrdinalIgnoreCase)
             ||key.Contains("ProgressiveBST",StringComparison.OrdinalIgnoreCase)
             ||key=="CHK_BST")return 4;
@@ -303,14 +316,16 @@ public partial class RecordEditorView : UserControl
         ("CHK_Damage",["NUD_Damage"]),
         ("CHK_STAB",["NUD_STAB"]),
         ("CHK_RandomDoubleBattles",["NUD_DoubleBattleChance"]),
-        ("CHK_Level",["NUD_LevelBoost"]),
+        ("CHK_Level",["NUD_LevelBoost","NUD_Level"]),
         ("SimilarBST",["BST"]),
         ("ScaleLevels",["LevelScale","LevelFlat"]),
         ("ForceFinal",["FinalLevel"]),
+        ("GlobalMoves.StrongStat",["GlobalMoves.Tolerance","GlobalMoves.StrongNormal","GlobalMoves.StrongImportant","GlobalMoves.StrongBoss"]),
+        ("GlobalItems.Smart",["GlobalItems.Normal","GlobalItems.Important","GlobalItems.Boss","GlobalItems.QualityNormal","GlobalItems.QualityImportant","GlobalItems.QualityBoss"]),
         ("CHK_StrongStat",["NUD_StrongStatTolerance","CHK_StrongStatNormalTrainers",
             "CHK_StrongStatImportantTrainers","CHK_StrongStatBosses"]),
         ("CHK_BetterMovesets",["CHK_BetterMovesetsIncludeTMs",
-            "CHK_BetterMovesetsNormalTrainers","CHK_BetterMovesetsImportantTrainers","CHK_BetterMovesetsBosses"]),
+            "CHK_BetterMovesetsNormalTrainers","CHK_BetterMovesetsImportantTrainers","CHK_BetterMovesetsBosses","GlobalMoves.BetterNormal","GlobalMoves.BetterImportant","GlobalMoves.BetterBoss","GlobalMoves.IncludeTMs"]),
         ("CHK_SmartHeldItems",["CHK_SmartItemsNormalTrainers","CHK_SmartItemsImportantTrainers",
             "CHK_SmartItemsBosses","CB_SmartHeldItemMode","CB_SmartHeldItemModeNormal",
             "CB_SmartHeldItemModeImportant","CB_SmartHeldItemModeBoss"])
@@ -339,22 +354,29 @@ public partial class RecordEditorView : UserControl
         var master=OptionDependencies.FirstOrDefault(p=>fields.Any(f=>f.Key==p.Parent)
             &&p.Related.Any(k=>fields.Any(f=>f.Key==k)));
         FrameworkElement content;
-        if(!editor&&master.Parent is "CHK_StrongStat" or "CHK_BetterMovesets" or "CHK_SmartHeldItems")
+        if(!editor&&master.Parent is "CHK_StrongStat" or "CHK_BetterMovesets" or "CHK_SmartHeldItems" or "GlobalMoves.StrongStat" or "GlobalItems.Smart")
         {
             var first=fields.First(f=>f.Key==master.Parent);
             var dependents=fields.Where(f=>master.Related.Contains(f.Key)).ToArray();
-            var unrelated=fields.Where(f=>f.Key!=master.Parent&&!master.Related.Contains(f.Key)).ToArray();
+            bool smart=master.Parent is "CHK_SmartHeldItems" or "GlobalItems.Smart";
+            var random=smart?fields.FirstOrDefault(f=>f.Key=="CHK_RandomItems"):null;
+            var unrelated=fields.Where(f=>f.Key!=master.Parent&&!master.Related.Contains(f.Key)&&f.Key!=random?.Key).ToArray();
             var stack=new StackPanel();
-            stack.Children.Add(BuildFieldsGrid([first],controls,false));
+            stack.Children.Add(BuildFieldsGrid(random is null?[first]:[random,first],controls,false));
             var sub=BuildFieldsGrid(dependents,controls,false);
             stack.Children.Add(sub);
             if(unrelated.Length>0)stack.Children.Add(BuildFieldsGrid(unrelated,controls,false));
             if(controls[master.Parent] is CheckBox check)
             {
-                void Toggle(object sender,RoutedEventArgs e)=>sub.Visibility=check.IsChecked==true
-                    ?Visibility.Visible:Visibility.Collapsed;
+                var randomCheck=random is not null?controls[random.Key] as CheckBox:null;
+                void Toggle(object sender,RoutedEventArgs e)
+                {
+                    check.IsEnabled=randomCheck?.IsChecked!=false;
+                    sub.Visibility=check.IsChecked==true&&check.IsEnabled?Visibility.Visible:Visibility.Collapsed;
+                }
                 check.Checked+=Toggle;check.Unchecked+=Toggle;
-                sub.Visibility=check.IsChecked==true?Visibility.Visible:Visibility.Collapsed;
+                if(randomCheck is not null){randomCheck.Checked+=Toggle;randomCheck.Unchecked+=Toggle;}
+                Toggle(check,new RoutedEventArgs());
             }
             content=stack;
         }
@@ -929,6 +951,52 @@ public partial class RecordEditorView : UserControl
     {var dialog=new Microsoft.Win32.OpenFileDialog {Filter="Template de evoluciones|*.csv"};if(dialog.ShowDialog(Window.GetWindow(this))==true){TemplatePathText.Text=dialog.FileName;Invalidate();}}
     private void DefaultTemplate_Click(object sender,RoutedEventArgs e)
     {if(Editor is ITemplateProjectEditor template){TemplatePathText.Text=template.DefaultTemplatePath;Invalidate();}}
+    private void WildAddRange_Click(object sender,RoutedEventArgs e)=>ChangeWildRanges(true);
+    private void WildRemoveRange_Click(object sender,RoutedEventArgs e)=>ChangeWildRanges(false);
+    private void ChangeWildRanges(bool add)
+    {
+        if(Editor is not GameEncounterService wild)return;
+        try
+        {
+            var values=OptionValues();
+            bool changed=add?wild.SplitLongestWildRange():wild.MergeLastWildRange();
+            if(!changed)
+            {
+                StudioDialog.Notice(Window.GetWindow(this),"Rangos BST",
+                    add?"No hay un intervalo BST divisible.":"Solo queda un intervalo BST.");
+                return;
+            }
+            _loading=true;
+            try
+            {
+                // Keep every other option while rebinding the changed BST rows.
+                var groups=wild.RandomOptions.Select(g=>g with
+                {
+                    Fields=g.Fields.Select(f=>!f.Key.StartsWith("BST.",StringComparison.Ordinal)&&
+                        values.TryGetValue(f.Key,out int v)&&v>=f.Min&&v<=f.Max
+                        ?f with {Value=v}:f).ToArray()
+                });
+                BuildGroups(OptionsPanel,groups,_options,false);
+            }
+            finally {_loading=false;}
+            Invalidate();
+            StatusText.Text=add?"Rango BST dividido. Generá vista previa antes de guardar.":
+                "Últimos dos rangos BST unidos. Generá vista previa antes de guardar.";
+        }
+        catch(Exception ex){_loading=false;StudioDialog.Error(Window.GetWindow(this),
+            "Editar rangos BST",ex.Message);}
+    }
+    private void WildAudit_Click(object sender,RoutedEventArgs e)
+    {
+        if(Editor is not GameEncounterService wild)return;
+        try
+        {
+            string result=wild.DiagnoseWild(OptionValues());
+            StudioDialog.Notice(Window.GetWindow(this),"Diagnóstico Progressive Wild",
+                "Análisis de especies, niveles y rangos sin modificar la ROM.",result);
+        }
+        catch(Exception ex){StudioDialog.Error(Window.GetWindow(this),"Diagnóstico Wild",ex.Message);}
+    }
     private void WildDump_Click(object sender,RoutedEventArgs e)
     {
         if(Editor is not GameEncounterService wild)return;
@@ -1007,8 +1075,9 @@ public partial class RecordEditorView : UserControl
     {
         if(Editor is not IOptionTemplateProjectEditor editor)return;
         bool wild=Editor is ThreeDS.Progressive.Services.GameEncounterService;
+        bool field=Editor is GameFieldItems6Service or GameFieldItemsService;
         var dialog=new Microsoft.Win32.OpenFileDialog
-        {Filter=wild?"Template Wild Progressive v1|*.json":"Template de entrenadores Progressive|*.json"};
+        {Filter=field?"Template Field Items v1|*.json":wild?"Template Wild Progressive v1|*.json":"Template de entrenadores Progressive|*.json"};
         if(dialog.ShowDialog(Window.GetWindow(this))!=true)return;
         try{editor.ImportOptions(dialog.FileName);_loading=true;BuildGroups(OptionsPanel,Editor.RandomOptions,_options,false);_loading=false;Randomizer_Click(sender,e);}
         catch(Exception ex){_loading=false;StudioDialog.Error(Window.GetWindow(this),"No se pudo cargar el template",ex.Message);}
@@ -1017,12 +1086,13 @@ public partial class RecordEditorView : UserControl
     {
         if(Editor is not IOptionTemplateProjectEditor editor)return;
         bool wild=Editor is ThreeDS.Progressive.Services.GameEncounterService;
+        bool field=Editor is GameFieldItems6Service or GameFieldItemsService;
         var dialog=new Microsoft.Win32.SaveFileDialog
-        {Filter=wild?"Template Wild Progressive v1|*.json":"Template de entrenadores Progressive|*.json",
-        FileName=wild?"wild-template.json":"trainer-template.json"};
+        {Filter=field?"Template Field Items v1|*.json":wild?"Template Wild Progressive v1|*.json":"Template de entrenadores Progressive|*.json",
+        FileName=field?"field-items-template.json":wild?"wild-template.json":"trainer-template.json"};
         if(dialog.ShowDialog(Window.GetWindow(this))!=true)return;
         try{editor.ExportOptions(dialog.FileName,OptionValues());StudioDialog.Notice(Window.GetWindow(this),"Template exportado",
-            wild?"Se conservaron los filtros y rangos Progressive Wild v1.":
+            field?"Se conservaron los IDs prohibidos, el catálogo permitido y los filtros de Field Items.":wild?"Se conservaron los filtros y rangos Progressive Wild v1.":
             "Se conservaron las opciones, rangos y reglas de entrenadores.");}
         catch(Exception ex){StudioDialog.Error(Window.GetWindow(this),"No se pudo exportar",ex.Message);}
     }

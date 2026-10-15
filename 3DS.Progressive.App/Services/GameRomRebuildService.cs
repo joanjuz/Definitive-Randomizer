@@ -1,4 +1,4 @@
-using System.IO;
+﻿using System.IO;
 using System.Security.Cryptography;
 using pk3DS.Core.CTR;
 
@@ -9,11 +9,26 @@ internal enum RomRebuildKind { RomFS,ExeFS,Full3DS,Trimmed3DS }
 /// <summary>Single-project rebuild using original CTR/RomFS/ExeFS algorithms.
 /// Every intermediate file lives outside the source project; no writes in ROM folder.
 /// </summary>
-internal sealed class GameRomRebuildService(GameProjectSession project)
+internal sealed class ExeFsBuildCache
+{
+    internal byte[]? Bytes;
+    internal string? Signature;
+    internal int CompressionCount;
+}
+
+internal sealed class GameRomRebuildService(GameProjectSession project, ExeFsBuildCache? sharedCache=null)
 {
     private static readonly SemaphoreSlim BuildGate=new(1,1);
-    internal async Task<(string File,string Hash,long Bytes)> BuildAsync(RomRebuildKind kind,string target)
+    private readonly ExeFsBuildCache _cache=sharedCache??new();
+    internal int ExeFsCompressionCount=>_cache.CompressionCount;
+    private static string ExeSignature(string folder)
     {
+        return string.Join("\n",Directory.GetFiles(folder,"*",SearchOption.TopDirectoryOnly).OrderBy(Path.GetFileName,StringComparer.Ordinal).Select(path=>
+        {using var stream=File.OpenRead(path);return Path.GetFileName(path)+":"+Convert.ToHexString(SHA256.HashData(stream));}));
+    }
+    internal async Task<(string File,string Hash,long Bytes)> BuildAsync(RomRebuildKind kind,string target,Action<string,int,int>? progress=null)
+    {
+        void Report(string text,int value){UiProgress.Stage(text);progress?.Invoke(text,value,100);}
         target=Path.GetFullPath(target);
         string root=Path.GetFullPath(project.ProjectRoot);
         if(target.Equals(root,StringComparison.OrdinalIgnoreCase)||
@@ -24,7 +39,7 @@ internal sealed class GameRomRebuildService(GameProjectSession project)
         if(!Directory.Exists(Path.GetDirectoryName(target)))
             throw new DirectoryNotFoundException("La carpeta de destino no existe.");
         await BuildGate.WaitAsync();
-        string stage=Path.Combine(Path.GetTempPath(),"progressive-rebuild-"+Guid.NewGuid().ToString("N"));
+        string stage=Path.Combine(Path.GetDirectoryName(target)!,".definitive-rebuild-"+Guid.NewGuid().ToString("N"));
         try
         {
             Directory.CreateDirectory(stage);
@@ -34,6 +49,7 @@ internal sealed class GameRomRebuildService(GameProjectSession project)
                 string exefs=project.GameConfiguration.ExeFS;
                 string romfile=Path.Combine(stage,"romfs.bin");
                 string exefile=Path.Combine(stage,"exefs.bin");
+                string? exeSignature=null;
                 if(!Directory.Exists(romfs))
                     throw new DirectoryNotFoundException("No se encontró la carpeta RomFS del proyecto: "+romfs);
                 if(kind is not RomRebuildKind.RomFS && !Directory.Exists(exefs))
@@ -44,7 +60,7 @@ internal sealed class GameRomRebuildService(GameProjectSession project)
                     _=LocateExheader(root);
                 if(kind is RomRebuildKind.RomFS or RomRebuildKind.Full3DS or RomRebuildKind.Trimmed3DS)
                 {
-                    UiProgress.Stage("RomFS · calculando metadatos y empaquetando archivos…");
+                    Report("RomFS · empaquetando archivos y generando hashes IVFC…",0);
                     // The original RomFS builder dereferences PB_Show.InvokeRequired
                     // unconditionally. In this WPF worker there is no WinForms progress
                     // bar unless we provide a lightweight, private instance. Omitting it
@@ -58,39 +74,56 @@ internal sealed class GameRomRebuildService(GameProjectSession project)
                 }
                 if(kind is RomRebuildKind.ExeFS or RomRebuildKind.Full3DS or RomRebuildKind.Trimmed3DS)
                 {
-                    UiProgress.Stage("ExeFS · generando tabla y hashes de archivos originales…");
+                    Report("ExeFS · comprobando si el ejecutable cambió…",25);
                     string[] source=Directory.GetFiles(exefs, "*",SearchOption.TopDirectoryOnly);
                     if(source.Length is <1 or >10)
                         throw new InvalidDataException("ExeFS requiere entre 1 y 10 archivos.");
-                    string stageExe=Path.Combine(stage,"ExeFS-input");
-                    Directory.CreateDirectory(stageExe);
-                    var prepared=new List<string>(source.Length);
-                    foreach(string path in source)
+                    exeSignature=ExeSignature(exefs);
+                    if(_cache.Bytes is not null&&_cache.Signature==exeSignature)
                     {
-                        string copied=Path.Combine(stageExe,Path.GetFileName(path));
-                        File.Copy(path,copied);
-                        prepared.Add(copied);
+                        Report("ExeFS · reutilizando ejecutable idéntico ya comprimido…",25);
+                        File.WriteAllBytes(exefile,_cache.Bytes);
                     }
-                    UiProgress.Stage("ExeFS · BLZ comprimiendo code.bin en copia temporal…");
-                    string? code=prepared.FirstOrDefault(path=>Path.GetFileName(path)
-                        .Contains("code",StringComparison.OrdinalIgnoreCase));
-                    if(code is null)throw new InvalidDataException("ExeFS necesita code.bin.");
-                    using(var progressBar=CreateLegacyProgressBar())
-                        _=new BLZCoder(["-en",code],progressBar);
-                    if(!ExeFS.PackExeFS(prepared.ToArray(),exefile))
-                        throw new IOException("El motor ExeFS rechazó los archivos temporales.");
-                    if(!File.Exists(exefile)||new FileInfo(exefile).Length<=0x200)
-                        throw new IOException("ExeFS no produjo una salida válida.");
+                    else
+                    {
+                        string stageExe=Path.Combine(stage,"ExeFS-input");
+                        Directory.CreateDirectory(stageExe);
+                        var prepared=new List<string>(source.Length);
+                        foreach(string path in source)
+                        {
+                            // Toolkit extractions use code.bin; ExeFS requires the entry name .code.
+                            // Normalize only the staged copy, never the extracted project.
+                            string name=Path.GetFileName(path);
+                            if(new[]{"code.bin",".code.bin","code",".code"}.Contains(name,StringComparer.OrdinalIgnoreCase))name=".code.bin";
+                            string copied=Path.Combine(stageExe,name);
+                            if(File.Exists(copied))throw new InvalidDataException("ExeFS contiene dos archivos que se resuelven al mismo nombre: "+name);
+                            File.Copy(path,copied);
+                            prepared.Add(copied);
+                        }
+                        Report("ExeFS · comprimiendo code.bin (BLZ)…",25);
+                        string? code=prepared.FirstOrDefault(path=>Path.GetFileName(path)
+                            .Contains("code",StringComparison.OrdinalIgnoreCase));
+                        if(code is null)throw new InvalidDataException("ExeFS necesita code.bin.");
+                        using(var progressBar=CreateLegacyProgressBar())
+                            _=new BLZCoder(["-en",code],progressBar,(value,max)=>progress?.Invoke("ExeFS · comprimiendo code.bin (BLZ)…",25+(int)(25L*value/Math.Max(1,max)),100));
+                        if(!ExeFS.PackExeFS(prepared.ToArray(),exefile))
+                            throw new IOException("El motor ExeFS rechazó los archivos temporales.");
+                        if(!File.Exists(exefile)||new FileInfo(exefile).Length<=0x200)
+                            throw new IOException("ExeFS no produjo una salida válida.");
+                        if(ExeSignature(exefs)!=exeSignature)throw new IOException("ExeFS cambió durante la compilación; no se publicó la salida.");
+                        _cache.Bytes=File.ReadAllBytes(exefile);_cache.Signature=exeSignature;_cache.CompressionCount++;
+                    }
                     UiProgress.Count("ExeFS compilado",
                         kind==RomRebuildKind.ExeFS?1:2,kind==RomRebuildKind.ExeFS?2:4);
                 }
+                Report("Ensamblando contenedor de salida…",50);
                 string produced=kind switch
                 {
                     RomRebuildKind.RomFS=>romfile,
                     RomRebuildKind.ExeFS=>exefile,
                     _=>Build3ds(stage,root,exefile,romfile,kind==RomRebuildKind.Trimmed3DS)
                 };
-                UiProgress.Stage("Verificando integridad y preparando salida…");
+                Report("Verificando SHA-256 de la salida…",75);
                 using var input=File.OpenRead(produced);
                 string hash=Convert.ToHexString(SHA256.HashData(input));
                 long size=input.Length;
@@ -98,7 +131,9 @@ internal sealed class GameRomRebuildService(GameProjectSession project)
                 input.Close();
                 UiProgress.Count("Integridad SHA-256 verificada",kind is RomRebuildKind.ExeFS or RomRebuildKind.RomFS?2:4,
                     kind is RomRebuildKind.ExeFS or RomRebuildKind.RomFS?2:4);
+                if(exeSignature is not null&&ExeSignature(exefs)!=exeSignature)throw new IOException("ExeFS cambió antes de publicar la salida.");
                 File.Move(produced,target);
+                Report("Reconstrucción e integridad completadas",100);
                 return(target,hash,size);
             });
         }
@@ -132,9 +167,20 @@ internal sealed class GameRomRebuildService(GameProjectSession project)
             throw new InvalidDataException("El ExHeader está incompleto; se requieren al menos 0x800 bytes.");
         return path;
     }
+    internal static string PrepareCompressedExheader(string source,string target)
+    {
+        byte[] header=File.ReadAllBytes(source);
+        if(header.Length<0x800)throw new InvalidDataException("El ExHeader está incompleto.");
+        // ExeFS is always BLZ-encoded above, including when reusing the cache.
+        // Extraction tools can clear this bit after decompressing code.bin.
+        header[0xD]|=1;
+        using var output=new FileStream(target,FileMode.CreateNew,FileAccess.Write,FileShare.None);
+        output.Write(header);
+        return target;
+    }
     private static string Build3ds(string stage,string root,string exefs,string romfs,bool trimmed)
     {
-        string exheader=LocateExheader(root);
+        string exheader=PrepareCompressedExheader(LocateExheader(root),Path.Combine(stage,"exheader-compressed.bin"));
         UiProgress.Stage(trimmed?"Compilando Trimmed .3DS…":"Compilando .3DS completo…");
         var exh=new Exheader(exheader);
         string path=Path.Combine(stage,"result.3ds");

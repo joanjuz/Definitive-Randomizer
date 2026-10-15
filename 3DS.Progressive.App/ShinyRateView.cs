@@ -20,7 +20,7 @@ internal sealed class ShinyRateView : UserControl
     private readonly Button _apply;
     private (FileChange File,IReadOnlyList<ThreeDS.Progressive.Models.BatchChange> Changes,int AppliedRerolls)? _proposal;
     private bool _restoring;
-    internal ShinyRateView(GameProjectSession project)
+    internal ShinyRateView(GameProjectSession project,ShinyRateOptions? savedOptions=null)
     {
         _service=new GameShinyRateService(project);
         var current=_service.Read();
@@ -41,12 +41,12 @@ internal sealed class ShinyRateView : UserControl
         var panel=new StackPanel();card.Child=panel;
         panel.Children.Add(new TextBlock{Text="Rerolls PID (1 a 9000)",
             Foreground=(Brush)FindResource("TextSoft"),Margin=new Thickness(0,0,0,8)});
-        _rerolls=new TextBox{Text=current.Rerolls.ToString(),Width=140,
+        _rerolls=new TextBox{Text=(savedOptions?.Rerolls??current.Rerolls).ToString(),Width=140,
             HorizontalAlignment=System.Windows.HorizontalAlignment.Left,MinHeight=36};
         _rerolls.TextChanged+=(_,_)=>Invalidate();
         panel.Children.Add(_rerolls);
         _everything=new CheckBox{Content="Everything Shiny (parche universal)",
-            IsChecked=current.AlwaysShiny,IsEnabled=current.AlwaysShinyOffset.HasValue,
+            IsChecked=savedOptions?.Everything??current.AlwaysShiny,IsEnabled=current.AlwaysShinyOffset.HasValue,
             Margin=new Thickness(0,14,0,11)};
         _everything.Checked+=(_,_)=>Invalidate();_everything.Unchecked+=(_,_)=>Invalidate();
         panel.Children.Add(_everything);
@@ -69,8 +69,17 @@ internal sealed class ShinyRateView : UserControl
             Text=current.Vanilla?"Tasa original detectada.":"Rerolls personalizados detectados."};
         stack.Children.Add(_status);
     }
-    internal bool ConfirmLeave()=>_proposal is null||StudioDialog.Confirm(Window.GetWindow(this),
-        "Shiny Rate · cambios pendientes","Hay una vista previa sin aplicar. ¿Descartarla?");
+    internal ShinyRateOptions RememberOptions()
+    {
+        if(!int.TryParse(_rerolls.Text,out int rerolls)||rerolls is <1 or >9000)throw new InvalidDataException("Rerolls permitidos: 1–9000.");
+        if(_everything.IsChecked==true&&!_everything.IsEnabled)throw new InvalidDataException("Esta ROM no admite Everything Shiny.");
+        return new(rerolls,_everything.IsChecked==true);
+    }
+    internal bool ConfirmLeave()
+    {
+        try{_=RememberOptions();}catch(Exception ex){StudioDialog.Error(Window.GetWindow(this),"Shiny Rate",ex.Message);return false;}
+        return _proposal is null||StudioDialog.Confirm(Window.GetWindow(this),"Shiny Rate · cambios pendientes","Hay una vista previa sin aplicar. ¿Descartarla?");
+    }
     private void Invalidate(){_proposal=null;if(_apply is not null)_apply.IsEnabled=false;}
     private void Preview(bool restore)
     {
@@ -96,6 +105,7 @@ internal sealed class ShinyRateView : UserControl
         try
         {
             _service.Apply(preview.File,preview.Changes,_restoring);
+            var saved=_service.Read();_rerolls.Text=saved.Rerolls.ToString();_everything.IsChecked=saved.AlwaysShiny;
             _proposal=null;_apply.IsEnabled=false;
             _status.Text="Shiny Rate guardado y registrado en el historial de cambios.";
         }

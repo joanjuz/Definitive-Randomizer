@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.IO;
 using System.Linq;
 using System.Text;
@@ -27,7 +27,7 @@ public class ExeFS
         {
             throw new FileNotFoundException("File not found.", path);
         }
-        SuperBlockHash = SHA256.HashData(Data.AsSpan(0, 200));
+        SuperBlockHash = SHA256.HashData(Data.AsSpan(0, 0x200));
     }
 
     // Overall R/W files (wrapped)

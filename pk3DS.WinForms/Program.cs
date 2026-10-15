@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Windows.Forms;
 
 #if !DEBUG
@@ -26,6 +26,16 @@ internal static class Program
             AppDomain.CurrentDomain.UnhandledException += CurrentDomain_UnhandledException;
 #endif
 
+        // Headless native bridge diagnostic: use exactly the loader used by Batch Gen6.
+        if(args.Length==4&&args[0]=="--native-gen6-replay")
+        {
+            try
+            {
+                BatchGen6ActionExecutor.ExecuteNative(args[1],System.IO.File.ReadAllText(args[2]),int.Parse(args[3],System.Globalization.CultureInfo.InvariantCulture));
+            }
+            catch(Exception ex){Console.Error.WriteLine(ex);Environment.ExitCode=1;}
+            return;
+        }
         // Run the application
         Application.EnableVisualStyles();
         Application.SetCompatibleTextRenderingDefault(false);

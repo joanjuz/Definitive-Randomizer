@@ -1,4 +1,4 @@
-using System.IO;
+﻿using System.IO;
 using System.Reflection;
 using System.Security.Cryptography;
 using pk3DS.Core;
@@ -11,6 +11,25 @@ internal static class RegressionFixes
 {
     internal static void Run(Action<bool,string> check,Action<Action,string> reject)
     {
+        using(var f=new Fixture(GameVersion.ORAS))
+        {
+            string actual=Path.Combine(f.Root,"DllBattle.cro"), requested=Path.Combine(f.Root,"DLLBattle.cro");
+            byte[] original=[1,2], changed=[3,4];File.WriteAllBytes(actual,original);
+            FileTransaction.Commit([new FileChange(requested,original,changed)]);
+            check(Directory.GetFiles(f.Root).Any(p=>Path.GetFileName(p)=="DllBattle.cro") && File.ReadAllBytes(actual).SequenceEqual(changed),"atomic save preserves case-sensitive RomFS filename despite differently cased request");
+            reject(()=>FileTransaction.Commit([new FileChange(requested,changed,original)],_=>throw new IOException("rollback probe")),"case-preserving transaction rolls back injected failure");
+            check(Directory.GetFiles(f.Root).Any(p=>Path.GetFileName(p)=="DllBattle.cro") && File.ReadAllBytes(actual).SequenceEqual(changed),"rollback retains both original filename spelling and prior bytes");
+        }
+        using(var f=new Fixture(GameVersion.USUM))
+        {
+            ModuleChecks.CreateArchives(f);var trainer=new GameTrainerService(f.Session);
+            foreach(string source in new[]{"\"DontModify\"","0","\"LevelUpOnly\"","2"})
+            {
+                trainer.RestoreOptions("{\"Version\":1,\"Game\":\"USUM\",\"MoveSettings\":{\"Source\":"+source+"}}");
+                check(true,"legacy trainer movement source accepts named and numeric enum: "+source);
+            }
+            reject(()=>trainer.RestoreOptions("{\"Version\":1,\"Game\":\"USUM\",\"MoveSettings\":{\"Source\":999}}"),"legacy trainer movement source still rejects undefined enum values");
+        }
         foreach(var version in new[]{GameVersion.XY,GameVersion.ORAS,GameVersion.SM,GameVersion.USUM})
         {
             using var f=new Fixture(version);ModuleChecks.CreateArchives(f);
@@ -53,6 +72,9 @@ internal static class RegressionFixes
             check(preview.AdditionalFileCount==1&&File.ReadAllBytes(path).SequenceEqual(data),"Wish, Meditate, Fairy Lock and Lucky Chant resolve beside V2 with non-page-sized relocation headroom");
             moves.ApplyMovePreview(preview);check(Legacy.Gen7BrutalSwingSelfConfusionPatcher.IsInstalled(File.ReadAllBytes(path)),"full combined battle template keeps the validated Giro Vil V2 instructions");
             check(moves.PreviewMoves(BatchAction.MoveBalance,settings,[273,96,587,381,171,693]).Changes.Count==0,"all six battle mechanics reapply without a second stock-layout installation");
+            byte[] reused=File.ReadAllBytes(path);reused[0xFCFA8+80]=0x55;File.WriteAllBytes(path,reused);
+            using(var context=Legacy.Main.Enter(f.Root))check(Legacy.Gen7FairyLockV11Patcher.Apply()==0,"Fairy Lock validates instructions while allowing allocator reuse of unused zero padding");
+
         }
     }
     private static byte[] Compress(byte[] data)

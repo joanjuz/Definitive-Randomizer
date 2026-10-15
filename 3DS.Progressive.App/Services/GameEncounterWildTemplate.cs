@@ -26,6 +26,16 @@ internal sealed class WildTemplateV1
     public bool Legendaries { get; set; }
     public bool Events { get; set; }
     public bool MegaForms { get; set; }
+    [JsonIgnore(Condition=JsonIgnoreCondition.WhenWritingNull)]
+    public bool? AlolanForms { get; set; }
+    [JsonIgnore(Condition=JsonIgnoreCondition.WhenWritingNull)]
+    public bool? UniquePerTable { get; set; }
+    [JsonIgnore(Condition=JsonIgnoreCondition.WhenWritingNull)]
+    public bool? RelaxBST { get; set; }
+    [JsonIgnore(Condition=JsonIgnoreCondition.WhenWritingNull)]
+    public bool? SkipInaccessible { get; set; }
+    [JsonIgnore(Condition=JsonIgnoreCondition.WhenWritingNull)]
+    public bool? PreservePlaceholders { get; set; }
     public bool SimilarBST { get; set; }
     public bool AllCanCallAllies { get; set; }
     public int SlotRandomizationOption { get; set; }
@@ -93,6 +103,11 @@ public sealed partial class GameEncounterService
             ["G7"]=candidate.G7?1:0,
             ["Legends"]=candidate.Legendaries?1:0,["Events"]=candidate.Events?1:0,
             ["MegaForms"]=candidate.MegaForms?1:0,
+            ["AlolanForms"]=candidate.AlolanForms.GetValueOrDefault(true)?1:0,
+            ["UniquePerTable"]=candidate.UniquePerTable.GetValueOrDefault()?1:0,
+            ["RelaxBST"]=candidate.RelaxBST.GetValueOrDefault()?1:0,
+            ["SkipInaccessible"]=candidate.SkipInaccessible.GetValueOrDefault()?1:0,
+            ["PreservePlaceholders"]=candidate.PreservePlaceholders.GetValueOrDefault()?1:0,
             ["SimilarBST"]=candidate.SimilarBST?1:0,
             ["AllCanCallAllies"]=candidate.AllCanCallAllies?1:0,
             ["SlotMode"]=candidate.SlotRandomizationOption,
@@ -134,6 +149,11 @@ public sealed partial class GameEncounterService
         template.Legendaries=On("Legends");
         template.Events=On("Events");
         template.MegaForms=On("MegaForms");
+        template.AlolanForms=On("AlolanForms",true);
+        template.UniquePerTable=On("UniquePerTable");
+        template.RelaxBST=On("RelaxBST");
+        template.SkipInaccessible=On("SkipInaccessible");
+        template.PreservePlaceholders=On("PreservePlaceholders");
         template.SimilarBST=On("SimilarBST");
         template.AllCanCallAllies=On("AllCanCallAllies");
         template.SlotRandomizationOption=Value("SlotMode",0);
@@ -204,7 +224,7 @@ public sealed partial class GameEncounterService
     }
 
     /// <summary>Deterministic equivalent to Gen7 FormRandomizer's wild rules.</summary>
-    private int PickWildForm(int species,Random random,bool allowMega)
+    private int PickWildForm(int species,Random random,bool allowMega,bool allowAlola=true)
     {
         var stats=Config.Personal.Table;
         if(species<1||species>=stats.Length)return 0;
@@ -213,7 +233,7 @@ public sealed partial class GameEncounterService
         if(species==658&&!allowMega)return 0;
         if(species is 664 or 665 or 666)return 30;
         if(species==774)return random.Next(7);
-        if(Legal.EvolveToAlolanForms.Contains(species))return random.Next(2);
+        if(Legal.EvolveToAlolanForms.Contains(species))return allowAlola?random.Next(2):0;
         if(Legal.BattleExclusiveForms.Contains(species)&&!allowMega)return 0;
         return random.Next(Math.Min(forms,32));
     }

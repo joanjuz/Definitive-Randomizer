@@ -40,13 +40,15 @@ public static class Randomizer
         return newlvl;
     }
 
-    internal static int[] GetRandomItemList()
+    internal static int[] GetRandomItemList()=>GetRandomItemList(Main.Config);
+
+    internal static int[] GetRandomItemList(GameConfig config)
     {
-        if (Main.Config.ORAS)
+        if (config.ORAS)
             return Items_HeldAO.Concat(Items_Ball).Where(i => i != 0).ToArray();
-        if (Main.Config.XY)
+        if (config.XY)
             return Items_HeldXY.Concat(Items_Ball).Where(i => i != 0).ToArray();
-        if (Main.Config.SM || Main.Config.USUM)
+        if (config.SM || config.USUM)
             return HeldItemsBuy_SM.Select(i => (int)i).Concat(Items_Ball).Where(i => i != 0).ToArray();
         return new int[1];
     }

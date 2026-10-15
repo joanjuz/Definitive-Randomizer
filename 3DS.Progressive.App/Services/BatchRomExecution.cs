@@ -1,4 +1,4 @@
-using System.Diagnostics;
+﻿using System.Diagnostics;
 using System.IO;
 using System.Security.Cryptography;
 using System.Text.Json;
@@ -59,6 +59,9 @@ internal sealed class BatchRomExecution
         "usum.move-relearner","player.level-caps"
     };
     private readonly GameProjectSession _project;
+    internal static readonly HashSet<string> Gen6ActionIds=new(StringComparer.OrdinalIgnoreCase)
+    {"rng.seed","moves.balance","moves.randomize","moves.metronome","personal.randomize","personal.modify-all","pokemon-stats.apply",
+     "evolutions.randomize","evolutions.every-level","evolutions.remove-trade","evolutions.normalize","level-up-moves.randomize","level-up-moves.metronome","egg-moves.randomize","trades.accept-any","trades.randomize-offers","trainers.randomize","static-encounters.randomize","static-encounters.modify-levels","starters.randomize","tms.randomize","field-items.randomize","marts.randomize","marts.add-rare-candies","marts.add-ev-items","marts.ban-ability-capsule","items.fix-economy","pickup.randomize","wild-encounters.randomize","wild-encounters.modify-levels","wild-encounters.scale-levels","tms.sanity","tms.follow-evolutions","catchzones.enable","shiny-rate.apply","move-tutors.randomize","move-tutors.sanity","move-tutors.follow-evolutions"};
     private readonly string _game;
     internal static string RunnerPath=>Path.Combine(AppContext.BaseDirectory,
         "LegacyBatch","pk3DS.WinForms.exe");
@@ -71,8 +74,7 @@ internal sealed class BatchRomExecution
     }
     internal (GlobalTemplateDocument Template,IReadOnlyList<string> Warnings) Preflight(RomBatchOptions options)
     {
-        if(_project.Generation!=7)
-            throw new NotSupportedException("Batch ROM Builder original actualmente solo permite generación 7.");
+        if(_project.Generation is not (6 or 7))throw new NotSupportedException("Batch requiere Gen6 o Gen7.");
         if(options.Count is <1 or >50)throw new ArgumentOutOfRangeException(nameof(options.Count),
             "Se admiten de 1 a 50 ROMs por lote.");
         if(options.BaseName.Length==0||options.BaseName.Contains("..")||
@@ -84,13 +86,19 @@ internal sealed class BatchRomExecution
             target.StartsWith(root.TrimEnd(Path.DirectorySeparatorChar)+Path.DirectorySeparatorChar,
                 StringComparison.OrdinalIgnoreCase))
             throw new InvalidOperationException("El destino no puede estar dentro de la ROM de origen.");
-        var template=GlobalTemplateDocument.Load(options.TemplatePath,_game,7);
+        var template=GlobalTemplateDocument.Load(options.TemplatePath,_game,_project.Generation);
+        ProjectFeatureAvailability.ValidateActions(_project,template.Actions);
+        GlobalEditorTemplateBridge.ValidateBatchReplay(template);
+        if(_project.Generation==6)NativeBatchGen6Bridge.ValidateSession(_project,template);
+        else NativeBatchGen7StaticBridge.ValidateSession(_project,template);
+        NativeGen7WildBridge.ValidateSession(_project,template);NativeRecipeCompletion.ValidateGen7Parameters(_project,template);_=NativeGen7MartBridge.ValidateSession(_project,template);NativeGen7MachineBridge.ValidateSession(_project,template);NativeMasterBatchBridge.ValidateSession(_project,template);if(_project.Generation==7)NativeGen7FieldBridge.ValidateSession(_project,template);
         if(template.Actions.Count==0)throw new InvalidDataException("El template no tiene acciones de batch.");
-        if(template.SettingsCount==0)
+        if(template.SettingsCount==0&&template.Actions.Any(id=>id!="rng.seed"&&!NativeMasterBatchBridge.ActionIds.Contains(id,StringComparer.OrdinalIgnoreCase)&&!(_project.Generation==7&&NativeGen7FieldBridge.ActionIds.Contains(id,StringComparer.OrdinalIgnoreCase))&&!(_project.Generation==7&&NativeGen7MachineBridge.ActionIds.Contains(id,StringComparer.OrdinalIgnoreCase))&&!(_project.Generation==7&&NativeGen7MartBridge.ActionIds.Contains(id,StringComparer.OrdinalIgnoreCase))&&!(_project.Generation==7&&NativeRecipeCompletion.Gen7ParameterActions.Contains(id,StringComparer.OrdinalIgnoreCase))&&!(_project.Generation==7&&NativeGen7WildBridge.ActionIds.Contains(id,StringComparer.OrdinalIgnoreCase))&&!(_project.Generation==6?NativeBatchGen6Bridge.ActionIds:NativeBatchGen7StaticBridge.ActionIds).Contains(id,StringComparer.OrdinalIgnoreCase)))
             throw new InvalidDataException("Este template se creó solo desde historial: no contiene RandSettings. Importá y guardá una receta completa antes de construir.");
-        var unsupported=template.Actions.Where(id=>!SupportedActionIds.Contains(id)).ToArray();
+        var supported=_project.Generation==6?Gen6ActionIds:SupportedActionIds;
+        var unsupported=template.Actions.Where(id=>!supported.Contains(id)).ToArray();
         if(unsupported.Length>0)
-            throw new NotSupportedException("El ejecutor Gen7 original no admite estas acciones: "+
+            throw new NotSupportedException("El ejecutor original no admite estas acciones para este juego: "+
                 string.Join(", ",unsupported));
         if(template.Coverage<2)
             throw new InvalidDataException("ActionCoverageVersion insuficiente para replay automatizado.");
@@ -112,11 +120,19 @@ internal sealed class BatchRomExecution
         if(!BackendAvailable)warnings.Add("El ejecutor original pk3DS.WinForms no se incluyó en este paquete.");
         return(template,warnings);
     }
+    internal Task<(GlobalTemplateDocument Template,IReadOnlyList<string> Warnings)> PreflightAsync(RomBatchOptions options)=>Task.Run(()=>
+    {
+        var result=Preflight(options);
+        // Large frozen archive proposals are only needed for validation. Reclaim them
+        // before an idle UI and a separate builder otherwise retain both heaps at once.
+        GC.Collect(GC.MaxGeneration,GCCollectionMode.Aggressive,blocking:true,compacting:true);
+        return result;
+    });
     internal static bool IsHashMismatch(string warning)=>
         warning.StartsWith("SHA-256 distinto en ",StringComparison.Ordinal);
     internal async Task<RomBuildJournal> RunAsync(RomBatchOptions options,Action<BatchProgressSnapshot> progress)
     {
-        var (template,warnings)=Preflight(options);
+        var (template,warnings)=await PreflightAsync(options);
         var blocking=warnings.Where(w=>!IsHashMismatch(w)).ToArray();
         if(blocking.Length>0||warnings.Any(IsHashMismatch)&&!options.AllowAssetMismatch)
             throw new InvalidDataException("Hay requisitos sin resolver: "+
@@ -135,6 +151,7 @@ internal sealed class BatchRomExecution
             options.KeepEditableProjects,options.AllowAssetMismatch
         };
         await File.WriteAllTextAsync(requestPath,JsonSerializer.Serialize(request));
+        string? scratchToClean=null;
         try
         {
             using var process=new Process
@@ -145,6 +162,10 @@ internal sealed class BatchRomExecution
                     Arguments="--batch-bridge "+Quote(requestPath)
                 }
             };
+            // Keep large GARC/codec scratch files on the selected output drive, not the system drive.
+            string scratch=Path.Combine(options.OutputDirectory,".definitive-temp-"+Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(scratch);scratchToClean=Path.GetFullPath(scratch);
+            process.StartInfo.Environment["TEMP"]=scratch;process.StartInfo.Environment["TMP"]=scratch;
             if(!process.Start())throw new InvalidOperationException("No se pudo iniciar el constructor original.");
             string progressFile=Path.Combine(options.OutputDirectory,
                 options.BaseName+"_batch-progress.json");
@@ -154,7 +175,9 @@ internal sealed class BatchRomExecution
                 if(!File.Exists(progressFile))return;
                 try
                 {
-                    string json=await File.ReadAllTextAsync(progressFile);
+                    using var snapshotStream=new FileStream(progressFile,FileMode.Open,FileAccess.Read,FileShare.ReadWrite|FileShare.Delete,4096,true);
+                    using var reader=new StreamReader(snapshotStream);
+                    string json=await reader.ReadToEndAsync();
                     if(json==last)return;
                     var snapshot=JsonSerializer.Deserialize<BatchProgressSnapshot>(json);
                     if(snapshot is not null){last=json;progress(snapshot);}
@@ -201,6 +224,9 @@ internal sealed class BatchRomExecution
         finally
         {
             try{File.Delete(requestPath);}catch(IOException){}
+            if(scratchToClean is not null&&Path.GetDirectoryName(scratchToClean)==Path.GetFullPath(options.OutputDirectory)&&Path.GetFileName(scratchToClean).StartsWith(".definitive-temp-",StringComparison.Ordinal))
+                try{if(Directory.Exists(scratchToClean))Directory.Delete(scratchToClean,true);}catch(IOException){}catch(UnauthorizedAccessException){}
+
         }
     }
     private static string Quote(string value)=>"\""+value.Replace("\"","\\\"")+"\"";

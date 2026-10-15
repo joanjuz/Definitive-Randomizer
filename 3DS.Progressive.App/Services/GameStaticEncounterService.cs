@@ -11,7 +11,7 @@ namespace ThreeDS.Progressive.Services;
 /// Preserves unknown bytes and all unrelated slots in encounterstatic GARC.
 /// Randomization is based on a frozen scoped preview, never a direct ROM write.
 /// </summary>
-public sealed class GameStaticEncounterService : ArchiveProjectEditor
+public sealed partial class GameStaticEncounterService : ArchiveProjectEditor
 {
     private sealed record Slot(int File,int Index,int Size,string Kind);
     private readonly Dictionary<int,Slot> _slots=[];
@@ -37,6 +37,7 @@ public sealed class GameStaticEncounterService : ArchiveProjectEditor
             }
         }
         if(_slots.Count==0)throw new InvalidDataException("No se encontraron encuentros estáticos editables.");
+        CaptureStarterText();
     }
     public override string Title=>"Encuentros estáticos";
     private string SpeciesLabel(int id)
@@ -51,6 +52,8 @@ public sealed class GameStaticEncounterService : ArchiveProjectEditor
     public override IReadOnlyList<EditorGroup> RandomOptions=>[
         new("Especies permitidas",[
             Field("Species","Randomizar especies",1,0,1),
+            Field("AllowMega","Permitir formas Mega",0,0,1),
+            Field("BasicStarter","Iniciales básicos en los primeros tres regalos",0,0,1),
             Field("G1","Generación 1",1,0,1),Field("G2","Generación 2",1,0,1),
             Field("G3","Generación 3",1,0,1),Field("G4","Generación 4",1,0,1),
             Field("G5","Generación 5",1,0,1),Field("G6","Generación 6",1,0,1),
@@ -72,13 +75,15 @@ public sealed class GameStaticEncounterService : ArchiveProjectEditor
         ]),
         new("Regalos, habilidades y objetos",[
             Field("RandomItems","Randomizar objetos equipados",0,0,1),
-            Field("RandomAbilities","Randomizar slots de habilidad (regalos/estáticos)",0,0,1),
+            Field("RandomAbilities","Randomizar slots de habilidad",0,0,1),
             Field("GiftMoves","Randomizar movimiento especial de regalos",0,0,1),
+            Field("Metronome","Modo Metrónomo · estáticos; regalos no iniciales sin movimiento especial",0,0,1),
             Field("ShinyLock","Conservar restricciones shiny",1,0,1),
             Field("RemoveLocks","Eliminar shiny locks (regalos/estáticos)",0,0,1)
         ]),
         new("Encuentros Totem y especiales",[
             Field("TotemAura","Randomizar aura de Totem existente",0,0,1),
+            Field("ForceTotem","Reemplazar especies Totem por evoluciones finales",0,0,1),
             Field("ForceFinal","Usar evoluciones finales desde un nivel",0,0,1),
             Field("FinalLevel","Nivel para evolución final",36,1,100)
         ],false)
@@ -301,6 +306,10 @@ public sealed class GameStaticEncounterService : ArchiveProjectEditor
             fields.Add(Field("ShinyLock","Bloqueo shiny",enc.ShinyLock?1:0,0,1));
             fields.Add(Field("Aura","Aura de Totem",enc.Aura,0,255));
             fields.Add(Field("Allies","Cantidad / tipo de aliados",enc.Allies,0,255));
+            fields.Add(Field("Ally1","Primer aliado",enc.Ally1,0,255));
+            fields.Add(Field("Ally2","Segundo aliado",enc.Ally2,0,255));
+            fields.Add(Field("Map","Mapa",enc.Map,-32769,32766));
+            AddStats(enc.IVs,enc.EVs);
             for(int i=0;i<4;i++)fields.Add(Field($"Move{i}","Movimiento recordable "+(i+1),enc.RelearnMoves[i],0,65535,Choices(TextName.MoveNames)));
         }
         else
@@ -313,8 +322,18 @@ public sealed class GameStaticEncounterService : ArchiveProjectEditor
             fields.Add(Field("Gender","Género",trade.Gender,0,255));
             fields.Add(Field("TID","ID entrenador",trade.TID,0,65535));
             fields.Add(Field("SID","ID secreto",trade.SID,0,65535));
+            AddStats(trade.IVs,null);
         }
         return [new(slot.Kind+" "+(slot.Index+1),fields)];
+        void AddStats(int[] ivs,int[]? evs)
+        {
+            string[] names=["PS","Ataque","Defensa","Velocidad","Ataque especial","Defensa especial"];
+            for(int i=0;i<6;i++)
+            {
+                fields.Add(Field($"IV{i}",$"IV {names[i]} · -1 aleatorio; -4 en PS = tres perfectos",ivs[i],sbyte.MinValue,sbyte.MaxValue));
+                if(evs!=null)fields.Add(Field($"EV{i}",$"EV {names[i]}",evs[i],0,255));
+            }
+        }
     }
     protected override void WriteRecord(int id,IReadOnlyDictionary<string,int> v,Dictionary<string,byte[][]> records)
     {
@@ -336,6 +355,9 @@ public sealed class GameStaticEncounterService : ArchiveProjectEditor
             if(v["Item"]!=enc.HeldItem)enc.HeldItem=v["Item"];enc.Gender=v["Gender"];enc.Ability=v["Ability"];enc.Nature=v["Nature"];
             bytes[6]=(byte)((bytes[6]&~3)|(v["Shiny"]==1?1:0)|(v["ShinyLock"]==1?2:0));
             enc.Aura=v["Aura"];enc.Allies=v["Allies"];
+            enc.Ally1=v["Ally1"];enc.Ally2=v["Ally2"];enc.Map=v["Map"];
+            enc.IVs=Enumerable.Range(0,6).Select(i=>v[$"IV{i}"]).ToArray();
+            enc.EVs=Enumerable.Range(0,6).Select(i=>v[$"EV{i}"]).ToArray();
             enc.RelearnMoves=Enumerable.Range(0,4).Select(i=>v[$"Move{i}"]).ToArray();
         }
         else
@@ -348,6 +370,7 @@ public sealed class GameStaticEncounterService : ArchiveProjectEditor
             if(v["Item"]!=trade.HeldItem)trade.HeldItem=v["Item"];
             trade.Ability=v["Ability"];trade.Nature=v["Nature"];trade.Gender=v["Gender"];
             trade.TID=v["TID"];trade.SID=v["SID"];
+            trade.IVs=Enumerable.Range(0,6).Select(i=>v[$"IV{i}"]).ToArray();
         }
         bytes.CopyTo(records["encounterstatic"][slot.File],slot.Index*slot.Size);
     }
@@ -366,10 +389,9 @@ public sealed class GameStaticEncounterService : ArchiveProjectEditor
         if(options["NoLegendGifts"]==1&&giftOrTrade)
             pool=pool.Where(id=>!legendary.Contains(id)&&!Legal.Mythical_USUM.Contains(id)
                 &&id is not (772 or 789 or 790 or 803)).ToArray();
-        if(options["LegendToLegend"]==1&&legendary.Contains(original))
-            pool=pool.Where(legendary.Contains).ToArray();
-        if(options["ForceFinal"]==1&&level>=options["FinalLevel"])
-            pool=pool.Where(id=>Legal.FinalEvolutions_7.Contains(id)).ToArray();
+        if(!giftOrTrade&&options["LegendToLegend"]==1&&
+            (legendary.Contains(original)||Legal.Mythical_USUM.Contains(original)))
+            pool=legendary.Concat(Legal.Mythical_USUM).Distinct().Where(s=>s>0&&s<=Config.MaxSpeciesID).ToArray();
         int tolerance=options["SimilarBST"]==1?options["BST"]:0;
         if(tolerance>0&&original>0&&original<Config.Personal.Table.Length)
         {
@@ -379,6 +401,56 @@ public sealed class GameStaticEncounterService : ArchiveProjectEditor
         if(pool.Length==0)throw new InvalidDataException("Static Encounters: el filtro de generación, BST o legendarios no deja reemplazos válidos.");
         return pool[random.Next(pool.Length)];
     }
+    // Match the original species-based Force Totem rule, rather than the
+    // separate USUM table of encounters used by individual Totem profiles.
+    internal static readonly int[] TotemSpecies=[20,105,735,738,743,746,752,754,758,777,778,784];
+    internal static int PickLegacyForm(int species,bool mega,pk3DS.Core.Structures.PersonalInfo.PersonalInfo[] stats,Random random)
+    {
+        if(stats[species].FormeCount<=1)return 0;
+        if(species is 664 or 665 or 666)return 30;
+        if(species==774)return random.Next(7);
+        if(Legal.EvolveToAlolanForms.Contains(species))return random.Next(2);
+        return !Legal.Mega_ORAS.Contains((ushort)species)||mega?random.Next(stats[species].FormeCount):0;
+    }
+    // A status SpecialMove can displace the starter's only natural attack.
+    // Follow the original Progressive rule using the current ROM's move table.
+    internal static int StarterSpecialMove(GameConfig config,int species,int form,int level,int specialMove)
+    {
+        bool Damaging(int move)=>move>0&&move<config.Moves.Length&&config.Moves[move].Power>0;
+        if(Damaging(specialMove))return specialMove;
+        int index=config.Personal.GetFormIndex(species,form);
+        var sets=config.Learnsets;
+        var set=sets!=null&&(uint)index<(uint)sets.Length?sets[index]:null;
+        int[] current=set?.GetEncounterMoves(level)??[];
+        if(specialMove==0&&current.Any(Damaging))return 0;
+        int natural=current.FirstOrDefault(Damaging);
+        if(natural==0)
+            natural=(set?.GetMoves(Math.Clamp(level,1,100))??[])
+                .Where(Damaging).Distinct().OrderBy(move=>config.Moves[move].Power).FirstOrDefault();
+        if(natural!=0)return natural;
+        if(Damaging(33))return 33;
+        int fallback=Enumerable.Range(1,Math.Max(0,config.Moves.Length-1)).FirstOrDefault(Damaging);
+        return fallback!=0?fallback:throw new InvalidDataException("No existe un movimiento dañino para garantizar un inicial jugable.");
+    }
+    internal static int[] GiftMovePool(GameConfig config)=>Enumerable.Range(1,Math.Max(0,config.Moves.Length-1))
+        .Where(move=>!Legal.Z_Moves.Contains(move)&&move is not (165 or 464 or 621)).ToArray();
+    internal static int RandomTotemAura(bool usum,int encounterIndex,int aura,Random random)
+    {
+        if(usum&&!TotemEntryIds.Contains(encounterIndex)||aura is <1 or >15)return aura;
+        int boost=(aura-1)%3;
+        int currentBase=aura-boost;
+        int[] alternatives=new[]{1,4,7,10,13}.Where(stat=>stat!=currentBase).ToArray();
+        return alternatives[random.Next(alternatives.Length)]+boost;
+    }
+    private int[] FinalPool(bool playerReceived,IReadOnlyDictionary<string,int> options)
+    {
+        IEnumerable<int> pool=Legal.FinalEvolutions_7;
+        if(options["Legends"]==1)pool=pool.Concat(Config.USUM?Legal.Legendary_USUM:Legal.Legendary_SM);
+        if(options["Events"]==1)pool=pool.Concat(Legal.Mythical_USUM);
+        if(playerReceived&&options["NoLegendGifts"]==1)
+            pool=pool.Where(s=>!Legal.Legendary_USUM.Contains(s)&&!Legal.Mythical_USUM.Contains(s)&&s is not (772 or 789 or 790 or 803));
+        return pool.Distinct().Where(s=>s>0&&s<=Config.MaxSpeciesID&&s<Config.Personal.Table.Length).ToArray();
+    }
     protected override Dictionary<string,int> Randomize(int id,IReadOnlyDictionary<string,int> options,
         Dictionary<string,byte[][]> records,Random random)
     {
@@ -387,30 +459,76 @@ public sealed class GameStaticEncounterService : ArchiveProjectEditor
         if(!enabled||values["Species"]<=0)return values;
         if(options["Species"]==1&&values["Species"]>0)
         {
-            values["Species"]=PickFilteredSpecies(values["Species"],values["Level"],
-                slot.File!=1,options,random);
-            values["Form"]=0;
+            int original=values["Species"];
+            bool basic=slot.File==0&&slot.Index<3&&options.GetValueOrDefault("BasicStarter")==1;
+            bool forceTotem=slot.File==1&&TotemSpecies.Contains(original)&&options.GetValueOrDefault("ForceTotem")==1;
+            // Original explicit starter/Totem pools override generation and BST
+            // filters. Legend-to-legend has precedence over Force Totem.
+            bool legendOverride=options["LegendToLegend"]==1&&
+                (Legal.Legendary_USUM.Contains(original)||Legal.Mythical_USUM.Contains(original));
+            int[] special=(basic?Legal.BasicStarters_7:forceTotem&&!legendOverride?FinalPool(false,options):[])
+                .Where(s=>s>0&&s<=Config.MaxSpeciesID&&s<Config.Personal.Table.Length).ToArray();
+            values["Species"]=basic||forceTotem&&!legendOverride
+                ?special.Length>0?special[random.Next(special.Length)]:throw new InvalidDataException("No hay especies compatibles en el perfil de iniciales/Totem.")
+                :PickFilteredSpecies(original,values["Level"],slot.File!=1,options,random);
+            values["Form"]=PickLegacyForm(values["Species"],options.GetValueOrDefault("AllowMega")==1,Config.Personal.Table,random);
         }
         if(values["Level"]>0&&options["ScaleLevels"]==1)
             values["Level"]=Math.Clamp((int)Math.Round(values["Level"]*options["LevelScale"]/100.0)
                 +options["LevelFlat"],1,100);
+        if(options["Species"]==1)
+        {
+            if(options["ForceFinal"]==1&&!(slot.File==0&&slot.Index<3)&&values["Level"]>=options["FinalLevel"])
+            {
+                var finals=FinalPool(slot.File!=1,options);
+                if(finals.Length==0)throw new InvalidDataException("El filtro no deja evoluciones finales válidas.");
+                if(!finals.Contains(values["Species"]))values["Species"]=finals[random.Next(finals.Length)];
+                values["Form"]=PickLegacyForm(values["Species"],options.GetValueOrDefault("AllowMega")==1,Config.Personal.Table,random);
+            }
+            values["Nature"]=slot.File switch{0=>-1,1=>0,_=>random.Next(25)};
+            if(slot.File==1)
+            {
+                values["Gender"]=0;
+                bool threePerfect=values["IV0"]==-4;
+                for(int i=0;i<6;i++){values[$"IV{i}"]=i==0&&threePerfect?-4:-1;values[$"EV{i}"]=0;}
+                int index=Config.Personal.GetFormIndex(values["Species"],values["Form"]);
+                var sets=Config.Learnsets;
+                int[] moves=sets!=null&&(uint)index<(uint)sets.Length?sets[index].GetEncounterMoves(values["Level"]):new int[4];
+                for(int i=0;i<4;i++)values[$"Move{i}"]=moves[i];
+            }
+            else if(slot.File==4)
+            {
+                // Keep an already installed Accept Any request intact.
+                if(values["Request"]>0)values["Request"]=PickFilteredSpecies(values["Request"],values["Level"],true,options,random);
+                for(int i=0;i<6;i++)values[$"IV{i}"]=-1;
+            }
+        }
         if(options["RandomItems"]==1&&values.ContainsKey("Item"))
         {
-            int[] heldPool=[155,156,157,158,159,160,220,234,270,275,287,297,538];
+            int[] heldPool=ProgressiveLegacy.Randomizer.GetRandomItemList(Config);
             var valid=heldPool.Where(item=>item<Config.GetText(TextName.ItemNames).Length).ToArray();
             if(valid.Length>0)values["Item"]=valid[random.Next(valid.Length)];
         }
-        if(options["RandomAbilities"]==1&&slot.File!=4&&values.ContainsKey("Ability"))
-            values["Ability"]=random.Next(0,3);
+        if(options["RandomAbilities"]==1&&values.ContainsKey("Ability"))
+            values["Ability"]=slot.File==1?random.Next(1,4):random.Next(0,3);
         if(options["GiftMoves"]==1&&slot.File==0)
         {
-            int[] moves=Enumerable.Range(1,Math.Min(Config.Moves.Length,621)-1)
-                .Where(move=>!Legal.Z_Moves.Contains(move)&&move is not (165 or 166 or 226))
-                .ToArray();
+            if(options.GetValueOrDefault("Metronome")==1)
+            {
+                // Original starters keep their special move in this mode;
+                // Randomize All clears it only for gifts after the first three.
+                if(slot.Index>=3)values["Move"]=0;
+            }
+            else
+            {
+            int[] moves=GiftMovePool(Config);
             if(moves.Length>0)values["Move"]=moves[random.Next(moves.Length)];
+            }
         }
-        if(options["TotemAura"]==1&&slot.File==1&&values["Aura"]>0)
-            values["Aura"]=random.Next(1,8);
+        if(slot.File==1&&options.GetValueOrDefault("Metronome")==1)
+            for(int i=0;i<4;i++)values[$"Move{i}"]=i==0?118:0;
+        if(options["TotemAura"]==1&&slot.File==1)
+            values["Aura"]=RandomTotemAura(Config.USUM,slot.Index,values["Aura"],random);
         if(slot.File!=4&&options["RemoveLocks"]==1)
         {
             values["ShinyLock"]=0;
@@ -418,6 +536,9 @@ public sealed class GameStaticEncounterService : ArchiveProjectEditor
         }
         else if(slot.File!=4&&options["ShinyLock"]==1)
             values["ShinyLock"]=EditorValues.Flatten(ReadRecord(id,records))["ShinyLock"];
+        if(slot.File==0&&slot.Index<3&&(options["Species"]==1||
+            options["GiftMoves"]==1&&options.GetValueOrDefault("Metronome")==0))
+            values["Move"]=StarterSpecialMove(Config,values["Species"],values["Form"],values["Level"],values["Move"]);
         return values;
     }
 }

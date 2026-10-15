@@ -310,10 +310,21 @@ internal static class BatchWorkspace
         CopyDirectory(sourceConfig.ExeFS, stageExeFS);
         File.Copy(sourceExHeader, stageExHeader, true);
 
-        if (!restoreBackups)
-            return 0;
+        int restored=restoreBackups?OverlayPk3DSBackups(sourceRoot,targetRoot,sourceConfig):0;
+        NormalizeStageCode(stageExeFS);
+        return restored;
+    }
 
-        return OverlayPk3DSBackups(sourceRoot, targetRoot, sourceConfig);
+    // Old Gen7 forms assume the first ExeFS file is .code.bin. Normalize only
+    // the isolated staging copy; preserve source filenames and contents.
+    internal static void NormalizeStageCode(string directory)
+    {
+        var files=Directory.GetFiles(directory).Where(file=>string.Equals(Path.GetFileName(file),"code.bin",StringComparison.OrdinalIgnoreCase)||string.Equals(Path.GetFileName(file),".code.bin",StringComparison.OrdinalIgnoreCase)).ToArray();
+        if(files.Length!=1)throw new InvalidDataException("Staging requires one code.bin.");
+        string canonical=Path.Combine(directory,".code.bin");if(string.Equals(files[0],canonical,StringComparison.Ordinal))return;
+        string temporary=Path.Combine(directory,".code-normalize-"+Guid.NewGuid().ToString("N"));
+        File.Move(files[0],temporary);
+        try{File.Move(temporary,canonical);}catch{File.Move(temporary,files[0]);throw;}
     }
 
     private static void CopyDirectory(string sourceRoot, string targetRoot)
@@ -325,12 +336,19 @@ internal static class BatchWorkspace
             Directory.CreateDirectory(Path.Combine(targetRoot, relative));
         }
 
+        int copiedFiles=0; var copyClock=System.Diagnostics.Stopwatch.StartNew();
         foreach (string source in Directory.EnumerateFiles(sourceRoot, "*", SearchOption.AllDirectories))
         {
             string relative = Path.GetRelativePath(sourceRoot, source);
             string target = Path.Combine(targetRoot, relative);
             Directory.CreateDirectory(Path.GetDirectoryName(target));
             File.Copy(source, target, true);
+            copiedFiles++;
+            if(copyClock.ElapsedMilliseconds>=250)
+            {
+                BatchBridgeProgress.Stage("Preparar copia", $"{Path.GetFileName(sourceRoot)} · {copiedFiles:N0} archivos copiados · {relative}");
+                copyClock.Restart();
+            }
         }
     }
 
@@ -678,9 +696,9 @@ internal static class BatchGen7ActionExecutor
             .Where(z => z != null && !string.IsNullOrWhiteSpace(z.Id))
             .ToDictionary(z => z.Id, z => z, StringComparer.OrdinalIgnoreCase);
 
-        RunMoves(actions);
+        RunMoves(actions,template);
         BatchBridgeProgress.ActionGroup("Moves",actions.Keys,id=>id.StartsWith("moves.",StringComparison.OrdinalIgnoreCase));
-        RunPersonal(actions);
+        RunPersonal(actions,template);
         BatchBridgeProgress.ActionGroup("Personal",actions.Keys,id=>id.StartsWith("personal.",StringComparison.OrdinalIgnoreCase)||id.StartsWith("pokemon-stats.",StringComparison.OrdinalIgnoreCase));
         RunEvolutions(actions);
         BatchBridgeProgress.ActionGroup("Evolutions",actions.Keys,id=>id.StartsWith("evolutions.",StringComparison.OrdinalIgnoreCase));
@@ -688,27 +706,27 @@ internal static class BatchGen7ActionExecutor
         BatchBridgeProgress.ActionGroup("LevelUpMoves",actions.Keys,id=>id.StartsWith("level-up-moves.",StringComparison.OrdinalIgnoreCase));
         RunEggMoves(actions);
         BatchBridgeProgress.ActionGroup("EggMoves",actions.Keys,id=>id.StartsWith("egg-moves.",StringComparison.OrdinalIgnoreCase));
-        RunTMs(actions);
+        RunTMs(actions,template);
         BatchBridgeProgress.ActionGroup("TMs",actions.Keys,id=>id.StartsWith("tms.",StringComparison.OrdinalIgnoreCase));
 
         // Story progression invariant:
         // Totem Level Caps are applied and saved inside RunStaticEncounters
         // before trainer randomization. RunTrainers later reads those effective
         // static levels through USUMStoryMilestoneResolver.
-        RunStaticEncounters(actions);
+        RunStaticEncounters(actions,template);
         BatchBridgeProgress.ActionGroup("StaticEncounters",actions.Keys,id=>id.StartsWith("static-encounters.",StringComparison.OrdinalIgnoreCase)||id.StartsWith("starters.",StringComparison.OrdinalIgnoreCase)||id.StartsWith("trades.",StringComparison.OrdinalIgnoreCase));
 
-        RunWildEncounters(actions, template.Wild);
+        RunWildEncounters(actions, template.Wild,template);
         BatchBridgeProgress.ActionGroup("WildEncounters",actions.Keys,id=>id.StartsWith("wild-encounters.",StringComparison.OrdinalIgnoreCase));
         RunPickup(actions);
         BatchBridgeProgress.ActionGroup("Pickup",actions.Keys,id=>id.StartsWith("pickup.",StringComparison.OrdinalIgnoreCase));
-        RunItemEconomy(actions);
+        RunItemEconomy(actions,template);
         BatchBridgeProgress.ActionGroup("ItemEconomy",actions.Keys,id=>id.StartsWith("items.",StringComparison.OrdinalIgnoreCase));
-        RunMarts(actions);
+        RunMarts(actions,template);
         BatchBridgeProgress.ActionGroup("Marts",actions.Keys,id=>id.StartsWith("marts.",StringComparison.OrdinalIgnoreCase));
-        RunTutors(actions);
+        RunTutors(actions,template);
         BatchBridgeProgress.ActionGroup("Tutors",actions.Keys,id=>id.StartsWith("move-tutors.",StringComparison.OrdinalIgnoreCase));
-        RunFieldItems(actions);
+        RunFieldItems(actions,template);
         BatchBridgeProgress.ActionGroup("FieldItems",actions.Keys,id=>id.StartsWith("field-items.",StringComparison.OrdinalIgnoreCase));
         RunShinyRate(actions);
         BatchBridgeProgress.ActionGroup("ShinyRate",actions.Keys,id=>id.StartsWith("shiny-rate.",StringComparison.OrdinalIgnoreCase));
@@ -728,8 +746,10 @@ internal static class BatchGen7ActionExecutor
     private static GlobalRandomizationAction Get(Dictionary<string, GlobalRandomizationAction> actions, string id)
         => actions.TryGetValue(id, out var action) ? action : null;
 
-    private static void RunMoves(Dictionary<string, GlobalRandomizationAction> actions)
+    private static void RunMoves(Dictionary<string, GlobalRandomizationAction> actions,GlobalRandomizationTemplate template)
     {
+        if(Main.Config.SM&&Has(actions,"moves.balance"))throw new NotSupportedException("El balance Progressive se limita a XY, ORAS y USUM.");
+        if(BatchGen6ActionExecutor.TryMasterNative(template,"Moves"))return;
         if (!Has(actions, "moves.balance") && !Has(actions, "moves.randomize") && !Has(actions, "moves.metronome"))
             return;
 
@@ -749,8 +769,9 @@ internal static class BatchGen7ActionExecutor
         Main.Config.InitializeMoves();
     }
 
-    private static void RunPersonal(Dictionary<string, GlobalRandomizationAction> actions)
+    private static void RunPersonal(Dictionary<string, GlobalRandomizationAction> actions,GlobalRandomizationTemplate template)
     {
+        if(BatchGen6ActionExecutor.TryMasterNative(template,"Personal"))return;
         if (!Has(actions, "personal.randomize") &&
             !Has(actions, "personal.modify-all") &&
             !Has(actions, "pokemon-stats.apply") &&
@@ -841,11 +862,12 @@ internal static class BatchGen7ActionExecutor
         g.Save();
     }
 
-    private static void RunTMs(Dictionary<string, GlobalRandomizationAction> actions)
+    private static void RunTMs(Dictionary<string, GlobalRandomizationAction> actions,GlobalRandomizationTemplate template)
     {
         if (!Has(actions, "tms.randomize") && !Has(actions, "tms.sanity") && !Has(actions, "tms.follow-evolutions"))
             return;
 
+        if(BatchGen6ActionExecutor.TryMachineNative(template,"Machines"))return;
         BatchRuntime.Log("TMs...");
         using var form = new TMEditor7();
 
@@ -885,7 +907,7 @@ internal static class BatchGen7ActionExecutor
 
     private static void RunWildEncounters(
         Dictionary<string, GlobalRandomizationAction> actions,
-        WildRandomizerTemplate wildTemplate)
+        WildRandomizerTemplate wildTemplate,GlobalRandomizationTemplate template)
     {
         string[] ids =
         {
@@ -899,6 +921,7 @@ internal static class BatchGen7ActionExecutor
         if (!ids.Any(id => Has(actions, id)))
             return;
 
+        if(BatchGen6ActionExecutor.TryWild7Native(template))return;
         bool normal = Has(actions, "wild-encounters.randomize");
         bool progressive = Has(actions, "wild-encounters.progressive");
 
@@ -957,12 +980,19 @@ internal static class BatchGen7ActionExecutor
             SetCheckBox(form, "CHK_WildLevelKeepRange", keepValue);
     }
 
-    private static void RunStaticEncounters(Dictionary<string, GlobalRandomizationAction> actions)
+    private static void RunStaticEncounters(Dictionary<string, GlobalRandomizationAction> actions,GlobalRandomizationTemplate template)
     {
         string[] ids = { "starters.randomize", "static-encounters.randomize", "static-encounters.modify-levels", "static-encounters.totem-level-caps", "trades.accept-any", "trades.randomize-offers", "trades.hide-species-names", "static-encounters.totem-bst" };
         if (!ids.Any(id => Has(actions, id)))
             return;
 
+        string serialized=System.Text.Json.JsonSerializer.Serialize(template);
+        using(var document=System.Text.Json.JsonDocument.Parse(serialized))
+            if(document.RootElement.TryGetProperty("ProgressiveApp",out var native)&&native.TryGetProperty("StaticEncounters",out _)&&new[]{"static-encounters.randomize","static-encounters.modify-levels","starters.randomize"}.Any(id=>Has(actions,id)))
+            {
+                BatchGen6ActionExecutor.ExecuteStaticGen7Native(System.IO.Directory.GetParent(Main.RomFSPath).FullName,serialized,unchecked((int)Util.Random32()));
+                return;
+            }
         BatchRuntime.Log("Starters / static encounters / trades...");
         var g = Main.Config.GetGARCData("encounterstatic");
         byte[][] data = g.Files;
@@ -1029,14 +1059,13 @@ internal static class BatchGen7ActionExecutor
         if (!Has(actions, "pickup.randomize"))
             return;
         BatchRuntime.Log("Pickup...");
-        var pickup = Main.Config.GetlzGARCData("pickup");
-        using var form = new PickupEditor7(pickup);
-        InvokeEvent(form, "B_Randomize_Click");
-        InvokeEvent(form, "B_Save_Click");
+        BatchGen6ActionExecutor.ApplyPickup7Native(System.IO.Directory.GetParent(Main.RomFSPath).FullName,unchecked((int)Util.Random32()));
+
     }
 
-    private static void RunItemEconomy(Dictionary<string, GlobalRandomizationAction> actions)
+    private static void RunItemEconomy(Dictionary<string, GlobalRandomizationAction> actions,GlobalRandomizationTemplate template)
     {
+        if(BatchGen6ActionExecutor.TryFieldNative(template,"Items"))return;
         GlobalRandomizationAction action =
             Get(
                 actions,
@@ -1062,12 +1091,13 @@ internal static class BatchGen7ActionExecutor
             $"Fix Economy ({mode}): {changed} item prices updated.");
     }
 
-    private static void RunMarts(Dictionary<string, GlobalRandomizationAction> actions)
+    private static void RunMarts(Dictionary<string, GlobalRandomizationAction> actions,GlobalRandomizationTemplate template)
     {
         string[] ids = { "marts.randomize", "marts.randomize-bp", "marts.expanded-layout", "marts.add-rare-candies", "marts.add-ev-items", "marts.free-mega-stones", "marts.ban-ability-capsule" };
         if (!ids.Any(id => Has(actions, id)))
             return;
 
+        if(BatchGen6ActionExecutor.TryMartNative(template))return;
         BatchRuntime.Log("Marts / BP items...");
         if (Main.Config.USUM)
         {
@@ -1160,7 +1190,7 @@ internal static class BatchGen7ActionExecutor
         InvokeEvent(form, "B_Save_Click");
     }
 
-    private static void RunTutors(Dictionary<string, GlobalRandomizationAction> actions)
+    private static void RunTutors(Dictionary<string, GlobalRandomizationAction> actions,GlobalRandomizationTemplate template)
     {
         if (!Has(actions, "move-tutors.randomize") && !Has(actions, "move-tutors.sanity") && !Has(actions, "move-tutors.follow-evolutions") && !Has(actions, "move-tutors.free"))
             return;
@@ -1168,6 +1198,7 @@ internal static class BatchGen7ActionExecutor
         if (!Main.Config.USUM)
             throw new NotSupportedException("Move Tutor batch actions are currently supported for USUM only.");
 
+        if(BatchGen6ActionExecutor.TryMachineNative(template,"Tutors"))return;
         BatchRuntime.Log("Move Tutors...");
         using var form = new TutorEditor7();
 
@@ -1192,8 +1223,9 @@ internal static class BatchGen7ActionExecutor
         InvokeEvent(form, "B_Save_Click");
     }
 
-    private static void RunFieldItems(Dictionary<string, GlobalRandomizationAction> actions)
+    private static void RunFieldItems(Dictionary<string, GlobalRandomizationAction> actions,GlobalRandomizationTemplate template)
     {
+        if(BatchGen6ActionExecutor.TryFieldNative(template,"FieldItems"))return;
         if (!Has(actions, "field-items.randomize"))
             return;
         BatchRuntime.Log("Field items...");
@@ -1291,12 +1323,11 @@ internal static class BatchGen7ActionExecutor
             return;
 
         BatchRuntime.Log("Shiny rate...");
-        using var form = new ShinyRate();
-        if (action.Parameters.TryGetValue("rerolls", out string rerolls) && decimal.TryParse(rerolls, out decimal value))
-            SetNumeric(form, "NUD_Rerolls", value);
-        if (action.Parameters.TryGetValue("everythingShiny", out string shiny) && bool.TryParse(shiny, out bool isShiny))
-            SetCheckBox(form, "CHK_EverythingShiny", isShiny);
-        InvokeEvent(form, "B_Save_Click");
+        if(!action.Parameters.TryGetValue("rerolls",out string raw)||!int.TryParse(raw,out int rolls)||rolls is <1 or >9000||
+           !action.Parameters.TryGetValue("everythingShiny",out string shiny)||!bool.TryParse(shiny,out bool everything))
+            throw new System.IO.InvalidDataException("Shiny Rate requires explicit rerolls (1-9000) and everythingShiny parameters.");
+        BatchGen6ActionExecutor.ApplyShinyNative(System.IO.Directory.GetParent(Main.RomFSPath).FullName,rolls,everything);
+        Main.Config.InitializeAll();
     }
 
     private static void SetOptionalCheckBoxFromParameter(Control root, string controlName, GlobalRandomizationAction action, string parameterName)

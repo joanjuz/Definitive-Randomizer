@@ -1,0 +1,13 @@
+# Iteración 53: Global Template para Sanity/Follow MT/MO Gen6
+
+El panel MT/MO Gen6 recuerda sus opciones de compatibilidad al navegar. Global Template captura y restaura Sanity/Follow mediante ProgressiveApp.MachineCompatibility con Scope=0 y opciones enteras 0/1. También actualiza las acciones tms.sanity y tms.follow-evolutions en orden, conservando las demás acciones y sus parámetros. Desmarcar una operación elimina su acción al capturar; ambas desactivadas se guardan explícitamente sin ejecutar compatibilidad.
+
+La importación valida el snapshot antes de cambiar el estado recordado. Batch acepta el nuevo snapshot completo y lo compara con las acciones efectivas: rechaza alcance parcial, opciones incompletas, estados fuera de 0/1, acciones faltantes o fuera de orden. Las recetas antiguas sin snapshot conservan soporte de estas dos acciones explícitas. Gen7 rechaza un snapshot MachineCompatibility de Gen6. El replay continúa sobre el proyecto temporal del lote y mantiene la conservación de Personal implementada en la iteración 52.
+
+14 comprobaciones nuevas: diez de captura y coherencia de recetas XY/ORAS y cuatro de navegación WPF real. Estas últimas seleccionan ambas opciones, navegan a Global, capturan el snapshot, importan una selección diferente y comprueban los controles al reabrir MT/MO. La batería incluye replay Batch con snapshot y comparación byte a byte con la operación manual. Total: 2282 regresiones locales; Debug 0 errores y 79 advertencias. Se normalizó UTF-8 en archivos del puente Batch y se corrigieron mensajes con acentos. La recompilación y las 32 comprobaciones dirigidas de compatibilidad pasan después de esa corrección de texto.
+
+Limitaciones: los snapshots generados exclusivamente desde historial siguen marcados PartialSnapshot; Batch exige una receta completa y no inventa configuración de módulos ausentes. Al seleccionar acciones para exportar, la selección y las opciones Sanity/Follow deben coincidir; Batch rechaza discrepancias. La captura de este panel no implica paridad Global completa de todos los módulos.
+
+Batch Gen6 conserva 31 acciones. El siguiente trabajo abierto incluye las demás acciones Progressive/vanilla Gen6, los movimientos de tutores ORAS efectivos en juego, compatibilidad de tutores, recetas antiguas y catálogos personalizados. También falta verificar el puente desde el proceso original independiente, lotes reales completos, extracción/rebuild, herramientas vanilla restantes, UX/rendimiento, empaquetado y validación in-game. No se declara estable completa ni se solicita todavía la validación final del usuario.
+
+Doce archivos protegidos preservados; ROMs originales y archivos personales intactos. Sin commits, push, publicación ni cambios a Eris-Ultranova.

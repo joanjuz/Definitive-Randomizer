@@ -23,6 +23,10 @@ namespace ThreeDS.Progressive;
 internal sealed class MachineTutorView : UserControl
 {
     private readonly GameProjectSession _project;
+    private readonly CheckBox _recipeMachines=new(){Content="Randomizar MT en Global/Batch"},_recipeTutors=new(){Content="Randomizar tutores en Global/Batch"},_recipeFree=new(){Content="Tutores gratis en Global/Batch"};
+    private CheckBox _tmSanity=null!,_tmFollow=null!,_tutorSanity=null!,_tutorFollow=null!;
+    internal Gen7MachineState RememberRecipe()=>new(_recipeMachines.IsChecked==true,_tmSanity.IsChecked==true,_tmFollow.IsChecked==true,_recipeTutors.IsChecked==true,_recipeFree.IsChecked==true,_tutorSanity.IsChecked==true,_tutorFollow.IsChecked==true);
+    internal void RestoreRecipe(Gen7MachineState s){_recipeMachines.IsChecked=s.RandomMachines;_tmSanity.IsChecked=s.MachineSanity;_tmFollow.IsChecked=s.MachineFollow;_recipeTutors.IsChecked=s.RandomTutors;_recipeFree.IsChecked=s.FreeTutors;_tutorSanity.IsChecked=s.TutorSanity;_tutorFollow.IsChecked=s.TutorFollow;}
     private GameMachineTutorService _service;
     private readonly DataGrid _machineGrid,_tutorGrid;
     private readonly List<DataGrid> _machineColumns=[];
@@ -82,12 +86,12 @@ internal sealed class MachineTutorView : UserControl
                 table.CommitEdit(DataGridEditingUnit.Row,true);
             }
             if(!StudioDialog.Confirm(Window.GetWindow(this),"Guardar MT",
-                "Se modificará code.bin y se registrarán las diferencias en el historial."))return;
-            _service.SaveMachines();_service=new GameMachineTutorService(_project);
+                "Se actualizarán code.bin y las descripciones de las MT en el idioma activo, con verificación e historial."))return;
+            _service.SaveMachines(synchronizeDescriptions:true);_service=new GameMachineTutorService(_project);
             Rebind();_dirtyMachines=false;UpdateState();
-            _status.Text="MT guardadas con verificación de code.bin e historial.";
+            _status.Text="MT y descripciones guardadas con verificación conjunta e historial.";
         });
-        commands.Children.Add(random);commands.Children.Add(_saveMachines);
+        commands.Children.Add(random);commands.Children.Add(_saveMachines);_recipeMachines.Margin=new Thickness(12,4,0,0);_recipeMachines.Foreground=text;commands.Children.Add(_recipeMachines);
         // Native Gen7 TM compatibility: independent from tutor Sanity flags.
         var tmCompatibilityControls=new StackPanel {Margin=new Thickness(0,0,0,10)};
         DockPanel.SetDock(tmCompatibilityControls,Dock.Top);
@@ -103,6 +107,7 @@ internal sealed class MachineTutorView : UserControl
             Content="TM Follow Evolutions · heredar compatibilidad",
             Foreground=text,Margin=new Thickness(0,3,18,3)
         };
+        _tmSanity=tmSanity;_tmFollow=tmFollow;
         tmFlags.Children.Add(tmSanity);
         tmFlags.Children.Add(tmFollow);
         tmCompatibilityControls.Children.Add(tmFlags);
@@ -274,6 +279,7 @@ internal sealed class MachineTutorView : UserControl
             Rebind();UpdateState();
             _status.Text="Tutores USUM guardados; Shop.cro y code.bin sincronizados y verificados.";
         });
+        foreach(var recipeOption in new[]{_recipeTutors,_recipeFree}){recipeOption.Foreground=text;recipeOption.Margin=new Thickness(8,4,0,0);recipeOption.Visibility=project.GameConfiguration.USUM?Visibility.Visible:Visibility.Collapsed;tutorActions.Children.Add(recipeOption);}
         tutorActions.Children.Add(free);
         tutorActions.Children.Add(randomTutors);
         tutorActions.Children.Add(_savePrices);
@@ -293,8 +299,10 @@ internal sealed class MachineTutorView : UserControl
             Margin=new Thickness(0,4,18,4),Foreground=text,
             IsEnabled=_service.CanEditTutorMoves
         };
+        _tutorSanity=sanityOption;_tutorFollow=followOption;
         compatibilityOptions.Children.Add(sanityOption);
         compatibilityOptions.Children.Add(followOption);
+        compatibilityOptions.Visibility=project.GameConfiguration.USUM?Visibility.Visible:Visibility.Collapsed;
         tutorHeader.Children.Add(compatibilityOptions);
         var compatibilityActions=new WrapPanel {Margin=new Thickness(0,0,0,8)};
         tutorHeader.Children.Add(compatibilityActions);

@@ -78,6 +78,7 @@
     </Grid>
    </Grid>
    <Border Grid.Column="2" Background="{StaticResource Panel}" BorderBrush="{StaticResource Stroke}" BorderThickness="1,0,0,0" Padding="18,22">
+    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
     <StackPanel><TextBlock Text="INSPECTOR" Foreground="{StaticResource TextSoft}" FontSize="11" Margin="0,0,0,12"/>
      <Button x:Name="RandomizerButton" Content="Randomizar" Click="Randomizer_Click" Margin="0,0,0,10"/>
      <Button x:Name="MegaUnlockButton" Content="Habilitar Mega desde el inicio (USUM)"
@@ -100,6 +101,12 @@
              Click="TrainerCaps_Click" Margin="0,0,0,8"/>
      <Button x:Name="TrainerMovesButton" Content="Tabla de Trainer Move Rules" Visibility="Collapsed"
              Click="TrainerMoves_Click" Margin="0,0,0,10"/>
+     <Button x:Name="WildAddRangeButton" Content="Dividir rango BST más amplio" Visibility="Collapsed"
+             Click="WildAddRange_Click" Margin="0,0,0,8"/>
+     <Button x:Name="WildRemoveRangeButton" Content="Unir últimos rangos BST" Visibility="Collapsed"
+             Click="WildRemoveRange_Click" Margin="0,0,0,8"/>
+     <Button x:Name="WildAuditButton" Content="Diagnóstico de Progressive Wild" Visibility="Collapsed"
+             Click="WildAudit_Click" Margin="0,0,0,8"/>
      <Button x:Name="WildDumpButton" Content="Exportar reporte de encuentros" Visibility="Collapsed"
              Click="WildDump_Click" Margin="0,0,0,8"/>
      <Button x:Name="WildCopyButton" Content="Copiar tabla actual" Visibility="Collapsed"
@@ -118,6 +125,7 @@
      <ComboBox x:Name="ScopeBox" SelectedIndex="0" SelectionChanged="Scope_Changed"><ComboBoxItem Content="Todas las entradas"/><ComboBoxItem Content="Lista filtrada"/><ComboBoxItem Content="Entrada seleccionada"/></ComboBox>
      <TextBlock Text="El historial conserva los valores de una edición individual. Las operaciones masivas guardan la acción y sus opciones, con una semilla nueva para cada futura randomización." Foreground="{StaticResource TextSoft}" TextWrapping="Wrap" Margin="0,20,0,0"/>
     </StackPanel>
+    </ScrollViewer>
    </Border>
    <ContentControl Grid.ColumnSpan="3" x:Name="TrainerRulesHost" Visibility="Collapsed"
                    Background="{StaticResource Bg}"/>

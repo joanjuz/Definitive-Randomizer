@@ -543,6 +543,8 @@ public static class GARC
 
         // Set up the Header Info
         string tempFile = Path.GetTempFileName();
+        try
+        {
         using (var newGARC = new FileStream(tempFile, FileMode.Create))
         using (var gw = new BinaryWriter(newGARC))
         {
@@ -667,6 +669,8 @@ public static class GARC
         byte[] GARCdata = File.ReadAllBytes(tempFile);
         DeleteFileWithRetry(tempFile);
         return new MemGARC(GARCdata);
+        }
+        finally { if(File.Exists(tempFile))File.Delete(tempFile); }
     }
 
     public class MemGARC(byte[] data)

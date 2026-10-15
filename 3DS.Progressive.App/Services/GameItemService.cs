@@ -94,19 +94,20 @@ public sealed class GameItemService : ArchiveProjectEditor
         if(written.Length!=original.Length)throw new InvalidDataException("La longitud del objeto no coincide. No se guardó.");
         records["item"][id]=written;
     }
+    public string EconomyPreset=>Config.Generation==6?"Progressive Gen6 histórico":"UPR-ZX Gen7 + Progressive";
     public IReadOnlyList<ItemPriceRow> PriceRows()
     {
         var records=Records();
         return Entries.Select(entry=>
         {
             int current=new Item(records["item"][entry.Id]).BuyPrice;
-            int target=Config.Generation==7?GameEconomyDefaults.TargetPrice(entry.Id)??current:current;
+            int? preset=Config.Generation==6?GameEconomy6Defaults.TargetPrice(entry.Id):GameEconomyDefaults.TargetPrice(entry.Id);
             return new ItemPriceRow
             {
-                Id=entry.Id,Name=entry.Name,CurrentBuy=current,TargetBuy=target,
-                Included=Config.Generation==7&&GameEconomyDefaults.TargetPrice(entry.Id).HasValue,
-                Source=Config.Generation==7&&GameEconomyDefaults.TargetPrice(entry.Id).HasValue
-                    ?GameEconomyDefaults.Source(entry.Id):"Actual"
+                Id=entry.Id,Name=entry.Name,CurrentBuy=current,TargetBuy=preset??current,
+                Included=preset.HasValue,
+                Source=preset.HasValue
+                    ?(Config.Generation==6?EconomyPreset:GameEconomyDefaults.Source(entry.Id)):"Actual"
             };
         }).ToArray();
     }
@@ -130,7 +131,7 @@ public sealed class GameItemService : ArchiveProjectEditor
         }
         return new EditorProposal(ProposalOwner,"Aplicar economía",0,Build(records),changes,
             new Dictionary<string,string>{{"Scope",string.Join(",",rows.Where(r=>r.Included).Select(r=>r.Id))},
-                {"Preset","UPR-ZX Gen7 + Progressive"}});
+                {"Preset",EconomyPreset}});
     }
 
     protected override Dictionary<string,int> Randomize(int id,IReadOnlyDictionary<string,int> options,

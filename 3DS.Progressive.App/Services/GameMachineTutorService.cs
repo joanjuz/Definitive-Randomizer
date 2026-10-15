@@ -48,7 +48,7 @@ public sealed partial class GameMachineTutorService
     public bool CanEditTutorMoves=>_project.GameConfiguration.USUM&&_shopOriginal is not null&&Tutors.Count==67;
     public GameMachineTutorService(GameProjectSession project)
     {
-        _project=project;
+        _project=project;CaptureMachineText();
         if(project.Generation!=7)throw new NotSupportedException("La edición de MT y tutores Gen 6 requiere el formato de esa generación.");
         var config=project.GameConfiguration;
         _codePath=Directory.EnumerateFiles(config.ExeFS).FirstOrDefault(p=>
@@ -64,7 +64,7 @@ public sealed partial class GameMachineTutorService
         if(_tmOffset+200>_codeOriginal.Length)throw new InvalidDataException("La tabla de MT supera code.bin.");
         _originalTm=Enumerable.Range(0,100).Select(i=>BitConverter.ToUInt16(_codeOriginal,_tmOffset+2*i)).ToArray();
         Machines=_originalTm.Select((move,i)=>new MachineMoveRow {Number=i+1,MoveId=move}).ToArray();
-        MoveChoices=project.MoveNames.Select((name,i)=>new MoveChoice(i,
+        MoveChoices=project.MoveNames.Take(Math.Min(project.MoveNames.Count,config.Moves.Length)).Select((name,i)=>new MoveChoice(i,
             string.IsNullOrWhiteSpace(name)?$"Movimiento ID {i}":name)).ToArray();
         _shopPath=Path.Combine(config.RomFS,"Shop.cro");
         var tutors=new List<TutorPriceRow>();
@@ -99,32 +99,40 @@ public sealed partial class GameMachineTutorService
         Tutors=tutors;_originalPrices=prices.ToArray();
         _originalTutorMoves=tutors.Select(t=>t.MoveId).ToArray();
     }
-    public void RandomizeMachines()
+    public void RandomizeMachines()=>RandomizeMachines(RandomNumberGenerator.GetInt32(int.MaxValue));
+    public void RandomizeMachines(int seed)
     {
         // Equivalent safe move pool: do not assign Z-moves, Struggle or banned vanilla exceptions.
         int[] excluded=[165,621,166,226];
-        var pool=Enumerable.Range(1,Math.Max(0,_project.MoveNames.Count-1))
+        var pool=Enumerable.Range(1,Math.Max(0,Math.Min(_project.MoveNames.Count,_project.GameConfiguration.Moves.Length)-1))
             .Where(id=>!Legal.Z_Moves.Contains(id)&&!excluded.Contains(id)).ToArray();
         if(pool.Length<100)throw new InvalidDataException("No hay suficientes movimientos válidos para randomizar MT.");
-        var random=new Random(RandomNumberGenerator.GetInt32(int.MaxValue));
+        var random=new Random(seed);
         for(int i=pool.Length-1;i>0;i--){int j=random.Next(i+1);(pool[i],pool[j])=(pool[j],pool[i]);}
         int cursor=0;
         foreach(var row in Machines)
             if(!excluded.Contains(row.MoveId)&&!Legal.Z_Moves.Contains(row.MoveId))
                 row.MoveId=pool[cursor++];
     }
-    public void SaveMachines()
+    internal (IReadOnlyList<FileChange> Files,IReadOnlyList<BatchChange> Changes) PrepareMachines(bool synchronizeDescriptions)
     {
         int[] changed=Machines.Select(r=>r.MoveId).ToArray();
-        if(changed.Length!=100||changed.Any(id=>id<0||id>=_project.MoveNames.Count))
+        if(changed.Length!=100||Machines.Select(row=>row.Number).Where((number,index)=>number!=index+1).Any()||changed.Any(id=>id<0||id>=Math.Min(_project.MoveNames.Count,_project.GameConfiguration.Moves.Length)))
             throw new ArgumentException("Existe un movimiento de MT inválido.");
         byte[] current=GarcTransaction.ReadUnchanged(_codePath,SHA256.HashData(_codeOriginal));
         byte[] output=(byte[])current.Clone();
         foreach(var row in Machines)BitConverter.GetBytes((ushort)row.MoveId).CopyTo(output,_tmOffset+(row.Number-1)*2);
         var differences=Machines.Where(r=>_originalTm[r.Number-1]!=r.MoveId).Select(r=>
             new BatchChange(r.Number,$"MT {r.Number:000}","Movimiento",
-                _project.GetMoveLabel(_originalTm[r.Number-1]),_project.GetMoveLabel(r.MoveId))).ToArray();
-        _project.History.Commit([new FileChange(_codePath,current,output)],"MT y tutores","Editar MT",differences);
+                _project.GetMoveLabel(_originalTm[r.Number-1]),_project.GetMoveLabel(r.MoveId))).ToList();
+        var files=new List<FileChange>{new(_codePath,current,output)};if(synchronizeDescriptions)files.Add(SynchronizeMachineText(differences));
+        return (files,differences);
+    }
+    public void SaveMachines(bool synchronizeDescriptions=false)
+    {
+        var preview=PrepareMachines(synchronizeDescriptions);
+        _project.History.Commit(preview.Files,"MT y tutores","Editar MT",preview.Changes);
+        if(synchronizeDescriptions)_project.GameConfiguration.InitializeGameText();
         _project.RefreshMoveAssignments();
         // The shell refreshes assignment names only after project reload; do not trust cached IDs.
     }

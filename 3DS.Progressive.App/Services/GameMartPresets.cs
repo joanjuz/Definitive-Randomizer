@@ -48,13 +48,13 @@ public sealed partial class GameMartService
         throw new InvalidDataException("No se encuentra el objeto "+aliases[0]+
         " en el idioma actual. Cambiá el idioma de datos a inglés o español y recargá el proyecto.");
 
-    public int RandomizeShops(bool bp,bool specialsOnly=false,bool protectX=true)
+    public int RandomizeShops(bool bp,bool specialsOnly=false,bool protectX=true,int? seed=null)
     {
         int[] pool=ItemPool.Where(id=>id>0&&id<_project.ItemNames.Count&&
             (!_banCapsule||id!=AbilityCapsuleUSUM)).ToArray();
         if(pool.Length==0)throw new InvalidDataException("No hay objetos válidos para randomizar.");
         int count=RandomizeSlots(RegularShops,BpShops,pool,
-            new Random(RandomNumberGenerator.GetInt32(int.MaxValue)),bp,specialsOnly,protectX);
+            new Random(seed??RandomNumberGenerator.GetInt32(int.MaxValue)),bp,specialsOnly,protectX);
         _presets.Add(bp?"marts.randomize-bp":specialsOnly?"marts.randomize:special-only":"marts.randomize");
         return count;
     }
@@ -101,6 +101,11 @@ public sealed partial class GameMartService
     public int AddRareCandies()
     {
         int candy=RequireItem("Rare Candy","Caramelo Raro");
+        if(!SupportsExpansion)
+        {
+            int count=0;foreach(var shop in RegularShops.Take(8))if(shop.Rows[^1].ItemId!=candy){shop.Rows[^1].ItemId=candy;count++;}
+            _setCandyPrice=true;_presets.Add("marts.add-rare-candies:SM-fixed-slots");return count;
+        }
         var missing=RegularShops.Take(8).Where(s=>s.Rows.All(r=>r.ItemId!=candy)).ToArray();
         if(missing.Any(s=>s.Rows.Count>=Gen7ExpandedMartTable.MaximumSlotsPerMart))
             throw new InvalidOperationException("Alguna tienda de progreso ya alcanzó el máximo de ranuras.");
@@ -110,10 +115,10 @@ public sealed partial class GameMartService
     }
     public int AddVitamins252()
     {
+        if(!SupportsExpansion)return AddSmTrainingItems();
         int[] vitamins=Vitamins.Select(RequireItem).ToArray();
         if(vitamins.Distinct().Count()!=6)throw new InvalidDataException("Las seis vitaminas deben ser distintas.");
         int[] wings=Wings.Select(a=>TryItemId(a)??0).ToArray();
-        int candy=RequireItem("Rare Candy","Caramelo Raro");
         int heart=RequireItem("Heart Scale","Escama Corazón","Escama Corazon");
         int key=RequireItem("Key Stone","Piedra Activadora","Piedra Llave");
         // Compute all inventories and validate records before altering any UI data.
@@ -130,7 +135,7 @@ public sealed partial class GameMartService
                     if(items.Contains(vitamins[v]))items.RemoveAt(at); else items[at]=vitamins[v];
                 }
             }
-            var required=vitamins.Concat([candy])
+            var required=vitamins.AsEnumerable()
                 .Concat(mart>=3?[heart]:Array.Empty<int>())
                 .Concat(mart>=5?[key]:Array.Empty<int>()).Distinct();
             foreach(int id in required)if(!items.Contains(id))items.Add(id);
@@ -149,18 +154,19 @@ public sealed partial class GameMartService
             for(int slot=0;slot<proposed[mart].Length;slot++)
                 shop.Rows.Add(new MartSlotRow(slot+1,proposed[mart][slot]));
         }
-        _vitaminIds=vitamins;_enableVitamin252=true;_setCandyPrice=true;_setKeyPrice=true;
+        _vitaminIds=vitamins;_enableVitamin252=true;_setKeyPrice=true;
         _presets.Add("marts.add-ev-items:vitamins-252");
         return changes;
     }
-    public int BanAbilityCapsule()
+    public int BanAbilityCapsule()=>BanAbilityCapsule(RandomNumberGenerator.GetInt32(int.MaxValue));
+    public int BanAbilityCapsule(int seed)
     {
         int capsule=AbilityCapsuleUSUM;
         if(capsule>=_project.ItemNames.Count)
             throw new InvalidDataException("La tabla de objetos USUM no contiene el ID 645.");
         int[] pool=ItemPool.Where(id=>id>0&&id<_project.ItemNames.Count&&id!=capsule&&!ProtectedItems.Contains(id)).Distinct().ToArray();
         if(pool.Length==0)throw new InvalidOperationException("No hay reemplazos válidos para Cápsula Habilidad.");
-        var rng=new Random(RandomNumberGenerator.GetInt32(int.MaxValue));int changed=0;
+        var rng=new Random(seed);int changed=0;
         foreach(var shop in RegularShops.Concat(BpShops))
             foreach(var row in shop.Rows)
                 if(row.ItemId==capsule){row.ItemId=pool[rng.Next(pool.Length)];changed++;}
@@ -217,7 +223,7 @@ public sealed partial class GameMartService
             }
         }
         if(_setCandyPrice)Price(RequireItem("Rare Candy","Caramelo Raro"),10,"Caramelo Raro");
-        if(_setKeyPrice)Price(RequireItem("Key Stone","Piedra Activadora","Piedra Llave"),10,"Piedra Activadora");
+        if(_setKeyPrice)Price(SupportsExpansion?RequireItem("Key Stone","Piedra Activadora","Piedra Llave"):RequireItem("Mega Ring","Megaaro","Mega Aro","Mega-Aro"),10,SupportsExpansion?"Piedra Activadora":"Megaaro");
         if(changes.Count==0)return(null,null,[]);
         byte[] output=GarcTransaction.Build(source,reference,records);
         return(source,output,changes);

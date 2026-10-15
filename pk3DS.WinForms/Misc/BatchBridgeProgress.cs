@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -78,6 +78,13 @@ internal static class BatchBridgeProgress
         if(next<rebuildFraction||Math.Abs(next-rebuildFraction)<0.01)return;
         rebuildFraction=next;Write();
     }
+    internal static void RebuildStage(string name,int value,int max)
+    {
+        if(path is null||!rebuilding||max<=0)return;
+        double next=Math.Clamp((double)value/max,0,1);
+        if(name==stage && next-rebuildFraction<0.01)return;
+        stage=name;details=output;rebuildFraction=Math.Max(rebuildFraction,next);Write();
+    }
     internal static void EndRebuild()
     {
         if(path is null)return;
@@ -133,5 +140,6 @@ internal static class BatchBridgeProgress
             File.Move(tmp,path,true);
         }
         catch(IOException) { /* feedback must never break construction */ }
+        catch(UnauthorizedAccessException) { /* Windows can deny replacement while a reader holds the snapshot. */ }
     }
 }

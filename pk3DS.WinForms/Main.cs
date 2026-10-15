@@ -209,11 +209,10 @@ public sealed partial class Main : Form
             return;
         }
 
-        if (Config.Generation != 7)
+        if (Config.Generation is not (6 or 7))
         {
             WinFormsUtil.Alert(
-                "Batch ROM Builder v1 currently supports Generation 7 only.",
-                "USUM is the primary supported target. Gen 6 can be added after this workflow is validated.");
+                "Batch ROM Builder supports XY/ORAS and SM/USUM.");
             return;
         }
 
@@ -261,13 +260,14 @@ public sealed partial class Main : Form
             return;
         }
 
-        if (template.Generation != 7)
+        if (template.Generation != Config.Generation)
         {
-            WinFormsUtil.Alert($"The selected template is Generation {template.Generation}; Batch ROM Builder v1 requires Generation 7.");
+            WinFormsUtil.Alert($"Template generation {template.Generation} does not match the loaded game.");
             return;
         }
 
-        string[] unsupported = BatchGen7ActionExecutor.GetUnsupported(template.Actions);
+        int batchGeneration=Config.Generation;
+        string[] unsupported = batchGeneration==6?BatchGen6ActionExecutor.GetUnsupported(template.Actions):BatchGen7ActionExecutor.GetUnsupported(template.Actions);
         if (unsupported.Length != 0)
         {
             WinFormsUtil.Alert(
@@ -381,7 +381,7 @@ public sealed partial class Main : Form
                 }
 
                 int seed = CreateBatchSeed(usedSeeds);
-                activeStage = Path.Combine(sourceParent, $".pk3ds_batch_{Guid.NewGuid():N}");
+                activeStage = Path.Combine(options.OutputDirectory, $".pk3ds_batch_{Guid.NewGuid():N}");
                 string outputPath = Path.Combine(options.OutputDirectory, $"{options.BaseName}_{i:00}.3ds");
 
                 progressDialog.BeginRom(i, options.Count, seed, Path.GetFileName(outputPath));
@@ -419,8 +419,8 @@ public sealed partial class Main : Form
                     progressDialog.AppendLog($"Stage ExeFS exists: {(!string.IsNullOrWhiteSpace(stageExeFS) && Directory.Exists(stageExeFS))} - {stageExeFS}");
                     Application.DoEvents();
                     OpenQuick(activeStage);
-                    if (Config is null || Config.Generation != 7 || !string.Equals(CurrentGlobalTemplateGame, game, StringComparison.OrdinalIgnoreCase))
-                        throw new InvalidDataException("The staging copy did not reopen as the same Generation 7 game.");
+                    if (Config is null || Config.Generation != batchGeneration || !string.Equals(CurrentGlobalTemplateGame, game, StringComparison.OrdinalIgnoreCase))
+                        throw new InvalidDataException("The staging copy did not reopen as the same game and generation.");
 
                     BatchBridgeProgress.Step("Juego cargado","RomFS y ExeFS identificados");
                     progressDialog.SetStage("Applying Global ROM Template...");
@@ -430,7 +430,7 @@ public sealed partial class Main : Form
                     BatchRuntime.Log($"Seed = {seed}");
                     BatchBridgeProgress.Step("Template aplicado","Iniciando las acciones de la receta");
                     BatchRuntime.Log($"Replaying {template.Actions.Count} action(s)...");
-                    BatchGen7ActionExecutor.Execute(template);
+                    if(batchGeneration==6)BatchGen6ActionExecutor.Execute(template);else BatchGen7ActionExecutor.Execute(template);
 
                     if (File.Exists(outputPath))
                         File.Delete(outputPath);
@@ -443,18 +443,7 @@ public sealed partial class Main : Form
                     string exHeader = ExHeaderPath;
                     await Task.Run(() =>
                     {
-                        var exh = new Exheader(exHeader);
-                        CTRUtil.BuildROM(
-                            true,
-                            "Nintendo",
-                            exeFS,
-                            romFS,
-                            exHeader,
-                            exh.GetSerial(),
-                            outputPath,
-                            options.Trimmed,
-                            pBar1,
-                            RTB_Status);
+                        BatchGen6ActionExecutor.RebuildNative(activeStage,outputPath,options.Trimmed);
                     });
 
                     if (!File.Exists(outputPath))
@@ -728,6 +717,7 @@ public sealed partial class Main : Form
         var g = Config.GARCGameText;
         string[][] files = Config.GameTextStrings;
         var originalFiles = g.Files;
+        if(files.Length==originalFiles.Length&&files.Select((lines,index)=>new TextFile(Config,originalFiles[index],Config.RemapCharacters).Lines.SequenceEqual(lines)).All(equal=>equal))return;
         byte[][] serialized = files.Select(x => TextFile.GetBytes(Config, x)).ToArray();
 
         g.Files = serialized;
@@ -806,12 +796,9 @@ public sealed partial class Main : Form
 
     private void CloseForm(object sender, FormClosingEventArgs e)
     {
-        if (Config == null)
+        if (Config == null || IsWpfBridge)
             return;
-        var g = Config.GARCGameText;
-        string[][] files = Config.GameTextStrings;
-        g.Files = files.Select(x => TextFile.GetBytes(Config, x)).ToArray();
-        g.Save();
+        SaveGameText();
 
         try
         {
@@ -1364,6 +1351,13 @@ public sealed partial class Main : Form
     private bool CheckIfExeFS(string path)
     {
         string[] files = Directory.GetFiles(path);
+        if(IsWpfBridge)
+        {
+            var codeFiles=files.Where(file=>string.Equals(Path.GetFileName(file),"code.bin",StringComparison.OrdinalIgnoreCase)||string.Equals(Path.GetFileName(file),".code.bin",StringComparison.OrdinalIgnoreCase)).ToArray();
+            if(files.Length is not (3 or 4)||codeFiles.Length!=1||new FileInfo(codeFiles[0]).Length%0x200!=0)
+                throw new InvalidDataException("Batch requiere ExeFS extraído y code.bin descomprimido único; la fuente no se renombra ni se prepara durante la apertura.");
+            ExeFSPath=path;return true;
+        }
         if (files.Length == 1 && string.Equals(Path.GetFileName(files[0]), "exefs.bin", StringComparison.OrdinalIgnoreCase))
         {
             // Prompt if the user wants to unpack the ExeFS.

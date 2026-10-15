@@ -14,6 +14,12 @@ internal static class TemplateChecks
         {
             using var f=new Fixture(version);
             var moves=new GameMoveService(f.Session);
+            if(version==GameVersion.SM)
+            {
+                byte[] before=File.ReadAllBytes(f.MovePath);
+                reject(()=>moves.PreviewMoves(BatchAction.MoveBalance,new BatchSettings{BattlePatches=false,MoveDescriptions=false},[1]),"SM rejects Progressive balance even with battle patches disabled");
+                check(File.ReadAllBytes(f.MovePath).SequenceEqual(before),"SM unsupported balance preserves source");continue;
+            }
             var saved=f.MoveRecords;
             byte[] csv=File.ReadAllBytes(moves.DefaultTemplatePath);
             int[] all=moves.Entries.Select(m=>m.Id).ToArray();
@@ -79,6 +85,12 @@ internal static class TemplateChecks
             string textPath=CreateSpanishBank(f);
             var banks=new GARC.MemGARC(File.ReadAllBytes(textPath)).Files;
             int flavor=f.Game.GameText.First(t=>t.Name==TextName.MoveFlavor).Index;
+            var descriptions=new TextFile(f.Game,banks[flavor]).Lines;descriptions[1]="xxUntouchedxx";
+            byte[] raw=TextFile.GetBytes(f.Game,descriptions);int start=16+BitConverter.ToInt32(raw,20+8);
+            foreach(int character in new[]{0,1,11,12})
+            {int offset=start+character*2;ushort value=(ushort)(BitConverter.ToUInt16(raw,offset)^('x'^' '));BitConverter.GetBytes(value).CopyTo(raw,offset);}
+            banks[flavor]=raw;f.WriteGarc(textPath,banks,f.Game.GetGARCReference("gametext").GetRelativeGARC(6));
+            check(new TextFile(f.Game,raw).Lines[1]=="  Untouched  ",version+" fixture retains original edge whitespace");
             File.WriteAllText(path,"Move,Accuracy,InGameDescription\n147,81,\"Primera línea.\\nSegunda línea.\"\n");
             var description=moves.PreviewMoves(BatchAction.MoveBalance,new BatchSettings{TemplatePath=path},[147]);
             check(description.AdditionalFileCount==1&&description.Changes.Any(c=>c.Field=="Descripción en español"),version+" text changes included in frozen proposal");
@@ -88,6 +100,7 @@ internal static class TemplateChecks
             var written=new GARC.MemGARC(File.ReadAllBytes(textPath)).Files;
             check(new TextFile(f.Game,written[flavor]).Lines[147]=="Primera línea.\\nSegunda línea.",version+" Spanish description persists with normalized newlines");
             check(written.Where((r,i)=>i!=flavor).SelectMany(r=>r).SequenceEqual(banks.Where((r,i)=>i!=flavor).SelectMany(r=>r)),version+" every other text-bank entry stays byte-identical");
+            check(new TextFile(f.Game,written[flavor]).Lines[1]=="  Untouched  ",version+" description patch preserves unedited line whitespace");
             check(f.Game.Language==language,version+" template never switches the live project language");
             check(moves.PreviewMoves(BatchAction.MoveBalance,new BatchSettings{TemplatePath=path},[147]).Changes.Count==0,version+" repeated descriptions are idempotent");
             File.WriteAllText(path,"Move,Power,InGameDescription\n147,89,Cambiada\n");

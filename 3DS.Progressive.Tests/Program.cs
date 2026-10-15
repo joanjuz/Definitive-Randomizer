@@ -1,4 +1,4 @@
-using System.IO;
+﻿using System.IO;
 using System.Reflection;
 using System.Security.Cryptography;
 using pk3DS.Core;
@@ -9,6 +9,34 @@ using pk3DS.Core.Structures.PersonalInfo;
 using ThreeDS.Progressive.Models;
 using ThreeDS.Progressive.Services;
 
+if(args.Length==3&&args[0]=="--extract-independent-image"){var extraction=new GameRomExtractionService().ExtractAsync(args[1],args[2]).GetAwaiter().GetResult();Console.WriteLine($"PASS EXTRACTION: {extraction.Files} files; source SHA256 {extraction.SourceSha256}; {extraction.Folder}");return;}
+if(args.Length==3&&args[0]=="--audit-catch-templates"){CatchZoneReferenceAudit.Run(args[1],args[2]);return;}
+if(args.Length>2&&args[0]=="--check-catch-real-copies"){CatchZoneRealCopyChecks.Run(args[1],args.Skip(2));return;}
+if(args.Length>1&&args[0]=="--read-only-roms"){RealRomReadChecks.Run(args.Skip(1));return;}
+if(args.Length>1&&args[0]=="--read-static-profiles"){StaticStarterChecks.RunReal(args.Skip(1));return;}
+if(args.Length>1&&args[0]=="--read-field6"){FieldItems6Checks.RunReal(args.Skip(1));return;}
+if(args.Length>1&&args[0]=="--read-hm6"){HmReferenceChecks.Run(args.Skip(1));return;}
+if(args.Length>1&&args[0]=="--read-facilities"){BattleFacilityChecks.RunReal(args.Skip(1));return;}
+if(args.Length==2&&args[0]=="--interrupt-save-check"){RecoveryChecks.InterruptChild(args[1]);return;}
+if(args.Length>1&&args[0]=="--read-tm6-compatibility"){Tm6CompatibilityChecks.RunReal(args.Skip(1));return;}
+if(args.Length>2&&args[0]=="--check-catch-batch-real-copies"){CatchZoneRealCopyChecks.Run(args[1],args.Skip(2),batch:true);return;}
+if(args.Length>2&&args[0]=="--check-shiny-independent-copies"){ShinyRunnerChecks.Run(args[1],args.Skip(2));return;}
+if(args.Length>2&&args[0]=="--check-real-rebuild-roundtrip"){RealRebuildChecks.Run(args[1],args.Skip(2));return;}
+if(args.Length==4&&args[0]=="--verify-existing-rebuild"){RealRebuildChecks.VerifyExisting(args[1],args[2],args[3]);return;}
+if(args.Length>2&&args[0]=="--check-full-batch-real"){FullBatchRealChecks.Run(args[1],args.Skip(2));return;}
+if(args.Length>2&&args[0]=="--check-tutors6-independent-copies"){Tutor6RunnerChecks.Run(args[1],args.Skip(2));return;}
+if(args.Length>2&&args[0]=="--check-tutors6-full-batch-real"){FullBatchRealChecks.Run(args[1],args.Skip(2),tutors:true);return;}
+if(args.Length>1&&args[0]=="--read-title-movies"){TitleMovieChecks.ReadReal(args.Skip(1));return;}
+if(args.Length==3&&args[0]=="--check-title-movie-roundtrip"){TitleMovieChecks.RoundtripReal(args[1],args[2]);return;}
+if(args.Length>1&&args[0]=="--read-titles6"){TitleScreenChecks.ReadReal(args.Skip(1));return;}
+if(args.Length>2&&args[0]=="--check-statics7-full-batch-real"){FullBatchRealChecks.Run(args[1],args.Skip(2),statics:true);return;}
+if(args.Length>2&&args[0]=="--check-master-full-batch-real"){FullBatchRealChecks.Run(args[1],args.Skip(2),master:true);return;}
+if(args.Length>2&&args[0]=="--check-tutors7-full-batch-real"){FullBatchRealChecks.Run(args[1],args.Skip(2),tutors7:true);return;}
+if(args.Length>2&&args[0]=="--check-marts6-full-batch-real"){FullBatchRealChecks.Run(args[1],args.Skip(2),marts6:true);return;}
+if(args.Length>2&&args[0]=="--check-marts7-full-batch-real"){FullBatchRealChecks.Run(args[1],args.Skip(2),marts7:true);return;}
+if(args.Length>1&&args[0]=="--read-machine7-recipes"){RealMachine7Checks.Run(args.Skip(1));return;}
+if(args.Length>1&&args[0]=="--review73-real"){Review73Checks.RunReal(args.Skip(1));return;}
+if(args.Length>1&&args[0]=="--requested-real"){RequestedIntegrationChecks.RunReal(args.Skip(1));return;}
 using var state=new TestState();
 int checks = 0;
 void Check(bool condition, string name)
@@ -22,6 +50,56 @@ void Reject(Action action, string name)
     { Check(true, name); return; }
     throw new Exception("FAIL: expected rejection: " + name);
 }
+if(args.Length==4&&args[0]=="--check-trades6-package-copy"){PackagedTradeProbe.Run(args[1],args[2],args[3]);return;}
+if(args.Length==1&&args[0]=="--interaction-lock-only")
+{
+    Exception? failure=null;var thread=new Thread(()=>{try{ThreeDS.Progressive.StudioDialog.AutomatedChecks=true;var app=new ThreeDS.Progressive.App();app.InitializeComponent();InteractionLockChecks.Run(Check);}catch(Exception ex){failure=ex;}});thread.SetApartmentState(ApartmentState.STA);thread.Start();thread.Join();if(failure is not null)throw failure;Console.WriteLine($"Completed {checks} interaction lock checks.");return;
+}
+if(args.Length==1&&args[0]=="--global-options-only"){GlobalEditorBridgeChecks.Run(Check,Reject);Console.WriteLine($"Completed {checks} global checks.");return;}
+if(args.Length==1&&args[0]=="--requested-ui-only")
+{
+    Exception? failure=null;var thread=new Thread(()=>{try{ThreeDS.Progressive.StudioDialog.AutomatedChecks=true;var app=new ThreeDS.Progressive.App();app.InitializeComponent();RequestedIntegrationChecks.RunUi(Check);Review73Checks.RunUi(Check);}catch(Exception ex){failure=ex;}});
+    thread.SetApartmentState(ApartmentState.STA);thread.Start();thread.Join();if(failure is not null)throw failure;
+    Console.WriteLine($"Completed {checks} requested UI checks.");return;
+}
+if(args.Length==1&&args[0]=="--all-ui-only"){Exception? failure=null;var ui=new Thread(()=>{try{UiSmoke.Run(Check);RequestedIntegrationChecks.RunUi(Check);Review73Checks.RunUi(Check); UtilityCompletionUiChecks.Run(Check);TitleScreenChecks.RunUi(Check);TitleMovieChecks.RunUi(Check); Tutor6CompatibilityChecks.RunUi(Check); RomToolUiChecks.Run(Check); GlobalEditorBridgeChecks.RunUi(Check); FieldItems6Checks.RunUi(Check); FeatureVisibilityChecks.Run(Check);MasterBatchChecks.RunUi(Check); Tm6CompatibilityChecks.RunUi(Check); GlobalCompletionChecks.RunUi(Check); BattleFacilityChecks.RunUi(Check); BatchGen6Checks.RunUi(Check);}catch(Exception ex){failure=ex;}});ui.SetApartmentState(ApartmentState.STA);ui.Start();ui.Join();if(failure is not null)throw failure;Console.WriteLine($"Completed {checks} UI checks.");return;}
+if(args.Length==1&&args[0]=="--requested-only"){RequestedIntegrationChecks.Run(Check,Reject);Review73Checks.Run(Check,Reject);Console.WriteLine($"Completed {checks} requested checks.");return;}
+if(args.Length==1&&args[0]=="--trades6-only"){Trade6Checks.Run(Check,Reject);Console.WriteLine($"Completed {checks} Gen6 trade checks.");return;}
+if(args.Length==1&&args[0]=="--sm-marts-only"){MartSmChecks.Run(Check,Reject);Console.WriteLine($"Completed {checks} SM mart checks.");return;}
+if(args.Length==1&&args[0]=="--native-wild7-only"){NativeGen7WildChecks.Run(Check,Reject);Console.WriteLine($"Completed {checks} native Wild Gen7 checks.");return;}
+if(args.Length==1&&args[0]=="--starter-text-only"){StarterTextChecks.Run(Check,Reject);Console.WriteLine($"Completed {checks} starter text checks.");return;}
+if(args.Length==1&&args[0]=="--tm6-compatibility-only"){Tm6CompatibilityChecks.Run(Check,Reject);Console.WriteLine($"Completed {checks} Gen6 TM/HM compatibility checks.");return;}
+if(args.Length==1&&args[0]=="--shiny-batch-only"){ShinyBatchChecks.Run(Check,Reject);Console.WriteLine($"Completed {checks} Shiny Batch checks.");return;}
+if(args.Length==1&&args[0]=="--catch-batch-only"){CatchBatchChecks.Run(Check,Reject);Console.WriteLine($"Completed {checks} Catch Zones Batch checks.");return;}
+if(args.Length==1&&args[0]=="--native-gen6-only"){NativeGen6BatchChecks.Run(Check,Reject);Console.WriteLine($"Completed {checks} native Gen6 Batch checks.");return;}
+if(args.Length==1&&args[0]=="--batch-gen6-only")
+{
+    Exception? failure=null;var thread=new Thread(()=>{try{BatchGen6Checks.RunUi(Check);}catch(Exception ex){failure=ex;}});
+    thread.SetApartmentState(ApartmentState.STA);thread.Start();thread.Join();if(failure is not null)throw failure;
+    Console.WriteLine($"Completed {checks} targeted Gen6 Batch checks.");return;
+}
+if(args.Length==1&&args[0]=="--statics7-batch-only"){NativeGen7StaticChecks.Run(Check,Reject);Console.WriteLine($"Completed {checks} native Gen7 static checks.");return;}
+if(args.Length==1&&args[0]=="--master-batch-only"){MasterBatchChecks.Run(Check,Reject);Console.WriteLine($"Completed {checks} native master batch checks.");return;}
+if(args.Length==1&&args[0]=="--tm7-text-only"){TmDescriptionChecks.Run(Check,Reject);Console.WriteLine($"Completed {checks} TM description checks.");return;}
+if(args.Length==1&&args[0]=="--title-movies-only"){TitleMovieChecks.Run(Check,Reject);Console.WriteLine($"Completed {checks} movie checks.");return;}
+if(args.Length==1&&args[0]=="--rebuild-cache-only"){RebuildCacheChecks.Run(Check);Console.WriteLine($"Completed {checks} rebuild cache checks.");return;}
+if(args.Length==1&&args[0]=="--titles6-only"){TitleScreenChecks.Run(Check,Reject);Console.WriteLine($"Completed {checks} Gen6 title checks.");return;}
+if(args.Length==1&&args[0]=="--tutors6-only"){Tutor6Checks.Run(Check,Reject);Tutor6CompatibilityChecks.Run(Check,Reject);BatchSourcePolicyChecks.Run(Check,Reject);Console.WriteLine($"Completed {checks} ORAS tutor checks.");return;}
+if(args.Length==1&&args[0]=="--utility-ui-only")
+{
+    Exception? failure=null;var thread=new Thread(()=>{try{ThreeDS.Progressive.StudioDialog.AutomatedChecks=true;var app=new ThreeDS.Progressive.App();app.InitializeComponent();UtilityCompletionUiChecks.Run(Check);TitleScreenChecks.RunUi(Check);TitleMovieChecks.RunUi(Check);Tutor6CompatibilityChecks.RunUi(Check);}catch(Exception ex){failure=ex;}});
+    thread.SetApartmentState(ApartmentState.STA);thread.Start();thread.Join();if(failure is not null)throw failure;
+    Console.WriteLine($"Completed {checks} utility and ORAS tutor UI checks.");return;
+}
+if(args.Length==1&&args[0]=="--batch80-only"){Machine6Checks.Run(Check,Reject);RegressionFixes.Run(Check,Reject);Console.WriteLine($"Completed {checks} Batch regression checks.");return;}
+if(args.Length==1&&args[0]=="--text-search-only"){StoryRandomChecks.Run(Check,Reject);Console.WriteLine($"Completed {checks} text search and story checks.");return;}
+TitleMovieChecks.Run(Check,Reject);
+NativeGen7WildChecks.Run(Check,Reject);Gen7ShinyRecipeChecks.Run(Check,Reject);StarterTextChecks.Run(Check,Reject);TitleScreenChecks.Run(Check,Reject);
+NativeGen7StaticChecks.Run(Check,Reject);
+MasterBatchChecks.Run(Check,Reject);
+TmDescriptionChecks.Run(Check,Reject);
+Gen7FieldReplayChecks.Run(Check,Reject);Gen7RecipeChecks.Run(Check,Reject);
+MartSmChecks.Run(Check,Reject);
 bool Equal(byte[][] a, byte[][] b) => a.Length == b.Length && a.Select((r,i) => r.SequenceEqual(b[i])).All(x => x);
 
 foreach (var version in new[] { GameVersion.XY, GameVersion.ORAS, GameVersion.SM, GameVersion.USUM })
@@ -152,12 +230,50 @@ using(var b=new Fixture(GameVersion.USUM))
     Reject(()=>b.Session.PreviewPersonal(BatchAction.PersonalModify,new BatchSettings(),[0]),"entry zero protected");
     Reject(()=>b.Session.PreviewPersonal(BatchAction.PersonalModify,new BatchSettings(),[]),"empty scope rejected");
 }
+RequestedIntegrationChecks.Run(Check,Reject);Review73Checks.Run(Check,Reject);
 TemplateChecks.Run(Check, Reject);
 ModuleChecks.Run(Check, Reject);
+StaticGen6Checks.Run(Check, Reject);
+StaticStarterChecks.Run(Check, Reject);
+Gen6MechanicsChecks.Run(Check, Reject);
+CroIntegrityChecks.Run(Check, Reject);
+RomExtractionChecks.Run(Check, Reject);
+PickupChecks.Run(Check, Reject);
+Machine6Checks.Run(Check, Reject);
+Mart6Checks.Run(Check, Reject);
+OPowerChecks.Run(Check, Reject);
+CatchZoneChecks.Run(Check, Reject);
+CatchZoneIntegrationChecks.Run(Check, Reject);
+Gen6EncounterOrderChecks.Run(Check, Reject);
+Trade6Checks.Run(Check, Reject);
+Economy6Checks.Run(Check, Reject);
+KingShield6Checks.Run(Check, Reject);
+Gen6ScriptChecks.Run(Check, Reject);
+FieldItems6Checks.Run(Check, Reject);
+RecoveryChecks.Run(Check, Reject);
+GlobalEditorBridgeChecks.Run(Check, Reject);
+EvolutionParityChecks.Run(Check, Reject);
+BattleFacilityChecks.Run(Check, Reject);
+RestoreChecks.Run(Check, Reject);
+BatchGen6Checks.Run(Check, Reject); NativeGen6BatchChecks.Run(Check,Reject);
+CatchBatchChecks.Run(Check,Reject);
+ShinyBatchChecks.Run(Check,Reject);
+GlobalCompletionChecks.Run(Check,Reject);
+AesCtrChecks.Run(Check);
+RebuildCacheChecks.Run(Check);
+StoryRandomChecks.Run(Check,Reject);
+SelectedRestoreChecks.Run(Check,Reject);
+IconChecks.Run(Check,Reject);
+GraphicsChecks.Run(Check,Reject);
+GarcShuffleChecks.Run(Check,Reject);
+Tutor6Checks.Run(Check,Reject);
+Tutor6CompatibilityChecks.Run(Check,Reject);
+BatchSourcePolicyChecks.Run(Check,Reject);
+Tm6CompatibilityChecks.Run(Check,Reject);
 if (OperatingSystem.IsWindows())
 {
     Exception? failure = null;
-    var ui = new Thread(() => { try { UiSmoke.Run(Check); } catch(Exception ex) { failure = ex; } });
+    var ui = new Thread(() => { try { UiSmoke.Run(Check);RequestedIntegrationChecks.RunUi(Check);Review73Checks.RunUi(Check); UtilityCompletionUiChecks.Run(Check);TitleScreenChecks.RunUi(Check);TitleMovieChecks.RunUi(Check); Tutor6CompatibilityChecks.RunUi(Check); RomToolUiChecks.Run(Check); GlobalEditorBridgeChecks.RunUi(Check); FieldItems6Checks.RunUi(Check); FeatureVisibilityChecks.Run(Check);MasterBatchChecks.RunUi(Check); Tm6CompatibilityChecks.RunUi(Check); GlobalCompletionChecks.RunUi(Check); BattleFacilityChecks.RunUi(Check); BatchGen6Checks.RunUi(Check); } catch(Exception ex) { failure = ex; } });
     ui.SetApartmentState(ApartmentState.STA); ui.Start(); ui.Join();
     if (failure is not null) throw new Exception("WPF smoke checks failed", failure);
 }

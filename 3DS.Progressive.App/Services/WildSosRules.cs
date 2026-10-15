@@ -21,12 +21,20 @@ internal static class WildSosRules
 
     internal static int FillMissingAllies(
         IDictionary<string,int> values,IReadOnlyList<int> allowed,
-        Random random,Func<int,int> selectForm)
+        Random random,Func<int,int> selectForm,bool diversity=false)
     {
         if(allowed.Count==0)
             throw new InvalidOperationException("No hay especies válidas para rellenar aliados SOS.");
         int added=0;
         for(int group=1;group<=7;group++)
+        {
+            var used=new HashSet<int>();
+            if(diversity)
+                for(int existing=0;existing<10;existing++)
+                {
+                    int id=values[$"S{group}.{existing}.Species"];
+                    if(id>0)used.Add(id);
+                }
             for(int slot=0;slot<10;slot++)
             {
                 string source=$"S0.{slot}.", target=$"S{group}.{slot}.";
@@ -34,11 +42,15 @@ internal static class WildSosRules
                     continue;
                 // Vanilla randomizes the new ally independently. It is not a
                 // clone of the corresponding regular encounter.
-                int species=allowed[random.Next(allowed.Count)];
+                var candidates=diversity?WildSelectionPolicy.PreferUnseen(allowed,used):allowed;
+                int species=WildSpeciesSelection.ChooseReplacement(
+                    candidates,values[source+"Species"],random);
+                if(diversity)used.Add(species);
                 values[target+"Species"]=species;
                 values[target+"Form"]=selectForm(species);
                 added++;
             }
+        }
         return added;
     }
 }

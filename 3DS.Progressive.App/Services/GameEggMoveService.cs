@@ -25,7 +25,8 @@ public sealed class GameEggMoveService : ArchiveProjectEditor
             Field("Expand","Ampliar lista de movimientos",1,0,1),
             Field("Count","Movimientos por especie",18,1,MaxSlots),
             Field("STAB","Priorizar movimientos STAB",1,0,1),
-            Field("STABPercent","Porcentaje STAB",33,0,100)])
+            Field("STABPercent","Porcentaje STAB",33,0,100),
+            ..(Config.Generation==6?new[]{Field("Hms","Incluir MO entre movimientos huevo",0,0,1)}:Array.Empty<EditorField>())])
     ];
     protected override IReadOnlyList<EditorGroup> ReadRecord(int id,Dictionary<string,byte[][]> archives)
     {
@@ -71,7 +72,9 @@ public sealed class GameEggMoveService : ArchiveProjectEditor
             ExpandTo=options["Count"],
             STAB=options["STAB"]==1,
             STABPercent=options["STABPercent"],
-            BannedMoves=[165,621,464,..Legal.Z_Moves]
+            BannedMoves=Config.Generation==6
+                ? [165,621,..(options["Hms"]==0?new[]{15,19,57,70,127,249,291}:Array.Empty<int>())]
+                : [165,621,464,..Legal.Z_Moves]
         };
         Util.ReseedRand(seed);
         engine.Execute();

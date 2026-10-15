@@ -88,17 +88,21 @@ internal static class CatchZonePatchSync
             byte[] data = File.ReadAllBytes(path);
             string currentHash = ComputeSha256(data);
 
-            if (currentHash.Equals(file.TargetSha256, StringComparison.OrdinalIgnoreCase))
+            if (data.LongLength==file.TargetLength && (currentHash.Equals(file.TargetSha256, StringComparison.OrdinalIgnoreCase)
+                ||file.SourceVariants.Any(v=>currentHash.Equals(v.TargetSha256,StringComparison.OrdinalIgnoreCase))))
             {
                 alreadyPatched++;
                 continue;
             }
 
             VerifyExpectedSource(file, data);
+            string expectedTarget=currentHash.Equals(file.SourceSha256,StringComparison.OrdinalIgnoreCase)?file.TargetSha256:
+                file.SourceVariants.Single(v=>currentHash.Equals(v.SourceSha256,StringComparison.OrdinalIgnoreCase)).TargetSha256;
 
             if (file.PatchMode.Equals("delta", StringComparison.OrdinalIgnoreCase))
             {
-                data = ApplyDelta(data, file);
+                var variant=file.SourceVariants.FirstOrDefault(v=>currentHash.Equals(v.SourceSha256,StringComparison.OrdinalIgnoreCase));
+                data = ApplyDelta(data, file,variant?.Delta);
             }
             else
             {
@@ -120,10 +124,10 @@ internal static class CatchZonePatchSync
             }
 
             string resultHash = ComputeSha256(data);
-            if (!resultHash.Equals(file.TargetSha256, StringComparison.OrdinalIgnoreCase))
+            if (!resultHash.Equals(expectedTarget, StringComparison.OrdinalIgnoreCase))
                 throw new InvalidDataException(
                     $"Catch-zone patch verification failed for {file.Scope}/{file.Path}. " +
-                    $"Expected {file.TargetSha256}, got {resultHash}.");
+                    $"Expected {expectedTarget}, got {resultHash}.");
 
             File.WriteAllBytes(path, data);
             patched++;
@@ -146,7 +150,8 @@ internal static class CatchZonePatchSync
                 $"got {data.LongLength.ToString(CultureInfo.InvariantCulture)}.");
 
         string currentHash = ComputeSha256(data);
-        if (!currentHash.Equals(file.SourceSha256, StringComparison.OrdinalIgnoreCase))
+        if (!currentHash.Equals(file.SourceSha256, StringComparison.OrdinalIgnoreCase)
+            &&!file.SourceVariants.Any(v=>currentHash.Equals(v.SourceSha256,StringComparison.OrdinalIgnoreCase)))
             throw new InvalidDataException(
                 $"The file does not match the clean source used to build this patch: {file.Scope}/{file.Path}. " +
                 $"Expected SHA-256 {file.SourceSha256}, got {currentHash}. Use a clean compatible dump.");
@@ -172,10 +177,22 @@ internal static class CatchZonePatchSync
             throw new InvalidDataException(
                 $"Catch-zone patch manifest is for {manifest.Game}, but the loaded game family is {game}.");
 
+        foreach(var file in manifest.Files)
+        {
+            if(file.SourceVariants is null)throw new InvalidDataException("Missing catch-zone source variants.");
+            var origins=new HashSet<string>(StringComparer.OrdinalIgnoreCase){file.SourceSha256};
+            foreach(var variant in file.SourceVariants)
+                if(variant is null||string.IsNullOrWhiteSpace(variant.Label)
+                    ||variant.SourceSha256.Length!=64||!variant.SourceSha256.All(Uri.IsHexDigit)
+                    ||variant.TargetSha256.Length!=64||!variant.TargetSha256.All(Uri.IsHexDigit)
+                    ||!origins.Add(variant.SourceSha256))
+                    throw new InvalidDataException("Invalid or ambiguous catch-zone source variant.");
+        }
+
         return manifest;
     }
 
-    private static byte[] ApplyDelta(byte[] source, CatchZonePatchFile file)
+    private static byte[] ApplyDelta(byte[] source, CatchZonePatchFile file,List<CatchZoneDeltaOperation> variantDelta=null)
     {
         if (file.TargetLength < 0 || file.TargetLength > int.MaxValue)
             throw new InvalidDataException(
@@ -183,7 +200,7 @@ internal static class CatchZonePatchSync
 
         using var output = new MemoryStream((int)file.TargetLength);
 
-        foreach (CatchZoneDeltaOperation op in file.Delta)
+        foreach (CatchZoneDeltaOperation op in variantDelta??file.Delta)
         {
             if (op.CopyOffset >= 0)
             {
@@ -272,6 +289,14 @@ internal sealed class CatchZonePatchFile
     public string TargetSha256 { get; set; } = string.Empty;
     public List<CatchZonePatchHunk> Hunks { get; set; } = [];
     public List<CatchZoneDeltaOperation> Delta { get; set; } = [];
+    public List<CatchZoneSourceVariant> SourceVariants {get;set;}=[];
+}
+internal sealed class CatchZoneSourceVariant
+{
+    public string Label {get;set;}=string.Empty;
+    public string SourceSha256 {get;set;}=string.Empty;
+    public string TargetSha256 {get;set;}=string.Empty;
+    public List<CatchZoneDeltaOperation> Delta {get;set;}
 }
 
 internal sealed class CatchZonePatchHunk

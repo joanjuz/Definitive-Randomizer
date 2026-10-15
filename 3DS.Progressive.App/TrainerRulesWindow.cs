@@ -74,7 +74,7 @@ internal sealed class TrainerRulesWindow : UserControl
         {
             Text=caps
                 ?"Cap 0 = nivel del Ace dinámico. «Máx. 3» conserva al Pokémon de mayor nivel. Mega y movimiento Z se aplican únicamente donde el juego lo permite."
-                :"Potencia 0 = sin mínimo; EV -1 = conservar. Los filtros solo afectan a qué filas se muestran, nunca borran reglas de otros entrenadores.",
+                :"EV -1 = conservar. Movimientos mejorados, mejor estadística y Smart Items se configuran en el randomizador general. Los filtros solo afectan a qué filas se muestran, nunca borran reglas de otros entrenadores.",
             Foreground=TextSoft,FontSize=11,TextWrapping=TextWrapping.Wrap,
             Margin=new Thickness(0,0,0,12)
         });
@@ -124,16 +124,11 @@ internal sealed class TrainerRulesWindow : UserControl
         AddCheck(_caps?"Aplicar cap":"Usar regla",_caps?"CapUse":"MoveUse");
         if(_caps)
         {
-            AddCheck("Máx. 3","Max3");AddCheck("Mega","Mega");AddCheck("Z-Move","ZMove");
+            AddCheck("Máx. 3","Max3");AddCheck("Mega","Mega");if(_rows.Any(row=>row.SupportsZMoves))AddCheck("Z-Move","ZMove");
         }
         else
         {
-            AddNumber("Potencia mínima","MinPower");
-            AddCheck("Mejor estadística","StrongStat");
-            AddNumber("Tolerancia","Tolerance");
             AddCheck("Mov. estado","AllowStatus");
-            AddCheck("Better Movesets","Better");
-            AddCheck("Smart Items","SmartItems");
             AddNumber("EVs","EVs");
         }
         AddNumber("ID","Id",true);

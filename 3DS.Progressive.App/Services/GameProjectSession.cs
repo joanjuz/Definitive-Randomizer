@@ -110,6 +110,11 @@ public sealed partial class GameProjectSession
                 .Where(p => Path.GetFileName(p).Contains("code", StringComparison.OrdinalIgnoreCase)))
             {
                 byte[] data = File.ReadAllBytes(path);
+                if(config.Generation==6)
+                {
+                    int gen6=GameMachine6Service.FindTable(data,config.ORAS);
+                    return Enumerable.Range(0,100).Select(i=>BitConverter.ToUInt16(data,gen6+2*(i<92?i:i+(config.ORAS?6:5)))).ToArray();
+                }
                 if (data.Length < 0x400000 + signature.Length + 0x22 + 200 ||
                     data.Length % 0x200 != 0)
                     continue;
@@ -210,14 +215,17 @@ public sealed partial class GameProjectSession
     }
 
     /// <summary>
-    /// Solo acepta un proyecto extraido. Nunca descomprime ni mueve code.bin u otros archivos.
+    /// Solo acepta un proyecto extraido. Puede recuperar un guardado propio interrumpido antes de cargar los datos.
+    /// Los diagnósticos pasan recoverInterruptedSave=false para no modificar ninguna referencia.
     /// </summary>
-    public static GameProjectSession Open(string root)
+    public static GameProjectSession Open(string root,bool recoverInterruptedSave=true)
     {
         UiProgress.Stage("Verificando raíz, RomFS y ExeFS…");
         root = Path.GetFullPath(root);
         if (!Directory.Exists(root))
             throw new DirectoryNotFoundException("La carpeta seleccionada no existe.");
+        var recovery=new ProjectHistory(root,string.Empty);
+        if(recoverInterruptedSave)recovery.RecoverPending();else recovery.RejectPending();
 
         string[] folders = Directory.GetDirectories(root);
         string? romfs = folders.FirstOrDefault(x =>

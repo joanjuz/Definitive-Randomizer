@@ -43,7 +43,7 @@ internal sealed class EconomyPriceView : UserControl
         DockPanel.SetDock(head,Dock.Top);root.Children.Add(head);
         head.Children.Add(new TextBlock {Text="Tabla de precios de economía",FontSize=21,
             Foreground=(Brush)FindResource("TextMain"),FontWeight=FontWeights.SemiBold});
-        head.Children.Add(new TextBlock {Text="Objetivos originales UPR-ZX + Progressive para Gen 7. Compra en múltiplos de 10; venta equivale a la mitad. Nada se guarda hasta aplicar una vista previa.",
+        head.Children.Add(new TextBlock {Text=$"Preset {items.EconomyPreset}. Compra en múltiplos de 10; venta equivale a la mitad. Nada se guarda hasta aplicar una vista previa.",
             Foreground=(Brush)FindResource("TextSoft"),TextWrapping=TextWrapping.Wrap});
         var controls=new WrapPanel {Margin=new Thickness(0,12,0,0)};
         head.Children.Add(controls);
@@ -57,7 +57,7 @@ internal sealed class EconomyPriceView : UserControl
         }
         Command("Incluir visibles",()=>SetVisible(true));
         Command("Excluir visibles",()=>SetVisible(false));
-        Command("Restablecer UPR-ZX",ResetDefaults);
+        Command("Restablecer preset",ResetDefaults);
         var bottom=new DockPanel {Margin=new Thickness(0,12,0,0),LastChildFill=false};
         DockPanel.SetDock(bottom,Dock.Bottom);root.Children.Add(bottom);
         _status=new TextBlock {Foreground=(Brush)FindResource("TextSoft"),

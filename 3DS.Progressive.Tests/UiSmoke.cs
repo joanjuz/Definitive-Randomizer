@@ -198,7 +198,7 @@ internal static class UiSmoke
                 && ((TabItem)t.Items[1]).Header?.ToString()=="Niveles de entrenadores"),
                 "Trainer randomizer shows five task-based panels");
             ((ComboBox)trainer.FindName("ScopeBox")).SelectedIndex=2;
-            ((TextBox)trainer.OptionControls["NUD_LevelBoost"]).Text="1.6";
+            ((TextBox)trainer.OptionControls["NUD_LevelBoost"]).Text="160";
             ((Button)trainer.FindName("PreviewButton")).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             check(((Button)trainer.FindName("ApplyButton")).IsEnabled,"WPF trainer randomizer produces a scoped proposal");
             Layout(trainer,1170,720);Capture(trainer,"entrenadores-randomizar.png");
@@ -210,7 +210,14 @@ internal static class UiSmoke
                   encounters.OptionControls.ContainsKey("MegaForms") &&
                   encounters.OptionControls.ContainsKey("Progressive") &&
                   ((Button)encounters.FindName("WildCopyButton")).Visibility==Visibility.Visible &&
-                  ((Button)encounters.FindName("WildPasteAreaButton")).Visibility==Visibility.Visible,
+                  ((Button)encounters.FindName("WildPasteAreaButton")).Visibility==Visibility.Visible &&
+                  encounters.OptionControls.ContainsKey("AlolanForms") &&
+                  encounters.OptionControls.ContainsKey("UniquePerTable") &&
+                  encounters.OptionControls.ContainsKey("RelaxBST") &&
+                  encounters.OptionControls.ContainsKey("SkipInaccessible") &&
+                  ((Button)encounters.FindName("WildAddRangeButton")).Visibility==Visibility.Visible &&
+                  ((Button)encounters.FindName("WildRemoveRangeButton")).Visibility==Visibility.Visible &&
+                  ((Button)encounters.FindName("WildAuditButton")).Visibility==Visibility.Visible,
                   "WPF Wild shows v1 template controls, Mega forms and Progressive BST options");
             var wildGroupPicker=(ComboBox)encounters.FindName("EncounterGroupPicker");
             check(wildGroupPicker.Items.Count==9 &&
@@ -228,7 +235,7 @@ internal static class UiSmoke
             Layout(encounters,1170,720);Capture(encounters,"encuentros-editor.png");
             ((Button)main.FindName("TrainersButton")).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             var remembered=(RecordEditorView)((ContentControl)main.FindName("SectionHost")).Content;
-            check(((TextBox)remembered.OptionControls["NUD_LevelBoost"]).Text=="1.6"&&((ComboBox)remembered.FindName("ScopeBox")).SelectedIndex==2,"WPF module options and scope survive navigation");
+            check(((TextBox)remembered.OptionControls["NUD_LevelBoost"]).Text=="160"&&((ComboBox)remembered.FindName("ScopeBox")).SelectedIndex==2,"WPF module options and scope survive navigation");
             ((Button)main.FindName("StaticEncountersButton")).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             var staticView=(RecordEditorView)((ContentControl)main.FindName("SectionHost")).Content;
             check(staticView.Editor is ThreeDS.Progressive.Services.GameStaticEncounterService

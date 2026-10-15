@@ -1,4 +1,4 @@
-using System.IO;
+﻿using System.IO;
 using System.Security.Cryptography;
 using pk3DS.Core;
 using pk3DS.Core.CTR;
@@ -7,6 +7,11 @@ using ThreeDS.Progressive.Models;
 namespace ThreeDS.Progressive.Services;
 
 /// <summary>Live game text GARC backed by pk3DS's original encrypted TextFile codec.</summary>
+public sealed record TextSearchHit(int FileId,int Line,string Text)
+{
+    public string Display=>$"Archivo #{FileId:000} · línea {Line}: {Text.Replace("\r"," ").Replace("\n"," ")}";
+}
+
 public sealed class GameTextService
 {
     private readonly GameProjectSession _project;
@@ -15,8 +20,9 @@ public sealed class GameTextService
     private readonly GARCReference _reference;
     private byte[] _sha;
     private readonly bool _story;
+    private readonly Guid _owner=Guid.NewGuid();
     public string BankName=>_story?"Story Text":"Game Text";
-    public IReadOnlyList<RecordEntry> Entries {get;}
+    public IReadOnlyList<RecordEntry> Entries {get;private set;} = [];
     public GameTextService(GameProjectSession project,bool story=false)
     {
         _project=project;_config=project.GameConfiguration;_story=story;
@@ -26,9 +32,81 @@ public sealed class GameTextService
         _path=Path.Combine(_config.RomFS,_config.GetGARCFileName(bank));
         if(!File.Exists(_path))throw new FileNotFoundException("No se encontró el GARC de "+BankName+" en el idioma seleccionado.",_path);
         _sha=SHA256.HashData(File.ReadAllBytes(_path));
-        int count=new GARC.MemGARC(File.ReadAllBytes(_path)).Files.Length;
-        Entries=Enumerable.Range(0,count).Select(i=>new RecordEntry(i,
-            _story?$"Diálogo / evento {i:000}":$"Archivo de texto {i:000}")).ToArray();
+        RefreshCatalogue();
+    }
+    private void RefreshCatalogue()
+    {
+        var records=ReadRecords();
+        Entries=Enumerable.Range(0,records.Length).Select(i=>
+        {
+            var lines=new TextFile(_config,records[i],_config.RemapCharacters).Lines;
+            string sample=lines.FirstOrDefault(t=>!string.IsNullOrWhiteSpace(t))??"Sin mensajes visibles";
+            sample=sample.Replace("\r"," ").Replace("\n"," ");if(sample.Length>55)sample=sample[..55]+"…";
+            var tags=Tags(i);return new RecordEntry(i,$"{Describe(i)} · [{(tags.Count==0?"Sin clasificar":string.Join(" · ",tags))}] · {lines.Length} líneas");
+        }).ToArray();
+    }
+    public static readonly string[] TagChoices=["Intercambios","NPCs","Historia principal","Diálogos importantes","Combate","Menús","Pokédex","Nombres y descripciones"];
+    private string TagsPath=>Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),"DefinitiveRandomizer","TextTags",Convert.ToHexString(SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(Path.GetFullPath(_project.ProjectRoot).ToUpperInvariant())))[..24]+$"-{(_story?"story":"game")}-{_config.Language}.json");
+    private Dictionary<int,string[]>? _tags;
+    public IReadOnlyList<string> Tags(int id)
+    {
+        if(_tags is null)_tags=File.Exists(TagsPath)?System.Text.Json.JsonSerializer.Deserialize<Dictionary<int,string[]>>(File.ReadAllText(TagsPath))??[]:[];
+        if(_tags.TryGetValue(id,out var tags))return tags;
+        if(!_story)
+        {
+            var reference=_config.GameText.FirstOrDefault(t=>t.Index==id);
+            if(reference is not null)return reference.Name switch
+            {
+                TextName.TrainerText=>["Combate"],TextName.PokedexEntry1 or TextName.PokedexEntry2 or TextName.SpeciesClassifications=>["Pokédex"],
+                TextName.TrainerNames or TextName.TrainerClasses or TextName.AbilityNames or TextName.ItemNames or TextName.ItemFlavor or TextName.MoveNames or TextName.MoveFlavor or TextName.SpeciesNames or TextName.Types or TextName.Natures or TextName.Forms=>["Nombres y descripciones"],_=>[]
+            };
+        }
+        return [];
+    }
+    public void SetTags(int id,IEnumerable<string> tags)
+    {
+        if(!Entries.Any(e=>e.Id==id))throw new ArgumentOutOfRangeException(nameof(id));
+        var next=tags.Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+        if(next.Any(t=>!TagChoices.Contains(t)))throw new ArgumentException("Etiqueta no admitida.");
+        _=Tags(id);var updated=new Dictionary<int,string[]>(_tags!){[id]=next};
+        Directory.CreateDirectory(Path.GetDirectoryName(TagsPath)!);
+        string temp=TagsPath+".tmp-"+Guid.NewGuid().ToString("N");
+        try{File.WriteAllText(temp,System.Text.Json.JsonSerializer.Serialize(updated));File.Move(temp,TagsPath,true);}finally{if(File.Exists(temp))File.Delete(temp);}
+        _tags=updated;RefreshCatalogue();
+    }
+    public string Location=>$"{_project.GameName} · idioma {_config.Language} · {_config.GetGARCFileName(_story?"storytext":"gametext")}";
+    private string Describe(int id)
+    {
+        if(_story)return $"Diálogos y eventos · archivo {id:000}";
+        var reference=_config.GameText.FirstOrDefault(t=>t.Index==id);
+        return reference is null?$"Otros textos · archivo {id:000}":reference.Name switch
+        {
+            TextName.AbilityNames=>"Nombres de habilidades",TextName.MoveNames=>"Nombres de movimientos",
+            TextName.MoveFlavor=>"Descripciones de movimientos",TextName.ItemNames=>"Nombres de objetos",
+            TextName.ItemFlavor=>"Descripciones de objetos",TextName.SpeciesNames=>"Nombres de Pokémon",
+            TextName.Types=>"Tipos de Pokémon",TextName.Natures=>"Naturalezas",TextName.Forms=>"Nombres de formas",
+            TextName.TrainerNames=>"Nombres de entrenadores",TextName.TrainerClasses=>"Clases de entrenadores",
+            TextName.TrainerText=>"Mensajes de entrenadores",TextName.metlist_000000=>"Nombres de lugares",
+            TextName.OPowerFlavor=>"Descripciones de Poderes O",TextName.MaisonTrainerNames=>"Entrenadores de Mansión Batalla",
+            TextName.SuperTrainerNames=>"Entrenadores especiales",TextName.BattleRoyalNames=>"Entrenadores de Battle Royal",
+            TextName.BattleTreeNames=>"Entrenadores de Árbol de Combate",TextName.SpeciesClassifications=>"Categorías de Pokémon",
+            TextName.PokedexEntry1=>"Descripciones Pokédex · versión 1",TextName.PokedexEntry2=>"Descripciones Pokédex · versión 2",
+            _=>reference.Name.ToString()
+        };
+    }
+    public IReadOnlyList<TextSearchHit> Search(string query,int limit=500)
+    {
+        if(string.IsNullOrWhiteSpace(query))return [];
+        if(limit<1||limit>5000)throw new ArgumentOutOfRangeException(nameof(limit));
+        query=query.Trim();var results=new List<TextSearchHit>();var records=ReadRecords();
+        for(int file=0;file<records.Length;file++)
+        {
+            var lines=new TextFile(_config,records[file],_config.RemapCharacters).Lines;
+            for(int line=0;line<lines.Length;line++)
+                if(lines[line].Contains(query,StringComparison.OrdinalIgnoreCase))
+                {results.Add(new(file,line,lines[line]));if(results.Count==limit)return results;}
+        }
+        return results;
     }
     private byte[][] ReadRecords()=>new GARC.MemGARC(GarcTransaction.ReadUnchanged(_path,_sha)).Files;
     public IReadOnlyList<string> Read(int id)
@@ -62,6 +140,7 @@ public sealed class GameTextService
             new Dictionary<string,string>{{"Bank",_story?"storytext":"gametext"},
                 {"Language",_config.Language.ToString()}});
         _sha=SHA256.HashData(output);
+        RefreshCatalogue();
         // Update only the modified loaded section; never discard the full localized text cache.
         if(!_story && id<_config.GameTextStrings.Length)_config.GameTextStrings[id]=after;
     }
@@ -148,11 +227,61 @@ public sealed class GameTextService
             {["Bank"]=_story?"storytext":"gametext",["Language"]=_config.Language.ToString(),
              ["Scope"]="All"});
         _sha=SHA256.HashData(preview.Output);
+        RefreshCatalogue();
         if(!_story)_config.InitializeGameText();
     }
 
+    public StoryRandomPreview PreviewRandomize(int? fileId,int seed)
+    {
+        if(!_story)throw new InvalidOperationException("La randomización protegida solo está disponible en Story Text.");
+        byte[] source=GarcTransaction.ReadUnchanged(_path,_sha);var records=new GARC.MemGARC(source).Files;
+        int[] ids=fileId is int selectedId?new[]{selectedId}:Enumerable.Range(0,records.Length).ToArray();
+        if(ids.Any(id=>id<0||id>=records.Length))throw new ArgumentOutOfRangeException(nameof(fileId));
+        var lines=ids.ToDictionary(id=>id,id=>new TextFile(_config,records[id],_config.RemapCharacters).Lines);
+        // Preserve empty placeholders, variables and every escaped/control line
+        // at its original index. Shuffle only literal dialogue messages.
+        bool Eligible(string line)=>line.Length>0&&!line.Contains('[')&&!line.Contains(']')&&!line.Contains('\\')&&!line.Any(char.IsControl);
+        var slots=ids.SelectMany(id=>lines[id].Select((text,index)=>(Id:id,Index:index,Text:text))).Where(slot=>Eligible(slot.Text)).ToArray();
+        string[] pool=slots.Select(slot=>slot.Text).ToArray();var random=new Random(seed);
+        for(int i=pool.Length-1;i>0;i--){int other=random.Next(i+1);(pool[i],pool[other])=(pool[other],pool[i]);}
+        var changes=new List<BatchChange>();
+        for(int i=0;i<slots.Length;i++)
+        {
+            var slot=slots[i];if(slot.Text==pool[i])continue;
+            lines[slot.Id][slot.Index]=pool[i];changes.Add(new(slot.Id,$"Archivo {slot.Id:000}","Línea "+slot.Index,slot.Text,pool[i]));
+        }
+        foreach(int id in changes.Select(change=>change.Id).Distinct())
+        {
+            byte[] next=TextFile.GetBytes(_config,lines[id],_config.RemapCharacters);
+            if(!new TextFile(_config,next,_config.RemapCharacters).Lines.SequenceEqual(lines[id]))throw new InvalidDataException("La codificación del diálogo no es reversible.");
+            records[id]=next;
+        }
+        byte[] output=changes.Count==0?source:GarcTransaction.Build(source,_reference,records,preserveRecordSize:false);
+        return new(_owner,new FileChange(_path,source,output),changes.AsReadOnly(),seed,fileId);
+    }
+    public void ApplyRandomize(StoryRandomPreview preview)
+    {
+        if(!_story||preview.Owner!=_owner||preview.Changes.Count==0)throw new InvalidOperationException("La propuesta no pertenece a este editor o no tiene cambios.");
+        GarcTransaction.ReadUnchanged(_path,_sha);GarcTransaction.ReadUnchanged(_path,preview.File.Fingerprint);
+        _project.History.Commit([preview.File],"Historia y textos","Randomizar diálogos protegidos",preview.Changes,
+            new Dictionary<string,string>{{"Bank","storytext"},{"Language",_config.Language.ToString()},{"PreviewSeed",preview.Seed.ToString()},
+                {"Scope",preview.FileId?.ToString()??"All"},{"ProtectControlLines","True"}});
+        _sha=SHA256.HashData(preview.File.Proposed());
+        RefreshCatalogue();
+    }
     public string Export(int id)=>string.Join(Environment.NewLine,Read(id).Select((line,i)=>$"[{i:0000}] {line}"));
 }
 
 public sealed record TextBankPreview(byte[] Original,byte[] Output,
     IReadOnlyList<BatchChange> Changes,bool Story);
+
+public sealed class StoryRandomPreview
+{
+    internal Guid Owner {get;}
+    internal FileChange File {get;}
+    public IReadOnlyList<BatchChange> Changes {get;}
+    public int Seed {get;}
+    public int? FileId {get;}
+    internal StoryRandomPreview(Guid owner,FileChange file,IReadOnlyList<BatchChange> changes,int seed,int? fileId)
+    {Owner=owner;File=file;Changes=changes;Seed=seed;FileId=fileId;}
+}

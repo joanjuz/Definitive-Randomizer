@@ -22,6 +22,7 @@ public class TextFile
 
     private GameConfig Config { get; }
     public bool SETEMPTYTEXT { get; set; }
+    public bool PreserveWhitespace { get; set; }
     public bool RemapChars { get; set; }
 
     public TextFile(GameConfig config, byte[] data = null, bool remapChars = false)
@@ -155,7 +156,7 @@ public class TextFile
         byte[][] lineData = new byte[value.Length][];
         for (int i = 0; i < value.Length; i++)
         {
-            string text = (value[i] ?? "").Trim();
+            string text = PreserveWhitespace ? value[i] ?? "" : (value[i] ?? "").Trim();
             if (text.Length == 0 && SETEMPTYTEXT)
                 text = $"[~ {i}]";
             byte[] DecryptedLineData = GetLineData(Config, text);
