@@ -518,7 +518,14 @@ public partial class MainWindow : Window
         if(_movesView?.CaptureGlobalState() is {} movesMaster)NativeMasterBatchBridge.Capture(document,movesMaster,_session.Generation);
         if(_shinyOptions is not null)ShinyRateTemplate.Capture(document,_shinyOptions);
         if(_session.Generation==7){if(_martView is not null)_gen7MartState=_martView.RememberRecipe();if(_gen7MartState is not null)NativeGen7MartBridge.Capture(document,_gen7MartState);}
-        if(_session.Generation==7){if(_machineTutorView is not null)_gen7MachineState=_machineTutorView.RememberRecipe();if(_gen7MachineState is not null)NativeGen7MachineBridge.Capture(document,_gen7MachineState);}
+        if(_session.Generation==7)
+        {
+            // New exports randomize MT by default, including before opening the editor.
+            // Keep the reader/replay of older recipes faithful to their saved actions.
+            var machines=_machineTutorView?.RememberRecipe()??_gen7MachineState??NativeGen7MachineBridge.Read(document)??new Gen7MachineState();
+            _gen7MachineState=machines with{RandomMachines=true};
+            NativeGen7MachineBridge.Capture(document,_gen7MachineState);
+        }
         if(_session.Generation==6&&_gen6CompatibilityState is not null)MachineCompatibilityTemplate.Capture(document,_gen6CompatibilityState);
         if(_session.GameConfiguration.ORAS&&_gen6TutorCompatibilityState is not null)TutorCompatibilityTemplate.Capture(document,_gen6TutorCompatibilityState);
         foreach(var row in GlobalEditorTemplateBridge.Editors(_session))

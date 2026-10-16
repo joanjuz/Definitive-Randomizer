@@ -17,7 +17,19 @@ internal static class MasterBatchChecks
                 if(fixture.Game.Generation==7)
                 {
                     byte[] code=new byte[0x402000];byte[] signature=[0x03,0x40,0x03,0x41,0x03,0x42,0x03,0x43,0x03];signature.CopyTo(code,0x400000);int offset=0x400000+signature.Length+(version==GameVersion.USUM?0x22:0);for(int i=0;i<100;i++)BitConverter.GetBytes((ushort)(i+1)).CopyTo(code,offset+i*2);File.WriteAllBytes(Path.Combine(fixture.Game.ExeFS,"code.bin"),code);
-                    var view=new ThreeDS.Progressive.MachineTutorView(fixture.Session);var remembered=new Gen7MachineState(RandomMachines:true,MachineSanity:true,MachineFollow:true);view.RestoreRecipe(remembered);check(view.RememberRecipe()==remembered,version+" WPF machine recipe options restore exactly");
+                    var defaultDocument=GlobalTemplateDocument.Empty(version.ToString(),7);
+                    var windowFlags=System.Reflection.BindingFlags.NonPublic|System.Reflection.BindingFlags.Instance;
+                    byte[] originalCode=File.ReadAllBytes(Path.Combine(fixture.Game.ExeFS,"code.bin"));
+                    typeof(ThreeDS.Progressive.MainWindow).GetMethod("CaptureGlobalOptions",windowFlags)!.Invoke(main,[defaultDocument]);
+                    check(defaultDocument.Actions.Contains("tms.randomize")&&NativeGen7MachineBridge.Read(defaultDocument)!.RandomMachines,version+" TM default export includes randomization before opening editor");
+                    typeof(ThreeDS.Progressive.MainWindow).GetField("_gen7MachineState",windowFlags)!.SetValue(main,new Gen7MachineState(MachineSanity:true));
+                    var recaptured=GlobalTemplateDocument.Empty(version.ToString(),7);typeof(ThreeDS.Progressive.MainWindow).GetMethod("CaptureGlobalOptions",windowFlags)!.Invoke(main,[recaptured]);
+                    check(NativeGen7MachineBridge.Read(recaptured) is {RandomMachines:true,MachineSanity:true},version+" TM recapture enables default and preserves other options");
+                    check(File.ReadAllBytes(Path.Combine(fixture.Game.ExeFS,"code.bin")).SequenceEqual(originalCode),version+" TM default capture does not modify executable");
+                    var view=new ThreeDS.Progressive.MachineTutorView(fixture.Session);
+                    check(view.RememberRecipe().RandomMachines,version+" TM editor defaults to randomization without checkbox");
+                    view.RestoreRecipe(new(MachineFollow:true));check(view.RememberRecipe() is {RandomMachines:true,MachineFollow:true},version+" TM editor preserves compatibility options when recapturing old settings");
+                    var remembered=new Gen7MachineState(RandomMachines:true,MachineSanity:true,MachineFollow:true);view.RestoreRecipe(remembered);check(view.RememberRecipe()==remembered,version+" WPF machine recipe options restore exactly");
                     var state=new Gen7MachineState();var global=new ThreeDS.Progressive.GlobalTemplateView(fixture.Session,captureOptions:doc=>NativeGen7MachineBridge.Capture(doc,state));var loaded=GlobalTemplateDocument.Empty(version.ToString(),7);typeof(ThreeDS.Progressive.GlobalTemplateView).GetMethod("Use",System.Reflection.BindingFlags.NonPublic|System.Reflection.BindingFlags.Instance)!.Invoke(global,[loaded,null]);state=new(MachineSanity:true);var newlyEnabled=global.ExportSnapshot();check(newlyEnabled.Actions.Contains("tms.sanity")&&NativeGen7MachineBridge.Read(newlyEnabled)!.MachineSanity,version+" Global export includes newly enabled editor action absent from old action list");
                     var recipe=GlobalTemplateDocument.Empty(version.ToString(),7);NativeGen7MachineBridge.Capture(recipe,view.RememberRecipe());check(NativeGen7MachineBridge.Read(recipe)==remembered,version+" WPF machine recipe capture preserves all settings");
                 }

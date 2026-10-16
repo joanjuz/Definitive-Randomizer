@@ -1,4 +1,4 @@
-﻿using System.IO;
+using System.IO;
 using System.Reflection;
 using System.Security.Cryptography;
 using pk3DS.Core;
@@ -81,6 +81,12 @@ if(args.Length==1&&args[0]=="--batch-gen6-only")
 }
 if(args.Length==1&&args[0]=="--statics7-batch-only"){NativeGen7StaticChecks.Run(Check,Reject);Console.WriteLine($"Completed {checks} native Gen7 static checks.");return;}
 if(args.Length==1&&args[0]=="--master-batch-only"){MasterBatchChecks.Run(Check,Reject);Console.WriteLine($"Completed {checks} native master batch checks.");return;}
+if(args.Length==1&&args[0]=="--tm-default-ui-only")
+{
+    Exception? failure=null;var thread=new Thread(()=>{try{ThreeDS.Progressive.StudioDialog.AutomatedChecks=true;var app=new ThreeDS.Progressive.App();app.InitializeComponent();MasterBatchChecks.RunUi(Check);}catch(Exception ex){failure=ex;}});
+    thread.SetApartmentState(ApartmentState.STA);thread.Start();thread.Join();if(failure is not null)throw failure;
+    Console.WriteLine($"Completed {checks} TM default and master UI component checks.");return;
+}
 if(args.Length==1&&args[0]=="--tm7-text-only"){TmDescriptionChecks.Run(Check,Reject);Console.WriteLine($"Completed {checks} TM description checks.");return;}
 if(args.Length==1&&args[0]=="--title-movies-only"){TitleMovieChecks.Run(Check,Reject);Console.WriteLine($"Completed {checks} movie checks.");return;}
 if(args.Length==1&&args[0]=="--rebuild-cache-only"){RebuildCacheChecks.Run(Check);Console.WriteLine($"Completed {checks} rebuild cache checks.");return;}

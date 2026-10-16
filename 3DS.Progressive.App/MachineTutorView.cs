@@ -23,10 +23,10 @@ namespace ThreeDS.Progressive;
 internal sealed class MachineTutorView : UserControl
 {
     private readonly GameProjectSession _project;
-    private readonly CheckBox _recipeMachines=new(){Content="Randomizar MT en Global/Batch"},_recipeTutors=new(){Content="Randomizar tutores en Global/Batch"},_recipeFree=new(){Content="Tutores gratis en Global/Batch"};
+    private readonly CheckBox _recipeTutors=new(){Content="Randomizar tutores en Global/Batch"},_recipeFree=new(){Content="Tutores gratis en Global/Batch"};
     private CheckBox _tmSanity=null!,_tmFollow=null!,_tutorSanity=null!,_tutorFollow=null!;
-    internal Gen7MachineState RememberRecipe()=>new(_recipeMachines.IsChecked==true,_tmSanity.IsChecked==true,_tmFollow.IsChecked==true,_recipeTutors.IsChecked==true,_recipeFree.IsChecked==true,_tutorSanity.IsChecked==true,_tutorFollow.IsChecked==true);
-    internal void RestoreRecipe(Gen7MachineState s){_recipeMachines.IsChecked=s.RandomMachines;_tmSanity.IsChecked=s.MachineSanity;_tmFollow.IsChecked=s.MachineFollow;_recipeTutors.IsChecked=s.RandomTutors;_recipeFree.IsChecked=s.FreeTutors;_tutorSanity.IsChecked=s.TutorSanity;_tutorFollow.IsChecked=s.TutorFollow;}
+    internal Gen7MachineState RememberRecipe()=>new(true,_tmSanity.IsChecked==true,_tmFollow.IsChecked==true,_recipeTutors.IsChecked==true,_recipeFree.IsChecked==true,_tutorSanity.IsChecked==true,_tutorFollow.IsChecked==true);
+    internal void RestoreRecipe(Gen7MachineState s){_tmSanity.IsChecked=s.MachineSanity;_tmFollow.IsChecked=s.MachineFollow;_recipeTutors.IsChecked=s.RandomTutors;_recipeFree.IsChecked=s.FreeTutors;_tutorSanity.IsChecked=s.TutorSanity;_tutorFollow.IsChecked=s.TutorFollow;}
     private GameMachineTutorService _service;
     private readonly DataGrid _machineGrid,_tutorGrid;
     private readonly List<DataGrid> _machineColumns=[];
@@ -91,7 +91,7 @@ internal sealed class MachineTutorView : UserControl
             Rebind();_dirtyMachines=false;UpdateState();
             _status.Text="MT y descripciones guardadas con verificación conjunta e historial.";
         });
-        commands.Children.Add(random);commands.Children.Add(_saveMachines);_recipeMachines.Margin=new Thickness(12,4,0,0);_recipeMachines.Foreground=text;commands.Children.Add(_recipeMachines);
+        commands.Children.Add(random);commands.Children.Add(_saveMachines);
         // Native Gen7 TM compatibility: independent from tutor Sanity flags.
         var tmCompatibilityControls=new StackPanel {Margin=new Thickness(0,0,0,10)};
         DockPanel.SetDock(tmCompatibilityControls,Dock.Top);

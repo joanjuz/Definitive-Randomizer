@@ -26,6 +26,17 @@ internal static class TmDescriptionChecks
             byte[] unchanged=File.ReadAllBytes(codePath);check(NativeRecipeCompletion.TryComplete(f.Session,document)&&File.ReadAllBytes(codePath).SequenceEqual(unchanged),version+" machine native completion previews without writing");GlobalEditorTemplateBridge.ValidateBatchReplay(document);
             var assembly=System.Reflection.Assembly.LoadFrom(Path.ChangeExtension(BatchRomExecution.RunnerPath,".dll"));var type=assembly.GetType("pk3DS.WinForms.GlobalRandomizationTemplate",true)!;string replay=System.Text.Json.JsonSerializer.Serialize(System.Text.Json.JsonSerializer.Deserialize(document.ToJson(),type),type);
             NativeGen7MachineBridge.ExecuteSession(f.Session,replay,791,"Machines");check(expected.All(file=>File.ReadAllBytes(file.Path).SequenceEqual(file.Proposed())),version+" original typed template replays exact native TMs and descriptions");
+            var manual=document.Clone();ManualEditTemplate.Capture(manual,f.Session.History.Read());
+            var manualRows=manual.Section("ProgressiveApp")!["ManualEdits"]!["Operations"]!.AsArray().Where(o=>o!["Kind"]!.GetValue<string>()=="machines7").SelectMany(o=>o!["Payload"]!["Rows"]!.AsArray()).ToArray();
+            check(manualRows.Length==1&&manualRows[0]!["Number"]!.GetValue<int>()==1&&manualRows[0]!["MoveId"]!.GetValue<int>()==15,version+" TM manual history captures only explicitly edited assignment");
+            foreach(int seed in new[]{812,913})
+            {
+                var expectedRandom=new GameMachineTutorService(f.Session);expectedRandom.RandomizeMachines(seed);var randomMoves=expectedRandom.Machines.Select(r=>r.MoveId).ToArray();
+                NativeGen7MachineBridge.ExecuteSession(f.Session,manual.ToJson(),seed,"Machines");ManualEditTemplate.Apply(f.Session,manual);
+                var finalMachines=new GameMachineTutorService(f.Session).Machines;
+                check(finalMachines[0].MoveId==15,version+" TM exact manual assignment wins after randomization seed "+seed);
+                check(finalMachines.Skip(1).Select(r=>r.MoveId).SequenceEqual(randomMoves.Skip(1)),version+" TM manual replay preserves other seeded assignments seed "+seed);
+            }
             var invalid=document.Clone();var native=invalid.Section("ProgressiveApp")!;native["Gen7Machines"]!["Options"]!.AsObject().Remove("tms.sanity");invalid.SetSection("ProgressiveApp",native);reject(()=>NativeGen7MachineBridge.ExecuteSession(f.Session,invalid.ToJson(),1,"Machines"),version+" incomplete machine options rejected");
             invalid=document.Clone();native=invalid.Section("ProgressiveApp")!;native["Gen7Machines"]!["Scope"]=1;invalid.SetSection("ProgressiveApp",native);reject(()=>NativeGen7MachineBridge.ExecuteSession(f.Session,invalid.ToJson(),1,"Machines"),version+" selected-only machine recipe rejected for Batch");
             invalid=document.Clone();NativeGen7MachineBridge.Capture(invalid,new(RandomTutors:true));reject(()=>NativeGen7MachineBridge.ValidateSession(f.Session,invalid),version+" unsupported or absent tutor sources reject before writing");

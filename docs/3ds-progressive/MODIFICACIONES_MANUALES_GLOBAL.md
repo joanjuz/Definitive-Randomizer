@@ -66,3 +66,11 @@ La batería general antigua se detiene en TemplateChecks por una expectativa de 
 Distribución conservada: SHA-256 de 3DS.Progressive.dll = 644DD5B2A4B374D8BCED12FBBD06D2400F7B9F794F39EF1ECF1180BA48572D3B. No se controló el escritorio, ni se tocaron ROMs originales, ni se hicieron commits o push.
 
 Resultados finales aprobados: 113 comprobaciones generales de replay manual; 100 de textos/estadísticas exactas; 408 de editores y recuperación; 32 de compatibilidad MT/MO Gen6; 56 de MT y descripciones Gen7; 45 de lotes de estadísticas/movimientos; 54 del motor Batch Gen6; 48 de tutores ORAS; 48 de tiendas SM. Total: 904 comprobaciones dirigidas. Las dos limitaciones de la batería general y del empaquetado descritas arriba siguen pendientes.
+
+## MT predeterminadas en recetas Gen7 — 16/10/2026
+
+La casilla «Randomizar MT en Global/Batch» se elimina. Al capturar una receta desde la aplicación, la randomización de MT se incluye por defecto también si no se abrió el editor. Las opciones de compatibilidad y tutores se conservan. Los documentos antiguos mantienen sus acciones al cargarse o ejecutarse; guardar de nuevo desde la aplicación incorpora el nuevo valor predeterminado. Sigue siendo posible excluir una acción en la selección de Global Template.
+
+Para fijar una MT en todas las ROMs, editar su movimiento y guardar MT. El historial conserva únicamente las asignaciones manuales; su reproducción final prevalece sobre la randomización sin fijar las demás MT.
+
+Validación: build Release de App y Tests sin errores (90 advertencias existentes); --tm7-text-only: 76 comprobaciones; --tm-default-ui-only: 32 comprobaciones de componentes WPF fuera de pantalla. Incluye SM/USUM, captura sin abrir editor, recuperación de opciones antiguas, ausencia de escrituras al capturar, y prioridad de MT manual con dos semillas. No se hizo una prueba interactiva ni se publicó un ejecutable actualizado.
