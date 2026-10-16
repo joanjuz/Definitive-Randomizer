@@ -1,0 +1,53 @@
+﻿<Window x:Class="ThreeDS.Progressive.StudioDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Width="540" SizeToContent="Height" MinHeight="235" MaxHeight="640"
+        WindowStartupLocation="CenterOwner" WindowStyle="None" ResizeMode="CanResizeWithGrip"
+        ShowInTaskbar="False" Background="{DynamicResource Bg}" Foreground="{DynamicResource TextMain}">
+    <Border Background="{DynamicResource Panel}" CornerRadius="13" BorderBrush="{DynamicResource Stroke}" BorderThickness="1">
+        <Grid Margin="0">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="47"/>
+                <RowDefinition Height="*"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+            <Border Grid.Row="0" Background="{DynamicResource Surface}" CornerRadius="12,12,0,0"
+                    MouseLeftButtonDown="Header_MouseLeftButtonDown">
+                <Grid Margin="19,0">
+                    <TextBlock x:Name="TitleLabel" Text="Definitive Randomizer" FontWeight="SemiBold"
+                               VerticalAlignment="Center" FontSize="15"/>
+                    <Button HorizontalAlignment="Right" Width="30" Height="29"
+                            Content="×" Padding="0" BorderThickness="0" Background="Transparent"
+                            FontSize="20" Click="Cancel_Click" ToolTip="Cerrar" AutomationProperties.Name="Cerrar diálogo"/>
+                </Grid>
+            </Border>
+            <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Focusable="False">
+            <Grid Margin="23,24,23,19">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="46"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+                <Border Width="33" Height="33" CornerRadius="9" Background="{DynamicResource PrimaryFill}"
+                        HorizontalAlignment="Left" VerticalAlignment="Top">
+                    <TextBlock x:Name="SymbolLabel" Text="!" FontSize="20" FontWeight="Bold"
+                               HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="{DynamicResource TextMain}"/>
+                </Border>
+                <StackPanel Grid.Column="1">
+                    <TextBlock x:Name="MessageLabel" FontSize="14" TextWrapping="Wrap"
+                               LineHeight="21" Foreground="{DynamicResource TextMain}"/>
+                    <TextBlock x:Name="DetailsLabel" Margin="0,13,0,0" FontSize="12"
+                               Foreground="{DynamicResource TextSoft}" TextWrapping="Wrap" LineHeight="18"/>
+                </StackPanel>
+            </Grid>
+            </ScrollViewer>
+            <Border Grid.Row="2" BorderBrush="{DynamicResource Stroke}" BorderThickness="0,1,0,0" Padding="20,15">
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                    <Button x:Name="CancelButton" Content="Cancelar" IsCancel="True" Style="{StaticResource TertiaryButton}" MinWidth="107"
+                            Click="Cancel_Click" Margin="0,0,10,0"/>
+                    <Button x:Name="ConfirmButton" Content="Continuar" MinWidth="115"
+                            Style="{StaticResource PrimaryButton}" Click="Confirm_Click"/>
+                </StackPanel>
+            </Border>
+        </Grid>
+    </Border>
+</Window>

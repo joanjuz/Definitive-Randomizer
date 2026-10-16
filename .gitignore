@@ -63,3 +63,17 @@ $RECYCLE.BIN/
 
 # Patch reject files
 *.rej
+# Playwright CLI output (may contain credentials)
+.playwright-cli/
+/.agents/skills/
+/skills-lock.json
+
+# Local validation outputs and private templates (never part of the public release)
+/artifacts/
+/validation-logs/
+/preview-output/
+*.binlog
+/ErisTemplate/
+/custom_balance_templates/_state/
+/personal-release-notes.md
+/.playwright/

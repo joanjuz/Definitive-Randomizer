@@ -263,7 +263,9 @@ public class RomFS
     {
         OutFile = outfile;
         ROOT_DIR = infile;
-        if (File.Exists(TempFile)) File.Delete(TempFile);
+        // Each build owns a unique temporary file beside its output. Never
+        // delete a process-relative file which may belong to another project.
+        string buildTemp = Path.Combine(Path.GetDirectoryName(Path.GetFullPath(outfile)), ".pk3ds-romfs-" + Guid.NewGuid().ToString("N") + ".tmp");
 
         var FNT = new FileNameTable(ROOT_DIR);
         var RomFiles = new RomfsFile[FNT.NumFiles];
@@ -288,7 +290,7 @@ public class RomFS
         using var memoryStream = new MemoryStream();
         UpdateTB(TB_Progress, "Creating RomFS MetaData...");
         BuildRomFSHeader(memoryStream, RomFiles, ROOT_DIR);
-        MakeRomFSData(RomFiles, memoryStream, TB_Progress, PB_Show);
+        MakeRomFSData(RomFiles, memoryStream, TB_Progress, PB_Show, buildTemp);
     }
 
     internal static ulong Align(ulong input, ulong alignsize)
@@ -301,8 +303,9 @@ public class RomFS
         return output;
     }
 
-    internal static void MakeRomFSData(RomfsFile[] RomFiles, MemoryStream metadata, RichTextBox TB_Progress = null, ProgressBar PB_Show = null)
+    internal static void MakeRomFSData(RomfsFile[] RomFiles, MemoryStream metadata, RichTextBox TB_Progress = null, ProgressBar PB_Show = null, string buildTemp = null)
     {
+        buildTemp ??= Path.Combine(Path.GetDirectoryName(Path.GetFullPath(OutFile)), ".pk3ds-romfs-" + Guid.NewGuid().ToString("N") + ".tmp");
         UpdateTB(TB_Progress, "Computing IVFC Header Data...");
         var ivfc = new IVFCInfo { Levels = new IVFCLevel[3] };
         for (int i = 0; i < ivfc.Levels.Length; i++)
@@ -323,7 +326,7 @@ public class RomFS
         const uint RESERVED = 0x0;
         const uint HeaderLen = 0x5C;
         const uint MEDIA_UNIT_SIZE = 0x200;
-        var OutFileStream = new FileStream(TempFile, FileMode.Create, FileAccess.ReadWrite);
+        var OutFileStream = new FileStream(buildTemp, FileMode.CreateNew, FileAccess.ReadWrite);
         try
         {
             OutFileStream.Seek(0, SeekOrigin.Begin);
@@ -392,11 +395,17 @@ public class RomFS
                     OutFileStream.Seek(cOfs, SeekOrigin.Begin);
                     OutFileStream.Write(hash, 0, hash.Length);
                     cOfs = OutFileStream.Position;
-                    if (PB_Show.InvokeRequired)
+                    // A multi-GB RomFS has hundreds of thousands of 4 KB hash
+                    // blocks. Updating a native control for each one dominates
+                    // hashing; report at most about 200 positions per level.
+                    int completed=(int)(ofs/(long)ivfc.Levels[i].BlockSize)+1;
+                    if(completed%Math.Max(1,count/200)==0 || completed>=count)
                     {
-                        PB_Show.Invoke((MethodInvoker)PB_Show.PerformStep);
+                        int position=Math.Min(completed,count);
+                        if (PB_Show.InvokeRequired)
+                            PB_Show.Invoke((MethodInvoker)delegate { PB_Show.Value=position; });
+                        else PB_Show.Value=position;
                     }
-                    else { PB_Show.PerformStep(); }
                 }
 
                 if (i <= 0)
@@ -432,10 +441,8 @@ public class RomFS
             OutFileStream.Dispose();
         }
 
-        if (OutFile == TempFile)
-            return;
         if (File.Exists(OutFile)) File.Delete(OutFile);
-        File.Move(TempFile, OutFile);
+        File.Move(buildTemp, OutFile);
     }
 
     internal static void WriteBinary(string tempFile, string outFile, RichTextBox TB_Progress = null, ProgressBar PB_Show = null)

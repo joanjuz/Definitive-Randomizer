@@ -1,0 +1,9 @@
+# Iteración 47: intercambios Gen6 en Batch
+
+El editor nativo GameTrade6Service ya integra aceptar cualquier Pokémon, ofertas editables/randomizadas y selector PC de ORAS, con transacción/historial y firmas comprobadas. Esta iteración añade trades.accept-any y trades.randomize-offers al ejecutor Batch Gen6 original y al preflight WPF (16 acciones admitidas). Global Template acepta el snapshot Trades completo cuando Offers coincide con las acciones; rechaza alcance parcial, opciones incompatibles y acciones no representables.
+
+Pruebas: Debug 0 errores/79 advertencias; 2161 comprobaciones. En fixtures XY/ORAS se ejecuta el parche original usado por Batch y se compara byte por byte con el editor nativo para aceptar cualquiera. Se ejecuta además randomización original de ofertas y se comprueban solicitudes cero/especies legales. Se comprueba aceptación de snapshots y rechazo de discrepancias. Los 12 archivos protegidos mantienen sus hashes. No se generaron ROMs ni se aplicaron parches sobre juegos de referencia.
+
+Auditoría de cuatro juegos reales, solo lectura: PokemonX, PokemonY y PokemonOR coinciden con solicitudes y firmas conocidas. PokemonAS coincide en las solicitudes pero NO en los dos offsets del selector PC: 0x3196C8 contiene 02-60-A0-E1 y 0x319F38 contiene A6-39-F4-EB. El perfil actual bloquea esa copia de Zafiro Alfa. Pendiente identificar y verificar sus posiciones correctas antes de habilitar el parche; no basta sustituir una firma esperada sin demostrar que la instrucción cumple la misma función. SHA-256 antes/después confirma que las cuatro copias están intactas.
+
+Pendiente validar lotes completos e intercambios en juego, además de completar las familias Batch Gen6 restantes. No hay paridad total ni release estable declarado. No hubo commits/push/publicación ni cambios a Eris-Ultranova.

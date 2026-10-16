@@ -1,0 +1,20 @@
+Modulo,Compatibilidad,Estado de implementación,Evidencia técnica,Validación restante
+Pokémon y estadísticas,XY ORAS SM USUM,Implementado,Suite local y lectura real de los ocho títulos,Manual e in-game
+Movimientos vanilla,XY ORAS SM USUM,Implementado,Suite local y bancos reales,Manual e in-game
+Balance Progressive de movimientos,XY ORAS USUM,Implementado,Preview real seis títulos y regresión de líneas originales,Manual e in-game
+Balance Progressive SM,SM,Excluido por petición del usuario,Rechazo en UI Global preflight y replay,No se requiere port de mecánicas SM
+Wild Progressive,XY ORAS SM USUM,Implementado,Wild 001–003 preservado; snapshots y replay; lectura real ocho títulos,Combinaciones nuevas e in-game
+Estáticos regalos e iniciales,XY ORAS SM USUM,Implementado,Perfiles Gen6 y puente Gen7; propuestas reales ocho títulos,Manual e in-game
+Entrenadores avanzados,XY ORAS SM USUM,Implementado,Motor original y reglas/caps; suite y replay; lectura real ocho títulos,Manual e in-game
+Zonas de captura y olvidar MO,XY ORAS,Implementado,Referencias reales y manifiestos sin binarios; regresiones anteriores y previews actuales,Manual e in-game
+Intercambios Progressive,XY ORAS,Implementado,73 pruebas específicas y ejecución del paquete con tres cambios reales privados,Manual e in-game
+MT/MO y tutores,Según juego; tutores BP ORAS y avanzados USUM,Implementado,Suite y puentes nativos; lotes anteriores tutores; lectura Gen7 actual,Manual e in-game
+Tiendas y economía,XY ORAS SM USUM,Implementado,24/6 tablas SM fijas; expansión USUM; lotes Sun y Luna,Manual e in-game
+O-Powers y herramientas Gen6,XY ORAS,Implementado dentro del alcance original,Servicios y regresiones locales; lectura O-Powers real cuatro títulos,Manual e in-game; S/MAX no implementado en vanilla
+Caps relearner y recetas CRO,USUM,Implementado,Servicios y pruebas locales; perfiles específicos USUM,Manual e in-game
+Global Template y Batch ROM,XY ORAS SM USUM,Implementado,Snapshots bidireccionales y ejecutor empaquetado; lotes reales con comparación de archivos,Combinaciones completas elegidas por usuario e in-game
+Extracción rebuild y CRO/CRR,XY ORAS SM USUM,Implementado para contenedores compatibles,Pruebas locales y roundtrip real; originales protegidos,Arranque y progreso del juego reconstruido; no descifrado comercial
+Textos gráficos título y SMDH,Según formato y generación,Implementado dentro del alcance original,Pruebas de codec 14 formatos y paletas; UI local; textos reales,Aspecto en juego
+Historial respaldos y restauración,Todos,Implementado,Transacciones huellas restauración completa/selectiva y validación backups legacy,Recorrido manual con copias
+OWSE,Gen7,Visor de lectura/desarrollo como original,Visibilidad y carga de datos,No se ofrece editor completo de mapas
+Release estable,Todos,Candidato local preparado,Debug y suite sin GitHub Actions; paquete sin ROMs,Validación manual e in-game antes de certificación

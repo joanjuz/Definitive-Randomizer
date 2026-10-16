@@ -1,0 +1,418 @@
+using System.IO;
+using System.Collections.ObjectModel;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Data;
+using System.Windows.Media;
+using System.Windows.Controls.Primitives;
+using ThreeDS.Progressive.Models;
+using ThreeDS.Progressive.Services;
+using Brush=System.Windows.Media.Brush;
+using Button=System.Windows.Controls.Button;
+using CheckBox=System.Windows.Controls.CheckBox;
+using UserControl=System.Windows.Controls.UserControl;
+using DataGrid=System.Windows.Controls.DataGrid;
+using DataGridRow=System.Windows.Controls.DataGridRow;
+using DataGridColumnHeader=System.Windows.Controls.Primitives.DataGridColumnHeader;
+using ComboBox=System.Windows.Controls.ComboBox;
+using ListBox=System.Windows.Controls.ListBox;
+using TextBox=System.Windows.Controls.TextBox;
+using Control=System.Windows.Controls.Control;
+using Binding=System.Windows.Data.Binding;
+
+namespace ThreeDS.Progressive;
+
+/// <summary>In-app level-up learnsets: add, delete, edit, and export without WinForms.</summary>
+internal sealed class LevelUpView : UserControl
+{
+    private readonly GameProjectSession _project;
+    private readonly GameLevelUpService _service;
+    private ObservableCollection<LevelUpMoveEntry> _rows=[];
+    private readonly DataGrid _grid;
+    private readonly List<DataGrid> _moveColumns=[];
+    private LevelUpMoveEntry? _selectedMove;
+    private readonly UniformGrid _columnHost=new() {Columns=3};
+    private readonly ListBox _species;
+    private readonly TextBox _search;
+    private readonly Button _save;
+    private readonly TextBlock _status;
+    private LevelUpBatchPreview? _bulkPreview;
+    private IReadOnlyDictionary<int,IReadOnlyList<LevelUpMoveEntry>>? _proposedRows;
+    private readonly Button _discardBulk=new() {Content="Descartar vista previa",Visibility=Visibility.Collapsed};
+    private readonly TextBlock _previewBanner=new() {Visibility=Visibility.Collapsed};
+    private readonly List<Button> _editButtons=[];
+    private readonly CheckBox _allowHms=new() {Content="Permitir MO / HM"};
+    private readonly CheckBox _biasByType=new() {Content="Sesgo por tipo (STAB)"};
+    private readonly CheckBox _expand=new() {Content="Expandir cantidad de movimientos"};
+    private readonly CheckBox _startFour=new() {Content="Comenzar con 4 movimientos"};
+    private readonly CheckBox _spread=new() {Content="Distribuir niveles uniformemente"};
+    private readonly CheckBox _excludeFixed=new() {Content="Excluir movimientos de daño fijo",IsChecked=true};
+    private readonly TextBox _stabPercent=new() {Text="15"};
+    private readonly TextBox _expandTo=new() {Text="25"};
+    private readonly TextBox _spreadTo=new() {Text="79"};
+    private Button? _applyBulk;
+    private int _current;
+    private bool _bulkBusy;
+    private bool _dirty,_loading;
+    internal IReadOnlyList<DataGrid> MoveTables=>_moveColumns;
+    internal bool HasGlobalPreview=>_proposedRows is not null;
+    internal IReadOnlyList<LevelUpMoveEntry> VisibleLearnset=>_rows.ToArray();
+    internal bool HasPendingChanges=>_dirty;
+    internal bool ConfirmLeave()=>!_bulkBusy&&(!_dirty||StudioDialog.Confirm(Window.GetWindow(this),
+        "Movimientos pendientes","La especie tiene movimientos sin guardar.","Si continuás, se descartarán estos cambios."));
+    internal LevelUpView(GameProjectSession project)
+    {
+        _project=project;_service=new(project);Background=(Brush)FindResource("Bg");
+        var root=new DockPanel {Margin=new Thickness(18)};
+        Content=root;
+        var header=new StackPanel {Margin=new Thickness(0,0,0,12)};
+        DockPanel.SetDock(header,Dock.Top);root.Children.Add(header);
+        header.Children.Add(new TextBlock {Text="Level Up Moves · Aprendizaje por nivel",
+            FontSize=21,FontWeight=FontWeights.SemiBold,Foreground=(Brush)FindResource("TextMain")});
+        header.Children.Add(new TextBlock {Text="Editá la lista real de movimientos de cada Pokémon y forma. Las filas se guardan ordenadas por nivel.",
+            Foreground=(Brush)FindResource("TextSoft"),Margin=new Thickness(0,6,0,0)});
+        // Explicit columns prevent the Save button from overlapping a long preview status.
+        var footer=new Grid {Margin=new Thickness(0,12,0,0)};
+        footer.ColumnDefinitions.Add(new ColumnDefinition {Width=new GridLength(1,GridUnitType.Star)});
+        footer.ColumnDefinitions.Add(new ColumnDefinition {Width=GridLength.Auto});
+        DockPanel.SetDock(footer,Dock.Bottom);root.Children.Add(footer);
+        _status=new TextBlock
+        {
+            Text="Seleccioná una especie.",Foreground=(Brush)FindResource("TextSoft"),
+            TextWrapping=TextWrapping.Wrap,VerticalAlignment=VerticalAlignment.Center,
+            Margin=new Thickness(0,0,16,0)
+        };
+        Grid.SetColumn(_status,0);footer.Children.Add(_status);
+        _save=new Button {Content="Guardar movimientos",Padding=new Thickness(18,9,18,9),
+            IsEnabled=false,MinWidth=175};
+        Grid.SetColumn(_save,1);footer.Children.Add(_save);
+        _save.Click+=(_,_)=>Save();
+        var columns=new Grid();
+        columns.ColumnDefinitions.Add(new ColumnDefinition {Width=new GridLength(242)});
+        columns.ColumnDefinitions.Add(new ColumnDefinition {Width=new GridLength(1,GridUnitType.Star)});
+        root.Children.Add(columns);
+        var left=new DockPanel {Margin=new Thickness(0,0,14,0)};
+        Grid.SetColumn(left,0);columns.Children.Add(left);
+        _search=new TextBox {MinHeight=36,Margin=new Thickness(0,0,0,8)};
+        _search.TextChanged+=(_,_)=>Filter();
+        DockPanel.SetDock(_search,Dock.Top);left.Children.Add(_search);
+        _species=new ListBox {ItemsSource=_service.Entries,DisplayMemberPath="Name"};
+        _species.SelectionChanged+=(_,_)=>SelectSpecies();
+        left.Children.Add(_species);
+        var right=new DockPanel();
+        Grid.SetColumn(right,1);columns.Children.Add(right);
+        var actions=new WrapPanel {Margin=new Thickness(0,0,0,12)};
+        DockPanel.SetDock(actions,Dock.Top);right.Children.Add(actions);
+        Button Action(string text,Action callback)
+        {
+            var button=new Button {Content=text,Margin=new Thickness(0,0,8,6)};
+            button.Click+=(_,_)=>callback();actions.Children.Add(button);
+            return button;
+        }
+        _editButtons.Add(Action("+ Añadir",Add));
+        _editButtons.Add(Action("− Quitar",Remove));
+        _editButtons.Add(Action("Metrónomo",()=>{if(_rows.Count==0)return;foreach(var row in _rows)row.Move=118;RebuildCards();Dirty();}));
+        _editButtons.Add(Action("Randomizar especie",Randomize));
+        Action("Exportar CSV",Export);
+        var randomSettings=new Border
+        {
+            Background=(Brush)FindResource("Panel"),BorderBrush=(Brush)FindResource("Stroke"),
+            BorderThickness=new Thickness(1),CornerRadius=new CornerRadius(8),
+            Padding=new Thickness(12,8,12,8),Margin=new Thickness(0,0,0,12)
+        };
+        var settingsBody=new StackPanel();
+        randomSettings.Child=settingsBody;
+        settingsBody.Children.Add(new TextBlock
+        {
+            Text="RANDOMIZADOR ORIGINAL · TODOS LOS POKÉMON",
+            Foreground=(Brush)FindResource("TextMain"),FontWeight=FontWeights.SemiBold,
+            Margin=new Thickness(0,0,0,9)
+        });
+        var settingsGrid=new UniformGrid {Columns=3};
+        settingsBody.Children.Add(settingsGrid);
+        void AddChoice(CheckBox choice,TextBox? value=null,string? label=null)
+        {
+            var box=new StackPanel {Margin=new Thickness(0,0,12,10)};
+            box.Children.Add(choice);
+            if(value is not null)
+            {
+                box.Children.Add(new TextBlock {Text=label??"",FontSize=11,
+                    Foreground=(Brush)FindResource("TextSoft"),Margin=new Thickness(0,5,0,3)});
+                value.MinHeight=30;
+                box.Children.Add(value);
+                value.IsEnabled=choice.IsChecked==true;
+                choice.Checked+=(_,_)=>value.IsEnabled=true;
+                choice.Unchecked+=(_,_)=>value.IsEnabled=false;
+                value.TextChanged+=(_,_)=>InvalidateBulk();
+            }
+            choice.Checked+=(_,_)=>InvalidateBulk();
+            choice.Unchecked+=(_,_)=>InvalidateBulk();
+            settingsGrid.Children.Add(box);
+        }
+        _allowHms.IsChecked=_project.Generation==6;
+        AddChoice(_allowHms);AddChoice(_biasByType,_stabPercent,"Porcentaje STAB (0–100)");
+        AddChoice(_expand,_expandTo,"Movimientos por Pokémon (1–100)");
+        AddChoice(_startFour);AddChoice(_spread,_spreadTo,"Último nivel de aprendizaje (1–100)");
+        AddChoice(_excludeFixed);
+        var bulkButtons=new WrapPanel {Margin=new Thickness(0,4,0,4)};
+        settingsBody.Children.Add(bulkButtons);
+        var randomAll=new Button {Content="Generar vista previa · Randomizar TODOS",Margin=new Thickness(0,0,8,0)};
+        randomAll.Click+=(_,_)=>PrepareBulk(false);
+        var metronomeAll=new Button {Content="Metrónomo · Todos",Margin=new Thickness(0,0,8,0)};
+        metronomeAll.Click+=(_,_)=>PrepareBulk(true);
+        _applyBulk=new Button {Content="Aplicar propuesta global",IsEnabled=false};
+        _applyBulk.Click+=(_,_)=>ApplyBulk();
+        bulkButtons.Children.Add(randomAll);bulkButtons.Children.Add(metronomeAll);
+        bulkButtons.Children.Add(_applyBulk);
+        _discardBulk.Click+=(_,_)=>DiscardPreview();
+        _discardBulk.Margin=new Thickness(8,0,0,0);
+        bulkButtons.Children.Add(_discardBulk);
+        DockPanel.SetDock(randomSettings,Dock.Top);right.Children.Add(randomSettings);
+        _previewBanner.Foreground=(Brush)FindResource("Accent");
+        _previewBanner.FontWeight=FontWeights.SemiBold;
+        _previewBanner.Margin=new Thickness(0,0,0,8);
+        DockPanel.SetDock(_previewBanner,Dock.Top);right.Children.Add(_previewBanner);
+        // Like MT: three independent two-column DataGrids, each with normal
+        // 34px rows. No stretched cells and no hidden row-header strip.
+        for(int column=0;column<3;column++)
+        {
+            var table=new DataGrid
+            {
+                AutoGenerateColumns=false,CanUserAddRows=false,CanUserDeleteRows=false,
+                CanUserSortColumns=false,CanUserResizeColumns=false,RowHeight=34,HeadersVisibility=DataGridHeadersVisibility.Column,
+                RowHeaderWidth=0,MinColumnWidth=78,SelectionUnit=DataGridSelectionUnit.FullRow,
+                Background=(Brush)FindResource("Panel"),Foreground=(Brush)FindResource("TextMain"),
+                RowBackground=(Brush)FindResource("Panel"),
+                AlternatingRowBackground=(Brush)FindResource("Surface"),
+                BorderBrush=(Brush)FindResource("Stroke"),BorderThickness=new Thickness(1),
+                HorizontalGridLinesBrush=(Brush)FindResource("Stroke"),
+                HorizontalScrollBarVisibility=ScrollBarVisibility.Disabled,
+                VerticalScrollBarVisibility=ScrollBarVisibility.Hidden
+            };
+            var headStyle=new Style(typeof(DataGridColumnHeader));
+            headStyle.Setters.Add(new Setter(Control.BackgroundProperty,(Brush)FindResource("Surface")));
+            headStyle.Setters.Add(new Setter(Control.ForegroundProperty,(Brush)FindResource("TextMain")));
+            headStyle.Setters.Add(new Setter(Control.PaddingProperty,new Thickness(8,6,8,6)));
+            table.ColumnHeaderStyle=headStyle;
+            table.Columns.Add(new DataGridTextColumn
+            {
+                Header="Nivel",Width=90,MinWidth=90,Binding=new Binding("Level")
+                {Mode=BindingMode.TwoWay,UpdateSourceTrigger=UpdateSourceTrigger.LostFocus,
+                    ValidatesOnExceptions=true}
+            });
+            table.Columns.Add(new DataGridComboBoxColumn
+            {
+                Header="Movimiento",ItemsSource=_service.Moves,DisplayMemberPath="Display",
+                SelectedValuePath="Id",SelectedValueBinding=new Binding("Move")
+                {Mode=BindingMode.TwoWay,UpdateSourceTrigger=UpdateSourceTrigger.PropertyChanged},
+                Width=new DataGridLength(1,DataGridLengthUnitType.Star),MinWidth=180
+            });
+            table.CellEditEnding+=(_,_)=>Dirty();
+            table.SelectionChanged+=(_,_)=>
+            {
+                if(table.SelectedItem is LevelUpMoveEntry row)
+                {
+                    _selectedMove=row;
+                    foreach(var other in _moveColumns.Where(g=>g!=table))other.SelectedItem=null;
+                }
+            };
+            table.Margin=new Thickness(column==0?0:8,0,0,0);
+            _moveColumns.Add(table);_columnHost.Children.Add(table);
+        }
+        _grid=_moveColumns[0]; // Legacy edit commands reference the first table.
+        var compactScroll=new ScrollViewer
+        {
+            VerticalScrollBarVisibility=ScrollBarVisibility.Auto,
+            HorizontalScrollBarVisibility=ScrollBarVisibility.Auto,Content=_columnHost
+        };
+        right.Children.Add(compactScroll);
+        right.SizeChanged+=(_,_)=>_columnHost.Columns=right.ActualWidth>=820?3:
+            right.ActualWidth>=540?2:1;
+        _loading=true;_species.SelectedIndex=0;_loading=false;
+        if(_species.SelectedItem is PokemonListEntry p)Load(p.Index);
+    }
+    private void InvalidateBulk()
+    {
+        bool hadPreview=_proposedRows is not null;
+        _bulkPreview=null;
+        _proposedRows=null;
+        if(_applyBulk is not null)_applyBulk.IsEnabled=false;
+        _discardBulk.Visibility=Visibility.Collapsed;
+        _previewBanner.Visibility=Visibility.Collapsed;
+        foreach(var table in _moveColumns)table.IsReadOnly=false;
+        foreach(var button in _editButtons)button.IsEnabled=true;
+        if(hadPreview&&_current>0)Load(_current);
+    }
+    private void DiscardPreview()
+    {
+        InvalidateBulk();
+        Load(_current);
+        _status.Text="Vista previa descartada. Los archivos de la ROM permanecen intactos.";
+    }
+    private void ShowFrozenProposal(LevelUpBatchPreview proposal)
+    {
+        // Parse the exact GARC to be committed and show its rows for every species.
+        _proposedRows=_service.PreviewLearnsets(proposal);
+        foreach(var button in _editButtons)button.IsEnabled=false;
+        foreach(var table in _moveColumns)table.IsReadOnly=true;
+        _save.IsEnabled=false;
+        _discardBulk.Visibility=Visibility.Visible;
+        _previewBanner.Visibility=Visibility.Visible;
+        ShowCurrentLearnset();
+        _status.Text=$"VISTA PREVIA SIN GUARDAR · {proposal.Changes.Count} Pokémon afectados. " +
+            "Recorré las especies para inspeccionar sus movimientos; Aplicar propuesta global confirma el conjunto.";
+    }
+    private void ShowCurrentLearnset()
+    {
+        var proposal=_proposedRows;
+        var source=proposal is not null&&proposal.TryGetValue(_current,out var preview)
+            ?preview:_service.Read(_current);
+        _rows=new ObservableCollection<LevelUpMoveEntry>(
+            source.Select(r=>new LevelUpMoveEntry{Level=r.Level,Move=r.Move}));
+        _selectedMove=null;RebuildCards();_dirty=false;_save.IsEnabled=false;
+        _previewBanner.Text=proposal is null?"":$"VISTA PREVIA · Especie #{_current:000} · propuesta aún NO aplicada a la ROM";
+    }
+    private LevelUpRandomSettings ReadRandomOptions()
+    {
+        int Number(TextBox input,int min,int max,string label)
+        {
+            if(!int.TryParse(input.Text,out int number)||number<min||number>max)
+                throw new ArgumentException($"{label}: el valor debe estar entre {min} y {max}.");
+            return number;
+        }
+        return new LevelUpRandomSettings(
+            _allowHms.IsChecked==true,_biasByType.IsChecked==true,
+            Number(_stabPercent,0,100,"STAB"),_expand.IsChecked==true,
+            Number(_expandTo,1,100,"Movimientos"),_startFour.IsChecked==true,
+            _spread.IsChecked==true,Number(_spreadTo,1,100,"Nivel final"),
+            _excludeFixed.IsChecked==true);
+    }
+    private async void PrepareBulk(bool metronome)
+    {
+        if(_dirty)
+        {
+            if(!ConfirmLeave())return;
+            Load(_current);
+        }
+        LevelUpRandomSettings settings;
+        try{settings=ReadRandomOptions();}
+        catch(Exception ex){StudioDialog.Error(Window.GetWindow(this),"Opciones Level Up",ex.Message);return;}
+        _bulkBusy=true;IsEnabled=false;UiProgress.Begin(
+            metronome?"Preparando Metrónomo para todos los Pokémon…":"Randomizando learnsets de todos los Pokémon…");
+        try
+        {
+            if(StudioDialog.AutomatedChecks)
+                _bulkPreview=_service.PrepareRandomization(settings,metronome);
+            else
+                _bulkPreview=await Task.Run(()=>_service.PrepareRandomization(settings,metronome));
+            _applyBulk!.IsEnabled=_bulkPreview.Changes.Count>0;
+            ShowFrozenProposal(_bulkPreview);
+        }
+        catch(Exception ex){InvalidateBulk();StudioDialog.Error(Window.GetWindow(this),
+            "Randomización Level Up",ex.Message);}
+        finally{_bulkBusy=false;IsEnabled=true;UiProgress.End();}
+    }
+    private async void ApplyBulk()
+    {
+        if(_bulkPreview is not { } preview)return;
+        if(!StudioDialog.Confirm(Window.GetWindow(this),"Aplicar Level Up global",
+            $"Se escribirán los learnsets de {preview.Changes.Count} Pokémon. Esta operación queda registrada en el historial."))return;
+        _bulkBusy=true;IsEnabled=false;UiProgress.Begin("Aplicando y verificando learnsets globales…");
+        if(!StudioDialog.AutomatedChecks)
+            await System.Windows.Threading.Dispatcher.Yield(System.Windows.Threading.DispatcherPriority.Background);
+        try
+        {
+            _service.ApplyRandomization(preview);
+            InvalidateBulk();Load(_current);
+            _status.Text="Todos los learnsets aplicados, verificados y registrados en el historial.";
+        }
+        catch(Exception ex){InvalidateBulk();StudioDialog.Error(Window.GetWindow(this),
+            "Falló el guardado de Level Up",ex.Message);}
+        finally{_bulkBusy=false;IsEnabled=true;UiProgress.End();}
+    }
+    private void RebuildCards()
+    {
+        // Partition instead of stretching each record across the available height.
+        int chunk=(_rows.Count+_moveColumns.Count-1)/_moveColumns.Count;
+        for(int i=0;i<_moveColumns.Count;i++)
+            _moveColumns[i].ItemsSource=_rows.Skip(i*chunk).Take(chunk).ToArray();
+    }
+    private void Filter()
+    {
+        var view=CollectionViewSource.GetDefaultView(_species.ItemsSource);
+        string q=_search.Text.Trim();
+        view.Filter=o=>o is PokemonListEntry p&&(p.Name.Contains(q,StringComparison.OrdinalIgnoreCase)||
+            p.Index.ToString().Contains(q,StringComparison.OrdinalIgnoreCase));
+        view.Refresh();
+    }
+    private void SelectSpecies()
+    {
+        if(_loading||_species.SelectedItem is not PokemonListEntry p||p.Index==_current)return;
+        if(!ConfirmLeave())
+        {
+            _loading=true;_species.SelectedItem=_service.Entries.FirstOrDefault(x=>x.Index==_current);
+            _loading=false;return;
+        }
+        Load(p.Index);
+    }
+    private void Load(int id)
+    {
+        _current=id;
+        ShowCurrentLearnset();
+        if(_proposedRows is null)
+            _status.Text=$"Especie #{id:000} · {_rows.Count} movimientos de nivel.";
+    }
+    private void Commit()
+    {
+        foreach(var table in _moveColumns)
+        {
+            table.CommitEdit(DataGridEditingUnit.Cell,true);
+            table.CommitEdit(DataGridEditingUnit.Row,true);
+        }
+    }
+    private void Dirty(){if(_proposedRows is not null)return;InvalidateBulk();_dirty=true;_save.IsEnabled=true;_status.Text="Cambios pendientes. Guardá antes de cambiar de especie.";}
+    private void Add()
+    {
+        Commit();if(_rows.Count>=100)return;
+        int level=_selectedMove?.Level??1;
+        var row=new LevelUpMoveEntry {Level=level,Move=1};_rows.Add(row);_selectedMove=row;RebuildCards();Dirty();
+    }
+    private void Remove()
+    {
+        Commit();var r=_selectedMove??_rows.LastOrDefault();if(r is not null){_rows.Remove(r);_selectedMove=null;RebuildCards();Dirty();}
+    }
+    private void Randomize()
+    {
+        Commit();
+        if(_rows.Count==0)return;
+        var valid=_service.Moves.Where(m=>m.Id>0&&m.Id<622&&m.Id is not (165 or 621 or 166 or 226))
+            .Select(m=>m.Id).ToArray();
+        if(valid.Length==0)return;
+        var rng=new Random(System.Security.Cryptography.RandomNumberGenerator.GetInt32(int.MaxValue));
+        foreach(var row in _rows)row.Move=valid[rng.Next(valid.Length)];
+        RebuildCards();Dirty();
+    }
+    private void Save()
+    {
+        try
+        {
+            Commit();
+            if(!StudioDialog.Confirm(Window.GetWindow(this),"Guardar Level Up Moves",
+                $"Se actualizará el aprendizaje por nivel del Pokémon #{_current:000}."))return;
+            _service.Save(_current,_rows.ToArray());
+            Load(_current);_status.Text="Aprendizaje guardado y registrado en el historial.";
+        }
+        catch(Exception ex){StudioDialog.Error(Window.GetWindow(this),"No se pudieron guardar los movimientos",ex.Message);}
+    }
+    private void Export()
+    {
+        try
+        {
+            var dialog=new Microsoft.Win32.SaveFileDialog {Filter="CSV|*.csv",FileName="level-up-moves.csv"};
+            if(dialog.ShowDialog(Window.GetWindow(this))!=true)return;
+            File.WriteAllText(dialog.FileName,_service.ExportCsv(),System.Text.Encoding.UTF8);
+            _status.Text="CSV exportado.";
+        }
+        catch(Exception ex){StudioDialog.Error(Window.GetWindow(this),"Error al exportar",ex.Message);}
+    }
+}

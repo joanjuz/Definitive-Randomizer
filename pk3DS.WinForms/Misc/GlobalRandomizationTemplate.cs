@@ -24,6 +24,8 @@ public sealed class GlobalRandomizationTemplate
 
     // Trainer settings contain extra state that RandSettings cannot represent,
     // such as Progressive BST ranges, per-trainer caps and move rules.
+    [JsonIgnore(Condition=JsonIgnoreCondition.WhenWritingDefault)]
+    public JsonElement ProgressiveApp { get; set; }
     public TrainerRandomizerTemplate Trainer { get; set; }
 
     // Wild encounter settings contain Progressive BST rows and other state that

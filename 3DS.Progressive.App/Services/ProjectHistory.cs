@@ -1,0 +1,130 @@
+using System.IO;
+using System.Security.Cryptography;
+using System.Text;
+using System.Text.Json;
+using ThreeDS.Progressive.Models;
+
+namespace ThreeDS.Progressive.Services;
+
+public sealed record HistoryFile(string Path, string BeforeSha256, string AfterSha256);
+public sealed record HistoryEntry(Guid Id, DateTimeOffset Time, string Module, string Action,
+    IReadOnlyList<BatchChange> Changes, IReadOnlyDictionary<string,string> Parameters,
+    IReadOnlyList<HistoryFile> Files,string Kind="Edit",int ChangedValueCount=0);
+public sealed record HistoryDocument(int Version, string Game, string Project, IReadOnlyList<HistoryEntry> Entries);
+
+/// <summary>The journal participates in the same verified commit as the edited game files.</summary>
+public sealed class ProjectHistory
+{
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<string,object> Locks = new();
+    private static readonly JsonSerializerOptions Json = new() { WriteIndented=true };
+    private readonly string _root, _game, _path;
+    private readonly object _gate;
+    internal Func<int>? ActiveLanguage {get;set;}
+    public ProjectHistory(string projectRoot, string game, string? storageRoot=null)
+    {
+        _root=Path.GetFullPath(projectRoot); _game=game;
+        string key=OperatingSystem.IsWindows()?_root.ToUpperInvariant():_root;
+        string id=Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(key)));
+        storageRoot ??= Environment.GetEnvironmentVariable("PROGRESSIVE_STATE_DIR");
+        // Portable metadata outside RomFS/ExeFS; opening the project never creates it.
+        _path=storageRoot is null?Path.Combine(_root,"3ds-progressive-history.json"):
+            Path.Combine(storageRoot,"history",id+".json");
+        _gate=Locks.GetOrAdd(_path,_=>new object());
+    }
+    internal string StorageDirectory=>Path.GetDirectoryName(_path)!;
+    public HistoryDocument Read()
+    {
+        lock(_gate){RecoveryJournal.Recover(_path+".pending",_root,_path);return File.Exists(_path)
+            ? Normalize(JsonSerializer.Deserialize<HistoryDocument>(File.ReadAllBytes(_path),Json)
+                ?? throw new InvalidDataException("El historial no tiene un formato válido."))
+            : new(1,_game,Path.GetFileName(_root),[]);}
+    }
+    internal void RecoverPending(){lock(_gate)RecoveryJournal.Recover(_path+".pending",_root,_path);}
+    internal void RejectPending(){if(Directory.Exists(_path+".pending"))throw new IOException("El proyecto tiene un guardado interrumpido. La lectura de diagnóstico no lo modifica; abrilo en la aplicación para recuperarlo.");}
+    internal void Commit(IReadOnlyList<FileChange> files,string module,string action,
+        IEnumerable<BatchChange> changes,IReadOnlyDictionary<string,string>? parameters=null)
+    {
+        lock(_gate)
+        {
+            RecoverPending();
+            var actual=files.Where(f=>f.Changed).ToArray();
+            if(actual.Length==0&&parameters?.ContainsKey("RecordTemplateUse")!=true)return;
+            Directory.CreateDirectory(Path.GetDirectoryName(_path)!);
+            // File.Replace requires a target. Initializing the empty journal changes no game data.
+            if(!File.Exists(_path)) File.WriteAllBytes(_path,JsonSerializer.SerializeToUtf8Bytes(Read(),Json));
+            byte[] source=File.ReadAllBytes(_path);
+            var document=Normalize(JsonSerializer.Deserialize<HistoryDocument>(source,Json)
+                ?? throw new InvalidDataException("No se puede leer el historial."));
+            var values=changes.ToArray();
+            var options=new Dictionary<string,string>(parameters??new Dictionary<string,string>());
+            if(ManualOperationScope.Current?["Kind"]?.GetValue<string>()=="random-only"){options["ActionId"]=ManualOperationScope.Current["Payload"]!["ActionId"]!.GetValue<string>();options["Scope"]="All";}
+            else if(ManualOperationScope.Current is {} manual)options["ManualOperation"]=manual.ToJsonString();
+            else if(ManualResourceReplay.ShouldCapture(action,options))
+                options["ManualOperation"]=ManualResourceReplay.Capture(_root,Path.GetDirectoryName(_path)!,actual).ToJsonString();
+            if(options.TryGetValue("ManualOperation",out string? command))
+            {
+                var snapshot=System.Text.Json.Nodes.JsonNode.Parse(command)!.AsObject();int language=snapshot["Language"]?.GetValue<int>()??ActiveLanguage?.Invoke()??-1;snapshot["Language"]=language;
+                string key=snapshot["Key"]!.GetValue<string>(),suffix="@"+language;
+                if(snapshot["Kind"]?.GetValue<string>()!="resources"&&!key.EndsWith(suffix,StringComparison.Ordinal))snapshot["Key"]=key+suffix;
+                options["ManualOperation"]=snapshot.ToJsonString();
+            }
+            bool bulk=!options.ContainsKey("ManualOperation")&&(options.ContainsKey("Scope")||options.ContainsKey("Settings"));
+            if(bulk)
+            {
+                options.Remove("Seed");
+                options["SeedPolicy"]=action.StartsWith("Randomizar",StringComparison.Ordinal)?"FreshPerRun":"NotRandom";
+                if(options.TryGetValue("Settings",out string? settings))
+                {
+                    var node=System.Text.Json.Nodes.JsonNode.Parse(settings)?.AsObject();
+                    node?.Remove("Seed");if(node is not null)options["Settings"]=node.ToJsonString();
+                }
+            }
+            var entry=new HistoryEntry(Guid.NewGuid(),DateTimeOffset.UtcNow,module,action,bulk?[]:values,options,
+                actual.Select(f=>new HistoryFile(Path.GetRelativePath(_root,f.Path),Hash(f.Original()),Hash(f.Proposed()))).ToArray(),bulk?"Action":"Edit",values.Length);
+            byte[] proposed=JsonSerializer.SerializeToUtf8Bytes(document with {Version=2,Entries=document.Entries.Append(entry).ToArray()},Json);
+            FileChange[] commit=[..actual,new FileChange(_path,source,proposed)];
+            using var recovery=RecoveryJournal.Begin(_path+".pending",_root,_path,commit);
+            FileTransaction.Commit(commit,recovery:recovery);
+        }
+    }
+    internal void RecordTemplateUse(System.Text.Json.Nodes.JsonObject payload)
+    {
+        var operation=new System.Text.Json.Nodes.JsonObject{["Kind"]="authored-template",["Key"]="template:"+payload["Asset"]!["Sha256"]!.GetValue<string>(),["Payload"]=payload.DeepClone()};
+        Commit([],"Templates","Usar template · "+(payload["TemplateKind"]!.GetValue<string>() switch{"Moves"=>"Movimientos","Evolutions"=>"Evoluciones","Stats"=>"Estadísticas Pokémon","FieldItems"=>"Objetos de campo","Shops"=>"Tiendas",_=>"Personalizado"}),[],new Dictionary<string,string>{{"ManualOperation",operation.ToJsonString()},{"RecordTemplateUse","true"}});
+    }
+    public void Export(string path) => File.WriteAllBytes(path,JsonSerializer.SerializeToUtf8Bytes(Read(),Json));
+    private static HistoryDocument Normalize(HistoryDocument document)=>document with
+    {
+        Version=2,Entries=document.Entries.Select(entry=>
+        {
+            if(entry.Kind=="Action"||entry.Parameters.ContainsKey("ManualOperation")||!entry.Parameters.ContainsKey("Scope")&&!entry.Parameters.ContainsKey("Settings"))return entry;
+            var parameters=new Dictionary<string,string>(entry.Parameters);parameters.Remove("Seed");
+            parameters["SeedPolicy"]=entry.Action.StartsWith("Randomizar",StringComparison.Ordinal)?"FreshPerRun":"NotRandom";
+            if(parameters.TryGetValue("Settings",out var settings))
+            {var node=System.Text.Json.Nodes.JsonNode.Parse(settings)?.AsObject();node?.Remove("Seed");if(node is not null)parameters["Settings"]=node.ToJsonString();}
+            return entry with {Kind="Action",ChangedValueCount=entry.Changes.Count,Changes=[],Parameters=parameters};
+        }).ToArray()
+    };
+    internal byte[] CommitGarc(string path,pk3DS.Core.GARCReference reference,byte[] fingerprint,byte[][] records,
+        string module,string action,IEnumerable<BatchChange> changes,IReadOnlyDictionary<string,string>? parameters=null,bool mini=false)
+    {
+        byte[] source=GarcTransaction.ReadUnchanged(path,fingerprint);
+        byte[] output=GarcTransaction.Build(source,reference,records,mini);
+        Commit([new FileChange(path,source,output)],module,action,changes,parameters);
+        return SHA256.HashData(output);
+    }
+    internal static IEnumerable<BatchChange> ValueChanges<T>(int id,string name,T before,T after)=>
+        typeof(T).GetProperties().Where(p=>p.CanRead).Select(p=>new BatchChange(id,name,p.Name,
+            Convert.ToString(p.GetValue(before),System.Globalization.CultureInfo.InvariantCulture)??"",
+            Convert.ToString(p.GetValue(after),System.Globalization.CultureInfo.InvariantCulture)??""))
+        .Where(c=>c.Before!=c.After);
+    internal static string Hash(byte[] bytes)=>Convert.ToHexString(SHA256.HashData(bytes));
+    internal static Dictionary<string,string> Settings(BatchSettings settings,IEnumerable<int>? scope=null,
+        IEnumerable<(string Path,byte[] Fingerprint)>? dependencies=null)
+    {
+        var result=new Dictionary<string,string> { ["Settings"]=JsonSerializer.Serialize(settings), ["Seed"]=settings.Seed.ToString(System.Globalization.CultureInfo.InvariantCulture) };
+        if(scope is not null)result["Scope"]=string.Join(",",scope);
+        if(dependencies is not null)result["Dependencies"]=JsonSerializer.Serialize(dependencies.Select(d=>new {FileName=Path.GetFileName(d.Path),Sha256=Convert.ToHexString(d.Fingerprint)}));
+        return result;
+    }
+}

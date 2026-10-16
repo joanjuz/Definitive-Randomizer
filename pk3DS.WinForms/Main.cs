@@ -31,6 +31,10 @@ namespace pk3DS.WinForms;
 
 public sealed partial class Main : Form
 {
+    private static bool IsWpfBridge =>
+        Environment.GetCommandLineArgs().Skip(1).Any(a =>
+            a is "--batch-bridge" or "--relearner-preview");
+
     public Main()
     {
         // Initialize the Main Form
@@ -56,7 +60,7 @@ public sealed partial class Main : Form
         var settings = Properties.Settings.Default;
         CB_Lang.SelectedIndex = settings.Language;
         var path = settings.GamePath;
-        if (!string.IsNullOrWhiteSpace(path))
+        if (!IsWpfBridge && !string.IsNullOrWhiteSpace(path))
         {
             try
             {
@@ -197,7 +201,7 @@ public sealed partial class Main : Form
         }
     }
 
-    private async Task ShowBatchRomBuilder()
+    private async Task ShowBatchRomBuilder(BatchRomBuildOptions externalOptions = null)
     {
         if (Config is null || string.IsNullOrWhiteSpace(RomFSPath) || string.IsNullOrWhiteSpace(ExeFSPath) || string.IsNullOrWhiteSpace(ExHeaderPath))
         {
@@ -205,11 +209,10 @@ public sealed partial class Main : Form
             return;
         }
 
-        if (Config.Generation != 7)
+        if (Config.Generation is not (6 or 7))
         {
             WinFormsUtil.Alert(
-                "Batch ROM Builder v1 currently supports Generation 7 only.",
-                "USUM is the primary supported target. Gen 6 can be added after this workflow is validated.");
+                "Batch ROM Builder supports XY/ORAS and SM/USUM.");
             return;
         }
 
@@ -226,14 +229,17 @@ public sealed partial class Main : Form
         string defaultOutput = Path.Combine(sourceParent, Path.GetFileName(originalRoot) + "_BatchROMs");
         Directory.CreateDirectory(GlobalRandomizationTemplateFile.TemplateDirectory);
 
-        using var dialog = new BatchRomBuilderDialog(
-            GlobalRandomizationTemplateFile.TemplateDirectory,
-            CurrentGlobalTemplateGame,
-            defaultOutput);
-        if (dialog.ShowDialog(this) != DialogResult.OK)
-            return;
-
-        BatchRomBuildOptions options = dialog.Options;
+        BatchRomBuildOptions options;
+        if (externalOptions is null)
+        {
+            using var dialog = new BatchRomBuilderDialog(
+                GlobalRandomizationTemplateFile.TemplateDirectory,
+                CurrentGlobalTemplateGame,
+                defaultOutput);
+            if (dialog.ShowDialog(this) != DialogResult.OK)return;
+            options=dialog.Options;
+        }
+        else options=externalOptions;
         if (IsSameOrChildPath(options.OutputDirectory, originalRoot))
         {
             WinFormsUtil.Alert(
@@ -254,13 +260,14 @@ public sealed partial class Main : Form
             return;
         }
 
-        if (template.Generation != 7)
+        if (template.Generation != Config.Generation)
         {
-            WinFormsUtil.Alert($"The selected template is Generation {template.Generation}; Batch ROM Builder v1 requires Generation 7.");
+            WinFormsUtil.Alert($"Template generation {template.Generation} does not match the loaded game.");
             return;
         }
 
-        string[] unsupported = BatchGen7ActionExecutor.GetUnsupported(template.Actions);
+        int batchGeneration=Config.Generation;
+        string[] unsupported = batchGeneration==6?BatchGen6ActionExecutor.GetUnsupported(template.Actions):BatchGen7ActionExecutor.GetUnsupported(template.Actions);
         if (unsupported.Length != 0)
         {
             WinFormsUtil.Alert(
@@ -289,8 +296,17 @@ public sealed partial class Main : Form
 
         if (dependencyWarnings.Count != 0)
         {
+            if (externalOptions is not null && (!externalOptions.AllowAssetMismatch ||
+                dependencyWarnings.Any(w => !w.StartsWith(
+                    "Template dependency changed since this global template was saved:",
+                    StringComparison.OrdinalIgnoreCase))))
+                throw new InvalidDataException("Los assets difieren; no se permite replay automático: "+
+                    string.Join(" | ",dependencyWarnings));
+            if(externalOptions?.AllowAssetMismatch==true)
+                BatchRuntime.Log("Advertencia autorizada: assets con SHA-256 distinto: "+
+                    string.Join(" | ",dependencyWarnings));
             string warningText = string.Join(Environment.NewLine, dependencyWarnings.Select(z => "- " + z));
-            if (WinFormsUtil.Prompt(
+            if (externalOptions is null && WinFormsUtil.Prompt(
                     MessageBoxButtons.YesNo,
                     "Some files used by this template have changed since it was saved:",
                     warningText,
@@ -298,6 +314,8 @@ public sealed partial class Main : Form
                 return;
         }
 
+        if (template.ActionCoverageVersion < 2 && externalOptions is not null)
+            throw new InvalidDataException("ActionCoverageVersion insuficiente para batch.");
         if (template.ActionCoverageVersion < 2 &&
             WinFormsUtil.Prompt(
                 MessageBoxButtons.YesNo,
@@ -309,7 +327,7 @@ public sealed partial class Main : Form
         }
 
         string buildKind = options.Trimmed ? "Trimmed .3DS" : "Full .3DS";
-        if (WinFormsUtil.Prompt(
+        if (externalOptions is null && WinFormsUtil.Prompt(
                 MessageBoxButtons.YesNo,
                 $"Build {options.Count} randomized ROM(s)?",
                 $"Template: {Path.GetFileName(options.TemplatePath)}",
@@ -334,6 +352,8 @@ public sealed partial class Main : Form
             string.Empty,
         };
         File.WriteAllLines(logPath, log, Encoding.UTF8);
+        if(externalOptions is not null)
+            BatchBridgeProgress.Start(options.OutputDirectory,options.BaseName,options.Count,template.Actions.Count);
 
         GameConfig originalConfig = Config;
         string originalExHeader = ExHeaderPath;
@@ -343,7 +363,7 @@ public sealed partial class Main : Form
         bool cancelled = false;
 
         using var progressDialog = new BatchRomProgressDialog(options.Count, pBar1);
-        progressDialog.Show(this);
+        if (externalOptions is null)progressDialog.Show(this);
         progressDialog.SetStage("Starting batch...");
         Application.DoEvents();
 
@@ -361,16 +381,18 @@ public sealed partial class Main : Form
                 }
 
                 int seed = CreateBatchSeed(usedSeeds);
-                activeStage = Path.Combine(sourceParent, $".pk3ds_batch_{Guid.NewGuid():N}");
+                activeStage = Path.Combine(options.OutputDirectory, $".pk3ds_batch_{Guid.NewGuid():N}");
                 string outputPath = Path.Combine(options.OutputDirectory, $"{options.BaseName}_{i:00}.3ds");
 
                 progressDialog.BeginRom(i, options.Count, seed, Path.GetFileName(outputPath));
+                BatchBridgeProgress.BeginRom(i,seed,Path.GetFileName(outputPath));
 
                 progressDialog.SetStage("Preparing clean staging copy...");
                 UpdateStatus($"[Batch {i}/{options.Count}] Preparing clean staging copy...", false);
                 int restored = await Task.Run(() =>
                     BatchWorkspace.PrepareCleanCopy(originalRoot, activeStage, originalConfig, originalExHeader, options.RestoreBackups));
                 progressDialog.AppendLog($"Clean staging copy ready. Restored {restored} original backup file(s).");
+                BatchBridgeProgress.Step("Copia completa",$"Restaurados {restored} respaldos en la copia limpia");
 
                 if (progressDialog.CancelRequested)
                     throw new OperationCanceledException("Batch build cancelled by user.");
@@ -387,6 +409,7 @@ public sealed partial class Main : Form
                 }))
                 {
                     progressDialog.SetStage("Opening clean staging copy...");
+                    BatchBridgeProgress.Stage("Abriendo copia limpia","Detectando RomFS, ExeFS y ExHeader");
                     string stageRomFS = Path.Combine(activeStage, Path.GetRelativePath(originalRoot, originalConfig.RomFS));
                     string stageExeFS = string.IsNullOrWhiteSpace(originalConfig.ExeFS)
                         ? string.Empty
@@ -396,20 +419,27 @@ public sealed partial class Main : Form
                     progressDialog.AppendLog($"Stage ExeFS exists: {(!string.IsNullOrWhiteSpace(stageExeFS) && Directory.Exists(stageExeFS))} - {stageExeFS}");
                     Application.DoEvents();
                     OpenQuick(activeStage);
-                    if (Config is null || Config.Generation != 7 || !string.Equals(CurrentGlobalTemplateGame, game, StringComparison.OrdinalIgnoreCase))
-                        throw new InvalidDataException("The staging copy did not reopen as the same Generation 7 game.");
+                    if (Config is null || Config.Generation != batchGeneration || !string.Equals(CurrentGlobalTemplateGame, game, StringComparison.OrdinalIgnoreCase))
+                        throw new InvalidDataException("The staging copy did not reopen as the same game and generation.");
 
+                    BatchBridgeProgress.Step("Juego cargado","RomFS y ExeFS identificados");
                     progressDialog.SetStage("Applying Global ROM Template...");
                     Application.DoEvents();
                     GlobalRandomizationTemplateFile.Apply(template, game);
                     Util.ReseedRand(seed);
                     BatchRuntime.Log($"Seed = {seed}");
+                    BatchBridgeProgress.Step("Template aplicado","Iniciando las acciones de la receta");
                     BatchRuntime.Log($"Replaying {template.Actions.Count} action(s)...");
-                    BatchGen7ActionExecutor.Execute(template);
+                    string previousReplay=Environment.GetEnvironmentVariable("DEFINITIVE_BATCH_REPLAY"),previousTemplate=Environment.GetEnvironmentVariable("DEFINITIVE_TEMPLATE_PATH");
+                    Environment.SetEnvironmentVariable("DEFINITIVE_TEMPLATE_PATH",options.TemplatePath);
+                    Environment.SetEnvironmentVariable("DEFINITIVE_BATCH_REPLAY","1");
+                    try{if(batchGeneration==6)BatchGen6ActionExecutor.Execute(template);else BatchGen7ActionExecutor.Execute(template);}
+                    finally{Environment.SetEnvironmentVariable("DEFINITIVE_BATCH_REPLAY",previousReplay);Environment.SetEnvironmentVariable("DEFINITIVE_TEMPLATE_PATH",previousTemplate);}
 
                     if (File.Exists(outputPath))
                         File.Delete(outputPath);
 
+                    BatchBridgeProgress.BeginRebuild(Path.GetFileName(outputPath));
                     progressDialog.BeginRebuild(Path.GetFileName(outputPath));
                     UpdateStatus($"[Batch {i}/{options.Count}] Rebuilding {Path.GetFileName(outputPath)}...");
                     string exeFS = ExeFSPath;
@@ -417,24 +447,14 @@ public sealed partial class Main : Form
                     string exHeader = ExHeaderPath;
                     await Task.Run(() =>
                     {
-                        var exh = new Exheader(exHeader);
-                        CTRUtil.BuildROM(
-                            true,
-                            "Nintendo",
-                            exeFS,
-                            romFS,
-                            exHeader,
-                            exh.GetSerial(),
-                            outputPath,
-                            options.Trimmed,
-                            pBar1,
-                            RTB_Status);
+                        BatchGen6ActionExecutor.RebuildNative(activeStage,outputPath,options.Trimmed);
                     });
 
                     if (!File.Exists(outputPath))
                         throw new IOException($"CTRUtil finished without creating '{outputPath}'.");
 
                     progressDialog.EndRebuild();
+                    BatchBridgeProgress.EndRebuild();
                     completed++;
                     log.Add($"ROM {i:00}");
                     log.Add($"Seed: {seed}");
@@ -486,6 +506,7 @@ public sealed partial class Main : Form
                 }
                 UpdateStatus($"[Batch {i}/{options.Count}] Complete: {Path.GetFileName(outputPath)}");
                 progressDialog.CompleteRom(i, Path.GetFileName(outputPath));
+                BatchBridgeProgress.CompleteRom(i);
                 Application.DoEvents();
             }
 
@@ -497,7 +518,8 @@ public sealed partial class Main : Form
                 log.Add($"Cancelled by user after {completed}/{options.Count} ROM(s): {DateTime.Now:yyyy-MM-dd HH:mm:ss}");
                 File.WriteAllLines(logPath, log, Encoding.UTF8);
                 progressDialog.MarkCancelled(completed, options.Count);
-                WinFormsUtil.Alert(
+                BatchBridgeProgress.End(false);
+                if(externalOptions is null)WinFormsUtil.Alert(
                     "Batch ROM build cancelled.",
                     $"Completed ROMs kept: {completed}/{options.Count}.",
                     $"Output folder: {options.OutputDirectory}",
@@ -508,7 +530,8 @@ public sealed partial class Main : Form
                 log.Add($"Completed: {DateTime.Now:yyyy-MM-dd HH:mm:ss}");
                 File.WriteAllLines(logPath, log, Encoding.UTF8);
                 progressDialog.MarkCompleted(completed);
-                WinFormsUtil.Alert(
+                BatchBridgeProgress.End(true);
+                if(externalOptions is null)WinFormsUtil.Alert(
                     "Batch ROM build complete!",
                     $"Created {completed} ROM(s).",
                     $"Output folder: {options.OutputDirectory}",
@@ -522,6 +545,7 @@ public sealed partial class Main : Form
             try { File.WriteAllLines(logPath, log, Encoding.UTF8); } catch { }
             progressDialog.MarkCancelled(completed, options.Count);
 
+            if(externalOptions is not null)throw;
             WinFormsUtil.Alert(
                 "Batch ROM build cancelled.",
                 $"Completed ROMs kept: {completed}/{options.Count}.",
@@ -533,7 +557,9 @@ public sealed partial class Main : Form
             log.Add(ex.ToString());
             try { File.WriteAllLines(logPath, log, Encoding.UTF8); } catch { }
             progressDialog.MarkFailed(ex.Message);
+            BatchBridgeProgress.Failure(ex.Message);
 
+            if(externalOptions is not null)throw;
             WinFormsUtil.Alert(
                 "Batch ROM Builder stopped because an error occurred.",
                 ex.Message,
@@ -695,6 +721,7 @@ public sealed partial class Main : Form
         var g = Config.GARCGameText;
         string[][] files = Config.GameTextStrings;
         var originalFiles = g.Files;
+        if(files.Length==originalFiles.Length&&files.Select((lines,index)=>new TextFile(Config,originalFiles[index],Config.RemapCharacters).Lines.SequenceEqual(lines)).All(equal=>equal))return;
         byte[][] serialized = files.Select(x => TextFile.GetBytes(Config, x)).ToArray();
 
         g.Files = serialized;
@@ -773,12 +800,9 @@ public sealed partial class Main : Form
 
     private void CloseForm(object sender, FormClosingEventArgs e)
     {
-        if (Config == null)
+        if (Config == null || IsWpfBridge)
             return;
-        var g = Config.GARCGameText;
-        string[][] files = Config.GameTextStrings;
-        g.Files = files.Select(x => TextFile.GetBytes(Config, x)).ToArray();
-        g.Save();
+        SaveGameText();
 
         try
         {
@@ -915,7 +939,7 @@ public sealed partial class Main : Form
         foreach (string f in folders.Where(f => new DirectoryInfo(f).Name.Contains("exe", StringComparison.OrdinalIgnoreCase) && Directory.Exists(f)))
             CheckIfExeFS(f);
 
-        if (count > 3)
+        if (count > 3 && !IsWpfBridge)
             WinFormsUtil.Alert("pk3DS will function best if you keep your Game Files folder clean and free of unnecessary folders.");
 
         // Enable buttons if applicable
@@ -1331,6 +1355,13 @@ public sealed partial class Main : Form
     private bool CheckIfExeFS(string path)
     {
         string[] files = Directory.GetFiles(path);
+        if(IsWpfBridge)
+        {
+            var codeFiles=files.Where(file=>string.Equals(Path.GetFileName(file),"code.bin",StringComparison.OrdinalIgnoreCase)||string.Equals(Path.GetFileName(file),".code.bin",StringComparison.OrdinalIgnoreCase)).ToArray();
+            if(files.Length is not (3 or 4)||codeFiles.Length!=1||new FileInfo(codeFiles[0]).Length%0x200!=0)
+                throw new InvalidDataException("Batch requiere ExeFS extraído y code.bin descomprimido único; la fuente no se renombra ni se prepara durante la apertura.");
+            ExeFSPath=path;return true;
+        }
         if (files.Length == 1 && string.Equals(Path.GetFileName(files[0]), "exefs.bin", StringComparison.OrdinalIgnoreCase))
         {
             // Prompt if the user wants to unpack the ExeFS.

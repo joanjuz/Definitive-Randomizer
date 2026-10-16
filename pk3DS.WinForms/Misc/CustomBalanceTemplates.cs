@@ -188,6 +188,20 @@ internal static class CustomBalanceTemplates
     {
         string baseDir = AppDomain.CurrentDomain.BaseDirectory;
 
+        // The WPF preview ships the original batch executor in /LegacyBatch.
+        // Templates from the adjacent WPF /custom_balance_templates are the
+        // canonical user-controlled copies (including field_items.txt).
+        // Looking inside LegacyBatch first silently picks an incomplete/stale
+        // duplicate and reports existing files as missing.
+        var baseFolder=new DirectoryInfo(Path.GetFullPath(baseDir));
+        if(baseFolder.Name.Equals("LegacyBatch",StringComparison.OrdinalIgnoreCase)
+            &&baseFolder.Parent is { } parent)
+        {
+            string shared=Path.Combine(parent.FullName,TemplateRoot);
+            if(Directory.Exists(shared))
+                return shared;
+        }
+
         string[] candidates =
         [
             Path.Combine(baseDir, TemplateRoot),
