@@ -4,6 +4,12 @@
 
 > **Free software, always.** The latest stable version of pk3DS Progressive is available for free. There are no paid builds, premium editions, memberships, or paywalled features.
 
+## Definitive Randomizer WPF preview
+
+A Windows x64 prerelease of the new WPF editor is available for testers: [v0.8.0-preview.1](https://github.com/joanjuz/Definitive-Randomizer/releases/tag/v0.8.0-preview.1). It is built from `feature/3ds-progressive-ui`; this branch has not been merged into `main`. The existing v4.17.1 stable release remains available.
+
+Download the Windows ZIP, extract the complete folder, and run `DefinitiveRandomizer.exe`. The preview includes .NET and the Batch backend. See the [tester guide](docs/3ds-progressive/RELEASE_0.8.0_PREVIEW_1.md) for test areas, limitations, and packaging instructions. Personal templates and game data are not included.
+
 ## Project status
 
 - **Current stable line:** v4.17.1

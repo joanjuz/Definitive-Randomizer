@@ -312,7 +312,8 @@ Tutor6Checks.Run(Check,Reject);
 Tutor6CompatibilityChecks.Run(Check,Reject);
 BatchSourcePolicyChecks.Run(Check,Reject);
 Tm6CompatibilityChecks.Run(Check,Reject);
-if (OperatingSystem.IsWindows())
+// Explicit headless mode keeps interactive smoke suites available in the default run.
+if (OperatingSystem.IsWindows() && !(args.Length == 1 && args[0] == "--synthetic-only"))
 {
     Exception? failure = null;
     var ui = new Thread(() => { try { UiSmoke.Run(Check);RequestedIntegrationChecks.RunUi(Check);Review73Checks.RunUi(Check); UtilityCompletionUiChecks.Run(Check);TitleScreenChecks.RunUi(Check);TitleMovieChecks.RunUi(Check); Tutor6CompatibilityChecks.RunUi(Check); RomToolUiChecks.Run(Check); GlobalEditorBridgeChecks.RunUi(Check); FieldItems6Checks.RunUi(Check); FeatureVisibilityChecks.Run(Check);MasterBatchChecks.RunUi(Check); Tm6CompatibilityChecks.RunUi(Check); GlobalCompletionChecks.RunUi(Check); BattleFacilityChecks.RunUi(Check); BatchGen6Checks.RunUi(Check); } catch(Exception ex) { failure = ex; } });

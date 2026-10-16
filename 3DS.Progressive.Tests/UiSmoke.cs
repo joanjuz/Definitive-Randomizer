@@ -163,8 +163,8 @@ internal static class UiSmoke
             check(((FrameworkElement)trainer.FindName("TrainerTeamPreview")).Visibility==Visibility.Visible
                 && ((StackPanel)trainer.FindName("TrainerTeamCards")).Children.Count>0,
                 "WPF trainer editor shows its Pokémon team cards");
-            check(File.Exists(Path.Combine(AppContext.BaseDirectory,"Sprites","1.png")),
-                "Original Pokémon sprites are bundled for offline views");
+            check(!Directory.Exists(Path.Combine(AppContext.BaseDirectory,"Sprites")),
+                "Pokemon sprites are remote and no Sprites directory is bundled");
             check(RecordEditorView.TrainerOptionCategory("NUD_LevelBoost")==1
                 && RecordEditorView.TrainerOptionCategory("CB_Moves")==2
                 && RecordEditorView.TrainerOptionCategory("BST.0.MinBST")==4,

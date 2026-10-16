@@ -8,6 +8,9 @@ on:
       - "3DS.Progressive.Tests/**"
       - "pk3DS.Core/**"
       - "pk3DS.WinForms/**"
+      - "Directory.Build.*"
+      - "global.json"
+      - "pk3DS.slnx"
       - "custom_balance_templates/moves_gen*.csv"
       - "custom_balance_templates/pokemon_stats_gen7.csv"
       - ".github/workflows/3ds-progressive-ci.yml"
@@ -16,6 +19,10 @@ on:
       - "3DS.Progressive.App/**"
       - "3DS.Progressive.Tests/**"
       - "pk3DS.Core/**"
+      - "pk3DS.WinForms/**"
+      - "Directory.Build.*"
+      - "global.json"
+      - "pk3DS.slnx"
       - "custom_balance_templates/moves_gen*.csv"
       - "custom_balance_templates/pokemon_stats_gen7.csv"
       - ".github/workflows/3ds-progressive-ci.yml"
@@ -32,27 +39,53 @@ jobs:
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: "10.0.x"
+      - name: Preparar registros de validacion
+        shell: pwsh
+        run: New-Item -ItemType Directory -Force validation-logs | Out-Null
       - name: Restaurar 3DS Progressive
-        run: dotnet restore .\3DS.Progressive.App\3DS.Progressive.App.csproj -r win-x64
+        run: dotnet restore .\3DS.Progressive.App\3DS.Progressive.App.csproj -r win-x64 '-bl:validation-logs/restore-app-{}.binlog'
       - name: Compilar 3DS Progressive
-        run: dotnet build .\3DS.Progressive.App\3DS.Progressive.App.csproj -c Release -r win-x64 --no-restore
+        run: dotnet build .\3DS.Progressive.App\3DS.Progressive.App.csproj -c Release -r win-x64 --no-restore '-bl:validation-logs/build-app-{}.binlog'
+      # Tests has a custom executable runner; dotnet test would not run these checks.
+      # Keep apphosts enabled: Global/Batch verifies the LegacyBatch executable layout.
+      - name: Compilar runner WPF y dependencias WinForms
+        run: dotnet build .\3DS.Progressive.Tests\3DS.Progressive.Tests.csproj -c Release -p:UseAppHost=true '-bl:validation-logs/build-tests-{}.binlog'
+      - name: Regresiones visuales y de integracion fuera de pantalla
+        shell: pwsh
+        run: |
+          $runner = '.\3DS.Progressive.Tests\bin\Release\net10.0-windows\3DS.Progressive.Tests.dll'
+          $suites = @(
+            'visual-redesign-only', 'interaction-lock-only', 'requested-ui-only',
+            'template-studio-ui-only', 'template-latest-ui-only', 'template-feedback-ui-only',
+            'text-classification-ui-only', 'text-commands-ui-only', 'global-options-only'
+          )
+          foreach ($suite in $suites) {
+            & dotnet $runner "--$suite" 2>&1 | Tee-Object -FilePath "validation-logs/$suite.log"
+            if ($LASTEXITCODE -ne 0) { throw "Runner failed: $suite (exit $LASTEXITCODE)" }
+          }
       - name: Regresiones con datos sinteticos XY, ORAS, SM y USUM
         env:
           PROGRESSIVE_UI_CAPTURE_DIR: ${{ github.workspace }}/ui-captures
-        run: dotnet run --project .\3DS.Progressive.Tests\3DS.Progressive.Tests.csproj -c Release
+        run: dotnet .\3DS.Progressive.Tests\bin\Release\net10.0-windows\3DS.Progressive.Tests.dll --synthetic-only
       - name: Capturas de las comprobaciones WPF
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: 3DS-Progressive-UI-checks
-          path: ui-captures/*.png
+          path: |
+            ui-captures/*.png
+            3DS.Progressive.Tests/bin/Release/net10.0-windows/visual-redesign/*.png
+            validation-logs/**
           if-no-files-found: warn
           retention-days: 14
+      - name: Preparar motor de video y fuentes verificadas
+        shell: pwsh
+        run: .\3DS.Progressive.App\Tools\Mobipeg\Preparar-Mobipeg.ps1
       - name: Publicar version preliminar autocontenida
-        run: dotnet publish .\3DS.Progressive.App\3DS.Progressive.App.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -o .\preview-output
+        run: dotnet publish .\3DS.Progressive.App\3DS.Progressive.App.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -o .\preview-output '-bl:validation-logs/publish-app-{}.binlog'
       - name: Publicar motor original Gen7 para Batch ROM Builder
         run: |
-          dotnet publish .\pk3DS.WinForms\pk3DS.WinForms.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -o .\preview-output\LegacyBatch
+          dotnet publish .\pk3DS.WinForms\pk3DS.WinForms.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -o .\preview-output\LegacyBatch '-bl:validation-logs/publish-legacy-{}.binlog'
           New-Item -ItemType Directory -Force .\preview-output\LegacyBatch\custom_balance_templates | Out-Null
           Copy-Item .\custom_balance_templates\moves_gen*.csv .\preview-output\LegacyBatch\custom_balance_templates\
           Copy-Item .\custom_balance_templates\evolutions_gen*.csv .\preview-output\LegacyBatch\custom_balance_templates\

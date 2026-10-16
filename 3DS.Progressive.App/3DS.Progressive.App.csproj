@@ -1,6 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
+    <ApplicationIcon>Assets\AppIcon.ico</ApplicationIcon>
     <TargetFramework>net10.0-windows</TargetFramework>
     <UseWPF>true</UseWPF>
     <UseWindowsForms>true</UseWindowsForms>
@@ -9,10 +10,12 @@
     <AssemblyName>3DS.Progressive</AssemblyName>
     <Product>Definitive Randomizer</Product>
     <Title>Definitive Randomizer</Title>
-    <Version>0.8.0</Version>
+    <Version>0.8.0-preview.1</Version>
     <RootNamespace>ThreeDS.Progressive</RootNamespace>
   </PropertyGroup>
   <ItemGroup>
+    <Resource Include="Assets\AppIcon.ico" />
+    <Resource Include="Assets\AppIcon.png" />
     <EmbeddedResource Include="Data\story-reviewed-metadata.json" LogicalName="ThreeDS.Progressive.story-reviewed-metadata.json" />
     <EmbeddedResource Include="Data\story-quote-metadata.json" LogicalName="ThreeDS.Progressive.story-quote-metadata.json" />
     <Content Include="..\pk3DS.WinForms\catch_zone_patches\*.json" Link="catch_zone_patches\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />

@@ -11,13 +11,15 @@ internal static class AccessiblePalette
         void Collect(ResourceDictionary dictionary)
         {
             foreach(var merged in dictionary.MergedDictionaries)Collect(merged);
-            foreach(object key in dictionary.Keys)if(key is string name&&dictionary[key] is SolidColorBrush)Defaults[name]=dictionary[key];
+            foreach(object key in dictionary.Keys)if(key is string name&&dictionary[key] is SolidColorBrush brush)Defaults[name]=brush.CloneCurrentValue();
         }
+        Defaults.Clear();
         Collect(app.Resources);
         Update(app);SystemParameters.StaticPropertyChanged+=(_,e)=>{if(e.PropertyName==nameof(SystemParameters.HighContrast))app.Dispatcher.Invoke(()=>Update(app));};
     }
     internal static void Update(System.Windows.Application app,bool? contrastOverride=null)
     {
+        app.Dispatcher.VerifyAccess();
         foreach(string key in Defaults.Keys)
         {
             object value=Defaults[key];
@@ -31,6 +33,7 @@ internal static class AccessiblePalette
                 _ when key.StartsWith("DetailForeground")||key.StartsWith("DetailBorderBrush")||key.StartsWith("DetailStroke")||key.StartsWith("DetailFill")=>SystemColors.WindowTextBrush,
                 _=>SystemColors.WindowBrush
             };
+            // Replace rather than mutate brushes that WPF may have frozen. Consumers use DynamicResource.
             app.Resources[key]=value is SolidColorBrush brush?brush.Clone():value;
         }
     }

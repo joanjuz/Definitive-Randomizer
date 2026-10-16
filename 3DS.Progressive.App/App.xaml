@@ -47,6 +47,7 @@
             <Setter Property="ContentTemplate"><Setter.Value><DataTemplate><TextBlock Text="{Binding}" TextWrapping="Wrap"/></DataTemplate></Setter.Value></Setter>
         </Style>
         <Style TargetType="{x:Type Window}">
+            <Setter Property="Icon" Value="pack://application:,,,/3DS.Progressive;component/Assets/AppIcon.ico"/>
             <Setter Property="FontFamily" Value="Segoe UI"/>
             <Setter Property="FontSize" Value="13"/>
             <Setter Property="Background" Value="{DynamicResource Bg}"/>

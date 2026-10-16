@@ -65,7 +65,7 @@ internal static class TemplateChecks
             File.AppendAllText(path,"2,99\n");
             reject(()=>moves.ApplyMovePreview(stale),version+" rejects CSV changed after preview");
             // A real external patch is staged alongside the move data, even when move data is already balanced.
-            string croName=f.Game.Generation==7?"Battle.cro":"DLLBattle.cro";
+            string croName=f.Game.Generation==7?"Battle.cro":"DllBattle.cro";
             string cro=Path.Combine(f.Game.RomFS,croName);
             byte[] pattern=f.Game.Generation==7?Convert.FromHexString("0120A0E3FE00A0E30420C4E51100C4E5260081E31020C4E5"):Convert.FromHexString("0120A0E3FE30A0E3");
             byte[] croBefore=new byte[512];pattern.CopyTo(croBefore,64);File.WriteAllBytes(cro,croBefore);

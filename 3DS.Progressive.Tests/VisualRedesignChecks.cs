@@ -5,6 +5,13 @@ using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Threading;
+using System.Windows.Interop;
+using System.Windows.Input;
+using System.Runtime.InteropServices;
+using System.Windows.Data;
+using DataGridRow=System.Windows.Controls.DataGridRow;
+using DataGridCell=System.Windows.Controls.DataGridCell;
+using DataGridColumnHeader=System.Windows.Controls.Primitives.DataGridColumnHeader;
 using ThreeDS.Progressive;
 using ThreeDS.Progressive.Models;
 using ThreeDS.Progressive.Services;
@@ -31,15 +38,140 @@ internal static class VisualRedesignChecks
     {
         Layout(content,width/scale,height/scale);var image=new RenderTargetBitmap(width,height,96*scale,96*scale,PixelFormats.Pbgra32);image.Render(content);var png=new PngBitmapEncoder();png.Frames.Add(BitmapFrame.Create(image));string folder=Path.Combine(AppContext.BaseDirectory,"visual-redesign");Directory.CreateDirectory(folder);using var output=File.Create(Path.Combine(folder,name+".png"));png.Save(output);
     }
+    [DllImport("user32.dll")]
+    [return:MarshalAs(UnmanagedType.Bool)]
+    private static extern bool IsWindowVisible(IntPtr hwnd);
+
+    // A real WPF presentation source without WS_VISIBLE: never activates or shows a window.
+    private sealed class InvisiblePresentation:IDisposable
+    {
+        private readonly HwndSource _source;
+        private readonly FrameworkElement _content;
+        private readonly double _width,_height;
+        internal IntPtr Handle=>_source.Handle;
+        internal InvisiblePresentation(FrameworkElement content,int width,int height)
+        {
+            _content=content;_width=content.Width;_height=content.Height;
+            var parameters=new HwndSourceParameters("DefinitiveRandomizer offscreen checks")
+            {WindowStyle=unchecked((int)0x80000000),Width=width,Height=height,PositionX=-32000,PositionY=-32000};
+            _source=new HwndSource(parameters){RootVisual=content};
+            Dispatcher.CurrentDispatcher.Invoke(()=>{},DispatcherPriority.ContextIdle);
+            Layout(content,width,height);
+        }
+        public void Dispose()
+        {
+            _source.RootVisual=null;_source.Dispose();
+            // HwndSource sizes its root explicitly; do not leak that size into DPI render checks.
+            _content.Width=_width;_content.Height=_height;
+        }
+    }
+    private static InvisiblePresentation HiddenSource(FrameworkElement content,int width=1000,int height=720)=>new(content,width,height);
+    private static System.Windows.Media.Color ResourceColor(string key)=>( (SolidColorBrush)System.Windows.Application.Current.FindResource(key)).Color;
+    private static bool UsesColor(System.Windows.Media.Brush brush,string key)=>brush is SolidColorBrush solid&&solid.Color==ResourceColor(key);
+
+    private static void VerifyGridTheme(Action<bool,string> check,ThreeDS.Progressive.App app)
+    {
+        var rows=new System.Collections.ObjectModel.ObservableCollection<RecordEntry>{new(1,"Primera"),new(2,"Segunda")};
+        var valueBinding=new System.Windows.Data.Binding("Name");
+        var table=new DataGrid{AutoGenerateColumns=false,CanUserAddRows=false,ItemsSource=rows,SelectionUnit=DataGridSelectionUnit.Cell};
+        var column=new DataGridTextColumn{Header="Texto del juego",Binding=valueBinding,Width=300};table.Columns.Add(column);
+        DarkGridTheme.Apply(table);
+        var host=new System.Windows.Controls.Grid();host.Children.Add(table);var scope=new Window{Content=host};
+        using var source=HiddenSource(host,640,260);
+        var header=Descendants<DataGridColumnHeader>(table).Single(h=>h.Column==column);
+        var firstRow=(DataGridRow)table.ItemContainerGenerator.ContainerFromIndex(0);
+        var secondRow=(DataGridRow)table.ItemContainerGenerator.ContainerFromIndex(1);
+        var cell=Descendants<DataGridCell>(firstRow).Single(c=>c.Column==column);
+        var otherCell=Descendants<DataGridCell>(secondRow).Single(c=>c.Column==column);
+        check(!IsWindowVisible(source.Handle)&&table.IsLoaded,"GridTheme_HiddenSource_LoadedWithoutVisibleWindow");
+        check(UsesColor(header.Background,"Surface")&&UsesColor(cell.Foreground,"TextMain"),"GridTheme_Normal_HeaderAndCell");
+        check(UsesColor(firstRow.Background,"Panel")&&UsesColor(secondRow.Background,"Surface"),"GridTheme_Normal_AlternatingRows");
+        table.SelectedCells.Add(new DataGridCellInfo(rows[0],column));Pump();
+        check(cell.IsSelected&&UsesColor(cell.Background,"Selected")&&UsesColor(cell.Foreground,"SelectionText"),"GridTheme_Normal_Selection");
+        try
+        {
+            AccessiblePalette.Update(app,true);Layout(host,640,260);
+            check(table.SelectedCells.Count==1&&ReferenceEquals(table.SelectedCells[0].Item,rows[0]),"GridTheme_HighContrast_SelectionModelRetained");
+            cell=Descendants<DataGridCell>((DataGridRow)table.ItemContainerGenerator.ContainerFromIndex(0)).Single(c=>c.Column==column);
+            otherCell=Descendants<DataGridCell>((DataGridRow)table.ItemContainerGenerator.ContainerFromIndex(1)).Single(c=>c.Column==column);
+            check(UsesColor(header.Background,"Surface")&&UsesColor(header.Foreground,"TextMain"),"GridTheme_HighContrast_ExistingHeader");
+            check(UsesColor(firstRow.Background,"Panel")&&UsesColor(secondRow.Background,"Surface"),"GridTheme_HighContrast_ExistingRows");
+            check(UsesColor(otherCell.Foreground,"TextMain")&&UsesColor(cell.Background,"Selected")&&UsesColor(cell.Foreground,"SelectionText"),"GridTheme_HighContrast_ExistingCellsAndSelection");
+            table.IsEnabled=false;Pump();
+            check(UsesColor(cell.Foreground,"DisabledText")&&UsesColor(header.Foreground,"DisabledText"),"GridTheme_HighContrast_Disabled");
+        }
+        finally{table.IsEnabled=true;AccessiblePalette.Update(app,false);Layout(host,640,260); cell=Descendants<DataGridCell>((DataGridRow)table.ItemContainerGenerator.ContainerFromIndex(0)).Single(c=>c.Column==column); otherCell=Descendants<DataGridCell>((DataGridRow)table.ItemContainerGenerator.ContainerFromIndex(1)).Single(c=>c.Column==column);}
+        check(UsesColor(header.Background,"Surface")&&UsesColor(otherCell.Foreground,"TextMain")&&UsesColor(cell.Background,"Selected"),"GridTheme_RestoreDark_ExistingControls");
+        check(ReferenceEquals(table.ItemsSource,rows)&&ReferenceEquals(column.Binding,valueBinding)&&rows[0].Name=="Primera"&&cell.IsSelected,"GridTheme_ResourceSwitch_PreservesDataBindingAndSelection");
+        table.SelectionUnit=DataGridSelectionUnit.FullRow;table.SelectedItem=rows[1];Layout(host,640,260);
+        var selectedRow=(DataGridRow)table.ItemContainerGenerator.ContainerFromIndex(1);
+        check(selectedRow.IsSelected&&Descendants<DataGridCell>(selectedRow).Any()&&Descendants<DataGridCell>(selectedRow).All(c=>c.IsSelected&&UsesColor(c.Background,"Selected")&&UsesColor(c.Foreground,"SelectionText")),"GridTheme_FullRow_NormalSelection");
+        try{AccessiblePalette.Update(app,true);Layout(host,640,260);selectedRow=(DataGridRow)table.ItemContainerGenerator.ContainerFromIndex(1);check(selectedRow.IsSelected&&Descendants<DataGridCell>(selectedRow).Any()&&Descendants<DataGridCell>(selectedRow).All(c=>c.IsSelected&&UsesColor(c.Background,"Selected")&&UsesColor(c.Foreground,"SelectionText")),"GridTheme_FullRow_HighContrastSelection");}
+        finally{AccessiblePalette.Update(app,false);}
+        var foregroundSource=new TextBlock{Foreground=System.Windows.Media.Brushes.Coral};
+        var foregroundBinding=new System.Windows.Data.Binding("Foreground"){Source=foregroundSource};
+        var boundTable=new DataGrid();boundTable.SetBinding(System.Windows.Controls.Control.ForegroundProperty,foregroundBinding);DarkGridTheme.Apply(boundTable);
+        check(ReferenceEquals(BindingOperations.GetBinding(boundTable,System.Windows.Controls.Control.ForegroundProperty),foregroundBinding),"GridTheme_Apply_PreservesExistingForegroundBinding");scope.Close();
+    }
+    private static void VerifyLoadedLifecycle(Action<bool,string> check)
+    {
+        var window=new MainWindow();var content=(FrameworkElement)window.Content;int loaded=0,unloaded=0;
+        content.Loaded+=(_,_)=>loaded++;content.Unloaded+=(_,_)=>unloaded++;
+        var inspector=(Expander)window.FindName("AdaptiveInspector");var grid=(System.Windows.Controls.Grid)inspector.Parent;
+        using(var source=HiddenSource(content,1100,720))
+        {
+            check(!IsWindowVisible(source.Handle)&&content.IsLoaded&&grid.IsLoaded,"Lifecycle_Main_LoadedThroughInvisiblePresentationSource");
+            check(grid.RowDefinitions.Count==2&&Descendants<System.Windows.Controls.Grid>(content).Single(AdaptiveLayout.GetHeader).RowDefinitions.Count==2,"Lifecycle_Loaded_ConfiguresInspectorAndHeader");
+        }
+        Dispatcher.CurrentDispatcher.Invoke(()=>{},DispatcherPriority.ContextIdle);
+        check(loaded==1&&unloaded==1&&!content.IsLoaded,"Lifecycle_Main_DetachmentRaisesUnloaded");window.Close();
+    }
+    private static void VerifyNavigationAndFocus(Action<bool,string> check,Fixture fixture)
+    {
+        var main=new MainWindow();var root=(FrameworkElement)main.Content;
+        string personal=ModuleChecks.PathFor(fixture,"personal");byte[] before=File.ReadAllBytes(personal);
+        main.LoadProject(fixture.Session);
+        using var source=HiddenSource(root,1100,720);
+        var inspector=(Expander)main.FindName("AdaptiveInspector");
+        check(((System.Windows.Controls.Grid)inspector.Parent).RowDefinitions.Count==2,"Lifecycle_Reload_DoesNotDuplicateLayoutRows");
+        var section=(ContentControl)main.FindName("SectionHost");
+        foreach(var route in new[]{("TemplateStudioButton",typeof(TemplateStudioView)),("GameTextButton",typeof(GameTextView)),("StoryTextButton",typeof(GameTextView)),("GlobalTemplateButton",typeof(GlobalTemplateView)),("EvolutionsButton",typeof(RecordEditorView))})
+        {
+            var button=(Button)main.FindName(route.Item1);button.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            Dispatcher.CurrentDispatcher.Invoke(()=>{},DispatcherPriority.ContextIdle);Layout(root,1100,720);
+            check(button.IsEnabled&&section.Visibility==Visibility.Visible&&section.Content?.GetType()==route.Item2,"Navigation_"+route.Item1+"_RoutesThroughOriginalHandler");
+            check(section.Content is FrameworkElement {IsLoaded:true}&&!IsWindowVisible(source.Handle),"Navigation_"+route.Item1+"_LoadsWithoutVisibleWindow");
+        }
+        ((Button)main.FindName("MovesButton")).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));Pump();
+        var moves=(ContentControl)main.FindName("MovesHost");check(moves.Visibility==Visibility.Visible&&moves.Content is MoveEditorView&&section.Visibility==Visibility.Collapsed,"Navigation_Moves_OriginalHandler");
+        ((Button)main.FindName("PokemonNavButton")).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));Pump();
+        check(((FrameworkElement)main.FindName("PokemonEditorPanel")).Visibility==Visibility.Visible&&moves.Visibility==Visibility.Collapsed&&section.Visibility==Visibility.Collapsed,"Navigation_Pokemon_ReturnsToEditor");
+        check(File.ReadAllBytes(personal).SequenceEqual(before),"Navigation_ReadOnlyRoutes_PreservePersonalArchive");
+        var opener=(TextBox)main.FindName("SearchBox");FocusManager.SetFocusedElement(main,opener);
+        check(ReferenceEquals(FocusManager.GetFocusedElement(main),opener),"Focus_LogicalScope_RecordsOpener");
+        var dialog=new StudioDialog();int closed=0;dialog.Closed+=(_,_)=>closed++;
+        using(var dialogSource=HiddenSource((FrameworkElement)dialog.Content,540,400))
+        {
+            var confirm=(Button)dialog.FindName("ConfirmButton");FocusManager.SetFocusedElement(dialog,confirm);
+            check(ReferenceEquals(FocusManager.GetFocusedElement(dialog),confirm)&&!IsWindowVisible(dialogSource.Handle),"Focus_Dialog_HasSeparateLogicalScope");
+            dialog.Close();Dispatcher.CurrentDispatcher.Invoke(()=>{},DispatcherPriority.ContextIdle);
+        }
+        check(closed==1&&ReferenceEquals(FocusManager.GetFocusedElement(main),opener),"Focus_LogicalScope_OpenerRetainedAfterDialogClosed");
+        main.Close();
+        Console.WriteLine("NOTE: Hidden-source checks cover Loaded, routed clicks and logical focus; physical keyboard focus and modal activation remain manual.");
+    }
     internal static void Run(Action<bool,string> check)
     {
         SynchronizationContext.SetSynchronizationContext(new DispatcherSynchronizationContext(Dispatcher.CurrentDispatcher));
         var bindingLog=new BindingErrors();System.Diagnostics.PresentationTraceSources.DataBindingSource.Listeners.Add(bindingLog);
         var app=new ThreeDS.Progressive.App();app.InitializeComponent();StudioDialog.AutomatedChecks=true;
+        VerifyGridTheme(check,app);
         var main=new MainWindow();var root=(FrameworkElement)main.Content;
         var inspector=(Expander)main.FindName("AdaptiveInspector");var shellGrid=(System.Windows.Controls.Grid)inspector.Parent;
-        AdaptiveLayout.ConfigureInspector(shellGrid,inspector);
-        var header=Descendants<System.Windows.Controls.Grid>(root).Single(AdaptiveLayout.GetHeader);AdaptiveLayout.ConfigureHeader(header);
+        VerifyLoadedLifecycle(check);
+        // Matrix renders remain detached; route synthetic Loaded through the production handler.
+        shellGrid.RaiseEvent(new RoutedEventArgs(FrameworkElement.LoadedEvent,shellGrid));
+        var header=Descendants<System.Windows.Controls.Grid>(root).Single(AdaptiveLayout.GetHeader);header.RaiseEvent(new RoutedEventArgs(FrameworkElement.LoadedEvent,header));
         foreach(var viewport in new[]{(1280,720,1d),(1366,768,1d),(1920,1080,1d),(1366,768,1.25),(1366,768,1.5),(1920,1080,1.5),(1920,1080,2d)})
         {
             Capture(root,viewport.Item1,viewport.Item2,viewport.Item3,$"shell-{viewport.Item1}-{viewport.Item2}-{viewport.Item3:0.##}");
@@ -59,13 +191,13 @@ internal static class VisualRedesignChecks
         var combo=new SearchableTemplateComboBox{Style=(Style)app.FindResource("GridComboBox")};Layout(combo,250,40);check(combo.ActualHeight<=grid.RowHeight-4,"compact selector fits editable row without clipping");
         var apply=new Button{Content="Usar template"};EditorPresentation.StyleAction(apply,EditorPresentation.ActionRole.Primary);check(ReferenceEquals(apply.Style,app.FindResource("PrimaryButton")),"apply action has primary visual hierarchy");var discard=new Button{Content="Eliminar fila"};EditorPresentation.StyleAction(discard,EditorPresentation.ActionRole.Tertiary);check(ReferenceEquals(discard.Style,app.FindResource("TertiaryButton")),"destructive row action has tertiary hierarchy");
         using var f=new Fixture(pk3DS.Core.GameVersion.USUM);ModuleChecks.CreateArchives(f);
-        var moves=new MoveEditorView(f.Session);var moveInspector=(Expander)moves.FindName("AdaptiveInspector");AdaptiveLayout.ConfigureInspector((System.Windows.Controls.Grid)moveInspector.Parent,moveInspector);Capture(moves,720,620,1,"move-editor-compact");check(System.Windows.Controls.Grid.GetRow(moveInspector)==1&&!moveInspector.IsExpanded,"move editor adapts without removing inspector controls");
-        var record=new RecordEditorView(new GameEvolutionService(f.Session));var recordInspector=(Expander)record.FindName("AdaptiveInspector");AdaptiveLayout.ConfigureInspector((System.Windows.Controls.Grid)recordInspector.Parent,recordInspector);
+        var moves=new MoveEditorView(f.Session);var moveInspector=(Expander)moves.FindName("AdaptiveInspector");using(var lifecycle=HiddenSource(moves,720,620))check(moves.IsLoaded&&System.Windows.Controls.Grid.GetRow(moveInspector)==1&&!IsWindowVisible(lifecycle.Handle),"Lifecycle_Move_LoadedConfiguresCompactInspector");Capture(moves,720,620,1,"move-editor-compact");check(System.Windows.Controls.Grid.GetRow(moveInspector)==1&&!moveInspector.IsExpanded,"move editor adapts without removing inspector controls");
+        var record=new RecordEditorView(new GameEvolutionService(f.Session));var recordInspector=(Expander)record.FindName("AdaptiveInspector");using(var lifecycle=HiddenSource(record,720,620))check(record.IsLoaded&&System.Windows.Controls.Grid.GetRow(recordInspector)==1&&!IsWindowVisible(lifecycle.Handle),"Lifecycle_Record_LoadedConfiguresCompactInspector");
         foreach(double scale in new[]{1d,1.25,1.5,2d})Capture(record,1440,1000,scale,$"record-editor-{scale:0.##}");
         Layout(record,720,620);check(System.Windows.Controls.Grid.GetRow(recordInspector)==1,"record editor inspector adapts in narrow modules");check(Descendants<ComboBox>(record).Any(c=>System.Windows.Automation.AutomationProperties.GetLabeledBy(c) is not null),"generated record fields retain explicit label associations");
         var moveSave=(Button)moves.FindName("SaveMoveButton");var moveSaveBounds=moveSave.TransformToAncestor(moves).TransformBounds(new Rect(moveSave.RenderSize));check(moveSaveBounds.Bottom<=moves.ActualHeight&&moveSaveBounds.Top>=0,"move save action remains visible outside fields scroll");
         var recordSave=(Button)record.FindName("SaveButton");var recordSaveBounds=recordSave.TransformToAncestor(record).TransformBounds(new Rect(recordSave.RenderSize));check(recordSaveBounds.Bottom<=record.ActualHeight&&recordSaveBounds.Top>=0,"record save action stays accessible with inspector collapsed");
-        var moveFields=Descendants<System.Windows.Controls.Primitives.UniformGrid>(moves).ToArray();foreach(var form in moveFields)form.RaiseEvent(new RoutedEventArgs(FrameworkElement.LoadedEvent,form));Layout(moves,650,620);check(moveFields.All(g=>g.ActualWidth>=460||g.Columns==1),"narrow form groups reflow to one column");
+        var moveFields=Descendants<System.Windows.Controls.Primitives.UniformGrid>(moves).ToArray();Layout(moves,650,620);check(moveFields.All(g=>g.ActualWidth>=460||g.Columns==1),"narrow form groups reflow to one column");
         check(System.Windows.Automation.AutomationProperties.GetLabeledBy((TextBox)moves.FindName("MovePower")) is not null,"move controls expose accessible labels");
         using(var blocked=UiProgress.BlockInteraction())check(!root.IsEnabled,"batch/rebuild interaction lock still disables the full shell");check(root.IsEnabled,"interaction lock restores shell after operation");
         var studio=new TemplateStudioView(f.Session);Capture(studio,1182,620,1,"templates-empty");Call(studio,"AddRow");var rows=Field<System.Collections.ObjectModel.ObservableCollection<TemplateStudioRow>>(studio,"_rows");rows[0]["Move"]="588";rows[0]["InGameDescription"]="Protege al usuario.\nReduce el Ataque al recibir contacto.";Capture(studio,1182,620,1,"templates-populated");check(rows[0]["Move"]=="588"&&rows[0]["BattlePatch"]=="","style changes preserve selected numeric ID and default None patch");
@@ -75,6 +207,7 @@ internal static class VisualRedesignChecks
             var evidence=Field<System.Windows.Controls.ListBox>(text,"_evidence");check(evidence.ItemsSource is not null,"classification evidence remains available "+story);
         }
         var global=new GlobalTemplateView(f.Session);Capture(global,1182,620,1,"global-empty");check(global.LoadedTemplate is null,"global empty state does not create a recipe");
+        VerifyNavigationAndFocus(check,f);
         var labelPanel=new StackPanel();var accessibleLabel=new TextBlock{Text="Potencia (0–255)"};var accessibleInput=new TextBox();labelPanel.Children.Add(accessibleLabel);labelPanel.Children.Add(accessibleInput);accessibleInput.RaiseEvent(new RoutedEventArgs(FrameworkElement.LoadedEvent,accessibleInput));check(ReferenceEquals(System.Windows.Automation.AutomationProperties.GetLabeledBy(accessibleInput),accessibleLabel),"dynamic form associates its preceding caption for assistive technology");
         var disabled=new Button{IsEnabled=false,Style=(Style)app.FindResource(typeof(Button))};Layout(disabled,180,44);disabled.RaiseEvent(new RoutedEventArgs(FrameworkElement.LoadedEvent,disabled));check(((SolidColorBrush)disabled.Foreground).Color==((SolidColorBrush)app.FindResource("DisabledText")).Color,"palette accessibility hook preserves disabled style triggers actual="+disabled.Foreground+" expected="+app.FindResource("DisabledText")+" local="+disabled.ReadLocalValue(System.Windows.Controls.Control.ForegroundProperty)+" enabled="+disabled.IsEnabled);
         var expander=new Expander{Style=(Style)app.FindResource(typeof(Expander)),Header="Prueba",Content=new TextBlock{Text="Contenido"}};Layout(expander,400,200);var headerToggle=Descendants<System.Windows.Controls.Primitives.ToggleButton>(expander).Single();headerToggle.IsChecked=true;Pump();check(expander.IsExpanded&&headerToggle.Focusable,"expander header is focusable and preserves expansion binding");
