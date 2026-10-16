@@ -72,7 +72,8 @@ public sealed class GameTrade6Service : IProjectEditor
             new Dictionary<string,string>{{"ActionId","trades6.acceptany"},{"Profile",_project.GameConfiguration.ORAS?"ORAS":"XY"}});
     }
     public void Save(int id,IReadOnlyDictionary<string,int> values)
-    {if(id!=1)throw new ArgumentOutOfRangeException(nameof(id));Apply(Build(values,0,"Habilitar intercambios y editar ofertas"));}
+    {
+        using var manual=ManualOperationScope.Record(this,id,values);if(id!=1)throw new ArgumentOutOfRangeException(nameof(id));Apply(Build(values,0,"Habilitar intercambios y editar ofertas"));}
     public EditorProposal Preview(IReadOnlyDictionary<string,int> options,IReadOnlyList<int> scope)=>Preview(options,scope,RandomNumberGenerator.GetInt32(int.MaxValue));
     internal EditorProposal Preview(IReadOnlyDictionary<string,int> options,IReadOnlyList<int> scope,int seed)
     {

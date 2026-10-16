@@ -486,8 +486,8 @@ public partial class RecordEditorView : UserControl
             var result=await _trainerSpriteService.GetSpriteAsync(speciesId,speciesId,form,token);
             if(token.IsCancellationRequested||_id!=trainerId)return;
             picture.Source=result.Image;
-            fallback.Visibility=result.Image is null?Visibility.Visible:Visibility.Collapsed;
-            if(result.Image is null)fallback.Text="?";
+            fallback.Visibility=Visibility.Collapsed;
+            fallback.Text="";
         }
         catch(System.OperationCanceledException) { }
     }
@@ -514,7 +514,7 @@ public partial class RecordEditorView : UserControl
             string speciesName=species.Choices?.FirstOrDefault(c=>c.Id==species.Value)?.Display??$"Pokémon #{species.Value}";
             var picture=new Image {Width=58,Height=58,Stretch=Stretch.Uniform,HorizontalAlignment=System.Windows.HorizontalAlignment.Center};
             RenderOptions.SetBitmapScalingMode(picture,BitmapScalingMode.NearestNeighbor);
-            var fallback=new TextBlock {Text="…",FontSize=24,HorizontalAlignment=System.Windows.HorizontalAlignment.Center,
+            var fallback=new TextBlock {Text="",FontSize=24,HorizontalAlignment=System.Windows.HorizontalAlignment.Center,
                 VerticalAlignment=System.Windows.VerticalAlignment.Center,Foreground=(Brush)FindResource("TextSoft")};
             var spriteHost=new Grid {Height=65};
             spriteHost.Children.Add(picture);spriteHost.Children.Add(fallback);
@@ -622,7 +622,7 @@ public partial class RecordEditorView : UserControl
             var picture=new Image {Width=52,Height=52,Stretch=Stretch.Uniform,
                 HorizontalAlignment=System.Windows.HorizontalAlignment.Center};
             RenderOptions.SetBitmapScalingMode(picture,BitmapScalingMode.NearestNeighbor);
-            var fallback=new TextBlock {Text=species==0?"—":"…",FontSize=17,
+            var fallback=new TextBlock {Text=species==0?"—":"",FontSize=17,
                 Foreground=(Brush)FindResource("TextSoft"),
                 VerticalAlignment=System.Windows.VerticalAlignment.Center,
                 HorizontalAlignment=System.Windows.HorizontalAlignment.Center};

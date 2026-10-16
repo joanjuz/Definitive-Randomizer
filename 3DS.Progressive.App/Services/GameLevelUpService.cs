@@ -47,6 +47,7 @@ public sealed class GameLevelUpService
     }
     public void Save(int species,IReadOnlyList<LevelUpMoveEntry> rows)
     {
+        using var manual=ManualOperationScope.Begin("learnset","learnset:"+species,new{Id=species,Rows=rows});
         if(species<=0||!Entries.Any(e=>e.Index==species))throw new ArgumentOutOfRangeException(nameof(species));
         if(rows.Count>100)throw new ArgumentException("No se admiten más de 100 movimientos por especie.");
         if(rows.Any(row=>row.Level is <1 or >100||row.Move<1||row.Move>=Moves.Count))

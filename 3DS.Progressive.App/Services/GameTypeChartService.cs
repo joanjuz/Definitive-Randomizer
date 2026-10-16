@@ -79,6 +79,7 @@ internal sealed class GameTypeChartService
     }
     internal void Apply(FileChange file,IReadOnlyList<BatchChange> changes)
     {
+        byte[] proposed=file.Proposed();using var manual=ManualOperationScope.Begin("typechart","typechart",new{Values=proposed.AsSpan(FindOffset(proposed),324).ToArray()});
         GarcTransaction.ReadUnchanged(file.Path,file.Fingerprint);
         _project.History.Commit([file],"Mecánicas y CRO","Editar tabla de tipos",changes,
             new Dictionary<string,string>{{"CellsChanged",changes.Count.ToString()},

@@ -68,6 +68,7 @@ internal sealed class GlobalTemplateDocument
         if(_root["RandSettings"] is not JsonArray || _root["Actions"] is not JsonArray ||
             _root["Assets"] is not JsonArray)
             throw new InvalidDataException("Faltan RandSettings, Actions o Assets como listas JSON.");
+        ManualEditTemplate.Validate(this);
         var actions=(JsonArray)_root["Actions"]!;
         var ids=new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach(var action in actions)
@@ -103,10 +104,12 @@ internal sealed class GlobalTemplateDocument
     }
     internal void MergeHistoryActions(ProjectHistory history)
     {
+        ManualEditTemplate.Capture(this, history.Read());
         var actions=(JsonArray)_root["Actions"]!;
         var current=Actions.ToHashSet(StringComparer.OrdinalIgnoreCase);
         foreach(var entry in history.Read().Entries)
         {
+            if(entry.Parameters.ContainsKey("ManualOperation")||entry.Parameters.ContainsKey("ManualEdits"))continue;
             if(!entry.Parameters.TryGetValue("ActionId",out string? id)||
                 string.IsNullOrWhiteSpace(id)||!current.Add(id))continue;
             // History records demonstrate that a module ran, but do not invent missing
@@ -124,6 +127,7 @@ internal sealed class GlobalTemplateDocument
             throw new InvalidOperationException("Guardar en una ruta nueva para preservar el template fuente.");
         string? folder=Path.GetDirectoryName(Path.GetFullPath(path));
         if(folder is not null)Directory.CreateDirectory(folder);
+        ManualResourceReplay.ExportDependencies(this,path);
         File.WriteAllText(path,ToJson(),new UTF8Encoding(false));
     }
     internal IReadOnlyList<string> CheckAssets(IEnumerable<string> directories)

@@ -65,6 +65,7 @@ public sealed class GameOPowerService : IProjectEditor
     }
     public void Save(int id,IReadOnlyDictionary<string,int> values)
     {
+        using var manual=ManualOperationScope.Record(this,id,values);
         var before=Read(id);EditorValues.Validate(before,values);byte[] original=Source(),output=(byte[])original.Clone();int at=At(id);
         int usage=values["Usability"];
         if(usage!=original[at+1]&&usage is not (0 or 2 or 254))throw new ArgumentException("Usabilidad permitida: 0, 2 o 254; un valor desconocido solo puede conservarse.");

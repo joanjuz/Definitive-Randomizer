@@ -55,6 +55,7 @@ if(args.Length==1&&args[0]=="--interaction-lock-only")
 {
     Exception? failure=null;var thread=new Thread(()=>{try{ThreeDS.Progressive.StudioDialog.AutomatedChecks=true;var app=new ThreeDS.Progressive.App();app.InitializeComponent();InteractionLockChecks.Run(Check);}catch(Exception ex){failure=ex;}});thread.SetApartmentState(ApartmentState.STA);thread.Start();thread.Join();if(failure is not null)throw failure;Console.WriteLine($"Completed {checks} interaction lock checks.");return;
 }
+if(args.Length==1&&args[0]=="--remote-sprites-only"){RemoteSpriteChecks.Run(Check).GetAwaiter().GetResult();Console.WriteLine($"Completed {checks} remote sprite checks.");return;}
 if(args.Length==1&&args[0]=="--global-options-only"){GlobalEditorBridgeChecks.Run(Check,Reject);Console.WriteLine($"Completed {checks} global checks.");return;}
 if(args.Length==1&&args[0]=="--requested-ui-only")
 {
@@ -92,6 +93,43 @@ if(args.Length==1&&args[0]=="--utility-ui-only")
     Console.WriteLine($"Completed {checks} utility and ORAS tutor UI checks.");return;
 }
 if(args.Length==1&&args[0]=="--batch80-only"){Machine6Checks.Run(Check,Reject);RegressionFixes.Run(Check,Reject);Console.WriteLine($"Completed {checks} Batch regression checks.");return;}
+if(args.Length>2&&args[0]=="--export-local-english-for-text-research"){TextClassificationChecks.ExportEnglish(args[1],args.Skip(2));return;}
+if(args.Length==2&&args[0]=="--diagnose-text-catalogue"){TextClassificationChecks.Diagnose(args[1]);return;}
+if(args.Length>1&&args[0]=="--read-text-classification"){TextClassificationChecks.ReadReal(args.Skip(1));return;}
+if(args.Length==1&&args[0]=="--editor-modules-only"){ModuleChecks.Run(Check,Reject);RecoveryChecks.Run(Check,Reject);Console.WriteLine($"Completed {checks} editor and recovery checks.");return;}
+if(args.Length>1&&args[0]=="--template-studio-shops-copies"){TemplateStudioChecks.ShopCopies(Check,args.Skip(1).ToArray());Console.WriteLine($"Completed {checks} isolated shop template checks.");return;}
+if(args.Length>=1&&args[0]=="--description-preview-fonts")
+{
+    Exception? failure=null;var thread=new Thread(()=>{try{ThreeDS.Progressive.StudioDialog.AutomatedChecks=true;var app=new ThreeDS.Progressive.App();app.InitializeComponent();DescriptionPreviewChecks.Run(Check,Reject,args.Skip(1).ToArray());}catch(Exception ex){failure=ex;}});thread.SetApartmentState(ApartmentState.STA);thread.Start();thread.Join();if(failure is not null)throw failure;Console.WriteLine($"Completed {checks} description preview checks.");return;
+}
+if(args.Length==1&&args[0]=="--template-latest-only"){TemplateLatestChecks.Run(Check,Reject);Console.WriteLine($"Completed {checks} numeric identity checks.");return;}
+if(args.Length==1&&args[0]=="--template-latest-ui-only")
+{
+    Exception? failure=null;var thread=new Thread(()=>{try{ThreeDS.Progressive.StudioDialog.AutomatedChecks=true;var app=new ThreeDS.Progressive.App();app.InitializeComponent();TemplateLatestChecks.Ui(Check);}catch(Exception ex){failure=ex;}});thread.SetApartmentState(ApartmentState.STA);thread.Start();thread.Join();if(failure is not null)throw failure;Console.WriteLine($"Completed {checks} latest template UI checks.");return;
+}
+if(args.Length==1&&args[0]=="--template-feedback-only"){TemplateFeedbackChecks.Logic(Check,Reject);Console.WriteLine($"Completed {checks} template feedback checks.");return;}
+if(args.Length>1&&args[0]=="--template-feedback-copies"){TemplateFeedbackChecks.Copies(Check,Reject,args.Skip(1).ToArray());Console.WriteLine($"Completed {checks} addition copy checks.");return;}
+if(args.Length==1&&args[0]=="--template-feedback-ui-only")
+{
+    Exception? failure=null;var thread=new Thread(()=>{try{ThreeDS.Progressive.StudioDialog.AutomatedChecks=true;var app=new ThreeDS.Progressive.App();app.InitializeComponent();TemplateFeedbackChecks.Ui(Check);}catch(Exception ex){failure=ex;}});thread.SetApartmentState(ApartmentState.STA);thread.Start();thread.Join();if(failure is not null)throw failure;Console.WriteLine($"Completed {checks} template feedback UI checks.");return;
+}
+if(args.Length==1&&args[0]=="--template-studio-only"){TemplateStudioChecks.Run(Check,Reject);Console.WriteLine($"Completed {checks} template studio checks.");return;}
+if(args.Length==1&&args[0]=="--template-studio-ui-only")
+{
+    Exception? failure=null;var thread=new Thread(()=>{try{ThreeDS.Progressive.StudioDialog.AutomatedChecks=true;var app=new ThreeDS.Progressive.App();app.InitializeComponent();TemplateStudioChecks.Ui(Check);}catch(Exception ex){failure=ex;}});thread.SetApartmentState(ApartmentState.STA);thread.Start();thread.Join();if(failure is not null)throw failure;Console.WriteLine($"Completed {checks} template studio UI checks.");return;
+}
+if(args.Length==1&&args[0]=="--general-manual-only"){GeneralManualChecks.Run(Check,Reject);Console.WriteLine($"Completed {checks} general manual checks.");return;}
+if(args.Length==1&&args[0]=="--manual-edits-only"){ManualEditChecks.Run(Check,Reject);Console.WriteLine($"Completed {checks} manual edit checks.");return;}
+if(args.Length==1&&args[0]=="--text-commands-only"){TextCommandChecks.Run(Check);Console.WriteLine($"Completed {checks} text command checks.");return;}
+if(args.Length==1&&args[0]=="--text-commands-ui-only")
+{
+    Exception? failure=null;var thread=new Thread(()=>{try{TextCommandChecks.RunUi(Check);}catch(Exception ex){failure=ex;}});thread.SetApartmentState(ApartmentState.STA);thread.Start();thread.Join();if(failure is not null)throw failure;Console.WriteLine($"Completed {checks} text command UI checks.");return;
+}
+if(args.Length==1&&args[0]=="--text-classification-ui-only")
+{
+    Exception? failure=null;var thread=new Thread(()=>{try{TextClassificationChecks.RunUi(Check);}catch(Exception ex){failure=ex;}});thread.SetApartmentState(ApartmentState.STA);thread.Start();thread.Join();if(failure is not null)throw failure;Console.WriteLine($"Completed {checks} text classification UI checks.");return;
+}
+if(args.Length==1&&args[0]=="--text-classification-only"){TextClassificationChecks.Run(Check);Console.WriteLine($"Completed {checks} text classification checks.");return;}
 if(args.Length==1&&args[0]=="--text-search-only"){StoryRandomChecks.Run(Check,Reject);Console.WriteLine($"Completed {checks} text search and story checks.");return;}
 TitleMovieChecks.Run(Check,Reject);
 NativeGen7WildChecks.Run(Check,Reject);Gen7ShinyRecipeChecks.Run(Check,Reject);StarterTextChecks.Run(Check,Reject);TitleScreenChecks.Run(Check,Reject);

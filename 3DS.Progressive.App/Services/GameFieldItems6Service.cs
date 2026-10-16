@@ -128,7 +128,7 @@ public sealed partial class GameFieldItems6Service : IProjectEditor,IOptionTempl
         byte[] itemSource=GarcTransaction.ReadUnchanged(_itemPath,_itemHash);files.Add(new(_itemPath,itemSource,itemSource));
         return new(_owner,action,seed,files,changes,new Dictionary<string,string>{{"Scope",string.Join(",",edits.Keys)}});
     }
-    public void Save(int id,IReadOnlyDictionary<string,int> values){EditorValues.Validate(Read(id),values);Apply(Prepare(new(){{id,values["Item"]}},"Editar objeto de campo",0));}
+    public void Save(int id,IReadOnlyDictionary<string,int> values){using var manual=ManualOperationScope.Record(this,id,values);EditorValues.Validate(Read(id),values);Apply(Prepare(new(){{id,values["Item"]}},"Editar objeto de campo",0));}
     public EditorProposal Preview(IReadOnlyDictionary<string,int> options,IReadOnlyList<int> scope) => Preview(options,scope,RandomNumberGenerator.GetInt32(int.MaxValue));
     internal EditorProposal Preview(IReadOnlyDictionary<string,int> options,IReadOnlyList<int> scope,int seed)
     {

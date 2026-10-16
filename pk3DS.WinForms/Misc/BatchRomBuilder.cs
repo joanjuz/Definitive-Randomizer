@@ -626,6 +626,7 @@ internal static class BatchGen7ActionExecutor
 {
     private static readonly HashSet<string> Supported = new(StringComparer.OrdinalIgnoreCase)
     {
+        "manual-edits.apply",
         "rng.seed",
         "moves.balance",
         "moves.randomize",
@@ -738,6 +739,7 @@ internal static class BatchGen7ActionExecutor
         RunPlayerLevelCaps(actions, template.LevelCaps);
         BatchBridgeProgress.ActionGroup("PlayerLevelCaps",actions.Keys,id=>id.StartsWith("player.",StringComparison.OrdinalIgnoreCase));
         Main.SaveGameText();
+        BatchGen6ActionExecutor.ApplyManual(template);
     }
 
     private static bool Has(Dictionary<string, GlobalRandomizationAction> actions, string id)

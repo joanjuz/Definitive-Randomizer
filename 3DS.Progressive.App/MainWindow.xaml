@@ -115,6 +115,7 @@
                                 Style="{StaticResource SidebarButton}" IsEnabled="False" Tag="Automation" Click="Section_Click"/>
                         <Button x:Name="ConfigurationButton" Content="⚙  Opciones e idioma"
                                 Style="{StaticResource SidebarButton}" IsEnabled="False" Tag="Configuration" Click="Section_Click"/>
+                        <Button x:Name="TemplateStudioButton" Content="▦  Templates" Style="{StaticResource SidebarButton}" IsEnabled="False" Tag="TemplateStudio" Click="Section_Click"/>
                         <Button x:Name="GlobalTemplateButton" Content="▣  Global Template"
                                 Style="{StaticResource SidebarButton}" IsEnabled="False" Tag="GlobalTemplate" Click="Section_Click"/>
                         <Button x:Name="BatchRomButton" Content="▣  Batch ROM Builder"
@@ -183,7 +184,7 @@
                                     BorderThickness="1" CornerRadius="12" Width="104" Height="112"
                                     HorizontalAlignment="Left" VerticalAlignment="Top">
                                 <Grid>
-                                    <Grid x:Name="SpriteFallback" Opacity="0.55">
+                                    <Grid x:Name="SpriteFallback" Opacity="0.55" Visibility="Collapsed">
                                         <Ellipse Stroke="#7790AB" StrokeThickness="4" Width="58" Height="58"/>
                                         <Rectangle Fill="#7790AB" Height="4" Width="58"
                                                    VerticalAlignment="Center"/>
@@ -494,7 +495,7 @@
                     <Border Style="{StaticResource Card}">
                         <StackPanel>
                             <TextBlock Text="Sesión actual" FontWeight="SemiBold" Margin="0,0,0,12"/>
-                            <TextBlock x:Name="SpriteStatusText" Text="Sin sprite"
+                            <TextBlock x:Name="SpriteStatusText" Text=""
                                        Foreground="{StaticResource TextSoft}" FontSize="11"
                                        TextWrapping="Wrap" Margin="0,0,0,9"/>
                             <TextBlock x:Name="InspectorGameText" Text="Sin juego"

@@ -22,6 +22,7 @@ internal sealed class PickupView : UserControl
     private ObservableCollection<PickupRow> _rows;
     private List<PickupRow> _original;
     private EditorProposal? _proposal;
+    private bool _manualChanged;
     internal PickupView(GameProjectSession project)
     {
         _service=new(project);_original=_service.Read();_rows=new(_original.Select(r=>r.Copy()));
@@ -36,8 +37,8 @@ internal sealed class PickupView : UserControl
         Add(buttons,"Randomizar objetos",Randomize);
         if(_service.Gen7)
         {
-            Add(buttons,"Añadir fila",()=>{if(!CommitEdits())return;_rows.Add(new(){Group=$"Fila {_rows.Count+1:00}"});Invalidate();});
-            Add(buttons,"Quitar última fila",()=>{if(!CommitEdits()||_rows.Count<=1)return;_rows.RemoveAt(_rows.Count-1);Invalidate();});
+            Add(buttons,"Añadir fila",()=>{if(!CommitEdits())return;_manualChanged=true;_rows.Add(new(){Group=$"Fila {_rows.Count+1:00}"});Invalidate();});
+            Add(buttons,"Quitar última fila",()=>{if(!CommitEdits()||_rows.Count<=1)return;_manualChanged=true;_rows.RemoveAt(_rows.Count-1);Invalidate();});
         }
         Add(buttons,"Restaurar al abrir",()=>SetRows(_original.Select(r=>r.Copy())));
         Add(buttons,"Generar vista previa",Preview);
@@ -51,7 +52,7 @@ internal sealed class PickupView : UserControl
             SelectedValueBinding=new Binding("Item"){Mode=BindingMode.TwoWay},Width=260});
         if(_service.Gen7)for(int c=0;c<10;c++)_grid.Columns.Add(new DataGridTextColumn{Header=$"{c*10+1}–{(c+1)*10} %",
             Binding=new Binding($"Rates[{c}]"){Mode=BindingMode.TwoWay,ValidatesOnExceptions=true},Width=80});
-        _grid.BeginningEdit+=(_,_)=>Invalidate();root.Children.Add(_grid);
+        _grid.BeginningEdit+=(_,_)=>{_manualChanged=true;Invalidate();};root.Children.Add(_grid);
     }
     private Button Add(System.Windows.Controls.Panel host,string label,Action action)
     {
@@ -67,7 +68,7 @@ internal sealed class PickupView : UserControl
         if(!CommitEdits())return false;
         return !Dirty()||StudioDialog.Confirm(Window.GetWindow(this),"Pickup sin guardar","Los cambios de Pickup se descartarán al salir. ¿Continuar?");
     }
-    private void Randomize(){if(!CommitEdits())return;SetRows(_service.Randomize(_rows));_status.Text="Objetos randomizados en memoria. Generá una vista previa antes de guardar.";}
+    private void Randomize(){if(!CommitEdits())return;SetRows(_service.Randomize(_rows));_manualChanged=false;_status.Text="Objetos randomizados en memoria. Generá una vista previa antes de guardar.";}
     private void Preview()
     {
         if(!CommitEdits())return;_proposal=_service.Preview(_rows);_apply.IsEnabled=_proposal.Changes.Count>0;
@@ -78,6 +79,7 @@ internal sealed class PickupView : UserControl
     {
         if(_proposal is null||!CommitEdits())return;
         if(!StudioDialog.Confirm(Window.GetWindow(this),"Guardar Pickup",$"Aplicar los {_proposal.Changes.Count} cambios de la vista previa?"))return;
+        using var manual=_manualChanged?ManualOperationScope.Begin("pickup","pickup",new{Rows=_rows.ToArray()}):ManualOperationScope.Begin("random-only","",new{ActionId="pickup.randomize"});
         _service.Apply(_proposal);_original=_service.Read();SetRows(_original.Select(r=>r.Copy()));_status.Text="Pickup guardado, verificado y registrado en el historial.";
     }
 }

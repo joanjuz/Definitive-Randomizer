@@ -115,6 +115,7 @@ public sealed class GameTmCompatibilityService
 
     public void Apply(TmCompatibilityPreview preview)
     {
+        using var manual=Environment.GetEnvironmentVariable("DEFINITIVE_BATCH_REPLAY")=="1"?null:ManualOperationScope.Flags(_personalOriginal,preview.PersonalOutput,"GameTmCompatibilityService");
         ArgumentNullException.ThrowIfNull(preview);
         if(preview.Changes.Count==0)
             throw new InvalidOperationException("No existen nuevas compatibilidades para guardar.");

@@ -90,6 +90,7 @@ public sealed partial class GameMoveService
     public void Save(int id, MoveValues changes)
     {
         MoveValues beforeValues=Read(id);
+        using var manual=ManualOperationScope.Begin("move","move:"+id,new{Id=id,Values=changes,Fields=ProjectHistory.ValueChanges(id,"",beforeValues,changes).Select(c=>c.Field).ToArray()});
         if (id < 1 || id >= _config.Moves.Length)
             throw new ArgumentOutOfRangeException(nameof(id));
         if (changes.Type < 0 || changes.Type >= Types.Count ||

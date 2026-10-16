@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
@@ -12,7 +12,7 @@ namespace pk3DS.WinForms;
 internal static class BatchGen6ActionExecutor
 {
     internal static readonly HashSet<string> Supported=new(StringComparer.OrdinalIgnoreCase)
-    {"rng.seed","moves.balance","moves.randomize","moves.metronome","personal.randomize","personal.modify-all","pokemon-stats.apply",
+    {"manual-edits.apply","rng.seed","moves.balance","moves.randomize","moves.metronome","personal.randomize","personal.modify-all","pokemon-stats.apply",
      "evolutions.randomize","evolutions.every-level","evolutions.remove-trade","evolutions.normalize","level-up-moves.randomize","level-up-moves.metronome","egg-moves.randomize","trades.accept-any","trades.randomize-offers","trainers.randomize","static-encounters.randomize","static-encounters.modify-levels","starters.randomize","tms.randomize","field-items.randomize","marts.randomize","marts.add-rare-candies","marts.add-ev-items","marts.ban-ability-capsule","items.fix-economy","pickup.randomize","wild-encounters.randomize","wild-encounters.modify-levels","wild-encounters.scale-levels","tms.sanity","tms.follow-evolutions","catchzones.enable","shiny-rate.apply","move-tutors.randomize","move-tutors.sanity","move-tutors.follow-evolutions"};
     internal static string[] GetUnsupported(IEnumerable<GlobalRandomizationAction> actions)=>(actions??Enumerable.Empty<GlobalRandomizationAction>()).Where(a=>a!=null&&!string.IsNullOrWhiteSpace(a.Id)&&!Supported.Contains(a.Id)).Select(a=>a.Id).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
     internal static void Execute(GlobalRandomizationTemplate template)
@@ -69,6 +69,21 @@ internal static class BatchGen6ActionExecutor
         }
         if(Has("trainers.randomize"))RunTrainers();
         BatchBridgeProgress.ActionGroup("Trainers",actions,id=>id.StartsWith("trainers.",StringComparison.OrdinalIgnoreCase));
+        ApplyManual(template);
+    }
+    internal static void ApplyManual(GlobalRandomizationTemplate template)
+    {
+        if(!template.Actions.Any(a=>a.Id.Equals("manual-edits.apply",StringComparison.OrdinalIgnoreCase)))return;
+        Main.SaveGameText();
+        string path=System.IO.Path.GetFullPath(System.IO.Path.Combine(System.IO.Path.GetDirectoryName(typeof(BatchGen6ActionExecutor).Assembly.Location),"..","3DS.Progressive.dll"));
+        var bridge=Assembly.LoadFrom(path).GetType("ThreeDS.Progressive.Services.ManualEditTemplate",true);
+        string previousSeed=Environment.GetEnvironmentVariable("DEFINITIVE_TEMPLATE_SEED");
+        Environment.SetEnvironmentVariable("DEFINITIVE_TEMPLATE_SEED",unchecked((int)Util.Random32()).ToString(System.Globalization.CultureInfo.InvariantCulture));
+        try{bridge.GetMethod("Execute",BindingFlags.Static|BindingFlags.Public).Invoke(null,new object[]{System.IO.Directory.GetParent(Main.RomFSPath).FullName,System.Text.Json.JsonSerializer.Serialize(template)});}
+        catch(TargetInvocationException ex)when(ex.InnerException!=null){ExceptionDispatchInfo.Capture(ex.InnerException).Throw();}
+        finally{Environment.SetEnvironmentVariable("DEFINITIVE_TEMPLATE_SEED",previousSeed);}
+        Main.Config.InitializePersonal();Main.Config.InitializeMoves();Main.Config.InitializeGameText();
+        BatchBridgeProgress.ActionGroup("Modificaciones manuales",template.Actions.Select(a=>a.Id),id=>id=="manual-edits.apply");
     }
     private static bool HasNativeTrades(GlobalRandomizationTemplate template)
     {

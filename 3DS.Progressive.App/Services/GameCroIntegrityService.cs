@@ -83,6 +83,7 @@ internal sealed class GameCroIntegrityService(GameProjectSession project)
     }
     internal void Apply(EditorProposal proposal)
     {
+        using var manual=ManualOperationScope.Begin("crointegrity","crointegrity",new{UpdateCRR=bool.Parse(proposal.Parameters["UpdateCRR"])});
         if(proposal.Owner!=_owner)throw new InvalidOperationException("La propuesta pertenece a otro proyecto.");
         string[] expected=proposal.Files.Where(f=>Path.GetExtension(f.Path).Equals(".cro",StringComparison.OrdinalIgnoreCase))
             .Select(f=>f.Path).Order(StringComparer.OrdinalIgnoreCase).ToArray();

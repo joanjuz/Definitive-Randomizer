@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -58,7 +58,7 @@ internal static class BatchBridgeProgress
         if(path is null)return;
         foreach(var id in actionIds.Where(predicate))
             if(Counted.Add(id))actionsDone++;
-        stage="Randomización · "+title;
+        stage=title=="Modificaciones manuales"?"Modificaciones manuales · valores exactos":"Randomización · "+title;
         details=$"{actionsDone} de {actionsTotal} acciones de receta finalizadas";
         Write();
     }

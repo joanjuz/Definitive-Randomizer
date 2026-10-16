@@ -182,6 +182,7 @@ public sealed class GameStaticEncounter6Service : IProjectEditor
     }
     public void Save(int id,IReadOnlyDictionary<string,int> values)
     {
+        using var manual=ManualOperationScope.Record(this,id,values);
         byte[] before=Source(),result=(byte[])before.Clone();var old=Read(id,before);
         Write(id,values,result);
         var changes=EditorValues.Diff(id,Entries.First(e=>e.Id==id).Name,old,Read(id,result));

@@ -1,4 +1,4 @@
-﻿using System.IO;
+using System.IO;
 using System.Security.Cryptography;
 using pk3DS.Core;
 using pk3DS.Core.CTR;
@@ -46,7 +46,8 @@ public abstract class ArchiveProjectEditor : IProjectEditor
     public IReadOnlyList<EditorGroup> Read(int id)=>ReadRecord(id,Records());
     public void Save(int id,IReadOnlyDictionary<string,int> values)
     {
-        var records=Records();var before=ReadRecord(id,records);EditorValues.Validate(before,values);
+        var records=Records();var before=ReadRecord(id,records);
+        using var manual=ManualOperationScope.Record(this,id,values,EditorValues.Flatten(before));EditorValues.Validate(before,values);
         WriteRecord(id,values,records);var after=ReadRecord(id,records);
         var changes=EditorValues.Diff(id,Entries.First(e=>e.Id==id).Name,before,after);
         if(changes.Count==0)return;

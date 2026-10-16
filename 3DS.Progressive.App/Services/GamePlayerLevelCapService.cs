@@ -90,6 +90,7 @@ internal sealed class GamePlayerLevelCapService
     }
     internal void Apply(LevelCapInstallPreview proposal)
     {
+        using var manual=Environment.GetEnvironmentVariable("DEFINITIVE_BATCH_REPLAY")=="1"?null:ManualOperationScope.Begin("playercaps","playercaps",new{Table=proposal.Table});
         if(proposal.Owner!=_owner)throw new InvalidOperationException("Vista previa de otro proyecto.");
         foreach(var file in proposal.Files)GarcTransaction.ReadUnchanged(file.Path,file.Fingerprint);
         _project.History.Commit(proposal.Files,"Mecánicas y CRO","Instalar Player Level Caps",

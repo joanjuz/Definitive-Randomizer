@@ -1,4 +1,4 @@
-using System;
+using System.Collections.Concurrent;
 using System.IO;
 using System.Net.Http;
 using System.Threading;
@@ -8,165 +8,71 @@ using System.Windows.Media.Imaging;
 
 namespace ThreeDS.Progressive.Services;
 
-/// <summary>
-/// Resuelve un sprite local personalizado o descarga una imagen al cache por especie.
-/// No inserta imagenes Pokemon en el repositorio ni requiere modificar la ROM.
-/// </summary>
+/// <summary>Optional remote images. No bundled sprites or persistent image cache.</summary>
 public sealed class SpriteService
 {
-    private static readonly HttpClient Client = new()
+    private static readonly HttpClient Client=new(){Timeout=TimeSpan.FromSeconds(4)};
+    private static readonly State Shared=new();
+    private sealed class State
     {
-        Timeout = TimeSpan.FromSeconds(7)
-    };
-
-    private readonly string _cacheFolder;
-    private readonly string _customFolder;
-
-    public SpriteService()
-    {
-        string root = Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-            "3DS Progressive", "sprites");
-        _cacheFolder = Path.Combine(root, "cache");
-        _customFolder = Path.Combine(root, "custom");
+        internal readonly ConcurrentDictionary<int,BitmapSource> Images=new();
+        internal readonly ConcurrentDictionary<int,Lazy<Task<SpriteResult>>> Pending=new();
+        internal readonly SemaphoreSlim Downloads=new(4);
+        internal long RetryAfter;
     }
-
-    public Task<SpriteResult> GetSpriteAsync(int personalEntry, int speciesId, CancellationToken cancellationToken = default)
-        => GetSpriteAsync(personalEntry, speciesId, 0, cancellationToken);
-
-    // La forma se usa para resolver primero los recursos del pk3DS original.
-    public async Task<SpriteResult> GetSpriteAsync(int personalEntry, int speciesId, int form, CancellationToken cancellationToken = default)
+    private readonly HttpClient _client;
+    private readonly State _state;
+    private readonly TimeProvider _time;
+    public SpriteService(){_client=Client;_state=Shared;_time=TimeProvider.System;}
+    internal SpriteService(HttpClient client,TimeProvider? time=null){_client=client;_state=new();_time=time??TimeProvider.System;}
+    public Task<SpriteResult> GetSpriteAsync(int personalEntry,int speciesId,CancellationToken cancellationToken=default)
+        =>GetSpriteAsync(personalEntry,speciesId,0,cancellationToken);
+    public async Task<SpriteResult> GetSpriteAsync(int personalEntry,int speciesId,int form,CancellationToken cancellationToken=default)
     {
-        if (speciesId is < 1 or > 1025)
-            return new SpriteResult(null, "Sprite no disponible para esta entrada.");
-
-        // Las imagenes de formas especificas pueden sobrescribirse sin cambiar la aplicacion.
-        // entry-820.png tiene prioridad sobre 025.png / species-025.png.
-        string[] customCandidates =
-        [
-            Path.Combine(_customFolder, $"entry-{personalEntry:D3}.png"),
-            Path.Combine(_customFolder, $"species-{speciesId:D3}-form-{form}.png"),
-            Path.Combine(_customFolder, $"{speciesId}-{form}.png"),
-            Path.Combine(_customFolder, $"species-{speciesId:D3}.png"),
-            Path.Combine(_customFolder, $"{speciesId:D3}.png"),
-            Path.Combine(_customFolder, $"{speciesId}.png")
-        ];
-
-        foreach (string path in customCandidates)
-        {
-            if (!File.Exists(path))
-                continue;
-            try
-            {
-                var sprite = await LoadLocalAsync(path, cancellationToken);
-                return new SpriteResult(sprite, "Sprite personalizado");
-            }
-            catch (OperationCanceledException) { throw; }
-            catch (Exception)
-            {
-                // Un PNG corrupto no debe impedir mostrar un sprite valido del cache.
-            }
-        }
-
-        // Usar los sprites originales empaquetados: sin internet y con formas alternativas.
-        // Los recursos personalizados conservan la prioridad.
-        string packaged = Path.Combine(AppContext.BaseDirectory, "Sprites");
-        string[] bundledCandidates = form > 0
-            ? [Path.Combine(packaged, $"{speciesId}-{form}.png"), Path.Combine(packaged, $"{speciesId}.png")]
-            : [Path.Combine(packaged, $"{speciesId}.png")];
-        foreach (string path in bundledCandidates)
-        {
-            if (!File.Exists(path)) continue;
-            try
-            {
-                return new SpriteResult(await LoadLocalAsync(path, cancellationToken), "Sprite original de pk3DS");
-            }
-            catch (OperationCanceledException) { throw; }
-            catch (IOException) { }
-            catch (Exception) { }
-        }
-
-        string cached = Path.Combine(_cacheFolder, $"{speciesId:D3}.png");
-        if (File.Exists(cached))
-        {
-            try
-            {
-                return new SpriteResult(await LoadLocalAsync(cached, cancellationToken), "Sprite en caché");
-            }
-            catch (OperationCanceledException) { throw; }
-            catch (Exception)
-            {
-                // Intentar descarga de nuevo si el cache se corrompio.
-            }
-        }
-
+        cancellationToken.ThrowIfCancellationRequested();
+        if(speciesId is <1 or >1025)return new(null,"");
+        // Like the tracker, remote pictures use National Dex species IDs.
+        if(_state.Images.TryGetValue(speciesId,out var image))return new(image,"PokéAPI");
+        if(_time.GetUtcNow().UtcTicks<Interlocked.Read(ref _state.RetryAfter))return new(null,"");
+        var request=_state.Pending.GetOrAdd(speciesId,id=>new Lazy<Task<SpriteResult>>(()=>FetchTracked(id)));
+        return await request.Value.WaitAsync(cancellationToken);
+    }
+    private async Task<SpriteResult> FetchTracked(int speciesId)
+    {
+        try{return await Download(speciesId).ConfigureAwait(false);}
+        finally{_state.Pending.TryRemove(speciesId,out _);}
+    }
+    private async Task<SpriteResult> Download(int speciesId)
+    {
+        await _state.Downloads.WaitAsync().ConfigureAwait(false);
         try
         {
-            // Sprites alojados por PokeAPI. Se obtienen al abrir la especie,
-            // solo como recurso visual opcional y sin incorporarlos al codigo fuente.
-            using var response = await Client.GetAsync(
-                $"https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/{speciesId}.png",
-                HttpCompletionOption.ResponseHeadersRead, cancellationToken);
-            if (!response.IsSuccessStatusCode)
-                return new SpriteResult(null, "No hay sprite remoto; podés agregar un PNG personalizado.");
-            if (response.Content.Headers.ContentLength is > 2_000_000)
-                return new SpriteResult(null, "El sprite remoto excede el tamaño permitido.");
-
-            byte[] bytes = await response.Content.ReadAsByteArrayAsync(cancellationToken);
-            if (bytes.Length is 0 or > 2_000_000)
-                return new SpriteResult(null, "El sprite remoto no es válido.");
-            BitmapSource image = Decode(bytes);
-
-            Directory.CreateDirectory(_cacheFolder);
-            try
+            if(_time.GetUtcNow().UtcTicks<Interlocked.Read(ref _state.RetryAfter))return new(null,"");
+            using var timeout=new CancellationTokenSource(TimeSpan.FromSeconds(4));
+            using var response=await _client.GetAsync($"https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/{speciesId}.png",HttpCompletionOption.ResponseHeadersRead,timeout.Token).ConfigureAwait(false);
+            if(!response.IsSuccessStatusCode||response.Content.Headers.ContentLength is >2_000_000)return new(null,"");
+            using var input=await response.Content.ReadAsStreamAsync(timeout.Token).ConfigureAwait(false);
+            using var bytes=new MemoryStream();
+            byte[] buffer=new byte[16384];int count;
+            while((count=await input.ReadAsync(buffer,timeout.Token).ConfigureAwait(false))>0)
             {
-                await File.WriteAllBytesAsync(cached, bytes, cancellationToken);
+                if(bytes.Length+count>2_000_000)return new(null,"");
+                bytes.Write(buffer,0,count);
             }
-            catch (IOException)
-            {
-                // El cache es opcional; la imagen puede mostrarse igualmente.
-            }
-            catch (UnauthorizedAccessException)
-            {
-                // Sin permisos de cache, se mantiene la imagen en memoria.
-            }
-            return new SpriteResult(image, "Sprite de PokéAPI");
+            byte[] data=bytes.ToArray();
+            if(data.Length<8||!data.AsSpan(0,8).SequenceEqual(new byte[]{137,80,78,71,13,10,26,10}))return new(null,"");
+            using var source=new MemoryStream(data,false);
+            var bitmap=new BitmapImage();bitmap.BeginInit();bitmap.CacheOption=BitmapCacheOption.OnLoad;bitmap.StreamSource=source;bitmap.EndInit();bitmap.Freeze();
+            _state.Images[speciesId]=bitmap;
+            return new(bitmap,"PokéAPI");
         }
-        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+        catch(Exception error) when(error is HttpRequestException or OperationCanceledException)
         {
-            return new SpriteResult(null, "Sin conexión para descargar el sprite.");
+            Interlocked.Exchange(ref _state.RetryAfter,_time.GetUtcNow().AddSeconds(20).UtcTicks);
+            return new(null,"");
         }
-        catch (HttpRequestException)
-        {
-            return new SpriteResult(null, "Sin conexión para descargar el sprite.");
-        }
-        catch (IOException)
-        {
-            return new SpriteResult(null, "Error al leer el sprite.");
-        }
-        catch (Exception)
-        {
-            return new SpriteResult(null, "No se pudo cargar el sprite.");
-        }
-    }
-
-    private static async Task<BitmapSource> LoadLocalAsync(string file, CancellationToken cancellationToken)
-    {
-        byte[] bytes = await File.ReadAllBytesAsync(file, cancellationToken);
-        return Decode(bytes);
-    }
-
-    private static BitmapSource Decode(byte[] data)
-    {
-        using var stream = new MemoryStream(data, writable: false);
-        var bitmap = new BitmapImage();
-        bitmap.BeginInit();
-        bitmap.CacheOption = BitmapCacheOption.OnLoad;
-        bitmap.StreamSource = stream;
-        bitmap.EndInit();
-        bitmap.Freeze();
-        return bitmap;
+        catch(Exception){return new(null,"");}
+        finally{_state.Downloads.Release();}
     }
 }
-
-public sealed record SpriteResult(ImageSource? Image, string Description);
+public sealed record SpriteResult(ImageSource? Image,string Description);

@@ -221,8 +221,23 @@ public sealed partial class GameMartService
             items.Original, items.Output);
     }
 
+    private readonly Dictionary<(bool,int),string> _presetResults=[];
+    private static string ShopValues(MartShop shop)=>string.Join(";",shop.Rows.Select(r=>r.ItemId+":"+r.Price));
+    private sealed class EndPreset(Action finish):IDisposable {public void Dispose()=>finish();}
+    private IDisposable TrackPreset()
+    {
+        var before=RegularShops.Concat(BpShops).ToDictionary(s=>(s.IsBP,s.Index),ShopValues);
+        return new EndPreset(()=>{foreach(var shop in RegularShops.Concat(BpShops)){string after=ShopValues(shop);if(before[(shop.IsBP,shop.Index)]!=after)_presetResults[(shop.IsBP,shop.Index)]=after;}});
+    }
+    private bool ManualShop(MartShop shop,MartShopPreview preview)=>preview.Changes.Any(c=>c.Id==shop.Index&&c.Name==shop.Name)&&(!_presetResults.TryGetValue((shop.IsBP,shop.Index),out var preset)||preset!=ShopValues(shop));
+    internal void RestoreManualItemEffects(System.Text.Json.Nodes.JsonObject payload)
+    {
+        _setCandyPrice=payload["CandyPrice"]?.GetValue<bool>()??false;_setKeyPrice=payload["KeyPrice"]?.GetValue<bool>()??false;_enableVitamin252=payload["Vitamin252"]?.GetValue<bool>()??false;
+        _vitaminIds=payload["VitaminIds"]?.AsArray().Select(n=>n!.GetValue<int>()).ToArray()??[];
+    }
     public void Apply(MartShopPreview preview)
     {
+        using var manual=Environment.GetEnvironmentVariable("DEFINITIVE_BATCH_REPLAY")=="1"||!RegularShops.Concat(BpShops).Any(s=>ManualShop(s,preview))?null:ManualOperationScope.Begin("shops7","shops7",new{Shops=RegularShops.Concat(BpShops).Where(s=>ManualShop(s,preview)).Select(s=>new{s.Index,s.IsBP,Rows=s.Rows.Select(r=>new{r.ItemId,r.Price}).ToArray()}).ToArray(),CandyPrice=_setCandyPrice,KeyPrice=_setKeyPrice,Vitamin252=_enableVitamin252,VitaminIds=_vitaminIds});
         if (preview.Changes.Count == 0)
             throw new InvalidOperationException("No hay cambios para guardar.");
         var fresh = Prepare();
@@ -264,6 +279,7 @@ public sealed partial class GameMartService
 
     public void FreeMegaStoneBP()
     {
+        using var preset=TrackPreset();
         if (BpShops.Count <= 5)
             throw new InvalidDataException("No existe la tienda BP de megapiedras.");
         foreach (var row in BpShops[5].Rows)

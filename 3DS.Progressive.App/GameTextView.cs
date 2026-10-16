@@ -40,6 +40,7 @@ internal sealed class GameTextView : UserControl
     private readonly TextBox _filter;
     private readonly ComboBox _tagFilter;
     private readonly TextBlock _status;
+    private readonly ListBox _evidence;
     private readonly Button _save;
     private bool _dirty,_loading,_searching;
     private int _id=-1;
@@ -59,11 +60,35 @@ internal sealed class GameTextView : UserControl
             "Diálogos de personajes y eventos de la historia. Buscá una frase que veas en el juego para encontrar su archivo y línea. Los números no indican el orden de la historia. Conservá los códigos [VAR ...], cambios de línea y el orden de cada mensaje para evitar scripts dañados.":
             "Nombres y descripciones de Pokémon, movimientos, objetos, entrenadores y mensajes de interfaz. Los archivos conocidos indican su contenido. Se conserva el número y orden de líneas para no romper referencias.",
             Foreground=(Brush)FindResource("TextSoft"),TextWrapping=TextWrapping.Wrap});
+        var commandButton=new Button{Content="Variables y comandos",HorizontalAlignment=System.Windows.HorizontalAlignment.Left,Margin=new Thickness(0,8,0,8)};
+        heading.Children.Add(commandButton);
+        commandButton.Click+=(_,_)=>
+        {
+            if(_searching)return;
+            try
+            {
+                var reference=new TextCommandsWindow(_service.Commands(_id),_service.GameName);
+                if(Window.GetWindow(this) is {} owner)reference.Owner=owner;
+                reference.ShowDialog();
+            }
+            catch(Exception ex){StudioDialog.Error(Window.GetWindow(this),"Variables y comandos",ex.Message);}
+        };
+        _evidence=new ListBox { MaxHeight=130, Margin=new Thickness(0,4,0,4) };
+        heading.Children.Add(new Expander { Header="Por qué está clasificado así · doble clic para ir a la línea", Content=_evidence });
+        _evidence.MouseDoubleClick+=(_,_)=>
+        {
+            if(_evidence.SelectedItem is not TextContentEvidence evidence || evidence.Line<0)return;
+            var row=_rows.FirstOrDefault(r=>r.Index==evidence.Line);
+            if(row is not null && _grid is not null){_grid.SelectedItem=row;_grid.ScrollIntoView(row);}
+        };
+        var evidenceTemplate=new FrameworkElementFactory(typeof(TextBlock));
+        evidenceTemplate.SetBinding(TextBlock.TextProperty,new Binding("Display"));
+        evidenceTemplate.SetValue(TextBlock.TextWrappingProperty,TextWrapping.Wrap);
+        _evidence.ItemTemplate=new DataTemplate{VisualTree=evidenceTemplate};
         var footer=new DockPanel {Margin=new Thickness(0,12,0,0)};
         DockPanel.SetDock(footer,Dock.Bottom);root.Children.Add(footer);
         _status=new TextBlock {Text="Elegí un archivo de texto.",Foreground=(Brush)FindResource("TextSoft"),
             VerticalAlignment=VerticalAlignment.Center,TextWrapping=TextWrapping.Wrap};
-        footer.Children.Add(_status);
         _save=new Button {Content="Guardar texto",IsEnabled=false,Margin=new Thickness(10,0,0,0)};
         DockPanel.SetDock(_save,Dock.Right);footer.Children.Add(_save);
         _save.Click+=(_,_)=>Save();
@@ -91,6 +116,7 @@ internal sealed class GameTextView : UserControl
             DockPanel.SetDock(importAll,Dock.Right);footer.Children.Add(importAll);
             importAll.Click+=(_,_)=>TryImportAll();
         }
+        footer.Children.Add(_status);
         var content=new Grid();content.ColumnDefinitions.Add(new ColumnDefinition {Width=new GridLength(310)});
         content.ColumnDefinitions.Add(new ColumnDefinition {Width=new GridLength(1,GridUnitType.Star)});
         root.Children.Add(content);
@@ -98,7 +124,7 @@ internal sealed class GameTextView : UserControl
         Grid.SetColumn(left,0);content.Children.Add(left);
         var filterLabel=new TextBlock{Text="Filtrar archivos por número, categoría o etiqueta",Foreground=(Brush)FindResource("TextSoft"),TextWrapping=TextWrapping.Wrap,Margin=new Thickness(0,0,0,4)};
         DockPanel.SetDock(filterLabel,Dock.Top);left.Children.Add(filterLabel);
-        _tagFilter=new ComboBox{ItemsSource=new[]{"Todas las etiquetas","Sin clasificar"}.Concat(GameTextService.TagChoices),SelectedIndex=0,Margin=new Thickness(0,0,0,8)};
+        _tagFilter=new ComboBox{ItemsSource=new[]{"Todas las etiquetas","Sin clasificar"}.Concat(_service.AvailableTags),SelectedIndex=0,Margin=new Thickness(0,0,0,8)};
         DockPanel.SetDock(_tagFilter,Dock.Top);left.Children.Add(_tagFilter);_tagFilter.SelectionChanged+=(_,_)=>Filter();
         _filter=new TextBox {Margin=new Thickness(0,0,0,8),ToolTip="Ejemplos: movimientos, objetos, Pokémon o 013. Para buscar frases usá Buscar en todo el banco."};
         _filter.TextChanged+=(_,_)=>Filter();
@@ -109,6 +135,8 @@ internal sealed class GameTextView : UserControl
         fileText.SetBinding(TextBlock.ToolTipProperty,new Binding("Display"));
         fileText.SetValue(TextBlock.TextWrappingProperty,TextWrapping.Wrap);
         fileText.SetValue(TextBlock.MaxWidthProperty,270d);
+        fileText.SetValue(TextBlock.MaxHeightProperty,76d);
+        fileText.SetValue(TextBlock.TextTrimmingProperty,TextTrimming.CharacterEllipsis);
         fileText.SetValue(TextBlock.MarginProperty,new Thickness(3,4,3,4));
         _files.ItemTemplate=new DataTemplate{VisualTree=fileText};
         _files.SelectionChanged+=(_,_)=>SelectFile();
@@ -139,24 +167,7 @@ internal sealed class GameTextView : UserControl
         });
         _grid.CellEditEnding+=(_,_)=>MarkDirty();
         Grid.SetColumn(_grid,1);content.Children.Add(_grid);
-        var tagging=new WrapPanel{Margin=new Thickness(0,8,0,4)};heading.Children.Add(tagging);
-        tagging.Children.Add(new TextBlock{Text="Etiquetar el archivo seleccionado: ",VerticalAlignment=VerticalAlignment.Center,Foreground=(Brush)FindResource("TextSoft")});
-        var tagChoice=new ComboBox{ItemsSource=GameTextService.TagChoices,SelectedIndex=0,MinWidth=180};tagging.Children.Add(tagChoice);
-        var addTag=new Button{Content="Añadir etiqueta",Margin=new Thickness(8,0,0,0)};tagging.Children.Add(addTag);
-        var clearTags=new Button{Content="Quitar etiquetas",Margin=new Thickness(8,0,0,0)};tagging.Children.Add(clearTags);
-        void UpdateTags(bool clear)
-        {
-            if(_id<0||_searching)return;
-            try
-            {
-                _service.SetTags(_id,clear?Array.Empty<string>():_service.Tags(_id).Append((string)tagChoice.SelectedItem));
-                _loading=true;_files.ItemsSource=_service.Entries;_files.SelectedItem=_service.Entries.First(e=>e.Id==_id);_loading=false;Filter();
-                _status.Text="Etiquetas guardadas localmente para este proyecto e idioma. No se modificaron textos de la ROM.";
-            }
-            catch(Exception ex){StudioDialog.Error(Window.GetWindow(this),"Etiquetas",ex.Message);}
-        }
-        addTag.Click+=(_,_)=>UpdateTags(false);clearTags.Click+=(_,_)=>UpdateTags(true);
-        heading.Children.Add(new TextBlock{Text="Las etiquetas de historia, NPCs e intercambios las asignás vos: no se deducen del número de archivo. Se guardan en tu perfil local por proyecto e idioma.",Foreground=(Brush)FindResource("TextSoft"),TextWrapping=TextWrapping.Wrap});
+        heading.Children.Add(new TextBlock{Text="Clasificación automática por categorías conocidas y coincidencias de contenido. Las menciones se distinguen de las referencias de zona y de las citas contrastadas por personaje. Consultá las evidencias para conocer el origen de cada etiqueta.",Foreground=(Brush)FindResource("TextSoft"),TextWrapping=TextWrapping.Wrap});
         heading.Children.Add(new TextBlock{Text=_service.Location,Foreground=(Brush)FindResource("TextSoft"),Margin=new Thickness(0,6,0,0)});
         heading.Children.Add(new TextBlock{Text="Localizar una frase en todo el banco (idioma activo). Los resultados muestran archivo y línea originales; hacé doble clic para editar. La búsqueda consulta el texto guardado.",TextWrapping=TextWrapping.Wrap,Foreground=(Brush)FindResource("TextSoft"),Margin=new Thickness(0,8,0,4)});
         var searchBar=new DockPanel();heading.Children.Add(searchBar);
@@ -184,16 +195,17 @@ internal sealed class GameTextView : UserControl
             Load(hit.FileId);var row=_rows.FirstOrDefault(r=>r.Index==hit.Line);
             if(row is not null){_grid.SelectedItem=row;_grid.ScrollIntoView(row);}
         };
-        _loading=true;_files.SelectedIndex=0;_loading=false;
+        _loading=true;_files.SelectedItem=_service.Entries.FirstOrDefault(e=>_service.Tags(e.Id).Any(t=>t is not ("Vacíos o reservados" or "Solo códigos de control" or "Recursos técnicos")))??_service.Entries.FirstOrDefault();_loading=false;
         if(_files.SelectedItem is RecordEntry entry)Load(entry.Id);
     }
     private void Filter()
     {
         if(_files?.ItemsSource is null)return;
         string needle=_filter.Text.Trim();
+        string normalized=TextContentClassifier.Normalize(needle);
         var view=CollectionViewSource.GetDefaultView(_files.ItemsSource);
         string tag=_tagFilter.SelectedItem as string??"Todas las etiquetas";
-        view.Filter=x=>x is RecordEntry r&&(tag=="Todas las etiquetas"||(tag=="Sin clasificar"?_service.Tags(r.Id).Count==0:_service.Tags(r.Id).Contains(tag)))&&(r.Id.ToString().Contains(needle)||r.Name.Contains(needle,StringComparison.OrdinalIgnoreCase));
+        view.Filter=x=>x is RecordEntry r&&(tag=="Todas las etiquetas"||(tag=="Sin clasificar"?_service.Tags(r.Id).Count==0:_service.Tags(r.Id).Contains(tag)))&&(r.Id.ToString().Contains(needle)||_service.CatalogueMatches(r.Id,normalized));
         view.Refresh();
     }
     private void SelectFile()
@@ -215,10 +227,11 @@ internal sealed class GameTextView : UserControl
                 new GameTextRow{Index=index,Value=value}));
             _grid.ItemsSource=_rows;
             _id=id;_dirty=false;_save.IsEnabled=false;
+            _evidence.ItemsSource=_service.Classification(id).Evidence;
             _loading=true;_files.ItemsSource=_service.Entries;_files.SelectedItem=_service.Entries.First(e=>e.Id==id);_loading=false;Filter();
             string sample=strings.FirstOrDefault(t=>!string.IsNullOrWhiteSpace(t))??"Archivo sin mensajes visibles";
             sample=sample.Replace("\r"," ").Replace("\n"," ");if(sample.Length>180)sample=sample[..180]+"…";
-            _status.Text=$"{_service.Entries.First(e=>e.Id==id).Display} · {_rows.Count} líneas · Muestra: {sample}";
+            _status.Text=$"{_rows.Count} líneas · {_service.ClassificationDetails(id)}";
         }
         catch(Exception ex){StudioDialog.Error(Window.GetWindow(this),"Texto no compatible",ex.Message);}
     }

@@ -1,4 +1,4 @@
-﻿using System.Diagnostics;
+using System.Diagnostics;
 using System.IO;
 using System.Security.Cryptography;
 using System.Text.Json;
@@ -38,7 +38,7 @@ internal sealed class BatchRomExecution
     // Parity with BatchGen7ActionExecutor.Supported from the original executable.
     private static readonly HashSet<string> SupportedActionIds=new(StringComparer.OrdinalIgnoreCase)
     {
-        "rng.seed","moves.balance","moves.randomize","moves.metronome",
+        "manual-edits.apply","rng.seed","moves.balance","moves.randomize","moves.metronome",
         "personal.randomize","personal.modify-all","pokemon-stats.apply",
         "personal.ban-trapping-abilities","evolutions.normalize","evolutions.randomize",
         "evolutions.remove-trade","evolutions.every-level","level-up-moves.randomize",
@@ -60,7 +60,7 @@ internal sealed class BatchRomExecution
     };
     private readonly GameProjectSession _project;
     internal static readonly HashSet<string> Gen6ActionIds=new(StringComparer.OrdinalIgnoreCase)
-    {"rng.seed","moves.balance","moves.randomize","moves.metronome","personal.randomize","personal.modify-all","pokemon-stats.apply",
+    {"manual-edits.apply","rng.seed","moves.balance","moves.randomize","moves.metronome","personal.randomize","personal.modify-all","pokemon-stats.apply",
      "evolutions.randomize","evolutions.every-level","evolutions.remove-trade","evolutions.normalize","level-up-moves.randomize","level-up-moves.metronome","egg-moves.randomize","trades.accept-any","trades.randomize-offers","trainers.randomize","static-encounters.randomize","static-encounters.modify-levels","starters.randomize","tms.randomize","field-items.randomize","marts.randomize","marts.add-rare-candies","marts.add-ev-items","marts.ban-ability-capsule","items.fix-economy","pickup.randomize","wild-encounters.randomize","wild-encounters.modify-levels","wild-encounters.scale-levels","tms.sanity","tms.follow-evolutions","catchzones.enable","shiny-rate.apply","move-tutors.randomize","move-tutors.sanity","move-tutors.follow-evolutions"};
     private readonly string _game;
     internal static string RunnerPath=>Path.Combine(AppContext.BaseDirectory,
@@ -92,11 +92,12 @@ internal sealed class BatchRomExecution
         if(_project.Generation==6)NativeBatchGen6Bridge.ValidateSession(_project,template);
         else NativeBatchGen7StaticBridge.ValidateSession(_project,template);
         NativeGen7WildBridge.ValidateSession(_project,template);NativeRecipeCompletion.ValidateGen7Parameters(_project,template);_=NativeGen7MartBridge.ValidateSession(_project,template);NativeGen7MachineBridge.ValidateSession(_project,template);NativeMasterBatchBridge.ValidateSession(_project,template);if(_project.Generation==7)NativeGen7FieldBridge.ValidateSession(_project,template);
+        ManualEditTemplate.ValidateSession(_project,template);
         if(template.Actions.Count==0)throw new InvalidDataException("El template no tiene acciones de batch.");
-        if(template.SettingsCount==0&&template.Actions.Any(id=>id!="rng.seed"&&!NativeMasterBatchBridge.ActionIds.Contains(id,StringComparer.OrdinalIgnoreCase)&&!(_project.Generation==7&&NativeGen7FieldBridge.ActionIds.Contains(id,StringComparer.OrdinalIgnoreCase))&&!(_project.Generation==7&&NativeGen7MachineBridge.ActionIds.Contains(id,StringComparer.OrdinalIgnoreCase))&&!(_project.Generation==7&&NativeGen7MartBridge.ActionIds.Contains(id,StringComparer.OrdinalIgnoreCase))&&!(_project.Generation==7&&NativeRecipeCompletion.Gen7ParameterActions.Contains(id,StringComparer.OrdinalIgnoreCase))&&!(_project.Generation==7&&NativeGen7WildBridge.ActionIds.Contains(id,StringComparer.OrdinalIgnoreCase))&&!(_project.Generation==6?NativeBatchGen6Bridge.ActionIds:NativeBatchGen7StaticBridge.ActionIds).Contains(id,StringComparer.OrdinalIgnoreCase)))
+        if(template.SettingsCount==0&&template.Actions.Any(id=>id!="rng.seed"&&id!=ManualEditTemplate.ActionId&&!NativeMasterBatchBridge.ActionIds.Contains(id,StringComparer.OrdinalIgnoreCase)&&!(_project.Generation==7&&NativeGen7FieldBridge.ActionIds.Contains(id,StringComparer.OrdinalIgnoreCase))&&!(_project.Generation==7&&NativeGen7MachineBridge.ActionIds.Contains(id,StringComparer.OrdinalIgnoreCase))&&!(_project.Generation==7&&NativeGen7MartBridge.ActionIds.Contains(id,StringComparer.OrdinalIgnoreCase))&&!(_project.Generation==7&&NativeRecipeCompletion.Gen7ParameterActions.Contains(id,StringComparer.OrdinalIgnoreCase))&&!(_project.Generation==7&&NativeGen7WildBridge.ActionIds.Contains(id,StringComparer.OrdinalIgnoreCase))&&!(_project.Generation==6?NativeBatchGen6Bridge.ActionIds:NativeBatchGen7StaticBridge.ActionIds).Contains(id,StringComparer.OrdinalIgnoreCase)))
             throw new InvalidDataException("Este template se creó solo desde historial: no contiene RandSettings. Importá y guardá una receta completa antes de construir.");
         var supported=_project.Generation==6?Gen6ActionIds:SupportedActionIds;
-        var unsupported=template.Actions.Where(id=>!supported.Contains(id)).ToArray();
+        var unsupported=template.Actions.Where(id=>!supported.Contains(id)&&id!=ManualEditTemplate.ActionId).ToArray();
         if(unsupported.Length>0)
             throw new NotSupportedException("El ejecutor original no admite estas acciones para este juego: "+
                 string.Join(", ",unsupported));

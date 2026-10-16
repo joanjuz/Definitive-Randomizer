@@ -31,6 +31,7 @@ public sealed partial class GameMachineTutorService
             if(Tutors[i].MoveId!=pool[i])differences++;
             Tutors[i].MoveId=pool[i];
         }
+        _generatedTutorMoves=Tutors.Select(r=>r.MoveId).ToArray();
         return differences;
     }
 
@@ -99,6 +100,8 @@ public sealed partial class GameMachineTutorService
 
     public void ApplyTutorEdits(TutorEditPreview preview)
     {
+        var explicitRows=ManualTutors(true);
+        using var manual=Environment.GetEnvironmentVariable("DEFINITIVE_BATCH_REPLAY")=="1"?null:explicitRows.Length>0?ManualOperationScope.Begin("tutors7","tutors7",new{Rows=explicitRows}):_generatedTutorMoves is not null?ManualOperationScope.Begin("random-only","",new{ActionId="move-tutors.randomize"}):null;
         ArgumentNullException.ThrowIfNull(preview);
         if(preview.Changes.Count==0)
             throw new InvalidOperationException("No existen cambios para guardar.");

@@ -108,6 +108,7 @@ public sealed partial class GameFieldItemsService : IProjectEditor,IOptionTempla
     }
     public void Save(int id,IReadOnlyDictionary<string,int> values)
     {
+        using var manual=ManualOperationScope.Record(this,id,values);
         EditorValues.Validate(Read(id),values);
         byte[] source=Original();var lazy=new GARC.LazyGARC(source);
         int before=ReadValue(id,lazy),after=values["Item"];

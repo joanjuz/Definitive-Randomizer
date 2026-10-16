@@ -25,7 +25,7 @@ public sealed partial class GameProjectSession
     {
         _config = config;
         ProjectRoot = root;
-        History = new ProjectHistory(root,config.Version.ToString());
+        History = new ProjectHistory(root,config.Version.ToString()){ActiveLanguage=()=>config.Language};
         _personalPath = personalPath;
         _diskFingerprint = SHA256.HashData(File.ReadAllBytes(personalPath));
 
@@ -310,7 +310,18 @@ public sealed partial class GameProjectSession
     /// Serializa un GARC completo en un archivo temporal, verifica el contenido y reemplaza
     /// el archivo solamente tras confirmacion explicita en la UI. No crea backups automaticos.
     /// </summary>
-    public void SavePersonal(int index, PersonalValues values)
+    internal FileChange PreparePersonalEdits(IReadOnlyDictionary<int,PersonalValues> edits)
+    {
+        byte[] source=GarcTransaction.ReadUnchanged(_personalPath,_diskFingerprint);
+        byte[][] files=_config.GARCPersonal.Files.Select(f=>(byte[])f.Clone()).ToArray();
+        foreach(var (index,values) in edits)SavePersonal(index,values,true,bytes=>files[index]=bytes);
+        byte[] master=files.Take(files.Length-1).SelectMany(f=>f).ToArray();
+        if(master.Length!=files[^1].Length)throw new InvalidDataException("La tabla maestra Personal no coincide.");
+        files[^1]=master;
+        return new FileChange(_personalPath,source,GarcTransaction.Build(source,_config.GetGARCReference("personal"),files));
+    }
+    public void SavePersonal(int index, PersonalValues values) => SavePersonal(index, values, false);
+    internal void SavePersonal(int index, PersonalValues values, bool validateOnly, Action<byte[]>? encoded=null)
     {
         PersonalValues beforeValues=ReadPersonal(index);
         if (index < 1 || index >= EntryCount)
@@ -341,8 +352,8 @@ public sealed partial class GameProjectSession
             values.ZSpecialMove is < 0 or > 65535)
             throw new ArgumentOutOfRangeException(nameof(values), "Valores de formas, tamaño o Z fuera de rango.");
 
-        byte[] source = File.ReadAllBytes(_personalPath);
-        if (!SHA256.HashData(source).AsSpan().SequenceEqual(_diskFingerprint))
+        byte[] source = validateOnly ? [] : File.ReadAllBytes(_personalPath);
+        if (!validateOnly && !SHA256.HashData(source).AsSpan().SequenceEqual(_diskFingerprint))
             throw new IOException("El archivo personal se modifico desde que Studio lo abrio. " +
                 "Cierra y vuelve a abrir el proyecto antes de guardar.");
 
@@ -397,6 +408,7 @@ public sealed partial class GameProjectSession
             sm.SpecialZ_ZMove = values.ZSpecialMove;
             sm.LocalVariant = values.RegionalVariant;
         }
+        if (validateOnly) { encoded?.Invoke(p.Write()); return; }
         files[index] = p.Write();
 
         // La ultima entrada GARC es la tabla maestra de PersonalInfo.

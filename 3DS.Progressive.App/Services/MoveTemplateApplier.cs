@@ -29,6 +29,12 @@ internal sealed partial class MoveTemplateApplier(int generation, string[] types
     ];
     private static readonly string[] StatCategories = ["None", "Attack", "Defense", "Special Attack", "Special Defense", "Speed", "Accuracy", "Evasion", "All",
     ];
+    internal int ResolveTemplateChoice(string column,string value)=>column switch
+    {
+        "Type"=>ResolveType(value),"Category"=>ResolveCategory(value),"Quality"=>ResolveQuality(value),
+        "Targeting"=>ResolveTargeting(value),"Inflict"=>int.TryParse(value,out int id)?id:ResolveInflict(value),
+        "UserStat" or "TargetStat" or "Stat1" or "Stat2" or "Stat3"=>ResolveStat(value),_=>throw new ArgumentException("Columna sin catálogo.")
+    };
     internal void Apply(byte[] data, MoveTemplates.MovePatchRow patch)
     {
         ApplyCoreMovePatch(data, patch);

@@ -1,4 +1,4 @@
-﻿using System.IO;
+using System.IO;
 using System.Security.Cryptography;
 using pk3DS.Core;
 using pk3DS.Core.CTR;
@@ -15,7 +15,7 @@ public sealed partial class GameMoveService
 
     private BatchPreview PreviewMoveTemplate(BatchSettings settings, IReadOnlyList<int> scope)
     {
-        if(!SupportsProgressiveBalance)throw new InvalidOperationException("El balance de movimientos Progressive está disponible en XY, ORAS y USUM; no en Sol/Luna.");
+        if(!SupportsProgressiveBalance&&settings.TemplatePath is null)throw new InvalidOperationException("El balance de movimientos Progressive está disponible en XY, ORAS y USUM; no en Sol/Luna.");
         int[] ids = scope.Distinct().Order().ToArray();
         byte[] moveSource = GarcTransaction.ReadUnchanged(_path, _sha);
         byte[][] outer = new GARC.MemGARC(moveSource).Files;
@@ -54,7 +54,7 @@ public sealed partial class GameMoveService
                 if (settings.BattlePatches)
                     Legacy.CustomBattleEffectPatcher.ApplyMoveDataSpecials(_config.Generation, row.Move, records[row.Move],
                         row.KingShieldAttackMinusOne, row.BattlePatch);
-                if (NeedsExternalBattle(row))
+                if (NeedsExternalBattle(row,settings.ExplicitBattlePatchSelection))
                     requests.Add(new() { Move = row.Move, KingShieldAttackMinusOne = row.KingShieldAttackMinusOne,
                         BattlePatch = row.BattlePatch, Param0x0B = row.Param0x0B });
             }
@@ -155,9 +155,9 @@ public sealed partial class GameMoveService
 
     private static string ShortHash(byte[] bytes) => Convert.ToHexString(SHA256.HashData(bytes))[..12];
 
-    private bool NeedsExternalBattle(MoveTemplates.MovePatchRow row)
+    private bool NeedsExternalBattle(MoveTemplates.MovePatchRow row,bool explicitOnly=false)
     {
-        if (row.KingShieldAttackMinusOne || (_config.Generation == 7 && row.Move is 300 or 346 && row.Param0x0B.HasValue)) return true;
+        if (row.KingShieldAttackMinusOne || (!explicitOnly && _config.Generation == 7 && row.Move is 300 or 346 && row.Param0x0B.HasValue)) return true;
         return MoveTemplates.SplitTokens(row.BattlePatch).Any(t => !IsDataOnlyToken(t));
     }
 

@@ -24,8 +24,9 @@ internal static class NativeRecipeCompletion
     internal static bool TryComplete(GameProjectSession project,GlobalTemplateDocument document)
     {
         if(document.Section("ProgressiveApp")?["PartialSnapshot"]?.GetValue<bool>()!=true)return false;
-        var allowed=(project.Generation==6?NativeBatchGen6Bridge.ActionIds:NativeBatchGen7StaticBridge.ActionIds).Concat(NativeMasterBatchBridge.ActionIds).Concat(project.Generation==7?NativeGen7FieldBridge.ActionIds:[]).Concat(project.Generation==7?NativeGen7MachineBridge.ActionIds:[]).Concat(project.Generation==7?NativeGen7MartBridge.ActionIds:[]).Concat(project.Generation==7?Gen7ParameterActions:[]).Concat(project.Generation==7?NativeGen7WildBridge.ActionIds:[]).ToArray();
+        var allowed=(project.Generation==6?NativeBatchGen6Bridge.ActionIds:NativeBatchGen7StaticBridge.ActionIds).Concat(NativeMasterBatchBridge.ActionIds).Append(ManualEditTemplate.ActionId).Concat(project.Generation==7?NativeGen7FieldBridge.ActionIds:[]).Concat(project.Generation==7?NativeGen7MachineBridge.ActionIds:[]).Concat(project.Generation==7?NativeGen7MartBridge.ActionIds:[]).Concat(project.Generation==7?Gen7ParameterActions:[]).Concat(project.Generation==7?NativeGen7WildBridge.ActionIds:[]).ToArray();
         if(project.Generation is not (6 or 7)||document.Actions.Count==0||document.Actions.All(id=>id=="rng.seed")||document.Actions.Any(id=>id!="rng.seed"&&!allowed.Contains(id,StringComparer.OrdinalIgnoreCase))||!HasAllSelectedSnapshots(document))return false;
+        ManualEditTemplate.ValidateSession(project,document);
         NativeGen7WildBridge.ValidateSession(project,document);ValidateGen7Parameters(project,document);NativeMasterBatchBridge.ValidateSession(project,document);
         if(project.Generation==6)NativeBatchGen6Bridge.ValidateSession(project,document);else {NativeBatchGen7StaticBridge.ValidateSession(project,document);NativeGen7FieldBridge.ValidateSession(project,document);NativeGen7MachineBridge.ValidateSession(project,document);_=NativeGen7MartBridge.ValidateSession(project,document);}
         if(document.CheckAssets(new[]{AppContext.BaseDirectory,project.ProjectRoot,Path.GetDirectoryName(document.SourcePath)??""}).Count!=0)
@@ -35,6 +36,7 @@ internal static class NativeRecipeCompletion
     }
     internal static bool HasAllSelectedSnapshots(GlobalTemplateDocument document)
     {
+        ManualEditTemplate.Validate(document);
         if(!NativeMasterBatchBridge.HasAllSelectedSnapshots(document))return false;
         if(!NativeGen7WildBridge.HasAllSelectedSnapshots(document))return false;
         if(!NativeGen7MartBridge.HasAllSelectedSnapshots(document))return false;

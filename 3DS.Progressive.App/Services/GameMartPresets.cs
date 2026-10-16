@@ -15,6 +15,8 @@ public sealed partial class GameMartService
 {
     private static readonly int[] ItemPool = [68,69,70,71,72,73,74,75,76,77,78,79,80,81,82,83,84,85,86,87,88,89,90,91,92,93,94,99,100,101,102,103,104,105,106,107,108,109,110,111,112,116,117,118,119,135,136,137,213,214,215,217,218,219,220,221,222,223,224,225,226,227,228,229,230,231,232,233,234,235,236,237,238,239,240,241,242,243,244,245,246,247,248,249,250,251,252,253,254,255,256,257,258,259,260,261,262,263,264,265,266,267,268,269,270,271,272,273,274,275,276,277,278,279,280,281,282,283,284,285,286,287,288,289,290,291,292,293,294,295,296,297,298,299,300,301,302,303,304,305,306,307,308,309,310,311,312,313,314,315,316,317,318,319,320,321,322,323,324,325,326,327,499,534,535,537,538,539,540,541,542,543,544,545,546,547,548,549,550,551,552,553,554,555,556,557,558,559,560,561,562,563,564,571,572,573,580,581,582,583,584,585,586,587,588,589,590,639,640,644,645,646,647,648,649,650,656,657,658,659,660,661,662,663,664,665,666,667,668,669,670,671,672,673,674,675,676,677,678,679,680,681,682,683,684,685,699,704,710,711,715,752,753,754,755,756,757,758,759,760,761,762,763,764,767,768,769,770,795,796,844,849,853,854,855,856,879,880,881,882,883,884,904,905,906,907,908,909,910,911,912,913,914,915,916,917,918,919,920,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,492,493,494,495,496,497,498,576,851,55,56,57,58,59,60,61,62,63,64,577,846,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50,51,52,53,54,65,66,67,134,504,565,566,567,568,569,570,591,708,709,852,0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,492,493,494,495,496,497,498,499,576];
     private static readonly HashSet<int> ProtectedItems = [328,329,330,331,332,333,334,335,336,337,338,339,340,341,342,343,344,345,346,347,348,349,350,351,352,353,354,355,356,357,358,359,360,361,362,363,364,365,366,367,368,369,370,371,372,373,374,375,376,377,378,379,380,381,382,383,384,385,386,387,388,389,390,391,392,393,394,395,396,397,398,399,400,401,402,403,404,405,406,407,408,409,410,411,412,413,414,415,416,417,418,419,420,421,422,423,424,425,426,427,618,619,620,690,691,692,693,694,701,737];
+    internal static IReadOnlyList<int> ProgressiveCatalog=>ItemPool;
+    internal static bool IsProtectedItem(int id)=>ProtectedItems.Contains(id);
     private static readonly HashSet<int> SpeedrunXItems = [55,56,57,58,59,60,61,62];
     private static readonly string[][] Vitamins =
     [
@@ -48,13 +50,14 @@ public sealed partial class GameMartService
         throw new InvalidDataException("No se encuentra el objeto "+aliases[0]+
         " en el idioma actual. Cambiá el idioma de datos a inglés o español y recargá el proyecto.");
 
-    public int RandomizeShops(bool bp,bool specialsOnly=false,bool protectX=true,int? seed=null)
+    public int RandomizeShops(bool bp,bool specialsOnly=false,bool protectX=true,int? seed=null,IReadOnlyList<int>? customPool=null,IReadOnlySet<int>? banned=null)
     {
-        int[] pool=ItemPool.Where(id=>id>0&&id<_project.ItemNames.Count&&
+        using var preset=TrackPreset();
+        int[] pool=(customPool??ItemPool).Where(id=>id>0&&id<_project.ItemNames.Count&&(banned is null||!banned.Contains(id))&&
             (!_banCapsule||id!=AbilityCapsuleUSUM)).ToArray();
         if(pool.Length==0)throw new InvalidDataException("No hay objetos válidos para randomizar.");
         int count=RandomizeSlots(RegularShops,BpShops,pool,
-            new Random(seed??RandomNumberGenerator.GetInt32(int.MaxValue)),bp,specialsOnly,protectX);
+            new Random(seed??RandomNumberGenerator.GetInt32(int.MaxValue)),bp,specialsOnly,protectX,requireDifferent:customPool is null);
         _presets.Add(bp?"marts.randomize-bp":specialsOnly?"marts.randomize:special-only":"marts.randomize");
         return count;
     }
@@ -62,7 +65,7 @@ public sealed partial class GameMartService
     // Separated from GameProjectSession so the exact Mount Lanakila/X-item
     // scenario can be regression-tested without a real Shop.cro.
     internal static int RandomizeSlots(IReadOnlyList<MartShop> regular,IReadOnlyList<MartShop> bpShops,
-        IReadOnlyList<int> allowed,Random rng,bool bp,bool specialsOnly,bool protectX)
+        IReadOnlyList<int> allowed,Random rng,bool bp,bool specialsOnly,bool protectX,bool requireDifferent=true)
     {
         int[] pool=allowed.ToArray();
         if(pool.Length==0)throw new InvalidDataException("El pool de objetos está vacío.");
@@ -82,7 +85,7 @@ public sealed partial class GameMartService
                 int next=pool[cursor++];
                 // Disabling protection must actually change a store made solely
                 // of X items. Never replace an X item with another X item.
-                if(next==before||(!protectX&&SpeedrunXItems.Contains(before)&&SpeedrunXItems.Contains(next)))
+                if(requireDifferent&&(next==before||(!protectX&&SpeedrunXItems.Contains(before)&&SpeedrunXItems.Contains(next))))
                 {
                     int search=0;
                     while(search++<pool.Length &&
@@ -100,6 +103,7 @@ public sealed partial class GameMartService
     }
     public int AddRareCandies()
     {
+        using var preset=TrackPreset();
         int candy=RequireItem("Rare Candy","Caramelo Raro");
         if(!SupportsExpansion)
         {
@@ -115,6 +119,7 @@ public sealed partial class GameMartService
     }
     public int AddVitamins252()
     {
+        using var preset=TrackPreset();
         if(!SupportsExpansion)return AddSmTrainingItems();
         int[] vitamins=Vitamins.Select(RequireItem).ToArray();
         if(vitamins.Distinct().Count()!=6)throw new InvalidDataException("Las seis vitaminas deben ser distintas.");
@@ -159,12 +164,13 @@ public sealed partial class GameMartService
         return changes;
     }
     public int BanAbilityCapsule()=>BanAbilityCapsule(RandomNumberGenerator.GetInt32(int.MaxValue));
-    public int BanAbilityCapsule(int seed)
+    public int BanAbilityCapsule(int seed,IReadOnlyList<int>? customPool=null,IReadOnlySet<int>? banned=null)
     {
+        using var preset=TrackPreset();
         int capsule=AbilityCapsuleUSUM;
         if(capsule>=_project.ItemNames.Count)
             throw new InvalidDataException("La tabla de objetos USUM no contiene el ID 645.");
-        int[] pool=ItemPool.Where(id=>id>0&&id<_project.ItemNames.Count&&id!=capsule&&!ProtectedItems.Contains(id)).Distinct().ToArray();
+        int[] pool=(customPool??ItemPool).Where(id=>id>0&&id<_project.ItemNames.Count&&(banned is null||!banned.Contains(id))&&id!=capsule&&!ProtectedItems.Contains(id)).Distinct().ToArray();
         if(pool.Length==0)throw new InvalidOperationException("No hay reemplazos válidos para Cápsula Habilidad.");
         var rng=new Random(seed);int changed=0;
         foreach(var shop in RegularShops.Concat(BpShops))

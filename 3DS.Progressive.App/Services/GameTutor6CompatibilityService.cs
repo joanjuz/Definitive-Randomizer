@@ -45,6 +45,7 @@ internal sealed class GameTutor6CompatibilityService
     }
     internal void Apply(Tutor6CompatibilityPreview preview)
     {
+        using var manual=Environment.GetEnvironmentVariable("DEFINITIVE_BATCH_REPLAY")=="1"?null:ManualOperationScope.Flags(preview.File.Original(),preview.File.Proposed(),"GameTutor6CompatibilityService");
         if(preview.Owner!=_owner||preview.Changes.Count==0)throw new InvalidOperationException("La propuesta no pertenece a este servicio o no tiene cambios.");
         foreach(var (path,bytes) in new[]{(_personalPath,_personal),(_learnPath,_learn),(_evoPath,_evo),(_codePath,_code)})GarcTransaction.ReadUnchanged(path,SHA256.HashData(bytes));
         _project.History.Commit([preview.File],"Tutores ORAS","Sanity / Follow Evolutions",preview.Changes,new Dictionary<string,string>{{"Scope","All"},{"TutorSanity",preview.Sanity.ToString()},{"TutorFollowEvolutions",preview.Follow.ToString()},{"Dependencies","code.bin, levelup, evolution"}});

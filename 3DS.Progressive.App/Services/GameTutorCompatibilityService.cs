@@ -124,6 +124,7 @@ public sealed class GameTutorCompatibilityService
 
     public void Apply(TutorCompatibilityPreview preview)
     {
+        using var manual=Environment.GetEnvironmentVariable("DEFINITIVE_BATCH_REPLAY")=="1"?null:ManualOperationScope.Flags(_personalOriginal,preview.PersonalOutput,"GameTutorCompatibilityService");
         ArgumentNullException.ThrowIfNull(preview);
         if(preview.Changes.Count==0)
             throw new InvalidOperationException("No se encontraron compatibilidades nuevas que guardar.");

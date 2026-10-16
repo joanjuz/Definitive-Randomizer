@@ -19,6 +19,7 @@ public sealed class ProjectHistory
     private static readonly JsonSerializerOptions Json = new() { WriteIndented=true };
     private readonly string _root, _game, _path;
     private readonly object _gate;
+    internal Func<int>? ActiveLanguage {get;set;}
     public ProjectHistory(string projectRoot, string game, string? storageRoot=null)
     {
         _root=Path.GetFullPath(projectRoot); _game=game;
@@ -30,6 +31,7 @@ public sealed class ProjectHistory
             Path.Combine(storageRoot,"history",id+".json");
         _gate=Locks.GetOrAdd(_path,_=>new object());
     }
+    internal string StorageDirectory=>Path.GetDirectoryName(_path)!;
     public HistoryDocument Read()
     {
         lock(_gate){RecoveryJournal.Recover(_path+".pending",_root,_path);return File.Exists(_path)
@@ -46,7 +48,7 @@ public sealed class ProjectHistory
         {
             RecoverPending();
             var actual=files.Where(f=>f.Changed).ToArray();
-            if(actual.Length==0)return;
+            if(actual.Length==0&&parameters?.ContainsKey("RecordTemplateUse")!=true)return;
             Directory.CreateDirectory(Path.GetDirectoryName(_path)!);
             // File.Replace requires a target. Initializing the empty journal changes no game data.
             if(!File.Exists(_path)) File.WriteAllBytes(_path,JsonSerializer.SerializeToUtf8Bytes(Read(),Json));
@@ -55,7 +57,18 @@ public sealed class ProjectHistory
                 ?? throw new InvalidDataException("No se puede leer el historial."));
             var values=changes.ToArray();
             var options=new Dictionary<string,string>(parameters??new Dictionary<string,string>());
-            bool bulk=options.ContainsKey("Scope")||options.ContainsKey("Settings");
+            if(ManualOperationScope.Current?["Kind"]?.GetValue<string>()=="random-only"){options["ActionId"]=ManualOperationScope.Current["Payload"]!["ActionId"]!.GetValue<string>();options["Scope"]="All";}
+            else if(ManualOperationScope.Current is {} manual)options["ManualOperation"]=manual.ToJsonString();
+            else if(ManualResourceReplay.ShouldCapture(action,options))
+                options["ManualOperation"]=ManualResourceReplay.Capture(_root,Path.GetDirectoryName(_path)!,actual).ToJsonString();
+            if(options.TryGetValue("ManualOperation",out string? command))
+            {
+                var snapshot=System.Text.Json.Nodes.JsonNode.Parse(command)!.AsObject();int language=snapshot["Language"]?.GetValue<int>()??ActiveLanguage?.Invoke()??-1;snapshot["Language"]=language;
+                string key=snapshot["Key"]!.GetValue<string>(),suffix="@"+language;
+                if(snapshot["Kind"]?.GetValue<string>()!="resources"&&!key.EndsWith(suffix,StringComparison.Ordinal))snapshot["Key"]=key+suffix;
+                options["ManualOperation"]=snapshot.ToJsonString();
+            }
+            bool bulk=!options.ContainsKey("ManualOperation")&&(options.ContainsKey("Scope")||options.ContainsKey("Settings"));
             if(bulk)
             {
                 options.Remove("Seed");
@@ -74,12 +87,17 @@ public sealed class ProjectHistory
             FileTransaction.Commit(commit,recovery:recovery);
         }
     }
+    internal void RecordTemplateUse(System.Text.Json.Nodes.JsonObject payload)
+    {
+        var operation=new System.Text.Json.Nodes.JsonObject{["Kind"]="authored-template",["Key"]="template:"+payload["Asset"]!["Sha256"]!.GetValue<string>(),["Payload"]=payload.DeepClone()};
+        Commit([],"Templates","Usar template · "+(payload["TemplateKind"]!.GetValue<string>() switch{"Moves"=>"Movimientos","Evolutions"=>"Evoluciones","Stats"=>"Estadísticas Pokémon","FieldItems"=>"Objetos de campo","Shops"=>"Tiendas",_=>"Personalizado"}),[],new Dictionary<string,string>{{"ManualOperation",operation.ToJsonString()},{"RecordTemplateUse","true"}});
+    }
     public void Export(string path) => File.WriteAllBytes(path,JsonSerializer.SerializeToUtf8Bytes(Read(),Json));
     private static HistoryDocument Normalize(HistoryDocument document)=>document with
     {
         Version=2,Entries=document.Entries.Select(entry=>
         {
-            if(entry.Kind=="Action"||!entry.Parameters.ContainsKey("Scope")&&!entry.Parameters.ContainsKey("Settings"))return entry;
+            if(entry.Kind=="Action"||entry.Parameters.ContainsKey("ManualOperation")||!entry.Parameters.ContainsKey("Scope")&&!entry.Parameters.ContainsKey("Settings"))return entry;
             var parameters=new Dictionary<string,string>(entry.Parameters);parameters.Remove("Seed");
             parameters["SeedPolicy"]=entry.Action.StartsWith("Randomizar",StringComparison.Ordinal)?"FreshPerRun":"NotRandom";
             if(parameters.TryGetValue("Settings",out var settings))

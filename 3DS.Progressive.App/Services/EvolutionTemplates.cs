@@ -16,7 +16,7 @@ internal static class EvolutionTemplates
             int ID(string token,string[] names)=>int.TryParse(token,NumberStyles.Integer,CultureInfo.InvariantCulture,out int id)?id:Array.FindIndex(names,n=>n.Equals(token,StringComparison.OrdinalIgnoreCase));
             int Number(int column,int fallback=0)=>Get(column)==""?fallback:int.TryParse(Get(column),NumberStyles.Integer,CultureInfo.InvariantCulture,out int value)?value:throw new InvalidDataException("Número inválido en fila de evolución: "+first);
             int source=ID(first,species),target=ID(Get(1),species),method=Method(Get(2)),level=Number(3),argument=Number(4),form=Number(5,-1);
-            if(Get(6).Length>0)
+            if(Get(6).Length>0&&argument<=0)
             {
                 argument=ID(Get(6),items);if(argument<=0&&Get(7).Length>0)argument=ID(Get(7),items);
                 if(argument<=0)throw new InvalidDataException("No se encontró el objeto de evolución: "+Get(6));

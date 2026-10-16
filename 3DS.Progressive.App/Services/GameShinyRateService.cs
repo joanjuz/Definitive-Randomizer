@@ -101,6 +101,8 @@ internal sealed class GameShinyRateService
     }
     internal void Apply(FileChange file,IReadOnlyList<BatchChange> changes,bool restore)
     {
+        var desired=Decode(file.Proposed()).State;
+        using var manual=Environment.GetEnvironmentVariable("DEFINITIVE_BATCH_REPLAY")=="1"?null:ManualOperationScope.Begin("shiny","shiny",new{desired.Rerolls,Everything=desired.AlwaysShiny,Restore=restore});
         GarcTransaction.ReadUnchanged(file.Path,file.Fingerprint);
         _project.History.Commit([file],"Mecánicas y CRO",restore?"Restaurar Shiny Rate":"Editar Shiny Rate",
             changes,new Dictionary<string,string>{{"ActionId",restore?"shiny-rate.restore":"shiny-rate.apply"}});

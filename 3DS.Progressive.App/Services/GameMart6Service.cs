@@ -15,6 +15,7 @@ public sealed partial class GameMart6Service : IProjectEditor
     internal static readonly int[] CountsXY=[2,11,14,17,18,19,19,19,19,1,4,10,3,9,1,1,3,3,5,5,6,7,5,5,8,3];
     internal static readonly int[] CountsORAS=[3,10,14,17,18,19,19,19,19,1,9,6,4,3,8,8,3,3,4,3,6,8,7,4];
     private static readonly HashSet<int> Protected=[..Enumerable.Range(328,100),618,619,620,690,691,692,693,694,701,737];
+    internal static bool IsProtectedItem(int id)=>Protected.Contains(id);
     private readonly GameProjectSession _project;
     private readonly string _codePath,_itemPath;
     private readonly GARCReference _itemRef;
@@ -78,6 +79,7 @@ public sealed partial class GameMart6Service : IProjectEditor
     public IReadOnlyList<EditorGroup> Read(int id)=>Read(id,Source());
     public void Save(int id,IReadOnlyDictionary<string,int> values)
     {
+        using var manual=ManualOperationScope.Record(this,id,values);
         byte[] before=Source(),next=(byte[])before.Clone();EditorValues.Validate(Read(id,before),values);
         for(int i=0;i<_counts[id-1];i++)BitConverter.GetBytes((ushort)values[$"Item{i}"]).CopyTo(next,_offsets[id-1]+i*2);
         next=RebuildExisting(before,next);

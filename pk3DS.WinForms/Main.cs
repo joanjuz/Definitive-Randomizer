@@ -430,7 +430,11 @@ public sealed partial class Main : Form
                     BatchRuntime.Log($"Seed = {seed}");
                     BatchBridgeProgress.Step("Template aplicado","Iniciando las acciones de la receta");
                     BatchRuntime.Log($"Replaying {template.Actions.Count} action(s)...");
-                    if(batchGeneration==6)BatchGen6ActionExecutor.Execute(template);else BatchGen7ActionExecutor.Execute(template);
+                    string previousReplay=Environment.GetEnvironmentVariable("DEFINITIVE_BATCH_REPLAY"),previousTemplate=Environment.GetEnvironmentVariable("DEFINITIVE_TEMPLATE_PATH");
+                    Environment.SetEnvironmentVariable("DEFINITIVE_TEMPLATE_PATH",options.TemplatePath);
+                    Environment.SetEnvironmentVariable("DEFINITIVE_BATCH_REPLAY","1");
+                    try{if(batchGeneration==6)BatchGen6ActionExecutor.Execute(template);else BatchGen7ActionExecutor.Execute(template);}
+                    finally{Environment.SetEnvironmentVariable("DEFINITIVE_BATCH_REPLAY",previousReplay);Environment.SetEnvironmentVariable("DEFINITIVE_TEMPLATE_PATH",previousTemplate);}
 
                     if (File.Exists(outputPath))
                         File.Delete(outputPath);

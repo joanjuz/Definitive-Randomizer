@@ -1,4 +1,4 @@
-﻿using System.IO;
+using System.IO;
 using System.Security.Cryptography;
 using pk3DS.Core;
 using pk3DS.Core.CTR;
@@ -21,8 +21,11 @@ public sealed class GameTextService
     private byte[] _sha;
     private readonly bool _story;
     private readonly Guid _owner=Guid.NewGuid();
+    internal IReadOnlyList<TextCommandEntry> Commands(int id)=>TextCommandCatalogue.Build(_config,id>=0?Read(id):[]);
+    internal string GameName=>_project.GameName;
     public string BankName=>_story?"Story Text":"Game Text";
     public IReadOnlyList<RecordEntry> Entries {get;private set;} = [];
+    public IReadOnlyList<string> AvailableTags => Entries.SelectMany(e=>Tags(e.Id)).Distinct().Order(StringComparer.CurrentCultureIgnoreCase).ToArray();
     public GameTextService(GameProjectSession project,bool story=false)
     {
         _project=project;_config=project.GameConfiguration;_story=story;
@@ -34,49 +37,72 @@ public sealed class GameTextService
         _sha=SHA256.HashData(File.ReadAllBytes(_path));
         RefreshCatalogue();
     }
+    private readonly Dictionary<int, TextContentClassification> _classification = [];
+    private Dictionary<int,string> _catalogueSearch=[];
+    internal bool CatalogueMatches(int id,string normalizedQuery)=>_catalogueSearch.TryGetValue(id,out var text)&&text.Contains(normalizedQuery,StringComparison.Ordinal);
+    private readonly Dictionary<int, KnownTextPurpose> _knownPurposes = [];
+    private Dictionary<int, TextMapReference[]> _mapReferences = [];
+    public IReadOnlyList<TextMapReference> MapReferences(int id) => _mapReferences.GetValueOrDefault(id) ?? [];
+    public TextContentClassification Classification(int id) => _classification.GetValueOrDefault(id) ?? new([]);
+    public string ClassificationDetails(int id)
+    {
+        string origin = !_story && _config.GameText.Any(t => t.Index == id) ? "Categoría conocida por la tabla del juego." : "Sugerencias por contenido; no confirman ubicación ni hablante.";
+        if(_knownPurposes.TryGetValue(id,out var purpose)) origin = $"Catálogo revisado para {_project.GameName}: {purpose.Title}.";
+        if(Classification(id).Evidence.Any(e=>e.Source.Length>0)) origin += " Intervenciones contrastadas con el banco inglés y Bulbapedia; el personaje puede aparecer solo en parte del archivo.";
+        if(MapReferences(id).Count>0)origin += " Referencia directa de zona: " + string.Join("; ", MapReferences(id).Take(3).Select(m=>$"{m.Location} (zona {m.Zone})")) + ".";
+        return origin + " " + string.Join(" · ", Classification(id).Evidence.Take(4).Select(e => $"{e.Category}: {e.Match}" + (e.Line>=0?$" (línea {e.Line})":"")));
+    }
     private void RefreshCatalogue()
     {
         var records=ReadRecords();
+        var allLines=records.Select(record=>new TextFile(_config,record,_config.RemapCharacters).Lines).ToArray();
+        var localCounts=allLines.Select(lines=>lines.Length).ToArray();
+        var reviewed=_story?KnownStoryTextCatalogue.ReadReviewed(_config,localCounts):[];
+        _knownPurposes.Clear();
+        _mapReferences=_story?TextMapResolver.Read(_config,records.Length):[];
+        var quoteEvidence=_story?StoryQuoteCatalogue.Read(_config,records.Length,localCounts):[];
         Entries=Enumerable.Range(0,records.Length).Select(i=>
         {
-            var lines=new TextFile(_config,records[i],_config.RemapCharacters).Lines;
+            var lines=allLines[i];
+            _classification[i] = TextContentClassifier.Classify(_project.GameName, lines);
+            if(quoteEvidence.TryGetValue(i,out var matches))
+                _classification[i]=new(_classification[i].Evidence.Concat(matches.Where(e=>e.Line<lines.Length)).ToArray());
+            var purpose=_story?KnownStoryTextCatalogue.Find(_project.GameName,records.Length,i):KnownTextCatalogue.Find(_project.GameName,records.Length,i);
+            if(reviewed.TryGetValue(i,out var localPurpose))purpose=localPurpose;
+            if(purpose is not null)
+            {
+                _knownPurposes[i]=purpose;
+                _classification[i]=new(_classification[i].Evidence.Append(new(purpose.Category,-1,purpose.Title)).ToArray());
+            }
             string sample=lines.FirstOrDefault(t=>!string.IsNullOrWhiteSpace(t))??"Sin mensajes visibles";
             sample=sample.Replace("\r"," ").Replace("\n"," ");if(sample.Length>55)sample=sample[..55]+"…";
-            var tags=Tags(i);return new RecordEntry(i,$"{Describe(i)} · [{(tags.Count==0?"Sin clasificar":string.Join(" · ",tags))}] · {lines.Length} líneas");
+            var tags=Tags(i);string context=MapReferences(i).Count>0?"Lugar: "+string.Join(" / ",MapReferences(i).Select(m=>m.Location).Distinct().Take(2)):"";
+            var visibleTags=tags.OrderByDescending(t=>t.StartsWith("Personaje: ",StringComparison.Ordinal)).Take(3);
+            string tagText=tags.Count==0?"Sin clasificar":string.Join(" · ",visibleTags)+(tags.Count>3?$" · +{tags.Count-3}":"");
+            return new RecordEntry(i,$"{Describe(i)}{(context.Length == 0 ? "" : " · " + context)} · [{tagText}] · {lines.Length} líneas");
         }).ToArray();
+        _catalogueSearch=Entries.ToDictionary(e=>e.Id,e=>TextContentClassifier.Normalize(e.Display+" "+string.Join(" ",Tags(e.Id))+" "+string.Join(" ",MapReferences(e.Id).Select(m=>m.Location))+" "+string.Join(" ",Classification(e.Id).Evidence.Select(v=>v.Match))));
     }
-    public static readonly string[] TagChoices=["Intercambios","NPCs","Historia principal","Diálogos importantes","Combate","Menús","Pokédex","Nombres y descripciones"];
-    private string TagsPath=>Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),"DefinitiveRandomizer","TextTags",Convert.ToHexString(SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(Path.GetFullPath(_project.ProjectRoot).ToUpperInvariant())))[..24]+$"-{(_story?"story":"game")}-{_config.Language}.json");
-    private Dictionary<int,string[]>? _tags;
+    public static readonly string[] TagChoices=new[]{"Intercambios","NPCs","Historia principal","Diálogos importantes","Combate","Menús","Pokédex","Nombres y descripciones"}.Concat(TextContentClassifier.Categories).Concat(KnownTextCatalogue.Categories).Concat(KnownStoryTextCatalogue.Categories).Concat(new[]{"Diálogos de zona","Relatos y leyendas","Fósiles y formas","Exploración y obstáculos","Misiones secundarias"}).Distinct().ToArray();
     public IReadOnlyList<string> Tags(int id)
     {
-        if(_tags is null)_tags=File.Exists(TagsPath)?System.Text.Json.JsonSerializer.Deserialize<Dictionary<int,string[]>>(File.ReadAllText(TagsPath))??[]:[];
-        if(_tags.TryGetValue(id,out var tags))return tags;
+        if(_knownPurposes.TryGetValue(id,out var purpose))return new[]{purpose.Category}.Concat(Classification(id).Tags.Where(t=>t.StartsWith("Personaje: ",StringComparison.Ordinal))).Distinct().ToArray();
+        if(MapReferences(id).Count>0)return new[]{"Diálogos de zona"}.Concat(Classification(id).Tags).Distinct().ToArray();
         if(!_story)
         {
             var reference=_config.GameText.FirstOrDefault(t=>t.Index==id);
             if(reference is not null)return reference.Name switch
             {
-                TextName.TrainerText=>["Combate"],TextName.PokedexEntry1 or TextName.PokedexEntry2 or TextName.SpeciesClassifications=>["Pokédex"],
-                TextName.TrainerNames or TextName.TrainerClasses or TextName.AbilityNames or TextName.ItemNames or TextName.ItemFlavor or TextName.MoveNames or TextName.MoveFlavor or TextName.SpeciesNames or TextName.Types or TextName.Natures or TextName.Forms=>["Nombres y descripciones"],_=>[]
+                TextName.metlist_000000=>["Lugares mencionados"],TextName.TrainerText=>["Combate"],TextName.PokedexEntry1 or TextName.PokedexEntry2 or TextName.SpeciesClassifications=>["Pokédex"],
+                TextName.TrainerNames or TextName.TrainerClasses or TextName.AbilityNames or TextName.ItemNames or TextName.ItemFlavor or TextName.MoveNames or TextName.MoveFlavor or TextName.SpeciesNames or TextName.Types or TextName.Natures or TextName.Forms=>["Nombres y descripciones"],_=>Classification(id).Tags
             };
         }
-        return [];
-    }
-    public void SetTags(int id,IEnumerable<string> tags)
-    {
-        if(!Entries.Any(e=>e.Id==id))throw new ArgumentOutOfRangeException(nameof(id));
-        var next=tags.Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
-        if(next.Any(t=>!TagChoices.Contains(t)))throw new ArgumentException("Etiqueta no admitida.");
-        _=Tags(id);var updated=new Dictionary<int,string[]>(_tags!){[id]=next};
-        Directory.CreateDirectory(Path.GetDirectoryName(TagsPath)!);
-        string temp=TagsPath+".tmp-"+Guid.NewGuid().ToString("N");
-        try{File.WriteAllText(temp,System.Text.Json.JsonSerializer.Serialize(updated));File.Move(temp,TagsPath,true);}finally{if(File.Exists(temp))File.Delete(temp);}
-        _tags=updated;RefreshCatalogue();
+        return Classification(id).Tags;
     }
     public string Location=>$"{_project.GameName} · idioma {_config.Language} · {_config.GetGARCFileName(_story?"storytext":"gametext")}";
     private string Describe(int id)
     {
+        if(_knownPurposes.TryGetValue(id,out var purpose))return purpose.Title;
         if(_story)return $"Diálogos y eventos · archivo {id:000}";
         var reference=_config.GameText.FirstOrDefault(t=>t.Index==id);
         return reference is null?$"Otros textos · archivo {id:000}":reference.Name switch

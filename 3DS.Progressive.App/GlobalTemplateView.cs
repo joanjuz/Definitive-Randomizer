@@ -1,4 +1,4 @@
-﻿using System.Collections.ObjectModel;
+using System.Collections.ObjectModel;
 using System.IO;
 using System.Windows;
 using System.Windows.Controls;
@@ -46,7 +46,7 @@ internal sealed class GlobalTemplateView : UserControl
         header.Children.Add(new TextBlock
         {
             Text="Cargá una receta y recuperá las opciones guardadas de los editores compatibles. " +
-                "Guardar incorpora tus ajustes de entrenadores, estáticos, Pokémon, movimientos, MT, tutores, tiendas, objetos, evoluciones y movimientos huevo. Cargar no modifica la ROM.",
+                "Guardar incorpora tus opciones y las modificaciones manuales guardadas en el historial. Batch aplica primero la randomización y después los valores manuales. Cargar no modifica la ROM; conservá junto al JSON su carpeta .assets si contiene recursos adjuntos.",
             Foreground=(Brush)FindResource("TextSoft"),TextWrapping=TextWrapping.Wrap,
             Margin=new Thickness(0,5,0,12)
         });
@@ -90,7 +90,7 @@ internal sealed class GlobalTemplateView : UserControl
             Binding=new Binding(nameof(ActionRow.Selected)){Mode=BindingMode.TwoWay,
                 UpdateSourceTrigger=UpdateSourceTrigger.PropertyChanged}});
         grid.Columns.Add(new DataGridTextColumn{Header="Acción original",Width=new DataGridLength(1,DataGridLengthUnitType.Star),
-            IsReadOnly=true,Binding=new Binding(nameof(ActionRow.Id))});
+            IsReadOnly=true,Binding=new Binding(nameof(ActionRow.Display))});
         root.Children.Add(grid);
         _save.IsEnabled=false;
         _status.Text="Ninguna receta cargada. Seleccioná DEFINITIVO.json o creá un snapshot parcial desde el historial.";
@@ -112,7 +112,7 @@ internal sealed class GlobalTemplateView : UserControl
         _meta.Text=$"Versión {document.Version} · Coverage {document.Coverage} · " +
             $"{document.SettingsCount} líneas RandSettings · {document.TrainerCapCount} Trainer Caps · " +
             $"{document.TrainerMoveRuleCount} Trainer Move Rules · {document.PlayerCapCount} Player Caps · " +
-            $"{document.AssetCount} assets · {_actions.Count} acciones · SHA {document.Sha256[..12]}…";
+            $"{document.AssetCount} assets · {(document.Section("ProgressiveApp")?["ManualEdits"]?["Entries"]?.AsArray().Count??0)+ManualOperations.Read(document).Length} modificaciones exactas · {_actions.Count} acciones · SHA {document.Sha256[..12]}…";
         _save.IsEnabled=true;
         _status.Text=warning??"Receta validada y cargada en memoria. Nada se escribió en la ROM.";
     }
@@ -163,8 +163,8 @@ internal sealed class GlobalTemplateView : UserControl
         }
         template.MergeHistoryActions(_project.History);
         _captureOptions?.Invoke(template);
-        Use(template,"Se agregaron las acciones del historial y las opciones recordadas de los editores compatibles. " +
-            "Los demás módulos ausentes siguen pendientes. Para una receta completa, empezá con un template original.");
+        int missing=template.Section("ProgressiveApp")?["ManualEdits"]?["MissingHistoryPayloads"]?.AsArray().Count??0;
+        Use(template,missing>0?$"Se detectaron {missing} modificaciones antiguas sin datos suficientes. Al guardar se indicarán las entradas que necesitás editar y guardar de nuevo.":"Se incorporaron las opciones disponibles y las modificaciones manuales. Estas se aplicarán al final de la randomización. Los módulos sin configuración no se inventan.");
     }
     private void Save()
     {
@@ -184,6 +184,7 @@ internal sealed class GlobalTemplateView : UserControl
     {
         if(_loaded is null)throw new InvalidOperationException("Primero cargá o creá un template.");
         var export=_loaded.Clone();
+        ManualEditTemplate.Capture(export,_project.History.Read());
         _captureOptions?.Invoke(export);
         // Newly enabled editor actions were not present in the previously loaded list.
         // Keep explicit deselections for existing rows and include new settings.
@@ -198,6 +199,7 @@ internal sealed class GlobalTemplateView : UserControl
     private sealed class ActionRow
     {
         public string Id{get;init;}="";
+        public string Display=>Id==ManualEditTemplate.ActionId?"Modificaciones manuales · aplicar entradas y recursos al final":Id;
         public bool Selected{get;set;}
     }
 }

@@ -44,7 +44,7 @@ public sealed class GameTutor6Service : IProjectEditor
         }
         _=Gen6TutorLayout.Read(output,_moveCount);return new(_owner,action,seed,[new FileChange(_path,source,output)],changes,parameters);
     }
-    public void Save(int id,IReadOnlyDictionary<string,int> values)=>Apply(Build(new Dictionary<int,IReadOnlyDictionary<string,int>>{{id,values}},0,"Editar tutor ORAS",new Dictionary<string,string>{{"Scope",id.ToString()}}));
+    public void Save(int id,IReadOnlyDictionary<string,int> values){using var manual=ManualOperationScope.Record(this,id,values);Apply(Build(new Dictionary<int,IReadOnlyDictionary<string,int>>{{id,values}},0,"Editar tutor ORAS",new Dictionary<string,string>{{"Scope",id.ToString()}}));}
     public EditorProposal Preview(IReadOnlyDictionary<string,int> options,IReadOnlyList<int> scope)=>Preview(options,scope,RandomNumberGenerator.GetInt32(int.MaxValue));
     internal EditorProposal Preview(IReadOnlyDictionary<string,int> options,IReadOnlyList<int> scope,int seed)
     {

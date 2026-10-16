@@ -83,6 +83,7 @@ public sealed record BatchSettings
     public bool MoveTypes { get; init; }
     public bool MoveCategories { get; init; }
     public string? TemplatePath { get; init; }
+    public bool ExplicitBattlePatchSelection { get; init; }
     public bool BattlePatches { get; init; } = true;
     public bool MoveDescriptions { get; init; } = true;
 }

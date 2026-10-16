@@ -40,6 +40,9 @@ public sealed partial class GameMachineTutorService
     private readonly ushort[] _originalTm;
     private readonly int[] _originalPrices;
     private readonly int[] _originalTutorMoves;
+    private int[]? _generatedMachines,_generatedTutorMoves;
+    private object[] ManualMachines()=>Machines.Where((row,i)=>row.MoveId!=(_generatedMachines is null?_originalTm[i]:_generatedMachines[i])).Select(r=>(object)new{r.Number,r.MoveId}).ToArray();
+    private object[] ManualTutors(bool full)=>Tutors.Select((r,i)=>new{r.Number,r.MoveId,r.Price,MoveChanged=full&&r.MoveId!=(_generatedTutorMoves is null?_originalTutorMoves[i]:_generatedTutorMoves[i]),PriceChanged=r.Price!=_originalPrices[i]}).Where(r=>r.MoveChanged||r.PriceChanged).Cast<object>().ToArray();
     public IReadOnlyList<MachineMoveRow> Machines {get;}
     public IReadOnlyList<TutorPriceRow> Tutors {get;}
     public IReadOnlyList<MoveChoice> MoveChoices {get;}
@@ -113,6 +116,7 @@ public sealed partial class GameMachineTutorService
         foreach(var row in Machines)
             if(!excluded.Contains(row.MoveId)&&!Legal.Z_Moves.Contains(row.MoveId))
                 row.MoveId=pool[cursor++];
+        _generatedMachines=Machines.Select(r=>r.MoveId).ToArray();
     }
     internal (IReadOnlyList<FileChange> Files,IReadOnlyList<BatchChange> Changes) PrepareMachines(bool synchronizeDescriptions)
     {
@@ -130,6 +134,8 @@ public sealed partial class GameMachineTutorService
     }
     public void SaveMachines(bool synchronizeDescriptions=false)
     {
+        var explicitRows=ManualMachines();
+        using var manual=Environment.GetEnvironmentVariable("DEFINITIVE_BATCH_REPLAY")=="1"?null:explicitRows.Length>0?ManualOperationScope.Begin("machines7","machines7",new{Rows=explicitRows,SynchronizeDescriptions=synchronizeDescriptions}):_generatedMachines is not null?ManualOperationScope.Begin("random-only","",new{ActionId="tms.randomize"}):null;
         var preview=PrepareMachines(synchronizeDescriptions);
         _project.History.Commit(preview.Files,"MT y tutores","Editar MT",preview.Changes);
         if(synchronizeDescriptions)_project.GameConfiguration.InitializeGameText();
@@ -138,6 +144,7 @@ public sealed partial class GameMachineTutorService
     }
     public void SaveTutorPrices()
     {
+        using var manual=Environment.GetEnvironmentVariable("DEFINITIVE_BATCH_REPLAY")=="1"?null:ManualOperationScope.Begin("tutors7","tutors7",new{Rows=ManualTutors(false)});
         if(_shopOriginal is null)throw new NotSupportedException("No se encontró una tabla de tutores editable.");
         if(Tutors.Any(t=>t.Price is <0 or >65535))throw new ArgumentException("Los precios deben estar entre 0 y 65535.");
         byte[] current=GarcTransaction.ReadUnchanged(_shopPath,SHA256.HashData(_shopOriginal));

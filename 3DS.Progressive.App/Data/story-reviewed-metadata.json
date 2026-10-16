@@ -1,0 +1,3228 @@
+{
+  "format": 1,
+  "method": "Local bank review; whole English-file fingerprint; no dialogue included",
+  "matches": [
+    {
+      "game": "XY",
+      "file": 146,
+      "bankCount": 424,
+      "lines": 7,
+      "englishSha256": "6A58B151ACD17FD9AF37D48CF36DF0F602142016C0776DCD136A02E1B5F055B9",
+      "title": "Mensajes breves de escena",
+      "category": "Escenas y reacciones"
+    },
+    {
+      "game": "XY",
+      "file": 149,
+      "bankCount": 424,
+      "lines": 1,
+      "englishSha256": "DEB638426A803EC6E62EF2AC9CE881E09E29D53F4CDAD1A8EBCA50D41FDE152E",
+      "title": "Mensajes breves de escena",
+      "category": "Escenas y reacciones"
+    },
+    {
+      "game": "XY",
+      "file": 152,
+      "bankCount": 424,
+      "lines": 1,
+      "englishSha256": "6FE93C7817B265970334B5C21B713AA171F4D82AD329C782CB394842BFBCE665",
+      "title": "Mensajes breves de escena",
+      "category": "Escenas y reacciones"
+    },
+    {
+      "game": "ORAS",
+      "file": 7,
+      "bankCount": 637,
+      "lines": 14,
+      "englishSha256": "BDB996AC8FE015F2E474C60EE265E072E0E003806C515EFC39A1634408B7617D",
+      "title": "Expendedoras, lotería y Campana Concha",
+      "category": "Compras y servicios"
+    },
+    {
+      "game": "ORAS",
+      "file": 250,
+      "bankCount": 637,
+      "lines": 30,
+      "englishSha256": "7DF0E95E9C72820F79173992F22862788EB7AE7F3BC1CEED922CED566A6345B2",
+      "title": "Expendedoras, lotería y Campana Concha",
+      "category": "Compras y servicios"
+    },
+    {
+      "game": "ORAS",
+      "file": 373,
+      "bankCount": 637,
+      "lines": 8,
+      "englishSha256": "77EF1552A278720DB02AF9AFAB2E947DB0255EC58A8FAD67909D6B3D290123A2",
+      "title": "Expendedoras, lotería y Campana Concha",
+      "category": "Compras y servicios"
+    },
+    {
+      "game": "ORAS",
+      "file": 18,
+      "bankCount": 637,
+      "lines": 22,
+      "englishSha256": "F59BBD3C324FA2E449C76D33F369DE2421AFFBE36DA0DD1B88AE189739A68669",
+      "title": "Mensajes de prueba y marcadores",
+      "category": "Recursos técnicos"
+    },
+    {
+      "game": "ORAS",
+      "file": 132,
+      "bankCount": 637,
+      "lines": 131,
+      "englishSha256": "7200496B38F87B72E92D50F756BFC9F6BC78231DDCDEDA4E294178E1C8A1694B",
+      "title": "Configuración de combates de Base Secreta",
+      "category": "Bases Secretas"
+    },
+    {
+      "game": "ORAS",
+      "file": 134,
+      "bankCount": 637,
+      "lines": 16,
+      "englishSha256": "BEB2778E469CB47A94FBAA7DCC9F253C9FF7DFF8C70AEC178FEC9C1DE09C6072",
+      "title": "Inversos Combates Club",
+      "category": "Combates y desafíos"
+    },
+    {
+      "game": "ORAS",
+      "file": 141,
+      "bankCount": 637,
+      "lines": 19,
+      "englishSha256": "1673834E41A77E275015F8236122D26D54D0DE4863D16E368A9A29DCB8D9F3C5",
+      "title": "Anillos misteriosos y eventos de Pokémon singulares",
+      "category": "Legendarios y eventos especiales"
+    },
+    {
+      "game": "ORAS",
+      "file": 257,
+      "bankCount": 637,
+      "lines": 15,
+      "englishSha256": "9D91FB6C46B739E86F0FCAA921D35A621D7C4C4C73B712DD3F71C406DC7A9A92",
+      "title": "Anillos misteriosos y eventos de Pokémon singulares",
+      "category": "Legendarios y eventos especiales"
+    },
+    {
+      "game": "ORAS",
+      "file": 258,
+      "bankCount": 637,
+      "lines": 20,
+      "englishSha256": "3B18B3A400064043DA284C7C5745EB24BD3C797479A70CD6990C79BD52475BC4",
+      "title": "Anillos misteriosos y eventos de Pokémon singulares",
+      "category": "Legendarios y eventos especiales"
+    },
+    {
+      "game": "ORAS",
+      "file": 228,
+      "bankCount": 637,
+      "lines": 10,
+      "englishSha256": "665AFB5768897373B5DF8629D2A0A17B0CD14F976A058F0C4D903CAD97111C02",
+      "title": "Academia de Movimientos",
+      "category": "Movimientos y habilidades"
+    },
+    {
+      "game": "ORAS",
+      "file": 229,
+      "bankCount": 637,
+      "lines": 12,
+      "englishSha256": "695B72C2C962842F1799616C2411DF9C8A11846A8A425924D44CC064BE71D0DB",
+      "title": "Academia de Movimientos",
+      "category": "Movimientos y habilidades"
+    },
+    {
+      "game": "ORAS",
+      "file": 237,
+      "bankCount": 637,
+      "lines": 21,
+      "englishSha256": "E184BBF821979002DEB9423A1224C5336F68186032034567C521B11D865D153C",
+      "title": "Entregas de Pokémon Global Link",
+      "category": "Regalo Misterioso"
+    },
+    {
+      "game": "ORAS",
+      "file": 249,
+      "bankCount": 637,
+      "lines": 45,
+      "englishSha256": "BD08A4DFA15DACD91E81368E50BD00185E3B48619EEF03C2B7D6CDE76865EE6A",
+      "title": "Reportajes y conversaciones con NPCs",
+      "category": "NPCs"
+    },
+    {
+      "game": "ORAS",
+      "file": 256,
+      "bankCount": 637,
+      "lines": 10,
+      "englishSha256": "C11E4458C677AD991E8008298D071F369FA6B263C8D70197C75D0B60270B582A",
+      "title": "Reportajes y conversaciones con NPCs",
+      "category": "NPCs"
+    },
+    {
+      "game": "ORAS",
+      "file": 262,
+      "bankCount": 637,
+      "lines": 16,
+      "englishSha256": "93E4A72E8173AE32C77A3CD056B39E55DA562096D65092DDDC828F4C66D52D4B",
+      "title": "Plantación de bayas",
+      "category": "Bayas y cultivos"
+    },
+    {
+      "game": "ORAS",
+      "file": 445,
+      "bankCount": 637,
+      "lines": 138,
+      "englishSha256": "08F7FC8E2FF1735853ABE8FC25C2B3604B1FB970775CDA697A3028406C878A88",
+      "title": "Presentaciones, resultados y conversaciones de concursos",
+      "category": "Concursos"
+    },
+    {
+      "game": "ORAS",
+      "file": 449,
+      "bankCount": 637,
+      "lines": 22,
+      "englishSha256": "0D988D7A2F5DEBDD493CBEFFABFD243490F2070AC883CC51D455C282CF9C49D5",
+      "title": "Presentaciones, resultados y conversaciones de concursos",
+      "category": "Concursos"
+    },
+    {
+      "game": "ORAS",
+      "file": 451,
+      "bankCount": 637,
+      "lines": 10,
+      "englishSha256": "A08A6F291616930CD4563E3FE2371A1087FB7E173167268402ABDDBB6A4B7FEC",
+      "title": "Presentaciones, resultados y conversaciones de concursos",
+      "category": "Concursos"
+    },
+    {
+      "game": "ORAS",
+      "file": 453,
+      "bankCount": 637,
+      "lines": 33,
+      "englishSha256": "FB4A046C98E34573A567DC4671E09B052ABAFD005EB12D94C66C6935BDAF8423",
+      "title": "Presentaciones, resultados y conversaciones de concursos",
+      "category": "Concursos"
+    },
+    {
+      "game": "ORAS",
+      "file": 456,
+      "bankCount": 637,
+      "lines": 20,
+      "englishSha256": "804E61408002B27C1E3F5F36394CD9E5786182981BB19B78308FBBACF23271A5",
+      "title": "Presentaciones, resultados y conversaciones de concursos",
+      "category": "Concursos"
+    },
+    {
+      "game": "ORAS",
+      "file": 457,
+      "bankCount": 637,
+      "lines": 11,
+      "englishSha256": "7875D2D19E25EC8239C3892A8F7640E52D22E37357DA7EC47AC1A1497545FAFB",
+      "title": "Presentaciones, resultados y conversaciones de concursos",
+      "category": "Concursos"
+    },
+    {
+      "game": "ORAS",
+      "file": 460,
+      "bankCount": 637,
+      "lines": 36,
+      "englishSha256": "687F30486235391968F5C5C5C87F6C84F5DC4F36F0F88F9617AD1D9B3A6A7C14",
+      "title": "Atuendos de Pikachu Coqueta",
+      "category": "Personalización"
+    },
+    {
+      "game": "ORAS",
+      "file": 607,
+      "bankCount": 637,
+      "lines": 9,
+      "englishSha256": "2B28AA39BD4E1844EEF7D3D876A666F4D8DFD48D573FA7820C0251503FCF3F31",
+      "title": "Puertas y salas de pruebas",
+      "category": "Exploración y obstáculos"
+    },
+    {
+      "game": "SM",
+      "file": 2,
+      "bankCount": 776,
+      "lines": 33,
+      "englishSha256": "924A1A999508009D8D23116C0F9C67D718A02CF4B1954EF85762996D03A764AB",
+      "title": "Interacciones y reacciones de Pokémon",
+      "category": "Interacciones con Pokémon"
+    },
+    {
+      "game": "SM",
+      "file": 25,
+      "bankCount": 776,
+      "lines": 3,
+      "englishSha256": "BBABF3BEB1BF9B1C4EC2413902F70DA55F68E4B6C2CE154BD00AD3579A6AF69F",
+      "title": "Interacciones y reacciones de Pokémon",
+      "category": "Interacciones con Pokémon"
+    },
+    {
+      "game": "SM",
+      "file": 86,
+      "bankCount": 776,
+      "lines": 2,
+      "englishSha256": "0646064F23544D3F94CB1E4A45E8DF453A09DD274EE1145E855F181A5C392B06",
+      "title": "Interacciones y reacciones de Pokémon",
+      "category": "Interacciones con Pokémon"
+    },
+    {
+      "game": "SM",
+      "file": 314,
+      "bankCount": 776,
+      "lines": 2,
+      "englishSha256": "9413D70DCE2A6F2C03FE6DD5B22A06A5B5FE3BD03798D0BBB311705865DAEBA5",
+      "title": "Interacciones y reacciones de Pokémon",
+      "category": "Interacciones con Pokémon"
+    },
+    {
+      "game": "SM",
+      "file": 315,
+      "bankCount": 776,
+      "lines": 1,
+      "englishSha256": "456440DCFB0C72D3A7BC4FC84390AB9DFE3F46D70D3BD83426BE0C2F98BBC4E8",
+      "title": "Interacciones y reacciones de Pokémon",
+      "category": "Interacciones con Pokémon"
+    },
+    {
+      "game": "SM",
+      "file": 334,
+      "bankCount": 776,
+      "lines": 4,
+      "englishSha256": "FCC5634ACD07D64B35B78DE5526188315CFB43A6E28C49FE3B147F37A04B7F0B",
+      "title": "Interacciones y reacciones de Pokémon",
+      "category": "Interacciones con Pokémon"
+    },
+    {
+      "game": "SM",
+      "file": 402,
+      "bankCount": 776,
+      "lines": 17,
+      "englishSha256": "10B62B88BDAC652D6B5B01EB651FD87A7E44E879B398AE4D494DBEE931534B37",
+      "title": "Interacciones y reacciones de Pokémon",
+      "category": "Interacciones con Pokémon"
+    },
+    {
+      "game": "SM",
+      "file": 406,
+      "bankCount": 776,
+      "lines": 15,
+      "englishSha256": "5897800E187F69C5037AAAE12B8F571F37C14A44D1837EA0B5DD1DCFAD807E35",
+      "title": "Interacciones y reacciones de Pokémon",
+      "category": "Interacciones con Pokémon"
+    },
+    {
+      "game": "SM",
+      "file": 425,
+      "bankCount": 776,
+      "lines": 5,
+      "englishSha256": "D1D2776EFDED8C96AB6A48897159582B493F08F833488C6CF921EC5B9C229509",
+      "title": "Interacciones y reacciones de Pokémon",
+      "category": "Interacciones con Pokémon"
+    },
+    {
+      "game": "SM",
+      "file": 441,
+      "bankCount": 776,
+      "lines": 13,
+      "englishSha256": "3B7B478FABB558B7C039D38D97C31B56C53C02D44E2CFB896AD62B89F8CB2583",
+      "title": "Interacciones y reacciones de Pokémon",
+      "category": "Interacciones con Pokémon"
+    },
+    {
+      "game": "SM",
+      "file": 444,
+      "bankCount": 776,
+      "lines": 79,
+      "englishSha256": "5B89450225EC9EFE4E636D4B1BFD381F0F5293A0BC305305DBBE4F4D62A17B38",
+      "title": "Interacciones y reacciones de Pokémon",
+      "category": "Interacciones con Pokémon"
+    },
+    {
+      "game": "SM",
+      "file": 461,
+      "bankCount": 776,
+      "lines": 4,
+      "englishSha256": "113041BEB3865C6132DAC9E740040351A26DD1EED5617CF32968682CACCEE385",
+      "title": "Interacciones y reacciones de Pokémon",
+      "category": "Interacciones con Pokémon"
+    },
+    {
+      "game": "SM",
+      "file": 462,
+      "bankCount": 776,
+      "lines": 4,
+      "englishSha256": "AEE22F4FFB5B4243E030CDCD34404A4AD98124AEF0E8762BB95A60CB44F39571",
+      "title": "Interacciones y reacciones de Pokémon",
+      "category": "Interacciones con Pokémon"
+    },
+    {
+      "game": "SM",
+      "file": 463,
+      "bankCount": 776,
+      "lines": 4,
+      "englishSha256": "5F09607D26E3963AB6982707D35935CE94B4D2272BB4137886DF673B495B202F",
+      "title": "Interacciones y reacciones de Pokémon",
+      "category": "Interacciones con Pokémon"
+    },
+    {
+      "game": "SM",
+      "file": 469,
+      "bankCount": 776,
+      "lines": 4,
+      "englishSha256": "7584EB720D87C05F2C0CDA1A7FC067A6F4A44F6DDC42AEF1BF3D5A4BF769D363",
+      "title": "Interacciones y reacciones de Pokémon",
+      "category": "Interacciones con Pokémon"
+    },
+    {
+      "game": "SM",
+      "file": 583,
+      "bankCount": 776,
+      "lines": 3,
+      "englishSha256": "89BCB73969493B57ACDBFF1BECBD30D64F4BBF837DEE3F494067EC9AD3A7CDC3",
+      "title": "Interacciones y reacciones de Pokémon",
+      "category": "Interacciones con Pokémon"
+    },
+    {
+      "game": "SM",
+      "file": 602,
+      "bankCount": 776,
+      "lines": 4,
+      "englishSha256": "0BC0EAF8D4236F1FA580209FC4E1D7D00E5A0F9FC06261BA0FAEEA51FB062EA7",
+      "title": "Interacciones y reacciones de Pokémon",
+      "category": "Interacciones con Pokémon"
+    },
+    {
+      "game": "SM",
+      "file": 8,
+      "bankCount": 776,
+      "lines": 27,
+      "englishSha256": "BAE5A4C568B5CCBAF05B2B2CAB632307777015F6DFAD695AEA3E72BD4A832D69",
+      "title": "Peluquería, probadores y cambio de imagen",
+      "category": "Personalización"
+    },
+    {
+      "game": "SM",
+      "file": 15,
+      "bankCount": 776,
+      "lines": 24,
+      "englishSha256": "5FEDF53E5FC95B42F8F89F1707576A2A06EAE283CB93C054DFDF3BCC6219E2FD",
+      "title": "Peluquería, probadores y cambio de imagen",
+      "category": "Personalización"
+    },
+    {
+      "game": "SM",
+      "file": 18,
+      "bankCount": 776,
+      "lines": 60,
+      "englishSha256": "F9C1CF1AA4B855D692856216F10EEB302941D89E9368C998B073AD41F2E4C3D3",
+      "title": "Peluquería, probadores y cambio de imagen",
+      "category": "Personalización"
+    },
+    {
+      "game": "SM",
+      "file": 11,
+      "bankCount": 776,
+      "lines": 12,
+      "englishSha256": "775F68CBFD64D1C9571580FB4BB2F1E3BF8FA7F9CE80DB5FFEB7436C366F22C1",
+      "title": "Repelentes",
+      "category": "Objetos y mochila"
+    },
+    {
+      "game": "SM",
+      "file": 24,
+      "bankCount": 776,
+      "lines": 15,
+      "englishSha256": "2D19603EB04678D905A5613D95F484328C2F498DF7D8B5AD4A347F543A1E6286",
+      "title": "Inicio de la aventura y conversaciones familiares",
+      "category": "Historia principal"
+    },
+    {
+      "game": "SM",
+      "file": 30,
+      "bankCount": 776,
+      "lines": 5,
+      "englishSha256": "A5C3C6138F2DEF782F4A1C8F7A4CF0A8438DD49E0BA0F5A8A649A0291D6F701D",
+      "title": "Inicio de la aventura y conversaciones familiares",
+      "category": "Historia principal"
+    },
+    {
+      "game": "SM",
+      "file": 32,
+      "bankCount": 776,
+      "lines": 2,
+      "englishSha256": "7AA048FD6E6064F833E61EC0ED1A4A32E8F24F4BF84C8BA8378BBD439E841239",
+      "title": "Inicio de la aventura y conversaciones familiares",
+      "category": "Historia principal"
+    },
+    {
+      "game": "SM",
+      "file": 44,
+      "bankCount": 776,
+      "lines": 15,
+      "englishSha256": "7B44184A471D76817049C1E7F64C922D316E2CD3686372E0CCDD2DA28F17D4AB",
+      "title": "Inicio de la aventura y conversaciones familiares",
+      "category": "Historia principal"
+    },
+    {
+      "game": "SM",
+      "file": 56,
+      "bankCount": 776,
+      "lines": 6,
+      "englishSha256": "787DBEDECD2CC3D2B67114E6983DE4AD56776545C2871711ACE6B003577343B8",
+      "title": "Inicio de la aventura y conversaciones familiares",
+      "category": "Historia principal"
+    },
+    {
+      "game": "SM",
+      "file": 57,
+      "bankCount": 776,
+      "lines": 7,
+      "englishSha256": "C9216299A84AB84989A263773FE0372A15D94305116D5CE795645A31FA4AFF3D",
+      "title": "Inicio de la aventura y conversaciones familiares",
+      "category": "Historia principal"
+    },
+    {
+      "game": "SM",
+      "file": 73,
+      "bankCount": 776,
+      "lines": 1,
+      "englishSha256": "7E46BA7E0A782240CD1DDBDC312D5496BB132AAEE23CCD732B06C10E1138A873",
+      "title": "Inicio de la aventura y conversaciones familiares",
+      "category": "Historia principal"
+    },
+    {
+      "game": "SM",
+      "file": 80,
+      "bankCount": 776,
+      "lines": 5,
+      "englishSha256": "EBDF66094D6D9F6C694E6011EF3F5D70C0CB995588FC46ECCA30B8B39236B5D8",
+      "title": "Inicio de la aventura y conversaciones familiares",
+      "category": "Historia principal"
+    },
+    {
+      "game": "SM",
+      "file": 87,
+      "bankCount": 776,
+      "lines": 14,
+      "englishSha256": "FABA5C47898289E2FE544B980931CD03F3F1B7AE81A5B8E76F614DD0D3C92CA4",
+      "title": "Inicio de la aventura y conversaciones familiares",
+      "category": "Historia principal"
+    },
+    {
+      "game": "SM",
+      "file": 88,
+      "bankCount": 776,
+      "lines": 3,
+      "englishSha256": "E731058557B9CCCE74C3CF584EF3B1BF795699296AB1D4B17DF0390A7CBFB91E",
+      "title": "Inicio de la aventura y conversaciones familiares",
+      "category": "Historia principal"
+    },
+    {
+      "game": "SM",
+      "file": 94,
+      "bankCount": 776,
+      "lines": 21,
+      "englishSha256": "5D6264E6BD7C906C94B84ABDB9F84E3CBDB4C14F8790C5D1D16C2288605FA158",
+      "title": "Inicio de la aventura y conversaciones familiares",
+      "category": "Historia principal"
+    },
+    {
+      "game": "SM",
+      "file": 130,
+      "bankCount": 776,
+      "lines": 3,
+      "englishSha256": "784EE12886887C906877E0DFD3F61A025F9F30C60AEFDEA0EB5181C877BC12DB",
+      "title": "Inicio de la aventura y conversaciones familiares",
+      "category": "Historia principal"
+    },
+    {
+      "game": "SM",
+      "file": 157,
+      "bankCount": 776,
+      "lines": 3,
+      "englishSha256": "143EFC1475F8E37AF35E4E03FEEF3F95C9DEC10FF15F0D6D148A9706EFBB5293",
+      "title": "Inicio de la aventura y conversaciones familiares",
+      "category": "Historia principal"
+    },
+    {
+      "game": "SM",
+      "file": 162,
+      "bankCount": 776,
+      "lines": 2,
+      "englishSha256": "8AFF0D3B4BBBC2DFE0AE877A15AB9407E1A3F5BD1665AA9E99ECACFA9439B164",
+      "title": "Inicio de la aventura y conversaciones familiares",
+      "category": "Historia principal"
+    },
+    {
+      "game": "SM",
+      "file": 197,
+      "bankCount": 776,
+      "lines": 2,
+      "englishSha256": "77E1CC42B09E8575FFEAE77DDFE0F9AE9C96DD08DC2C1A49484630E1359767F8",
+      "title": "Inicio de la aventura y conversaciones familiares",
+      "category": "Historia principal"
+    },
+    {
+      "game": "SM",
+      "file": 198,
+      "bankCount": 776,
+      "lines": 6,
+      "englishSha256": "877AA2345D0D4B81167805FD1E4203C5F089E69492575E7D6922EBD58FBF0028",
+      "title": "Inicio de la aventura y conversaciones familiares",
+      "category": "Historia principal"
+    },
+    {
+      "game": "SM",
+      "file": 220,
+      "bankCount": 776,
+      "lines": 2,
+      "englishSha256": "55495604E0DF452D89BBD80044FFF2B974A660C81206A7F0776014ED66D11642",
+      "title": "Inicio de la aventura y conversaciones familiares",
+      "category": "Historia principal"
+    },
+    {
+      "game": "SM",
+      "file": 240,
+      "bankCount": 776,
+      "lines": 3,
+      "englishSha256": "DD635581065A71A91697E251F7938CA0EF4A18264BBF7332DDB7328451DB2696",
+      "title": "Inicio de la aventura y conversaciones familiares",
+      "category": "Historia principal"
+    },
+    {
+      "game": "SM",
+      "file": 246,
+      "bankCount": 776,
+      "lines": 7,
+      "englishSha256": "18E50AF7921DFD1DBB629EC88C60275A11AF7806D3879A432C10E43E7CE1E863",
+      "title": "Inicio de la aventura y conversaciones familiares",
+      "category": "Historia principal"
+    },
+    {
+      "game": "SM",
+      "file": 248,
+      "bankCount": 776,
+      "lines": 16,
+      "englishSha256": "120CA606E53ABEB5CB4AE9FB707013A1A69B1FDB3D2EDD8D58C1F7A9F7EDCDFE",
+      "title": "Inicio de la aventura y conversaciones familiares",
+      "category": "Historia principal"
+    },
+    {
+      "game": "SM",
+      "file": 249,
+      "bankCount": 776,
+      "lines": 27,
+      "englishSha256": "659CB855CFF552A5A18F640D9CBF06A365AE83A1E09BBF50C755860190755B9B",
+      "title": "Inicio de la aventura y conversaciones familiares",
+      "category": "Historia principal"
+    },
+    {
+      "game": "SM",
+      "file": 250,
+      "bankCount": 776,
+      "lines": 10,
+      "englishSha256": "138B9651A7D503A2694B777AC36A9E217AB985A0182F44ACCA49300D45E4765D",
+      "title": "Inicio de la aventura y conversaciones familiares",
+      "category": "Historia principal"
+    },
+    {
+      "game": "SM",
+      "file": 275,
+      "bankCount": 776,
+      "lines": 8,
+      "englishSha256": "31182746610FCF10AE61878C684E68103E36EDD167D3A5EE857F3DAB7D75F13A",
+      "title": "Inicio de la aventura y conversaciones familiares",
+      "category": "Historia principal"
+    },
+    {
+      "game": "SM",
+      "file": 276,
+      "bankCount": 776,
+      "lines": 8,
+      "englishSha256": "31182746610FCF10AE61878C684E68103E36EDD167D3A5EE857F3DAB7D75F13A",
+      "title": "Inicio de la aventura y conversaciones familiares",
+      "category": "Historia principal"
+    },
+    {
+      "game": "SM",
+      "file": 304,
+      "bankCount": 776,
+      "lines": 1,
+      "englishSha256": "BB42B37F7EAD9C09054DFB5536ACDA8B4B7F1852E1E8CB3DF53FC3C5710EAF52",
+      "title": "Inicio de la aventura y conversaciones familiares",
+      "category": "Historia principal"
+    },
+    {
+      "game": "SM",
+      "file": 331,
+      "bankCount": 776,
+      "lines": 2,
+      "englishSha256": "1D42162C6939CF5EC9FC157FB2B57597FB8EFD2A25EE8331446EFD38F3FF530D",
+      "title": "Inicio de la aventura y conversaciones familiares",
+      "category": "Historia principal"
+    },
+    {
+      "game": "SM",
+      "file": 355,
+      "bankCount": 776,
+      "lines": 3,
+      "englishSha256": "ECC44C69F38DD453E914B62D77354149D6761BF7706E0711D674C4669F159C22",
+      "title": "Inicio de la aventura y conversaciones familiares",
+      "category": "Historia principal"
+    },
+    {
+      "game": "SM",
+      "file": 93,
+      "bankCount": 776,
+      "lines": 6,
+      "englishSha256": "C560F0CC345A0A17E928BD652430D882BEB899CDB46C421ADED56A64D1009F8F",
+      "title": "Pruebas, barreras y ayudantes del recorrido insular",
+      "category": "Pruebas y Cristales Z"
+    },
+    {
+      "game": "SM",
+      "file": 95,
+      "bankCount": 776,
+      "lines": 11,
+      "englishSha256": "B7E60CDDB75C41AC9D35BC2ED6824D40B52136AC748E0BF4E0BAE2E03CC92F56",
+      "title": "Pruebas, barreras y ayudantes del recorrido insular",
+      "category": "Pruebas y Cristales Z"
+    },
+    {
+      "game": "SM",
+      "file": 97,
+      "bankCount": 776,
+      "lines": 2,
+      "englishSha256": "3310288659B44AF162861BEDBE5FB12E21EAF4BD3D80329BED77BEE2C1942946",
+      "title": "Pruebas, barreras y ayudantes del recorrido insular",
+      "category": "Pruebas y Cristales Z"
+    },
+    {
+      "game": "SM",
+      "file": 117,
+      "bankCount": 776,
+      "lines": 17,
+      "englishSha256": "AA58F909CAE61287DDA860E0DB35B15582AEF1AC655391EF61881039E2A30EDC",
+      "title": "Pruebas, barreras y ayudantes del recorrido insular",
+      "category": "Pruebas y Cristales Z"
+    },
+    {
+      "game": "SM",
+      "file": 119,
+      "bankCount": 776,
+      "lines": 2,
+      "englishSha256": "9345B5FFC6D6FAE88145FED3755634ED8B27EB02655A84453E52C839C8CD3BB6",
+      "title": "Pruebas, barreras y ayudantes del recorrido insular",
+      "category": "Pruebas y Cristales Z"
+    },
+    {
+      "game": "SM",
+      "file": 138,
+      "bankCount": 776,
+      "lines": 3,
+      "englishSha256": "717DBA6B6FDE578BFAE581CFAA6DBBCB96340E0281F64471A5E6FB207A31FDE6",
+      "title": "Pruebas, barreras y ayudantes del recorrido insular",
+      "category": "Pruebas y Cristales Z"
+    },
+    {
+      "game": "SM",
+      "file": 151,
+      "bankCount": 776,
+      "lines": 18,
+      "englishSha256": "7AA4B6DF0389869FCBECA584D1C13253213DDACF0988530FAEEF37D486637377",
+      "title": "Pruebas, barreras y ayudantes del recorrido insular",
+      "category": "Pruebas y Cristales Z"
+    },
+    {
+      "game": "SM",
+      "file": 225,
+      "bankCount": 776,
+      "lines": 6,
+      "englishSha256": "5D884DF21430D19EF6EB916CE7D2860E7BCB8C42CAAC924D36CA7DE4639B9D50",
+      "title": "Pruebas, barreras y ayudantes del recorrido insular",
+      "category": "Pruebas y Cristales Z"
+    },
+    {
+      "game": "SM",
+      "file": 228,
+      "bankCount": 776,
+      "lines": 10,
+      "englishSha256": "B29CD2C98F829CBB6B6A59A1D074BA161C3F2F2DF72E29C2A610B527359CDCA6",
+      "title": "Pruebas, barreras y ayudantes del recorrido insular",
+      "category": "Pruebas y Cristales Z"
+    },
+    {
+      "game": "SM",
+      "file": 200,
+      "bankCount": 776,
+      "lines": 7,
+      "englishSha256": "A270BA68327390735822A6A8117E6D89A56244E9265DAE6D8D987B583058273F",
+      "title": "Exeggutobús",
+      "category": "Exploración y obstáculos"
+    },
+    {
+      "game": "SM",
+      "file": 167,
+      "bankCount": 776,
+      "lines": 9,
+      "englishSha256": "03CBFEB2862BD8AA3A388CC1A17D8E947158CDFBC98EFAD562747DC4C74ECA59",
+      "title": "Cartas y encargos de NPCs",
+      "category": "Misiones secundarias"
+    },
+    {
+      "game": "SM",
+      "file": 387,
+      "bankCount": 776,
+      "lines": 12,
+      "englishSha256": "FA0E776E902F66E1B9051CDC225AFEA647C5C916499A8CF4400E26640218ADA5",
+      "title": "Cartas y encargos de NPCs",
+      "category": "Misiones secundarias"
+    },
+    {
+      "game": "SM",
+      "file": 388,
+      "bankCount": 776,
+      "lines": 19,
+      "englishSha256": "F60B77BE899ADC65464839C35185F21DA40E4EA416EE0AF7F41931C19832C615",
+      "title": "Cartas y encargos de NPCs",
+      "category": "Misiones secundarias"
+    },
+    {
+      "game": "SM",
+      "file": 390,
+      "bankCount": 776,
+      "lines": 9,
+      "englishSha256": "135AA7E1294504298C09B394420C9A0F9F6C1B29BB0480FF004511D7B3466624",
+      "title": "Cartas y encargos de NPCs",
+      "category": "Misiones secundarias"
+    },
+    {
+      "game": "SM",
+      "file": 391,
+      "bankCount": 776,
+      "lines": 7,
+      "englishSha256": "E5766488B8E4C020CB2674F6A8F50F6FFC1C8380CB300A2E12C9C1E9AB0ED501",
+      "title": "Cartas y encargos de NPCs",
+      "category": "Misiones secundarias"
+    },
+    {
+      "game": "SM",
+      "file": 394,
+      "bankCount": 776,
+      "lines": 5,
+      "englishSha256": "96577E5B36218F0185E7BC0DA9D64049E4654C2A0F8020240FE1BD9CDA9485E5",
+      "title": "Cartas y encargos de NPCs",
+      "category": "Misiones secundarias"
+    },
+    {
+      "game": "SM",
+      "file": 400,
+      "bankCount": 776,
+      "lines": 8,
+      "englishSha256": "977E23EAC0AA83C42D9257CFDE467938F6043DB9213910C025BBAE7C631EC45E",
+      "title": "Cartas y encargos de NPCs",
+      "category": "Misiones secundarias"
+    },
+    {
+      "game": "SM",
+      "file": 404,
+      "bankCount": 776,
+      "lines": 24,
+      "englishSha256": "9B6768C48620C4186202878E2ECDA69C862834BEC4055452CFEF0F408FB0DEA8",
+      "title": "Cartas y encargos de NPCs",
+      "category": "Misiones secundarias"
+    },
+    {
+      "game": "SM",
+      "file": 405,
+      "bankCount": 776,
+      "lines": 6,
+      "englishSha256": "43555271091108675A6A9711A8CC881CDD72CB28D97725FD233BEE6066EC4009",
+      "title": "Cartas y encargos de NPCs",
+      "category": "Misiones secundarias"
+    },
+    {
+      "game": "SM",
+      "file": 408,
+      "bankCount": 776,
+      "lines": 15,
+      "englishSha256": "A840BEF450EB9A11ADA2FDAADA8EE0AA66513F35811DC5BF23FA070A46FC159E",
+      "title": "Cartas y encargos de NPCs",
+      "category": "Misiones secundarias"
+    },
+    {
+      "game": "SM",
+      "file": 410,
+      "bankCount": 776,
+      "lines": 9,
+      "englishSha256": "AF5972CE1F2757A3D15AA097392B32A4E0B97DE5AF9D14EDA9F7362FC2D34F4C",
+      "title": "Cartas y encargos de NPCs",
+      "category": "Misiones secundarias"
+    },
+    {
+      "game": "SM",
+      "file": 421,
+      "bankCount": 776,
+      "lines": 12,
+      "englishSha256": "CAB0016257EB4EE80FB48DCFC50FD3A7A43C43385ECAB6C532929F7DB0A7E53D",
+      "title": "Cartas y encargos de NPCs",
+      "category": "Misiones secundarias"
+    },
+    {
+      "game": "SM",
+      "file": 422,
+      "bankCount": 776,
+      "lines": 10,
+      "englishSha256": "10AE2D140AD1ACE5474BB0719404C234C9CF2495702BD26B6DA144A47C250727",
+      "title": "Cartas y encargos de NPCs",
+      "category": "Misiones secundarias"
+    },
+    {
+      "game": "SM",
+      "file": 427,
+      "bankCount": 776,
+      "lines": 39,
+      "englishSha256": "F43F3C54CCB44EA4B3F0E62788B7DA9E40206F6D655FF151EF2AE7A8CAF6B16C",
+      "title": "Cartas y encargos de NPCs",
+      "category": "Misiones secundarias"
+    },
+    {
+      "game": "SM",
+      "file": 433,
+      "bankCount": 776,
+      "lines": 17,
+      "englishSha256": "0A98A396B7D7FFBA8693D537E60E7FDE29FB34216B20907004DEB06BAE0A234B",
+      "title": "Cartas y encargos de NPCs",
+      "category": "Misiones secundarias"
+    },
+    {
+      "game": "SM",
+      "file": 437,
+      "bankCount": 776,
+      "lines": 17,
+      "englishSha256": "5CB92F3362EDB2E9582AC75C12FA6D0645057C8A995E421D7999382B59D8F374",
+      "title": "Cartas y encargos de NPCs",
+      "category": "Misiones secundarias"
+    },
+    {
+      "game": "SM",
+      "file": 438,
+      "bankCount": 776,
+      "lines": 10,
+      "englishSha256": "01BED2A0415D42810F85A8CF73CFEE5DEB3289F10E60788B58432BE5EF980E13",
+      "title": "Cartas y encargos de NPCs",
+      "category": "Misiones secundarias"
+    },
+    {
+      "game": "SM",
+      "file": 440,
+      "bankCount": 776,
+      "lines": 20,
+      "englishSha256": "56D0226BC1E6291A83938F14ADA71C532D8391AD03E36DFC9B3DE23F310E29AE",
+      "title": "Cartas y encargos de NPCs",
+      "category": "Misiones secundarias"
+    },
+    {
+      "game": "SM",
+      "file": 443,
+      "bankCount": 776,
+      "lines": 49,
+      "englishSha256": "2AD0EA0B58B8994397198CF42B930AEE5119BCD97CA903FA9BCBEE6B72BC0779",
+      "title": "Cartas y encargos de NPCs",
+      "category": "Misiones secundarias"
+    },
+    {
+      "game": "SM",
+      "file": 446,
+      "bankCount": 776,
+      "lines": 42,
+      "englishSha256": "C2AAD8CB34BC7A0680227EEF9816B2536131151E0D1481EB020AB61573D8E1DA",
+      "title": "Cartas y encargos de NPCs",
+      "category": "Misiones secundarias"
+    },
+    {
+      "game": "SM",
+      "file": 447,
+      "bankCount": 776,
+      "lines": 4,
+      "englishSha256": "73AC6E883CA221696DD5A0C245359752A15FCF5B07AFDB17473ADF217F9CDD99",
+      "title": "Cartas y encargos de NPCs",
+      "category": "Misiones secundarias"
+    },
+    {
+      "game": "SM",
+      "file": 450,
+      "bankCount": 776,
+      "lines": 9,
+      "englishSha256": "6C3F23A4C5FFAA23CD5E80722F008391C2EE5D235311AA50BB1AA9584535F0C8",
+      "title": "Cartas y encargos de NPCs",
+      "category": "Misiones secundarias"
+    },
+    {
+      "game": "SM",
+      "file": 451,
+      "bankCount": 776,
+      "lines": 3,
+      "englishSha256": "4DA3E22938FAAF29F8209578C62C3281D98D2FD6937BB07F6D32E903F3AC2859",
+      "title": "Cartas y encargos de NPCs",
+      "category": "Misiones secundarias"
+    },
+    {
+      "game": "SM",
+      "file": 454,
+      "bankCount": 776,
+      "lines": 19,
+      "englishSha256": "C53621B8727CAC0453A4B0E3606184DF96EE84A58D979AB52A3D6D523AF3459E",
+      "title": "Cartas y encargos de NPCs",
+      "category": "Misiones secundarias"
+    },
+    {
+      "game": "SM",
+      "file": 455,
+      "bankCount": 776,
+      "lines": 20,
+      "englishSha256": "5E17BA65C0D64DB06DF8B8C9FA39D5102FC91D07C4B9FA4D9FBCC4DD5154228E",
+      "title": "Cartas y encargos de NPCs",
+      "category": "Misiones secundarias"
+    },
+    {
+      "game": "SM",
+      "file": 364,
+      "bankCount": 776,
+      "lines": 30,
+      "englishSha256": "0F86DA778BEA39D7DC386EAEA55319CE1BCEE12604553BFA67F6E999CFF30BB5",
+      "title": "Tutores, Quita-Movimientos y evaluación de Pokémon",
+      "category": "Movimientos y habilidades"
+    },
+    {
+      "game": "SM",
+      "file": 365,
+      "bankCount": 776,
+      "lines": 15,
+      "englishSha256": "B9D512909565748838495FB8FF7F2D79597884ACC1E2F098F569B8D9CDE9D895",
+      "title": "Tutores, Quita-Movimientos y evaluación de Pokémon",
+      "category": "Movimientos y habilidades"
+    },
+    {
+      "game": "SM",
+      "file": 366,
+      "bankCount": 776,
+      "lines": 13,
+      "englishSha256": "3257534E669BEA5AEF5CB0D1F1697B514DAA60DE9B548C3AE4BDBD08C697E57E",
+      "title": "Tutores, Quita-Movimientos y evaluación de Pokémon",
+      "category": "Movimientos y habilidades"
+    },
+    {
+      "game": "SM",
+      "file": 369,
+      "bankCount": 776,
+      "lines": 15,
+      "englishSha256": "F62162CE688C8E43E7804322C238F6474D770720CDD513533B549ED7DB18BB7B",
+      "title": "Tutores, Quita-Movimientos y evaluación de Pokémon",
+      "category": "Movimientos y habilidades"
+    },
+    {
+      "game": "SM",
+      "file": 382,
+      "bankCount": 776,
+      "lines": 50,
+      "englishSha256": "1E00216D25E494B6250162D0C0B557672C0C1365A714E8471C138E4D3E5617EB",
+      "title": "Tutores, Quita-Movimientos y evaluación de Pokémon",
+      "category": "Movimientos y habilidades"
+    },
+    {
+      "game": "SM",
+      "file": 363,
+      "bankCount": 776,
+      "lines": 6,
+      "englishSha256": "02149EE6C220C198D588B3D9F0801E8748A5BDC8BAAC802F6347296BB94985D0",
+      "title": "Escáner Insular",
+      "category": "Pesca y captura"
+    },
+    {
+      "game": "SM",
+      "file": 372,
+      "bankCount": 776,
+      "lines": 38,
+      "englishSha256": "54C0EBB77FAE52AA95059BF043BF9B55D91C0CDAF9813A3705CCDA780B39758B",
+      "title": "Entrega de regalos",
+      "category": "Regalo Misterioso"
+    },
+    {
+      "game": "SM",
+      "file": 374,
+      "bankCount": 776,
+      "lines": 35,
+      "englishSha256": "7631EDAB990F272658E85091654B95046E19AB8BB040A190A2CBB1DF2B56F995",
+      "title": "Malasadas, muestras y establecimientos",
+      "category": "Compras y servicios"
+    },
+    {
+      "game": "SM",
+      "file": 412,
+      "bankCount": 776,
+      "lines": 22,
+      "englishSha256": "1172F06C87D4CA17E29E1E45FCADEB1C8E9F960AF77D0791A89D807C51AEFBAA",
+      "title": "Malasadas, muestras y establecimientos",
+      "category": "Compras y servicios"
+    },
+    {
+      "game": "SM",
+      "file": 416,
+      "bankCount": 776,
+      "lines": 10,
+      "englishSha256": "84C48958B227EB93A847A3BBE5683533947CE6508FEC132511364006BA535560",
+      "title": "Malasadas, muestras y establecimientos",
+      "category": "Compras y servicios"
+    },
+    {
+      "game": "SM",
+      "file": 452,
+      "bankCount": 776,
+      "lines": 41,
+      "englishSha256": "27C82819E904EFAB18F41C54B6BC99033F6552D882B8D7CADC87129F94D4D0BC",
+      "title": "Malasadas, muestras y establecimientos",
+      "category": "Compras y servicios"
+    },
+    {
+      "game": "SM",
+      "file": 453,
+      "bankCount": 776,
+      "lines": 3,
+      "englishSha256": "7ADA77972747E74BF745FFCBE541C7914A35EA47B4066CD4C297C245B006EB1F",
+      "title": "Malasadas, muestras y establecimientos",
+      "category": "Compras y servicios"
+    },
+    {
+      "game": "SM",
+      "file": 474,
+      "bankCount": 776,
+      "lines": 9,
+      "englishSha256": "C11F2255DA69440CA5FC2435C022F3B51553D4AFA635265CFFB323296C7A7F43",
+      "title": "Malasadas, muestras y establecimientos",
+      "category": "Compras y servicios"
+    },
+    {
+      "game": "SM",
+      "file": 389,
+      "bankCount": 776,
+      "lines": 17,
+      "englishSha256": "A4EECE84847884691A4B3595F99F112D3A5C6D7D05EFBAAFC61D9A6909C29A96",
+      "title": "Dispositivo regenerador de Zygarde",
+      "category": "Fósiles y formas"
+    },
+    {
+      "game": "SM",
+      "file": 74,
+      "bankCount": 776,
+      "lines": 8,
+      "englishSha256": "04093A63384EBB20461BCF2538DBADD372EC5457514956899554EC79538BBCB1",
+      "title": "Conversaciones y encuentros con NPCs",
+      "category": "NPCs"
+    },
+    {
+      "game": "SM",
+      "file": 380,
+      "bankCount": 776,
+      "lines": 16,
+      "englishSha256": "3712898F45B0A2CF565E08CCC643B7DB184511793D920AC22985157B67E1F9A0",
+      "title": "Conversaciones y encuentros con NPCs",
+      "category": "NPCs"
+    },
+    {
+      "game": "SM",
+      "file": 385,
+      "bankCount": 776,
+      "lines": 29,
+      "englishSha256": "F756F41E30BE1B76609894A44342BEACF43F21D94F7AD72D6AD4D00125C13F7E",
+      "title": "Conversaciones y encuentros con NPCs",
+      "category": "NPCs"
+    },
+    {
+      "game": "SM",
+      "file": 398,
+      "bankCount": 776,
+      "lines": 8,
+      "englishSha256": "A73643AE22F4573F6F398A8D8F3AA2BE40790D4F04B61DDB57EEE2494471B26C",
+      "title": "Conversaciones y encuentros con NPCs",
+      "category": "NPCs"
+    },
+    {
+      "game": "SM",
+      "file": 419,
+      "bankCount": 776,
+      "lines": 11,
+      "englishSha256": "0893345F11AF7273D98BC5268FFB8A9DA004E3E6A59DB67C48B42A03EC407777",
+      "title": "Conversaciones y encuentros con NPCs",
+      "category": "NPCs"
+    },
+    {
+      "game": "SM",
+      "file": 472,
+      "bankCount": 776,
+      "lines": 10,
+      "englishSha256": "EF61D1F2491A63190B18387A1763EA12FD8BF4F6877C0B1DC2DA6FCD7B3C1F4D",
+      "title": "Conversaciones y encuentros con NPCs",
+      "category": "NPCs"
+    },
+    {
+      "game": "SM",
+      "file": 601,
+      "bankCount": 776,
+      "lines": 5,
+      "englishSha256": "DA0B832A8369BA8553F86C35A1273A8991EA166636DE8774FAD64D3B7592A166",
+      "title": "Conversaciones y encuentros con NPCs",
+      "category": "NPCs"
+    },
+    {
+      "game": "SM",
+      "file": 695,
+      "bankCount": 776,
+      "lines": 5,
+      "englishSha256": "E289BFD5AFDC19F6796C1F9D4CFF03C4F9145FEF5C0A0158EB98428CC433D6AE",
+      "title": "Conversaciones y encuentros con NPCs",
+      "category": "NPCs"
+    },
+    {
+      "game": "SM",
+      "file": 748,
+      "bankCount": 776,
+      "lines": 9,
+      "englishSha256": "70D68F857E37C639D74DADC48152BE2AAD3A17C7292C2ACBF7029EE055245ED0",
+      "title": "Conversaciones y encuentros con NPCs",
+      "category": "NPCs"
+    },
+    {
+      "game": "SM",
+      "file": 749,
+      "bankCount": 776,
+      "lines": 3,
+      "englishSha256": "0CEF7539B9274632AB3811ECDF61F774136951108EC514F2AA20CEF8D19AC278",
+      "title": "Conversaciones y encuentros con NPCs",
+      "category": "NPCs"
+    },
+    {
+      "game": "SM",
+      "file": 751,
+      "bankCount": 776,
+      "lines": 10,
+      "englishSha256": "73E422BF557DD1D38DEC2466BE7500477AE3341B7C138259E8907D75D0CF8959",
+      "title": "Conversaciones y encuentros con NPCs",
+      "category": "NPCs"
+    },
+    {
+      "game": "SM",
+      "file": 753,
+      "bankCount": 776,
+      "lines": 1,
+      "englishSha256": "C6F2A94E8D2DF8590293D00046DBAFDBDE51DDB8D7C1CF5863748F294050E023",
+      "title": "Conversaciones y encuentros con NPCs",
+      "category": "NPCs"
+    },
+    {
+      "game": "SM",
+      "file": 470,
+      "bankCount": 776,
+      "lines": 17,
+      "englishSha256": "108378196230526DDBAE52B8592B2AA0FD26D322803445DCDA0F71E9771C8C8B",
+      "title": "Don Extremo",
+      "category": "Entrenamiento Extremo"
+    },
+    {
+      "game": "SM",
+      "file": 521,
+      "bankCount": 776,
+      "lines": 5,
+      "englishSha256": "DAAC7D22D9992374BCE1B8CBE1E2BDD7D60EF6E4079DACB1CC7C0823BC20DD6A",
+      "title": "Equipo y uso de bayas",
+      "category": "Tutoriales"
+    },
+    {
+      "game": "SM",
+      "file": 523,
+      "bankCount": 776,
+      "lines": 12,
+      "englishSha256": "EA03942F8B168F5AD4500DD5E4FF3646D8C3C3998F4CB341347E362151A9D394",
+      "title": "Equipo y uso de bayas",
+      "category": "Tutoriales"
+    },
+    {
+      "game": "SM",
+      "file": 598,
+      "bankCount": 776,
+      "lines": 6,
+      "englishSha256": "217998C74445A9A6DB18564475292AA6CBC9969F532AE059D22E227B66DE2579",
+      "title": "Equipo y uso de bayas",
+      "category": "Tutoriales"
+    },
+    {
+      "game": "SM",
+      "file": 652,
+      "bankCount": 776,
+      "lines": 1,
+      "englishSha256": "4DE05BC934C1A26A7F92537D5BABD67B6A344B7172EB4BA59E9B35A3724C6567",
+      "title": "Estatua del espíritu guardián",
+      "category": "Lugares y mapas"
+    },
+    {
+      "game": "SM",
+      "file": 717,
+      "bankCount": 776,
+      "lines": 1,
+      "englishSha256": "00A4149D8E8578E7E7E25C6C9B0FD7FE7A14C154647273EAA539C3CFD7E61DDE",
+      "title": "Aviso de partida no guardada",
+      "category": "Guardado y errores"
+    },
+    {
+      "game": "USUM",
+      "file": 3,
+      "bankCount": 1124,
+      "lines": 33,
+      "englishSha256": "924A1A999508009D8D23116C0F9C67D718A02CF4B1954EF85762996D03A764AB",
+      "title": "Interacciones y reacciones de Pokémon",
+      "category": "Interacciones con Pokémon"
+    },
+    {
+      "game": "USUM",
+      "file": 28,
+      "bankCount": 1124,
+      "lines": 3,
+      "englishSha256": "EA0E9B4AE0FCA8E511C528BC95A34D454081854DB43686206193369150AD405B",
+      "title": "Interacciones y reacciones de Pokémon",
+      "category": "Interacciones con Pokémon"
+    },
+    {
+      "game": "USUM",
+      "file": 37,
+      "bankCount": 1124,
+      "lines": 9,
+      "englishSha256": "2441298CAE8F31C834499712EE8E89B4394DBDBA7807FC3C521C77675BBCE0FC",
+      "title": "Interacciones y reacciones de Pokémon",
+      "category": "Interacciones con Pokémon"
+    },
+    {
+      "game": "USUM",
+      "file": 99,
+      "bankCount": 1124,
+      "lines": 3,
+      "englishSha256": "418509B1DE33601657F51217F37F65FD4A67F02FCA1ADEE6157073CC1B64A9FD",
+      "title": "Interacciones y reacciones de Pokémon",
+      "category": "Interacciones con Pokémon"
+    },
+    {
+      "game": "USUM",
+      "file": 351,
+      "bankCount": 1124,
+      "lines": 2,
+      "englishSha256": "9413D70DCE2A6F2C03FE6DD5B22A06A5B5FE3BD03798D0BBB311705865DAEBA5",
+      "title": "Interacciones y reacciones de Pokémon",
+      "category": "Interacciones con Pokémon"
+    },
+    {
+      "game": "USUM",
+      "file": 352,
+      "bankCount": 1124,
+      "lines": 1,
+      "englishSha256": "456440DCFB0C72D3A7BC4FC84390AB9DFE3F46D70D3BD83426BE0C2F98BBC4E8",
+      "title": "Interacciones y reacciones de Pokémon",
+      "category": "Interacciones con Pokémon"
+    },
+    {
+      "game": "USUM",
+      "file": 371,
+      "bankCount": 1124,
+      "lines": 8,
+      "englishSha256": "37FE8D39B91234AF238F350D8D4BBE1CBFC79B401CAE0D94662BDE8A98AD0BDF",
+      "title": "Interacciones y reacciones de Pokémon",
+      "category": "Interacciones con Pokémon"
+    },
+    {
+      "game": "USUM",
+      "file": 380,
+      "bankCount": 1124,
+      "lines": 4,
+      "englishSha256": "CD33C0FECAF2347D841D52FD0CA5F1852F9ABDCFBAB5F68FCF7183A9B0D09D66",
+      "title": "Interacciones y reacciones de Pokémon",
+      "category": "Interacciones con Pokémon"
+    },
+    {
+      "game": "USUM",
+      "file": 382,
+      "bankCount": 1124,
+      "lines": 4,
+      "englishSha256": "FCC5634ACD07D64B35B78DE5526188315CFB43A6E28C49FE3B147F37A04B7F0B",
+      "title": "Interacciones y reacciones de Pokémon",
+      "category": "Interacciones con Pokémon"
+    },
+    {
+      "game": "USUM",
+      "file": 455,
+      "bankCount": 1124,
+      "lines": 1,
+      "englishSha256": "983985D0FBF28B923800731A29E5C5DCA92AA170A71FDE1FBAFF8FEE380E0AF0",
+      "title": "Interacciones y reacciones de Pokémon",
+      "category": "Interacciones con Pokémon"
+    },
+    {
+      "game": "USUM",
+      "file": 537,
+      "bankCount": 1124,
+      "lines": 17,
+      "englishSha256": "10B62B88BDAC652D6B5B01EB651FD87A7E44E879B398AE4D494DBEE931534B37",
+      "title": "Interacciones y reacciones de Pokémon",
+      "category": "Interacciones con Pokémon"
+    },
+    {
+      "game": "USUM",
+      "file": 541,
+      "bankCount": 1124,
+      "lines": 15,
+      "englishSha256": "5897800E187F69C5037AAAE12B8F571F37C14A44D1837EA0B5DD1DCFAD807E35",
+      "title": "Interacciones y reacciones de Pokémon",
+      "category": "Interacciones con Pokémon"
+    },
+    {
+      "game": "USUM",
+      "file": 560,
+      "bankCount": 1124,
+      "lines": 5,
+      "englishSha256": "D1D2776EFDED8C96AB6A48897159582B493F08F833488C6CF921EC5B9C229509",
+      "title": "Interacciones y reacciones de Pokémon",
+      "category": "Interacciones con Pokémon"
+    },
+    {
+      "game": "USUM",
+      "file": 576,
+      "bankCount": 1124,
+      "lines": 13,
+      "englishSha256": "0E5D3AB59D44B22980FD05156DF37E07F68247FA15968B60F6832B021F6D2B11",
+      "title": "Interacciones y reacciones de Pokémon",
+      "category": "Interacciones con Pokémon"
+    },
+    {
+      "game": "USUM",
+      "file": 596,
+      "bankCount": 1124,
+      "lines": 4,
+      "englishSha256": "113041BEB3865C6132DAC9E740040351A26DD1EED5617CF32968682CACCEE385",
+      "title": "Interacciones y reacciones de Pokémon",
+      "category": "Interacciones con Pokémon"
+    },
+    {
+      "game": "USUM",
+      "file": 597,
+      "bankCount": 1124,
+      "lines": 4,
+      "englishSha256": "AEE22F4FFB5B4243E030CDCD34404A4AD98124AEF0E8762BB95A60CB44F39571",
+      "title": "Interacciones y reacciones de Pokémon",
+      "category": "Interacciones con Pokémon"
+    },
+    {
+      "game": "USUM",
+      "file": 598,
+      "bankCount": 1124,
+      "lines": 4,
+      "englishSha256": "5F09607D26E3963AB6982707D35935CE94B4D2272BB4137886DF673B495B202F",
+      "title": "Interacciones y reacciones de Pokémon",
+      "category": "Interacciones con Pokémon"
+    },
+    {
+      "game": "USUM",
+      "file": 604,
+      "bankCount": 1124,
+      "lines": 4,
+      "englishSha256": "7584EB720D87C05F2C0CDA1A7FC067A6F4A44F6DDC42AEF1BF3D5A4BF769D363",
+      "title": "Interacciones y reacciones de Pokémon",
+      "category": "Interacciones con Pokémon"
+    },
+    {
+      "game": "USUM",
+      "file": 720,
+      "bankCount": 1124,
+      "lines": 10,
+      "englishSha256": "B130E99DD9A2AB0743458689CC95D2BBA3F33EF87868978F4CF59331C74E8206",
+      "title": "Interacciones y reacciones de Pokémon",
+      "category": "Interacciones con Pokémon"
+    },
+    {
+      "game": "USUM",
+      "file": 889,
+      "bankCount": 1124,
+      "lines": 4,
+      "englishSha256": "0BC0EAF8D4236F1FA580209FC4E1D7D00E5A0F9FC06261BA0FAEEA51FB062EA7",
+      "title": "Interacciones y reacciones de Pokémon",
+      "category": "Interacciones con Pokémon"
+    },
+    {
+      "game": "USUM",
+      "file": 1068,
+      "bankCount": 1124,
+      "lines": 3,
+      "englishSha256": "E5580E1F50499C1C1133844E07E5CB08276A5530FD2633E389395FF16B03FA33",
+      "title": "Interacciones y reacciones de Pokémon",
+      "category": "Interacciones con Pokémon"
+    },
+    {
+      "game": "USUM",
+      "file": 9,
+      "bankCount": 1124,
+      "lines": 27,
+      "englishSha256": "6A75E615158BDD3D1C7BA02D698AC88871DB211256254860611977B4AD284305",
+      "title": "Estilismo de Furfrou y probadores",
+      "category": "Personalización"
+    },
+    {
+      "game": "USUM",
+      "file": 17,
+      "bankCount": 1124,
+      "lines": 24,
+      "englishSha256": "5FEDF53E5FC95B42F8F89F1707576A2A06EAE283CB93C054DFDF3BCC6219E2FD",
+      "title": "Estilismo de Furfrou y probadores",
+      "category": "Personalización"
+    },
+    {
+      "game": "USUM",
+      "file": 709,
+      "bankCount": 1124,
+      "lines": 5,
+      "englishSha256": "45904A9FD51768C84EB71F9F53A899FF420917B4BBD3FFAE38141B095081A80A",
+      "title": "Estilismo de Furfrou y probadores",
+      "category": "Personalización"
+    },
+    {
+      "game": "USUM",
+      "file": 12,
+      "bankCount": 1124,
+      "lines": 12,
+      "englishSha256": "4C1D535EDADCE974428CC3D61643DF8AE1FF6D184E15804DB5FEA3156B4F2F6B",
+      "title": "Repelentes",
+      "category": "Objetos y mochila"
+    },
+    {
+      "game": "USUM",
+      "file": 13,
+      "bankCount": 1124,
+      "lines": 87,
+      "englishSha256": "3C775D29A1E18FB2844453E78588BD810F9F01F2A686CB4A6364E464D839CE56",
+      "title": "Mandos, vórtices y accesos",
+      "category": "Exploración y obstáculos"
+    },
+    {
+      "game": "USUM",
+      "file": 24,
+      "bankCount": 1124,
+      "lines": 55,
+      "englishSha256": "DC7364483BC5DE606EA33BB3AF4A394E8A8DAF6EE1B9BF6AB3C6AA50E2FCC238",
+      "title": "Mandos, vórtices y accesos",
+      "category": "Exploración y obstáculos"
+    },
+    {
+      "game": "USUM",
+      "file": 30,
+      "bankCount": 1124,
+      "lines": 16,
+      "englishSha256": "8BB5F8A3C363FD726ED8CD2722B40D9414763E9AE6D4198381C2FB099219ADF4",
+      "title": "Mandos, vórtices y accesos",
+      "category": "Exploración y obstáculos"
+    },
+    {
+      "game": "USUM",
+      "file": 232,
+      "bankCount": 1124,
+      "lines": 7,
+      "englishSha256": "A270BA68327390735822A6A8117E6D89A56244E9265DAE6D8D987B583058273F",
+      "title": "Mandos, vórtices y accesos",
+      "category": "Exploración y obstáculos"
+    },
+    {
+      "game": "USUM",
+      "file": 387,
+      "bankCount": 1124,
+      "lines": 3,
+      "englishSha256": "744C823688E55BF2F38EF5F2CFB5B9A2943073257245DD4086E2DEE01886610E",
+      "title": "Mandos, vórtices y accesos",
+      "category": "Exploración y obstáculos"
+    },
+    {
+      "game": "USUM",
+      "file": 446,
+      "bankCount": 1124,
+      "lines": 9,
+      "englishSha256": "10C3A31BFB99073F2DFC70EB69942E68093F44A1543E61287663F302316A70C0",
+      "title": "Mandos, vórtices y accesos",
+      "category": "Exploración y obstáculos"
+    },
+    {
+      "game": "USUM",
+      "file": 478,
+      "bankCount": 1124,
+      "lines": 10,
+      "englishSha256": "29D24660ABC0F88D6DD45F04352A4A9C02811BAFCCBB052F3FC82D7AE6F49619",
+      "title": "Mandos, vórtices y accesos",
+      "category": "Exploración y obstáculos"
+    },
+    {
+      "game": "USUM",
+      "file": 688,
+      "bankCount": 1124,
+      "lines": 10,
+      "englishSha256": "EF31C993E24FAD7A38CB93B62BCB7E2AF9338B372CBCFFBB56DCCF0B94E30B13",
+      "title": "Mandos, vórtices y accesos",
+      "category": "Exploración y obstáculos"
+    },
+    {
+      "game": "USUM",
+      "file": 689,
+      "bankCount": 1124,
+      "lines": 12,
+      "englishSha256": "7595D0C1C64A9CF2550D7C14D3BEC0FD2653C5A9FB139C5B7FB7E06DCBE811E0",
+      "title": "Mandos, vórtices y accesos",
+      "category": "Exploración y obstáculos"
+    },
+    {
+      "game": "USUM",
+      "file": 27,
+      "bankCount": 1124,
+      "lines": 15,
+      "englishSha256": "EDC65429A2E44225A4A9CCEB248CFDD8028F9534A15FF40B2C0CCE3C0AC026A6",
+      "title": "Inicio de la aventura y conversaciones familiares",
+      "category": "Historia principal"
+    },
+    {
+      "game": "USUM",
+      "file": 29,
+      "bankCount": 1124,
+      "lines": 44,
+      "englishSha256": "FFE460EBC48737CC498EFC35390DD8D7FE589911E072618F7BF2AE35A65A95AF",
+      "title": "Inicio de la aventura y conversaciones familiares",
+      "category": "Historia principal"
+    },
+    {
+      "game": "USUM",
+      "file": 33,
+      "bankCount": 1124,
+      "lines": 5,
+      "englishSha256": "48CFA6AC49F75E9EF3280AC0CAE422D5E5E0A72D453E7B25BA0DDC2CE810B7E0",
+      "title": "Inicio de la aventura y conversaciones familiares",
+      "category": "Historia principal"
+    },
+    {
+      "game": "USUM",
+      "file": 36,
+      "bankCount": 1124,
+      "lines": 10,
+      "englishSha256": "A68C70711F064AF800440F1F3E9195B509DC9FEDF4B5AF75D3068522D19985A4",
+      "title": "Inicio de la aventura y conversaciones familiares",
+      "category": "Historia principal"
+    },
+    {
+      "game": "USUM",
+      "file": 51,
+      "bankCount": 1124,
+      "lines": 48,
+      "englishSha256": "DE3B50ED6990301226FB7AFE07A4348227EDC771FFAB83948600188E0E4AD351",
+      "title": "Inicio de la aventura y conversaciones familiares",
+      "category": "Historia principal"
+    },
+    {
+      "game": "USUM",
+      "file": 54,
+      "bankCount": 1124,
+      "lines": 21,
+      "englishSha256": "564D81FDB20CD9AA349E310E920DB2D3C483C9C85C7C20070F08F4B897A175F4",
+      "title": "Inicio de la aventura y conversaciones familiares",
+      "category": "Historia principal"
+    },
+    {
+      "game": "USUM",
+      "file": 68,
+      "bankCount": 1124,
+      "lines": 6,
+      "englishSha256": "E9354E999849D90ADA8AB797639A708F6C7050F419428462EA74D01FA5D036F4",
+      "title": "Inicio de la aventura y conversaciones familiares",
+      "category": "Historia principal"
+    },
+    {
+      "game": "USUM",
+      "file": 69,
+      "bankCount": 1124,
+      "lines": 7,
+      "englishSha256": "C9216299A84AB84989A263773FE0372A15D94305116D5CE795645A31FA4AFF3D",
+      "title": "Inicio de la aventura y conversaciones familiares",
+      "category": "Historia principal"
+    },
+    {
+      "game": "USUM",
+      "file": 86,
+      "bankCount": 1124,
+      "lines": 1,
+      "englishSha256": "7E46BA7E0A782240CD1DDBDC312D5496BB132AAEE23CCD732B06C10E1138A873",
+      "title": "Inicio de la aventura y conversaciones familiares",
+      "category": "Historia principal"
+    },
+    {
+      "game": "USUM",
+      "file": 93,
+      "bankCount": 1124,
+      "lines": 5,
+      "englishSha256": "EBDF66094D6D9F6C694E6011EF3F5D70C0CB995588FC46ECCA30B8B39236B5D8",
+      "title": "Inicio de la aventura y conversaciones familiares",
+      "category": "Historia principal"
+    },
+    {
+      "game": "USUM",
+      "file": 102,
+      "bankCount": 1124,
+      "lines": 17,
+      "englishSha256": "CF138BCEE237627E4B0C9B442623B963A627AC01CF6DA26B9BD98CCB1C3F3544",
+      "title": "Inicio de la aventura y conversaciones familiares",
+      "category": "Historia principal"
+    },
+    {
+      "game": "USUM",
+      "file": 106,
+      "bankCount": 1124,
+      "lines": 3,
+      "englishSha256": "CA4747E237C49FB6800ACC67D03554C81176DC2BBD2FA580B51B694768E6EBF5",
+      "title": "Inicio de la aventura y conversaciones familiares",
+      "category": "Historia principal"
+    },
+    {
+      "game": "USUM",
+      "file": 112,
+      "bankCount": 1124,
+      "lines": 21,
+      "englishSha256": "8F02C96D6B690A019EBFFE5927217AE376A718CD85F08EF34B8AFC5A94E51646",
+      "title": "Inicio de la aventura y conversaciones familiares",
+      "category": "Historia principal"
+    },
+    {
+      "game": "USUM",
+      "file": 156,
+      "bankCount": 1124,
+      "lines": 3,
+      "englishSha256": "784EE12886887C906877E0DFD3F61A025F9F30C60AEFDEA0EB5181C877BC12DB",
+      "title": "Inicio de la aventura y conversaciones familiares",
+      "category": "Historia principal"
+    },
+    {
+      "game": "USUM",
+      "file": 192,
+      "bankCount": 1124,
+      "lines": 2,
+      "englishSha256": "8AFF0D3B4BBBC2DFE0AE877A15AB9407E1A3F5BD1665AA9E99ECACFA9439B164",
+      "title": "Inicio de la aventura y conversaciones familiares",
+      "category": "Historia principal"
+    },
+    {
+      "game": "USUM",
+      "file": 229,
+      "bankCount": 1124,
+      "lines": 2,
+      "englishSha256": "8985F6A055BC7A0513E610DE3390DDB13270D6D763E1885659497A4B3521C32B",
+      "title": "Inicio de la aventura y conversaciones familiares",
+      "category": "Historia principal"
+    },
+    {
+      "game": "USUM",
+      "file": 230,
+      "bankCount": 1124,
+      "lines": 6,
+      "englishSha256": "877AA2345D0D4B81167805FD1E4203C5F089E69492575E7D6922EBD58FBF0028",
+      "title": "Inicio de la aventura y conversaciones familiares",
+      "category": "Historia principal"
+    },
+    {
+      "game": "USUM",
+      "file": 252,
+      "bankCount": 1124,
+      "lines": 2,
+      "englishSha256": "55495604E0DF452D89BBD80044FFF2B974A660C81206A7F0776014ED66D11642",
+      "title": "Inicio de la aventura y conversaciones familiares",
+      "category": "Historia principal"
+    },
+    {
+      "game": "USUM",
+      "file": 274,
+      "bankCount": 1124,
+      "lines": 3,
+      "englishSha256": "DD635581065A71A91697E251F7938CA0EF4A18264BBF7332DDB7328451DB2696",
+      "title": "Inicio de la aventura y conversaciones familiares",
+      "category": "Historia principal"
+    },
+    {
+      "game": "USUM",
+      "file": 280,
+      "bankCount": 1124,
+      "lines": 7,
+      "englishSha256": "1BE345D784015291559617844E8C15021D4E8D022301FC06D34F48B70F94F1B4",
+      "title": "Inicio de la aventura y conversaciones familiares",
+      "category": "Historia principal"
+    },
+    {
+      "game": "USUM",
+      "file": 282,
+      "bankCount": 1124,
+      "lines": 16,
+      "englishSha256": "120CA606E53ABEB5CB4AE9FB707013A1A69B1FDB3D2EDD8D58C1F7A9F7EDCDFE",
+      "title": "Inicio de la aventura y conversaciones familiares",
+      "category": "Historia principal"
+    },
+    {
+      "game": "USUM",
+      "file": 283,
+      "bankCount": 1124,
+      "lines": 28,
+      "englishSha256": "673BD22786443CA43229392D33F5F819B5FBFF21C19794B40503CAF1107C542E",
+      "title": "Inicio de la aventura y conversaciones familiares",
+      "category": "Historia principal"
+    },
+    {
+      "game": "USUM",
+      "file": 284,
+      "bankCount": 1124,
+      "lines": 10,
+      "englishSha256": "138B9651A7D503A2694B777AC36A9E217AB985A0182F44ACCA49300D45E4765D",
+      "title": "Inicio de la aventura y conversaciones familiares",
+      "category": "Historia principal"
+    },
+    {
+      "game": "USUM",
+      "file": 311,
+      "bankCount": 1124,
+      "lines": 8,
+      "englishSha256": "C1186E093BE167DD0ADB98615112C4875DFE209C6E9435AC4AD3F6D3FA0DC1E2",
+      "title": "Inicio de la aventura y conversaciones familiares",
+      "category": "Historia principal"
+    },
+    {
+      "game": "USUM",
+      "file": 312,
+      "bankCount": 1124,
+      "lines": 8,
+      "englishSha256": "C1186E093BE167DD0ADB98615112C4875DFE209C6E9435AC4AD3F6D3FA0DC1E2",
+      "title": "Inicio de la aventura y conversaciones familiares",
+      "category": "Historia principal"
+    },
+    {
+      "game": "USUM",
+      "file": 340,
+      "bankCount": 1124,
+      "lines": 1,
+      "englishSha256": "BB42B37F7EAD9C09054DFB5536ACDA8B4B7F1852E1E8CB3DF53FC3C5710EAF52",
+      "title": "Inicio de la aventura y conversaciones familiares",
+      "category": "Historia principal"
+    },
+    {
+      "game": "USUM",
+      "file": 341,
+      "bankCount": 1124,
+      "lines": 8,
+      "englishSha256": "B966966238108D27FC00040C3ABF40BACB81C00CDA34CB5ABF76A1FC6D5E2F92",
+      "title": "Inicio de la aventura y conversaciones familiares",
+      "category": "Historia principal"
+    },
+    {
+      "game": "USUM",
+      "file": 342,
+      "bankCount": 1124,
+      "lines": 21,
+      "englishSha256": "4BB6BB1200D09DD697B7F962BDE16B6A195C9B5019BC5A48E4BB4C84BB86577A",
+      "title": "Inicio de la aventura y conversaciones familiares",
+      "category": "Historia principal"
+    },
+    {
+      "game": "USUM",
+      "file": 374,
+      "bankCount": 1124,
+      "lines": 17,
+      "englishSha256": "C0CE6849EA953DCEFF04B609622F09226292E63D3181246F29E60CABE4A1D5A2",
+      "title": "Inicio de la aventura y conversaciones familiares",
+      "category": "Historia principal"
+    },
+    {
+      "game": "USUM",
+      "file": 375,
+      "bankCount": 1124,
+      "lines": 10,
+      "englishSha256": "87E1EE5DFD487DF58BE39679C146C22C70036F5D7B5FCD5E1C676E0E163D05D5",
+      "title": "Inicio de la aventura y conversaciones familiares",
+      "category": "Historia principal"
+    },
+    {
+      "game": "USUM",
+      "file": 379,
+      "bankCount": 1124,
+      "lines": 2,
+      "englishSha256": "1D42162C6939CF5EC9FC157FB2B57597FB8EFD2A25EE8331446EFD38F3FF530D",
+      "title": "Inicio de la aventura y conversaciones familiares",
+      "category": "Historia principal"
+    },
+    {
+      "game": "USUM",
+      "file": 405,
+      "bankCount": 1124,
+      "lines": 4,
+      "englishSha256": "EC73BA16A1C9E1E4190824A28090FBD39F88DC4CDF04D8077E82B621290354E3",
+      "title": "Inicio de la aventura y conversaciones familiares",
+      "category": "Historia principal"
+    },
+    {
+      "game": "USUM",
+      "file": 406,
+      "bankCount": 1124,
+      "lines": 4,
+      "englishSha256": "079CB42AAE59767A0F295E60469A00F69B3DCA3573A0F9FC4E1384C603063AE3",
+      "title": "Inicio de la aventura y conversaciones familiares",
+      "category": "Historia principal"
+    },
+    {
+      "game": "USUM",
+      "file": 407,
+      "bankCount": 1124,
+      "lines": 2,
+      "englishSha256": "1BA87FA4442DBD3E64E971FD8400DB8B2E1AB456B563E04608DE54B8C58F50FF",
+      "title": "Inicio de la aventura y conversaciones familiares",
+      "category": "Historia principal"
+    },
+    {
+      "game": "USUM",
+      "file": 408,
+      "bankCount": 1124,
+      "lines": 20,
+      "englishSha256": "8A6423060C5B0AAB4247FB625C1948A126A00E82B9665FEA5C06BDB18B1A840E",
+      "title": "Inicio de la aventura y conversaciones familiares",
+      "category": "Historia principal"
+    },
+    {
+      "game": "USUM",
+      "file": 412,
+      "bankCount": 1124,
+      "lines": 3,
+      "englishSha256": "ECC44C69F38DD453E914B62D77354149D6761BF7706E0711D674C4669F159C22",
+      "title": "Inicio de la aventura y conversaciones familiares",
+      "category": "Historia principal"
+    },
+    {
+      "game": "USUM",
+      "file": 111,
+      "bankCount": 1124,
+      "lines": 6,
+      "englishSha256": "C560F0CC345A0A17E928BD652430D882BEB899CDB46C421ADED56A64D1009F8F",
+      "title": "Pruebas, barreras y ayudantes del recorrido insular",
+      "category": "Pruebas y Cristales Z"
+    },
+    {
+      "game": "USUM",
+      "file": 113,
+      "bankCount": 1124,
+      "lines": 11,
+      "englishSha256": "B7E60CDDB75C41AC9D35BC2ED6824D40B52136AC748E0BF4E0BAE2E03CC92F56",
+      "title": "Pruebas, barreras y ayudantes del recorrido insular",
+      "category": "Pruebas y Cristales Z"
+    },
+    {
+      "game": "USUM",
+      "file": 115,
+      "bankCount": 1124,
+      "lines": 2,
+      "englishSha256": "3310288659B44AF162861BEDBE5FB12E21EAF4BD3D80329BED77BEE2C1942946",
+      "title": "Pruebas, barreras y ayudantes del recorrido insular",
+      "category": "Pruebas y Cristales Z"
+    },
+    {
+      "game": "USUM",
+      "file": 143,
+      "bankCount": 1124,
+      "lines": 17,
+      "englishSha256": "278B781A3E749C1DE4B3993A741B1F9BD53ED36DA39E40D7CF90ED6EDEFDCECB",
+      "title": "Pruebas, barreras y ayudantes del recorrido insular",
+      "category": "Pruebas y Cristales Z"
+    },
+    {
+      "game": "USUM",
+      "file": 145,
+      "bankCount": 1124,
+      "lines": 2,
+      "englishSha256": "9345B5FFC6D6FAE88145FED3755634ED8B27EB02655A84453E52C839C8CD3BB6",
+      "title": "Pruebas, barreras y ayudantes del recorrido insular",
+      "category": "Pruebas y Cristales Z"
+    },
+    {
+      "game": "USUM",
+      "file": 148,
+      "bankCount": 1124,
+      "lines": 13,
+      "englishSha256": "105EF6290354CD0458C23BC25C8B3ADFE2A4239EA39DA569F1986FBF0030031C",
+      "title": "Pruebas, barreras y ayudantes del recorrido insular",
+      "category": "Pruebas y Cristales Z"
+    },
+    {
+      "game": "USUM",
+      "file": 150,
+      "bankCount": 1124,
+      "lines": 6,
+      "englishSha256": "905860BBF1AF143113BD252FD1FCAFA36257C8322E366E48E6910E1DA77409E8",
+      "title": "Pruebas, barreras y ayudantes del recorrido insular",
+      "category": "Pruebas y Cristales Z"
+    },
+    {
+      "game": "USUM",
+      "file": 151,
+      "bankCount": 1124,
+      "lines": 6,
+      "englishSha256": "147F2E52D85526ACC02D342FF7D37B525DF0E0588CE1ACF670027AC019FEA1A4",
+      "title": "Pruebas, barreras y ayudantes del recorrido insular",
+      "category": "Pruebas y Cristales Z"
+    },
+    {
+      "game": "USUM",
+      "file": 152,
+      "bankCount": 1124,
+      "lines": 15,
+      "englishSha256": "AC0059E1821D7B076BCE5562C6ABB96AE2B6E0BEC6A899C5B689556792CD8ECF",
+      "title": "Pruebas, barreras y ayudantes del recorrido insular",
+      "category": "Pruebas y Cristales Z"
+    },
+    {
+      "game": "USUM",
+      "file": 165,
+      "bankCount": 1124,
+      "lines": 3,
+      "englishSha256": "717DBA6B6FDE578BFAE581CFAA6DBBCB96340E0281F64471A5E6FB207A31FDE6",
+      "title": "Pruebas, barreras y ayudantes del recorrido insular",
+      "category": "Pruebas y Cristales Z"
+    },
+    {
+      "game": "USUM",
+      "file": 178,
+      "bankCount": 1124,
+      "lines": 18,
+      "englishSha256": "7AA4B6DF0389869FCBECA584D1C13253213DDACF0988530FAEEF37D486637377",
+      "title": "Pruebas, barreras y ayudantes del recorrido insular",
+      "category": "Pruebas y Cristales Z"
+    },
+    {
+      "game": "USUM",
+      "file": 181,
+      "bankCount": 1124,
+      "lines": 4,
+      "englishSha256": "7445AD6AD3205853D235C3D927558B69B4EE2D95FA98C1299BD3FAD727B332D2",
+      "title": "Pruebas, barreras y ayudantes del recorrido insular",
+      "category": "Pruebas y Cristales Z"
+    },
+    {
+      "game": "USUM",
+      "file": 258,
+      "bankCount": 1124,
+      "lines": 7,
+      "englishSha256": "9EDF19342A0E38B5BCB0073CEE76A5F668397AB32D248BB4BBD7AFA43853CCA1",
+      "title": "Pruebas, barreras y ayudantes del recorrido insular",
+      "category": "Pruebas y Cristales Z"
+    },
+    {
+      "game": "USUM",
+      "file": 261,
+      "bankCount": 1124,
+      "lines": 10,
+      "englishSha256": "A37675E8B556AF374C5E5A98335FE0CEBB501B0205500CCC50223B4208122378",
+      "title": "Pruebas, barreras y ayudantes del recorrido insular",
+      "category": "Pruebas y Cristales Z"
+    },
+    {
+      "game": "USUM",
+      "file": 273,
+      "bankCount": 1124,
+      "lines": 4,
+      "englishSha256": "1E004B9F9ED3BC985116DD51904246242A0E469E0D5B15C135D5D08FB9BA5977",
+      "title": "Pruebas, barreras y ayudantes del recorrido insular",
+      "category": "Pruebas y Cristales Z"
+    },
+    {
+      "game": "USUM",
+      "file": 460,
+      "bankCount": 1124,
+      "lines": 3,
+      "englishSha256": "254169A5A07C0C73FFA9189EEEC0EABDD90C45BDBF313F4F03B7CF6DD072CC75",
+      "title": "Pruebas, barreras y ayudantes del recorrido insular",
+      "category": "Pruebas y Cristales Z"
+    },
+    {
+      "game": "USUM",
+      "file": 463,
+      "bankCount": 1124,
+      "lines": 10,
+      "englishSha256": "AB6C759DBE88AF9200270BD4985607337C6B1BF896D73862A5D60B3868F5FAB3",
+      "title": "Pruebas, barreras y ayudantes del recorrido insular",
+      "category": "Pruebas y Cristales Z"
+    },
+    {
+      "game": "USUM",
+      "file": 464,
+      "bankCount": 1124,
+      "lines": 11,
+      "englishSha256": "70E4CFA446C4CF8F0F92067AF89E8623D63CF8FB8519468DE2B15C18D7A62ED7",
+      "title": "Pruebas, barreras y ayudantes del recorrido insular",
+      "category": "Pruebas y Cristales Z"
+    },
+    {
+      "game": "USUM",
+      "file": 465,
+      "bankCount": 1124,
+      "lines": 12,
+      "englishSha256": "B6C37C29A2F9D72EE3795D4B438D82FE4B1AB6CE102FDD20375C8809A52D04AE",
+      "title": "Pruebas, barreras y ayudantes del recorrido insular",
+      "category": "Pruebas y Cristales Z"
+    },
+    {
+      "game": "USUM",
+      "file": 473,
+      "bankCount": 1124,
+      "lines": 9,
+      "englishSha256": "C8A0BD52B870781118B29508E094F8D1369D5B19001048D5E47C855A25C46867",
+      "title": "Pruebas, barreras y ayudantes del recorrido insular",
+      "category": "Pruebas y Cristales Z"
+    },
+    {
+      "game": "USUM",
+      "file": 609,
+      "bankCount": 1124,
+      "lines": 13,
+      "englishSha256": "406F46D18ECFA1A45A22538E09FA6BE2ECF32301723D888C6150D2F22460A701",
+      "title": "Pruebas, barreras y ayudantes del recorrido insular",
+      "category": "Pruebas y Cristales Z"
+    },
+    {
+      "game": "USUM",
+      "file": 732,
+      "bankCount": 1124,
+      "lines": 4,
+      "englishSha256": "67FF0125DE4535F2FED1AB83AAEE3270CFBEC474044FB9B6FE2F2DFBA7064CE6",
+      "title": "Pruebas, barreras y ayudantes del recorrido insular",
+      "category": "Pruebas y Cristales Z"
+    },
+    {
+      "game": "USUM",
+      "file": 364,
+      "bankCount": 1124,
+      "lines": 6,
+      "englishSha256": "CBE61CBE51F70A4544F4FFDCD10253AC3C8E8C176EE0008B5AD60DE71DF0F485",
+      "title": "Necrozma y encuentros especiales",
+      "category": "Legendarios y eventos especiales"
+    },
+    {
+      "game": "USUM",
+      "file": 716,
+      "bankCount": 1124,
+      "lines": 17,
+      "englishSha256": "8335B2EB8EF065D8FD3D8330D5A08361D96661AF1D12A36D118E7F94B3C0278F",
+      "title": "Necrozma y encuentros especiales",
+      "category": "Legendarios y eventos especiales"
+    },
+    {
+      "game": "USUM",
+      "file": 717,
+      "bankCount": 1124,
+      "lines": 32,
+      "englishSha256": "10E3074881AB63CC32F88C883D49BD5AE053A7287B748E297C29B3F53A274688",
+      "title": "Necrozma y encuentros especiales",
+      "category": "Legendarios y eventos especiales"
+    },
+    {
+      "game": "USUM",
+      "file": 439,
+      "bankCount": 1124,
+      "lines": 20,
+      "englishSha256": "CB70DD740757DCCAF6502F3A2E3BD3A08C200CB5FED29440A67379D6AF1E8791",
+      "title": "Asalto y desafíos del Equipo Rainbow Rocket",
+      "category": "Equipo Rainbow Rocket"
+    },
+    {
+      "game": "USUM",
+      "file": 441,
+      "bankCount": 1124,
+      "lines": 34,
+      "englishSha256": "2CBA620A09BCA837002A1BE2B02EFB8CD70BE032BD6D77E2639A9B6C05059C76",
+      "title": "Asalto y desafíos del Equipo Rainbow Rocket",
+      "category": "Equipo Rainbow Rocket"
+    },
+    {
+      "game": "USUM",
+      "file": 444,
+      "bankCount": 1124,
+      "lines": 5,
+      "englishSha256": "6214D75F1A0E329331F13A19723A329404F390C82A1877035BC29EAE395BA6FA",
+      "title": "Asalto y desafíos del Equipo Rainbow Rocket",
+      "category": "Equipo Rainbow Rocket"
+    },
+    {
+      "game": "USUM",
+      "file": 497,
+      "bankCount": 1124,
+      "lines": 6,
+      "englishSha256": "02149EE6C220C198D588B3D9F0801E8748A5BDC8BAAC802F6347296BB94985D0",
+      "title": "Escáner Insular y estadísticas de encuentros",
+      "category": "Pesca y captura"
+    },
+    {
+      "game": "USUM",
+      "file": 612,
+      "bankCount": 1124,
+      "lines": 9,
+      "englishSha256": "1621CD22421B9D33B732906CF9FCBCA1DFD9CBC6DAF3274180F494EDD44B827A",
+      "title": "Escáner Insular y estadísticas de encuentros",
+      "category": "Pesca y captura"
+    },
+    {
+      "game": "USUM",
+      "file": 498,
+      "bankCount": 1124,
+      "lines": 30,
+      "englishSha256": "B55017E4AE9D51A3BC894DD077864B6AB56F41DC58AF1907B225467C5907559C",
+      "title": "Tutores, Quita-Movimientos y evaluación de Pokémon",
+      "category": "Movimientos y habilidades"
+    },
+    {
+      "game": "USUM",
+      "file": 499,
+      "bankCount": 1124,
+      "lines": 15,
+      "englishSha256": "09F24FF5C10838BAB24687770285FE33E9BCE4A5B10AD392B06E952E758A03B2",
+      "title": "Tutores, Quita-Movimientos y evaluación de Pokémon",
+      "category": "Movimientos y habilidades"
+    },
+    {
+      "game": "USUM",
+      "file": 500,
+      "bankCount": 1124,
+      "lines": 13,
+      "englishSha256": "3257534E669BEA5AEF5CB0D1F1697B514DAA60DE9B548C3AE4BDBD08C697E57E",
+      "title": "Tutores, Quita-Movimientos y evaluación de Pokémon",
+      "category": "Movimientos y habilidades"
+    },
+    {
+      "game": "USUM",
+      "file": 503,
+      "bankCount": 1124,
+      "lines": 15,
+      "englishSha256": "F62162CE688C8E43E7804322C238F6474D770720CDD513533B549ED7DB18BB7B",
+      "title": "Tutores, Quita-Movimientos y evaluación de Pokémon",
+      "category": "Movimientos y habilidades"
+    },
+    {
+      "game": "USUM",
+      "file": 517,
+      "bankCount": 1124,
+      "lines": 50,
+      "englishSha256": "1E00216D25E494B6250162D0C0B557672C0C1365A714E8471C138E4D3E5617EB",
+      "title": "Tutores, Quita-Movimientos y evaluación de Pokémon",
+      "category": "Movimientos y habilidades"
+    },
+    {
+      "game": "USUM",
+      "file": 506,
+      "bankCount": 1124,
+      "lines": 38,
+      "englishSha256": "B95A23C1F16C3FA0684BFEF605673AEABDCAE9B7DE7A3D39BBDAB828CC48422C",
+      "title": "Entrega de regalos",
+      "category": "Regalo Misterioso"
+    },
+    {
+      "game": "USUM",
+      "file": 507,
+      "bankCount": 1124,
+      "lines": 8,
+      "englishSha256": "EB99E1432BA848CD3C31C554A9FBAF29EBFEC001CBC5FC0FE648C313EA9B4D98",
+      "title": "Dominsignias y obsequios",
+      "category": "Regalos y recogida de objetos"
+    },
+    {
+      "game": "USUM",
+      "file": 557,
+      "bankCount": 1124,
+      "lines": 13,
+      "englishSha256": "BAAC9D6A47D2A0E7649620E1BECB537248FCD103A9814E4B4B279E596FEA1338",
+      "title": "Dominsignias y obsequios",
+      "category": "Regalos y recogida de objetos"
+    },
+    {
+      "game": "USUM",
+      "file": 582,
+      "bankCount": 1124,
+      "lines": 4,
+      "englishSha256": "73AC6E883CA221696DD5A0C245359752A15FCF5B07AFDB17473ADF217F9CDD99",
+      "title": "Dominsignias y obsequios",
+      "category": "Regalos y recogida de objetos"
+    },
+    {
+      "game": "USUM",
+      "file": 586,
+      "bankCount": 1124,
+      "lines": 3,
+      "englishSha256": "4DA3E22938FAAF29F8209578C62C3281D98D2FD6937BB07F6D32E903F3AC2859",
+      "title": "Dominsignias y obsequios",
+      "category": "Regalos y recogida de objetos"
+    },
+    {
+      "game": "USUM",
+      "file": 588,
+      "bankCount": 1124,
+      "lines": 3,
+      "englishSha256": "7ADA77972747E74BF745FFCBE541C7914A35EA47B4066CD4C297C245B006EB1F",
+      "title": "Dominsignias y obsequios",
+      "category": "Regalos y recogida de objetos"
+    },
+    {
+      "game": "USUM",
+      "file": 634,
+      "bankCount": 1124,
+      "lines": 3,
+      "englishSha256": "C0263258F7842961519D4F4CC77199FDFC1B9101B2E8F87D668B1A4D88370ED9",
+      "title": "Dominsignias y obsequios",
+      "category": "Regalos y recogida de objetos"
+    },
+    {
+      "game": "USUM",
+      "file": 663,
+      "bankCount": 1124,
+      "lines": 3,
+      "englishSha256": "A1683FDB4EA8EF4838C13370744FCBBF68559EC46BF64C9A24D4CA0EFCA099B2",
+      "title": "Dominsignias y obsequios",
+      "category": "Regalos y recogida de objetos"
+    },
+    {
+      "game": "USUM",
+      "file": 100,
+      "bankCount": 1124,
+      "lines": 8,
+      "englishSha256": "A0FB9753841163E7E9126AE411A8C2856D67849B6A9FC1747CE2406634D17855",
+      "title": "Tiendas, muestras y venta de objetos",
+      "category": "Compras y servicios"
+    },
+    {
+      "game": "USUM",
+      "file": 509,
+      "bankCount": 1124,
+      "lines": 35,
+      "englishSha256": "7631EDAB990F272658E85091654B95046E19AB8BB040A190A2CBB1DF2B56F995",
+      "title": "Tiendas, muestras y venta de objetos",
+      "category": "Compras y servicios"
+    },
+    {
+      "game": "USUM",
+      "file": 547,
+      "bankCount": 1124,
+      "lines": 22,
+      "englishSha256": "1172F06C87D4CA17E29E1E45FCADEB1C8E9F960AF77D0791A89D807C51AEFBAA",
+      "title": "Tiendas, muestras y venta de objetos",
+      "category": "Compras y servicios"
+    },
+    {
+      "game": "USUM",
+      "file": 551,
+      "bankCount": 1124,
+      "lines": 10,
+      "englishSha256": "84C48958B227EB93A847A3BBE5683533947CE6508FEC132511364006BA535560",
+      "title": "Tiendas, muestras y venta de objetos",
+      "category": "Compras y servicios"
+    },
+    {
+      "game": "USUM",
+      "file": 587,
+      "bankCount": 1124,
+      "lines": 41,
+      "englishSha256": "27C82819E904EFAB18F41C54B6BC99033F6552D882B8D7CADC87129F94D4D0BC",
+      "title": "Tiendas, muestras y venta de objetos",
+      "category": "Compras y servicios"
+    },
+    {
+      "game": "USUM",
+      "file": 590,
+      "bankCount": 1124,
+      "lines": 20,
+      "englishSha256": "01C7C9EB7E08B79B1C22A8ECEB779043067CFA1CB0FE91A9506A600DE0679B79",
+      "title": "Tiendas, muestras y venta de objetos",
+      "category": "Compras y servicios"
+    },
+    {
+      "game": "USUM",
+      "file": 615,
+      "bankCount": 1124,
+      "lines": 12,
+      "englishSha256": "1E4D0C8ED5A1FDF1E4C336362B6468786A73FE366BB13AB5B70CB6A4CF994BB5",
+      "title": "Tiendas, muestras y venta de objetos",
+      "category": "Compras y servicios"
+    },
+    {
+      "game": "USUM",
+      "file": 631,
+      "bankCount": 1124,
+      "lines": 16,
+      "englishSha256": "68DD7F8FE93D214185715D377BB70DD34496264F2B1284ACD3CD09953C4BF0F6",
+      "title": "Tiendas, muestras y venta de objetos",
+      "category": "Compras y servicios"
+    },
+    {
+      "game": "USUM",
+      "file": 87,
+      "bankCount": 1124,
+      "lines": 8,
+      "englishSha256": "04093A63384EBB20461BCF2538DBADD372EC5457514956899554EC79538BBCB1",
+      "title": "Conversaciones y encuentros con NPCs",
+      "category": "NPCs"
+    },
+    {
+      "game": "USUM",
+      "file": 511,
+      "bankCount": 1124,
+      "lines": 23,
+      "englishSha256": "6100811EB31A099FA1A776F7896807318B3E1257113DEE89A8EB9D9B911A0076",
+      "title": "Conversaciones y encuentros con NPCs",
+      "category": "NPCs"
+    },
+    {
+      "game": "USUM",
+      "file": 513,
+      "bankCount": 1124,
+      "lines": 34,
+      "englishSha256": "52712472AD5616B87478BA16A10BB36054DCEF46163D1C9F6499E41223B43C75",
+      "title": "Conversaciones y encuentros con NPCs",
+      "category": "NPCs"
+    },
+    {
+      "game": "USUM",
+      "file": 514,
+      "bankCount": 1124,
+      "lines": 33,
+      "englishSha256": "BA17D8DFC8919559098C6C5C37AC79AEEE20BEDC831E9CD12171D7CFDCA2145B",
+      "title": "Conversaciones y encuentros con NPCs",
+      "category": "NPCs"
+    },
+    {
+      "game": "USUM",
+      "file": 515,
+      "bankCount": 1124,
+      "lines": 18,
+      "englishSha256": "D1050E08BCBBE98628FBEDD4DA745E015A2AAC5D36B6883A08DBD77FCF51368C",
+      "title": "Conversaciones y encuentros con NPCs",
+      "category": "NPCs"
+    },
+    {
+      "game": "USUM",
+      "file": 520,
+      "bankCount": 1124,
+      "lines": 29,
+      "englishSha256": "F756F41E30BE1B76609894A44342BEACF43F21D94F7AD72D6AD4D00125C13F7E",
+      "title": "Conversaciones y encuentros con NPCs",
+      "category": "NPCs"
+    },
+    {
+      "game": "USUM",
+      "file": 523,
+      "bankCount": 1124,
+      "lines": 19,
+      "englishSha256": "F60B77BE899ADC65464839C35185F21DA40E4EA416EE0AF7F41931C19832C615",
+      "title": "Conversaciones y encuentros con NPCs",
+      "category": "NPCs"
+    },
+    {
+      "game": "USUM",
+      "file": 526,
+      "bankCount": 1124,
+      "lines": 7,
+      "englishSha256": "E5766488B8E4C020CB2674F6A8F50F6FFC1C8380CB300A2E12C9C1E9AB0ED501",
+      "title": "Conversaciones y encuentros con NPCs",
+      "category": "NPCs"
+    },
+    {
+      "game": "USUM",
+      "file": 533,
+      "bankCount": 1124,
+      "lines": 8,
+      "englishSha256": "A73643AE22F4573F6F398A8D8F3AA2BE40790D4F04B61DDB57EEE2494471B26C",
+      "title": "Conversaciones y encuentros con NPCs",
+      "category": "NPCs"
+    },
+    {
+      "game": "USUM",
+      "file": 535,
+      "bankCount": 1124,
+      "lines": 8,
+      "englishSha256": "977E23EAC0AA83C42D9257CFDE467938F6043DB9213910C025BBAE7C631EC45E",
+      "title": "Conversaciones y encuentros con NPCs",
+      "category": "NPCs"
+    },
+    {
+      "game": "USUM",
+      "file": 543,
+      "bankCount": 1124,
+      "lines": 15,
+      "englishSha256": "A840BEF450EB9A11ADA2FDAADA8EE0AA66513F35811DC5BF23FA070A46FC159E",
+      "title": "Conversaciones y encuentros con NPCs",
+      "category": "NPCs"
+    },
+    {
+      "game": "USUM",
+      "file": 545,
+      "bankCount": 1124,
+      "lines": 9,
+      "englishSha256": "AF5972CE1F2757A3D15AA097392B32A4E0B97DE5AF9D14EDA9F7362FC2D34F4C",
+      "title": "Conversaciones y encuentros con NPCs",
+      "category": "NPCs"
+    },
+    {
+      "game": "USUM",
+      "file": 554,
+      "bankCount": 1124,
+      "lines": 11,
+      "englishSha256": "0893345F11AF7273D98BC5268FFB8A9DA004E3E6A59DB67C48B42A03EC407777",
+      "title": "Conversaciones y encuentros con NPCs",
+      "category": "NPCs"
+    },
+    {
+      "game": "USUM",
+      "file": 556,
+      "bankCount": 1124,
+      "lines": 12,
+      "englishSha256": "CAB0016257EB4EE80FB48DCFC50FD3A7A43C43385ECAB6C532929F7DB0A7E53D",
+      "title": "Conversaciones y encuentros con NPCs",
+      "category": "NPCs"
+    },
+    {
+      "game": "USUM",
+      "file": 575,
+      "bankCount": 1124,
+      "lines": 20,
+      "englishSha256": "56D0226BC1E6291A83938F14ADA71C532D8391AD03E36DFC9B3DE23F310E29AE",
+      "title": "Conversaciones y encuentros con NPCs",
+      "category": "NPCs"
+    },
+    {
+      "game": "USUM",
+      "file": 581,
+      "bankCount": 1124,
+      "lines": 42,
+      "englishSha256": "278C879F32C345FE2EFCD67459407D068728C1B02B5268AAC877EAFAD5BEBBC5",
+      "title": "Conversaciones y encuentros con NPCs",
+      "category": "NPCs"
+    },
+    {
+      "game": "USUM",
+      "file": 585,
+      "bankCount": 1124,
+      "lines": 9,
+      "englishSha256": "5875D4FEB70F260F425E6AB3C64B09359F305EA5CCB1F57A1193685EF1954669",
+      "title": "Conversaciones y encuentros con NPCs",
+      "category": "NPCs"
+    },
+    {
+      "game": "USUM",
+      "file": 599,
+      "bankCount": 1124,
+      "lines": 13,
+      "englishSha256": "8B88F9307D1A7648FB407A005CE4B1034E0065FDC15C1FD6BD6368DF0FDF0EB9",
+      "title": "Conversaciones y encuentros con NPCs",
+      "category": "NPCs"
+    },
+    {
+      "game": "USUM",
+      "file": 602,
+      "bankCount": 1124,
+      "lines": 5,
+      "englishSha256": "4F17D959F24A00FE485563936E113F0A22C47DE876AB6121EE7396BC6818100E",
+      "title": "Conversaciones y encuentros con NPCs",
+      "category": "NPCs"
+    },
+    {
+      "game": "USUM",
+      "file": 621,
+      "bankCount": 1124,
+      "lines": 2,
+      "englishSha256": "C0E42613EA4EE18E73DF24C5B5BABA40BB5B5924DE3BF3F9D8C5DB2486997136",
+      "title": "Conversaciones y encuentros con NPCs",
+      "category": "NPCs"
+    },
+    {
+      "game": "USUM",
+      "file": 632,
+      "bankCount": 1124,
+      "lines": 9,
+      "englishSha256": "A28B144314C24647AE843E76D52B0F548CEF92A2CC03813918BA5AE485BDCD11",
+      "title": "Conversaciones y encuentros con NPCs",
+      "category": "NPCs"
+    },
+    {
+      "game": "USUM",
+      "file": 635,
+      "bankCount": 1124,
+      "lines": 5,
+      "englishSha256": "23EB4FC5C7763E9D8B87231C62255610FA1717DB5947226F153955BDDB75DCCD",
+      "title": "Conversaciones y encuentros con NPCs",
+      "category": "NPCs"
+    },
+    {
+      "game": "USUM",
+      "file": 665,
+      "bankCount": 1124,
+      "lines": 21,
+      "englishSha256": "457029D9DF7AB50CA6C733A75CB1B1C525702E1CF0E8993DC791813A18B2938A",
+      "title": "Conversaciones y encuentros con NPCs",
+      "category": "NPCs"
+    },
+    {
+      "game": "USUM",
+      "file": 680,
+      "bankCount": 1124,
+      "lines": 5,
+      "englishSha256": "479FD3DDC596166E3177AEFA1A8541A5F629435178D6FA1E2B5C54260C6C0AD9",
+      "title": "Conversaciones y encuentros con NPCs",
+      "category": "NPCs"
+    },
+    {
+      "game": "USUM",
+      "file": 702,
+      "bankCount": 1124,
+      "lines": 3,
+      "englishSha256": "78009675270B1851CCAC90E3C65502DCAB45A2D9774D939F57054B09A42533F0",
+      "title": "Conversaciones y encuentros con NPCs",
+      "category": "NPCs"
+    },
+    {
+      "game": "USUM",
+      "file": 703,
+      "bankCount": 1124,
+      "lines": 8,
+      "englishSha256": "65FFB2412718E669364FB186DD96818F26F436D88788C506747E6825F8AB62C4",
+      "title": "Conversaciones y encuentros con NPCs",
+      "category": "NPCs"
+    },
+    {
+      "game": "USUM",
+      "file": 888,
+      "bankCount": 1124,
+      "lines": 5,
+      "englishSha256": "DA0B832A8369BA8553F86C35A1273A8991EA166636DE8774FAD64D3B7592A166",
+      "title": "Conversaciones y encuentros con NPCs",
+      "category": "NPCs"
+    },
+    {
+      "game": "USUM",
+      "file": 990,
+      "bankCount": 1124,
+      "lines": 5,
+      "englishSha256": "E289BFD5AFDC19F6796C1F9D4CFF03C4F9145FEF5C0A0158EB98428CC433D6AE",
+      "title": "Conversaciones y encuentros con NPCs",
+      "category": "NPCs"
+    },
+    {
+      "game": "USUM",
+      "file": 1048,
+      "bankCount": 1124,
+      "lines": 3,
+      "englishSha256": "0CEF7539B9274632AB3811ECDF61F774136951108EC514F2AA20CEF8D19AC278",
+      "title": "Conversaciones y encuentros con NPCs",
+      "category": "NPCs"
+    },
+    {
+      "game": "USUM",
+      "file": 1051,
+      "bankCount": 1124,
+      "lines": 10,
+      "englishSha256": "73E422BF557DD1D38DEC2466BE7500477AE3341B7C138259E8907D75D0CF8959",
+      "title": "Conversaciones y encuentros con NPCs",
+      "category": "NPCs"
+    },
+    {
+      "game": "USUM",
+      "file": 1053,
+      "bankCount": 1124,
+      "lines": 1,
+      "englishSha256": "C6F2A94E8D2DF8590293D00046DBAFDBDE51DDB8D7C1CF5863748F294050E023",
+      "title": "Conversaciones y encuentros con NPCs",
+      "category": "NPCs"
+    },
+    {
+      "game": "USUM",
+      "file": 522,
+      "bankCount": 1124,
+      "lines": 12,
+      "englishSha256": "FA0E776E902F66E1B9051CDC225AFEA647C5C916499A8CF4400E26640218ADA5",
+      "title": "Encargos, encuentros y pequeñas historias de Alola",
+      "category": "Misiones secundarias"
+    },
+    {
+      "game": "USUM",
+      "file": 525,
+      "bankCount": 1124,
+      "lines": 9,
+      "englishSha256": "135AA7E1294504298C09B394420C9A0F9F6C1B29BB0480FF004511D7B3466624",
+      "title": "Encargos, encuentros y pequeñas historias de Alola",
+      "category": "Misiones secundarias"
+    },
+    {
+      "game": "USUM",
+      "file": 529,
+      "bankCount": 1124,
+      "lines": 5,
+      "englishSha256": "96577E5B36218F0185E7BC0DA9D64049E4654C2A0F8020240FE1BD9CDA9485E5",
+      "title": "Encargos, encuentros y pequeñas historias de Alola",
+      "category": "Misiones secundarias"
+    },
+    {
+      "game": "USUM",
+      "file": 539,
+      "bankCount": 1124,
+      "lines": 24,
+      "englishSha256": "9B6768C48620C4186202878E2ECDA69C862834BEC4055452CFEF0F408FB0DEA8",
+      "title": "Encargos, encuentros y pequeñas historias de Alola",
+      "category": "Misiones secundarias"
+    },
+    {
+      "game": "USUM",
+      "file": 540,
+      "bankCount": 1124,
+      "lines": 6,
+      "englishSha256": "43555271091108675A6A9711A8CC881CDD72CB28D97725FD233BEE6066EC4009",
+      "title": "Encargos, encuentros y pequeñas historias de Alola",
+      "category": "Misiones secundarias"
+    },
+    {
+      "game": "USUM",
+      "file": 562,
+      "bankCount": 1124,
+      "lines": 40,
+      "englishSha256": "5CCA56323AE8958294EFBA2F1A9A4C15E1539ED0EDFD5FB08212E3253A8E6A50",
+      "title": "Encargos, encuentros y pequeñas historias de Alola",
+      "category": "Misiones secundarias"
+    },
+    {
+      "game": "USUM",
+      "file": 566,
+      "bankCount": 1124,
+      "lines": 50,
+      "englishSha256": "5C1E024F34973AC8701F16089CBE1AFA49DCFBFD81E3DA2F6AC6DDD6B605F16E",
+      "title": "Encargos, encuentros y pequeñas historias de Alola",
+      "category": "Misiones secundarias"
+    },
+    {
+      "game": "USUM",
+      "file": 568,
+      "bankCount": 1124,
+      "lines": 17,
+      "englishSha256": "32330E997F3202E681DF1556EA9FDAED642F97273E42314910AB4475CE1C4C3C",
+      "title": "Encargos, encuentros y pequeñas historias de Alola",
+      "category": "Misiones secundarias"
+    },
+    {
+      "game": "USUM",
+      "file": 572,
+      "bankCount": 1124,
+      "lines": 17,
+      "englishSha256": "5CB92F3362EDB2E9582AC75C12FA6D0645057C8A995E421D7999382B59D8F374",
+      "title": "Encargos, encuentros y pequeñas historias de Alola",
+      "category": "Misiones secundarias"
+    },
+    {
+      "game": "USUM",
+      "file": 573,
+      "bankCount": 1124,
+      "lines": 10,
+      "englishSha256": "01BED2A0415D42810F85A8CF73CFEE5DEB3289F10E60788B58432BE5EF980E13",
+      "title": "Encargos, encuentros y pequeñas historias de Alola",
+      "category": "Misiones secundarias"
+    },
+    {
+      "game": "USUM",
+      "file": 578,
+      "bankCount": 1124,
+      "lines": 49,
+      "englishSha256": "2AD0EA0B58B8994397198CF42B930AEE5119BCD97CA903FA9BCBEE6B72BC0779",
+      "title": "Encargos, encuentros y pequeñas historias de Alola",
+      "category": "Misiones secundarias"
+    },
+    {
+      "game": "USUM",
+      "file": 589,
+      "bankCount": 1124,
+      "lines": 17,
+      "englishSha256": "75785785FE332D9BD7717E051137F0E507840A036E2DC68EC6C956A7ACCA14CA",
+      "title": "Encargos, encuentros y pequeñas historias de Alola",
+      "category": "Misiones secundarias"
+    },
+    {
+      "game": "USUM",
+      "file": 610,
+      "bankCount": 1124,
+      "lines": 64,
+      "englishSha256": "9853A03A1CA9A5F2F0E21B3B2DE532C182038B982BD8871FFE265F74290E48C3",
+      "title": "Encargos, encuentros y pequeñas historias de Alola",
+      "category": "Misiones secundarias"
+    },
+    {
+      "game": "USUM",
+      "file": 622,
+      "bankCount": 1124,
+      "lines": 19,
+      "englishSha256": "BF77B16ADE9324CD5CE1EB91055FBA1DAC00317E8EF54C823445EF891D010A50",
+      "title": "Encargos, encuentros y pequeñas historias de Alola",
+      "category": "Misiones secundarias"
+    },
+    {
+      "game": "USUM",
+      "file": 626,
+      "bankCount": 1124,
+      "lines": 10,
+      "englishSha256": "AB0DE03D5CE7D71F1837E68047E843987DAF25C28A8F1A23DA3204C2E3BD00ED",
+      "title": "Encargos, encuentros y pequeñas historias de Alola",
+      "category": "Misiones secundarias"
+    },
+    {
+      "game": "USUM",
+      "file": 633,
+      "bankCount": 1124,
+      "lines": 24,
+      "englishSha256": "A8D038A9AEB9AFC7B1E661C3B446626CB5BA3B06831836D308B61BB82470F32A",
+      "title": "Encargos, encuentros y pequeñas historias de Alola",
+      "category": "Misiones secundarias"
+    },
+    {
+      "game": "USUM",
+      "file": 637,
+      "bankCount": 1124,
+      "lines": 22,
+      "englishSha256": "8ED55C4282E2D0D2637C86EDFABB142A664142D4C981C8A6B2F1D8C503CA27D3",
+      "title": "Encargos, encuentros y pequeñas historias de Alola",
+      "category": "Misiones secundarias"
+    },
+    {
+      "game": "USUM",
+      "file": 640,
+      "bankCount": 1124,
+      "lines": 31,
+      "englishSha256": "789B3D4BE08229D35ACBD414AC98AEAF977779B427AA9DD5CACB4F316BF138D9",
+      "title": "Encargos, encuentros y pequeñas historias de Alola",
+      "category": "Misiones secundarias"
+    },
+    {
+      "game": "USUM",
+      "file": 641,
+      "bankCount": 1124,
+      "lines": 5,
+      "englishSha256": "8923402C93AD2C151967EC15DE355621ACA4B6BC46A4868C24A67DC4E92F8813",
+      "title": "Encargos, encuentros y pequeñas historias de Alola",
+      "category": "Misiones secundarias"
+    },
+    {
+      "game": "USUM",
+      "file": 642,
+      "bankCount": 1124,
+      "lines": 9,
+      "englishSha256": "29EBE00E6F90FA4F43268D8CB980A4DC22C29B1419944924D9396FED8286A079",
+      "title": "Encargos, encuentros y pequeñas historias de Alola",
+      "category": "Misiones secundarias"
+    },
+    {
+      "game": "USUM",
+      "file": 643,
+      "bankCount": 1124,
+      "lines": 23,
+      "englishSha256": "FC1AC46D21881B2FC71CF55466C23F58D9BA479EE60EFEA40011B7A605539761",
+      "title": "Encargos, encuentros y pequeñas historias de Alola",
+      "category": "Misiones secundarias"
+    },
+    {
+      "game": "USUM",
+      "file": 647,
+      "bankCount": 1124,
+      "lines": 38,
+      "englishSha256": "0E83A766A5B2EC65B3CAF5B72B09E72BFC7BA5B3C9756B5F6911C2BD001E31D1",
+      "title": "Encargos, encuentros y pequeñas historias de Alola",
+      "category": "Misiones secundarias"
+    },
+    {
+      "game": "USUM",
+      "file": 648,
+      "bankCount": 1124,
+      "lines": 37,
+      "englishSha256": "974B082261ECB8588BCA3915838C1D58B5C3289E7A29529BB4AB5921A82455F8",
+      "title": "Encargos, encuentros y pequeñas historias de Alola",
+      "category": "Misiones secundarias"
+    },
+    {
+      "game": "USUM",
+      "file": 649,
+      "bankCount": 1124,
+      "lines": 35,
+      "englishSha256": "EBDEA9B2C17AF335C0EF800EAFA36385FE7A8F4C3AC0C1644F51138C57DA8C54",
+      "title": "Encargos, encuentros y pequeñas historias de Alola",
+      "category": "Misiones secundarias"
+    },
+    {
+      "game": "USUM",
+      "file": 653,
+      "bankCount": 1124,
+      "lines": 7,
+      "englishSha256": "7916EF39109B179DBD9AB9CDD4A5F4C264BEFA08F597F159D675EAD1CBCE8F35",
+      "title": "Encargos, encuentros y pequeñas historias de Alola",
+      "category": "Misiones secundarias"
+    },
+    {
+      "game": "USUM",
+      "file": 657,
+      "bankCount": 1124,
+      "lines": 31,
+      "englishSha256": "EC6944E82A419A8B0916FC0E9D57CF32CFD9630C05A3C5FC415807CA7AF65DC2",
+      "title": "Encargos, encuentros y pequeñas historias de Alola",
+      "category": "Misiones secundarias"
+    },
+    {
+      "game": "USUM",
+      "file": 658,
+      "bankCount": 1124,
+      "lines": 30,
+      "englishSha256": "3A23DFEEAC3D40E5A48FFB00901BC661279E8650597C6464CE355A00952C941B",
+      "title": "Encargos, encuentros y pequeñas historias de Alola",
+      "category": "Misiones secundarias"
+    },
+    {
+      "game": "USUM",
+      "file": 659,
+      "bankCount": 1124,
+      "lines": 18,
+      "englishSha256": "ED7165749D61DED8A3F5AAAF8B0C07253A3C61ECE41D698578E8C1C7A5EF4AE3",
+      "title": "Encargos, encuentros y pequeñas historias de Alola",
+      "category": "Misiones secundarias"
+    },
+    {
+      "game": "USUM",
+      "file": 662,
+      "bankCount": 1124,
+      "lines": 18,
+      "englishSha256": "73B16620FEDFEBE98038C8BEDE263F2DA2E6B6B7DDA7AF6B67E99F11F6740DD6",
+      "title": "Encargos, encuentros y pequeñas historias de Alola",
+      "category": "Misiones secundarias"
+    },
+    {
+      "game": "USUM",
+      "file": 667,
+      "bankCount": 1124,
+      "lines": 14,
+      "englishSha256": "762DC9B1BF1AC6E0BF6D3FDCFE1165F23FD890EE7E06E7C8C6FCBD5695E55AD7",
+      "title": "Encargos, encuentros y pequeñas historias de Alola",
+      "category": "Misiones secundarias"
+    },
+    {
+      "game": "USUM",
+      "file": 668,
+      "bankCount": 1124,
+      "lines": 27,
+      "englishSha256": "CEDD61F519B1E1D10D98C813508F9EF376887C6F94A6B3B30A9673BBB486CC15",
+      "title": "Encargos, encuentros y pequeñas historias de Alola",
+      "category": "Misiones secundarias"
+    },
+    {
+      "game": "USUM",
+      "file": 670,
+      "bankCount": 1124,
+      "lines": 41,
+      "englishSha256": "239FBCE86A753502BC4CD595BA97A6CD28AD6B4F2781F2C649E4E4ECB47691E6",
+      "title": "Encargos, encuentros y pequeñas historias de Alola",
+      "category": "Misiones secundarias"
+    },
+    {
+      "game": "USUM",
+      "file": 671,
+      "bankCount": 1124,
+      "lines": 50,
+      "englishSha256": "C6194CB5D9C8D039625666428DB8891A0FCD9D6372294136587875DF27BAA960",
+      "title": "Encargos, encuentros y pequeñas historias de Alola",
+      "category": "Misiones secundarias"
+    },
+    {
+      "game": "USUM",
+      "file": 672,
+      "bankCount": 1124,
+      "lines": 37,
+      "englishSha256": "C788BD2A2E6EC560234AA1D2E27C3431D5F2DEED253F0223B185A938C65C1A6E",
+      "title": "Encargos, encuentros y pequeñas historias de Alola",
+      "category": "Misiones secundarias"
+    },
+    {
+      "game": "USUM",
+      "file": 673,
+      "bankCount": 1124,
+      "lines": 13,
+      "englishSha256": "C5738895FE2FC23A0E367CB00E29B16871E21F2954FBD912AED3B29E8E421EB6",
+      "title": "Encargos, encuentros y pequeñas historias de Alola",
+      "category": "Misiones secundarias"
+    },
+    {
+      "game": "USUM",
+      "file": 674,
+      "bankCount": 1124,
+      "lines": 18,
+      "englishSha256": "80FCF346D2BF0A55B39E0D1AE6863483038E5903016D720D3CD2486AAD0F0181",
+      "title": "Encargos, encuentros y pequeñas historias de Alola",
+      "category": "Misiones secundarias"
+    },
+    {
+      "game": "USUM",
+      "file": 678,
+      "bankCount": 1124,
+      "lines": 31,
+      "englishSha256": "1031BE95E738784EA3FEA6F9B7212DA759C0ACA3B9717917B2C9CE93F8A2DD50",
+      "title": "Encargos, encuentros y pequeñas historias de Alola",
+      "category": "Misiones secundarias"
+    },
+    {
+      "game": "USUM",
+      "file": 679,
+      "bankCount": 1124,
+      "lines": 32,
+      "englishSha256": "346885B0EBA0ECDDD01ADA62ABA153DC8508815837B4074D82E2B6938B2C2B07",
+      "title": "Encargos, encuentros y pequeñas historias de Alola",
+      "category": "Misiones secundarias"
+    },
+    {
+      "game": "USUM",
+      "file": 681,
+      "bankCount": 1124,
+      "lines": 5,
+      "englishSha256": "D9B8F4B9E3D830304E182705874A193217E76C1CC816DFBD5766BD86315E48E9",
+      "title": "Encargos, encuentros y pequeñas historias de Alola",
+      "category": "Misiones secundarias"
+    },
+    {
+      "game": "USUM",
+      "file": 690,
+      "bankCount": 1124,
+      "lines": 26,
+      "englishSha256": "66F7B9FDE02EB421D955036E80E62E0A5F06D984806833FB24725E345378095A",
+      "title": "Encargos, encuentros y pequeñas historias de Alola",
+      "category": "Misiones secundarias"
+    },
+    {
+      "game": "USUM",
+      "file": 691,
+      "bankCount": 1124,
+      "lines": 23,
+      "englishSha256": "510D33A6DCECD182E98571D8A422279CAB11B413B8DB66216B3FEE283B9A7700",
+      "title": "Encargos, encuentros y pequeñas historias de Alola",
+      "category": "Misiones secundarias"
+    },
+    {
+      "game": "USUM",
+      "file": 693,
+      "bankCount": 1124,
+      "lines": 24,
+      "englishSha256": "4FB4C4992627DA617D8D610583D32FE36A0B7A147539F98F3D262DB222D419D6",
+      "title": "Encargos, encuentros y pequeñas historias de Alola",
+      "category": "Misiones secundarias"
+    },
+    {
+      "game": "USUM",
+      "file": 694,
+      "bankCount": 1124,
+      "lines": 12,
+      "englishSha256": "8D38F2343FC104321360AF85A591CDA3B6389FD4B60B2A88597472D1DDEE08FD",
+      "title": "Encargos, encuentros y pequeñas historias de Alola",
+      "category": "Misiones secundarias"
+    },
+    {
+      "game": "USUM",
+      "file": 696,
+      "bankCount": 1124,
+      "lines": 16,
+      "englishSha256": "A6045653B94BC7678020E10C84F2899ED59F6274135F4F6CA5E249BC224D9E1D",
+      "title": "Encargos, encuentros y pequeñas historias de Alola",
+      "category": "Misiones secundarias"
+    },
+    {
+      "game": "USUM",
+      "file": 697,
+      "bankCount": 1124,
+      "lines": 12,
+      "englishSha256": "0350E0F995D5705A3A36E5597E4EE80545211C0CDB1BCC57826FEBF931C9970C",
+      "title": "Encargos, encuentros y pequeñas historias de Alola",
+      "category": "Misiones secundarias"
+    },
+    {
+      "game": "USUM",
+      "file": 698,
+      "bankCount": 1124,
+      "lines": 32,
+      "englishSha256": "1A40667E4C2FA1CA9DABD6BA60AB746F48623C006A208F613CE3A8FEA43E39E8",
+      "title": "Encargos, encuentros y pequeñas historias de Alola",
+      "category": "Misiones secundarias"
+    },
+    {
+      "game": "USUM",
+      "file": 699,
+      "bankCount": 1124,
+      "lines": 21,
+      "englishSha256": "A135D365806D9B1B4C512EC70AF8CFAFBF7E2412A5641E3E12CDEAC94DF3A2DF",
+      "title": "Encargos, encuentros y pequeñas historias de Alola",
+      "category": "Misiones secundarias"
+    },
+    {
+      "game": "USUM",
+      "file": 705,
+      "bankCount": 1124,
+      "lines": 15,
+      "englishSha256": "DE3B3C4C8013B2F2A364F9D6936133466D534B8730776346B4900465B797F835",
+      "title": "Encargos, encuentros y pequeñas historias de Alola",
+      "category": "Misiones secundarias"
+    },
+    {
+      "game": "USUM",
+      "file": 706,
+      "bankCount": 1124,
+      "lines": 19,
+      "englishSha256": "BA0F31F80035652E17C1D0A8B07F36A1126AA7B89B218B8968BE48F53C36E99C",
+      "title": "Encargos, encuentros y pequeñas historias de Alola",
+      "category": "Misiones secundarias"
+    },
+    {
+      "game": "USUM",
+      "file": 707,
+      "bankCount": 1124,
+      "lines": 23,
+      "englishSha256": "8775E641F6EF474A95194D37242902CF5EC95C0A570D4510817B2976645FA4D3",
+      "title": "Encargos, encuentros y pequeñas historias de Alola",
+      "category": "Misiones secundarias"
+    },
+    {
+      "game": "USUM",
+      "file": 708,
+      "bankCount": 1124,
+      "lines": 22,
+      "englishSha256": "264D177BCBE60CB977F506B419418257A6AD0FBD9EB8FAC8E22B662481C8BA72",
+      "title": "Encargos, encuentros y pequeñas historias de Alola",
+      "category": "Misiones secundarias"
+    },
+    {
+      "game": "USUM",
+      "file": 710,
+      "bankCount": 1124,
+      "lines": 60,
+      "englishSha256": "389A20930D34168520AD2D8D12F368618691DA3C187E0642CE4D388BFD1151A8",
+      "title": "Encargos, encuentros y pequeñas historias de Alola",
+      "category": "Misiones secundarias"
+    },
+    {
+      "game": "USUM",
+      "file": 719,
+      "bankCount": 1124,
+      "lines": 10,
+      "englishSha256": "6991B31231619432138E879D766FEA209D780EF795944D51E4AD11A0D64B7AEB",
+      "title": "Encargos, encuentros y pequeñas historias de Alola",
+      "category": "Misiones secundarias"
+    },
+    {
+      "game": "USUM",
+      "file": 727,
+      "bankCount": 1124,
+      "lines": 14,
+      "englishSha256": "77FEA53C4E878FECD11B37BB33D847EC063AD0F29E19FADCC04D044606B16A20",
+      "title": "Encargos, encuentros y pequeñas historias de Alola",
+      "category": "Misiones secundarias"
+    },
+    {
+      "game": "USUM",
+      "file": 524,
+      "bankCount": 1124,
+      "lines": 17,
+      "englishSha256": "A4EECE84847884691A4B3595F99F112D3A5C6D7D05EFBAAFC61D9A6909C29A96",
+      "title": "Dispositivo regenerador de Zygarde",
+      "category": "Fósiles y formas"
+    },
+    {
+      "game": "USUM",
+      "file": 419,
+      "bankCount": 1124,
+      "lines": 3,
+      "englishSha256": "57A19853005278FF98C8C1FE6E0A85C87FF72A16B6EA8DB23AB0E1077797832A",
+      "title": "Surfeo Mantine",
+      "category": "Minijuegos y actividades"
+    },
+    {
+      "game": "USUM",
+      "file": 730,
+      "bankCount": 1124,
+      "lines": 7,
+      "englishSha256": "8B6E67828AD3389DC3B5934407CFBCC212A112622241F0E828CBE29B053F3492",
+      "title": "Controles del Ultraviaje dimensional",
+      "category": "Ultraviaje dimensional"
+    },
+    {
+      "game": "USUM",
+      "file": 731,
+      "bankCount": 1124,
+      "lines": 6,
+      "englishSha256": "382BA8B4154019A54CA33EBEF07368AEE13DCC8556E1CC3C5C116E23703FAAF0",
+      "title": "Cupones de experiencia",
+      "category": "Entrenamiento y experiencia"
+    },
+    {
+      "game": "USUM",
+      "file": 733,
+      "bankCount": 1124,
+      "lines": 17,
+      "englishSha256": "108378196230526DDBAE52B8592B2AA0FD26D322803445DCDA0F71E9771C8C8B",
+      "title": "Don Extremo",
+      "category": "Entrenamiento Extremo"
+    },
+    {
+      "game": "USUM",
+      "file": 796,
+      "bankCount": 1124,
+      "lines": 5,
+      "englishSha256": "DAAC7D22D9992374BCE1B8CBE1E2BDD7D60EF6E4079DACB1CC7C0823BC20DD6A",
+      "title": "Equipo y recolección de bayas",
+      "category": "Tutoriales"
+    },
+    {
+      "game": "USUM",
+      "file": 885,
+      "bankCount": 1124,
+      "lines": 6,
+      "englishSha256": "217998C74445A9A6DB18564475292AA6CBC9969F532AE059D22E227B66DE2579",
+      "title": "Equipo y recolección de bayas",
+      "category": "Tutoriales"
+    },
+    {
+      "game": "USUM",
+      "file": 985,
+      "bankCount": 1124,
+      "lines": 3,
+      "englishSha256": "25968FD6FE7D08EC1BA9A85EED6DD13A0B2550672DBC2883EB1431977EA75EED",
+      "title": "Bugtería y generación de energía",
+      "category": "Lugares y mapas"
+    },
+    {
+      "game": "USUM",
+      "file": 1014,
+      "bankCount": 1124,
+      "lines": 1,
+      "englishSha256": "DF7A849CB4C7946F297244E08F0D982BE5E558967328C759DAD7138D6FF220DA",
+      "title": "Aviso de partida no guardada",
+      "category": "Guardado y errores"
+    },
+    {
+      "game": "SM",
+      "file": 468,
+      "bankCount": 776,
+      "lines": 4,
+      "englishSha256": "7E05C3D82B4505998ECDA68B9C55446D4C2117C08C49A467061804C61BABEFEF",
+      "title": "Reacción breve de escena",
+      "category": "Escenas y reacciones"
+    },
+    {
+      "game": "USUM",
+      "file": 603,
+      "bankCount": 1124,
+      "lines": 4,
+      "englishSha256": "7E05C3D82B4505998ECDA68B9C55446D4C2117C08C49A467061804C61BABEFEF",
+      "title": "Reacción breve de escena",
+      "category": "Escenas y reacciones"
+    }
+  ]
+}

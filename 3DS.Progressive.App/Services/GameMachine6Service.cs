@@ -1,4 +1,4 @@
-﻿using System.IO;
+using System.IO;
 using System.Security.Cryptography;
 using pk3DS.Core;
 using pk3DS.Core.CTR;
@@ -102,7 +102,8 @@ public sealed class GameMachine6Service : IProjectEditor
         return new(_owner,action,seed,[new FileChange(_codePath,code,next),new FileChange(_textPath,text,textOutput)],changes,options);
     }
     public void Save(int id,IReadOnlyDictionary<string,int> values)
-    {if(id!=1)throw new ArgumentOutOfRangeException(nameof(id));Apply(Build(values,0,"Editar MT/MO",new Dictionary<string,string>{{"ActionId","machines6.edit"}}));}
+    {
+        using var manual=ManualOperationScope.Record(this,id,values);if(id!=1)throw new ArgumentOutOfRangeException(nameof(id));Apply(Build(values,0,"Editar MT/MO",new Dictionary<string,string>{{"ActionId","machines6.edit"}}));}
     public EditorProposal Preview(IReadOnlyDictionary<string,int> options,IReadOnlyList<int> scope) => Preview(options,scope,RandomNumberGenerator.GetInt32(int.MaxValue));
     internal EditorProposal Preview(IReadOnlyDictionary<string,int> options,IReadOnlyList<int> scope,int seed)
     {
