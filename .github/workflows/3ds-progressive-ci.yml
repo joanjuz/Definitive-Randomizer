@@ -82,10 +82,10 @@ jobs:
         shell: pwsh
         run: .\3DS.Progressive.App\Tools\Mobipeg\Preparar-Mobipeg.ps1
       - name: Publicar version preliminar autocontenida
-        run: dotnet publish .\3DS.Progressive.App\3DS.Progressive.App.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -o .\preview-output '-bl:validation-logs/publish-app-{}.binlog'
+        run: dotnet publish .\3DS.Progressive.App\3DS.Progressive.App.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=false -o .\preview-output '-bl:validation-logs/publish-app-{}.binlog'
       - name: Publicar motor original Gen7 para Batch ROM Builder
         run: |
-          dotnet publish .\pk3DS.WinForms\pk3DS.WinForms.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -o .\preview-output\LegacyBatch '-bl:validation-logs/publish-legacy-{}.binlog'
+          dotnet publish .\pk3DS.WinForms\pk3DS.WinForms.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=false -o .\preview-output\LegacyBatch '-bl:validation-logs/publish-legacy-{}.binlog'
           New-Item -ItemType Directory -Force .\preview-output\LegacyBatch\custom_balance_templates | Out-Null
           Copy-Item .\custom_balance_templates\moves_gen*.csv .\preview-output\LegacyBatch\custom_balance_templates\
           Copy-Item .\custom_balance_templates\evolutions_gen*.csv .\preview-output\LegacyBatch\custom_balance_templates\

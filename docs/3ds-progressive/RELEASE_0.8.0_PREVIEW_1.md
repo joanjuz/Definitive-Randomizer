@@ -14,7 +14,7 @@ Primera prerelease pública de la interfaz WPF actual, destinada a testers. Se p
 
 ## Descarga y ejecución
 
-Descargar `DefinitiveRandomizer-0.8.0-preview.1-win-x64.zip`, extraerlo completamente y abrir `DefinitiveRandomizer.exe`. Conservar sus carpetas: `LegacyBatch`, `Tools`, `Templates`, `custom_balance_templates` y `catch_zone_patches` forman parte de la aplicación. El paquete es autocontenido para Windows x64: no requiere instalar .NET por separado.
+Descargar `DefinitiveRandomizer-0.8.0-preview.1-win-x64.zip`, extraerlo completamente y abrir `DefinitiveRandomizer.exe`. Conservar sus carpetas: `LegacyBatch`, `Tools`, `Templates`, `custom_balance_templates` y `catch_zone_patches` forman parte de la aplicación. El paquete es una carpeta autocontenida para Windows x64: no requiere instalar .NET por separado. El ejecutable y sus DLL deben permanecer juntos; se evita el empaquetado en un único archivo para conservar las rutas de recursos y herramientas externas.
 
 No incluye ROMs, proyectos de juego, sprites ni templates personales. Las imágenes Pokémon se solicitan en línea y pueden no aparecer sin conexión. La interfaz WPF/WinForms requiere Windows; no se declara soporte nativo para Linux.
 

@@ -21,9 +21,9 @@ try {
     }
     $videoSource = Join-Path $repo '3DS.Progressive.App/Tools/Mobipeg/mobipeg-v2.3-source.tar.gz'
     if ((Get-FileHash -LiteralPath $videoSource -Algorithm SHA256).Hash -ne '532CAFE82CB0E3136A2677EAA82F615EB2BCAFAB2439C264BDE2CCB22DC1965C') { throw 'Mobipeg source checksum mismatch.' }
-    & dotnet publish ./3DS.Progressive.App/3DS.Progressive.App.csproj -c Release -r win-x64 --self-contained true -p:UseAppHost=true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:PublishTrimmed=false -p:DebugType=None "-p:Version=$Version" "-p:SourceRevisionId=$revision" -o $stage "-bl:$logs/publish-app-{}.binlog" *> (Join-Path $logs 'publish-app.log')
+    & dotnet publish ./3DS.Progressive.App/3DS.Progressive.App.csproj -c Release -r win-x64 --self-contained true -p:UseAppHost=true -p:PublishSingleFile=false -p:PublishTrimmed=false -p:DebugType=None "-p:Version=$Version" "-p:SourceRevisionId=$revision" -o $stage "-bl:$logs/publish-app-{}.binlog" *> (Join-Path $logs 'publish-app.log')
     if ($LASTEXITCODE -ne 0) { throw "WPF publish failed. See $logs/publish-app.log" }
-    & dotnet publish ./pk3DS.WinForms/pk3DS.WinForms.csproj -c Release -r win-x64 --self-contained true -p:UseAppHost=true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:PublishTrimmed=false -p:DebugType=None "-p:Version=$Version" "-p:SourceRevisionId=$revision" -o (Join-Path $stage 'LegacyBatch') "-bl:$logs/publish-legacy-{}.binlog" *> (Join-Path $logs 'publish-legacy.log')
+    & dotnet publish ./pk3DS.WinForms/pk3DS.WinForms.csproj -c Release -r win-x64 --self-contained true -p:UseAppHost=true -p:PublishSingleFile=false -p:PublishTrimmed=false -p:DebugType=None "-p:Version=$Version" "-p:SourceRevisionId=$revision" -o (Join-Path $stage 'LegacyBatch') "-bl:$logs/publish-legacy-{}.binlog" *> (Join-Path $logs 'publish-legacy.log')
     if ($LASTEXITCODE -ne 0) { throw "Legacy publish failed. See $logs/publish-legacy.log" }
     Move-Item -LiteralPath (Join-Path $stage '3DS.Progressive.exe') -Destination (Join-Path $stage 'DefinitiveRandomizer.exe')
     foreach ($destination in @('custom_balance_templates','LegacyBatch/custom_balance_templates','Templates','LegacyBatch/Templates')) {
