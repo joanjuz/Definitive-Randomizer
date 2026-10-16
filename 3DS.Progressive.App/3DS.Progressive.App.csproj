@@ -31,6 +31,7 @@
   </ItemGroup>
   <PropertyGroup>
     <LegacyBatchOutput>$(MSBuildProjectDirectory)\obj\LegacyBatch\$(Configuration)\$(TargetFramework)</LegacyBatchOutput>
+    <LegacyBatchOutput Condition="'$(RuntimeIdentifier)' != '' and '$(AppendRuntimeIdentifierToOutputPath)' != 'false'">$(LegacyBatchOutput)\$(RuntimeIdentifier)</LegacyBatchOutput>
   </PropertyGroup>
   <ItemGroup>
     <Content Include="$(LegacyBatchOutput)\pk3DS.WinForms.exe" Condition="'$(UseAppHost)' != 'false'" Link="LegacyBatch\pk3DS.WinForms.exe" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />

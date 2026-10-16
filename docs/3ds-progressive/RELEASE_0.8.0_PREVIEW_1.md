@@ -10,7 +10,7 @@ Primera prerelease pública de la interfaz WPF actual, destinada a testers. Se p
 - Historial y reproducción de cambios manuales mediante Global Template y Batch ROM Builder.
 - Clasificación y búsqueda de Game Text y Story Text, catálogo de comandos y previsualización de descripciones con recursos de la ROM.
 - Icono de la aplicación actualizado y subtexto «Editor de ROMS».
-- CI con compilación explícita de WPF y del runner propio y regresiones visuales fuera de pantalla.
+- CI con compilación explícita de WPF y del runner propio, regresiones visuales fuera de pantalla y ruta de LegacyBatch ajustada a las compilaciones con identificador de runtime.
 
 ## Descarga y ejecución
 
