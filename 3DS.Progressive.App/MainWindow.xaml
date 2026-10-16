@@ -1,93 +1,82 @@
-<Window x:Class="ThreeDS.Progressive.MainWindow"
+﻿<Window x:Class="ThreeDS.Progressive.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:ui="clr-namespace:ThreeDS.Progressive"
         Style="{StaticResource {x:Type Window}}"
         Title="Definitive Randomizer — Editor" Width="1390" Height="845"
-        MinWidth="1130" MinHeight="690" WindowStartupLocation="CenterScreen">
+        MinWidth="900" MinHeight="480" WindowStartupLocation="CenterScreen">
     <Window.Resources>
         <Style x:Key="SmallHeading" TargetType="TextBlock">
-            <Setter Property="Foreground" Value="{StaticResource TextSoft}"/>
-            <Setter Property="FontSize" Value="11"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextSoft}"/>
+            <Setter Property="FontSize" Value="12"/><Setter Property="TextWrapping" Value="Wrap"/>
             <Setter Property="FontWeight" Value="SemiBold"/>
         </Style>
-        <Style x:Key="Card" TargetType="Border">
-            <Setter Property="Background" Value="{StaticResource Panel}"/>
-            <Setter Property="BorderBrush" Value="{StaticResource Stroke}"/>
-            <Setter Property="BorderThickness" Value="1"/>
-            <Setter Property="CornerRadius" Value="11"/>
-            <Setter Property="Padding" Value="15"/>
-            <Setter Property="Margin" Value="0,0,0,13"/>
-        </Style>
-        <Style x:Key="FieldCaption" TargetType="TextBlock">
-            <Setter Property="Foreground" Value="{StaticResource TextSoft}"/>
-            <Setter Property="Margin" Value="0,0,0,5"/>
-            <Setter Property="FontSize" Value="12"/>
-        </Style>
+        <Style x:Key="Card" BasedOn="{StaticResource EditorPanel}" TargetType="Border"><Setter Property="Margin" Value="0,0,0,14"/></Style>
+
         <Style x:Key="NavDisabled" BasedOn="{StaticResource SidebarButton}" TargetType="Button">
             <Setter Property="IsEnabled" Value="False"/>
         </Style>
     </Window.Resources>
     <Grid>
         <Grid.RowDefinitions>
-            <RowDefinition Height="73"/>
+            <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
-            <RowDefinition Height="69"/>
+            <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
         <!-- Cabecera permanente -->
-        <Border Grid.Row="0" Background="#111720" BorderBrush="{StaticResource Stroke}"
+        <Border Grid.Row="0" Background="{DynamicResource Chrome}" BorderBrush="{DynamicResource Stroke}"
                 BorderThickness="0,0,0,1">
-            <Grid Margin="22,0">
+            <Grid Margin="20,12" MinHeight="48" ui:AdaptiveLayout.Header="True">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto"/>
                     <ColumnDefinition Width="*"/>
                     <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                    <Border Width="39" Height="39" CornerRadius="10" Background="#2D4665"
+                    <Border Width="39" Height="39" CornerRadius="10" Background="{DynamicResource BrandFill}"
                             Margin="0,0,12,0">
-                        <TextBlock Text="DR" FontSize="17" FontWeight="Bold" Foreground="#9FC7F5"
+                        <TextBlock Text="DR" FontSize="17" FontWeight="Bold" Foreground="{DynamicResource BrandText}"
                                    HorizontalAlignment="Center" VerticalAlignment="Center"/>
                     </Border>
                     <StackPanel VerticalAlignment="Center">
                         <TextBlock Text="Definitive Randomizer" FontWeight="SemiBold" FontSize="17"/>
-                        <TextBlock Text="EDICIÓN DE JUEGOS 3DS" Foreground="{StaticResource TextSoft}"
-                                   FontSize="10" FontWeight="SemiBold"/>
+                        <TextBlock Text="Editor de juegos 3DS" Foreground="{DynamicResource TextSoft}"
+                                   FontSize="12" FontWeight="SemiBold"/>
                     </StackPanel>
                 </StackPanel>
-                <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="45,0,12,0">
+                <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="22,0,12,0">
                     <TextBlock x:Name="ProjectNameText" Text="Sin proyecto cargado"
-                               FontSize="14" FontWeight="SemiBold"/>
+                               FontSize="14" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"/>
                     <TextBlock x:Name="GameNameText" Text="Seleccioná una carpeta de juego extraído"
-                               FontSize="12" Foreground="{StaticResource TextSoft}"/>
+                               FontSize="12" Foreground="{DynamicResource TextSoft}" TextTrimming="CharacterEllipsis"/>
                 </StackPanel>
-                <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
-                    <Button x:Name="BackupButton" Content="Generar backup" Click="Backup_Click" IsEnabled="False" Margin="0,0,10,0"/>
-                    <Button x:Name="ExtractRomButton" Click="ExtractRom_Click" Content="Extraer ROM..." Margin="0,0,8,0"/>
-                    <Button x:Name="RestoreBackupButton" Click="RestoreBackup_Click" Content="Restaurar backup…" Margin="0,0,8,0"/>
-                    <Button x:Name="OpenProjectButton" Click="OpenProject_Click" Style="{StaticResource PrimaryButton}" Content="Abrir proyecto..."/>
-                </StackPanel>
+                <WrapPanel Grid.Column="2" MaxWidth="530" VerticalAlignment="Center">
+                    <Button x:Name="BackupButton" KeyboardNavigation.TabIndex="1" Content="Generar backup" Click="Backup_Click" IsEnabled="False" Margin="0,0,10,0"/>
+                    <Button x:Name="ExtractRomButton" KeyboardNavigation.TabIndex="2" Click="ExtractRom_Click" Content="Extraer ROM..." Margin="0,0,8,0"/>
+                    <Button x:Name="RestoreBackupButton" KeyboardNavigation.TabIndex="3" Click="RestoreBackup_Click" Content="Restaurar backup…" Margin="0,0,8,0"/>
+                    <Button x:Name="OpenProjectButton" KeyboardNavigation.TabIndex="0" Click="OpenProject_Click" Style="{StaticResource PrimaryButton}" Content="Abrir proyecto..."/>
+                </WrapPanel>
             </Grid>
         </Border>
 
-        <Grid Grid.Row="1">
+        <Grid Grid.Row="1" ui:AdaptiveLayout.Inspector="AdaptiveInspector" ui:AdaptiveLayout.CompactWidth="1120">
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="211"/>
-                <ColumnDefinition Width="239"/>
-                <ColumnDefinition Width="*" MinWidth="410"/>
-                <ColumnDefinition Width="252"/>
+                <ColumnDefinition Width="218"/>
+                <ColumnDefinition Width="1.1*" MinWidth="165" MaxWidth="235"/>
+                <ColumnDefinition Width="3*" MinWidth="320"/>
+                <ColumnDefinition Width="1*" MinWidth="185" MaxWidth="250"/>
             </Grid.ColumnDefinitions>
 
             <!-- Navegacion -->
-            <Border Background="#18202B" BorderBrush="{StaticResource Stroke}"
+            <Border Background="{DynamicResource Navigation}" BorderBrush="{DynamicResource Stroke}"
                     BorderThickness="0,0,1,0">
                 <DockPanel Margin="13,18">
                     <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Background="Transparent">
                     <StackPanel>
-                        <TextBlock Text="EDICIÓN" Style="{StaticResource SmallHeading}"
+                        <TextBlock Text="Edición" Style="{StaticResource SmallHeading}"
                                    Margin="12,0,0,12"/>
                         <Button x:Name="PokemonNavButton" Click="Pokemon_Click" Content="◆  Pokémon" Style="{StaticResource SidebarButton}"
-                                Background="#2B4059" FontWeight="SemiBold"/>
+                                Background="{DynamicResource NavActiveFill}" FontWeight="SemiBold"/>
                         <Button x:Name="TrainersButton" Content="⚔  Entrenadores" Style="{StaticResource SidebarButton}" IsEnabled="False" Tag="Trainers" Click="Section_Click"/>
                         <Button x:Name="EncountersButton" Content="◎  Encuentros" Style="{StaticResource SidebarButton}" IsEnabled="False" Tag="Encounters" Click="Section_Click"/>
                         <Button x:Name="StaticEncountersButton" Content="◉  Encuentros estáticos"
@@ -103,7 +92,7 @@
                         <Button x:Name="EvolutionsButton" Content="◆  Evoluciones" Style="{StaticResource SidebarButton}" IsEnabled="False" Tag="Evolutions" Click="Section_Click"/>
                         <Button x:Name="GameTextButton" Content="≡  Game Text" Style="{StaticResource SidebarButton}" IsEnabled="False" Tag="GameText" Click="Section_Click"/>
                         <Button x:Name="StoryTextButton" Content="≡  Story Text · diálogos" Style="{StaticResource SidebarButton}" IsEnabled="False" Tag="StoryText" Click="Section_Click"/>
-                        <TextBlock Text="SISTEMAS" Style="{StaticResource SmallHeading}"
+                        <TextBlock Text="Sistemas" Style="{StaticResource SmallHeading}"
                                    Margin="12,25,0,12"/>
                         <Button x:Name="MechanicsButton" Content="◈  Mecánicas y CRO"
                                 Style="{StaticResource SidebarButton}" IsEnabled="False" Tag="Mechanics" Click="Section_Click"/>
@@ -115,7 +104,7 @@
                                 Style="{StaticResource SidebarButton}" IsEnabled="False" Tag="Automation" Click="Section_Click"/>
                         <Button x:Name="ConfigurationButton" Content="⚙  Opciones e idioma"
                                 Style="{StaticResource SidebarButton}" IsEnabled="False" Tag="Configuration" Click="Section_Click"/>
-                        <Button x:Name="TemplateStudioButton" Content="▦  Templates" Style="{StaticResource SidebarButton}" IsEnabled="False" Tag="TemplateStudio" Click="Section_Click"/>
+                        <Separator Margin="8,16,8,10"/><Button x:Name="TemplateStudioButton" Content="▦  Templates" Style="{StaticResource SidebarButton}" IsEnabled="False" Tag="TemplateStudio" Click="Section_Click"/>
                         <Button x:Name="GlobalTemplateButton" Content="▣  Global Template"
                                 Style="{StaticResource SidebarButton}" IsEnabled="False" Tag="GlobalTemplate" Click="Section_Click"/>
                         <Button x:Name="BatchRomButton" Content="▣  Batch ROM Builder"
@@ -123,32 +112,32 @@
                         <Button x:Name="HistoryButton" Content="≡  Historial de cambios" Style="{StaticResource SidebarButton}" IsEnabled="False" Tag="History" Click="Section_Click"/>
                     </StackPanel>
                     </ScrollViewer>
-                    <Border Visibility="Collapsed" DockPanel.Dock="Bottom" Background="{StaticResource Surface}"
+                    <Border Visibility="Collapsed" DockPanel.Dock="Bottom" Background="{DynamicResource Surface}"
                             CornerRadius="9" Padding="12" VerticalAlignment="Bottom">
                         <StackPanel>
-                            <TextBlock Text="HITO 01" Foreground="{StaticResource Accent}"
-                                       FontWeight="Bold" FontSize="11"/>
+                            <TextBlock Text="HITO 01" Foreground="{DynamicResource Accent}"
+                                       FontWeight="Bold" FontSize="12"/>
                             <TextBlock Text="Editor de datos personales" TextWrapping="Wrap"
                                        Margin="0,6,0,0"/>
                             <TextBlock Text="Los demás módulos están pendientes, no simulados."
-                                       Foreground="{StaticResource TextSoft}" TextWrapping="Wrap"
-                                       FontSize="11" Margin="0,5,0,0"/>
+                                       Foreground="{DynamicResource TextSoft}" TextWrapping="Wrap"
+                                       FontSize="12" Margin="0,5,0,0"/>
                         </StackPanel>
                     </Border>
                 </DockPanel>
             </Border>
 
             <!-- Lista y busqueda -->
-            <Border x:Name="PokemonListPanel" Grid.Column="1" BorderBrush="{StaticResource Stroke}"
-                    BorderThickness="0,0,1,0" Background="#1B2430">
+            <Border x:Name="PokemonListPanel" Grid.Column="1" BorderBrush="{DynamicResource Stroke}"
+                    BorderThickness="0,0,1,0" Background="{DynamicResource ListSurface}">
                 <DockPanel Margin="14,19">
                     <StackPanel DockPanel.Dock="Top" Margin="0,0,0,13">
-                        <TextBlock Text="ESPECIES Y FORMAS" Style="{StaticResource SmallHeading}"
+                        <TextBlock x:Name="AccessibleCaption1" Text="Especies y formas" Style="{StaticResource SmallHeading}"
                                    Margin="0,0,0,13"/>
-                        <TextBox x:Name="SearchBox" TextChanged="SearchBox_TextChanged"
+                        <TextBox x:Name="SearchBox" AutomationProperties.Name="Buscar Pokémon por nombre o número" AutomationProperties.LabeledBy="{Binding ElementName=AccessibleCaption1}" TextChanged="SearchBox_TextChanged"
                                  ToolTip="Buscar por nombre o número de entrada"/>
-                        <TextBlock x:Name="EntryCountText" Text="Sin datos" FontSize="11"
-                                   Foreground="{StaticResource TextSoft}" Margin="2,10,0,0"/>
+                        <TextBlock x:Name="EntryCountText" Text="Sin datos" FontSize="12"
+                                   Foreground="{DynamicResource TextSoft}" Margin="2,10,0,0"/>
                     </StackPanel>
                     <ListBox x:Name="PokemonList" SelectionChanged="PokemonList_SelectionChanged"
                              ScrollViewer.HorizontalScrollBarVisibility="Disabled">
@@ -162,33 +151,33 @@
             </Border>
 
             <!-- Editor central -->
-            <ScrollViewer x:Name="PokemonEditorPanel" Grid.Column="2" VerticalScrollBarVisibility="Auto"
+            <Grid x:Name="PokemonEditorLayout" Grid.Column="2" Visibility="{Binding Visibility, ElementName=PokemonEditorPanel}"><Grid.RowDefinitions><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions><ScrollViewer x:Name="PokemonEditorPanel" Grid.Row="0" VerticalScrollBarVisibility="Auto"
                           HorizontalScrollBarVisibility="Disabled"
-                          Background="{StaticResource Bg}" Padding="0">
+                          Background="{DynamicResource Bg}" Padding="0">
                 <StackPanel x:Name="EditorContent" Margin="25,23" IsEnabled="False"
-                            Background="{StaticResource Bg}">
+                            Background="{DynamicResource Bg}">
                     <StackPanel Margin="0,0,0,16">
                         <TextBlock Text="Datos de Pokémon" FontSize="24" FontWeight="SemiBold"/>
                         <TextBlock x:Name="EntryTitleText" Text="Abrí un proyecto para comenzar."
-                                   Foreground="{StaticResource TextSoft}" FontSize="12" Margin="0,5,0,0"/>
+                                   Foreground="{DynamicResource TextSoft}" FontSize="12" Margin="0,5,0,0"/>
                     </StackPanel>
 
                     <!-- Cabecera: sprite + identidad + tipos + estado -->
-                    <Border Style="{StaticResource Card}" Background="#222F3D">
+                    <Border Style="{StaticResource Card}" Background="{DynamicResource SummarySurface}">
                         <Grid>
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="112"/>
                                 <ColumnDefinition Width="*" MinWidth="0"/>
                             </Grid.ColumnDefinitions>
-                            <Border Grid.Column="0" Background="#172331" BorderBrush="{StaticResource Stroke}"
+                            <Border Grid.Column="0" Background="{DynamicResource SpriteSurface}" BorderBrush="{DynamicResource Stroke}"
                                     BorderThickness="1" CornerRadius="12" Width="104" Height="112"
                                     HorizontalAlignment="Left" VerticalAlignment="Top">
                                 <Grid>
                                     <Grid x:Name="SpriteFallback" Opacity="0.55" Visibility="Collapsed">
-                                        <Ellipse Stroke="#7790AB" StrokeThickness="4" Width="58" Height="58"/>
-                                        <Rectangle Fill="#7790AB" Height="4" Width="58"
+                                        <Ellipse Stroke="{DynamicResource IllustrationStroke}" StrokeThickness="4" Width="58" Height="58"/>
+                                        <Rectangle Fill="{DynamicResource IllustrationStroke}" Height="4" Width="58"
                                                    VerticalAlignment="Center"/>
-                                        <Ellipse Fill="#172331" Stroke="#7790AB" StrokeThickness="3"
+                                        <Ellipse Fill="{DynamicResource SpriteSurface}" Stroke="{DynamicResource IllustrationStroke}" StrokeThickness="3"
                                                  Width="18" Height="18"/>
                                     </Grid>
                                     <Image x:Name="PokemonSprite" Width="96" Height="96"
@@ -201,32 +190,32 @@
                                            FontSize="22" FontWeight="SemiBold"
                                            TextTrimming="CharacterEllipsis"/>
                                 <TextBlock x:Name="HeaderNumberText" Text="Seleccioná una especie"
-                                           FontSize="12" Foreground="{StaticResource TextSoft}"
+                                           FontSize="12" Foreground="{DynamicResource TextSoft}"
                                            Margin="0,4,0,13"/>
                                 <WrapPanel Margin="0,0,0,10">
                                     <Border x:Name="TypeBadgeOne" CornerRadius="7"
-                                            Background="#395469" Padding="11,6"
+                                            Background="{DynamicResource TypeFallbackFill}" Padding="11,6"
                                             Margin="0,0,7,6">
                                         <TextBlock x:Name="TypeBadgeOneText" Text="—"
-                                                   FontWeight="SemiBold" FontSize="11" Foreground="White"/>
+                                                   FontWeight="SemiBold" FontSize="12" Foreground="White"/>
                                     </Border>
                                     <Border x:Name="TypeBadgeTwo" CornerRadius="7"
-                                            Background="#395469" Padding="11,6"
+                                            Background="{DynamicResource TypeFallbackFill}" Padding="11,6"
                                             Margin="0,0,7,6">
                                         <TextBlock x:Name="TypeBadgeTwoText" Text="—"
-                                                   FontWeight="SemiBold" FontSize="11" Foreground="White"/>
+                                                   FontWeight="SemiBold" FontSize="12" Foreground="White"/>
                                     </Border>
                                 </WrapPanel>
                                 <WrapPanel VerticalAlignment="Center">
-                                    <TextBlock Text="BST  " Foreground="{StaticResource TextSoft}"
+                                    <TextBlock Text="BST  " Foreground="{DynamicResource TextSoft}"
                                                VerticalAlignment="Center" FontSize="12"/>
                                     <TextBlock x:Name="HeaderBstText" Text="—" FontSize="16"
-                                               FontWeight="Bold" Foreground="{StaticResource Accent}"
+                                               FontWeight="Bold" Foreground="{DynamicResource Accent}"
                                                VerticalAlignment="Center" Margin="0,0,14,0"/>
-                                    <Border x:Name="DirtyBadge" Background="#35485D"
+                                    <Border x:Name="DirtyBadge" Background="{DynamicResource BadgeFill}"
                                             CornerRadius="7" Padding="9,5">
                                         <TextBlock x:Name="DirtyBadgeText" Text="Sin cambios"
-                                                   Foreground="#C5D7E9" FontSize="11" FontWeight="SemiBold"/>
+                                                   Foreground="{DynamicResource BadgeText}" FontSize="12" FontWeight="SemiBold"/>
                                     </Border>
                                 </WrapPanel>
                             </StackPanel>
@@ -234,32 +223,32 @@
                     </Border>
                     <Border Style="{StaticResource Card}">
                         <StackPanel>
-                            <TextBlock Text="ESTADÍSTICAS BASE" Style="{StaticResource SmallHeading}"
+                            <TextBlock Text="Estadísticas base" Style="{StaticResource SmallHeading}"
                                        Margin="0,0,0,13"/>
                             <UniformGrid Columns="2">
                                 <StackPanel Margin="0,0,10,13">
-                                    <TextBlock Text="PS" Style="{StaticResource FieldCaption}"/>
-                                    <TextBox x:Name="HpBox" TextChanged="Stat_TextChanged"/>
+                                    <TextBlock x:Name="AccessibleCaption2" Text="PS" Style="{StaticResource FieldCaption}"/>
+                                    <TextBox x:Name="HpBox" AutomationProperties.LabeledBy="{Binding ElementName=AccessibleCaption2}" TextChanged="Stat_TextChanged"/>
                                 </StackPanel>
                                 <StackPanel Margin="0,0,0,13">
-                                    <TextBlock Text="Ataque" Style="{StaticResource FieldCaption}"/>
-                                    <TextBox x:Name="AtkBox" TextChanged="Stat_TextChanged"/>
+                                    <TextBlock x:Name="AccessibleCaption3" Text="Ataque" Style="{StaticResource FieldCaption}"/>
+                                    <TextBox x:Name="AtkBox" AutomationProperties.LabeledBy="{Binding ElementName=AccessibleCaption3}" TextChanged="Stat_TextChanged"/>
                                 </StackPanel>
                                 <StackPanel Margin="0,0,10,13">
-                                    <TextBlock Text="Defensa" Style="{StaticResource FieldCaption}"/>
-                                    <TextBox x:Name="DefBox" TextChanged="Stat_TextChanged"/>
+                                    <TextBlock x:Name="AccessibleCaption4" Text="Defensa" Style="{StaticResource FieldCaption}"/>
+                                    <TextBox x:Name="DefBox" AutomationProperties.LabeledBy="{Binding ElementName=AccessibleCaption4}" TextChanged="Stat_TextChanged"/>
                                 </StackPanel>
                                 <StackPanel Margin="0,0,0,13">
-                                    <TextBlock Text="Ataque Especial" Style="{StaticResource FieldCaption}"/>
-                                    <TextBox x:Name="SpaBox" TextChanged="Stat_TextChanged"/>
+                                    <TextBlock x:Name="AccessibleCaption5" Text="Ataque Especial" Style="{StaticResource FieldCaption}"/>
+                                    <TextBox x:Name="SpaBox" AutomationProperties.LabeledBy="{Binding ElementName=AccessibleCaption5}" TextChanged="Stat_TextChanged"/>
                                 </StackPanel>
                                 <StackPanel Margin="0,0,10,0">
-                                    <TextBlock Text="Defensa Especial" Style="{StaticResource FieldCaption}"/>
-                                    <TextBox x:Name="SpdBox" TextChanged="Stat_TextChanged"/>
+                                    <TextBlock x:Name="AccessibleCaption6" Text="Defensa Especial" Style="{StaticResource FieldCaption}"/>
+                                    <TextBox x:Name="SpdBox" AutomationProperties.LabeledBy="{Binding ElementName=AccessibleCaption6}" TextChanged="Stat_TextChanged"/>
                                 </StackPanel>
                                 <StackPanel>
-                                    <TextBlock Text="Velocidad" Style="{StaticResource FieldCaption}"/>
-                                    <TextBox x:Name="SpeBox" TextChanged="Stat_TextChanged"/>
+                                    <TextBlock x:Name="AccessibleCaption7" Text="Velocidad" Style="{StaticResource FieldCaption}"/>
+                                    <TextBox x:Name="SpeBox" AutomationProperties.LabeledBy="{Binding ElementName=AccessibleCaption7}" TextChanged="Stat_TextChanged"/>
                                 </StackPanel>
                             </UniformGrid>
                         </StackPanel>
@@ -270,101 +259,101 @@
                                        Margin="0,0,0,13"/>
                             <UniformGrid Columns="2">
                                 <StackPanel Margin="0,0,10,12">
-                                    <TextBlock Text="Primer tipo" Style="{StaticResource FieldCaption}"/>
-                                    <ComboBox x:Name="TypeOne" SelectionChanged="Type_SelectionChanged"/>
+                                    <TextBlock x:Name="AccessibleCaption8" Text="Primer tipo" Style="{StaticResource FieldCaption}"/>
+                                    <ComboBox x:Name="TypeOne" AutomationProperties.LabeledBy="{Binding ElementName=AccessibleCaption8}" SelectionChanged="Type_SelectionChanged"/>
                                 </StackPanel>
                                 <StackPanel Margin="0,0,0,12">
-                                    <TextBlock Text="Segundo tipo" Style="{StaticResource FieldCaption}"/>
-                                    <ComboBox x:Name="TypeTwo" SelectionChanged="Type_SelectionChanged"/>
+                                    <TextBlock x:Name="AccessibleCaption9" Text="Segundo tipo" Style="{StaticResource FieldCaption}"/>
+                                    <ComboBox x:Name="TypeTwo" AutomationProperties.LabeledBy="{Binding ElementName=AccessibleCaption9}" SelectionChanged="Type_SelectionChanged"/>
                                 </StackPanel>
                             </UniformGrid>
-                            <TextBlock Text="Ratio de captura (0–255)"
+                            <TextBlock x:Name="AccessibleCaption10" Text="Ratio de captura (0–255)"
                                        Style="{StaticResource FieldCaption}"/>
-                            <TextBox x:Name="CatchBox" TextChanged="Stat_TextChanged"/>
+                            <TextBox x:Name="CatchBox" AutomationProperties.LabeledBy="{Binding ElementName=AccessibleCaption10}" TextChanged="Stat_TextChanged"/>
                         </StackPanel>
                     </Border>
                     <Border Style="{StaticResource Card}">
-    <Expander Header="HABILIDADES Y OBJETOS" IsExpanded="False" Foreground="{StaticResource TextMain}"
-              Background="{StaticResource Panel}" Padding="0">
+    <Expander Header="HABILIDADES Y OBJETOS" IsExpanded="False" Foreground="{DynamicResource TextMain}"
+              Background="{DynamicResource Panel}" Padding="0">
         <StackPanel Margin="0,13,0,0">
-            <TextBlock Text="Compatibilidad Gen 6/7. Seleccioná habilidades y los tres objetos posibles." FontSize="11" Foreground="{StaticResource TextSoft}"
+            <TextBlock Text="Compatibilidad Gen 6/7. Seleccioná habilidades y los tres objetos posibles." FontSize="12" Foreground="{DynamicResource TextSoft}"
                        TextWrapping="Wrap" Margin="0,0,0,14"/>
             <UniformGrid Columns="2">
-              <StackPanel Margin="0,0,10,13"><TextBlock Text="Habilidad 1" Style="{StaticResource FieldCaption}"/><ComboBox x:Name="AbilityOne" SelectionChanged="Type_SelectionChanged"/></StackPanel>
-              <StackPanel Margin="0,0,10,13"><TextBlock Text="Habilidad 2" Style="{StaticResource FieldCaption}"/><ComboBox x:Name="AbilityTwo" SelectionChanged="Type_SelectionChanged"/></StackPanel>
-              <StackPanel Margin="0,0,10,13"><TextBlock Text="Habilidad oculta" Style="{StaticResource FieldCaption}"/><ComboBox x:Name="AbilityHidden" SelectionChanged="Type_SelectionChanged"/></StackPanel>
-              <StackPanel Margin="0,0,10,13"><TextBlock Text="Objeto equipable 1" Style="{StaticResource FieldCaption}"/><ComboBox x:Name="HeldItemOne" DisplayMemberPath="Display" SelectedValuePath="Id" SelectionChanged="Type_SelectionChanged" MaxDropDownHeight="300"/></StackPanel>
-              <StackPanel Margin="0,0,10,13"><TextBlock Text="Objeto equipable 2" Style="{StaticResource FieldCaption}"/><ComboBox x:Name="HeldItemTwo" DisplayMemberPath="Display" SelectedValuePath="Id" SelectionChanged="Type_SelectionChanged" MaxDropDownHeight="300"/></StackPanel>
-              <StackPanel Margin="0,0,10,13"><TextBlock Text="Objeto equipable 3" Style="{StaticResource FieldCaption}"/><ComboBox x:Name="HeldItemThree" DisplayMemberPath="Display" SelectedValuePath="Id" SelectionChanged="Type_SelectionChanged" MaxDropDownHeight="300"/></StackPanel>
+              <StackPanel Margin="0,0,10,13"><TextBlock x:Name="AccessibleCaption11" Text="Habilidad 1" Style="{StaticResource FieldCaption}"/><ComboBox x:Name="AbilityOne" AutomationProperties.LabeledBy="{Binding ElementName=AccessibleCaption11}" SelectionChanged="Type_SelectionChanged"/></StackPanel>
+              <StackPanel Margin="0,0,10,13"><TextBlock x:Name="AccessibleCaption12" Text="Habilidad 2" Style="{StaticResource FieldCaption}"/><ComboBox x:Name="AbilityTwo" AutomationProperties.LabeledBy="{Binding ElementName=AccessibleCaption12}" SelectionChanged="Type_SelectionChanged"/></StackPanel>
+              <StackPanel Margin="0,0,10,13"><TextBlock x:Name="AccessibleCaption13" Text="Habilidad oculta" Style="{StaticResource FieldCaption}"/><ComboBox x:Name="AbilityHidden" AutomationProperties.LabeledBy="{Binding ElementName=AccessibleCaption13}" SelectionChanged="Type_SelectionChanged"/></StackPanel>
+              <StackPanel Margin="0,0,10,13"><TextBlock x:Name="AccessibleCaption14" Text="Objeto equipable 1" Style="{StaticResource FieldCaption}"/><ComboBox x:Name="HeldItemOne" AutomationProperties.LabeledBy="{Binding ElementName=AccessibleCaption14}" DisplayMemberPath="Display" SelectedValuePath="Id" SelectionChanged="Type_SelectionChanged" MaxDropDownHeight="300"/></StackPanel>
+              <StackPanel Margin="0,0,10,13"><TextBlock x:Name="AccessibleCaption15" Text="Objeto equipable 2" Style="{StaticResource FieldCaption}"/><ComboBox x:Name="HeldItemTwo" AutomationProperties.LabeledBy="{Binding ElementName=AccessibleCaption15}" DisplayMemberPath="Display" SelectedValuePath="Id" SelectionChanged="Type_SelectionChanged" MaxDropDownHeight="300"/></StackPanel>
+              <StackPanel Margin="0,0,10,13"><TextBlock x:Name="AccessibleCaption16" Text="Objeto equipable 3" Style="{StaticResource FieldCaption}"/><ComboBox x:Name="HeldItemThree" AutomationProperties.LabeledBy="{Binding ElementName=AccessibleCaption16}" DisplayMemberPath="Display" SelectedValuePath="Id" SelectionChanged="Type_SelectionChanged" MaxDropDownHeight="300"/></StackPanel>
             </UniformGrid>
         </StackPanel>
     </Expander>
 </Border>
                     <Border Style="{StaticResource Card}">
-    <Expander Header="EV OTORGADOS" IsExpanded="False" Foreground="{StaticResource TextMain}"
-              Background="{StaticResource Panel}" Padding="0">
+    <Expander Header="EV OTORGADOS" IsExpanded="False" Foreground="{DynamicResource TextMain}"
+              Background="{DynamicResource Panel}" Padding="0">
         <StackPanel Margin="0,13,0,0">
-            <TextBlock Text="Cada stat otorga entre 0 y 3 EV al derrotar al Pokémon." FontSize="11" Foreground="{StaticResource TextSoft}"
+            <TextBlock Text="Cada stat otorga entre 0 y 3 EV al derrotar al Pokémon." FontSize="12" Foreground="{DynamicResource TextSoft}"
                        TextWrapping="Wrap" Margin="0,0,0,14"/>
             <UniformGrid Columns="3">
-              <StackPanel Margin="0,0,10,13"><TextBlock Text="EV PS" Style="{StaticResource FieldCaption}"/><TextBox x:Name="EvHpBox" TextChanged="Stat_TextChanged"/></StackPanel>
-              <StackPanel Margin="0,0,10,13"><TextBlock Text="EV Ataque" Style="{StaticResource FieldCaption}"/><TextBox x:Name="EvAtkBox" TextChanged="Stat_TextChanged"/></StackPanel>
-              <StackPanel Margin="0,0,10,13"><TextBlock Text="EV Defensa" Style="{StaticResource FieldCaption}"/><TextBox x:Name="EvDefBox" TextChanged="Stat_TextChanged"/></StackPanel>
-              <StackPanel Margin="0,0,10,13"><TextBlock Text="EV Ataque Esp." Style="{StaticResource FieldCaption}"/><TextBox x:Name="EvSpaBox" TextChanged="Stat_TextChanged"/></StackPanel>
-              <StackPanel Margin="0,0,10,13"><TextBlock Text="EV Defensa Esp." Style="{StaticResource FieldCaption}"/><TextBox x:Name="EvSpdBox" TextChanged="Stat_TextChanged"/></StackPanel>
-              <StackPanel Margin="0,0,10,13"><TextBlock Text="EV Velocidad" Style="{StaticResource FieldCaption}"/><TextBox x:Name="EvSpeBox" TextChanged="Stat_TextChanged"/></StackPanel>
+              <StackPanel Margin="0,0,10,13"><TextBlock x:Name="AccessibleCaption17" Text="EV PS" Style="{StaticResource FieldCaption}"/><TextBox x:Name="EvHpBox" AutomationProperties.LabeledBy="{Binding ElementName=AccessibleCaption17}" TextChanged="Stat_TextChanged"/></StackPanel>
+              <StackPanel Margin="0,0,10,13"><TextBlock x:Name="AccessibleCaption18" Text="EV Ataque" Style="{StaticResource FieldCaption}"/><TextBox x:Name="EvAtkBox" AutomationProperties.LabeledBy="{Binding ElementName=AccessibleCaption18}" TextChanged="Stat_TextChanged"/></StackPanel>
+              <StackPanel Margin="0,0,10,13"><TextBlock x:Name="AccessibleCaption19" Text="EV Defensa" Style="{StaticResource FieldCaption}"/><TextBox x:Name="EvDefBox" AutomationProperties.LabeledBy="{Binding ElementName=AccessibleCaption19}" TextChanged="Stat_TextChanged"/></StackPanel>
+              <StackPanel Margin="0,0,10,13"><TextBlock x:Name="AccessibleCaption20" Text="EV Ataque Esp." Style="{StaticResource FieldCaption}"/><TextBox x:Name="EvSpaBox" AutomationProperties.LabeledBy="{Binding ElementName=AccessibleCaption20}" TextChanged="Stat_TextChanged"/></StackPanel>
+              <StackPanel Margin="0,0,10,13"><TextBlock x:Name="AccessibleCaption21" Text="EV Defensa Esp." Style="{StaticResource FieldCaption}"/><TextBox x:Name="EvSpdBox" AutomationProperties.LabeledBy="{Binding ElementName=AccessibleCaption21}" TextChanged="Stat_TextChanged"/></StackPanel>
+              <StackPanel Margin="0,0,10,13"><TextBlock x:Name="AccessibleCaption22" Text="EV Velocidad" Style="{StaticResource FieldCaption}"/><TextBox x:Name="EvSpeBox" AutomationProperties.LabeledBy="{Binding ElementName=AccessibleCaption22}" TextChanged="Stat_TextChanged"/></StackPanel>
             </UniformGrid>
         </StackPanel>
     </Expander>
 </Border>
                     <Border Style="{StaticResource Card}">
-    <Expander Header="CRIANZA Y CARACTERÍSTICAS" IsExpanded="False" Foreground="{StaticResource TextMain}"
-              Background="{StaticResource Panel}" Padding="0">
+    <Expander Header="CRIANZA Y CARACTERÍSTICAS" IsExpanded="False" Foreground="{DynamicResource TextMain}"
+              Background="{DynamicResource Panel}" Padding="0">
         <StackPanel Margin="0,13,0,0">
-            <TextBlock Text="Valores internos originales de pk3DS; se conservan los campos que todavía no se editan." FontSize="11" Foreground="{StaticResource TextSoft}"
+            <TextBlock Text="Valores internos originales de pk3DS; se conservan los campos que todavía no se editan." FontSize="12" Foreground="{DynamicResource TextSoft}"
                        TextWrapping="Wrap" Margin="0,0,0,14"/>
             <UniformGrid Columns="2">
-              <StackPanel Margin="0,0,10,13"><TextBlock Text="Experiencia base (0–65535)" Style="{StaticResource FieldCaption}"/><TextBox x:Name="BaseExpBox" TextChanged="Stat_TextChanged"/></StackPanel>
-              <StackPanel Margin="0,0,10,13"><TextBlock Text="Amistad (0–255)" Style="{StaticResource FieldCaption}"/><TextBox x:Name="FriendshipBox" TextChanged="Stat_TextChanged"/></StackPanel>
-              <StackPanel Margin="0,0,10,13"><TextBlock Text="Ciclos de eclosión" Style="{StaticResource FieldCaption}"/><TextBox x:Name="HatchBox" TextChanged="Stat_TextChanged"/></StackPanel>
-              <StackPanel Margin="0,0,10,13"><TextBlock Text="Ratio de género (0–255)" Style="{StaticResource FieldCaption}"/><TextBox x:Name="GenderBox" TextChanged="Stat_TextChanged"/></StackPanel>
-              <StackPanel Margin="0,0,10,13"><TextBlock Text="Grupo huevo 1" Style="{StaticResource FieldCaption}"/><ComboBox x:Name="EggOneBox" DisplayMemberPath="Display" SelectedValuePath="Id" SelectionChanged="Type_SelectionChanged" MaxDropDownHeight="300"/></StackPanel>
-              <StackPanel Margin="0,0,10,13"><TextBlock Text="Grupo huevo 2" Style="{StaticResource FieldCaption}"/><ComboBox x:Name="EggTwoBox" DisplayMemberPath="Display" SelectedValuePath="Id" SelectionChanged="Type_SelectionChanged" MaxDropDownHeight="300"/></StackPanel>
-              <StackPanel Margin="0,0,10,13"><TextBlock Text="Curva de experiencia" Style="{StaticResource FieldCaption}"/><ComboBox x:Name="GrowthBox" DisplayMemberPath="Display" SelectedValuePath="Id" SelectionChanged="Type_SelectionChanged" MaxDropDownHeight="300"/></StackPanel>
-              <StackPanel Margin="0,0,10,13"><TextBlock Text="Ratio de escape (0–255)" Style="{StaticResource FieldCaption}"/><TextBox x:Name="EscapeBox" TextChanged="Stat_TextChanged"/></StackPanel>
+              <StackPanel Margin="0,0,10,13"><TextBlock x:Name="AccessibleCaption23" Text="Experiencia base (0–65535)" Style="{StaticResource FieldCaption}"/><TextBox x:Name="BaseExpBox" AutomationProperties.LabeledBy="{Binding ElementName=AccessibleCaption23}" TextChanged="Stat_TextChanged"/></StackPanel>
+              <StackPanel Margin="0,0,10,13"><TextBlock x:Name="AccessibleCaption24" Text="Amistad (0–255)" Style="{StaticResource FieldCaption}"/><TextBox x:Name="FriendshipBox" AutomationProperties.LabeledBy="{Binding ElementName=AccessibleCaption24}" TextChanged="Stat_TextChanged"/></StackPanel>
+              <StackPanel Margin="0,0,10,13"><TextBlock x:Name="AccessibleCaption25" Text="Ciclos de eclosión" Style="{StaticResource FieldCaption}"/><TextBox x:Name="HatchBox" AutomationProperties.LabeledBy="{Binding ElementName=AccessibleCaption25}" TextChanged="Stat_TextChanged"/></StackPanel>
+              <StackPanel Margin="0,0,10,13"><TextBlock x:Name="AccessibleCaption26" Text="Ratio de género (0–255)" Style="{StaticResource FieldCaption}"/><TextBox x:Name="GenderBox" AutomationProperties.LabeledBy="{Binding ElementName=AccessibleCaption26}" TextChanged="Stat_TextChanged"/></StackPanel>
+              <StackPanel Margin="0,0,10,13"><TextBlock x:Name="AccessibleCaption27" Text="Grupo huevo 1" Style="{StaticResource FieldCaption}"/><ComboBox x:Name="EggOneBox" AutomationProperties.LabeledBy="{Binding ElementName=AccessibleCaption27}" DisplayMemberPath="Display" SelectedValuePath="Id" SelectionChanged="Type_SelectionChanged" MaxDropDownHeight="300"/></StackPanel>
+              <StackPanel Margin="0,0,10,13"><TextBlock x:Name="AccessibleCaption28" Text="Grupo huevo 2" Style="{StaticResource FieldCaption}"/><ComboBox x:Name="EggTwoBox" AutomationProperties.LabeledBy="{Binding ElementName=AccessibleCaption28}" DisplayMemberPath="Display" SelectedValuePath="Id" SelectionChanged="Type_SelectionChanged" MaxDropDownHeight="300"/></StackPanel>
+              <StackPanel Margin="0,0,10,13"><TextBlock x:Name="AccessibleCaption29" Text="Curva de experiencia" Style="{StaticResource FieldCaption}"/><ComboBox x:Name="GrowthBox" AutomationProperties.LabeledBy="{Binding ElementName=AccessibleCaption29}" DisplayMemberPath="Display" SelectedValuePath="Id" SelectionChanged="Type_SelectionChanged" MaxDropDownHeight="300"/></StackPanel>
+              <StackPanel Margin="0,0,10,13"><TextBlock x:Name="AccessibleCaption30" Text="Ratio de escape (0–255)" Style="{StaticResource FieldCaption}"/><TextBox x:Name="EscapeBox" AutomationProperties.LabeledBy="{Binding ElementName=AccessibleCaption30}" TextChanged="Stat_TextChanged"/></StackPanel>
             </UniformGrid>
         </StackPanel>
     </Expander>
 </Border>
                     <Border Style="{StaticResource Card}">
-                        <Expander Header="FORMAS, COLOR Y DATOS FÍSICOS" Foreground="{StaticResource TextMain}" IsExpanded="False">
+                        <Expander Header="FORMAS, COLOR Y DATOS FÍSICOS" Foreground="{DynamicResource TextMain}" IsExpanded="False">
                             <StackPanel Margin="0,14,0,0">
                                 <TextBlock Text="Los valores de altura y peso se muestran en unidades internas del juego; la asignación de Form Stats Index se mantiene sin edición para prevenir daños."
-                                           Foreground="{StaticResource TextSoft}" TextWrapping="Wrap" Margin="0,0,0,13"/>
+                                           Foreground="{DynamicResource TextSoft}" TextWrapping="Wrap" Margin="0,0,0,13"/>
                                 <UniformGrid Columns="2">
                                     <StackPanel Margin="0,0,10,13">
- <TextBlock Text="Etapa de evolución (0–255)" Style="{StaticResource FieldCaption}"/>
- <TextBox x:Name="EvoStageBox" TextChanged="Stat_TextChanged" />
+ <TextBlock x:Name="AccessibleCaption31" Text="Etapa de evolución (0–255)" Style="{StaticResource FieldCaption}"/>
+ <TextBox x:Name="EvoStageBox" AutomationProperties.LabeledBy="{Binding ElementName=AccessibleCaption31}" TextChanged="Stat_TextChanged" />
  </StackPanel>
                                     <StackPanel Margin="0,0,10,13">
- <TextBlock Text="Número de formas (0–255)" Style="{StaticResource FieldCaption}"/>
- <TextBox x:Name="FormCountBox" TextChanged="Stat_TextChanged" />
+ <TextBlock x:Name="AccessibleCaption32" Text="Número de formas (0–255)" Style="{StaticResource FieldCaption}"/>
+ <TextBox x:Name="FormCountBox" AutomationProperties.LabeledBy="{Binding ElementName=AccessibleCaption32}" TextChanged="Stat_TextChanged" />
  </StackPanel>
                                     <StackPanel Margin="0,0,10,13">
- <TextBlock Text="Sprite de forma (0–65535)" Style="{StaticResource FieldCaption}"/>
- <TextBox x:Name="FormSpriteBox" TextChanged="Stat_TextChanged" />
+ <TextBlock x:Name="AccessibleCaption33" Text="Sprite de forma (0–65535)" Style="{StaticResource FieldCaption}"/>
+ <TextBox x:Name="FormSpriteBox" AutomationProperties.LabeledBy="{Binding ElementName=AccessibleCaption33}" TextChanged="Stat_TextChanged" />
  </StackPanel>
                                     <StackPanel Margin="0,0,10,13">
- <TextBlock Text="Color interno (0–63)" Style="{StaticResource FieldCaption}"/>
- <TextBox x:Name="ColorBox" TextChanged="Stat_TextChanged" />
+ <TextBlock x:Name="AccessibleCaption34" Text="Color interno (0–63)" Style="{StaticResource FieldCaption}"/>
+ <TextBox x:Name="ColorBox" AutomationProperties.LabeledBy="{Binding ElementName=AccessibleCaption34}" TextChanged="Stat_TextChanged" />
  </StackPanel>
                                     <StackPanel Margin="0,0,10,13">
- <TextBlock Text="Altura (centésimas de metro)" Style="{StaticResource FieldCaption}"/>
- <TextBox x:Name="HeightBox" TextChanged="Stat_TextChanged" />
+ <TextBlock x:Name="AccessibleCaption35" Text="Altura (centésimas de metro)" Style="{StaticResource FieldCaption}"/>
+ <TextBox x:Name="HeightBox" AutomationProperties.LabeledBy="{Binding ElementName=AccessibleCaption35}" TextChanged="Stat_TextChanged" />
  </StackPanel>
                                     <StackPanel Margin="0,0,10,13">
- <TextBlock Text="Peso (décimas de kg)" Style="{StaticResource FieldCaption}"/>
- <TextBox x:Name="WeightBox" TextChanged="Stat_TextChanged" />
+ <TextBlock x:Name="AccessibleCaption36" Text="Peso (décimas de kg)" Style="{StaticResource FieldCaption}"/>
+ <TextBox x:Name="WeightBox" AutomationProperties.LabeledBy="{Binding ElementName=AccessibleCaption36}" TextChanged="Stat_TextChanged" />
  </StackPanel>
                                 </UniformGrid>
                             </StackPanel>
@@ -372,35 +361,35 @@
                     </Border>
                     <Border x:Name="Gen7PersonalCard" Style="{StaticResource Card}">
                         <Expander Header="POKÉMON ESPECIALES Y MOVIMIENTOS Z · GEN 7"
-                                  Foreground="{StaticResource TextMain}" IsExpanded="False">
+                                  Foreground="{DynamicResource TextMain}" IsExpanded="False">
                             <StackPanel Margin="0,14,0,0">
                                 <TextBlock Text="Se reutilizan los nombres de objetos y movimientos extraídos del juego; el ID se conserva en el GARC."
-                                           Foreground="{StaticResource TextSoft}" TextWrapping="Wrap" Margin="0,0,0,13"/>
+                                           Foreground="{DynamicResource TextSoft}" TextWrapping="Wrap" Margin="0,0,0,13"/>
                                 <UniformGrid Columns="2">
                                     <StackPanel Margin="0,0,10,13">
- <TextBlock Text="Cristal Z exclusivo" Style="{StaticResource FieldCaption}"/>
- <ComboBox x:Name="ZItemBox" DisplayMemberPath="Name" SelectedValuePath="Id" SelectionChanged="Type_SelectionChanged" />
+ <TextBlock x:Name="AccessibleCaption37" Text="Cristal Z exclusivo" Style="{StaticResource FieldCaption}"/>
+ <ComboBox x:Name="ZItemBox" AutomationProperties.LabeledBy="{Binding ElementName=AccessibleCaption37}" DisplayMemberPath="Name" SelectedValuePath="Id" SelectionChanged="Type_SelectionChanged" />
  </StackPanel>
                                     <StackPanel Margin="0,0,10,13">
- <TextBlock Text="Movimiento base" Style="{StaticResource FieldCaption}"/>
- <ComboBox x:Name="ZBaseMoveBox" DisplayMemberPath="Name" SelectedValuePath="Id" SelectionChanged="Type_SelectionChanged" />
+ <TextBlock x:Name="AccessibleCaption38" Text="Movimiento base" Style="{StaticResource FieldCaption}"/>
+ <ComboBox x:Name="ZBaseMoveBox" AutomationProperties.LabeledBy="{Binding ElementName=AccessibleCaption38}" DisplayMemberPath="Name" SelectedValuePath="Id" SelectionChanged="Type_SelectionChanged" />
  </StackPanel>
                                     <StackPanel Margin="0,0,10,13">
- <TextBlock Text="Movimiento Z exclusivo" Style="{StaticResource FieldCaption}"/>
- <ComboBox x:Name="ZSpecialMoveBox" DisplayMemberPath="Name" SelectedValuePath="Id" SelectionChanged="Type_SelectionChanged" />
+ <TextBlock x:Name="AccessibleCaption39" Text="Movimiento Z exclusivo" Style="{StaticResource FieldCaption}"/>
+ <ComboBox x:Name="ZSpecialMoveBox" AutomationProperties.LabeledBy="{Binding ElementName=AccessibleCaption39}" DisplayMemberPath="Name" SelectedValuePath="Id" SelectionChanged="Type_SelectionChanged" />
  </StackPanel>
                                     <CheckBox x:Name="RegionalVariantCheck" Content="Variante regional"
-                                              Foreground="{StaticResource TextMain}" VerticalAlignment="Center"
+                                              Foreground="{DynamicResource TextMain}" VerticalAlignment="Center"
                                               Checked="FlagCheck_Changed" Unchecked="FlagCheck_Changed"/>
                                 </UniformGrid>
                             </StackPanel>
                         </Expander>
                     </Border>
                     <Border Style="{StaticResource Card}">
-                        <Expander Header="COMPATIBILIDAD MT / TUTORES" Foreground="{StaticResource TextMain}" IsExpanded="False">
+                        <Expander Header="COMPATIBILIDAD MT / TUTORES" Foreground="{DynamicResource TextMain}" IsExpanded="False">
                             <StackPanel Margin="0,14,0,0">
                                 <TextBlock Text="Las MT incluyen sus 100 ranuras editables; los bits reservados se preservan. Los tutores especiales usan índices internos para no mostrar nombres incorrectos en ROMs custom."
-                                           Foreground="{StaticResource TextSoft}" TextWrapping="Wrap" Margin="0,0,0,13"/>
+                                           Foreground="{DynamicResource TextSoft}" TextWrapping="Wrap" Margin="0,0,0,13"/>
                                 <WrapPanel Margin="0,0,0,12">
                                     <Button Content="Marcar todas las MT" Click="CheckAllTm_Click" Margin="0,0,9,0"/>
                                     <Button Content="Quitar todas las MT" Click="UncheckAllTm_Click"/>
@@ -408,15 +397,15 @@
                                 <StackPanel Margin="0,0,10,10">
                                   <TextBlock Text="Máquinas técnicas (100 slots)" FontWeight="SemiBold" Margin="0,0,0,8"/>
                                   <ScrollViewer Height="230" VerticalScrollBarVisibility="Auto"
-                                                Background="{StaticResource Surface}">
+                                                Background="{DynamicResource Surface}">
                                     <ItemsControl x:Name="TmFlagsList">
                                       <ItemsControl.ItemsPanel><ItemsPanelTemplate><WrapPanel/></ItemsPanelTemplate></ItemsControl.ItemsPanel>
                                       <ItemsControl.ItemTemplate>
                                         <DataTemplate>
                                           <CheckBox IsChecked="{Binding IsChecked, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                             Content="{Binding Label}" ToolTip="{Binding Label}"
-                                            Foreground="{StaticResource TextMain}"
-                                            Padding="5" Width="270" Margin="3" FontSize="11"/>
+                                            Foreground="{DynamicResource TextMain}"
+                                            Padding="5" Width="270" Margin="3" FontSize="12"/>
                                         </DataTemplate>
                                       </ItemsControl.ItemTemplate>
                                     </ItemsControl>
@@ -425,15 +414,15 @@
                                 <StackPanel Margin="0,0,10,10">
                                   <TextBlock Text="Tutores por tipo" FontWeight="SemiBold" Margin="0,0,0,8"/>
                                   <ScrollViewer Height="230" VerticalScrollBarVisibility="Auto"
-                                                Background="{StaticResource Surface}">
+                                                Background="{DynamicResource Surface}">
                                     <ItemsControl x:Name="TutorFlagsList">
                                       <ItemsControl.ItemsPanel><ItemsPanelTemplate><WrapPanel/></ItemsPanelTemplate></ItemsControl.ItemsPanel>
                                       <ItemsControl.ItemTemplate>
                                         <DataTemplate>
                                           <CheckBox IsChecked="{Binding IsChecked, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                             Content="{Binding Label}" ToolTip="{Binding Label}"
-                                            Foreground="{StaticResource TextMain}"
-                                            Padding="5" Width="270" Margin="3" FontSize="11"/>
+                                            Foreground="{DynamicResource TextMain}"
+                                            Padding="5" Width="270" Margin="3" FontSize="12"/>
                                         </DataTemplate>
                                       </ItemsControl.ItemTemplate>
                                     </ItemsControl>
@@ -442,15 +431,15 @@
                                 <StackPanel Margin="0,0,10,10">
                                   <TextBlock Text="Tutores especiales / Beach Tutors" FontWeight="SemiBold" Margin="0,0,0,8"/>
                                   <ScrollViewer Height="230" VerticalScrollBarVisibility="Auto"
-                                                Background="{StaticResource Surface}">
+                                                Background="{DynamicResource Surface}">
                                     <ItemsControl x:Name="SpecialTutorFlagsList">
                                       <ItemsControl.ItemsPanel><ItemsPanelTemplate><WrapPanel/></ItemsPanelTemplate></ItemsControl.ItemsPanel>
                                       <ItemsControl.ItemTemplate>
                                         <DataTemplate>
                                           <CheckBox IsChecked="{Binding IsChecked, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                             Content="{Binding Label}" ToolTip="{Binding Label}"
-                                            Foreground="{StaticResource TextMain}"
-                                            Padding="5" Width="270" Margin="3" FontSize="11"/>
+                                            Foreground="{DynamicResource TextMain}"
+                                            Padding="5" Width="270" Margin="3" FontSize="12"/>
                                         </DataTemplate>
                                       </ItemsControl.ItemTemplate>
                                     </ItemsControl>
@@ -459,25 +448,25 @@
                             </StackPanel>
                         </Expander>
                     </Border>
-                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+
+                </StackPanel>
+            </ScrollViewer><Border Grid.Row="1" Padding="12,10" Background="{DynamicResource Panel}" BorderBrush="{DynamicResource Stroke}" BorderThickness="0,1,0,0" IsEnabled="{Binding IsEnabled, ElementName=EditorContent}"><WrapPanel HorizontalAlignment="Right">
                         <Button Content="Restablecer campos" Click="Reset_Click" Margin="0,0,10,0"/>
                         <Button x:Name="SaveButton" Content="Guardar en el proyecto"
                                 Style="{StaticResource PrimaryButton}" Click="Save_Click"
                                 IsEnabled="False"/>
-                    </StackPanel>
-                </StackPanel>
-            </ScrollViewer>
+                    </WrapPanel></Border></Grid>
 
             <Grid x:Name="PersonalToolsPanel" Grid.Column="2" Visibility="Collapsed">
                 <ContentControl x:Name="PersonalToolsHost" HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch"/>
             </Grid>
 
             <!-- Inspector -->
-            <Border x:Name="PokemonInspectorPanel" Grid.Column="3" Background="#1B2430"
-                    BorderBrush="{StaticResource Stroke}" BorderThickness="1,0,0,0">
+            <Expander x:Name="AdaptiveInspector" Grid.Column="3" Header="Inspector" IsExpanded="True" Visibility="{Binding Visibility, ElementName=PokemonInspectorPanel}"><Border x:Name="PokemonInspectorPanel"  Background="{DynamicResource ListSurface}"
+                    BorderBrush="{DynamicResource Stroke}" BorderThickness="1,0,0,0">
                 <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Background="Transparent">
                 <StackPanel Margin="17,23">
-                    <TextBlock Text="INSPECTOR" Style="{StaticResource SmallHeading}"
+                    <TextBlock Text="Inspector" Style="{StaticResource SmallHeading}"
                                Margin="0,0,0,12"/>
                     <StackPanel x:Name="PersonalActions" IsEnabled="False" Margin="0,0,0,18">
                         <Button x:Name="RandomizePokemonButton" Content="Randomizar Pokémon" Click="PersonalAction_Click" Tag="PersonalRandomize" Margin="0,0,0,8"/>
@@ -485,23 +474,23 @@
                     </StackPanel>
                     <Border Style="{StaticResource Card}">
                         <StackPanel>
-                            <TextBlock Text="Total de estadísticas" Foreground="{StaticResource TextSoft}"/>
+                            <TextBlock Text="Total de estadísticas" Foreground="{DynamicResource TextSoft}"/>
                             <TextBlock x:Name="BstText" Text="—" FontWeight="Bold" FontSize="36"
-                                       Foreground="{StaticResource Accent}" Margin="0,6,0,0"/>
-                            <TextBlock Text="BST (Base Stat Total)" FontSize="11"
-                                       Foreground="{StaticResource TextSoft}"/>
+                                       Foreground="{DynamicResource Accent}" Margin="0,6,0,0"/>
+                            <TextBlock Text="BST (Base Stat Total)" FontSize="12"
+                                       Foreground="{DynamicResource TextSoft}"/>
                         </StackPanel>
                     </Border>
                     <Border Style="{StaticResource Card}">
                         <StackPanel>
                             <TextBlock Text="Sesión actual" FontWeight="SemiBold" Margin="0,0,0,12"/>
                             <TextBlock x:Name="SpriteStatusText" Text=""
-                                       Foreground="{StaticResource TextSoft}" FontSize="11"
+                                       Foreground="{DynamicResource TextSoft}" FontSize="12"
                                        TextWrapping="Wrap" Margin="0,0,0,9"/>
                             <TextBlock x:Name="InspectorGameText" Text="Sin juego"
-                                       Foreground="{StaticResource TextSoft}" TextWrapping="Wrap"/>
+                                       Foreground="{DynamicResource TextSoft}" TextWrapping="Wrap"/>
                             <TextBlock x:Name="InspectorEntryText" Text="Sin especie"
-                                       Foreground="{StaticResource TextSoft}" Margin="0,6,0,0"
+                                       Foreground="{DynamicResource TextSoft}" Margin="0,6,0,0"
                                        TextWrapping="Wrap"/>
                         </StackPanel>
                     </Border>
@@ -510,42 +499,42 @@
                             <TextBlock Text="Seguridad de guardado" FontWeight="SemiBold"
                                        Margin="0,0,0,9"/>
                             <TextBlock Text="Solo se escribe al pulsar Guardar y confirmar. Se valida el GARC antes de reemplazar el archivo. Usa una copia de trabajo del juego."
-                                       Foreground="{StaticResource TextSoft}" FontSize="12"
+                                       Foreground="{DynamicResource TextSoft}" FontSize="12"
                                        TextWrapping="Wrap" LineHeight="18"/>
                         </StackPanel>
                     </Border>
                 </StackPanel>
                 </ScrollViewer>
-            </Border>
+            </Border></Expander>
             <ContentControl x:Name="SectionHost" Grid.Column="1" Grid.ColumnSpan="3" Visibility="Collapsed"/>
             <ContentControl x:Name="MovesHost" Grid.Column="1" Grid.ColumnSpan="3"
-                            Visibility="Collapsed" Background="{StaticResource Bg}"/>
+                            Visibility="Collapsed" Background="{DynamicResource Bg}"/>
         </Grid>
 
-        <Border Grid.Row="2" Background="#111720" BorderBrush="{StaticResource Stroke}"
+        <Border Grid.Row="2" Background="{DynamicResource Chrome}" BorderBrush="{DynamicResource Stroke}"
                 BorderThickness="0,1,0,0">
-            <DockPanel Margin="18,0" LastChildFill="True">
+            <DockPanel Margin="18,10" LastChildFill="True">
                 <TextBlock Text="DEFINITIVE RANDOMIZER · V0.8.0 PREVIEW"
-                           DockPanel.Dock="Right" Foreground="{StaticResource TextSoft}"
-                           FontSize="10" VerticalAlignment="Center"/>
+                           DockPanel.Dock="Right" Foreground="{DynamicResource TextSoft}"
+                           FontSize="12" VerticalAlignment="Center"/>
                 <TextBlock x:Name="OperationPercent" DockPanel.Dock="Right"
-                           Foreground="{StaticResource TextMain}" FontWeight="SemiBold" FontSize="12"
+                           Foreground="{DynamicResource TextMain}" FontWeight="SemiBold" FontSize="12"
                            VerticalAlignment="Center" Visibility="Collapsed" Text="0%"/>
                 <ProgressBar x:Name="OperationProgress" DockPanel.Dock="Right"
                              Width="225" Height="12" Margin="12,0,10,0" IsIndeterminate="True"
                              Minimum="0" Maximum="100" Value="0"
-                             Visibility="Collapsed" Foreground="{StaticResource Accent}"
-                             Background="{StaticResource Surface}" VerticalAlignment="Center"/>
+                             Visibility="Collapsed" Foreground="{DynamicResource Accent}"
+                             Background="{DynamicResource Surface}" VerticalAlignment="Center"/>
                 <TextBlock x:Name="OperationElapsedText" DockPanel.Dock="Right"
-                           Foreground="{StaticResource TextSoft}" FontSize="11"
+                           Foreground="{DynamicResource TextSoft}" FontSize="12"
                            VerticalAlignment="Center" Margin="8,0,10,0"
                            Visibility="Collapsed" Text="00:00"/>
                 <StackPanel VerticalAlignment="Center">
                     <TextBlock x:Name="StatusText" Text="Esperando proyecto extraído..."
-                               Foreground="{StaticResource TextSoft}" TextTrimming="CharacterEllipsis"
-                               FontSize="11" FontWeight="SemiBold"/>
+                               Foreground="{DynamicResource TextSoft}" TextTrimming="CharacterEllipsis"
+                               FontSize="12" FontWeight="SemiBold"/>
                     <TextBlock x:Name="OperationStageText" Text=""
-                               Foreground="{StaticResource Accent}" FontSize="11"
+                               Foreground="{DynamicResource Accent}" FontSize="12"
                                TextTrimming="CharacterEllipsis" Visibility="Collapsed"
                                Margin="0,4,0,0"/>
                 </StackPanel>

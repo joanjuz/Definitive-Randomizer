@@ -1,20 +1,9 @@
-<UserControl x:Class="ThreeDS.Progressive.MoveEditorView"
+﻿<UserControl x:Class="ThreeDS.Progressive.MoveEditorView"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" Background="{StaticResource Bg}" Foreground="{StaticResource TextMain}">
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:ui="clr-namespace:ThreeDS.Progressive" Background="{DynamicResource Bg}" Foreground="{DynamicResource TextMain}">
     <UserControl.Resources>
-        <Style x:Key="MoveCard" TargetType="Border">
-            <Setter Property="Background" Value="{StaticResource Panel}"/>
-            <Setter Property="BorderBrush" Value="{StaticResource Stroke}"/>
-            <Setter Property="BorderThickness" Value="1"/>
-            <Setter Property="CornerRadius" Value="11"/>
-            <Setter Property="Padding" Value="18"/>
-            <Setter Property="Margin" Value="0,0,0,15"/>
-        </Style>
-        <Style x:Key="MoveLabel" TargetType="TextBlock">
-            <Setter Property="Foreground" Value="{StaticResource TextSoft}"/>
-            <Setter Property="FontSize" Value="12"/>
-            <Setter Property="Margin" Value="0,0,0,8"/>
-        </Style>
+        <Style x:Key="MoveCard" BasedOn="{StaticResource EditorPanel}" TargetType="Border"><Setter Property="Margin" Value="0,0,0,14"/></Style>
+        <Style x:Key="MoveLabel" BasedOn="{StaticResource FieldCaption}" TargetType="TextBlock"/>
     </UserControl.Resources>
     <Grid>
         <Grid.RowDefinitions>
@@ -22,7 +11,7 @@
             <RowDefinition Height="*"/>
             <RowDefinition Height="39"/>
         </Grid.RowDefinitions>
-        <Border Grid.Row="0" Background="#111720" BorderBrush="{StaticResource Stroke}" BorderThickness="0,0,0,1">
+        <Border Grid.Row="0" Background="{DynamicResource Chrome}" BorderBrush="{DynamicResource Stroke}" BorderThickness="0,0,0,1">
             <Grid Margin="22,0">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*"/>
@@ -31,25 +20,25 @@
                 <StackPanel VerticalAlignment="Center">
                     <TextBlock Text="Movimientos" FontSize="21" FontWeight="SemiBold"/>
                     <TextBlock Text="Definitive Randomizer · Editor GARC" FontSize="12"
-                               Foreground="{StaticResource TextSoft}" Margin="0,4,0,0"/>
+                               Foreground="{DynamicResource TextSoft}" Margin="0,4,0,0"/>
                 </StackPanel>
 
             </Grid>
         </Border>
-        <Grid Grid.Row="1">
+        <Grid Grid.Row="1" ui:AdaptiveLayout.Inspector="AdaptiveInspector" ui:AdaptiveLayout.CompactWidth="880">
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="249"/>
+                <ColumnDefinition Width="1*" MinWidth="160" MaxWidth="235"/>
                 <ColumnDefinition Width="*"/>
-                <ColumnDefinition Width="256"/>
+                <ColumnDefinition Width="1*" MinWidth="180" MaxWidth="245"/>
             </Grid.ColumnDefinitions>
-            <Border Background="#1B2430" BorderBrush="{StaticResource Stroke}" BorderThickness="0,0,1,0">
+            <Border Background="{DynamicResource ListSurface}" BorderBrush="{DynamicResource Stroke}" BorderThickness="0,0,1,0">
                 <DockPanel Margin="15,20">
                     <StackPanel DockPanel.Dock="Top">
-                        <TextBlock Text="LISTA DE MOVIMIENTOS" Foreground="{StaticResource TextSoft}"
-                                   FontSize="11" FontWeight="SemiBold" Margin="1,0,0,12"/>
-                        <TextBox x:Name="SearchInput" TextChanged="SearchInput_TextChanged"
+                        <TextBlock x:Name="AccessibleCaption1" Text="Lista de movimientos" Foreground="{DynamicResource TextSoft}"
+                                   FontSize="12" FontWeight="SemiBold" Margin="1,0,0,12"/>
+                        <TextBox x:Name="SearchInput" AutomationProperties.LabeledBy="{Binding ElementName=AccessibleCaption1}" TextChanged="SearchInput_TextChanged"
                                  ToolTip="Buscar movimiento por nombre o número"/>
-                        <TextBlock x:Name="CountText" FontSize="11" Foreground="{StaticResource TextSoft}"
+                        <TextBlock x:Name="CountText" FontSize="12" Foreground="{DynamicResource TextSoft}"
                                    Margin="0,11,0,14"/>
                     </StackPanel>
                     <ListBox x:Name="MoveList" SelectionChanged="MoveList_SelectionChanged"
@@ -63,179 +52,168 @@
                 </DockPanel>
             </Border>
 
-            <ScrollViewer x:Name="MoveFieldsPanel" Grid.Column="1" Background="{StaticResource Bg}"
+            <Grid x:Name="MoveEditorLayout" Grid.Column="1" Visibility="{Binding Visibility, ElementName=MoveFieldsPanel}"><Grid.RowDefinitions><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions><ScrollViewer x:Name="MoveFieldsPanel" Grid.Row="0" Background="{DynamicResource Bg}"
                           VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
                 <StackPanel Margin="27,26">
                     <TextBlock x:Name="MoveNameText" Text="Seleccioná un movimiento"
                                FontSize="26" FontWeight="SemiBold"/>
                     <TextBlock x:Name="MoveNumberText" Text="Campos básicos"
-                               Margin="0,6,0,19" Foreground="{StaticResource TextSoft}"/>
+                               Margin="0,6,0,19" Foreground="{DynamicResource TextSoft}"/>
                     <Border Style="{StaticResource MoveCard}">
                         <StackPanel>
                             <TextBlock Text="DATOS DEL MOVIMIENTO"
-                                       Foreground="{StaticResource TextSoft}" FontSize="11"
+                                       Foreground="{DynamicResource TextSoft}" FontSize="12"
                                        FontWeight="SemiBold" Margin="0,0,0,15"/>
                             <UniformGrid Columns="2">
                                 <StackPanel Margin="0,0,12,17">
-                                    <TextBlock Text="Tipo" Style="{StaticResource MoveLabel}"/>
-                                    <ComboBox x:Name="MoveType" SelectionChanged="Value_Changed"/>
+                                    <TextBlock x:Name="AccessibleCaption2" Text="Tipo" Style="{StaticResource MoveLabel}"/>
+                                    <ComboBox x:Name="MoveType" AutomationProperties.LabeledBy="{Binding ElementName=AccessibleCaption2}" SelectionChanged="Value_Changed"/>
                                 </StackPanel>
                                 <StackPanel Margin="0,0,0,17">
-                                    <TextBlock Text="Categoría" Style="{StaticResource MoveLabel}"/>
-                                    <ComboBox x:Name="MoveCategory" SelectionChanged="Value_Changed">
+                                    <TextBlock x:Name="AccessibleCaption3" Text="Categoría" Style="{StaticResource MoveLabel}"/>
+                                    <ComboBox x:Name="MoveCategory" AutomationProperties.LabeledBy="{Binding ElementName=AccessibleCaption3}" SelectionChanged="Value_Changed">
                                         <ComboBoxItem Content="Estado"/>
                                         <ComboBoxItem Content="Físico"/>
                                         <ComboBoxItem Content="Especial"/>
                                     </ComboBox>
                                 </StackPanel>
                                 <StackPanel Margin="0,0,12,17">
-                                    <TextBlock Text="Potencia (0–255)" Style="{StaticResource MoveLabel}"/>
-                                    <TextBox x:Name="MovePower" TextChanged="Text_Changed"/>
+                                    <TextBlock x:Name="AccessibleCaption4" Text="Potencia (0–255)" Style="{StaticResource MoveLabel}"/>
+                                    <TextBox x:Name="MovePower" AutomationProperties.LabeledBy="{Binding ElementName=AccessibleCaption4}" TextChanged="Text_Changed"/>
                                 </StackPanel>
                                 <StackPanel Margin="0,0,0,17">
-                                    <TextBlock Text="Precisión (0–255)" Style="{StaticResource MoveLabel}"/>
-                                    <TextBox x:Name="MoveAccuracy" TextChanged="Text_Changed"/>
+                                    <TextBlock x:Name="AccessibleCaption5" Text="Precisión (0–255)" Style="{StaticResource MoveLabel}"/>
+                                    <TextBox x:Name="MoveAccuracy" AutomationProperties.LabeledBy="{Binding ElementName=AccessibleCaption5}" TextChanged="Text_Changed"/>
                                 </StackPanel>
                                 <StackPanel Margin="0,0,12,0">
-                                    <TextBlock Text="PP (0–255)" Style="{StaticResource MoveLabel}"/>
-                                    <TextBox x:Name="MovePP" TextChanged="Text_Changed"/>
+                                    <TextBlock x:Name="AccessibleCaption6" Text="PP (0–255)" Style="{StaticResource MoveLabel}"/>
+                                    <TextBox x:Name="MovePP" AutomationProperties.LabeledBy="{Binding ElementName=AccessibleCaption6}" TextChanged="Text_Changed"/>
                                 </StackPanel>
                                 <StackPanel>
-                                    <TextBlock Text="Prioridad (-8 a +8)" Style="{StaticResource MoveLabel}"/>
-                                    <TextBox x:Name="MovePriority" TextChanged="Text_Changed"/>
+                                    <TextBlock x:Name="AccessibleCaption7" Text="Prioridad (-8 a +8)" Style="{StaticResource MoveLabel}"/>
+                                    <TextBox x:Name="MovePriority" AutomationProperties.LabeledBy="{Binding ElementName=AccessibleCaption7}" TextChanged="Text_Changed"/>
                                 </StackPanel>
                             </UniformGrid>
                         </StackPanel>
                     </Border>
                     <Border Style="{StaticResource MoveCard}">
-                        <Expander Header="EFECTOS, GOLPES, OBJETIVOS Y FLAGS" Foreground="{StaticResource TextMain}" IsExpanded="False">
+                        <Expander Header="EFECTOS, GOLPES, OBJETIVOS Y FLAGS" Foreground="{DynamicResource TextMain}" IsExpanded="False">
                             <StackPanel Margin="0,16,0,0">
                                 <TextBlock Text="Se conservan los demás bytes; los IDs avanzados siguen la estructura vanilla de pk3DS."
-                                           Foreground="{StaticResource TextSoft}" TextWrapping="Wrap" FontSize="11" Margin="0,0,0,13"/>
-                                <UniformGrid Columns="2">
-                                    <StackPanel Margin="0,0,10,13">
-    <TextBlock Text="Clasificación del efecto" Style="{StaticResource MoveLabel}"/>
-    <ComboBox x:Name="QualityBox" DisplayMemberPath="Display" SelectedValuePath="Id" SelectionChanged="Value_Changed" MaxDropDownHeight="340" ToolTip="Opciones del editor pk3DS original"/>
-</StackPanel>
-                                    <StackPanel Margin="0,0,10,13">
-    <TextBlock Text="Golpes mínimos (0–15)" Style="{StaticResource MoveLabel}"/>
-    <TextBox x:Name="MinHitsBox" TextChanged="Text_Changed"/>
-</StackPanel>
-                                    <StackPanel Margin="0,0,10,13">
-    <TextBlock Text="Golpes máximos (0–15)" Style="{StaticResource MoveLabel}"/>
-    <TextBox x:Name="MaxHitsBox" TextChanged="Text_Changed"/>
-</StackPanel>
-                                    <StackPanel Margin="0,0,10,13">
-    <TextBlock Text="Estado que provoca" Style="{StaticResource MoveLabel}"/>
-    <ComboBox x:Name="InflictBox" DisplayMemberPath="Display" SelectedValuePath="Id" SelectionChanged="Value_Changed" MaxDropDownHeight="340" ToolTip="Opciones del editor pk3DS original"/>
-</StackPanel>
-                                    <StackPanel Margin="0,0,10,13">
-    <TextBlock Text="Probabilidad de efecto (0–255)" Style="{StaticResource MoveLabel}"/>
-    <TextBox x:Name="InflictRateBox" TextChanged="Text_Changed"/>
-</StackPanel>
-                                    <StackPanel Margin="0,0,10,13">
-    <TextBlock Text="Etapa de crítico (0–255)" Style="{StaticResource MoveLabel}"/>
-    <TextBox x:Name="CritBox" TextChanged="Text_Changed"/>
-</StackPanel>
-                                    <StackPanel Margin="0,0,10,13">
-    <TextBlock Text="Probabilidad de retroceso (0–255)" Style="{StaticResource MoveLabel}"/>
-    <TextBox x:Name="FlinchBox" TextChanged="Text_Changed"/>
-</StackPanel>
-                                    <StackPanel Margin="0,0,10,13">
-    <TextBlock Text="Secuencia de efecto (0–65535)" Style="{StaticResource MoveLabel}"/>
-    <TextBox x:Name="EffectBox" TextChanged="Text_Changed"/>
-</StackPanel>
-                                    <StackPanel Margin="0,0,10,13">
-    <TextBlock Text="Objetivo" Style="{StaticResource MoveLabel}"/>
-    <ComboBox x:Name="TargetBox" DisplayMemberPath="Display" SelectedValuePath="Id" SelectionChanged="Value_Changed" MaxDropDownHeight="340" ToolTip="Opciones del editor pk3DS original"/>
-</StackPanel>
-                                    <StackPanel Margin="0,0,10,13">
-    <TextBlock Text="Flags (hexadecimal)" Style="{StaticResource MoveLabel}"/>
-    <TextBox x:Name="FlagsBox" TextChanged="Text_Changed"/>
-</StackPanel>
-                                </UniformGrid>
+                                           Foreground="{DynamicResource TextSoft}" TextWrapping="Wrap" FontSize="12" Margin="0,0,0,13"/>
+                                <StackPanel><TextBlock Text="Efectos" Style="{StaticResource SectionHeading}" Margin="0,10,0,8"/><UniformGrid Columns="2"><StackPanel Margin="0,0,10,13">
+    <TextBlock x:Name="AccessibleCaption8" Text="Clasificación del efecto" Style="{StaticResource MoveLabel}"/>
+    <ComboBox x:Name="QualityBox" AutomationProperties.LabeledBy="{Binding ElementName=AccessibleCaption8}" DisplayMemberPath="Display" SelectedValuePath="Id" SelectionChanged="Value_Changed" MaxDropDownHeight="340" ToolTip="Opciones del editor pk3DS original"/>
+</StackPanel><StackPanel Margin="0,0,10,13">
+    <TextBlock x:Name="AccessibleCaption11" Text="Estado que provoca" Style="{StaticResource MoveLabel}"/>
+    <ComboBox x:Name="InflictBox" AutomationProperties.LabeledBy="{Binding ElementName=AccessibleCaption11}" DisplayMemberPath="Display" SelectedValuePath="Id" SelectionChanged="Value_Changed" MaxDropDownHeight="340" ToolTip="Opciones del editor pk3DS original"/>
+</StackPanel><StackPanel Margin="0,0,10,13">
+    <TextBlock x:Name="AccessibleCaption14" Text="Probabilidad de retroceso (0–255)" Style="{StaticResource MoveLabel}"/>
+    <TextBox x:Name="FlinchBox" AutomationProperties.LabeledBy="{Binding ElementName=AccessibleCaption14}" TextChanged="Text_Changed"/>
+</StackPanel><StackPanel Margin="0,0,10,13">
+    <TextBlock x:Name="AccessibleCaption15" Text="Secuencia de efecto (0–65535)" Style="{StaticResource MoveLabel}"/>
+    <TextBox x:Name="EffectBox" AutomationProperties.LabeledBy="{Binding ElementName=AccessibleCaption15}" TextChanged="Text_Changed"/>
+</StackPanel></UniformGrid><UniformGrid Columns="2"><StackPanel Margin="0,0,10,13">
+    <TextBlock x:Name="AccessibleCaption12" Text="Probabilidad de efecto (0–255)" Style="{StaticResource MoveLabel}"/>
+    <TextBox x:Name="InflictRateBox" AutomationProperties.LabeledBy="{Binding ElementName=AccessibleCaption12}" TextChanged="Text_Changed"/>
+</StackPanel><StackPanel Margin="0,0,10,13">
+    <TextBlock x:Name="AccessibleCaption13" Text="Etapa de crítico (0–255)" Style="{StaticResource MoveLabel}"/>
+    <TextBox x:Name="CritBox" AutomationProperties.LabeledBy="{Binding ElementName=AccessibleCaption13}" TextChanged="Text_Changed"/>
+</StackPanel></UniformGrid><TextBlock Text="Golpes" Style="{StaticResource SectionHeading}" Margin="0,10,0,8"/><UniformGrid Columns="2"><StackPanel Margin="0,0,10,13">
+    <TextBlock x:Name="AccessibleCaption9" Text="Golpes mínimos (0–15)" Style="{StaticResource MoveLabel}"/>
+    <TextBox x:Name="MinHitsBox" AutomationProperties.LabeledBy="{Binding ElementName=AccessibleCaption9}" TextChanged="Text_Changed"/>
+</StackPanel><StackPanel Margin="0,0,10,13">
+    <TextBlock x:Name="AccessibleCaption10" Text="Golpes máximos (0–15)" Style="{StaticResource MoveLabel}"/>
+    <TextBox x:Name="MaxHitsBox" AutomationProperties.LabeledBy="{Binding ElementName=AccessibleCaption10}" TextChanged="Text_Changed"/>
+</StackPanel></UniformGrid><TextBlock Text="Objetivo y flags" Style="{StaticResource SectionHeading}" Margin="0,10,0,8"/><UniformGrid Columns="2"><StackPanel Margin="0,0,10,13">
+    <TextBlock x:Name="AccessibleCaption16" Text="Objetivo" Style="{StaticResource MoveLabel}"/>
+    <ComboBox x:Name="TargetBox" AutomationProperties.LabeledBy="{Binding ElementName=AccessibleCaption16}" DisplayMemberPath="Display" SelectedValuePath="Id" SelectionChanged="Value_Changed" MaxDropDownHeight="340" ToolTip="Opciones del editor pk3DS original"/>
+</StackPanel><StackPanel Margin="0,0,10,13">
+    <TextBlock x:Name="AccessibleCaption17" Text="Flags (hexadecimal)" Style="{StaticResource MoveLabel}"/>
+    <TextBox x:Name="FlagsBox" AutomationProperties.LabeledBy="{Binding ElementName=AccessibleCaption17}" TextChanged="Text_Changed"/>
+</StackPanel></UniformGrid></StackPanel>
                             </StackPanel>
                         </Expander>
                     </Border>
                     <Border Style="{StaticResource MoveCard}">
-                        <Expander Header="CAMBIOS DE STATS, TURNOS Y RECUPERACIÓN" Foreground="{StaticResource TextMain}" IsExpanded="False">
+                        <Expander Header="CAMBIOS DE STATS, TURNOS Y RECUPERACIÓN" Foreground="{DynamicResource TextMain}" IsExpanded="False">
                             <StackPanel Margin="0,16,0,0">
                                 <TextBlock Text="Los IDs y probabilidades respetan los campos del Move Editor original. Los cambios de nivel pueden ser negativos."
-                                           Foreground="{StaticResource TextSoft}" TextWrapping="Wrap" Margin="0,0,0,12"/>
+                                           Foreground="{DynamicResource TextSoft}" TextWrapping="Wrap" Margin="0,0,0,12"/>
                                 <UniformGrid Columns="2">
-                                    <StackPanel Margin="0,0,10,13"><TextBlock Text="Turnos mínimos (0–255)" Style="{StaticResource MoveLabel}"/><TextBox x:Name="TurnsMinBox" TextChanged="Text_Changed"/></StackPanel>
-                                    <StackPanel Margin="0,0,10,13"><TextBlock Text="Turnos máximos (0–255)" Style="{StaticResource MoveLabel}"/><TextBox x:Name="TurnsMaxBox" TextChanged="Text_Changed"/></StackPanel>
-                                    <StackPanel Margin="0,0,10,13"><TextBlock Text="Retroceso/daño absorbido (-128 a 127)" Style="{StaticResource MoveLabel}"/><TextBox x:Name="RecoilBox" TextChanged="Text_Changed"/></StackPanel>
-                                    <StackPanel Margin="0,0,10,13"><TextBlock Text="Curación / Drain (valor 0–255)" Style="{StaticResource MoveLabel}"/><TextBox x:Name="HealingBox" TextChanged="Text_Changed"/></StackPanel>
-                                    <StackPanel Margin="0,0,10,13"><TextBlock Text="Stat 1" Style="{StaticResource MoveLabel}"/><ComboBox x:Name="StatOneBox" DisplayMemberPath="Display" SelectedValuePath="Id" SelectionChanged="Value_Changed"/></StackPanel>
-                                    <StackPanel Margin="0,0,10,13"><TextBlock Text="Stat 2" Style="{StaticResource MoveLabel}"/><ComboBox x:Name="StatTwoBox" DisplayMemberPath="Display" SelectedValuePath="Id" SelectionChanged="Value_Changed"/></StackPanel>
-                                    <StackPanel Margin="0,0,10,13"><TextBlock Text="Stat 3" Style="{StaticResource MoveLabel}"/><ComboBox x:Name="StatThreeBox" DisplayMemberPath="Display" SelectedValuePath="Id" SelectionChanged="Value_Changed"/></StackPanel>
-                                    <StackPanel Margin="0,0,10,13"><TextBlock Text="Cambio de nivel 1 (-128 a 127)" Style="{StaticResource MoveLabel}"/><TextBox x:Name="StageOneBox" TextChanged="Text_Changed"/></StackPanel>
-                                    <StackPanel Margin="0,0,10,13"><TextBlock Text="Cambio de nivel 2 (-128 a 127)" Style="{StaticResource MoveLabel}"/><TextBox x:Name="StageTwoBox" TextChanged="Text_Changed"/></StackPanel>
-                                    <StackPanel Margin="0,0,10,13"><TextBlock Text="Cambio de nivel 3 (-128 a 127)" Style="{StaticResource MoveLabel}"/><TextBox x:Name="StageThreeBox" TextChanged="Text_Changed"/></StackPanel>
-                                    <StackPanel Margin="0,0,10,13"><TextBlock Text="Probabilidad stat 1 (0–255)" Style="{StaticResource MoveLabel}"/><TextBox x:Name="StageRateOneBox" TextChanged="Text_Changed"/></StackPanel>
-                                    <StackPanel Margin="0,0,10,13"><TextBlock Text="Probabilidad stat 2 (0–255)" Style="{StaticResource MoveLabel}"/><TextBox x:Name="StageRateTwoBox" TextChanged="Text_Changed"/></StackPanel>
-                                    <StackPanel Margin="0,0,10,13"><TextBlock Text="Probabilidad stat 3 (0–255)" Style="{StaticResource MoveLabel}"/><TextBox x:Name="StageRateThreeBox" TextChanged="Text_Changed"/></StackPanel>
-                                    <StackPanel Margin="0,0,10,13"><TextBlock Text="Control de duración del estado (0–255)" Style="{StaticResource MoveLabel}"/><TextBox x:Name="InflictCountBox" TextChanged="Text_Changed"/></StackPanel>
+                                    <StackPanel Margin="0,0,10,13"><TextBlock x:Name="AccessibleCaption18" Text="Turnos mínimos (0–255)" Style="{StaticResource MoveLabel}"/><TextBox x:Name="TurnsMinBox" AutomationProperties.LabeledBy="{Binding ElementName=AccessibleCaption18}" TextChanged="Text_Changed"/></StackPanel>
+                                    <StackPanel Margin="0,0,10,13"><TextBlock x:Name="AccessibleCaption19" Text="Turnos máximos (0–255)" Style="{StaticResource MoveLabel}"/><TextBox x:Name="TurnsMaxBox" AutomationProperties.LabeledBy="{Binding ElementName=AccessibleCaption19}" TextChanged="Text_Changed"/></StackPanel>
+                                    <StackPanel Margin="0,0,10,13"><TextBlock x:Name="AccessibleCaption20" Text="Retroceso/daño absorbido (-128 a 127)" Style="{StaticResource MoveLabel}"/><TextBox x:Name="RecoilBox" AutomationProperties.LabeledBy="{Binding ElementName=AccessibleCaption20}" TextChanged="Text_Changed"/></StackPanel>
+                                    <StackPanel Margin="0,0,10,13"><TextBlock x:Name="AccessibleCaption21" Text="Curación / Drain (valor 0–255)" Style="{StaticResource MoveLabel}"/><TextBox x:Name="HealingBox" AutomationProperties.LabeledBy="{Binding ElementName=AccessibleCaption21}" TextChanged="Text_Changed"/></StackPanel>
+                                    <StackPanel Margin="0,0,10,13"><TextBlock x:Name="AccessibleCaption22" Text="Stat 1" Style="{StaticResource MoveLabel}"/><ComboBox x:Name="StatOneBox" AutomationProperties.LabeledBy="{Binding ElementName=AccessibleCaption22}" DisplayMemberPath="Display" SelectedValuePath="Id" SelectionChanged="Value_Changed"/></StackPanel>
+                                    <StackPanel Margin="0,0,10,13"><TextBlock x:Name="AccessibleCaption23" Text="Stat 2" Style="{StaticResource MoveLabel}"/><ComboBox x:Name="StatTwoBox" AutomationProperties.LabeledBy="{Binding ElementName=AccessibleCaption23}" DisplayMemberPath="Display" SelectedValuePath="Id" SelectionChanged="Value_Changed"/></StackPanel>
+                                    <StackPanel Margin="0,0,10,13"><TextBlock x:Name="AccessibleCaption24" Text="Stat 3" Style="{StaticResource MoveLabel}"/><ComboBox x:Name="StatThreeBox" AutomationProperties.LabeledBy="{Binding ElementName=AccessibleCaption24}" DisplayMemberPath="Display" SelectedValuePath="Id" SelectionChanged="Value_Changed"/></StackPanel>
+                                    <StackPanel Margin="0,0,10,13"><TextBlock x:Name="AccessibleCaption25" Text="Cambio de nivel 1 (-128 a 127)" Style="{StaticResource MoveLabel}"/><TextBox x:Name="StageOneBox" AutomationProperties.LabeledBy="{Binding ElementName=AccessibleCaption25}" TextChanged="Text_Changed"/></StackPanel>
+                                    <StackPanel Margin="0,0,10,13"><TextBlock x:Name="AccessibleCaption26" Text="Cambio de nivel 2 (-128 a 127)" Style="{StaticResource MoveLabel}"/><TextBox x:Name="StageTwoBox" AutomationProperties.LabeledBy="{Binding ElementName=AccessibleCaption26}" TextChanged="Text_Changed"/></StackPanel>
+                                    <StackPanel Margin="0,0,10,13"><TextBlock x:Name="AccessibleCaption27" Text="Cambio de nivel 3 (-128 a 127)" Style="{StaticResource MoveLabel}"/><TextBox x:Name="StageThreeBox" AutomationProperties.LabeledBy="{Binding ElementName=AccessibleCaption27}" TextChanged="Text_Changed"/></StackPanel>
+                                    <StackPanel Margin="0,0,10,13"><TextBlock x:Name="AccessibleCaption28" Text="Probabilidad stat 1 (0–255)" Style="{StaticResource MoveLabel}"/><TextBox x:Name="StageRateOneBox" AutomationProperties.LabeledBy="{Binding ElementName=AccessibleCaption28}" TextChanged="Text_Changed"/></StackPanel>
+                                    <StackPanel Margin="0,0,10,13"><TextBlock x:Name="AccessibleCaption29" Text="Probabilidad stat 2 (0–255)" Style="{StaticResource MoveLabel}"/><TextBox x:Name="StageRateTwoBox" AutomationProperties.LabeledBy="{Binding ElementName=AccessibleCaption29}" TextChanged="Text_Changed"/></StackPanel>
+                                    <StackPanel Margin="0,0,10,13"><TextBlock x:Name="AccessibleCaption30" Text="Probabilidad stat 3 (0–255)" Style="{StaticResource MoveLabel}"/><TextBox x:Name="StageRateThreeBox" AutomationProperties.LabeledBy="{Binding ElementName=AccessibleCaption30}" TextChanged="Text_Changed"/></StackPanel>
+                                    <StackPanel Margin="0,0,10,13"><TextBlock x:Name="AccessibleCaption31" Text="Control de duración del estado (0–255)" Style="{StaticResource MoveLabel}"/><TextBox x:Name="InflictCountBox" AutomationProperties.LabeledBy="{Binding ElementName=AccessibleCaption31}" TextChanged="Text_Changed"/></StackPanel>
                                 </UniformGrid>
                             </StackPanel>
                         </Expander>
                     </Border>
                     <Border Style="{StaticResource MoveCard}">
-                        <Expander Header="FLAGS INDIVIDUALES" Foreground="{StaticResource TextMain}" IsExpanded="False">
+                        <Expander Header="FLAGS INDIVIDUALES" Foreground="{DynamicResource TextMain}" IsExpanded="False">
                             <StackPanel Margin="0,14,0,0">
                                 <TextBlock Text="Las mismas banderas del pk3DS vanilla; también podés seguir usando el valor hexadecimal."
-                                           Foreground="{StaticResource TextSoft}" TextWrapping="Wrap" Margin="0,0,0,10"/>
+                                           Foreground="{DynamicResource TextSoft}" TextWrapping="Wrap" Margin="0,0,0,10"/>
                                 <WrapPanel x:Name="FlagsPanel" ItemWidth="175" />
                             </StackPanel>
                         </Expander>
                     </Border>
                     <Border x:Name="ZMoveCard" Style="{StaticResource MoveCard}">
-                        <Expander Header="OPCIONES DE MOVIMIENTOS Z · GEN 7" Foreground="{StaticResource TextMain}" IsExpanded="False">
+                        <Expander Header="OPCIONES DE MOVIMIENTOS Z · GEN 7" Foreground="{DynamicResource TextMain}" IsExpanded="False">
                             <StackPanel Margin="0,16,0,0">
                                 <UniformGrid Columns="2">
                                     <StackPanel Margin="0,0,10,13">
-    <TextBlock Text="Movimiento Z asociado" Style="{StaticResource MoveLabel}"/>
-    <ComboBox x:Name="ZMoveBox" DisplayMemberPath="Display" SelectedValuePath="Id" SelectionChanged="Value_Changed" MaxDropDownHeight="340" ToolTip="Opciones del editor pk3DS original"/>
+    <TextBlock x:Name="AccessibleCaption32" Text="Movimiento Z asociado" Style="{StaticResource MoveLabel}"/>
+    <ComboBox x:Name="ZMoveBox" AutomationProperties.LabeledBy="{Binding ElementName=AccessibleCaption32}" DisplayMemberPath="Display" SelectedValuePath="Id" SelectionChanged="Value_Changed" MaxDropDownHeight="340" ToolTip="Opciones del editor pk3DS original"/>
 </StackPanel>
                                     <StackPanel Margin="0,0,10,13">
-    <TextBlock Text="Potencia Z (0–255)" Style="{StaticResource MoveLabel}"/>
-    <TextBox x:Name="ZPowerBox" TextChanged="Text_Changed"/>
+    <TextBlock x:Name="AccessibleCaption33" Text="Potencia Z (0–255)" Style="{StaticResource MoveLabel}"/>
+    <TextBox x:Name="ZPowerBox" AutomationProperties.LabeledBy="{Binding ElementName=AccessibleCaption33}" TextChanged="Text_Changed"/>
 </StackPanel>
                                     <StackPanel Margin="0,0,10,13">
-    <TextBlock Text="Efecto Z" Style="{StaticResource MoveLabel}"/>
-    <ComboBox x:Name="ZEffectBox" DisplayMemberPath="Display" SelectedValuePath="Id" SelectionChanged="Value_Changed" MaxDropDownHeight="340" ToolTip="Opciones del editor pk3DS original"/>
+    <TextBlock x:Name="AccessibleCaption34" Text="Efecto Z" Style="{StaticResource MoveLabel}"/>
+    <ComboBox x:Name="ZEffectBox" AutomationProperties.LabeledBy="{Binding ElementName=AccessibleCaption34}" DisplayMemberPath="Display" SelectedValuePath="Id" SelectionChanged="Value_Changed" MaxDropDownHeight="340" ToolTip="Opciones del editor pk3DS original"/>
 </StackPanel>
                                     <StackPanel Margin="0,0,10,13">
-                                        <TextBlock Text="Tipo Poké Relax" Style="{StaticResource MoveLabel}"/>
-                                        <ComboBox x:Name="RefreshTypeBox" DisplayMemberPath="Display" SelectedValuePath="Id" SelectionChanged="Value_Changed"/>
+                                        <TextBlock x:Name="AccessibleCaption35" Text="Tipo Poké Relax" Style="{StaticResource MoveLabel}"/>
+                                        <ComboBox x:Name="RefreshTypeBox" AutomationProperties.LabeledBy="{Binding ElementName=AccessibleCaption35}" DisplayMemberPath="Display" SelectedValuePath="Id" SelectionChanged="Value_Changed"/>
                                     </StackPanel>
                                     <StackPanel Margin="0,0,10,13">
-                                        <TextBlock Text="Probabilidad Poké Relax (0–255)" Style="{StaticResource MoveLabel}"/>
-                                        <TextBox x:Name="RefreshRateBox" TextChanged="Text_Changed"/>
+                                        <TextBlock x:Name="AccessibleCaption36" Text="Probabilidad Poké Relax (0–255)" Style="{StaticResource MoveLabel}"/>
+                                        <TextBox x:Name="RefreshRateBox" AutomationProperties.LabeledBy="{Binding ElementName=AccessibleCaption36}" TextChanged="Text_Changed"/>
                                     </StackPanel>
 
                                 </UniformGrid>
                             </StackPanel>
                         </Expander>
                     </Border>
-                    <TextBlock x:Name="ValidationSummary" Foreground="#FF9696" FontSize="12"
+                    <TextBlock x:Name="ValidationSummary" Foreground="{DynamicResource ErrorText}" FontSize="12"
                                TextWrapping="Wrap" Margin="0,0,0,10" Visibility="Collapsed"/>
-                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+
+                </StackPanel>
+            </ScrollViewer><Border Grid.Row="1" Padding="12,10" Background="{DynamicResource Panel}" BorderBrush="{DynamicResource Stroke}" BorderThickness="0,1,0,0" IsEnabled="{Binding IsEnabled, ElementName=MoveFieldsPanel}"><WrapPanel HorizontalAlignment="Right">
                         <Button Content="Restablecer" Click="Reset_Click" Margin="0,0,10,0"/>
                         <Button x:Name="SaveMoveButton" Content="Guardar movimiento"
                                 Style="{StaticResource PrimaryButton}" Click="Save_Click"/>
-                    </StackPanel>
-                </StackPanel>
-            </ScrollViewer>
+                    </WrapPanel></Border></Grid>
             <Grid x:Name="MoveToolsPanel" Grid.Column="1" Visibility="Collapsed">
                 <ContentControl x:Name="MoveToolsHost" HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch"/>
             </Grid>
-            <Border Grid.Column="2" Background="#1B2430" BorderBrush="{StaticResource Stroke}" BorderThickness="1,0,0,0">
+            <Expander x:Name="AdaptiveInspector" Grid.Column="2" Header="Inspector" IsExpanded="True"><Border x:Name="InspectorBody" Background="{DynamicResource ListSurface}" BorderBrush="{DynamicResource Stroke}" BorderThickness="1,0,0,0">
                 <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Background="Transparent">
                 <StackPanel Margin="17,24">
-                    <TextBlock Text="INSPECTOR" Foreground="{StaticResource TextSoft}"
-                               FontSize="11" FontWeight="SemiBold" Margin="0,0,0,12"/>
+                    <TextBlock Text="Inspector" Foreground="{DynamicResource TextSoft}"
+                               FontSize="12" FontWeight="SemiBold" Margin="0,0,0,12"/>
                     <StackPanel Margin="0,0,0,18">
                         <Button x:Name="RandomizeMovesButton" Content="Randomizar movimientos" Click="MoveAction_Click" Tag="MoveRandomize" Margin="0,0,0,8"/>
                         <Button x:Name="MetronomeButton" Content="Modo Metrónomo" Click="MoveAction_Click" Tag="Metronome" Margin="0,0,0,8"/>
@@ -243,40 +221,40 @@
                     </StackPanel>
                     <Border Style="{StaticResource MoveCard}">
                         <StackPanel>
-                            <TextBlock Text="Tipo y categoría" Foreground="{StaticResource TextSoft}"/>
+                            <TextBlock Text="Tipo y categoría" Foreground="{DynamicResource TextSoft}"/>
                             <TextBlock x:Name="PreviewType" Text="—" FontSize="19" FontWeight="SemiBold" Margin="0,7,0,0"/>
-                            <TextBlock x:Name="PreviewCategory" Text="—" Foreground="{StaticResource Accent}"
+                            <TextBlock x:Name="PreviewCategory" Text="—" Foreground="{DynamicResource Accent}"
                                        Margin="0,5,0,0"/>
                         </StackPanel>
                     </Border>
                     <Border Style="{StaticResource MoveCard}">
                         <StackPanel>
-                            <TextBlock Text="Potencia" Foreground="{StaticResource TextSoft}"/>
-                            <TextBlock x:Name="PreviewPower" Text="—" Foreground="{StaticResource Accent}"
+                            <TextBlock Text="Potencia" Foreground="{DynamicResource TextSoft}"/>
+                            <TextBlock x:Name="PreviewPower" Text="—" Foreground="{DynamicResource Accent}"
                                        FontSize="34" FontWeight="Bold" Margin="0,7,0,0"/>
                         </StackPanel>
                     </Border>
                     <Border Style="{StaticResource MoveCard}">
                         <StackPanel>
                             <TextBlock Text="Estado" FontWeight="SemiBold" Margin="0,0,0,12"/>
-                            <Border x:Name="ChangeStateBadge" CornerRadius="7" Background="#31544A" Padding="9,7">
-                                <TextBlock x:Name="ChangeStateText" Text="Guardado" Foreground="#B6E8CC"
-                                           FontSize="11" FontWeight="SemiBold"/>
+                            <Border x:Name="ChangeStateBadge" CornerRadius="7" Background="{DynamicResource SuccessFill}" Padding="9,7">
+                                <TextBlock x:Name="ChangeStateText" Text="Guardado" Foreground="{DynamicResource SuccessText}"
+                                           FontSize="12" FontWeight="SemiBold"/>
                             </Border>
                             <TextBlock Text="Trabajá sobre una copia del juego extraído. Los archivos solo se escriben al confirmar."
-                                       FontSize="11" Foreground="{StaticResource TextSoft}" TextWrapping="Wrap"
+                                       FontSize="12" Foreground="{DynamicResource TextSoft}" TextWrapping="Wrap"
                                        Margin="0,13,0,0" LineHeight="18"/>
                         </StackPanel>
                     </Border>
                 </StackPanel>
                 </ScrollViewer>
-            </Border>
+            </Border></Expander>
         </Grid>
-        <Border Grid.Row="2" Background="#111720" BorderBrush="{StaticResource Stroke}" BorderThickness="0,1,0,0">
+        <Border Grid.Row="2" Background="{DynamicResource Chrome}" BorderBrush="{DynamicResource Stroke}" BorderThickness="0,1,0,0">
             <Grid Margin="20,0">
                 <TextBlock x:Name="StatusLabel" Text="Cargando tabla de movimientos..."
-                           VerticalAlignment="Center" Foreground="{StaticResource TextSoft}"
-                           FontSize="11" TextTrimming="CharacterEllipsis"/>
+                           VerticalAlignment="Center" Foreground="{DynamicResource TextSoft}"
+                           FontSize="12" TextTrimming="CharacterEllipsis"/>
             </Grid>
         </Border>
     </Grid>

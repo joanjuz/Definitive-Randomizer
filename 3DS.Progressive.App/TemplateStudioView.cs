@@ -68,28 +68,28 @@ internal sealed class TemplateStudioView : UserControl
         _project=project;_document=AuthoredTemplate.Create(project,"Moves");
         Background=(Brush)FindResource("Bg");var root=new DockPanel{Margin=new Thickness(20)};Content=root;
         var top=new StackPanel();DockPanel.SetDock(top,Dock.Top);root.Children.Add(top);
-        top.Children.Add(new TextBlock{Text="Templates · crear y personalizar",FontSize=23,Foreground=(Brush)FindResource("TextMain")});
+        top.Children.Add(new TextBlock{Text="Templates · crear y personalizar",Style=(Style)FindResource("PageHeading"),Foreground=(Brush)FindResource("TextMain")});
         _help.Foreground=(Brush)FindResource("TextSoft");_help.TextWrapping=TextWrapping.Wrap;_help.Margin=new Thickness(0,8,0,12);top.Children.Add(_help);
         var bar=new WrapPanel();top.Children.Add(bar);
         _kind=new ComboBox{IsEditable=false,ItemsSource=new[]{new TemplateChoice("Moves","Movimientos"),new("Evolutions","Evoluciones"),new("Stats","Estadísticas Pokémon"),new("FieldItems","Field Items"),new("Shops","Tiendas")},DisplayMemberPath="Label",SelectedValuePath="Value",SelectedValue="Moves",Width=230,Margin=new Thickness(0,0,8,10)};bar.Children.Add(_kind);
         Add(bar,"Importar template…",Import);
         _progressive=Add(bar,"Importar Progressive",async ()=>await ImportProgressiveAsync());
         Add(bar,"Exportar template…",Export);
-        _addRow=Add(bar,"Añadir fila",AddRow);_removeRows=Add(bar,"Eliminar fila",()=>{Commit();if(_grid.SelectedItem is TemplateStudioRow row)_rows.Remove(row);Invalidate();});
+        _addRow=Add(bar,"Añadir fila",AddRow);_removeRows=Add(bar,"Eliminar fila",()=>{Commit();if(_grid.SelectedItem is TemplateStudioRow row)_rows.Remove(row);Invalidate();},EditorPresentation.ActionRole.Tertiary);
         top.Children.Add(_options);
         var bottom=new StackPanel();DockPanel.SetDock(bottom,Dock.Bottom);root.Children.Add(bottom);
-        var actions=new WrapPanel();bottom.Children.Add(actions);Add(actions,"Comprobar y previsualizar",async ()=>await Execute(false));_use=Add(actions,"Usar template",async ()=>await Execute(true));_use.IsEnabled=false;
+        var actions=new WrapPanel();bottom.Children.Add(actions);Add(actions,"Comprobar y previsualizar",async ()=>await Execute(false));_use=Add(actions,"Usar template",async ()=>await Execute(true),EditorPresentation.ActionRole.Primary);_use.IsEnabled=false;
         _status.Foreground=(Brush)FindResource("TextSoft");_status.TextWrapping=TextWrapping.Wrap;bottom.Children.Add(_status);
         var tabs=_tabs=new TabControl();root.Children.Add(tabs);
-        ConfigureGrid(_grid);_grid.ItemsSource=_rows;_grid.SelectionMode=DataGridSelectionMode.Single;_tableTab=new TabItem{Header="Tabla del template",Content=_grid};tabs.Items.Add(_tableTab);
-        ConfigureGrid(_catalogue);_catalogue.Columns.Add(new DataGridTextColumn{Header="ID",Binding=new Binding("Id"),IsReadOnly=true,Width=70});_catalogue.Columns.Add(new DataGridTextColumn{Header="Objeto",Binding=new Binding("Name"),IsReadOnly=true,Width=350});
+        ConfigureGrid(_grid);_grid.ItemsSource=_rows;_grid.SelectionMode=DataGridSelectionMode.Single;_tableTab=new TabItem{Header="Tabla del template",Content=EditorPresentation.EmptyState(_grid,"Empezá tu template","Añadí una fila o importá un template para editar sus valores.")};tabs.Items.Add(_tableTab);
+        ConfigureGrid(_catalogue);_catalogue.Columns.Add(new DataGridTextColumn{Header="ID",Binding=new Binding("Id"),IsReadOnly=true,Width=70});_catalogue.Columns.Add(new DataGridTextColumn{Header="Objeto",Binding=new Binding("Name"),IsReadOnly=true,Width=new DataGridLength(1,DataGridLengthUnitType.Star),MinWidth=180});
         _catalogue.Columns.Add(new DataGridTextColumn{Header="Estado actual",Binding=new Binding("EffectiveStatus"),IsReadOnly=true,Width=150});
         _catalogue.Columns.Add(ChoiceColumn("Regla",new Binding("Policy"){Mode=BindingMode.TwoWay,UpdateSourceTrigger=UpdateSourceTrigger.PropertyChanged},new[]{new TemplateChoice("Default","Predeterminado"),new("Allowed","Permitido"),new("Banned","Prohibido")},220));
         _catalogue.ItemsSource=_items;var cataloguePanel=new DockPanel();_filter.Margin=new Thickness(0,0,0,8);_filter.ToolTip="Buscar objetos por nombre o ID";DockPanel.SetDock(_filter,Dock.Top);cataloguePanel.Children.Add(_filter);
         _policyFilter.ItemsSource=new[]{new TemplateChoice("All","Todos"),new("Allowed","Permitidos"),new("Banned","Prohibidos")};_policyFilter.DisplayMemberPath="Label";_policyFilter.SelectedValuePath="Value";_policyFilter.SelectedValue="All";_policyFilter.Margin=new Thickness(0,0,0,8);_policyFilter.IsEditable=false;_policyFilter.SelectionChanged+=(_,_)=>RefreshItemFilter();DockPanel.SetDock(_policyFilter,Dock.Top);cataloguePanel.Children.Add(_policyFilter);cataloguePanel.Children.Add(_catalogue);
         _filter.TextChanged+=(_,_)=>RefreshItemFilter();CollectionViewSource.GetDefaultView(_items).Filter=MatchesItemFilter;
         _catalogueTab=new TabItem{Header="Catálogo · permitidos y prohibidos",Content=cataloguePanel};tabs.Items.Add(_catalogueTab);
-        ConfigureGrid(_preview);_preview.IsReadOnly=true;foreach(string field in new[]{"Name","Field","Before","After"})_preview.Columns.Add(new DataGridTextColumn{Header=field switch{"Name"=>"Entrada","Field"=>"Campo","Before"=>"Antes",_=>"Después"},Binding=new Binding(field),Width=new DataGridLength(1,DataGridLengthUnitType.Star)});tabs.Items.Add(new TabItem{Header="Cambios previstos",Content=_preview});
+        ConfigureGrid(_preview);_preview.IsReadOnly=true;foreach(string field in new[]{"Name","Field","Before","After"})_preview.Columns.Add(new DataGridTextColumn{Header=field switch{"Name"=>"Entrada","Field"=>"Campo","Before"=>"Antes",_=>"Después"},Binding=new Binding(field),Width=new DataGridLength(1,DataGridLengthUnitType.Star)});tabs.Items.Add(new TabItem{Header="Cambios previstos",Content=EditorPresentation.EmptyState(_preview,"Sin cambios previsualizados","Comprobá el template para revisar aquí los valores antes y después.")});
         _kind.SelectionChanged+=async (_,_)=>
         {
             if(_loading||_kind.SelectedItem is not TemplateChoice)return;string next=CurrentKind;
@@ -99,7 +99,7 @@ internal sealed class TemplateStudioView : UserControl
         _rows.CollectionChanged+=(_,_)=>Invalidate();_grid.CellEditEnding+=(_,_)=>Invalidate();_catalogue.CellEditEnding+=(_,_)=>Invalidate();LoadDocument(_document);
     }
     private string CurrentKind=>(string?)_kind.SelectedValue??"Moves";
-    private void ConfigureGrid(DataGrid grid){grid.AutoGenerateColumns=false;grid.CanUserAddRows=false;grid.CanUserDeleteRows=false;grid.EnableRowVirtualization=true;grid.EnableColumnVirtualization=true;DarkGridTheme.Apply(grid);}
+    private void ConfigureGrid(DataGrid grid){grid.AutoGenerateColumns=false;grid.CanUserAddRows=false;grid.CanUserDeleteRows=false;grid.EnableRowVirtualization=true;grid.EnableColumnVirtualization=true;DarkGridTheme.Apply(grid);grid.FrozenColumnCount=1;}
     private bool MatchesItemFilter(object value)
     {
         if(value is not TemplateItemPolicy item)return false;
@@ -114,7 +114,7 @@ internal sealed class TemplateStudioView : UserControl
         if(view is System.ComponentModel.IEditableCollectionView edit&&edit.IsEditingItem){Dispatcher.BeginInvoke(()=>{_catalogue.CommitEdit(DataGridEditingUnit.Cell,true);_catalogue.CommitEdit(DataGridEditingUnit.Row,true);view.Refresh();});}
         else view.Refresh();
     }
-    private Button Add(Panel panel,string label,Action action){var b=new Button{Content=label,Margin=new Thickness(0,0,8,10)};panel.Children.Add(b);b.Click+=(_,_)=>{try{action();}catch(Exception e){Error(e);}};return b;}
+    private Button Add(Panel panel,string label,Action action,EditorPresentation.ActionRole role=EditorPresentation.ActionRole.Secondary){var b=new Button{Content=label,Margin=new Thickness(0,0,8,10)};EditorPresentation.StyleAction(b,role);panel.Children.Add(b);b.Click+=(_,_)=>{try{action();}catch(Exception e){Error(e);}};return b;}
     private void Error(Exception e){_status.Text=e.Message;StudioDialog.Error(Window.GetWindow(this),"Templates",e.Message);}
     private void Invalidate(){_validated=null;if(_use is not null)_use.IsEnabled=false;}
     private void Commit(){if(!_grid.CommitEdit(DataGridEditingUnit.Cell,true)||!_grid.CommitEdit(DataGridEditingUnit.Row,true)||!_catalogue.CommitEdit(DataGridEditingUnit.Cell,true)||!_catalogue.CommitEdit(DataGridEditingUnit.Row,true))throw new InvalidDataException("Terminá de corregir la celda antes de continuar.");}
@@ -221,7 +221,7 @@ internal sealed class TemplateStudioView : UserControl
     private TemplateChoice[] ShopChoices()=>_document.ShopLabels;
     private static DataGridTemplateColumn ChoiceColumn(string label,Binding value,IReadOnlyList<TemplateChoice>? choices,double width,Binding? source=null,Binding? tooltip=null)
     {
-        var cell=new FrameworkElementFactory(typeof(SearchableTemplateComboBox));
+        var cell=new FrameworkElementFactory(typeof(SearchableTemplateComboBox));cell.SetResourceReference(StyleProperty,"GridComboBox");
         if(source is not null)cell.SetBinding(ItemsControl.ItemsSourceProperty,source);else cell.SetValue(ItemsControl.ItemsSourceProperty,choices);
         cell.SetBinding(SearchableTemplateComboBox.ChoiceValueProperty,value);
         if(tooltip is not null){tooltip.Converter=OptionalDescriptionConverter.Instance;cell.SetBinding(ToolTipProperty,tooltip);}
@@ -234,23 +234,23 @@ internal sealed class TemplateStudioView : UserControl
         string label=key switch{"Move"=>"Movimiento","Entry"=>"Pokémon / forma","Source"=>"Origen","Target"=>"Destino","Method"=>"Método","Argument"=>"Argumento (ID / valor)","Stage"=>"Disponible desde","Slot"=>"Ranura","Item"=>"Objeto","Price"=>"Precio BP","InGameDescription"=>"InGameDescription · español",_=>key};
         if(key=="BattlePatch")
         {
-            _grid.Columns.Add(ChoiceColumn(label,binding,null,290,new Binding("BattleChoices"),new Binding("BattleDescription")));return;
+            _grid.Columns.Add(ChoiceColumn(label,binding,null,220,new Binding("BattleChoices"),new Binding("BattleDescription")));return;
         }
         if(key=="Argument")
         {
             var panel=new FrameworkElementFactory(typeof(System.Windows.Controls.Grid));
             var numeric=new FrameworkElementFactory(typeof(TextBox));numeric.SetBinding(TextBox.TextProperty,binding);
-            var numericStyle=new Style(typeof(TextBox),(Style)FindResource(typeof(TextBox)));
+            var numericStyle=new Style(typeof(TextBox),(Style)FindResource("GridTextBox"));
             var hide=new DataTrigger{Binding=new Binding("HasArgumentChoices"),Value=true};hide.Setters.Add(new Setter(VisibilityProperty,Visibility.Collapsed));numericStyle.Triggers.Add(hide);numeric.SetValue(StyleProperty,numericStyle);panel.AppendChild(numeric);
             var selector=new FrameworkElementFactory(typeof(SearchableTemplateComboBox));selector.SetBinding(ItemsControl.ItemsSourceProperty,new Binding("ArgumentChoices"));selector.SetBinding(SearchableTemplateComboBox.ChoiceValueProperty,binding);
-            var selectorStyle=new Style(typeof(SearchableTemplateComboBox),(Style)FindResource(typeof(ComboBox)));var collapse=new DataTrigger{Binding=new Binding("HasArgumentChoices"),Value=false};collapse.Setters.Add(new Setter(VisibilityProperty,Visibility.Collapsed));selectorStyle.Triggers.Add(collapse);selector.SetValue(StyleProperty,selectorStyle);panel.AppendChild(selector);
-            var template=new DataTemplate{VisualTree=panel};_grid.Columns.Add(new DataGridTemplateColumn{Header=label,CellTemplate=template,CellEditingTemplate=template,Width=260});return;
+            var selectorStyle=new Style(typeof(SearchableTemplateComboBox),(Style)FindResource("GridComboBox"));var collapse=new DataTrigger{Binding=new Binding("HasArgumentChoices"),Value=false};collapse.Setters.Add(new Setter(VisibilityProperty,Visibility.Collapsed));selectorStyle.Triggers.Add(collapse);selector.SetValue(StyleProperty,selectorStyle);panel.AppendChild(selector);
+            var template=new DataTemplate{VisualTree=panel};_grid.Columns.Add(new DataGridTemplateColumn{Header=label,CellTemplate=template,CellEditingTemplate=template,Width=220});return;
         }
-        var choices=Choices(key);if(choices is not null)_grid.Columns.Add(ChoiceColumn(label,binding,choices,key is "Move" or "Entry" or "Source" or "Target" or "Item" or "Stage"?260:190));
+        var choices=Choices(key);if(choices is not null)_grid.Columns.Add(ChoiceColumn(label,binding,choices,key is "Move" or "Entry" or "Source" or "Target" or "Item" or "Stage"?220:160));
         else if(key=="InGameDescription")
         {
-            var edit=new FrameworkElementFactory(typeof(Button));edit.SetBinding(ContentControl.ContentProperty,new Binding("[InGameDescription]"){Converter=DescriptionPreviewConverter.Instance});edit.SetValue(ToolTipProperty,"Abrir el editor ampliado de descripción");edit.SetValue(HorizontalContentAlignmentProperty,System.Windows.HorizontalAlignment.Left);edit.AddHandler(Button.ClickEvent,new RoutedEventHandler(EditDescription));
-            _grid.Columns.Add(new DataGridTemplateColumn{Header=label,CellTemplate=new DataTemplate{VisualTree=edit},Width=420});
+            var edit=new FrameworkElementFactory(typeof(Button));edit.SetBinding(ContentControl.ContentProperty,new Binding("[InGameDescription]"){Converter=DescriptionPreviewConverter.Instance});edit.SetValue(ToolTipProperty,"Abrir el editor ampliado de descripción");edit.SetResourceReference(StyleProperty,"GridButton");edit.SetValue(HorizontalContentAlignmentProperty,System.Windows.HorizontalAlignment.Left);edit.AddHandler(Button.ClickEvent,new RoutedEventHandler(EditDescription));
+            _grid.Columns.Add(new DataGridTemplateColumn{Header=label,CellTemplate=new DataTemplate{VisualTree=edit},Width=300});
         }
         else _grid.Columns.Add(new DataGridTextColumn{Header=label,Binding=binding,Width=key=="Notes"?250:110});
     }

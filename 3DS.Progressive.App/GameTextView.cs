@@ -1,4 +1,4 @@
-using System.IO;
+﻿using System.IO;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
@@ -56,11 +56,13 @@ internal sealed class GameTextView : UserControl
         DockPanel.SetDock(heading,Dock.Top);root.Children.Add(heading);
         heading.Children.Add(new TextBlock {Text=story?"Story Text · diálogos e historia":"Game Text · textos generales",FontSize=22,
             FontWeight=FontWeights.SemiBold,Foreground=(Brush)FindResource("TextMain")});
-        heading.Children.Add(new TextBlock {Text=story?
+        var helpPanel=new StackPanel();
+        heading.Children.Add(new TextBlock{Text=story?"Encontrá y editá diálogos por frase, categoría o personaje.":"Editá nombres, descripciones y mensajes de interfaz del juego.",Foreground=(Brush)FindResource("TextSoft"),Margin=new Thickness(0,5,0,8),TextWrapping=TextWrapping.Wrap});
+        helpPanel.Children.Add(new TextBlock {Text=story?
             "Diálogos de personajes y eventos de la historia. Buscá una frase que veas en el juego para encontrar su archivo y línea. Los números no indican el orden de la historia. Conservá los códigos [VAR ...], cambios de línea y el orden de cada mensaje para evitar scripts dañados.":
             "Nombres y descripciones de Pokémon, movimientos, objetos, entrenadores y mensajes de interfaz. Los archivos conocidos indican su contenido. Se conserva el número y orden de líneas para no romper referencias.",
             Foreground=(Brush)FindResource("TextSoft"),TextWrapping=TextWrapping.Wrap});
-        var commandButton=new Button{Content="Variables y comandos",HorizontalAlignment=System.Windows.HorizontalAlignment.Left,Margin=new Thickness(0,8,0,8)};
+        var commandButton=new Button{Style=(Style)FindResource("TertiaryButton"),Content="Variables y comandos",HorizontalAlignment=System.Windows.HorizontalAlignment.Left,Margin=new Thickness(0,8,0,8)};
         heading.Children.Add(commandButton);
         commandButton.Click+=(_,_)=>
         {
@@ -74,7 +76,7 @@ internal sealed class GameTextView : UserControl
             catch(Exception ex){StudioDialog.Error(Window.GetWindow(this),"Variables y comandos",ex.Message);}
         };
         _evidence=new ListBox { MaxHeight=130, Margin=new Thickness(0,4,0,4) };
-        heading.Children.Add(new Expander { Header="Por qué está clasificado así · doble clic para ir a la línea", Content=_evidence });
+        helpPanel.Children.Add(_evidence);heading.Children.Add(new Expander { Header="Ayuda y evidencias de clasificación",Foreground=(Brush)FindResource("TextSoft"), Content=helpPanel,Margin=new Thickness(0,0,0,8) });
         _evidence.MouseDoubleClick+=(_,_)=>
         {
             if(_evidence.SelectedItem is not TextContentEvidence evidence || evidence.Line<0)return;
@@ -91,7 +93,7 @@ internal sealed class GameTextView : UserControl
             VerticalAlignment=VerticalAlignment.Center,TextWrapping=TextWrapping.Wrap};
         _save=new Button {Content="Guardar texto",IsEnabled=false,Margin=new Thickness(10,0,0,0)};
         DockPanel.SetDock(_save,Dock.Right);footer.Children.Add(_save);
-        _save.Click+=(_,_)=>Save();
+        EditorPresentation.StyleAction(_save,EditorPresentation.ActionRole.Primary);_save.Click+=(_,_)=>Save();
         var export=new Button {Content="Exportar TXT"};
         DockPanel.SetDock(export,Dock.Right);footer.Children.Add(export);
         export.Click+=(_,_)=>Export();
@@ -117,8 +119,8 @@ internal sealed class GameTextView : UserControl
             importAll.Click+=(_,_)=>TryImportAll();
         }
         footer.Children.Add(_status);
-        var content=new Grid();content.ColumnDefinitions.Add(new ColumnDefinition {Width=new GridLength(310)});
-        content.ColumnDefinitions.Add(new ColumnDefinition {Width=new GridLength(1,GridUnitType.Star)});
+        var content=new Grid();content.ColumnDefinitions.Add(new ColumnDefinition {Width=new GridLength(1,GridUnitType.Star),MinWidth=200,MaxWidth=310});
+        content.ColumnDefinitions.Add(new ColumnDefinition {Width=new GridLength(2.5,GridUnitType.Star),MinWidth=240});
         root.Children.Add(content);
         var left=new DockPanel {Margin=new Thickness(0,0,12,0)};
         Grid.SetColumn(left,0);content.Children.Add(left);
@@ -130,15 +132,10 @@ internal sealed class GameTextView : UserControl
         _filter.TextChanged+=(_,_)=>Filter();
         DockPanel.SetDock(_filter,Dock.Top);left.Children.Add(_filter);
         _files=new ListBox {ItemsSource=_service.Entries};
-        var fileText=new FrameworkElementFactory(typeof(TextBlock));
-        fileText.SetBinding(TextBlock.TextProperty,new Binding("Display"));
-        fileText.SetBinding(TextBlock.ToolTipProperty,new Binding("Display"));
-        fileText.SetValue(TextBlock.TextWrappingProperty,TextWrapping.Wrap);
-        fileText.SetValue(TextBlock.MaxWidthProperty,270d);
-        fileText.SetValue(TextBlock.MaxHeightProperty,76d);
-        fileText.SetValue(TextBlock.TextTrimmingProperty,TextTrimming.CharacterEllipsis);
-        fileText.SetValue(TextBlock.MarginProperty,new Thickness(3,4,3,4));
-        _files.ItemTemplate=new DataTemplate{VisualTree=fileText};
+        var fileStack=new FrameworkElementFactory(typeof(StackPanel));fileStack.SetBinding(ToolTipProperty,new Binding("Display"));
+        var fileText=new FrameworkElementFactory(typeof(TextBlock));fileText.SetBinding(TextBlock.TextProperty,new Binding{Converter=new BankEntryCaptionConverter()});fileText.SetValue(TextBlock.FontWeightProperty,FontWeights.SemiBold);fileText.SetValue(TextBlock.TextWrappingProperty,TextWrapping.Wrap);fileText.SetValue(TextBlock.MaxHeightProperty,42d);fileText.SetValue(TextBlock.TextTrimmingProperty,TextTrimming.CharacterEllipsis);fileStack.AppendChild(fileText);
+        var fileDetails=new FrameworkElementFactory(typeof(TextBlock));fileDetails.SetBinding(TextBlock.TextProperty,new Binding{Converter=new BankEntryCaptionConverter(),ConverterParameter="detail"});fileDetails.SetValue(TextBlock.ForegroundProperty,FindResource("TextSoft"));fileDetails.SetValue(TextBlock.FontSizeProperty,12d);fileDetails.SetValue(TextBlock.MarginProperty,new Thickness(0,5,0,0));fileDetails.SetValue(TextBlock.TextWrappingProperty,TextWrapping.Wrap);fileDetails.SetValue(TextBlock.MaxHeightProperty,34d);fileDetails.SetValue(TextBlock.TextTrimmingProperty,TextTrimming.CharacterEllipsis);fileStack.AppendChild(fileDetails);
+        _files.ItemTemplate=new DataTemplate{VisualTree=fileStack};
         _files.SelectionChanged+=(_,_)=>SelectFile();
         left.Children.Add(_files);
         _grid=new DataGrid
@@ -158,18 +155,20 @@ internal sealed class GameTextView : UserControl
         var rowStyle=new Style(typeof(DataGridRow));
         rowStyle.Setters.Add(new Setter(Control.ForegroundProperty,(Brush)FindResource("TextMain")));
         _grid.RowStyle=rowStyle;
-        _grid.Columns.Add(new DataGridTextColumn {Header="#",Binding=new Binding("Index"),IsReadOnly=true,Width=64});
+        DarkGridTheme.Apply(_grid);
+        _grid.Columns.Add(new DataGridTextColumn {ElementStyle=(Style)FindResource("NumericCell"),Header="#",Binding=new Binding("Index"),IsReadOnly=true,Width=64});
         _grid.Columns.Add(new DataGridTextColumn
         {
-            Header="Texto del juego",Width=new DataGridLength(1,DataGridLengthUnitType.Star),
+            Header="Texto del juego",MinWidth=240,Width=new DataGridLength(1,DataGridLengthUnitType.Star),
             Binding=new Binding("Value"){Mode=BindingMode.TwoWay,
                 UpdateSourceTrigger=UpdateSourceTrigger.LostFocus}
         });
         _grid.CellEditEnding+=(_,_)=>MarkDirty();
-        Grid.SetColumn(_grid,1);content.Children.Add(_grid);
-        heading.Children.Add(new TextBlock{Text="Clasificación automática por categorías conocidas y coincidencias de contenido. Las menciones se distinguen de las referencias de zona y de las citas contrastadas por personaje. Consultá las evidencias para conocer el origen de cada etiqueta.",Foreground=(Brush)FindResource("TextSoft"),TextWrapping=TextWrapping.Wrap});
-        heading.Children.Add(new TextBlock{Text=_service.Location,Foreground=(Brush)FindResource("TextSoft"),Margin=new Thickness(0,6,0,0)});
-        heading.Children.Add(new TextBlock{Text="Localizar una frase en todo el banco (idioma activo). Los resultados muestran archivo y línea originales; hacé doble clic para editar. La búsqueda consulta el texto guardado.",TextWrapping=TextWrapping.Wrap,Foreground=(Brush)FindResource("TextSoft"),Margin=new Thickness(0,8,0,4)});
+        var tableHost=EditorPresentation.EmptyState(_grid,"Elegí un archivo de texto","Sus mensajes aparecerán aquí para editarlos.");Grid.SetColumn(tableHost,1);content.Children.Add(tableHost);
+        helpPanel.Children.Add(new TextBlock{Text="Clasificación automática por categorías conocidas y coincidencias de contenido. Las menciones se distinguen de las referencias de zona y de las citas contrastadas por personaje. Consultá las evidencias para conocer el origen de cada etiqueta.",Foreground=(Brush)FindResource("TextSoft"),TextWrapping=TextWrapping.Wrap});
+        helpPanel.Children.Add(new TextBlock{Text=_service.Location,Foreground=(Brush)FindResource("TextSoft"),Margin=new Thickness(0,6,0,0)});
+        helpPanel.Children.Add(new TextBlock{Text="Localizar una frase en todo el banco (idioma activo). Los resultados muestran archivo y línea originales; hacé doble clic para editar. La búsqueda consulta el texto guardado.",TextWrapping=TextWrapping.Wrap,Foreground=(Brush)FindResource("TextSoft"),Margin=new Thickness(0,8,0,4)});
+        heading.Children.Add(new TextBlock{Text="Buscar una frase en el banco",Style=(Style)FindResource("FieldCaption")});
         var searchBar=new DockPanel();heading.Children.Add(searchBar);
         var searchButton=new Button{Content="Buscar en todo el banco",Margin=new Thickness(8,0,0,0)};DockPanel.SetDock(searchButton,Dock.Right);searchBar.Children.Add(searchButton);
         var query=new TextBox{ToolTip="Escribí parte del diálogo, nombre o descripción. No distingue mayúsculas."};searchBar.Children.Add(query);

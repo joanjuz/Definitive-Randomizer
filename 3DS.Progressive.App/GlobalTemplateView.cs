@@ -1,4 +1,4 @@
-using System.Collections.ObjectModel;
+﻿using System.Collections.ObjectModel;
 using System.IO;
 using System.Windows;
 using System.Windows.Controls;
@@ -53,7 +53,7 @@ internal sealed class GlobalTemplateView : UserControl
         var controls=new WrapPanel();
         header.Children.Add(controls);
         Add(controls,"Cargar template global…",Load);
-        _save=Add(controls,"Guardar template global…",Save);
+        _save=Add(controls,"Guardar template global…",Save,EditorPresentation.ActionRole.Primary);
         Add(controls,"Crear desde historial",FromHistory);
         if(project.Generation is 6 or 7)Add(controls,"Nueva receta nativa Gen"+project.Generation,()=>Use(NativeRecipeFactory.Create(_project,_captureOptions),"Receta creada sin aplicar cambios. Revisá las opciones en los editores y desmarcá las acciones que no quieras incluir antes de guardar."));
         _name=new TextBox{MinWidth=260,Margin=new Thickness(0,7,0,9),Text="Definitive Randomizer"};
@@ -91,16 +91,16 @@ internal sealed class GlobalTemplateView : UserControl
                 UpdateSourceTrigger=UpdateSourceTrigger.PropertyChanged}});
         grid.Columns.Add(new DataGridTextColumn{Header="Acción original",Width=new DataGridLength(1,DataGridLengthUnitType.Star),
             IsReadOnly=true,Binding=new Binding(nameof(ActionRow.Display))});
-        root.Children.Add(grid);
+        DarkGridTheme.Apply(grid);root.Children.Add(EditorPresentation.EmptyState(grid,"Sin receta cargada","Cargá un template global o crealo desde el historial."));
         _save.IsEnabled=false;
         _status.Text="Ninguna receta cargada. Seleccioná DEFINITIVO.json o creá un snapshot parcial desde el historial.";
     }
-    private static Button Add(Panel panel,string title,Action action)
+    private static Button Add(Panel panel,string title,Action action,EditorPresentation.ActionRole role=EditorPresentation.ActionRole.Secondary)
     {
         var b=new Button{Content=title,Margin=new Thickness(0,0,9,7)};
         b.Click+=(_,_)=>{try{action();}catch(Exception ex)
         {StudioDialog.Error(Window.GetWindow(b),"Global Template",ex.Message);}};
-        panel.Children.Add(b);return b;
+        EditorPresentation.StyleAction(b,role);panel.Children.Add(b);return b;
     }
     private void Use(GlobalTemplateDocument document,string? warning=null)
     {

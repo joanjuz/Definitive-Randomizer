@@ -1,4 +1,4 @@
-using System.Globalization;
+﻿using System.Globalization;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
@@ -424,6 +424,14 @@ public partial class RecordEditorView : UserControl
             }
             input.Tag=editor;input.Uid=field.Scale.ToString(CultureInfo.InvariantCulture);
             controls.Add(field.Key,input);cell.Children.Add(input);
+            System.Windows.Automation.AutomationProperties.SetName(input,field.Label);
+            if(!isCheck&&cell.Children[0] is TextBlock caption)System.Windows.Automation.AutomationProperties.SetLabeledBy(input,caption);
+            if(!isCheck&&field.Choices is null)
+            {
+                string range=$"{field.Min/(decimal)field.Scale} – {field.Max/(decimal)field.Scale}";
+                System.Windows.Automation.AutomationProperties.SetHelpText(input,range);
+                cell.Children.Add(new TextBlock{Text=range,FontSize=12,Foreground=(Brush)FindResource("TextSoft"),Margin=new Thickness(0,4,0,0)});
+            }
             if(editor&&Editor is ThreeDS.Progressive.Services.GameTrainerService
                 &&field.Key=="AI"&&input is TextBox ai)
                 AddTrainerAiBits(cell,ai);

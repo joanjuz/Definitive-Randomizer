@@ -1,4 +1,4 @@
-using System.Collections.ObjectModel;
+﻿using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Windows;
 using System.Windows.Controls;
@@ -75,7 +75,7 @@ internal sealed class TrainerRulesWindow : UserControl
             Text=caps
                 ?"Cap 0 = nivel del Ace dinámico. «Máx. 3» conserva al Pokémon de mayor nivel. Mega y movimiento Z se aplican únicamente donde el juego lo permite."
                 :"EV -1 = conservar. Movimientos mejorados, mejor estadística y Smart Items se configuran en el randomizador general. Los filtros solo afectan a qué filas se muestran, nunca borran reglas de otros entrenadores.",
-            Foreground=TextSoft,FontSize=11,TextWrapping=TextWrapping.Wrap,
+            Foreground=TextSoft,FontSize=12,TextWrapping=TextWrapping.Wrap,
             Margin=new Thickness(0,0,0,12)
         });
         var actions=new WrapPanel {HorizontalAlignment=System.Windows.HorizontalAlignment.Right};
@@ -84,7 +84,7 @@ internal sealed class TrainerRulesWindow : UserControl
         var selectNone=ActionButton("Deseleccionar visibles",()=>SetVisible(false));
         var cancel=ActionButton("Volver al randomizador",()=>Cancelled?.Invoke());
         var apply=ActionButton("Aceptar",Accept);
-        apply.Background=(Brush)FindResource("Selected");
+        EditorPresentation.StyleAction(apply,EditorPresentation.ActionRole.Primary);EditorPresentation.StyleAction(cancel,EditorPresentation.ActionRole.Tertiary);
         foreach(var button in new[]{selectAll,selectNone,cancel,apply})
         {button.Margin=new Thickness(0,0,8,0);actions.Children.Add(button);}
 
@@ -102,25 +102,7 @@ internal sealed class TrainerRulesWindow : UserControl
             HorizontalScrollBarVisibility=ScrollBarVisibility.Auto,
             VerticalScrollBarVisibility=ScrollBarVisibility.Auto
         };
-        var headerStyle=new Style(typeof(DataGridColumnHeader));
-        headerStyle.Setters.Add(new Setter(Control.BackgroundProperty,Surface));
-        headerStyle.Setters.Add(new Setter(Control.ForegroundProperty,TextMain));
-        headerStyle.Setters.Add(new Setter(Control.BorderBrushProperty,Stroke));
-        headerStyle.Setters.Add(new Setter(Control.PaddingProperty,new Thickness(10,9,10,9)));
-        _grid.ColumnHeaderStyle=headerStyle;
-        var cellStyle=new Style(typeof(DataGridCell));
-        cellStyle.Setters.Add(new Setter(Control.ForegroundProperty,TextMain));
-        cellStyle.Setters.Add(new Setter(Control.BackgroundProperty,Brushes.Transparent));
-        cellStyle.Setters.Add(new Setter(Control.BorderBrushProperty,Stroke));
-        cellStyle.Setters.Add(new Setter(Control.PaddingProperty,new Thickness(5,1,5,1)));
-        _grid.CellStyle=cellStyle;
-        var rowStyle=new Style(typeof(DataGridRow));
-        rowStyle.Setters.Add(new Setter(Control.ForegroundProperty,TextMain));
-        rowStyle.Setters.Add(new Setter(Control.BorderBrushProperty,Stroke));
-        var selected=new Trigger {Property=DataGridRow.IsSelectedProperty,Value=true};
-        selected.Setters.Add(new Setter(Control.BackgroundProperty,(Brush)FindResource("Selected")));
-        rowStyle.Triggers.Add(selected);
-        _grid.RowStyle=rowStyle;
+        DarkGridTheme.Apply(_grid);_grid.FrozenColumnCount=2;
         AddCheck(_caps?"Aplicar cap":"Usar regla",_caps?"CapUse":"MoveUse");
         if(_caps)
         {
@@ -135,6 +117,7 @@ internal sealed class TrainerRulesWindow : UserControl
         AddText("Grupo","Group");AddText("Entrenador","Trainer",true);
         AddNumber("Ace actual","Ace",true);
         if(_caps)AddNumber("Cap (0 = Ace)","Cap");
+        _grid.Columns.Single(c=>c.Header?.ToString()=="ID").DisplayIndex=0;
         root.Children.Add(_grid);
         _view.Filter=MatchesFilters;
         RefreshFilter();

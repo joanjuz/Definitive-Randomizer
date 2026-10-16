@@ -85,7 +85,7 @@ internal sealed class BatchRomBuilderView : UserControl
         var bar=new WrapPanel();
         buttons.Children.Add(bar);
         Add(bar,"Comprobar y previsualizar",Preview);
-        _build=Add(bar,"Construir ROMs",()=>_ = BuildAsync());_build.IsEnabled=false;
+        _build=Add(bar,"Construir ROMs",()=>_ = BuildAsync(),EditorPresentation.ActionRole.Primary);_build.IsEnabled=false;
         var scroll=new ScrollViewer{VerticalScrollBarVisibility=ScrollBarVisibility.Auto};
         root.Children.Add(scroll);
         var content=new StackPanel{Margin=new Thickness(0,0,0,8)};
@@ -175,12 +175,12 @@ internal sealed class BatchRomBuilderView : UserControl
         UiProgress.Report($"Batch ROM {p.CurrentRom}/{p.TotalRoms}: {p.Stage} · "+
             $"{p.ActionsDone}/{p.ActionsTotal} acciones",p.OverallPercent);
     }
-    private Button Add(System.Windows.Controls.Panel target,string label,Action run)
+    private Button Add(System.Windows.Controls.Panel target,string label,Action run,EditorPresentation.ActionRole role=EditorPresentation.ActionRole.Secondary)
     {
         var b=new Button{Content=label,Margin=new Thickness(0,0,9,7)};
         b.Click+=(_,_)=>{try{run();}catch(Exception ex)
         {StudioDialog.Error(Window.GetWindow(this),"Batch ROM Builder",ex.Message);}};
-        target.Children.Add(b);return b;
+        EditorPresentation.StyleAction(b,role);target.Children.Add(b);return b;
     }
     private void Invalidate()
     {

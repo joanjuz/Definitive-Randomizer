@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Windows;
 using System.Windows.Input;
 
@@ -11,6 +11,9 @@ public partial class StudioDialog : Window
     public StudioDialog()
     {
         InitializeComponent();
+        MaxHeight=Math.Max(235,SystemParameters.WorkArea.Height-32);
+        MaxWidth=Math.Max(320,SystemParameters.WorkArea.Width-32);
+        Width=Math.Min(Width,MaxWidth);
         Loaded += (_, _) => ConfirmButton.Focus();
     }
 

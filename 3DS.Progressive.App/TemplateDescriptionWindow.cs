@@ -31,32 +31,37 @@ internal sealed class TemplateDescriptionWindow : Window
     private GameMoveDescriptionScene? _scene;
     private GameMoveDescription6Scene? _scene6;
     private readonly MovePreviewExample? _move;
-    private readonly System.Windows.Controls.Image _previewImage=new(){Width=640,Height=224,Stretch=Stretch.Uniform};
+    private readonly System.Windows.Controls.Image _previewImage=new(){Width=320,Height=240,Stretch=Stretch.Uniform};
     private readonly TextBlock _previewStatus=new(){TextWrapping=TextWrapping.Wrap};
-    private readonly StackPanel _previewPanel=new(){Visibility=Visibility.Collapsed};
+    private readonly System.Windows.Controls.Grid _previewPanel=new(){Visibility=Visibility.Collapsed};
+    private readonly RowDefinition _previewRow=new(){Height=new GridLength(0)};
     private readonly System.Windows.Controls.Button _previewButton;
     internal string Description=>_editor.Text;
     internal TemplateDescriptionWindow(string text,GameProjectSession? project=null,MovePreviewExample? move=null)
     {
         _project=project;_move=move;
-        Title="InGameDescription · español";Width=760;Height=380;MinWidth=480;MinHeight=280;
+        Title="InGameDescription · español";MaxWidth=SystemParameters.WorkArea.Width;MaxHeight=SystemParameters.WorkArea.Height;
+        Width=Math.Min(820,Math.Max(320,MaxWidth-32));Height=Math.Min(480,Math.Max(300,MaxHeight-32));MinWidth=Math.Min(480,Width);MinHeight=Math.Min(340,Height);
         WindowStartupLocation=WindowStartupLocation.CenterOwner;ShowInTaskbar=false;
         Background=(Brush)FindResource("Bg");Foreground=(Brush)FindResource("TextMain");
-        var root=new DockPanel{Margin=new Thickness(20)};Content=root;
-        var title=new TextBlock{Text=Title,FontSize=21,Margin=new Thickness(0,0,0,12)};DockPanel.SetDock(title,Dock.Top);root.Children.Add(title);
-        var footer=new StackPanel{Orientation=System.Windows.Controls.Orientation.Horizontal,HorizontalAlignment=System.Windows.HorizontalAlignment.Right,Margin=new Thickness(0,12,0,0)};DockPanel.SetDock(footer,Dock.Bottom);root.Children.Add(footer);
+        var root=new System.Windows.Controls.Grid{Margin=new Thickness(20)};Content=root;
+        root.RowDefinitions.Add(new RowDefinition{Height=GridLength.Auto});root.RowDefinitions.Add(new RowDefinition{Height=new GridLength(1,GridUnitType.Star),MinHeight=90});root.RowDefinitions.Add(_previewRow);root.RowDefinitions.Add(new RowDefinition{Height=GridLength.Auto});
+        var title=new TextBlock{Text=Title,Style=(Style)FindResource("PageHeading"),Margin=new Thickness(0,0,0,12)};root.Children.Add(title);
+        var footer=new WrapPanel{HorizontalAlignment=System.Windows.HorizontalAlignment.Right,Margin=new Thickness(0,12,0,0)};System.Windows.Controls.Grid.SetRow(footer,3);root.Children.Add(footer);
         _previewButton=new System.Windows.Controls.Button{Content="Previsualizar",IsEnabled=project is not null,Margin=new Thickness(0,0,8,0)};footer.Children.Add(_previewButton);_previewButton.Click+=async (_,_)=>await PreviewAsync();
-        DockPanel.SetDock(_previewPanel,Dock.Bottom);root.Children.Add(_previewPanel);_previewPanel.Children.Add(_previewImage);_previewPanel.Children.Add(_previewStatus);
-        var cancel=new System.Windows.Controls.Button{Content="Cancelar",IsCancel=true,Margin=new Thickness(0,0,8,0)};footer.Children.Add(cancel);
-        var save=new System.Windows.Controls.Button{Content="Guardar descripción"};save.Click+=(_,_)=>DialogResult=true;footer.Children.Add(save);
-        _editor=new System.Windows.Controls.TextBox{Text=text,AcceptsReturn=true,TextWrapping=TextWrapping.Wrap,VerticalScrollBarVisibility=ScrollBarVisibility.Auto,VerticalContentAlignment=VerticalAlignment.Top};root.Children.Add(_editor);
+        _previewPanel.RowDefinitions.Add(new RowDefinition{Height=new GridLength(1,GridUnitType.Star)});_previewPanel.RowDefinitions.Add(new RowDefinition{Height=GridLength.Auto});_previewPanel.Margin=new Thickness(0,12,0,0);System.Windows.Controls.Grid.SetRow(_previewPanel,2);root.Children.Add(_previewPanel);
+        var picture=new Viewbox{Child=_previewImage,Stretch=Stretch.Uniform,MaxWidth=640,MaxHeight=360,HorizontalAlignment=System.Windows.HorizontalAlignment.Left};_previewPanel.Children.Add(picture);
+        _previewStatus.Foreground=(Brush)FindResource("TextSoft");_previewStatus.FontSize=12;_previewStatus.Margin=new Thickness(0,8,0,0);System.Windows.Controls.Grid.SetRow(_previewStatus,1);_previewPanel.Children.Add(_previewStatus);
+        var cancel=new System.Windows.Controls.Button{Content="Cancelar",IsCancel=true,Margin=new Thickness(0,0,8,0)};EditorPresentation.StyleAction(cancel,EditorPresentation.ActionRole.Tertiary);footer.Children.Add(cancel);
+        var save=new System.Windows.Controls.Button{Content="Guardar descripción"};EditorPresentation.StyleAction(save,EditorPresentation.ActionRole.Primary);save.Click+=(_,_)=>DialogResult=true;footer.Children.Add(save);
+        _editor=new System.Windows.Controls.TextBox{Text=text,AcceptsReturn=true,TextWrapping=TextWrapping.Wrap,VerticalScrollBarVisibility=ScrollBarVisibility.Auto,VerticalContentAlignment=VerticalAlignment.Top};System.Windows.Controls.Grid.SetRow(_editor,1);System.Windows.Automation.AutomationProperties.SetName(_editor,"Descripción del movimiento");root.Children.Add(_editor);
         _editor.TextChanged+=(_,_)=>{if(_font is not null&&_previewPanel.Visibility==Visibility.Visible)RefreshPreview();};
         Loaded+=(_,_)=>{_editor.Focus();_editor.CaretIndex=_editor.Text.Length;};
     }
     private async Task PreviewAsync()
     {
         if(_project is null)return;
-        _previewButton.IsEnabled=false;_previewPanel.Visibility=Visibility.Visible;Height=Math.Max(Height,850);_previewStatus.Text="Cargando la fuente de tu ROM…";
+        _previewButton.IsEnabled=false;_previewPanel.Visibility=Visibility.Visible;_previewRow.Height=new GridLength(1.5,GridUnitType.Star);Height=Math.Min(MaxHeight,Math.Max(Height,720));_previewStatus.Text="Cargando la fuente de tu ROM…";
         try
         {
             _font??=await Task.Run(()=>GameDescriptionFont.Load(_project.GameConfiguration.RomFS,_project.Generation,_project.GameConfiguration.ORAS));
@@ -64,7 +69,7 @@ internal sealed class TemplateDescriptionWindow : Window
             {
                 if(_project.Generation==6)_scene6??=await Task.Run(()=>GameMoveDescription6Scene.Load(_project.GameConfiguration.RomFS));
                 else _scene??=await Task.Run(()=>GameMoveDescriptionScene.Load(_project.GameConfiguration.RomFS,_project.GameConfiguration.USUM));
-                _previewImage.Height=480;
+
             }
             RefreshPreview();
         }
@@ -77,7 +82,7 @@ internal sealed class TemplateDescriptionWindow : Window
     private void RefreshPreview()
     {
         if(_font is null||_project is null||(_move is not null&&_scene is null&&_scene6 is null))return;
-        var rendered=_scene6 is not null&&_move is not null?_scene6.Render(_font,Description,_move):_scene is not null&&_move is not null?_scene.Render(_font,Description,_move):_font.Render(Description,_project.Generation);_previewImage.Source=rendered.Image;
+        var rendered=_scene6 is not null&&_move is not null?_scene6.Render(_font,Description,_move):_scene is not null&&_move is not null?_scene.Render(_font,Description,_move):_font.Render(Description,_project.Generation);_previewImage.Source=rendered.Image;_previewImage.Width=rendered.Image.PixelWidth;_previewImage.Height=rendered.Image.PixelHeight;
         if(_scene6 is not null){_previewStatus.Text="Ficha de movimientos Gen6 · "+_move!.Name+". Fondo del resumen y paneles de detalle de tu ROM; composición estática.\n"+rendered.Status;return;}
         if(_scene is not null){_previewStatus.Text="Ficha de movimientos de tu ROM · "+_move!.Name+". Fondo y cuadro originales; vista estática, sin ejecutar comandos ni variables.\n"+rendered.Status;return;}
         _previewStatus.Text="Fuente de tu ROM · "+_font.Resource+". Vista de referencia: el fondo, tamaño y posición del menú son aproximados; no se ejecutan comandos ni variables.\n"+rendered.Status;

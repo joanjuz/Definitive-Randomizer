@@ -98,6 +98,10 @@ if(args.Length==2&&args[0]=="--diagnose-text-catalogue"){TextClassificationCheck
 if(args.Length>1&&args[0]=="--read-text-classification"){TextClassificationChecks.ReadReal(args.Skip(1));return;}
 if(args.Length==1&&args[0]=="--editor-modules-only"){ModuleChecks.Run(Check,Reject);RecoveryChecks.Run(Check,Reject);Console.WriteLine($"Completed {checks} editor and recovery checks.");return;}
 if(args.Length>1&&args[0]=="--template-studio-shops-copies"){TemplateStudioChecks.ShopCopies(Check,args.Skip(1).ToArray());Console.WriteLine($"Completed {checks} isolated shop template checks.");return;}
+if(args.Length==1&&args[0]=="--visual-redesign-only")
+{
+    Exception? failure=null;var thread=new Thread(()=>{try{VisualRedesignChecks.Run(Check);}catch(Exception ex){failure=ex;}});thread.SetApartmentState(ApartmentState.STA);thread.Start();thread.Join();if(failure is not null)throw failure;Console.WriteLine($"Completed {checks} visual redesign checks.");return;
+}
 if(args.Length>=1&&args[0]=="--description-preview-fonts")
 {
     Exception? failure=null;var thread=new Thread(()=>{try{ThreeDS.Progressive.StudioDialog.AutomatedChecks=true;var app=new ThreeDS.Progressive.App();app.InitializeComponent();DescriptionPreviewChecks.Run(Check,Reject,args.Skip(1).ToArray());}catch(Exception ex){failure=ex;}});thread.SetApartmentState(ApartmentState.STA);thread.Start();thread.Join();if(failure is not null)throw failure;Console.WriteLine($"Completed {checks} description preview checks.");return;
