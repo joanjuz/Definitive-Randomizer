@@ -89,6 +89,7 @@ if(args.Length==1&&args[0]=="--tm-default-ui-only")
 }
 if(args.Length==1&&args[0]=="--tm7-text-only"){TmDescriptionChecks.Run(Check,Reject);Console.WriteLine($"Completed {checks} TM description checks.");return;}
 if(args.Length==1&&args[0]=="--title-movies-only"){TitleMovieChecks.Run(Check,Reject);Console.WriteLine($"Completed {checks} movie checks.");return;}
+if(args.Length==1&&args[0]=="--pickup-only"){PickupChecks.Run(Check,Reject);Console.WriteLine($"Completed {checks} Pickup checks.");return;}
 if(args.Length==1&&args[0]=="--rebuild-cache-only"){RebuildCacheChecks.Run(Check);Console.WriteLine($"Completed {checks} rebuild cache checks.");return;}
 if(args.Length==1&&args[0]=="--titles6-only"){TitleScreenChecks.Run(Check,Reject);Console.WriteLine($"Completed {checks} Gen6 title checks.");return;}
 if(args.Length==1&&args[0]=="--tutors6-only"){Tutor6Checks.Run(Check,Reject);Tutor6CompatibilityChecks.Run(Check,Reject);BatchSourcePolicyChecks.Run(Check,Reject);Console.WriteLine($"Completed {checks} ORAS tutor checks.");return;}

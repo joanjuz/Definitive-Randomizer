@@ -7,16 +7,23 @@ internal static class PickupChecks
 {
     internal static void Run(Action<bool,string> check,Action<Action,string> reject)
     {
-        foreach(var version in new[]{GameVersion.XY,GameVersion.ORAS,GameVersion.SM,GameVersion.USUM})
+        foreach(var (version,compressed) in new[]{(GameVersion.XY,false),(GameVersion.ORAS,false),(GameVersion.SM,false),(GameVersion.USUM,false),(GameVersion.SM,true),(GameVersion.USUM,true)})
         {
-            using var f=new Fixture(version);string tag=version+" Pickup ";bool gen7=f.Game.Generation==7;
+            using var f=new Fixture(version);string tag=version+" Pickup "+(compressed?"compressed ":"");bool gen7=f.Game.Generation==7;
             string path;byte[] source;byte[] table=[];byte[] other=[9,4,7,0,11];int at=0x400080;
             if(gen7)
             {
                 table=new byte[4+24+3];BitConverter.GetBytes(3).CopyTo(table,0);
                 BitConverter.GetBytes((ushort)17).CopyTo(table,4);BitConverter.GetBytes((ushort)18).CopyTo(table,16);
                 table.AsSpan(6,10).Fill(25);table.AsSpan(18,10).Fill(75);new byte[]{0xFE,0xED,0xA5}.CopyTo(table,28);
-                path=Path.Combine(f.Game.RomFS,f.Game.GetGARCFileName("pickup"));f.WriteGarc(path,[table,other],f.Game.GetGARCReference("pickup"));source=File.ReadAllBytes(path);
+                byte[] stored=table;
+                if(compressed)
+                {
+                    string input=Path.Combine(f.Root,"pickup-source.bin"),output=input+".lz";
+                    File.WriteAllBytes(input,table);LZSS.Compress(input,output);stored=File.ReadAllBytes(output);
+                }
+                path=Path.Combine(f.Game.RomFS,f.Game.GetGARCFileName("pickup"));f.WriteGarc(path,[stored,other],f.Game.GetGARCReference("pickup"));source=File.ReadAllBytes(path);
+                if(compressed)check(new GARC.MemGARC(source).GetFile(0)[0]==0x11,tag+"fixture starts with LZ11 storage");
             }
             else
             {
@@ -28,6 +35,7 @@ internal static class PickupChecks
             if(gen7)
             {
                 var doc=GlobalTemplateDocument.Empty(f.Session.GameName,7);doc.SetSection("ProgressiveApp",new System.Text.Json.Nodes.JsonObject{["PartialSnapshot"]=true});doc.SetSection("Actions",new System.Text.Json.Nodes.JsonArray(new System.Text.Json.Nodes.JsonObject{["Id"]="pickup.randomize",["Parameters"]=new System.Text.Json.Nodes.JsonObject()}));var expected=service.Preview(service.Randomize(rows,77)).Files[0].Proposed();
+                if(compressed)check(new GARC.MemGARC(expected).GetFile(0)[0]==0x11,tag+"randomized preview preserves LZ11 storage");
                 check(NativeRecipeCompletion.TryComplete(f.Session,doc)&&File.ReadAllBytes(path).SequenceEqual(source),tag+"native recipe validates without modifying source");GlobalEditorTemplateBridge.ValidateBatchReplay(doc);NativeBatchRomBridge.ApplyPickupSession(f.Session,77);check(File.ReadAllBytes(path).SequenceEqual(expected),tag+"native replay matches exact seed and preserves probabilities and other members");File.WriteAllBytes(path,source);service=new GamePickupService(f.Session);rows=service.Read();
             }
             check(rows.Count==(gen7?2:29)&&rows[0].Item==(gen7?17:1),tag+"vanilla layout decoded");
@@ -40,6 +48,7 @@ internal static class PickupChecks
             check(f.Session.History.Read().Entries.Last().Module=="Pickup"&&f.Session.History.Read().Entries.Last().Files.Count==1,tag+"edit and file fingerprint recorded in persistent history");
             reject(()=>service.Apply(proposal),tag+"stale proposal rejected");
             byte[] changed=File.ReadAllBytes(path);
+            if(compressed)check(new GARC.MemGARC(changed).GetFile(0)[0]==0x11,tag+"manual save preserves LZ11 storage");
             if(gen7)
             {
                 var lazy=new GARC.LazyGARC(changed);var expected=(byte[])table.Clone();expected[4]=35;expected[6]=40;expected[18]=60;
