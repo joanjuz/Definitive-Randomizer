@@ -1,4 +1,4 @@
-﻿<Window x:Class="ThreeDS.Progressive.MainWindow"
+<Window x:Class="ThreeDS.Progressive.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:ui="clr-namespace:ThreeDS.Progressive"
         Style="{StaticResource {x:Type Window}}"
@@ -50,10 +50,11 @@
                     <TextBlock x:Name="GameNameText" Text="Seleccioná una carpeta de juego extraído"
                                FontSize="12" Foreground="{DynamicResource TextSoft}" TextTrimming="CharacterEllipsis"/>
                 </StackPanel>
-                <WrapPanel Grid.Column="2" MaxWidth="530" VerticalAlignment="Center">
+                <WrapPanel Grid.Column="2" MaxWidth="620" VerticalAlignment="Center">
                     <Button x:Name="BackupButton" KeyboardNavigation.TabIndex="1" Content="Generar backup" Click="Backup_Click" IsEnabled="False" Margin="0,0,10,0"/>
-                    <Button x:Name="ExtractRomButton" KeyboardNavigation.TabIndex="2" Click="ExtractRom_Click" Content="Extraer ROM..." Margin="0,0,8,0"/>
-                    <Button x:Name="RestoreBackupButton" KeyboardNavigation.TabIndex="3" Click="RestoreBackup_Click" Content="Restaurar backup…" Margin="0,0,8,0"/>
+                    <Button x:Name="RebuildButton" KeyboardNavigation.TabIndex="2" Content="Rebuild" Click="Rebuild_Click" IsEnabled="False" Margin="0,0,8,0" ToolTip="Reconstruir ROM y revisar los cambios guardados"/>
+                    <Button x:Name="ExtractRomButton" KeyboardNavigation.TabIndex="3" Click="ExtractRom_Click" Content="Extraer ROM..." Margin="0,0,8,0"/>
+                    <Button x:Name="RestoreBackupButton" KeyboardNavigation.TabIndex="4" Click="RestoreBackup_Click" Content="Restaurar backup…" Margin="0,0,8,0"/>
                     <Button x:Name="OpenProjectButton" KeyboardNavigation.TabIndex="0" Click="OpenProject_Click" Style="{StaticResource PrimaryButton}" Content="Abrir proyecto..."/>
                 </WrapPanel>
             </Grid>

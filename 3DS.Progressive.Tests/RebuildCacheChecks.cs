@@ -1,4 +1,4 @@
-﻿using System.IO;
+using System.IO;
 using pk3DS.Core;
 using pk3DS.Core.CTR;
 using ThreeDS.Progressive.Services;
@@ -31,6 +31,11 @@ internal static class RebuildCacheChecks
             check(File.ReadAllBytes(Path.Combine(unpack,"icon.bin")).SequenceEqual(new byte[]{4,5,6}),"Cache invalidation exports the current icon bytes");
             check(File.Exists(Path.Combine(unpack,".code.bin"))&&!File.Exists(Path.Combine(unpack,"code.bin")),"Rebuild canonicalizes toolkit code.bin to mandatory .code ExeFS entry");
             check(File.ReadAllBytes(codePath).SequenceEqual(originalCode)&&Directory.GetFiles(f.Game.ExeFS).Select(Path.GetFileName).Order().SequenceEqual(originalNames),"Rebuild canonicalization preserves source code bytes and filenames");
+            var firstSessionService=new GameRomRebuildService(f.Session);var secondSessionService=new GameRomRebuildService(f.Session);
+            Task.Run(()=>firstSessionService.BuildAsync(RomRebuildKind.ExeFS,Path.Combine(outside,"session-a.bin"))).GetAwaiter().GetResult();
+            Task.Run(()=>secondSessionService.BuildAsync(RomRebuildKind.ExeFS,Path.Combine(outside,"session-b.bin"))).GetAwaiter().GetResult();
+            check(secondSessionService.ExeFsCompressionCount==1,"Rebuild_SessionCacheSurvivesViewServiceRecreation");
+            check(secondSessionService.LastTimings.ContainsKey("Total")&&secondSessionService.LastTimings.Keys.Any(key=>key.Contains("SHA-256")),"Rebuild_PhaseTimingsIncludeFinalVerification");
             string duplicate=Path.Combine(f.Game.ExeFS,Path.GetFileName(codePath).StartsWith('.')?"code.bin":".code.bin");File.Copy(codePath,duplicate);
             bool rejected=false;try{Task.Run(()=>service.BuildAsync(RomRebuildKind.ExeFS,Path.Combine(outside,"duplicate.bin"))).GetAwaiter().GetResult();}catch(InvalidDataException){rejected=true;}
             check(rejected&&!File.Exists(Path.Combine(outside,"duplicate.bin")),"Rebuild rejects duplicate code/.code before publishing output");

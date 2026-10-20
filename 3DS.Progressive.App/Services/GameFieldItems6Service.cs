@@ -23,6 +23,21 @@ public sealed partial class GameFieldItems6Service : IProjectEditor,IOptionTempl
     private readonly byte[][] _items;
     private readonly string _itemPath;
     private readonly byte[] _itemHash;
+    private readonly Dictionary<int,int> _displayValues=[];
+    private readonly Dictionary<string,DisplayFileStamp> _displayStamps=[];
+    private readonly IReadOnlyList<MoveChoice> _itemChoices;
+    private void RefreshDisplay(byte[][] records,byte[]? code)
+    {
+        var decoded=new Dictionary<int,byte[]>();
+        foreach(var (id,slot) in _slots)
+        {
+            byte[] data;
+            if(slot.File<0)data=code??throw new InvalidDataException("Código ausente.");
+            else if(!decoded.TryGetValue(slot.File,out data!))decoded[slot.File]=data=Gen6ScriptCodec.Decode(records[slot.File]).Instructions;
+            _displayValues[id]=BitConverter.ToUInt16(data,slot.Offset);
+        }
+        foreach(string path in new[]{_itemPath,_scriptsPath,_codePath}.OfType<string>())_displayStamps[path]=DisplayFileStamp.Capture(path);
+    }
     public string Title=>"Objetos de campo · Gen6";
     public IReadOnlyList<RecordEntry> Entries {get;}
     private IReadOnlyList<EditorGroup> BaseRandomOptions=>[new("Objetos recogibles",[
@@ -30,9 +45,12 @@ public sealed partial class GameFieldItems6Service : IProjectEditor,IOptionTempl
         new("Mega","Incluir megapiedras",0,0,1),new("Safe","Conservar cola sospechosa ORAS",1,0,1),
         new("ExcludeMachines","Excluir MT y MO",1,0,1),new("ExcludeKey","Excluir objetos clave",1,0,1),
         new("RandomPool","Usar catálogo de objetos Progressive en lugar de mezclar",0,0,1)])];
-    public GameFieldItems6Service(GameProjectSession project)
+    public GameFieldItems6Service(GameProjectSession project):this(project,default){}
+    public GameFieldItems6Service(GameProjectSession project,CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         _project=project;var game=project.GameConfiguration;
+        _itemChoices=Array.AsReadOnly(_project.ItemNames.Select((n,i)=>new MoveChoice(i,n)).ToArray());
         if(game.Generation!=6)throw new ArgumentException("Se requiere XY u ORAS.");
         _itemPath=Path.Combine(game.RomFS,game.GetGARCFileName("item"));
         byte[] itemSource=File.ReadAllBytes(_itemPath);_itemHash=SHA256.HashData(itemSource);_items=new GARC.MemGARC(itemSource).Files;
@@ -41,6 +59,7 @@ public sealed partial class GameFieldItems6Service : IProjectEditor,IOptionTempl
         _scriptsPath=Path.Combine(game.RomFS,_reference.Reference);
         byte[] source=File.ReadAllBytes(_scriptsPath);_scriptsHash=SHA256.HashData(source);
         var records=new GARC.MemGARC(source).Files;
+        byte[]? codeSource=null;
         AddScript(game.ORAS?39:17,game.ORAS?0xB64:0xB04,12,null,"Visible");
         if(!game.ORAS)AddScript(26,0xB18,12,null,"Hidden");
         else
@@ -49,22 +68,22 @@ public sealed partial class GameFieldItems6Service : IProjectEditor,IOptionTempl
             _codePath=new[]{Path.Combine(game.ExeFS,".code.bin"),Path.Combine(game.ExeFS,"code.bin")}.FirstOrDefault(File.Exists);
             if(_codePath!=null)
             {
-                byte[] code=File.ReadAllBytes(_codePath);_codeHash=SHA256.HashData(code);
-                var matches=Enumerable.Range(0,Math.Max(0,code.Length-HiddenSignature.Length+1))
-                    .Where(i=>code.AsSpan(i,HiddenSignature.Length).SequenceEqual(HiddenSignature)).Take(2).ToArray();
-                if(matches.Length>1)throw new InvalidDataException("Firma de objetos ocultos ORAS duplicada.");
-                if(matches.Length==1)
+                byte[] code=codeSource=File.ReadAllBytes(_codePath);_codeHash=SHA256.HashData(code);
+                int match=code.AsSpan().IndexOf(HiddenSignature);
+                if(match>=0&&code.AsSpan(match+1).IndexOf(HiddenSignature)>=0)throw new InvalidDataException("Firma de objetos ocultos ORAS duplicada.");
+                if(match>=0)
                 {
-                    int start=matches[0]+HiddenSignature.Length;
+                    int start=match+HiddenSignature.Length;
                     if((long)start+170*14>code.Length)throw new InvalidDataException("Tabla de objetos ocultos ORAS truncada.");
                     for(int i=0;i<170;i++)Add(-1,start+i*14+2,"Hidden",code);
                 }
             }
         }
-        byte[]? codeSource=_codePath==null?null:File.ReadAllBytes(_codePath);
-        Entries=_slots.Select(p=>new RecordEntry(p.Key,$"{p.Value.Kind} · {(p.Value.File<0?"código":"script "+p.Value.File)} · {Name(Value(p.Value,records,codeSource))}")).ToArray();
+        RefreshDisplay(records,codeSource);
+        Entries=_slots.Select(p=>new RecordEntry(p.Key,$"{p.Value.Kind} · {(p.Value.File<0?"código":"script "+p.Value.File)} · {Name(_displayValues[p.Key])}")).ToArray();
         void AddScript(int file,int offset,int stride,int? count,string kind)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             if(file>=records.Length)throw new InvalidDataException("El archivo de scripts no contiene las tablas Gen6 esperadas.");
             byte[] data=Gen6ScriptCodec.Decode(records[file]).Instructions;
             if(offset+2>data.Length)throw new InvalidDataException("Tabla de objetos de script truncada.");
@@ -85,9 +104,9 @@ public sealed partial class GameFieldItems6Service : IProjectEditor,IOptionTempl
     }
     public IReadOnlyList<EditorGroup> Read(int id)
     {
-        var data=ReadSource();int item=Value(_slots[id],data.Records,data.Code);
-        var choices=_project.ItemNames.Select((n,i)=>new MoveChoice(i,n)).ToList();
-        if(item>=choices.Count)choices.Add(new(item,$"Objeto personalizado #{item}"));
+        foreach(var (path,stamp) in _displayStamps)stamp.EnsureCurrent(path);
+        int item=_displayValues[id];
+        IReadOnlyList<MoveChoice> choices=item<_itemChoices.Count?_itemChoices:Array.AsReadOnly(_itemChoices.Append(new MoveChoice(item,$"Objeto personalizado #{item}")).ToArray());
         return[new("Objeto recogible",[new("Item","Objeto",item,0,65535,choices)])];
     }
     private bool Allowed(Slot slot,int item,IReadOnlyDictionary<string,int> options)
@@ -168,6 +187,7 @@ public sealed partial class GameFieldItems6Service : IProjectEditor,IOptionTempl
         _=ReadSource();foreach(var f in proposal.Files)GarcTransaction.ReadUnchanged(f.Path,f.Fingerprint);
         _project.History.Commit(proposal.Files,Title,proposal.Action,proposal.Changes,proposal.Parameters);
         _scriptsHash=SHA256.HashData(File.ReadAllBytes(_scriptsPath));if(_codePath!=null)_codeHash=SHA256.HashData(File.ReadAllBytes(_codePath));
+        var display=ReadSource();RefreshDisplay(display.Records,display.Code);
     }
     public string ExportCsv()
     {

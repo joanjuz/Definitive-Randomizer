@@ -27,6 +27,7 @@ internal static class MartSmChecks
         byte[][] items=Enumerable.Range(0,1000).Select(_=>{var item=new Item(new byte[0x30]);item.BuyPrice=500;return item.Write();}).ToArray();
         string itemPath=Path.Combine(f.Game.RomFS,f.Game.GetGARCFileName("item"));f.WriteGarc(itemPath,items,f.Game.GetGARCReference("item"));
         byte[] itemBefore=File.ReadAllBytes(itemPath);
+        if(System.Windows.Application.Current is not null)RebuildMartUiChecks.CheckMart(project,path,itemPath,check);
         var editor=new GameMartService(project);
         check(editor.RegularShops.Count==24&&editor.BpShops.Count==6&&!editor.SupportsExpansion,"SM exposes original 24 normal and six BP shops with fixed sizes");
         check(editor.Prepare().Output.SequenceEqual(source),"SM no-op preserves entire Shop CRO");

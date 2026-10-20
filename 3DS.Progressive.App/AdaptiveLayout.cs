@@ -1,4 +1,4 @@
-﻿using System.Windows;
+using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Automation;
@@ -69,7 +69,7 @@ public static class AdaptiveLayout
         if((bool)grid.GetValue(ConfiguredProperty))return;grid.SetValue(ConfiguredProperty,true);
         grid.RowDefinitions.Add(new RowDefinition{Height=GridLength.Auto});grid.RowDefinitions.Add(new RowDefinition{Height=GridLength.Auto});
         var actions=grid.Children.OfType<WrapPanel>().Single();
-        void Update(){bool compact=grid.ActualWidth<1100;Grid.SetRow(actions,compact?1:0);Grid.SetColumn(actions,compact?0:2);Grid.SetColumnSpan(actions,compact?3:1);actions.MaxWidth=compact?double.PositiveInfinity:530;actions.Margin=compact?new Thickness(0,12,0,0):new Thickness(0);}
+        void Update(){bool compact=grid.ActualWidth<1180;Grid.SetRow(actions,compact?1:0);Grid.SetColumn(actions,compact?0:2);Grid.SetColumnSpan(actions,compact?3:1);actions.MaxWidth=compact?double.PositiveInfinity:620;actions.Margin=compact?new Thickness(0,12,0,0):new Thickness(0);}
         grid.SizeChanged+=(_,_)=>Update();Update();
     }
 }

@@ -8,6 +8,8 @@ using ThreeDS.Progressive.Models;
 using ThreeDS.Progressive.Services;
 using Brush = System.Windows.Media.Brush;
 using Button = System.Windows.Controls.Button;
+using MenuItem = System.Windows.Controls.MenuItem;
+using ContextMenu = System.Windows.Controls.ContextMenu;
 using ComboBox = System.Windows.Controls.ComboBox;
 using CheckBox = System.Windows.Controls.CheckBox;
 using DataGrid = System.Windows.Controls.DataGrid;
@@ -23,12 +25,15 @@ namespace ThreeDS.Progressive;
 /// <summary>Native dark WPF editor for real USUM Shop.cro regular/BP inventories.</summary>
 internal sealed class MartEditorView : UserControl
 {
-    private readonly CheckBox[] _recipeFlags=Enumerable.Range(0,6).Select(_=>new CheckBox()).ToArray();
-    internal Gen7MartState RememberRecipe()=>new(_recipeFlags[0].IsChecked==true,_recipeFlags[1].IsChecked==true,_recipeFlags[2].IsChecked==true,_recipeFlags[3].IsChecked==true,_recipeFlags[4].IsChecked==true,_recipeFlags[5].IsChecked==true,_specialOnly.IsChecked==true,_protectX.IsChecked==true);
-    internal void RestoreRecipe(Gen7MartState s){bool[] flags=[s.RandomRegular,s.RandomBP,s.Candies,s.Vitamins,s.FreeMega,s.BanCapsule];for(int i=0;i<flags.Length;i++)_recipeFlags[i].IsChecked=flags[i];_specialOnly.IsChecked=s.SpecialsOnly;_protectX.IsChecked=s.ProtectX;}
+    private readonly Button[] _recipeFlags=Enumerable.Range(0,6).Select(_=>new Button()).ToArray();
+    private readonly bool[] _recipeSelected=new bool[6];
+    private int _previewSeed=System.Security.Cryptography.RandomNumberGenerator.GetInt32(int.MaxValue);
+    internal Gen7MartState RememberRecipe()=>new(_recipeSelected[0],_recipeSelected[1],_recipeSelected[2],_recipeSelected[3],_recipeSelected[4],_recipeSelected[5],_specialOnly.IsChecked==true,_protectX.IsChecked==true);
+    internal void RestoreRecipe(Gen7MartState s){bool[] flags=[s.RandomRegular,s.RandomBP,s.Candies,s.Vitamins,s.FreeMega,s.BanCapsule];for(int i=0;i<flags.Length;i++)SetRecipeSelection(i,flags[i]);_specialOnly.IsChecked=s.SpecialsOnly;_protectX.IsChecked=s.ProtectX;}
     private readonly GameProjectSession _project;
     private GameMartService _service;
     private MartShopPreview? _pending;
+    private GameMartService? _preparedService;
     private readonly ComboBox _regularPicker = new() { MinWidth = 310, Margin = new Thickness(0, 0, 10, 10) };
     private readonly ComboBox _bpPicker = new() { MinWidth = 310, Margin = new Thickness(0, 0, 10, 10) };
     private readonly DataGrid _regularGrid;
@@ -70,14 +75,24 @@ internal sealed class MartEditorView : UserControl
         });
         heading.Children.Add(new TextBlock{Text="Opciones de la vista previa y de Global/Batch",Foreground=soft});
         var recipes=new WrapPanel();string[] labels=["Randomizar tiendas","Randomizar BP","Caramelos raros",project.GameConfiguration.USUM?"Vitaminas 252 EV":"Objetos de entrenamiento EV","Megapiedras gratis (en BP)","Prohibir Cápsula Habilidad"];
-        for(int i=0;i<_recipeFlags.Length;i++){_recipeFlags[i].Content=labels[i];_recipeFlags[i].Foreground=foreground;_recipeFlags[i].Margin=new Thickness(0,4,12,8);recipes.Children.Add(_recipeFlags[i]);}heading.Children.Add(recipes);
+        for(int i=0;i<_recipeFlags.Length;i++)
+        {
+            int index=i;var button=_recipeFlags[i];button.Content=labels[i];button.Margin=new Thickness(0,4,8,8);
+            button.Click+=(_,_)=>{SetRecipeSelection(index,true);Dirty();Preview();};
+            var remove=new MenuItem{Header="Quitar de la vista previa y de Global/Batch"};
+            remove.Click+=(_,_)=>{SetRecipeSelection(index,false);Dirty();Preview();};
+            button.ContextMenu=new ContextMenu{Items={remove}};
+            SetRecipeSelection(i,false);recipes.Children.Add(button);
+        }
+        heading.Children.Add(recipes);
+        Add(recipes,"Restablecer opciones",()=>{for(int i=0;i<_recipeSelected.Length;i++)SetRecipeSelection(i,false);Dirty();Preview();});
         var actions = new WrapPanel();
         heading.Children.Add(actions);
         _add = Add(actions, "+ Añadir ranura", AddSlot);
         _delete = Add(actions, "− Eliminar ranura", DeleteSlot);
         if(!_service.SupportsExpansion)_add.Visibility=_delete.Visibility=Visibility.Collapsed;
         heading.Children.Add(new WrapPanel { Children = { _specialOnly, _protectX } });
-        Add(actions, "Generar vista previa", Preview);
+        Add(actions, "Generar vista previa", RegeneratePreview);
         _apply = Add(actions, "Aplicar y verificar", Apply);
         _apply.IsEnabled = false;
 
@@ -113,9 +128,17 @@ internal sealed class MartEditorView : UserControl
         };
         bottom.Children.Add(_status);
         BindShops();
-        foreach(var flag in _recipeFlags){flag.Checked+=(_,_)=>Dirty();flag.Unchecked+=(_,_)=>Dirty();}
         _specialOnly.Checked+=(_,_)=>Dirty();_specialOnly.Unchecked+=(_,_)=>Dirty();
         _protectX.Checked+=(_,_)=>Dirty();_protectX.Unchecked+=(_,_)=>Dirty();
+    }
+
+    private void SetRecipeSelection(int index,bool selected)
+    {
+        _recipeSelected[index]=selected;
+        var button=_recipeFlags[index];
+        button.SetResourceReference(StyleProperty,selected?"PrimaryButton":"SecondaryButton");
+        button.ToolTip=selected?"Incluido en la vista previa y en Global/Batch. Botón derecho para quitarlo.":"Añadir a la vista previa sin quitar las otras acciones.";
+        System.Windows.Automation.AutomationProperties.SetItemStatus(button,selected?"Incluido":"Sin incluir");
     }
 
     private static Button Add(Panel parent, string label, Action action)
@@ -236,6 +259,7 @@ internal sealed class MartEditorView : UserControl
         _loading = false;
         _dirty = false;
         _pending = null;
+        _preparedService = null;
         _changes.ItemsSource = null;
         UpdateButtons();
     }
@@ -254,6 +278,7 @@ internal sealed class MartEditorView : UserControl
         if (_loading) return;
         _dirty = true;
         _pending = null;
+        _preparedService = null;
         _apply.IsEnabled = false;
         _changes.ItemsSource = null;
         _status.Text = "Ediciones pendientes. Generá una nueva vista previa antes de guardar.";
@@ -319,6 +344,11 @@ internal sealed class MartEditorView : UserControl
         }
         catch (Exception ex) { StudioDialog.Error(Window.GetWindow(this), name, ex.Message); }
     }
+    private void RegeneratePreview()
+    {
+        _previewSeed=System.Security.Cryptography.RandomNumberGenerator.GetInt32(int.MaxValue);
+        Preview();
+    }
     private void Preview()
     {
         CommitBoth();
@@ -329,7 +359,9 @@ internal sealed class MartEditorView : UserControl
             {draft.RegularShops[i].Rows.Clear();foreach(var row in _service.RegularShops[i].Rows)draft.RegularShops[i].Rows.Add(new(row.Number,row.ItemId,row.Price));}
             for(int i=0;i<_service.BpShops.Count;i++)for(int j=0;j<_service.BpShops[i].Rows.Count;j++)
             {draft.BpShops[i].Rows[j].ItemId=_service.BpShops[i].Rows[j].ItemId;draft.BpShops[i].Rows[j].Price=_service.BpShops[i].Rows[j].Price;}
-            _pending = NativeGen7MartBridge.Prepare(draft,RememberRecipe(),System.Security.Cryptography.RandomNumberGenerator.GetInt32(int.MaxValue));
+            _pending = NativeGen7MartBridge.Prepare(draft,RememberRecipe(),_previewSeed);
+            _preparedService=draft;
+            _dirty = _pending.Changes.Count>0;
             _changes.ItemsSource = _pending.Changes.Take(150)
                 .Select(c => $"{c.Name} · {c.Field}: {c.Before} → {c.After}").ToArray();
             _apply.IsEnabled = _pending.Changes.Count > 0;
@@ -342,6 +374,7 @@ internal sealed class MartEditorView : UserControl
         catch (Exception ex)
         {
             _pending = null;
+            _preparedService = null;
             _apply.IsEnabled = false;
             StudioDialog.Error(Window.GetWindow(this), "Vista previa de tiendas", ex.Message);
         }
@@ -349,13 +382,13 @@ internal sealed class MartEditorView : UserControl
     private void Apply()
     {
         CommitBoth();
-        if (_pending is null) return;
+        if (_pending is null || _preparedService is null) return;
         if (!StudioDialog.Confirm(Window.GetWindow(this), "Guardar tiendas",
             $"¿Aplicar {_pending.Changes.Count} diferencias a Shop.cro? " +
             "El archivo se verificará antes de escribir y se añadirá al historial.")) return;
         try
         {
-            _service.Apply(_pending);
+            _preparedService.Apply(_pending);
             _loading = true;
             _service = new GameMartService(_project);
             BindShops();

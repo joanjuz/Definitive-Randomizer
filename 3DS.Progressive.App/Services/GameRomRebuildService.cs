@@ -1,4 +1,4 @@
-﻿using System.IO;
+using System.IO;
 using System.Security.Cryptography;
 using pk3DS.Core.CTR;
 
@@ -19,8 +19,11 @@ internal sealed class ExeFsBuildCache
 internal sealed class GameRomRebuildService(GameProjectSession project, ExeFsBuildCache? sharedCache=null)
 {
     private static readonly SemaphoreSlim BuildGate=new(1,1);
-    private readonly ExeFsBuildCache _cache=sharedCache??new();
+    private readonly ExeFsBuildCache _cache=sharedCache??project.RebuildExeFsCache;
     internal int ExeFsCompressionCount=>_cache.CompressionCount;
+    private readonly Dictionary<string,double> _lastTimings=[];
+    internal IReadOnlyDictionary<string,double> LastTimings=>new Dictionary<string,double>(_lastTimings);
+
     private static string ExeSignature(string folder)
     {
         return string.Join("\n",Directory.GetFiles(folder,"*",SearchOption.TopDirectoryOnly).OrderBy(Path.GetFileName,StringComparer.Ordinal).Select(path=>
@@ -28,7 +31,14 @@ internal sealed class GameRomRebuildService(GameProjectSession project, ExeFsBui
     }
     internal async Task<(string File,string Hash,long Bytes)> BuildAsync(RomRebuildKind kind,string target,Action<string,int,int>? progress=null)
     {
-        void Report(string text,int value){UiProgress.Stage(text);progress?.Invoke(text,value,100);}
+        var watch=System.Diagnostics.Stopwatch.StartNew();
+        string? lastPhase=null;double lastAt=0;
+        void Report(string text,int value)
+        {
+            double now=watch.Elapsed.TotalMilliseconds;
+            if(lastPhase is not null)_lastTimings[lastPhase]=now-lastAt;
+            lastPhase=text;lastAt=now;UiProgress.Stage(text);progress?.Invoke(text,value,100);
+        }
         target=Path.GetFullPath(target);
         string root=Path.GetFullPath(project.ProjectRoot);
         if(target.Equals(root,StringComparison.OrdinalIgnoreCase)||
@@ -39,6 +49,7 @@ internal sealed class GameRomRebuildService(GameProjectSession project, ExeFsBui
         if(!Directory.Exists(Path.GetDirectoryName(target)))
             throw new DirectoryNotFoundException("La carpeta de destino no existe.");
         await BuildGate.WaitAsync();
+        _lastTimings.Clear();watch.Restart();
         string stage=Path.Combine(Path.GetDirectoryName(target)!,".definitive-rebuild-"+Guid.NewGuid().ToString("N"));
         try
         {
@@ -67,7 +78,7 @@ internal sealed class GameRomRebuildService(GameProjectSession project, ExeFsBui
                     // produces NullReferenceException during the first metadata/data pass.
                     // Do not show a legacy window: only our dark WPF progress is visible.
                     using(var legacyProgress=CreateLegacyProgressBar())
-                        RomFS.BuildRomFS(romfs,romfile,PB_Show:legacyProgress);
+                        RomFS.BuildRomFS(romfs,romfile,null,legacyProgress,(phase,elapsed)=>_lastTimings[phase]=elapsed.TotalMilliseconds);
                     if(!File.Exists(romfile)||new FileInfo(romfile).Length==0)
                         throw new IOException("RomFS no produjo una salida válida.");
                     UiProgress.Count("RomFS compilado",1,kind==RomRebuildKind.RomFS?2:4);
@@ -134,6 +145,7 @@ internal sealed class GameRomRebuildService(GameProjectSession project, ExeFsBui
                 if(exeSignature is not null&&ExeSignature(exefs)!=exeSignature)throw new IOException("ExeFS cambió antes de publicar la salida.");
                 File.Move(produced,target);
                 Report("Reconstrucción e integridad completadas",100);
+                _lastTimings["Total"]=watch.Elapsed.TotalMilliseconds;
                 return(target,hash,size);
             });
         }

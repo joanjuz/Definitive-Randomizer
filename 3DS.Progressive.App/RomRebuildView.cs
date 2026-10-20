@@ -1,4 +1,4 @@
-﻿using System.IO;
+using System.IO;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
@@ -12,6 +12,7 @@ namespace ThreeDS.Progressive;
 
 internal sealed class RomRebuildView : UserControl
 {
+    private readonly GameProjectSession _project;
     private readonly GameRomRebuildService _service;
     private readonly ComboBox _kind;
     private readonly TextBlock _detail;
@@ -20,6 +21,7 @@ internal sealed class RomRebuildView : UserControl
     internal bool ConfirmLeave()=>!_busy;
     internal RomRebuildView(GameProjectSession project)
     {
+        _project=project;
         _service=new GameRomRebuildService(project);
         Background=(Brush)FindResource("Bg");
         var root=new DockPanel{Margin=new Thickness(20)};
@@ -54,10 +56,30 @@ internal sealed class RomRebuildView : UserControl
             Text="No se ha iniciado ninguna reconstrucción. Para .3DS se necesita ExHeader en la raíz extraída."};
         card.Child=_detail;
     }
+    internal static string HistorySummary(HistoryDocument history)
+    {
+        if(history.Entries.Count==0)return "No hay cambios registrados. Se reconstruirán los archivos actuales; las modificaciones externas pueden no figurar en el historial.";
+        var text=new System.Text.StringBuilder();
+        text.AppendLine($"{history.Entries.Count} acciones guardadas · {history.Entries.SelectMany(e=>e.Files).Select(f=>f.Path).Distinct(StringComparer.OrdinalIgnoreCase).Count()} archivos registrados");
+        foreach(var entry in history.Entries)
+        {
+            text.AppendLine($"\n{entry.Time.ToLocalTime():dd/MM/yyyy HH:mm:ss} · {entry.Module} · {entry.Action}");
+            text.AppendLine($"{entry.ChangedValueCount} valores registrados");
+            foreach(var change in entry.Changes)text.AppendLine($"  {change.Name} · {change.Field}: {change.Before} → {change.After}");
+            foreach(var parameter in entry.Parameters)text.AppendLine($"  {parameter.Key}: {parameter.Value}");
+            foreach(var file in entry.Files)text.AppendLine("  Archivo: "+file.Path);
+        }
+        text.AppendLine("\nEl historial puede contener cambios sustituidos por ediciones posteriores. Se empaqueta el estado guardado actual, no las opciones pendientes de Global/Batch ni ediciones sin aplicar.");
+        return text.ToString();
+    }
+
     private async Task BuildAsync()
     {
         if(_busy)return;
         RomRebuildKind kind=(RomRebuildKind)_kind.SelectedIndex;
+        string history;
+        try{history=HistorySummary(_project.History.Read());}
+        catch(Exception ex){StudioDialog.Error(Window.GetWindow(this),"No se pudo leer el historial",ex.Message);return;}
         var picker=new Microsoft.Win32.SaveFileDialog
         {
             Title="Guardar resultado de Rebuild",
@@ -84,7 +106,7 @@ internal sealed class RomRebuildView : UserControl
         }
         if(!StudioDialog.Confirm(Window.GetWindow(this),"Reconstruir ROM",
             $"Se reconstruirá {kind} con el motor pk3DS original en una ruta temporal. "+
-            "Puede tardar varios minutos. ¿Continuar?"))return;
+            "Puede tardar varios minutos. ¿Continuar?",history))return;
         using var interaction=UiProgress.BlockInteraction();
         _busy=true;_run.IsEnabled=false;_kind.IsEnabled=false;
         UiProgress.Begin("Rebuild · "+kind);

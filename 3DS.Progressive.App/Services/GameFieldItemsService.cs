@@ -20,6 +20,8 @@ public sealed partial class GameFieldItemsService : IProjectEditor,IOptionTempla
     private readonly Guid _owner=Guid.NewGuid();
     private readonly Dictionary<int,FieldSlot> _locations=[];
     private byte[] _sha;
+    private DisplayFileStamp _displayStamp;
+    private readonly IReadOnlyList<MoveChoice> _itemChoices;
     public string Title=>"Field Items";
     public IReadOnlyList<RecordEntry> Entries {get;}
     private IReadOnlyList<EditorGroup> BaseRandomOptions=>[
@@ -30,16 +32,20 @@ public sealed partial class GameFieldItemsService : IProjectEditor,IOptionTempla
             new("ExcludeKey","Excluir objetos clave",1,0,1)
         ])
     ];
-    public GameFieldItemsService(GameProjectSession project)
+    public GameFieldItemsService(GameProjectSession project):this(project,default){}
+    public GameFieldItemsService(GameProjectSession project,CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         _project=project;_config=project.GameConfiguration;
         if(_config.Generation!=7)throw new NotSupportedException("Field Items de Gen6 requiere parsear los scripts y code.bin.");
         _path=Path.Combine(_config.RomFS,_config.GetGARCFileName("encdata"));
-        _sha=SHA256.HashData(File.ReadAllBytes(_path));
-        var lazy=new GARC.LazyGARC(File.ReadAllBytes(_path));
+        byte[] source=File.ReadAllBytes(_path);_sha=SHA256.HashData(source);
+        var lazy=new GARC.LazyGARC(source);
+        _itemChoices=Array.AsReadOnly(_project.ItemNames.Select((name,index)=>new MoveChoice(index,string.IsNullOrWhiteSpace(name)?$"Objeto {index:000}":name)).ToArray());
         var entries=new List<RecordEntry>();
         for(int area=0;area<lazy.FileCount/11;area++)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             int file=area*11;
             byte[][] ed;
             try {ed=Mini.UnpackMini(lazy[file],"ED");}
@@ -72,6 +78,7 @@ public sealed partial class GameFieldItemsService : IProjectEditor,IOptionTempla
             }
         }
         Entries=entries;
+        _displayStamp=DisplayFileStamp.Capture(_path);
     }
     private string GetItemName(int item)=>
         item>=0&&item<_project.ItemNames.Count&&!string.IsNullOrWhiteSpace(_project.ItemNames[item])
@@ -87,24 +94,28 @@ public sealed partial class GameFieldItemsService : IProjectEditor,IOptionTempla
     public IReadOnlyList<EditorGroup> Read(int id)
     {
         if(!_locations.ContainsKey(id))throw new ArgumentOutOfRangeException(nameof(id));
-        int value=ReadValue(id,new GARC.LazyGARC(Original()));
-        var options=_project.ItemNames.Select((name,index)=>new MoveChoice(index,
-            string.IsNullOrWhiteSpace(name)?$"Objeto {index:000}":name)).ToList();
-        if(value>=options.Count)options.Add(new MoveChoice(value,$"Objeto personalizado ID {value}"));
+        _displayStamp.EnsureCurrent(_path);
+        int value=_locations[id].OriginalItem;
+        IReadOnlyList<MoveChoice> options=value<_itemChoices.Count?_itemChoices:
+            Array.AsReadOnly(_itemChoices.Append(new MoveChoice(value,$"Objeto personalizado ID {value}")).ToArray());
         return [new("Recogible de la zona",[
             new EditorField("Item","Objeto",value,0,65535,options)
         ])];
     }
-    private void Change(GARC.LazyGARC lazy,int id,int item)
+    private void Change(GARC.LazyGARC lazy,int id,int item)=>ChangeMany(lazy,new Dictionary<int,int>{{id,item}});
+    private void ChangeMany(GARC.LazyGARC lazy,IReadOnlyDictionary<int,int> edits)
     {
-        var slot=_locations[id];
-        int file=slot.Area*11;
-        var ed=Mini.UnpackMini(lazy[file],"ED");
-        int part=slot.Source=="EI"?10:11;
-        var nested=Mini.UnpackMini(ed[part],slot.Source);
-        BitConverter.GetBytes((ushort)item).CopyTo(nested[slot.SubFile],slot.Offset);
-        ed[part]=Mini.PackMini(nested,slot.Source);
-        lazy[file]=Mini.PackMini(ed,"ED");
+        foreach(var area in edits.GroupBy(edit=>_locations[edit.Key].Area))
+        {
+            int file=area.Key*11;var ed=Mini.UnpackMini(lazy[file],"ED");
+            foreach(var kind in area.GroupBy(edit=>_locations[edit.Key].Source))
+            {
+                int part=kind.Key=="EI"?10:11;var nested=Mini.UnpackMini(ed[part],kind.Key);
+                foreach(var edit in kind){var slot=_locations[edit.Key];BitConverter.GetBytes((ushort)edit.Value).CopyTo(nested[slot.SubFile],slot.Offset);}
+                ed[part]=Mini.PackMini(nested,kind.Key);
+            }
+            lazy[file]=Mini.PackMini(ed,"ED");
+        }
     }
     public void Save(int id,IReadOnlyDictionary<string,int> values)
     {
@@ -121,6 +132,7 @@ public sealed partial class GameFieldItemsService : IProjectEditor,IOptionTempla
             [new BatchChange(id,Entries[id-1].Name,"Objeto",GetItemName(before),GetItemName(after))]);
         _sha=SHA256.HashData(proposed);
         _locations[id]=_locations[id] with {OriginalItem=after};
+        _displayStamp=DisplayFileStamp.Capture(_path);
     }
     private bool Eligible(int id,IReadOnlyDictionary<string,int> settings)
     {
@@ -158,13 +170,15 @@ public sealed partial class GameFieldItemsService : IProjectEditor,IOptionTempla
         for(int i=0;i<shuffled.Length;i++)if(_itemTemplate.AllowedItems.Length>0||!_itemTemplate.Allows(shuffled[i]))shuffled[i]=eligible[random.Next(eligible.Length)];
         for(int i=shuffled.Length-1;i>0;i--){int j=random.Next(i+1);(shuffled[i],shuffled[j])=(shuffled[j],shuffled[i]);}
         var changes=new List<BatchChange>();
+        var edits=new Dictionary<int,int>();
         for(int i=0;i<ids.Length;i++)
         {
             if(original[i]==shuffled[i])continue;
-            Change(lazy,ids[i],shuffled[i]);
+            edits[ids[i]]=shuffled[i];
             changes.Add(new BatchChange(ids[i],Entries[ids[i]-1].Name,"Objeto",
                 GetItemName(original[i]),GetItemName(shuffled[i])));
         }
+        ChangeMany(lazy,edits);
         byte[] output=lazy.Save();
         return new EditorProposal(_owner,"Randomizar Field Items",seed,
             [new FileChange(_path,source,output)],changes,
@@ -173,10 +187,13 @@ public sealed partial class GameFieldItemsService : IProjectEditor,IOptionTempla
     public void Apply(EditorProposal proposal)
     {
         if(proposal.Owner!=_owner)throw new InvalidOperationException("La propuesta pertenece a otra sesión.");
+        _=Original();
+        foreach(var file in proposal.Files)GarcTransaction.ReadUnchanged(file.Path,file.Fingerprint);
         _project.History.Commit(proposal.Files,Title,proposal.Action,proposal.Changes,proposal.Parameters);
         byte[] bytes=File.ReadAllBytes(_path);
         _sha=SHA256.HashData(bytes);
         var source=new GARC.LazyGARC(bytes);
+        _displayStamp=DisplayFileStamp.Capture(_path);
         foreach(int id in _locations.Keys.ToArray())
         {
             var slot=_locations[id];

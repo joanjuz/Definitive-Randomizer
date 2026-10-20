@@ -1,10 +1,12 @@
 param(
     [Parameter(Mandatory=$true)][string]$OutputDirectory,
-    [string]$Version = '0.8.0-preview.1'
+    [string]$Version = '0.8.0-preview.2'
 )
 $ErrorActionPreference = 'Stop'
 if ($Version -notmatch '^\d+\.\d+\.\d+-[A-Za-z0-9.-]+$') { throw 'Expected a prerelease version.' }
 $repo = Split-Path $PSScriptRoot -Parent
+$notes = Join-Path $repo ("docs/3ds-progressive/RELEASE_"+$Version.Replace('-','_').Replace('preview.','PREVIEW_')+'.md')
+if (-not (Test-Path -LiteralPath $notes)) { throw "Missing release notes: $notes" }
 $output = [IO.Path]::GetFullPath($OutputDirectory)
 $name = "DefinitiveRandomizer-$Version-win-x64"
 $stage = Join-Path $output $name
@@ -42,7 +44,7 @@ try {
     Copy-Item -LiteralPath (Join-Path $repo 'pk3DS.WinForms/Templates/field_items.txt') -Destination (Join-Path $stage 'custom_balance_templates/field_items.txt') -Force
     Copy-Item -LiteralPath (Join-Path $repo 'pk3DS.WinForms/Templates/field_items.txt') -Destination (Join-Path $stage 'LegacyBatch/custom_balance_templates/field_items.txt') -Force
     Copy-Item -LiteralPath (Join-Path $repo 'LICENSE.md') -Destination $stage
-    Copy-Item -LiteralPath (Join-Path $repo 'docs/3ds-progressive/RELEASE_0.8.0_PREVIEW_1.md') -Destination (Join-Path $stage 'LEEME.md')
+    Copy-Item -LiteralPath $notes -Destination (Join-Path $stage 'LEEME.md')
     "Version: $Version`nCommit: $revision`nSource: https://github.com/joanjuz/Definitive-Randomizer/tree/v$Version" | Set-Content -LiteralPath (Join-Path $stage 'VERSION.txt') -Encoding utf8
     # Only remove development metadata from this newly generated package.
     Get-ChildItem -LiteralPath $stage -File -Recurse -Force | Where-Object { $_.Extension -in @('.pdb','.binlog','.log') -or $_.Name -eq '.gitignore' } | ForEach-Object {

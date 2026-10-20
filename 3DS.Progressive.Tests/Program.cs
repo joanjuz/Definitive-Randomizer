@@ -89,6 +89,7 @@ if(args.Length==1&&args[0]=="--tm-default-ui-only")
 }
 if(args.Length==1&&args[0]=="--tm7-text-only"){TmDescriptionChecks.Run(Check,Reject);Console.WriteLine($"Completed {checks} TM description checks.");return;}
 if(args.Length==1&&args[0]=="--title-movies-only"){TitleMovieChecks.Run(Check,Reject);Console.WriteLine($"Completed {checks} movie checks.");return;}
+if(args.Length==1&&args[0]=="--performance-only"){PerformanceChecks.Run(Check,Reject);Console.WriteLine($"Completed {checks} performance integrity checks.");return;}
 if(args.Length==1&&args[0]=="--pickup-only"){PickupChecks.Run(Check,Reject);Console.WriteLine($"Completed {checks} Pickup checks.");return;}
 if(args.Length==1&&args[0]=="--rebuild-cache-only"){RebuildCacheChecks.Run(Check);Console.WriteLine($"Completed {checks} rebuild cache checks.");return;}
 if(args.Length==1&&args[0]=="--titles6-only"){TitleScreenChecks.Run(Check,Reject);Console.WriteLine($"Completed {checks} Gen6 title checks.");return;}
@@ -105,6 +106,10 @@ if(args.Length==2&&args[0]=="--diagnose-text-catalogue"){TextClassificationCheck
 if(args.Length>1&&args[0]=="--read-text-classification"){TextClassificationChecks.ReadReal(args.Skip(1));return;}
 if(args.Length==1&&args[0]=="--editor-modules-only"){ModuleChecks.Run(Check,Reject);RecoveryChecks.Run(Check,Reject);Console.WriteLine($"Completed {checks} editor and recovery checks.");return;}
 if(args.Length>1&&args[0]=="--template-studio-shops-copies"){TemplateStudioChecks.ShopCopies(Check,args.Skip(1).ToArray());Console.WriteLine($"Completed {checks} isolated shop template checks.");return;}
+if(args.Length==1&&args[0]=="--rebuild-marts-ui-only")
+{
+    Exception? failure=null;var thread=new Thread(()=>{try{var app=new ThreeDS.Progressive.App();app.InitializeComponent();ThreeDS.Progressive.StudioDialog.AutomatedChecks=true;RebuildMartUiChecks.Run(Check);MartSmChecks.Run(Check,Reject);}catch(Exception ex){failure=ex;}});thread.SetApartmentState(ApartmentState.STA);thread.Start();thread.Join();if(failure is not null)throw failure;Console.WriteLine($"Completed {checks} rebuild and mart UI checks (off-screen, not interactive).");return;
+}
 if(args.Length==1&&args[0]=="--visual-redesign-only")
 {
     Exception? failure=null;var thread=new Thread(()=>{try{VisualRedesignChecks.Run(Check);}catch(Exception ex){failure=ex;}});thread.SetApartmentState(ApartmentState.STA);thread.Start();thread.Join();if(failure is not null)throw failure;Console.WriteLine($"Completed {checks} visual redesign checks.");return;

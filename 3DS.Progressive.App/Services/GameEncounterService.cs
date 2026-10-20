@@ -1,4 +1,4 @@
-﻿using System.IO;
+using System.IO;
 using pk3DS.Core;
 using pk3DS.Core.CTR;
 using pk3DS.Core.Randomizers;
@@ -32,16 +32,20 @@ public sealed partial class GameEncounterService : ArchiveProjectEditor, IOption
     // member at index 9 contains encounter tables. Keep all other members opaque.
     protected override bool NeedsArchiveRecord(string archive,int index)=>Config.Generation!=7||archive!="encdata"||index%11==9;
 
-    public GameEncounterService(GameProjectSession project):base(project,"encdata")
+    protected override bool CacheDisplayRecords=>true;
+
+    public GameEncounterService(GameProjectSession project):this(project,default){}
+    public GameEncounterService(GameProjectSession project,CancellationToken cancellationToken):base(project,cancellationToken,"encdata")
     {
+        cancellationToken.ThrowIfCancellationRequested();
         _types=Config.XY?[("Hierba",12),("Hierba alta",12),("Flores rojas",12),("Flores amarillas",12),("Flores moradas",12),("Surf",5),("Golpe Roca",5),("Caña vieja",3),("Caña buena",3),("Supercaña",3),("Horda 60%",5),("Horda 35%",5),("Horda 5%",5)]
             :[("Hierba",12),("Hierba alta",12),("Enjambre",3),("Surf",5),("Golpe Roca",5),("Caña vieja",3),("Caña buena",3),("Supercaña",3),("Horda 60%",5),("Horda 35%",5),("Horda 5%",5)];
-        var records=Records()["encdata"];var names=new Dictionary<int,string>();
+        var records=DisplayRecords()["encdata"];var names=new Dictionary<int,string>();
         if(Config.Generation==7)
         {
             try
             {
-                var areas=Area7.GetArray(Config.GetlzGARCData("encdata"),Config.GetlzGARCData("zonedata"),Config.GetlzGARCData("worlddata"),Config.GetText(TextName.metlist_000000));
+                var areas=Area7.GetArray(InitialArchive("encdata"),Config.GetlzGARCData("zonedata"),Config.GetlzGARCData("worlddata"),Config.GetText(TextName.metlist_000000));
                 foreach(var area in areas)
                 {
                     if(!string.IsNullOrWhiteSpace(area.Name))names[area.FileNumber]=area.Name;
@@ -51,6 +55,7 @@ public sealed partial class GameEncounterService : ArchiveProjectEditor, IOption
             catch (Exception ex) when(ex is IOException or ArgumentException or IndexOutOfRangeException or NullReferenceException or InvalidOperationException or FormatException) { }
             for(int file=9;file<records.Length;file+=11)
             {
+                cancellationToken.ThrowIfCancellationRequested();
                 if(records[file].Length==0)continue;
                 byte[][] tables=Mini.UnpackMini(records[file],"EA")??throw new InvalidDataException("Tabla de encuentros EA no reconocida.");
                 for(int t=0;t<tables.Length;t++)
@@ -70,6 +75,7 @@ public sealed partial class GameEncounterService : ArchiveProjectEditor, IOption
             int start=Config.XY?1:2,size=Config.XY?0x178:0xF6;var zones=records[0];var places=Config.GetText(TextName.metlist_000000);
             for(int file=start;file<records.Length;file++)
             {
+                cancellationToken.ThrowIfCancellationRequested();
                 byte[] record=records[file];if(record.Length<20)continue;
                 int offset=checked(BitConverter.ToInt32(record,16)+(Config.XY?16:14));
                 if(offset<20||offset>record.Length-size)continue;
@@ -78,6 +84,7 @@ public sealed partial class GameEncounterService : ArchiveProjectEditor, IOption
                 _locations.Add(_locations.Count+1,new(file,0,offset,map,$"{map:000} · {name}"));
             }
         }
+        ReleaseInitialSources();
         Entries=_locations.Select(p=>new RecordEntry(p.Key,p.Value.Name)).ToArray();
         if(Entries.Count==0)throw new InvalidDataException("No se encontraron tablas de encuentros editables.");
     }

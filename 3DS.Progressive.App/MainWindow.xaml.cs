@@ -72,6 +72,7 @@ public partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
+        Closed+=(_,_)=>_sectionLoadCancellation?.Cancel();
         UiProgress.InteractionLockChanged+=blocked=>
         {
             void Apply(){if(Content is UIElement shell)shell.IsEnabled=!blocked;}
@@ -281,13 +282,23 @@ public partial class MainWindow : Window
     }
 
     private int _sectionLoadVersion;
+    private CancellationTokenSource? _sectionLoadCancellation;
     private async void Section_Click(object sender,RoutedEventArgs e)
     {
         if(_session is null||sender is not Button {Tag:string section})return;
         if(!ProjectFeatureAvailability.Supports(_session,section))return;
         if(!ConfirmDiscard()||!ConfirmAuxiliaryLeave())return;
         if(HasUnsavedChanges()&&_previous is not null)ShowEntry(_previous);
-        using var interaction=section=="Encounters"?UiProgress.BlockInteraction():null;
+        if(section=="Rebuild")
+        {
+            try{StudioDialog.Notice(this,"Rebuild · Historial de cambios",
+                "Se empaquetarán los archivos actuales del proyecto. Este historial muestra cambios ya guardados; no se vuelven a ejecutar ni randomizar.",
+                RomRebuildView.HistorySummary(_session.History.Read()));}
+            catch(Exception ex){StudioDialog.Error(this,"No se pudo leer el historial",ex.Message);return;}
+        }
+        using var interaction=section is "Encounters" or "FieldItems"?UiProgress.BlockInteraction():null;
+        _sectionLoadCancellation?.Cancel();
+        var cancellation=new CancellationTokenSource();_sectionLoadCancellation=cancellation;
         int loadVersion=++_sectionLoadVersion;
         UiProgress.Begin("Cargando "+section+"…");
         if(!StudioDialog.AutomatedChecks)
@@ -295,11 +306,19 @@ public partial class MainWindow : Window
         try
         {
             GameEncounterService? encounterEditor=null;
+            IProjectEditor? fieldEditor=null;
             if(section=="Encounters")
             {
                 var session=_session;
-                encounterEditor=StudioDialog.AutomatedChecks?new GameEncounterService(session):
-                    await Task.Run(()=>new GameEncounterService(session));
+                encounterEditor=StudioDialog.AutomatedChecks?new GameEncounterService(session,cancellation.Token):
+                    await Task.Run(()=>new GameEncounterService(session,cancellation.Token),cancellation.Token);
+                if(loadVersion!=_sectionLoadVersion||!ReferenceEquals(_session,session))return;
+            }
+            if(section=="FieldItems")
+            {
+                var session=_session;
+                IProjectEditor Load()=>session.Generation==6?new GameFieldItems6Service(session,cancellation.Token):new GameFieldItemsService(session,cancellation.Token);
+                fieldEditor=StudioDialog.AutomatedChecks?Load():await Task.Run(Load,cancellation.Token);
                 if(loadVersion!=_sectionLoadVersion||!ReferenceEquals(_session,session))return;
             }
             UserControl view=section switch
@@ -313,7 +332,7 @@ public partial class MainWindow : Window
                 "Items"=>CreateEditor(new GameItemService(_session)),
                 "PersistentItems" when _session.GameConfiguration.USUM=>CreateEditor(new GamePersistentItemsService(_session)),
                 "Marts"=>_session.Generation==6 ? _mart6View=new Gen6MartView(_session,_sectionOptions.GetValueOrDefault("Tiendas · Gen6")) : _martView=CreateMartView(),
-                "FieldItems"=>CreateEditor(_session.Generation==6?new GameFieldItems6Service(_session):new GameFieldItemsService(_session)),
+                "FieldItems"=>CreateEditor(fieldEditor!),
                 "GameText"=>_gameTextView=new GameTextView(_session),
                 "StoryText"=>_storyTextView=new GameTextView(_session,story:true),
                 "Evolutions"=>CreateEditor(new GameEvolutionService(_session)),
@@ -364,8 +383,9 @@ public partial class MainWindow : Window
             ((Button)sender).Background=new SolidColorBrush((Color)ColorConverter.ConvertFromString("#2B4059")!);
             StatusText.Text=section=="History"?"Historial persistente de cambios confirmados.":"Editor integrado · guardar registra los cambios en el historial.";
         }
+        catch(OperationCanceledException)when(cancellation.IsCancellationRequested){}
         catch(Exception ex){StudioDialog.Error(this,"No se pudo cargar la sección",ex.Message);}
-        finally{UiProgress.End();}
+        finally{if(ReferenceEquals(_sectionLoadCancellation,cancellation))_sectionLoadCancellation=null;cancellation.Dispose();UiProgress.End();}
     }
 
     private void NavigateSystem(string section)
@@ -541,6 +561,8 @@ public partial class MainWindow : Window
         var restored=await Task.Run(()=>GameProjectSession.Open(root,recoverInterruptedSave:false));LoadProject(restored);
         StatusText.Text="Archivos seleccionados restaurados, verificados y registrados en el historial.";
     }
+    private void Rebuild_Click(object sender,RoutedEventArgs e)=>NavigateSystem("Rebuild");
+
     private async void Backup_Click(object sender,RoutedEventArgs e)
     {
         if(_session is null||_backupRunning)return;
@@ -591,6 +613,7 @@ public partial class MainWindow : Window
 
     internal void LoadProject(GameProjectSession candidate)
     {
+        _sectionLoadCancellation?.Cancel();++_sectionLoadVersion;
         _session = candidate;
         _sectionOptions.Clear();
         _recordView=null;_machineTutorView=null;_martView=null;_mart6View=null;_levelUpView=null;_gameTextView=null;_playerCapsView=null;_croRecipesView=null;_relearnerView=null;_typeChartView=null;_shinyRateView=null;_romRebuildView=null;_croIntegrityView=null;_catchZonesView=null;_pickupView=null;_romExtractionView=null;_globalTemplateView=null;_templateStudioView=null;_batchRomView=null;_gen7MartState=null;_gen7MachineState=null;_gen6CompatibilityState=null;_gen6TutorCompatibilityState=null;_shinyOptions=null;SectionHost.Content=null;
@@ -643,7 +666,7 @@ public partial class MainWindow : Window
         EditorContent.IsEnabled = true;
         PersonalActions.IsEnabled = true;
         MovesButton.IsEnabled = true;
-        TrainersButton.IsEnabled = EncountersButton.IsEnabled = EvolutionsButton.IsEnabled = HistoryButton.IsEnabled = BackupButton.IsEnabled = true;
+        TrainersButton.IsEnabled = EncountersButton.IsEnabled = EvolutionsButton.IsEnabled = HistoryButton.IsEnabled = BackupButton.IsEnabled = RebuildButton.IsEnabled = true;
         StaticEncountersButton.IsEnabled=candidate.Generation is 6 or 7;
         MachineTutorButton.IsEnabled=candidate.Generation is 6 or 7;
         LevelUpButton.IsEnabled=true;
