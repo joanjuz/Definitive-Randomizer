@@ -57,7 +57,9 @@ jobs:
           $suites = @(
             'visual-redesign-only', 'interaction-lock-only', 'requested-ui-only',
             'template-studio-ui-only', 'template-latest-ui-only', 'template-feedback-ui-only',
-            'text-classification-ui-only', 'text-commands-ui-only', 'global-options-only'
+            'text-classification-ui-only', 'text-commands-ui-only', 'global-options-only',
+            'guidance-only', 'global-apply-only', 'rebuild-marts-ui-only',
+            'history-inspection-only', 'rebuild-stability-only'
           )
           foreach ($suite in $suites) {
             & dotnet $runner "--$suite" 2>&1 | Tee-Object -FilePath "validation-logs/$suite.log"

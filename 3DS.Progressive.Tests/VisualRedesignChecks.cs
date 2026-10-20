@@ -164,7 +164,7 @@ internal static class VisualRedesignChecks
     {
         SynchronizationContext.SetSynchronizationContext(new DispatcherSynchronizationContext(Dispatcher.CurrentDispatcher));
         var bindingLog=new BindingErrors();System.Diagnostics.PresentationTraceSources.DataBindingSource.Listeners.Add(bindingLog);
-        var app=new ThreeDS.Progressive.App();app.InitializeComponent();StudioDialog.AutomatedChecks=true;
+        var app=new ThreeDS.Progressive.App();app.InitializeComponent();WpfTestHost.SuppressStartup();StudioDialog.AutomatedChecks=true;
         VerifyGridTheme(check,app);
         var main=new MainWindow();var root=(FrameworkElement)main.Content;
         var inspector=(Expander)main.FindName("AdaptiveInspector");var shellGrid=(System.Windows.Controls.Grid)inspector.Parent;

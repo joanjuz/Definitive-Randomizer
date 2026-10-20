@@ -73,13 +73,29 @@ internal sealed class RomRebuildView : UserControl
         return text.ToString();
     }
 
+    internal static string HistorySummary(HistoryInspection inspection)
+    {
+        var text=new System.Text.StringBuilder(inspection.Summary+"\n");
+        var current=inspection.Document.Entries.Where(entry=>inspection.Entries[entry.Id]==HistoryEntryState.Verified).ToArray();
+        if(current.Length>0)
+        {
+            text.AppendLine("\nRegistros cuya cadena de archivos coincide con el estado final actual:");
+            text.AppendLine(HistorySummary(inspection.Document with {Entries=current}));
+        }
+        else text.AppendLine("No hay cambios del historial confirmados en los archivos actuales. Se reconstruirá lo que contienen los archivos, aunque el historial esté desfasado.");
+        foreach(var entry in inspection.Document.Entries.Where(entry=>inspection.Entries[entry.Id]!=HistoryEntryState.Verified))
+            text.AppendLine($"{(inspection.Entries[entry.Id]==HistoryEntryState.OutOfDate?"Desfasado":"Sin comprobación binaria")} · {entry.Module} · {entry.Action}");
+        foreach(var file in inspection.Files.Where(file=>file.State!=HistoryFileState.Matches))
+            text.AppendLine($"Archivo: {file.Path} · "+(file.State switch
+            {HistoryFileState.Changed=>"contenido distinto",HistoryFileState.Missing=>"no existe",HistoryFileState.Invalid=>"referencia no válida",_=>"no se pudo leer"}));
+        text.AppendLine("La comprobación usa SHA-256, no el nombre, tamaño o fecha. El registro anterior se conserva como historial, no como prueba de cambios aplicados. Las acciones sin archivos verificables no acreditan modificaciones en la ROM.");
+        return text.ToString();
+    }
+
     private async Task BuildAsync()
     {
         if(_busy)return;
         RomRebuildKind kind=(RomRebuildKind)_kind.SelectedIndex;
-        string history;
-        try{history=HistorySummary(_project.History.Read());}
-        catch(Exception ex){StudioDialog.Error(Window.GetWindow(this),"No se pudo leer el historial",ex.Message);return;}
         var picker=new Microsoft.Win32.SaveFileDialog
         {
             Title="Guardar resultado de Rebuild",
@@ -104,20 +120,24 @@ internal sealed class RomRebuildView : UserControl
                 "Seleccioná otro nombre: no se sobrescriben archivos existentes.");
             return;
         }
-        if(!StudioDialog.Confirm(Window.GetWindow(this),"Reconstruir ROM",
-            $"Se reconstruirá {kind} con el motor pk3DS original en una ruta temporal. "+
-            "Puede tardar varios minutos. ¿Continuar?",history))return;
         using var interaction=UiProgress.BlockInteraction();
         _busy=true;_run.IsEnabled=false;_kind.IsEnabled=false;
-        UiProgress.Begin("Rebuild · "+kind);
+        UiProgress.Begin("Rebuild · comprobando historial y archivos actuales…");
         try
         {
+            var inspection=await Task.Run(()=>_project.History.InspectCurrentState());
+            if(!StudioDialog.Confirm(Window.GetWindow(this),"Reconstruir ROM",
+                $"Se reconstruirá {kind} con el motor pk3DS original en una ruta temporal. "+
+                "Puede tardar varios minutos. ¿Continuar?",HistorySummary(inspection)))return;
+            UiProgress.Begin("Rebuild · "+kind);
             var result=await _service.BuildAsync(kind,picker.FileName);
             _detail.Text=$"Reconstrucción terminada. Integridad del archivo verificada.\n"+
                 $"Archivo: {result.File}\nTamaño: {result.Bytes:N0} bytes\n"+
                 $"SHA-256: {result.Hash}\nLa carpeta fuente no fue modificada.";
+            if(_service.LastCleanupWarning is string warning)_detail.Text+="\n"+warning;
             StudioDialog.Notice(Window.GetWindow(this),"Rebuild completado",
-                "Archivo reconstruido con el empaquetador original y SHA-256 verificado.",result.File);
+                "Archivo reconstruido con el empaquetador original y SHA-256 verificado.",
+                result.File+(_service.LastCleanupWarning is null?"":"\n"+_service.LastCleanupWarning));
         }
         catch(Exception ex)
         {
@@ -137,7 +157,8 @@ internal sealed class RomRebuildView : UserControl
             catch(IOException){}catch(UnauthorizedAccessException){}
             _detail.Text="La reconstrucción se detuvo; el proyecto de origen no fue modificado.\n"+
                 "Etapa: "+stage+"\nError: "+ex.Message+
-                (diagnostics is null?"":"\nDiagnóstico completo: "+diagnostics);
+                (diagnostics is null?"":"\nDiagnóstico completo: "+diagnostics)+
+                (_service.LastCleanupWarning is null?"":"\n"+_service.LastCleanupWarning);
             StudioDialog.Error(Window.GetWindow(this),"Falló Rebuild",
                 "Etapa: "+stage+"\n"+ex.Message+
                 (diagnostics is null?"":"\nDetalles técnicos guardados en: "+diagnostics));

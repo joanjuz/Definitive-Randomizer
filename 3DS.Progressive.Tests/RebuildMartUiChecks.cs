@@ -13,6 +13,7 @@ internal static class RebuildMartUiChecks
     private static T Field<T>(object target,string name)=>(T)target.GetType().GetField(name,BindingFlags.NonPublic|BindingFlags.Instance)!.GetValue(target)!;
     internal static void Run(Action<bool,string> check)
     {
+        HistoryInspectionChecks.RunUi(check);
         var main=new MainWindow();
         var rebuild=(Button)main.FindName("RebuildButton");var backup=(Button)main.FindName("BackupButton");
         var actions=(Panel)backup.Parent;

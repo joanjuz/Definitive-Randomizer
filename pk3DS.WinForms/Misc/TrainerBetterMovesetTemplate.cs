@@ -21,7 +21,7 @@ public sealed class TrainerBetterMovesetTemplate
         Warnings = warnings;
     }
 
-    public static string DefaultPath => Path.Combine(AppDomain.CurrentDomain.BaseDirectory, TemplateFolder, TemplateFileName);
+    public static string DefaultPath => Path.Combine(Environment.GetEnvironmentVariable("DEFINITIVE_GLOBAL_PREVIEW_ROOT")??AppDomain.CurrentDomain.BaseDirectory, TemplateFolder, TemplateFileName);
 
     public static void EnsureDefaultFile()
     {

@@ -20,6 +20,7 @@ internal sealed class GameRomRebuildService(GameProjectSession project, ExeFsBui
 {
     private static readonly SemaphoreSlim BuildGate=new(1,1);
     private readonly ExeFsBuildCache _cache=sharedCache??project.RebuildExeFsCache;
+    internal string? LastCleanupWarning { get; private set; }
     internal int ExeFsCompressionCount=>_cache.CompressionCount;
     private readonly Dictionary<string,double> _lastTimings=[];
     internal IReadOnlyDictionary<string,double> LastTimings=>new Dictionary<string,double>(_lastTimings);
@@ -49,7 +50,7 @@ internal sealed class GameRomRebuildService(GameProjectSession project, ExeFsBui
         if(!Directory.Exists(Path.GetDirectoryName(target)))
             throw new DirectoryNotFoundException("La carpeta de destino no existe.");
         await BuildGate.WaitAsync();
-        _lastTimings.Clear();watch.Restart();
+        _lastTimings.Clear();LastCleanupWarning=null;watch.Restart();
         string stage=Path.Combine(Path.GetDirectoryName(target)!,".definitive-rebuild-"+Guid.NewGuid().ToString("N"));
         try
         {
@@ -151,8 +152,17 @@ internal sealed class GameRomRebuildService(GameProjectSession project, ExeFsBui
         }
         finally
         {
-            try{if(Directory.Exists(stage))Directory.Delete(stage,true);}catch(IOException){}
-            BuildGate.Release();
+            try
+            {
+                try{if(Directory.Exists(stage))Directory.Delete(stage,true);}
+                catch(Exception ex)when(ex is IOException or UnauthorizedAccessException)
+                {
+                    // Cleanup must neither turn a published ROM into a failure nor
+                    // mask the original build exception. Never hold the gate on cleanup failure.
+                    LastCleanupWarning="No se pudo eliminar la carpeta temporal: "+stage+"\n"+ex.Message;
+                }
+            }
+            finally{BuildGate.Release();}
         }
     }
     // CTRUtil.WriteROM calls ProgressBar.Invoke directly, even when the

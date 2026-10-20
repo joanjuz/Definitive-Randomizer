@@ -53,7 +53,7 @@ void Reject(Action action, string name)
 if(args.Length==4&&args[0]=="--check-trades6-package-copy"){PackagedTradeProbe.Run(args[1],args[2],args[3]);return;}
 if(args.Length==1&&args[0]=="--interaction-lock-only")
 {
-    Exception? failure=null;var thread=new Thread(()=>{try{ThreeDS.Progressive.StudioDialog.AutomatedChecks=true;var app=new ThreeDS.Progressive.App();app.InitializeComponent();InteractionLockChecks.Run(Check);}catch(Exception ex){failure=ex;}});thread.SetApartmentState(ApartmentState.STA);thread.Start();thread.Join();if(failure is not null)throw failure;Console.WriteLine($"Completed {checks} interaction lock checks.");return;
+    Exception? failure=null;var thread=new Thread(()=>{try{ThreeDS.Progressive.StudioDialog.AutomatedChecks=true;var app=new ThreeDS.Progressive.App();app.InitializeComponent();InteractionLockChecks.Run(Check);}catch(Exception ex){failure=ex;}});thread.SetApartmentState(ApartmentState.STA);thread.Start();thread.Join();if(failure is not null)System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(failure).Throw();Console.WriteLine($"Completed {checks} interaction lock checks.");return;
 }
 if(args.Length==1&&args[0]=="--remote-sprites-only"){RemoteSpriteChecks.Run(Check).GetAwaiter().GetResult();Console.WriteLine($"Completed {checks} remote sprite checks.");return;}
 if(args.Length==1&&args[0]=="--global-options-only"){GlobalEditorBridgeChecks.Run(Check,Reject);Console.WriteLine($"Completed {checks} global checks.");return;}
@@ -91,6 +91,17 @@ if(args.Length==1&&args[0]=="--tm7-text-only"){TmDescriptionChecks.Run(Check,Rej
 if(args.Length==1&&args[0]=="--title-movies-only"){TitleMovieChecks.Run(Check,Reject);Console.WriteLine($"Completed {checks} movie checks.");return;}
 if(args.Length==1&&args[0]=="--performance-only"){PerformanceChecks.Run(Check,Reject);Console.WriteLine($"Completed {checks} performance integrity checks.");return;}
 if(args.Length==1&&args[0]=="--pickup-only"){PickupChecks.Run(Check,Reject);Console.WriteLine($"Completed {checks} Pickup checks.");return;}
+if(args.Length==1&&(args[0]=="--global-apply-only"||args[0]=="--global-apply-ui-only"))
+{
+    if(args[0]=="--global-apply-only")GlobalApplicationChecks.Run(Check,Reject).GetAwaiter().GetResult();
+    Exception? failure=null;var thread=new Thread(()=>{try{var app=new ThreeDS.Progressive.App();app.InitializeComponent();WpfTestHost.SuppressStartup();ThreeDS.Progressive.StudioDialog.AutomatedChecks=true;GlobalApplicationChecks.RunUi(Check);}catch(Exception ex){failure=ex;}});thread.SetApartmentState(ApartmentState.STA);thread.Start();thread.Join();if(failure is not null)System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(failure).Throw();Console.WriteLine($"Completed {checks} global application checks (synthetic replay; UI off-screen).");return;
+}
+if(args.Length==1&&args[0]=="--guidance-only")
+{
+    Exception? failure=null;var thread=new Thread(()=>{try{var app=new ThreeDS.Progressive.App();app.InitializeComponent();WpfTestHost.SuppressStartup();ThreeDS.Progressive.StudioDialog.AutomatedChecks=true;GuidanceChecks.Run(Check,Reject);GuidanceChecks.RunUi(Check);}catch(Exception ex){failure=ex;}});thread.SetApartmentState(ApartmentState.STA);thread.Start();thread.Join();if(failure is not null)System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(failure).Throw();Console.WriteLine($"Completed {checks} guidance checks (off-screen, not interactive).");return;
+}
+if(args.Length==1&&args[0]=="--history-inspection-only"){HistoryInspectionChecks.Run(Check);Console.WriteLine($"Completed {checks} history inspection checks.");return;}
+if(args.Length==1&&args[0]=="--rebuild-stability-only"){RebuildStabilityChecks.Run(Check);Console.WriteLine($"Completed {checks} rebuild stability checks.");return;}
 if(args.Length==1&&args[0]=="--rebuild-cache-only"){RebuildCacheChecks.Run(Check);Console.WriteLine($"Completed {checks} rebuild cache checks.");return;}
 if(args.Length==1&&args[0]=="--titles6-only"){TitleScreenChecks.Run(Check,Reject);Console.WriteLine($"Completed {checks} Gen6 title checks.");return;}
 if(args.Length==1&&args[0]=="--tutors6-only"){Tutor6Checks.Run(Check,Reject);Tutor6CompatibilityChecks.Run(Check,Reject);BatchSourcePolicyChecks.Run(Check,Reject);Console.WriteLine($"Completed {checks} ORAS tutor checks.");return;}
@@ -108,11 +119,11 @@ if(args.Length==1&&args[0]=="--editor-modules-only"){ModuleChecks.Run(Check,Reje
 if(args.Length>1&&args[0]=="--template-studio-shops-copies"){TemplateStudioChecks.ShopCopies(Check,args.Skip(1).ToArray());Console.WriteLine($"Completed {checks} isolated shop template checks.");return;}
 if(args.Length==1&&args[0]=="--rebuild-marts-ui-only")
 {
-    Exception? failure=null;var thread=new Thread(()=>{try{var app=new ThreeDS.Progressive.App();app.InitializeComponent();ThreeDS.Progressive.StudioDialog.AutomatedChecks=true;RebuildMartUiChecks.Run(Check);MartSmChecks.Run(Check,Reject);}catch(Exception ex){failure=ex;}});thread.SetApartmentState(ApartmentState.STA);thread.Start();thread.Join();if(failure is not null)throw failure;Console.WriteLine($"Completed {checks} rebuild and mart UI checks (off-screen, not interactive).");return;
+    Exception? failure=null;var thread=new Thread(()=>{try{var app=new ThreeDS.Progressive.App();app.InitializeComponent();WpfTestHost.SuppressStartup();ThreeDS.Progressive.StudioDialog.AutomatedChecks=true;RebuildMartUiChecks.Run(Check);MartSmChecks.Run(Check,Reject);}catch(Exception ex){failure=ex;}});thread.SetApartmentState(ApartmentState.STA);thread.Start();thread.Join();if(failure is not null)System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(failure).Throw();Console.WriteLine($"Completed {checks} rebuild and mart UI checks (off-screen, not interactive).");return;
 }
 if(args.Length==1&&args[0]=="--visual-redesign-only")
 {
-    Exception? failure=null;var thread=new Thread(()=>{try{VisualRedesignChecks.Run(Check);}catch(Exception ex){failure=ex;}});thread.SetApartmentState(ApartmentState.STA);thread.Start();thread.Join();if(failure is not null)throw failure;Console.WriteLine($"Completed {checks} visual redesign checks.");return;
+    Exception? failure=null;var thread=new Thread(()=>{try{VisualRedesignChecks.Run(Check);}catch(Exception ex){failure=ex;}});thread.SetApartmentState(ApartmentState.STA);thread.Start();thread.Join();if(failure is not null)System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(failure).Throw();Console.WriteLine($"Completed {checks} visual redesign checks.");return;
 }
 if(args.Length>=1&&args[0]=="--description-preview-fonts")
 {
@@ -315,6 +326,9 @@ ShinyBatchChecks.Run(Check,Reject);
 GlobalCompletionChecks.Run(Check,Reject);
 AesCtrChecks.Run(Check);
 RebuildCacheChecks.Run(Check);
+RebuildStabilityChecks.Run(Check);
+HistoryInspectionChecks.Run(Check);
+GuidanceChecks.Run(Check,Reject);
 StoryRandomChecks.Run(Check,Reject);
 SelectedRestoreChecks.Run(Check,Reject);
 IconChecks.Run(Check,Reject);

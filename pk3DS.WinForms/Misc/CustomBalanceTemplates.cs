@@ -186,6 +186,8 @@ internal static class CustomBalanceTemplates
 
     private static string GetTemplateRoot()
     {
+        string preview=Environment.GetEnvironmentVariable("DEFINITIVE_GLOBAL_PREVIEW_ROOT");
+        if(!string.IsNullOrWhiteSpace(preview))return Path.Combine(preview,TemplateRoot);
         string baseDir = AppDomain.CurrentDomain.BaseDirectory;
 
         // The WPF preview ships the original batch executor in /LegacyBatch.
