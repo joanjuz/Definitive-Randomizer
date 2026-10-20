@@ -12,7 +12,7 @@ using ThreeDS.Progressive.Models;
 using Button=System.Windows.Controls.Button;
 internal static class GlobalApplicationChecks
 {
-    private static void PrepareOpenable(Fixture f)
+    internal static void PrepareOpenable(Fixture f)
     {
         File.WriteAllBytes(Path.Combine(f.Game.RomFS,"preview-fixture.bin"),new byte[32]);
         byte[] text=TextFile.GetBytes(f.Game,Enumerable.Range(0,1000).Select(index=>"Entry"+index).ToArray());

@@ -10,7 +10,7 @@
     <AssemblyName>3DS.Progressive</AssemblyName>
     <Product>Definitive Randomizer</Product>
     <Title>Definitive Randomizer</Title>
-    <Version>0.8.0-preview.3</Version>
+    <Version>0.8.0-preview.4</Version>
     <RootNamespace>ThreeDS.Progressive</RootNamespace>
   </PropertyGroup>
   <ItemGroup>

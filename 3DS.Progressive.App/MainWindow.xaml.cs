@@ -727,8 +727,9 @@ public partial class MainWindow : Window
         MachineTutorButton.IsEnabled=candidate.Generation is 6 or 7;
         LevelUpButton.IsEnabled=true;
         ItemsButton.IsEnabled=true;
-        MartsButton.IsEnabled=ProjectFeatureAvailability.Supports(candidate,"Marts");
-        MartsButton.Visibility=MartsButton.IsEnabled?Visibility.Visible:Visibility.Collapsed;
+        bool supportsMarts=ProjectFeatureAvailability.Supports(candidate,"Marts");
+        MartsButton.IsEnabled=supportsMarts;
+        MartsButton.Visibility=supportsMarts?Visibility.Visible:Visibility.Collapsed;
         MartsButton.Content=candidate.Generation==6?"▦  Tiendas · Gen6":candidate.GameConfiguration.USUM?"▦  Tiendas y BP · USUM":"▦  Tiendas y BP · SM";
         MachineTutorButton.Content=candidate.Generation==6?"▣  MT y MO · Gen6":"▣  MT y tutores";
         FieldItemsButton.IsEnabled=true;

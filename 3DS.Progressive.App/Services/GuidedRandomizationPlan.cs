@@ -57,13 +57,13 @@ internal sealed class GuidedRandomizationPlan
         var choice=Get(key);if(choice.Groups is not null)return;
         choice.Editor=editor??CreateEditor(key);
         if(choice.Editor is GameTrainerService trainers&&trainers.Entries.Count>0)trainers.SelectOptionsEntry(trainers.Entries[0].Id);
-        choice.Groups=choice.Editor?.RandomOptions??SpecialGroups(key);
+        choice.Groups=choice.Editor?.RandomOptions??SpecialGroups(key,_project.GameConfiguration.USUM);
         choice.Values=EditorValues.Flatten(choice.Groups);
         if(key=="Evolutions")choice.Values["Operation"]=1;
         if(key=="Marts"&&_project.Generation==6)choice.Values["KeepX"]=0;
     }
     private static EditorField Flag(string key,string title,bool value=false)=>new(key,title,value?1:0,0,1);
-    private static IReadOnlyList<EditorGroup> SpecialGroups(string key)=>key switch
+    private static IReadOnlyList<EditorGroup> SpecialGroups(string key,bool usum)=>key switch
     {
         "Personal"=>[new("Qué randomizar",[Flag("Stats","Estadísticas"),Flag("Types","Tipos"),Flag("Abilities","Habilidades"),Flag("Items","Objetos equipados"),Flag("Catch","Ratio de captura"),Flag("Eggs","Grupos huevo"),Flag("Tms","Compatibilidad MT")]),
             new("Estadísticas y tipos",[Flag("Shuffle","Reordenar estadísticas"),new("Deviation","Variación de estadísticas (%)",25,0,100),new("SingleTypeChance","Probabilidad de un solo tipo (%)",50,0,100)]),
@@ -73,7 +73,7 @@ internal sealed class GuidedRandomizationPlan
             new("Cantidad y niveles",[Flag("CHK_Expand","Expandir cantidad de movimientos"),new("NUD_Moves","Cantidad de movimientos",25,25,75),Flag("CHK_4MovesLvl1","Comenzar con 4 movimientos"),Flag("CHK_Spread","Distribuir niveles uniformemente"),new("NUD_Level","Nivel final",79,1,100)])],
         "Machines"=>[new("Compatibilidad MT",[Flag("Randomize","Randomizar MT",true),Flag("Sanity","TM Sanity · movimientos aprendidos por nivel"),Flag("Follow","TM Follow Evolutions · heredar compatibilidad")])],
         "Tutors"=>[new("Tutores",[Flag("Randomize","Randomizar tutores",true),Flag("Free","Tutores gratuitos"),Flag("Sanity","Sanity · movimientos aprendidos por nivel"),Flag("Follow","Follow Evolutions · heredar compatibilidad")])],
-        "Marts"=>[new("Inventario",[Flag("RandomRegular","Randomizar tiendas",true),Flag("RandomBP","Randomizar BP"),Flag("Candies","Caramelos raros"),Flag("Vitamins","Vitaminas 252 EV"),Flag("FreeMega","Megapiedras gratis (en BP)"),Flag("BanCapsule","Prohibir Cápsula Habilidad")]),
+        "Marts"=>[new("Inventario",[Flag("RandomRegular","Randomizar tiendas",true),Flag("RandomBP","Randomizar BP"),Flag("Candies","Caramelos raros"),Flag("Vitamins","Vitaminas 252 EV"),Flag("FreeMega","Megapiedras gratis (en BP)"),Flag("BanCapsule","Prohibir Cápsula Habilidad"),..(usum?new[]{Flag("SinglePurchase","Solo un objeto en tiendas especiales")}:[])]),
             new("Alcance",[Flag("SpecialsOnly","Solo tiendas especiales",true),Flag("ProtectX","Proteger objetos X")])],
         "Pickup"=>[new("Recogida",[Flag("Randomize","Randomizar Pickup",true)])],_=>throw new InvalidDataException("Sección guiada no admitida: "+key)
     };
@@ -86,7 +86,7 @@ internal sealed class GuidedRandomizationPlan
             "Machines" or "Tutors" when choice.Values.ContainsKey("Randomize")=>Any("Randomize","Free","Sanity","Follow"),
             "FieldItems"=>Any("Visible","Hidden","Mega","IncludeEI","IncludeEB"),
             "Moves"=>Any("MoveTypes","MoveCategories"),
-            "Marts" when choice.Values.ContainsKey("RandomRegular")=>Any("RandomRegular","RandomBP","Candies","Vitamins","FreeMega","BanCapsule"),
+            "Marts" when choice.Values.ContainsKey("RandomRegular")=>Any("RandomRegular","RandomBP","Candies","Vitamins","FreeMega","BanCapsule","SinglePurchase"),
             "Marts" when choice.Values.GetValueOrDefault("UseChecks")==1=>Any("Randomize","Candies","EVItems","BanCapsule"),
             "Wild"=>Any("Species","ModifyLevel","AllCanCallAllies"),
             "Machines" when choice.Values.ContainsKey("Tms")=>Any("Tms","Hms","Sanity","Follow")||choice.Values.GetValueOrDefault("HmRestriction")!=0,
@@ -138,8 +138,8 @@ internal sealed class GuidedRandomizationPlan
             }
             if(_project.Generation==7&&key=="Marts")
             {
-                var state=new Gen7MartState(B(choice,"RandomRegular"),B(choice,"RandomBP"),B(choice,"Candies"),B(choice,"Vitamins"),B(choice,"FreeMega"),B(choice,"BanCapsule"),B(choice,"SpecialsOnly"),B(choice,"ProtectX"));
-                if(!new[]{state.RandomRegular,state.RandomBP,state.Candies,state.Vitamins,state.FreeMega,state.BanCapsule}.Any(value=>value))throw new InvalidDataException("Tiendas: elegí al menos una acción.");
+                var state=new Gen7MartState(B(choice,"RandomRegular"),B(choice,"RandomBP"),B(choice,"Candies"),B(choice,"Vitamins"),B(choice,"FreeMega"),B(choice,"BanCapsule"),B(choice,"SpecialsOnly"),B(choice,"ProtectX"),_project.GameConfiguration.USUM&&B(choice,"SinglePurchase"));
+                if(!new[]{state.RandomRegular,state.RandomBP,state.Candies,state.Vitamins,state.FreeMega,state.BanCapsule,state.SinglePurchase}.Any(value=>value))throw new InvalidDataException("Tiendas: elegí al menos una acción.");
                 NativeGen7MartBridge.Capture(doc,state);continue;
             }
             if(key=="Pickup"){Add("pickup.randomize");continue;}

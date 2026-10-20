@@ -17,6 +17,25 @@ internal static class InteractionLockChecks
         Application.Current.ShutdownMode=ShutdownMode.OnExplicitShutdown;
         try
         {
+            foreach(var version in new[]{pk3DS.Core.GameVersion.XY,pk3DS.Core.GameVersion.ORAS,pk3DS.Core.GameVersion.SM,pk3DS.Core.GameVersion.USUM})
+            {
+                using var project=new Fixture(version);ModuleChecks.CreateArchives(project);
+                var loadingProject=new MainWindow();var marts=(Button)loadingProject.FindName("MartsButton");
+                var root=(FrameworkElement)loadingProject.Content;root.Measure(new Size(1280,800));root.Arrange(new Rect(0,0,1280,800));root.UpdateLayout();
+                try
+                {
+                    using(UiProgress.BlockInteraction())
+                    {
+                        loadingProject.LoadProject(project.Session);
+                        check(marts.Visibility==Visibility.Visible&&!marts.IsEnabled,"Navigation_MartsVisibleDuringBlockedProjectLoad_"+version);
+                    }
+                    loadingProject.ChooseExperience(false);root.UpdateLayout();
+                    check(marts.Visibility==Visibility.Visible&&marts.IsEnabled,"Navigation_MartsAccessibleAfterBlockedProjectLoad_"+version);
+                    loadingProject.ChooseExperience(true);
+                    check(marts.Visibility==Visibility.Visible&&marts.IsEnabled,"Navigation_MartsAccessibleInSimplifiedMode_"+version);
+                }
+                finally{loadingProject.Close();}
+            }
             int[] before=Subscribers();
             var main=new MainWindow();var open=(Button)main.FindName("OpenProjectButton");var backup=(Button)main.FindName("BackupButton");
             bool initialOpen=open.IsEnabled,initialBackup=backup.IsEnabled;

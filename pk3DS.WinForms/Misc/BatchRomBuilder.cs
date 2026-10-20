@@ -668,6 +668,7 @@ internal static class BatchGen7ActionExecutor
         "marts.add-ev-items",
         "marts.free-mega-stones",
         "marts.ban-ability-capsule",
+        "marts.single-purchase-specials",
         "move-tutors.randomize",
         "move-tutors.sanity",
         "move-tutors.follow-evolutions",
@@ -697,6 +698,8 @@ internal static class BatchGen7ActionExecutor
             .Where(z => z != null && !string.IsNullOrWhiteSpace(z.Id))
             .ToDictionary(z => z.Id, z => z, StringComparer.OrdinalIgnoreCase);
 
+        if(actions.ContainsKey("marts.single-purchase-specials")&&!Main.Config.USUM)
+            throw new NotSupportedException("Single-purchase special shops require USUM.");
         RunMoves(actions,template);
         BatchBridgeProgress.ActionGroup("Moves",actions.Keys,id=>id.StartsWith("moves.",StringComparison.OrdinalIgnoreCase));
         RunPersonal(actions,template);
@@ -740,6 +743,7 @@ internal static class BatchGen7ActionExecutor
         BatchBridgeProgress.ActionGroup("PlayerLevelCaps",actions.Keys,id=>id.StartsWith("player.",StringComparison.OrdinalIgnoreCase));
         Main.SaveGameText();
         BatchGen6ActionExecutor.ApplyManual(template);
+        BatchGen6ActionExecutor.FinalizeSinglePurchase(template);
     }
 
     private static bool Has(Dictionary<string, GlobalRandomizationAction> actions, string id)

@@ -25,11 +25,11 @@ namespace ThreeDS.Progressive;
 /// <summary>Native dark WPF editor for real USUM Shop.cro regular/BP inventories.</summary>
 internal sealed class MartEditorView : UserControl
 {
-    private readonly Button[] _recipeFlags=Enumerable.Range(0,6).Select(_=>new Button()).ToArray();
-    private readonly bool[] _recipeSelected=new bool[6];
+    private readonly Button[] _recipeFlags=Enumerable.Range(0,7).Select(_=>new Button()).ToArray();
+    private readonly bool[] _recipeSelected=new bool[7];
     private int _previewSeed=System.Security.Cryptography.RandomNumberGenerator.GetInt32(int.MaxValue);
-    internal Gen7MartState RememberRecipe()=>new(_recipeSelected[0],_recipeSelected[1],_recipeSelected[2],_recipeSelected[3],_recipeSelected[4],_recipeSelected[5],_specialOnly.IsChecked==true,_protectX.IsChecked==true);
-    internal void RestoreRecipe(Gen7MartState s){bool[] flags=[s.RandomRegular,s.RandomBP,s.Candies,s.Vitamins,s.FreeMega,s.BanCapsule];for(int i=0;i<flags.Length;i++)SetRecipeSelection(i,flags[i]);_specialOnly.IsChecked=s.SpecialsOnly;_protectX.IsChecked=s.ProtectX;}
+    internal Gen7MartState RememberRecipe()=>new(_recipeSelected[0],_recipeSelected[1],_recipeSelected[2],_recipeSelected[3],_recipeSelected[4],_recipeSelected[5],_specialOnly.IsChecked==true,_protectX.IsChecked==true,_recipeSelected[6]);
+    internal void RestoreRecipe(Gen7MartState s){bool[] flags=[s.RandomRegular,s.RandomBP,s.Candies,s.Vitamins,s.FreeMega,s.BanCapsule,s.SinglePurchase];for(int i=0;i<flags.Length;i++)SetRecipeSelection(i,flags[i]);_specialOnly.IsChecked=s.SpecialsOnly;_protectX.IsChecked=s.ProtectX;}
     private readonly GameProjectSession _project;
     private GameMartService _service;
     private MartShopPreview? _pending;
@@ -74,7 +74,7 @@ internal sealed class MartEditorView : UserControl
             Foreground = soft, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 4, 0, 10)
         });
         heading.Children.Add(new TextBlock{Text="Opciones de la vista previa y de Global/Batch",Foreground=soft});
-        var recipes=new WrapPanel();string[] labels=["Randomizar tiendas","Randomizar BP","Caramelos raros",project.GameConfiguration.USUM?"Vitaminas 252 EV":"Objetos de entrenamiento EV","Megapiedras gratis (en BP)","Prohibir Cápsula Habilidad"];
+        var recipes=new WrapPanel();string[] labels=["Randomizar tiendas","Randomizar BP","Caramelos raros",project.GameConfiguration.USUM?"Vitaminas 252 EV":"Objetos de entrenamiento EV","Megapiedras gratis (en BP)","Prohibir Cápsula Habilidad","Solo un objeto en tiendas especiales"];
         for(int i=0;i<_recipeFlags.Length;i++)
         {
             int index=i;var button=_recipeFlags[i];button.Content=labels[i];button.Margin=new Thickness(0,4,8,8);
@@ -82,7 +82,9 @@ internal sealed class MartEditorView : UserControl
             var remove=new MenuItem{Header="Quitar de la vista previa y de Global/Batch"};
             remove.Click+=(_,_)=>{SetRecipeSelection(index,false);Dirty();Preview();};
             button.ContextMenu=new ContextMenu{Items={remove}};
-            SetRecipeSelection(i,false);recipes.Children.Add(button);
+            SetRecipeSelection(i,i==6&&_service.HasSinglePurchase);
+            if(i==6){button.Visibility=project.GameConfiguration.USUM?Visibility.Visible:Visibility.Collapsed;System.Windows.Automation.AutomationProperties.SetName(button,labels[i]);button.ToolTip="USUM: una unidad de cada objeto por tienda especial. No afecta a tiendas por pruebas ni BP. Se conserva al guardar y reiniciar; Global/Batch lo aplica a los inventarios finales.";}
+            recipes.Children.Add(button);
         }
         heading.Children.Add(recipes);
         Add(recipes,"Restablecer opciones",()=>{for(int i=0;i<_recipeSelected.Length;i++)SetRecipeSelection(i,false);Dirty();Preview();});
@@ -138,6 +140,7 @@ internal sealed class MartEditorView : UserControl
         var button=_recipeFlags[index];
         button.SetResourceReference(StyleProperty,selected?"PrimaryButton":"SecondaryButton");
         button.ToolTip=selected?"Incluido en la vista previa y en Global/Batch. Botón derecho para quitarlo.":"Añadir a la vista previa sin quitar las otras acciones.";
+        if(index==6)button.ToolTip+=" USUM: una unidad de cada objeto por tienda especial, independiente de otras tiendas. No afecta a tiendas por pruebas ni BP. Una política ya guardada en la ROM permanece instalada.";
         System.Windows.Automation.AutomationProperties.SetItemStatus(button,selected?"Incluido":"Sin incluir");
     }
 
@@ -368,6 +371,7 @@ internal sealed class MartEditorView : UserControl
             _status.Text = $"{_pending.Changes.Count} diferencias; tamaño Shop.cro " +
                 $"{_pending.Rebuild.OriginalFileSize:N0} → {_pending.Rebuild.FinalFileSize:N0} bytes. " +
                 (_pending.ItemOutput is null ? "" : "Incluye GARC de objetos (precios y flags EV). ") +
+                (_pending.ExtraFiles?.Any(f=>f.Changed)==true?"Incluye mensaje de compra única e integridad CRR. ":"") +
                 (_pending.Changes.Count > 150 ? "Se muestran las primeras 150. " : "") +
                 "La ROM original sigue intacta.";
         }

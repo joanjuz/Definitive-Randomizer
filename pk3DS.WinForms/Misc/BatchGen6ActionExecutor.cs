@@ -1,3 +1,4 @@
+using System.IO;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -95,6 +96,20 @@ internal static class BatchGen6ActionExecutor
         string json=System.Text.Json.JsonSerializer.Serialize(template);using(var doc=System.Text.Json.JsonDocument.Parse(json))if(!doc.RootElement.TryGetProperty("ProgressiveApp",out var native)||!native.TryGetProperty("Wild",out _))return false;
         string path=System.IO.Path.GetFullPath(System.IO.Path.Combine(System.IO.Path.GetDirectoryName(typeof(BatchGen6ActionExecutor).Assembly.Location),"..","3DS.Progressive.dll"));var bridge=Assembly.LoadFrom(path).GetType("ThreeDS.Progressive.Services.NativeGen7WildBridge",true);
         try{bridge.GetMethod("Execute",BindingFlags.Public|BindingFlags.Static).Invoke(null,new object[]{System.IO.Directory.GetParent(Main.RomFSPath).FullName,json,unchecked((int)Util.Random32())});}catch(TargetInvocationException ex)when(ex.InnerException!=null){ExceptionDispatchInfo.Capture(ex.InnerException).Throw();}return true;
+    }
+    internal static void FinalizeSinglePurchase(GlobalRandomizationTemplate template)
+    {
+        bool selected=template.Actions.Any(a=>a.Id.Equals("marts.single-purchase-specials",StringComparison.OrdinalIgnoreCase));
+        if(!Main.Config.USUM){if(selected)throw new InvalidDataException("Single-purchase special shops require USUM.");return;}
+        string shopPath=Path.Combine(Main.RomFSPath,"Shop.cro");
+        if(!selected&&!File.Exists(shopPath))return;
+        byte[] shop=File.ReadAllBytes(shopPath);
+        if(!selected&&pk3DS.Core.Modding.Research.Gen7SinglePurchaseStock.Read(shop) is null)return;
+        Main.SaveGameText();string path=Path.GetFullPath(Path.Combine(Path.GetDirectoryName(typeof(BatchGen6ActionExecutor).Assembly.Location),"..","3DS.Progressive.dll"));
+        var bridge=Assembly.LoadFrom(path).GetType("ThreeDS.Progressive.Services.NativeGen7MartBridge",true);
+        try{bridge.GetMethod("FinalizeSinglePurchase",BindingFlags.Static|BindingFlags.Public).Invoke(null,new object[]{Directory.GetParent(Main.RomFSPath).FullName,selected});}
+        catch(TargetInvocationException ex)when(ex.InnerException!=null){ExceptionDispatchInfo.Capture(ex.InnerException).Throw();}
+        Main.Config.InitializeGameText();
     }
     internal static bool TryMartNative(GlobalRandomizationTemplate template)
     {

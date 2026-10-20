@@ -51,6 +51,9 @@ void Reject(Action action, string name)
     throw new Exception("FAIL: expected rejection: " + name);
 }
 if(args.Length==4&&args[0]=="--check-trades6-package-copy"){PackagedTradeProbe.Run(args[1],args[2],args[3]);return;}
+if(args.Length==2&&args[0]=="--single-purchase-backend"){SinglePurchaseChecks.Backend(args[1],Check).GetAwaiter().GetResult();Console.WriteLine($"Completed {checks} single-purchase backend checks.");return;}
+if(args.Length==1&&args[0]=="--single-purchase-only"){SinglePurchaseChecks.Schema(Check,Reject);Console.WriteLine($"Completed {checks} single-purchase schema checks.");return;}
+if(args.Length==3&&args[0]=="--single-purchase-copies"){SinglePurchaseChecks.Schema(Check,Reject);SinglePurchaseChecks.RealCopies(args[1],args[2],Check,Reject);Console.WriteLine($"Completed {checks} single-purchase copy/integration checks.");return;}
 if(args.Length==1&&args[0]=="--interaction-lock-only")
 {
     Exception? failure=null;var thread=new Thread(()=>{try{ThreeDS.Progressive.StudioDialog.AutomatedChecks=true;var app=new ThreeDS.Progressive.App();app.InitializeComponent();InteractionLockChecks.Run(Check);}catch(Exception ex){failure=ex;}});thread.SetApartmentState(ApartmentState.STA);thread.Start();thread.Join();if(failure is not null)System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(failure).Throw();Console.WriteLine($"Completed {checks} interaction lock checks.");return;
@@ -301,7 +304,7 @@ ModuleChecks.Run(Check, Reject);
 StaticGen6Checks.Run(Check, Reject);
 StaticStarterChecks.Run(Check, Reject);
 Gen6MechanicsChecks.Run(Check, Reject);
-CroIntegrityChecks.Run(Check, Reject);
+CroIntegrityChecks.Run(Check, Reject); SinglePurchaseChecks.Schema(Check,Reject);
 RomExtractionChecks.Run(Check, Reject);
 PickupChecks.Run(Check, Reject);
 Machine6Checks.Run(Check, Reject);
