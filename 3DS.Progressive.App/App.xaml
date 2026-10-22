@@ -433,7 +433,7 @@
             <Setter Property="ToolTip" Value="{Binding Content, RelativeSource={RelativeSource Self}, Converter={StaticResource NavigationLabel}}"/>
             <Setter Property="ContentTemplate"><Setter.Value><DataTemplate>
                 <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="18"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-                    <Viewbox Width="16" Height="16" VerticalAlignment="Center"><Path Data="{Binding Converter={StaticResource NavigationIcon}}" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" StrokeThickness="1.5" StrokeStartLineCap="Round" StrokeEndLineCap="Round" Width="16" Height="16"/></Viewbox>
+                    <Rectangle Width="18" Height="18" VerticalAlignment="Center" Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"><Rectangle.OpacityMask><ImageBrush ImageSource="{Binding Converter={StaticResource NavigationIcon}}" Stretch="Uniform"/></Rectangle.OpacityMask></Rectangle>
                     <TextBlock Grid.Column="1" Margin="10,0,0,0" VerticalAlignment="Center" Text="{Binding Converter={StaticResource NavigationLabel}}" TextTrimming="CharacterEllipsis"/>
                 </Grid>
             </DataTemplate></Setter.Value></Setter>

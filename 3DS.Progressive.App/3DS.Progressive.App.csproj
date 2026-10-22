@@ -16,6 +16,7 @@
   <ItemGroup>
     <Resource Include="Assets\AppIcon.ico" />
     <Resource Include="Assets\AppIcon.png" />
+    <Resource Include="Assets\ItemIcons.png" />
     <EmbeddedResource Include="Data\story-reviewed-metadata.json" LogicalName="ThreeDS.Progressive.story-reviewed-metadata.json" />
     <EmbeddedResource Include="Data\story-quote-metadata.json" LogicalName="ThreeDS.Progressive.story-quote-metadata.json" />
     <Content Include="..\pk3DS.WinForms\catch_zone_patches\*.json" Link="catch_zone_patches\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
