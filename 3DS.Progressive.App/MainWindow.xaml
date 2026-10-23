@@ -518,6 +518,7 @@
                             Visibility="Collapsed" Background="{DynamicResource Bg}"/>
         </Grid>
 
+        <ContentControl x:Name="SwitchHost" Grid.Row="1" Panel.ZIndex="11" Background="{DynamicResource Bg}" Visibility="Collapsed" HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch"/>
         <ContentControl x:Name="HomeHost" Grid.Row="1" Panel.ZIndex="10" Background="{DynamicResource Bg}"/>
 
         <Border Grid.Row="2" Background="{DynamicResource Chrome}" BorderBrush="{DynamicResource Stroke}"

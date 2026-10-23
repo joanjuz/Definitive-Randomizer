@@ -1,4 +1,4 @@
-﻿using System.Globalization;
+using System.Globalization;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
@@ -41,15 +41,17 @@ public partial class RecordEditorView : UserControl
             RandomizerButton.Visibility=Visibility.Collapsed;
             // Vanilla Mega Editor only offers manual slots, not a randomizer.
         }
-        if(editor is ThreeDS.Progressive.Services.GameTrainerService)
+        if(editor is ThreeDS.Progressive.Services.GameTrainerService||editor is ITrainerEditorPresentation {UsesTrainerLayout:true})
             TrainerCapsButton.Visibility=TrainerMovesButton.Visibility=Visibility.Visible;
+        if(editor is ThreeDS.Progressive.Services.Switch.SwordShieldRecordEditor)TrainerMovesButton.Visibility=Visibility.Collapsed;
+        if(editor is ThreeDS.Progressive.Services.Switch.SwordShieldRecordEditor {HasTradeEvolutionAction:true})AddInspectorAction("Eliminar evoluciones por intercambio · nivel 37",ShowSwitchTradePreview);
         if(editor is ThreeDS.Progressive.Services.GameEncounterService wildClipboard && wildClipboard.SupportsWildTemplate)
             WildCopyButton.Visibility=WildPasteButton.Visibility=WildPasteAreaButton.Visibility=
                 WildDumpButton.Visibility=WildAddRangeButton.Visibility=
                 WildRemoveRangeButton.Visibility=WildAuditButton.Visibility=Visibility.Visible;
         if(editor is ThreeDS.Progressive.Services.GameFieldItemsService)
             FieldExportButton.Visibility=Visibility.Visible;
-        if(editor is ThreeDS.Progressive.Services.GameItemService)
+        if(editor is ThreeDS.Progressive.Services.GameItemService || editor is ThreeDS.Progressive.Services.Switch.SwordShieldRecordEditor {HasEconomy:true})
             EconomyTableButton.Visibility=Visibility.Visible;
         if(editor is ThreeDS.Progressive.Services.GameStaticEncounterService staticEditor)
         {
@@ -72,6 +74,11 @@ public partial class RecordEditorView : UserControl
             {ImportOptionsButton.Content="Importar plantilla de objetos";ExportOptionsButton.Content="Exportar plantilla de objetos";}
             if(state?.Template is { } saved)optionTemplate.RestoreOptions(saved);}
         RecordList.ItemsSource=editor.Entries;CountText.Text=editor.Entries.Count+" entradas";
+        if(editor is IOptionTemplatePresentation labels)
+        {
+            ImportOptionsButton.Content=labels.ImportOptionsLabel;ExportOptionsButton.Content=labels.ExportOptionsLabel;WrapInspectorActions(InspectorBody);
+            RecordList.DisplayMemberPath="";RecordList.SetResourceReference(ItemsControl.ItemTemplateProperty,"WrappedRecordContent");ScrollViewer.SetHorizontalScrollBarVisibility(RecordList,ScrollBarVisibility.Disabled);var style=new Style(typeof(ListBoxItem),(Style)FindResource(typeof(ListBoxItem)));style.Setters.Add(new Setter(System.Windows.Controls.Control.HorizontalContentAlignmentProperty,System.Windows.HorizontalAlignment.Stretch));RecordList.ItemContainerStyle=style;
+        }
         // Cargar las reglas del entrenador que realmente estará seleccionado, no las del ID por defecto del host.
         if(editor is ThreeDS.Progressive.Services.GameTrainerService trainers&&editor.Entries.Count>0)
             trainers.SelectOptionsEntry(editor.Entries[0].Id);
@@ -81,6 +88,7 @@ public partial class RecordEditorView : UserControl
                 ?f with {Value=value}:f).ToArray()});
         BuildGroups(OptionsPanel,groups,_options,false);
         if(state is not null)ScopeBox.SelectedIndex=Math.Clamp(state.Scope,0,2);
+        if(_options.TryGetValue("SpecialShopsOnly",out var special)){special.ToolTip="Tiendas con inventario fijo de objetos no básicos. Se conservan los inventarios de suministros básicos y los que cambian con el progreso.";System.Windows.Automation.AutomationProperties.SetHelpText(special,special.ToolTip.ToString());}
         _loading=false;
         RecordList.SelectedIndex=0;
     }
@@ -128,12 +136,12 @@ public partial class RecordEditorView : UserControl
             string[] gen7Only=["G7","AlolanForms","SkipInaccessible","PreservePlaceholders","SlotMode","SOS","Weather","AllCanCallAllies"];
             entries=entries.Select(g=>g with {Fields=g.Fields.Where(f=>!gen7Only.Contains(f.Key)).ToArray()}).ToArray();
         }
-        if(!editor&&Editor is ThreeDS.Progressive.Services.GameTrainerService)
+        if(!editor&&(Editor is ThreeDS.Progressive.Services.GameTrainerService||Editor is ITrainerEditorPresentation {UsesTrainerLayout:true}))
         {
             BuildTrainerTabs(panel,entries,controls);
             return;
         }
-        var wildRanges=!editor&&Editor is ThreeDS.Progressive.Services.GameEncounterService
+        var wildRanges=!editor&&(Editor is ThreeDS.Progressive.Services.GameEncounterService||Editor is IWildEditorPresentation {UsesWildLayout:true})
             ?entries.SelectMany(g=>g.Fields).Where(f=>f.Key.StartsWith("BST.",StringComparison.Ordinal)).ToArray()
             :[];
         foreach(var group in entries)
@@ -143,7 +151,7 @@ public partial class RecordEditorView : UserControl
                     &&f.Key!="Progressive").ToArray()}
                 :group;
             if(filtered.Fields.Count==0)continue;
-            panel.Children.Add(editor&&Editor is ThreeDS.Progressive.Services.GameTrainerService
+            panel.Children.Add(editor&&(Editor is ThreeDS.Progressive.Services.GameTrainerService||Editor is ITrainerEditorPresentation {UsesTrainerLayout:true})
                 &&filtered.Name.StartsWith("Pokémon ",StringComparison.Ordinal)
                     ?BuildTrainerPokemonCard(filtered,controls)
                     :BuildGroupCard(filtered,controls,editor));
@@ -153,7 +161,7 @@ public partial class RecordEditorView : UserControl
             var modeField=entries.SelectMany(g=>g.Fields).First(f=>f.Key=="Progressive");
             var layout=new StackPanel();
             layout.Children.Add(BuildFieldsGrid([modeField],controls,false));
-            var table=CreateBstTable(wildRanges,true);
+            var table=CreateBstTable(wildRanges,Editor is ThreeDS.Progressive.Services.GameEncounterService);
             layout.Children.Add(table);
             panel.Children.Add(GroupBorder(new Expander {Header="BST progresivo por nivel",
                 IsExpanded=true,Foreground=(Brush)FindResource("TextMain"),Content=layout}));
@@ -165,6 +173,7 @@ public partial class RecordEditorView : UserControl
                 table.Visibility=check.IsChecked==true?Visibility.Visible:Visibility.Collapsed;
             }
         }
+        if(editor && Editor is ITableEditorPresentation {UsesRecordTable:true}) BuildRecordTable(panel,entries,controls);
         WireExclusive(controls,"SimilarBST","Progressive");
         if(!editor&&Editor is ThreeDS.Progressive.Services.GameStaticEncounterService)
             WireExclusive(controls,"ShinyLock","RemoveLocks");
@@ -320,8 +329,9 @@ public partial class RecordEditorView : UserControl
         ("SimilarBST",["BST"]),
         ("ScaleLevels",["LevelScale","LevelFlat"]),
         ("ForceFinal",["FinalLevel"]),
+        ("GlobalMoves.Better",["GlobalMoves.IncludeTMs","GlobalMoves.BetterNormal","GlobalMoves.BetterImportant","GlobalMoves.BetterBoss"]),
         ("GlobalMoves.StrongStat",["GlobalMoves.Tolerance","GlobalMoves.StrongNormal","GlobalMoves.StrongImportant","GlobalMoves.StrongBoss"]),
-        ("GlobalItems.Smart",["GlobalItems.Normal","GlobalItems.Important","GlobalItems.Boss","GlobalItems.QualityNormal","GlobalItems.QualityImportant","GlobalItems.QualityBoss"]),
+        ("GlobalItems.Smart",["GlobalItems.Normal","GlobalItems.Important","GlobalItems.Boss","GlobalItems.QualityNormal","GlobalItems.QualityImportant","GlobalItems.QualityBoss","GlobalItems.Quality"]),
         ("CHK_StrongStat",["NUD_StrongStatTolerance","CHK_StrongStatNormalTrainers",
             "CHK_StrongStatImportantTrainers","CHK_StrongStatBosses"]),
         ("CHK_BetterMovesets",["CHK_BetterMovesetsIncludeTMs",
@@ -354,7 +364,7 @@ public partial class RecordEditorView : UserControl
         var master=OptionDependencies.FirstOrDefault(p=>fields.Any(f=>f.Key==p.Parent)
             &&p.Related.Any(k=>fields.Any(f=>f.Key==k)));
         FrameworkElement content;
-        if(!editor&&master.Parent is "CHK_StrongStat" or "CHK_BetterMovesets" or "CHK_SmartHeldItems" or "GlobalMoves.StrongStat" or "GlobalItems.Smart")
+        if(!editor&&master.Parent is "CHK_StrongStat" or "CHK_BetterMovesets" or "CHK_SmartHeldItems" or "GlobalMoves.Better" or "GlobalMoves.StrongStat" or "GlobalItems.Smart")
         {
             var first=fields.First(f=>f.Key==master.Parent);
             var dependents=fields.Where(f=>master.Related.Contains(f.Key)).ToArray();
@@ -505,13 +515,13 @@ public partial class RecordEditorView : UserControl
         _trainerSpriteCancel?.Dispose();
         _trainerSpriteCancel=new System.Threading.CancellationTokenSource();
         TrainerTeamCards.Children.Clear();
-        if(Editor is not ThreeDS.Progressive.Services.GameTrainerService)
+        if(Editor is not ThreeDS.Progressive.Services.GameTrainerService && Editor is not ITrainerEditorPresentation {UsesTrainerLayout:true})
         {
             TrainerTeamPreview.Visibility=Visibility.Collapsed;
             return;
         }
         TrainerTeamPreview.Visibility=Visibility.Visible;
-        int count=groups.FirstOrDefault()?.Fields.FirstOrDefault(f=>f.Key=="Count")?.Value??0;
+        int count=groups.FirstOrDefault()?.Fields.FirstOrDefault(f=>f.Key=="Count")?.Value??(Editor is ITrainerEditorPresentation {UsesTrainerLayout:true}?groups.Count(g=>g.Name.StartsWith("Pokémon ",StringComparison.Ordinal)):0);
         for(int slot=0;slot<Math.Min(6,count);slot++)
         {
             string prefix=$"P{slot}.";
@@ -562,7 +572,7 @@ public partial class RecordEditorView : UserControl
         bool wild=Editor is GameEncounterService {SupportsWildTemplate:true};
         WildPreviewControls.Visibility=wild?Visibility.Visible:Visibility.Collapsed;
         EncounterPairPreview.Visibility=Visibility.Collapsed;
-        if(Editor is not GameEncounterService && Editor is not GameStaticEncounterService)
+        if(Editor is not GameEncounterService && Editor is not GameStaticEncounterService && Editor is not IWildEditorPresentation {UsesWildLayout:true})
         {
             EncounterSpritePreview.Visibility=Visibility.Collapsed;
             return;
@@ -712,6 +722,10 @@ public partial class RecordEditorView : UserControl
         CollectionViewSource.GetDefaultView(RecordList.ItemsSource).Filter=o=>o is RecordEntry entry&&
             (entry.Name.Contains(text,StringComparison.OrdinalIgnoreCase)||entry.Id.ToString().Contains(text));
     }
+    internal bool PrepareToLeave()
+    {if(!ConfirmLeave())return false;if(_dirty&&_id>=0)Show(_id);return true;}
+    internal void RefreshSession()
+    {if(!_dirty&&_id>=0)Show(_id);}
     public bool ConfirmLeave()=>TrainerRulesHost.Visibility!=Visibility.Visible&&
         (!_dirty||StudioDialog.Confirm(Window.GetWindow(this),"Cambios pendientes","Hay modificaciones sin guardar.","Si continuás, se descartará la edición actual."));
     private void Save_Click(object sender,RoutedEventArgs e)
@@ -728,7 +742,7 @@ public partial class RecordEditorView : UserControl
     private void Discard_Click(object sender,RoutedEventArgs e){if(_id>=0)Show(_id);}
     private void EconomyTable_Click(object sender,RoutedEventArgs e)
     {
-        if(Editor is not ThreeDS.Progressive.Services.GameItemService items||!ConfirmLeave())return;
+        if(Editor is not IEconomyEditor items||!ConfirmLeave())return;
         try
         {
             var table=new EconomyPriceView(items);
@@ -880,8 +894,19 @@ public partial class RecordEditorView : UserControl
     }
     private void TrainerCaps_Click(object sender,RoutedEventArgs e)=>OpenTrainerRuleTable(true);
     private void TrainerMoves_Click(object sender,RoutedEventArgs e)=>OpenTrainerRuleTable(false);
+    private static void WrapInspectorActions(DependencyObject root)
+    {
+        if(root is Button button&&button.Content is string){button.ToolTip=button.Content;button.SetResourceReference(ContentControl.ContentTemplateProperty,"WrappedActionContent");}
+        foreach(var child in LogicalTreeHelper.GetChildren(root).OfType<DependencyObject>())WrapInspectorActions(child);
+    }
+    internal void AddInspectorAction(string label,Action action)
+    {
+        if(RandomizerButton.Parent is StackPanel panel){var button=new Button{Content=label,Margin=new Thickness(0,0,0,10)};EditorPresentation.StyleAction(button,EditorPresentation.ActionRole.Secondary);button.Click+=(_,_)=>{if(PrepareToLeave())action();};WrapInspectorActions(button);panel.Children.Insert(1,button);}
+    }
     private void OpenTrainerRuleTable(bool levelCaps)
     {
+        if(Editor is ITrainerEditorPresentation {UsesTrainerLayout:true}){OpenSwitchTrainerRules(levelCaps);return;}
+
         if(Editor is not ThreeDS.Progressive.Services.GameTrainerService trainer)return;
         if(!ConfirmLeave())return;
         try
@@ -943,6 +968,7 @@ public partial class RecordEditorView : UserControl
             int[] scope=ScopeBox.SelectedIndex switch {1=>RecordList.Items.Cast<RecordEntry>().Select(e=>e.Id).ToArray(),2=>_id>=0?[_id]:[],_=>Editor.Entries.Select(e=>e.Id).ToArray()};
             _proposal=_templateMode&&Editor is ITemplateProjectEditor template?template.PreviewTemplate(TemplatePathText.Text,scope):Editor.Preview(OptionValues(),scope);ChangeList.ItemsSource=_proposal.Changes;
             ProposalText.Text=$"{_proposal.Changes.Count} cambios"+(_proposal.Seed==0?"":$" · semilla {_proposal.Seed}")+". Revisá la propuesta antes de aplicar.";
+            if(_proposal.Parameters.TryGetValue("Warnings",out string? warnings)&&!string.IsNullOrWhiteSpace(warnings))ProposalText.Text+="\nAvisos: "+_proposal.Parameters.GetValueOrDefault("WarningCount")+". "+string.Join("\n",warnings.Split('\n').Take(3))+"\nEl detalle completo se conserva al aplicar en el historial.";
             ApplyButton.IsEnabled=_proposal.Changes.Count>0;
         }
         catch(Exception ex){Invalidate();ProposalText.Text=ex.Message;}
@@ -1111,7 +1137,7 @@ public partial class RecordEditorView : UserControl
         UiProgress.Begin("Guardando y verificando "+Editor.Title+"…");
         if(!StudioDialog.AutomatedChecks)
             await System.Windows.Threading.Dispatcher.Yield(System.Windows.Threading.DispatcherPriority.Background);
-        try{Editor.Apply(proposal);Invalidate();ProposalText.Text="Propuesta guardada y verificada. El historial quedó actualizado.";}
+        try{Editor.Apply(proposal);if(Editor is IOptionTemplatePresentation){_loading=true;try{RecordList.ItemsSource=Editor.Entries;CollectionViewSource.GetDefaultView(RecordList.ItemsSource).Filter=o=>o is RecordEntry entry&&(entry.Name.Contains(SearchText.Text.Trim(),StringComparison.OrdinalIgnoreCase)||entry.Id.ToString().Contains(SearchText.Text.Trim()));RecordList.SelectedItem=Editor.Entries.FirstOrDefault(e=>e.Id==_id);CountText.Text=Editor.Entries.Count+" entradas";}finally{_loading=false;}}Invalidate();ProposalText.Text="Propuesta guardada y verificada. El historial quedó actualizado.";}
         catch(Exception ex){Invalidate();ProposalText.Text=ex.Message;}
         finally{UiProgress.End();}
     }

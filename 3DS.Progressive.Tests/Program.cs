@@ -51,6 +51,29 @@ void Reject(Action action, string name)
     throw new Exception("FAIL: expected rejection: " + name);
 }
 if(args.Length==4&&args[0]=="--check-trades6-package-copy"){PackagedTradeProbe.Run(args[1],args[2],args[3]);return;}
+if(args.Length==1&&args[0]=="--pokefeur-only"){PokeFeurChecks.Run(Check,Reject);Console.WriteLine($"Completed {checks} PokeFeur checks.");return;}
+if(args.Length==1&&args[0]=="--swsh-ui-only")
+{
+    Exception? failure=null;var thread=new Thread(()=>{try{var app=new ThreeDS.Progressive.App();app.InitializeComponent();WpfTestHost.SuppressStartup();ThreeDS.Progressive.StudioDialog.AutomatedChecks=true;SwordShieldChecks.RunUi(Check);SwordShieldRandomizationChecks.RunUi(Check);SwordShieldGameplayChecks.RunUi(Check);SwordSurpriseIntegrationChecks.RunUi(Check); PokeFeurChecks.RunUi(Check);SwitchExpansionChecks.RunUi(Check);SwitchVisualChecks.RunUi(Check);SwitchParityChecks.RunUi(Check);SwitchTableChecks.RunUi(Check);SwitchAutomationChecks.RunUi(Check);DivineSwordChecks.RunUi(Check);SwitchPolishChecks.RunUi(Check);SwitchShieldChecks.RunUi(Check);}catch(Exception ex){failure=ex;}});thread.SetApartmentState(ApartmentState.STA);thread.Start();thread.Join();if(failure is not null)System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(failure).Throw();Console.WriteLine($"Completed {checks} SWSH UI component checks (off-screen; not interactive).");return;
+}
+if(args.Length==1&&args[0]=="--swsh-parity-only"){SwitchParityChecks.Run(Check,Reject);SwitchWorldChecks.Run(Check,Reject);SwitchTableChecks.Run(Check,Reject);SwitchAutomationChecks.Run(Check,Reject);DivineSwordChecks.Run(Check,Reject);SwitchPolishChecks.Run(Check,Reject);SwitchShieldChecks.Run(Check,Reject);Console.WriteLine($"Completed {checks} Switch parity checks (synthetic; not gameplay).");return;}
+if(args.Length==3&&args[0]=="--swsh-global-probe"){SwitchAutomationChecks.Probe(args[1],args[2]);return;}
+if(args.Length==3&&args[0]=="--swsh-version-probe"){SwitchShieldChecks.Probe(args[1],args[2]);return;}
+if(args.Length==2&&args[0]=="--swsh-polish-probe"){SwitchPolishChecks.Probe(args[1]);return;}
+if(args.Length==2&&args[0]=="--swsh-divine-probe"){DivineSwordChecks.Probe(args[1]);return;}
+if(args.Length==2&&args[0]=="--swsh-table-probe"){SwitchTableChecks.Probe(args[1]);return;}
+if(args.Length==2&&args[0]=="--swsh-parity-probe"){SwitchParityChecks.Probe(args[1]);return;}
+if(args.Length==1&&args[0]=="--swsh-only"){SwordShieldChecks.Run(Check,Reject);SwordShieldRandomizationChecks.Run(Check,Reject);SwordShieldGameplayChecks.Run(Check,Reject);SwordSurpriseChecks.Run(Check,Reject);SwordSurpriseIntegrationChecks.Run(Check,Reject);PokeFeurChecks.Run(Check,Reject);SwitchExpansionChecks.Run(Check,Reject);Console.WriteLine($"Completed {checks} SWSH prototype checks (synthetic; not gameplay).");return;}
+if(args.Length==3&&args[0]=="--swsh-visual-preview"){SwitchVisualChecks.Preview(args[1],args[2]);return;}
+if(args.Length==1&&args[0]=="--swsh-expansion-only"){SwitchExpansionChecks.Run(Check,Reject);Console.WriteLine($"Completed {checks} Switch expansion checks.");return;}
+if(args.Length==3&&args[0]=="--swsh-expansion-probe"){SwitchExpansionChecks.Probe(args[1],args[2]);return;}
+if(args.Length==4&&args[0]=="--pokefeur-probe"){PokeFeurRealChecks.Probe(args[1],args[2],args[3]);return;}
+if(args.Length==3&&args[0]=="--sword-surprise-probe"){SwordSurpriseIntegrationChecks.Probe(args[1],args[2]);return;}
+if(args.Length==2&&args[0]=="--sword-surprise-audit"){SwordSurpriseChecks.Probe(args[1]);return;}
+if(args.Length==3&&args[0]=="--swsh-gameplay-probe"){SwordShieldGameplayChecks.Probe(args[1],args[2]);return;}
+if(args.Length==2&&args[0]=="--swsh-read-only"){SwordShieldChecks.ProbeReal(args[1],null);return;}
+if(args.Length==4&&args[0]=="--swsh-random-probe"){SwordShieldRandomizationChecks.ProbeReal(args[1],args[2],uint.Parse(args[3],System.Globalization.CultureInfo.InvariantCulture));return;}
+if(args.Length==3&&args[0]=="--swsh-probe-mod"){SwordShieldChecks.ProbeReal(args[1],args[2]);return;}
 if(args.Length==2&&args[0]=="--single-purchase-backend"){SinglePurchaseChecks.Backend(args[1],Check).GetAwaiter().GetResult();Console.WriteLine($"Completed {checks} single-purchase backend checks.");return;}
 if(args.Length==1&&args[0]=="--single-purchase-only"){SinglePurchaseChecks.Schema(Check,Reject);Console.WriteLine($"Completed {checks} single-purchase schema checks.");return;}
 if(args.Length==3&&args[0]=="--single-purchase-copies"){SinglePurchaseChecks.Schema(Check,Reject);SinglePurchaseChecks.RealCopies(args[1],args[2],Check,Reject);Console.WriteLine($"Completed {checks} single-purchase copy/integration checks.");return;}
@@ -306,6 +329,7 @@ RequestedIntegrationChecks.Run(Check,Reject);Review73Checks.Run(Check,Reject);
 TemplateChecks.Run(Check, Reject);
 ModuleChecks.Run(Check, Reject);
 StaticGen6Checks.Run(Check, Reject);
+SwordShieldChecks.Run(Check, Reject); SwordShieldRandomizationChecks.Run(Check, Reject); SwordShieldGameplayChecks.Run(Check, Reject); SwordSurpriseChecks.Run(Check, Reject); SwordSurpriseIntegrationChecks.Run(Check, Reject); PokeFeurChecks.Run(Check, Reject);
 StaticStarterChecks.Run(Check, Reject);
 Gen6MechanicsChecks.Run(Check, Reject);
 CroIntegrityChecks.Run(Check, Reject); SinglePurchaseChecks.Schema(Check,Reject);

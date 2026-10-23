@@ -15,3 +15,8 @@
 *.PDF	 diff=astextplain
 *.rtf	 diff=astextplain
 *.RTF	 diff=astextplain
+
+# Runtime resources are SHA-256 pinned; preserve exact bytes on checkout.
+3DS.Progressive.App/Assets/Switch/PokeFeur/** -text
+3DS.Progressive.App/Assets/Switch/sword-surprise.nso -text
+3DS.Progressive.App/Assets/Switch/PokeFeur/*.json text eol=lf

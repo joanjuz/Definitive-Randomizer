@@ -7,7 +7,7 @@ using UserControl=System.Windows.Controls.UserControl;
 namespace ThreeDS.Progressive;
 internal sealed class StartView:UserControl
 {
-    internal StartView(GameProjectSession? project,bool simplified,Action<bool> chooseMode,Action open,Action guided,Action tour)
+    internal StartView(GameProjectSession? project,bool simplified,Action<bool> chooseMode,Action open,Action guided,Action tour,Action? openSwitch=null)
     {
         SetResourceReference(BackgroundProperty,"Bg");
         var scroll=new ScrollViewer{VerticalScrollBarVisibility=ScrollBarVisibility.Auto,HorizontalScrollBarVisibility=ScrollBarVisibility.Disabled};Content=scroll;
@@ -29,6 +29,12 @@ internal sealed class StartView:UserControl
         var actions=new WrapPanel();body.Children.Add(actions);
         var load=new Button{Content=project is null?"Abrir proyecto…":"Abrir otro proyecto…",Margin=new Thickness(0,0,8,8)};load.Click+=(_,_)=>open();actions.Children.Add(load);
         var help=new Button{Content="Vista guiada · conocer la aplicación",Margin=new Thickness(0,0,8,8)};help.Click+=(_,_)=>tour();actions.Children.Add(help);
+        if(openSwitch is not null)
+        {
+            var swsh=new Button{Content="Espada/Escudo · editor Switch",Margin=new Thickness(0,0,8,8)};
+            System.Windows.Automation.AutomationProperties.SetName(swsh,"Abrir editor de Espada/Escudo para exportar mods");
+            swsh.Click+=(_,_)=>openSwitch();actions.Children.Add(swsh);
+        }
         body.Children.Add(new TextBlock{Text="Ayuda breve y opcional · F1 abre la guía de la sección actual.",TextWrapping=TextWrapping.Wrap,Margin=new Thickness(0,5,0,0)});
         SizeChanged+=(_,_)=>cards.Columns=ActualWidth<670?1:2;
     }

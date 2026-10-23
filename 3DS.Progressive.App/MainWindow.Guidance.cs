@@ -23,10 +23,11 @@ public partial class MainWindow
         if(changed&&IsActive)Dispatcher.BeginInvoke(()=>{if(!_closed)(visible?(UIElement)HomeHost:EditorShell).MoveFocus(new TraversalRequest(FocusNavigationDirection.First));});
     }
     private void RefreshStart()=>HomeHost.Content=new StartView(_session,_simplified,ChooseExperience,
-        ()=>OpenProject_Click(OpenProjectButton,new RoutedEventArgs()),OpenGuided,()=>OpenTour("Home"));
+        ()=>OpenProject_Click(OpenProjectButton,new RoutedEventArgs()),OpenGuided,()=>OpenTour("Home"),OpenSwitchPrototype);
     private void Home_Click(object sender,RoutedEventArgs e)
     {
         if(_closed||UiProgress.IsInteractionBlocked)return;
+        if(_switchWorkspace?.Busy==true)return;HideSwitchWorkspace();
         RefreshStart();SetHomeVisible(true);
     }
     internal void ChooseExperience(bool simplified)

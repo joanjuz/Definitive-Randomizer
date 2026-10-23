@@ -17,6 +17,15 @@
     <Resource Include="Assets\AppIcon.ico" />
     <Resource Include="Assets\AppIcon.png" />
     <Resource Include="Assets\ItemIcons.png" />
+    <EmbeddedResource Include="Assets\Switch\sword-surprise.nso" LogicalName="ThreeDS.Progressive.sword-surprise.nso" />
+    <EmbeddedResource Include="Assets\Switch\PokeFeur\exefs\subsdk9" LogicalName="ThreeDS.Progressive.PokeFeur.exefs/subsdk9" />
+    <EmbeddedResource Include="Assets\Switch\PokeFeur\exefs\main.npdm" LogicalName="ThreeDS.Progressive.PokeFeur.exefs/main.npdm" />
+    <EmbeddedResource Include="Assets\Switch\PokeFeur\shield\exefs\subsdk9" LogicalName="ThreeDS.Progressive.PokeFeur.shield/exefs/subsdk9" />
+    <EmbeddedResource Include="Assets\Switch\PokeFeur\shield\exefs\main.npdm" LogicalName="ThreeDS.Progressive.PokeFeur.shield/exefs/main.npdm" />
+    <EmbeddedResource Include="Assets\Switch\PokeFeur\LICENSE-PokeFeur.txt" LogicalName="ThreeDS.Progressive.PokeFeur.LICENSE-PokeFeur.txt" />
+    <EmbeddedResource Include="Assets\Switch\PokeFeur\romfs\bin\script\amx\early_bike.amx" LogicalName="ThreeDS.Progressive.PokeFeur.romfs/bin/script/amx/early_bike.amx" />
+    <EmbeddedResource Include="Assets\Switch\PokeFeur\romfs\bin\script\amx\randomizer_pc_menu.amx" LogicalName="ThreeDS.Progressive.PokeFeur.romfs/bin/script/amx/randomizer_pc_menu.amx" />
+    <EmbeddedResource Include="Assets\Switch\PokeFeur\romfs\bin\script\amx\dex_animations.amx" LogicalName="ThreeDS.Progressive.PokeFeur.romfs/bin/script/amx/dex_animations.amx" />
     <EmbeddedResource Include="Data\story-reviewed-metadata.json" LogicalName="ThreeDS.Progressive.story-reviewed-metadata.json" />
     <EmbeddedResource Include="Data\story-quote-metadata.json" LogicalName="ThreeDS.Progressive.story-quote-metadata.json" />
     <Content Include="..\pk3DS.WinForms\catch_zone_patches\*.json" Link="catch_zone_patches\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
