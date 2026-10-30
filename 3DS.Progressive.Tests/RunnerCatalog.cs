@@ -86,6 +86,7 @@ internal static class RunnerCatalog
         new("--export-local-english-for-text-research","2 o más",RunnerCategory.Real,false),
         new("--extract-independent-image","exactamente 2",RunnerCategory.Real,false),
         new("--interrupt-save-check","exactamente 1",RunnerCategory.Real,false),
+        new("--nds-gen5-probe","1 o más",RunnerCategory.Real,false),
         new("--nds-roundtrip-probe","2 o más",RunnerCategory.Real,false),
         new("--pokefeur-probe","exactamente 3",RunnerCategory.Real,false),
         new("--read-facilities","1 o más",RunnerCategory.Real,false),

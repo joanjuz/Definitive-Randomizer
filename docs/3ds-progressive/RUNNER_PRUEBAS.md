@@ -114,6 +114,7 @@ Necesitan extracciones, ROMs o carpetas de salida. Los argumentos concretos (ent
 | `--export-local-english-for-text-research` | 2 o más |  |
 | `--extract-independent-image` | exactamente 2 |  |
 | `--interrupt-save-check` | exactamente 1 |  |
+| `--nds-gen5-probe` | 1 o más |  |
 | `--nds-roundtrip-probe` | 2 o más |  |
 | `--pokefeur-probe` | exactamente 3 |  |
 | `--read-facilities` | 1 o más |  |

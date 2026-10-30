@@ -32,6 +32,9 @@ internal static class NdsChecks
             check(narc.Files.Count==3&&narc.Files[0].Length==3&&narc.Files[2].Length==0&&narc.Write().SequenceEqual(narcBytes),"Nds_NarcRoundtripIsByteIdentical");
             narc.Files[1]=[9,9,9,9,9,9];var rebuilt=Narc.Read(narc.Write());check(rebuilt.Files[1].SequenceEqual(new byte[]{9,9,9,9,9,9})&&rebuilt.Files[0].SequenceEqual(new byte[]{1,2,3}),"Nds_NarcRebuildsChangedFileAndKeepsOthers");
             byte[] truncated=narcBytes[..0x20];reject(()=>Narc.Read(truncated),"Nds_NarcRejectsTruncatedArchive");
+            check(Gen5Data.Crc32("123456789"u8)==0xCBF43926,"Nds_Crc32MatchesStandardCheckValue");
+            var lines=Gen5Text.Read(Gen5Message(["Snivy","Línea\nfin",""]));check(lines.Count==3&&lines[0]=="Snivy"&&lines[1]==@"Línea\x000Afin"&&lines[2]=="","Nds_Gen5TextDecryptsLinesAndKeepsControlCodes");
+            reject(()=>Gen5Text.Read(new byte[8]),"Nds_Gen5TextRejectsTruncatedFile");
         }
         finally{Directory.Delete(temp,true);}
     }
@@ -70,6 +73,53 @@ internal static class NdsChecks
             Check(Hash(path)==before,$"Nds_Real_{name}_SourceUnchanged");
         }
         Console.WriteLine($"Completed {checks} NDS real-dump checks; outputs written only under {output}.");
+    }
+
+    // Black/White read-only checks against values known from the original games; the ROM is only read.
+    internal static void ProbeGen5(IEnumerable<string> roms)
+    {
+        int checks=0;void Check(bool ok,string name){if(!ok)throw new Exception("FAIL "+name);checks++;Console.WriteLine("PASS "+name);}
+        foreach(string path in roms.Select(Path.GetFullPath))
+        {
+            string before=Hash(path);
+            using(var rom=NdsRom.Open(path))
+            {
+                var data=Gen5Data.Open(rom);string game=data.Profile.GameCode;
+                Check(data.Identity.KnownDump,$"Gen5_{game}_OpensWithEveryTableMatchingItsCrc ({data.Identity.Profile.Game})");
+                var names=data.SpeciesNames();Check(names.Count>=650&&names[1]=="Bulbasaur"&&names[495]=="Snivy"&&names[649]=="Genesect",$"Gen5_{game}_SpeciesNames ({names.Count})");
+                var stats=data.BaseStats();var bulbasaur=stats[1];var snivy=stats[495];
+                Check(bulbasaur is {HP:45,Attack:49,Defense:49,Speed:45,SpAttack:65,SpDefense:65,Type1:11,Type2:3}&&snivy.Total==308&&snivy.Type1==11,$"Gen5_{game}_BaseStats ({stats.Count} entradas)");
+                Check(data.Starters().SequenceEqual(new[]{495,498,501}),$"Gen5_{game}_StartersAtEveryScriptPosition");
+                var trainers=data.Trainers();var team=trainers.SelectMany(t=>t.Team).ToArray();
+                Check(trainers.Count>500&&team.All(p=>p.Species is >=1 and <=649&&p.Level is >=1 and <=100)&&trainers.All(t=>t.BattleType is >=0 and <=3),$"Gen5_{game}_Trainers ({trainers.Count} entrenadores, {team.Length} Pokémon, {trainers.Count(t=>t.BattleType==1)} dobles)");
+                // Gen5 names the gym leader class just "Leader" (English) or "Líder" (Spanish).
+                var leaders=trainers.Where(t=>t.ClassName is "Leader" or "Líder").ToArray();
+                // Exact roster catches misaligned name indices, not just undecodable text.
+                string[] expected=game=="IRAS"?["Zeo","Millo","Maíz","Aloe","Camus","Camila","Yakón","Gerania","Junco","Iris","Lirio"]:["Chili","Cilan","Cress","Lenora","Burgh","Elesa","Clay","Skyla","Brycen","Iris","Drayden"];
+                Check(leaders.Select(t=>t.Name).Distinct().Order().SequenceEqual(expected.Order()),$"Gen5_{game}_GymLeaderClassAndNamesDecode ({leaders.First().ClassName}: {string.Join(", ",leaders.Select(t=>t.Name).Distinct())})");
+                var areas=data.Encounters();var slots=areas.SelectMany(a=>a.Slots).ToArray();
+                Check(areas.Count>100&&slots.All(s=>s.Species is >=0 and <=649&&s.MinLevel<=s.MaxLevel&&s.MaxLevel<=100)&&slots.Any(s=>s.Species==504),$"Gen5_{game}_Encounters ({areas.Count} áreas, {slots.Length} huecos)");
+            }
+            Check(Hash(path)==before,$"Gen5_{Path.GetFileNameWithoutExtension(path)}_SourceUnchanged");
+        }
+        Console.WriteLine($"Completed {checks} Gen5 read-only checks; no files written.");
+    }
+
+    // Encrypts lines like the game: XOR with a key rotated left by 3 per character, ended by 0xFFFF.
+    // Layout: sections, lines, sizes, section offset (16); at the section: its size, the line table, then the text.
+    private static byte[] Gen5Message(string[] lines)
+    {
+        var body=new List<byte>();var table=new List<byte>();int tableLength=lines.Length*8;
+        foreach(string line in lines)
+        {
+            ushort[] chars=line.Select(c=>(ushort)c).Append((ushort)0xFFFF).ToArray();
+            table.AddRange(BitConverter.GetBytes(4+tableLength+body.Count));table.AddRange(BitConverter.GetBytes((ushort)chars.Length));table.AddRange(new byte[2]);
+            int key=0x1234+line.Length;
+            foreach(ushort c in chars){body.AddRange(BitConverter.GetBytes((ushort)(c^key)));key=((key<<3)|(key>>13))&0xFFFF;}
+        }
+        int sectionSize=4+tableLength+body.Count;var data=new List<byte>();
+        data.AddRange(BitConverter.GetBytes((ushort)1));data.AddRange(BitConverter.GetBytes((ushort)lines.Length));data.AddRange(BitConverter.GetBytes(sectionSize));data.AddRange(new byte[4]);data.AddRange(BitConverter.GetBytes(16));
+        data.AddRange(BitConverter.GetBytes(sectionSize));data.AddRange(table);data.AddRange(body);return data.ToArray();
     }
 
     private static bool SameTail(string a,string b,long from)

@@ -35,6 +35,7 @@ Punto de entrada a `docs/3ds-progressive/`. Muchos documentos son **registros hi
 ## Nintendo DS (Gen4 y Gen5)
 
 - Fase 0, contenedor `.nds`, NARC e identidad: [NDS_FASE0_CONTENEDOR.md](NDS_FASE0_CONTENEDOR.md)
+- Fase 1, lectura de datos Gen5 (Negro y Blanco ES): [NDS_FASE1_GEN5_LECTURA.md](NDS_FASE1_GEN5_LECTURA.md)
 
 ## Espada/Escudo (Switch)
 
