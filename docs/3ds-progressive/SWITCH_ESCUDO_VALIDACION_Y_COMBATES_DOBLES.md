@@ -1,5 +1,16 @@
 # Espada/Escudo 1.3.2: integración y validación — 2026-10-23
 
+## Combates dobles solo después del primer gimnasio — 2026-10-30
+
+Regla nueva (decisión del propietario: mantenerlo sencillo). Además de las variantes de Paul #4–#9, **no se convierte a doble ningún entrenador cuyo equipo original no supere el nivel máximo del primer líder de gimnasio** (entrenador #32, Percy/Milo en Espada y Escudo). Percy es el entrenador de mayor nivel hasta el primer gimnasio, así que todo lo anterior y el propio gimnasio quedan individuales; a partir de ahí el jugador ya tiene más de un Pokémon.
+
+- El nivel del líder se lee de `trainer_poke_032` de cada juego, nunca de una constante compartida. En las extracciones reales de Espada y Escudo, #32 es Gossifleur nv. 19 y Eldegoss nv. 20 (individual).
+- Se usa el nivel original del equipo (antes de ajustes de nivel). El sorteo depende solo de semilla y entrenador, así que los demás entrenadores conservan el mismo resultado que antes con la misma semilla.
+- En las extracciones reales quedan protegidos 36 de los 246 entrenadores individuales con dos o más Pokémon (210 siguen siendo candidatos). Algunos entrenadores posteriores de nivel bajo (#304, #315–#321) también quedan individuales: solo reduce dobles, nunca crea el caso de riesgo.
+- Si se pide una probabilidad mayor que 0 y falta el equipo del primer líder, la operación se rechaza en vez de adivinar. Con 0 % no se necesita.
+- Cobertura sintética (`--swsh-parity-only`, Espada y Escudo): límite exacto (`Swsh_DoubleStartsAfterFirstGymLevel_*`: igual al nivel del líder no convierte, un nivel más sí), el propio líder sigue individual, rechazo sin líder y 0 % sin requisito. La prueba real `--swsh-version-probe` calcula la misma regla sobre la extracción.
+- Pendiente: confirmación en juego de dobles después del primer gimnasio. Sigue sin existir un guard runtime para un jugador que más adelante solo tenga un Pokémon utilizable.
+
 ## Corrección jugable posterior: primer combate de Paul
 
 El usuario confirmó un cierre al iniciar el primer combate contra Paul. Se verificó que el diagnóstico había convertido las variantes #4/#5/#6 (equipos rivales de dos Pokémon) de modo individual 0 a doble 1, aunque en ese punto el jugador solo dispone del inicial. Esta condición no estaba cubierta por la validación anterior: comprobar el tamaño del equipo rival no comprueba el del jugador.

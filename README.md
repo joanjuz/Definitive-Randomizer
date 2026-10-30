@@ -33,7 +33,7 @@ Current limits:
 
 - Targets game version 1.3.2 only. Other versions and updates are rejected.
 - Sword and Shield have in-game confirmation from the owner's testing (Shield: the options of 0.9.0-preview.1, tested before release). A full playthrough of every event is not claimed.
-- Random double battles have no runtime guard for when the player has only one usable Pokémon; the mandatory early Hop battles stay single.
+- Random double battles only start after the first gym: trainers whose team is no stronger than the first gym leader (Milo) stay single, as do the mandatory early Hop battles. There is still no runtime guard for a player with a single usable Pokémon later on.
 - Pokédex animations are temporarily disabled.
 - Console/Atmosphère and DLC are not validated.
 
