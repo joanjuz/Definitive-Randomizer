@@ -205,7 +205,7 @@ public sealed class SARC : IDisposable
     {
         byte[] fileBuffer = new byte[length];
         stream.Seek(offset + DataOffset, SeekOrigin.Begin);
-        stream.Read(fileBuffer, 0, length);
+        stream.ReadAtLeast(fileBuffer.AsSpan(0, length), length, throwOnEndOfStream: false);
         return fileBuffer;
     }
 
