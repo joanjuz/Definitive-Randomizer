@@ -32,6 +32,10 @@ Punto de entrada a `docs/3ds-progressive/`. Muchos documentos son **registros hi
 - Sprites remotos: [SPRITES_REMOTOS_OPCIONALES.md](SPRITES_REMOTOS_OPCIONALES.md)
 - Wild: [WILD_CIERRE_INTEGRAL_LOCAL.md](WILD_CIERRE_INTEGRAL_LOCAL.md)
 
+## Nintendo DS (Gen4 y Gen5)
+
+- Fase 0, contenedor `.nds`, NARC e identidad: [NDS_FASE0_CONTENEDOR.md](NDS_FASE0_CONTENEDOR.md)
+
 ## Espada/Escudo (Switch)
 
 Orden cronológico aproximado, del más antiguo al más reciente:
