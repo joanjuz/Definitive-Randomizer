@@ -19,6 +19,12 @@ public sealed record NdsFileEntry(int Id, string Path, uint Start, uint End)
     public int Length => checked((int)(End - Start));
 }
 
+/// <summary>ARM9 overlay table entry (32 bytes). Bit 0 of <see cref="Flags"/> marks a BLZ-compressed overlay.</summary>
+public sealed record NdsOverlay(int Index, int Id, uint RamAddress, uint RamSize, int FileId, int StoredSize, byte Flags)
+{
+    public bool Compressed => (Flags & 1) != 0;
+}
+
 /// <summary>
 /// Read-only view of a Nintendo DS ROM with a writer that keeps the original layout:
 /// changed files are written in place when they fit their slot, otherwise moved to free space after the data.
@@ -28,12 +34,15 @@ public sealed class NdsRom : IDisposable
     private const int HeaderCrcOffset = 0x15E;
     private readonly FileStream _stream;
     private readonly List<NdsFileEntry> _files;
+    private readonly List<NdsOverlay> _overlays;
+    private readonly uint _overlayTable;
     private readonly List<(uint Start, uint End)> _regions;
     private readonly uint _freeLimit;
 
     public string Path { get; }
     public NdsHeader Header { get; }
     public IReadOnlyList<NdsFileEntry> Files => _files;
+    public IReadOnlyList<NdsOverlay> Overlays => _overlays;
     public long Length => _stream.Length;
     /// <summary>End of the free space usable for relocated files (start of the DSi area, or the end of the dump).</summary>
     public uint FreeSpaceEnd => _freeLimit;
@@ -51,6 +60,8 @@ public sealed class NdsRom : IDisposable
                 throw new InvalidDataException("El CRC de la cabecera NDS no coincide: la ROM está dañada o no es de NDS.");
             Header = new NdsHeader(Ascii(header, 0, 12), Ascii(header, 0x0C, 4), header[0x12], header[0x1E], U32(header, 0x80), U32(header, 0x84));
             _files = ReadFileTable(header);
+            _overlayTable = U32(header, 0x50);
+            _overlays = ReadOverlayTable(_overlayTable, U32(header, 0x54));
             _regions = OccupiedRegions(header);
             _freeLimit = FreeLimit(header);
         }
@@ -73,12 +84,37 @@ public sealed class NdsRom : IDisposable
 
     public byte[] ReadFile(string path) => ReadFile(File(path));
 
+    public NdsOverlay Overlay(int id) => _overlays.FirstOrDefault(o => o.Id == id)
+        ?? throw new InvalidDataException("La ROM no contiene el overlay " + id + ".");
+
+    /// <summary>Overlay contents as the game loads them: BLZ-decompressed when the table marks it compressed.</summary>
+    public byte[] ReadOverlay(int id)
+    {
+        var overlay = Overlay(id);
+        byte[] stored = ReadFile(_files[overlay.FileId]);
+        return overlay.Compressed ? pk3DS.Core.CTR.BLZCoder.Decompress(stored) : stored;
+    }
+
     /// <summary>
     /// Writes a new ROM to <paramref name="output"/> with the given file contents replaced. Unchanged bytes are copied verbatim,
     /// so saving without replacements reproduces the original file exactly. The source ROM is never modified.
     /// </summary>
-    public void Save(string output, IReadOnlyDictionary<int, byte[]> replacements)
+    public void Save(string output, IReadOnlyDictionary<int, byte[]> replacements) => Save(output, replacements, null);
+
+    /// <summary>
+    /// Like <see cref="Save(string, IReadOnlyDictionary{int, byte[]})"/>, also replacing overlays by id. Overlays are written
+    /// uncompressed and their table entry updated (stored size, compressed flag cleared); the decompressed size must not change.
+    /// </summary>
+    public void Save(string output, IReadOnlyDictionary<int, byte[]> replacements, IReadOnlyDictionary<int, byte[]>? overlays)
     {
+        var overlayFiles = new Dictionary<int, (NdsOverlay Overlay, byte[] Data)>();
+        foreach (var (id, data) in overlays ?? new Dictionary<int, byte[]>())
+        {
+            var overlay = Overlay(id);
+            if (data.Length != ReadOverlay(id).Length)
+                throw new InvalidDataException($"El overlay {id} debe conservar su tamaño descomprimido ({data.Length} bytes recibidos).");
+            overlayFiles[overlay.FileId] = (overlay, data);
+        }
         string target = System.IO.Path.GetFullPath(output);
         if (string.Equals(target, Path, StringComparison.OrdinalIgnoreCase))
             throw new IOException("La ROM de salida debe ser distinta de la original.");
@@ -88,15 +124,19 @@ public sealed class NdsRom : IDisposable
         {
             if (id < 0 || id >= _files.Count)
                 throw new ArgumentOutOfRangeException(nameof(replacements), "Identificador de archivo NDS fuera de rango: " + id);
-            // Overlays also need their table entry (compressed size and flags) updated; not supported yet.
+            // Overlays go through the overlay parameter, which also updates their table entry.
             if (_files[id].Path.StartsWith("overlay/", StringComparison.Ordinal))
-                throw new NotSupportedException("Todavía no se pueden reemplazar overlays: " + _files[id].Path);
+                throw new NotSupportedException("Los overlays se reemplazan con el parámetro de overlays: " + _files[id].Path);
         }
+
+        var all = new Dictionary<int, byte[]>(replacements);
+        foreach (var (fileId, item) in overlayFiles)
+            all[fileId] = item.Data;
 
         // Plan every write before touching the output, so an oversize file rejects the whole save.
         var placed = new Dictionary<int, uint>();
         uint append = Align(Header.NtrEnd, 0x200);
-        foreach (var (id, data) in replacements.OrderBy(p => p.Key))
+        foreach (var (id, data) in all.OrderBy(p => p.Key))
         {
             var entry = _files[id];
             if (data.Length <= SlotLength(entry))
@@ -122,7 +162,7 @@ public sealed class NdsRom : IDisposable
                 output2.ReadExactly(header);
                 uint fatOffset = U32(header, 0x48);
                 uint ntrEnd = Header.NtrEnd;
-                foreach (var (id, data) in replacements)
+                foreach (var (id, data) in all)
                 {
                     var entry = _files[id];
                     uint start = placed[id];
@@ -137,6 +177,12 @@ public sealed class NdsRom : IDisposable
                     BinaryPrimitives.WriteUInt32LittleEndian(fat.AsSpan(4), start + (uint)data.Length);
                     WriteAt(output2, fatOffset + (uint)id * 8, fat);
                     ntrEnd = Math.Max(ntrEnd, Align(start + (uint)data.Length, 4));
+                }
+                foreach (var (overlay, data) in overlayFiles.Values)
+                {
+                    byte[] stored = new byte[4];
+                    BinaryPrimitives.WriteUInt32LittleEndian(stored, ((uint)data.Length & 0xFFFFFF) | ((uint)(overlay.Flags & ~1) << 24));
+                    WriteAt(output2, _overlayTable + (uint)overlay.Index * 32 + 28, stored);
                 }
                 BinaryPrimitives.WriteUInt32LittleEndian(header.AsSpan(0x80), ntrEnd);
                 BinaryPrimitives.WriteUInt16LittleEndian(header.AsSpan(HeaderCrcOffset), Crc16(header.AsSpan(0, HeaderCrcOffset)));
@@ -230,6 +276,25 @@ public sealed class NdsRom : IDisposable
             files.Add(new NdsFileEntry(id, names[id] ?? $"overlay/{id:0000}", start, end));
         }
         return files;
+    }
+
+    private List<NdsOverlay> ReadOverlayTable(uint offset, uint size)
+    {
+        var overlays = new List<NdsOverlay>();
+        if (offset == 0 || size == 0)
+            return overlays;
+        if (size % 32 != 0)
+            throw new InvalidDataException("La tabla de overlays ARM9 está truncada.");
+        byte[] table = ReadAt(offset, checked((int)size));
+        for (int i = 0; i < table.Length / 32; i++)
+        {
+            int at = i * 32, fileId = checked((int)U32(table, at + 24));
+            if (fileId >= _files.Count)
+                throw new InvalidDataException("Overlay ARM9 con archivo fuera de rango: " + i);
+            uint stored = U32(table, at + 28);
+            overlays.Add(new NdsOverlay(i, checked((int)U32(table, at)), U32(table, at + 4), U32(table, at + 8), fileId, (int)(stored & 0xFFFFFF), (byte)(stored >> 24)));
+        }
+        return overlays;
     }
 
     private List<(uint Start, uint End)> OccupiedRegions(byte[] header)

@@ -9,10 +9,17 @@ namespace pk3DS.Core.NDS;
 
 /// <summary>Where each Gen5 table lives in a given game, with the CRC32 its NARC must have (UPR-ZX gen5_offsets.ini, GPLv3).</summary>
 public sealed record Gen5Profile(string GameCode, bool Black, IReadOnlyDictionary<string, (string Path, uint Crc32)> Files,
-    int SpeciesNamesText, int TrainerNamesText, int TrainerClassesText, IReadOnlyList<(int File, int Offset)>[] StarterOffsets)
+    int SpeciesNamesText, int TrainerNamesText, int TrainerClassesText, IReadOnlyList<(int File, int Offset)>[] StarterOffsets,
+    uint StarterCryOverlayCrc32)
 {
-    public const string TextStrings = "TextStrings", PokemonStats = "PokemonStats", Scripts = "Scripts",
-        TrainerData = "TrainerData", TrainerPokemon = "TrainerPokemon", WildPokemon = "WildPokemon";
+    public const string TextStrings = "TextStrings", TextStory = "TextStory", PokemonStats = "PokemonStats", Scripts = "Scripts",
+        TrainerData = "TrainerData", TrainerPokemon = "TrainerPokemon", WildPokemon = "WildPokemon",
+        PokemonGraphics = "PokemonGraphics", StarterGraphics = "StarterGraphics";
+
+    // Black/White starter data shared by both games (UPR-ZX gen5_offsets.ini and Gen5Constants, GPLv3).
+    public const int TypeNamesText = 199, StarterStoryText = 430, PokedexGivenScript = 792, StarterCryOverlay = 223;
+    /// <summary>Story lines naming each starter's type, in starter order (Grass, Fire, Water).</summary>
+    public static readonly int[] StarterTypeLines = [18, 17, 16];
 
     private static readonly IReadOnlyList<(int, int)>[] BlackWhiteStarters =
     [
@@ -29,18 +36,22 @@ public sealed record Gen5Profile(string GameCode, bool Black, IReadOnlyDictionar
         [TrainerData] = ("a/0/9/2", 0xBF203832),
         [TrainerPokemon] = ("a/0/9/3", 0xA0C7D342),
         [WildPokemon] = ("a/1/2/6", 0x4B3B1CF6),
+        [TextStory] = ("a/0/0/3", 0xA1D418F5),
+        [PokemonGraphics] = ("a/0/0/4", 0x227031B2),
+        [StarterGraphics] = ("a/2/0/5", 0x2AE60524),
     };
 
     public static IReadOnlyList<Gen5Profile> All { get; } =
     [
-        new("IRBO", true, BlackFiles(), 70, 190, 191, BlackWhiteStarters),
+        new("IRBO", true, BlackFiles(), 70, 190, 191, BlackWhiteStarters, 0x4FFD3D7F),
         // Spanish White: White's encounters plus its own text and scripts; the remaining tables match Black (U).
         new("IRAS", false, new Dictionary<string, (string, uint)>(BlackFiles())
         {
             [TextStrings] = ("a/0/0/2", 0xDCFE58C9),
             [Scripts] = ("a/0/5/7", 0x7638D5C9),
             [WildPokemon] = ("a/1/2/6", 0x01FCA7BB),
-        }, 70, 190, 191, BlackWhiteStarters),
+            [TextStory] = ("a/0/0/3", 0x074DEAC6),
+        }, 70, 190, 191, BlackWhiteStarters, 0x2F3ADC12),
     ];
 }
 
@@ -95,8 +106,13 @@ public sealed class Gen5Data
         var profile = Gen5Profile.All.FirstOrDefault(p => p.GameCode == identity.Profile.GameCode)
             ?? throw new NotSupportedException($"{identity.Profile.Game} todavía no tiene perfil de datos Gen5.");
         var data = new Gen5Data(rom, identity, profile, requireOriginalTables);
-        foreach (string key in profile.Files.Keys)
-            data.Narc(key);
+        // Strict mode verifies every table up front; a verification view only reads what it is asked for.
+        if (requireOriginalTables)
+        {
+            foreach (string key in profile.Files.Keys)
+                data.Narc(key);
+            data.StarterCryOverlay();
+        }
         return data;
     }
 
@@ -124,10 +140,20 @@ public sealed class Gen5Data
     {
         if (!_requireOriginalTables)
             throw new InvalidOperationException("Solo se exporta desde una ROM con todas sus tablas originales verificadas.");
-        _rom.Save(output, result.Files.ToDictionary(p => _rom.File(p.Key).Id, p => p.Value));
+        _rom.Save(output, result.Files.ToDictionary(p => _rom.File(p.Key).Id, p => p.Value), result.Overlays);
     }
 
     public IReadOnlyList<string> Text(int file) => Gen5Text.Read(Narc(Gen5Profile.TextStrings).Files[file]);
+
+    /// <summary>Decompressed overlay, checked against the profile CRC32 when original tables are required.</summary>
+    public byte[] StarterCryOverlay()
+    {
+        byte[] overlay = _rom.ReadOverlay(Gen5Profile.StarterCryOverlay);
+        uint actual = Crc32(overlay);
+        if (_requireOriginalTables && actual != Profile.StarterCryOverlayCrc32)
+            throw new InvalidDataException($"El overlay {Gen5Profile.StarterCryOverlay} no coincide con el perfil de {Profile.GameCode}: CRC32 {actual:X8}, se esperaba {Profile.StarterCryOverlayCrc32:X8}.");
+        return overlay;
+    }
 
     public IReadOnlyList<string> SpeciesNames() => Text(Profile.SpeciesNamesText);
 

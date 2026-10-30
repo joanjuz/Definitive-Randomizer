@@ -28,6 +28,9 @@ internal static class NdsGen5RandomizerChecks
             check(progressive.Changes.Where(x=>x.Field=="Especie").All(x=>stats[x.After].Total is >=220 and <=380),"Gen5Rand_ProgressiveRespectsLevelRange");
             reject(()=>Gen5Randomizer.Generate(data,options with{BstRanges=[new Gen5BstRange(5,1,0,10)]}),"Gen5Rand_RejectsInvalidRange");
             reject(()=>data.Export(Path.Combine(temp,"out.nds"),a),"Gen5Rand_ExportRequiresVerifiedOriginalTables");
+            reject(()=>Gen5Randomizer.Generate(data,new Gen5RandomizerOptions(1){Starters=Gen5StarterMode.Custom,CustomStarters=[1,1,4]}),"Gen5Rand_StartersRejectDuplicates");
+            reject(()=>Gen5Randomizer.Generate(data,new Gen5RandomizerOptions(1){Starters=Gen5StarterMode.Custom,CustomStarters=[1,4,700]}),"Gen5Rand_StartersRejectSpeciesOutsideGen5");
+            reject(()=>Gen5Randomizer.Generate(data,new Gen5RandomizerOptions(1){Starters=Gen5StarterMode.Custom}),"Gen5Rand_CustomStartersRequireThreeSpecies");
         }
         finally{Directory.Delete(temp,true);}
     }
@@ -62,6 +65,47 @@ internal static class NdsGen5RandomizerChecks
             Check(Hash(source)==before,$"Gen5Rand_Real_{Path.GetFileNameWithoutExtension(source)}_SourceUnchanged");
         }
         Console.WriteLine($"Completed {checks} Gen5 randomizer real-dump checks; outputs deleted from {output}.");
+    }
+
+    // Starters on real dumps: mapping of the selection sprites, every place a starter lives, and nothing else changed.
+    internal static void ProbeStarters(string output,IEnumerable<string> roms)
+    {
+        int checks=0;void Check(bool ok,string name){if(!ok)throw new Exception("FAIL "+name);checks++;Console.WriteLine("PASS "+name);}
+        output=Path.GetFullPath(output);if(Directory.Exists(output)||File.Exists(output))throw new IOException("El destino debe ser nuevo.");Directory.CreateDirectory(output);
+        static byte[] Lz11(byte[] data){using var input=new MemoryStream(data);using var result=new MemoryStream();pk3DS.Core.CTR.LZSS.Decompress(input,data.Length,result);return result.ToArray();}
+        foreach(string source in roms.Select(Path.GetFullPath))
+        {
+            string before=Hash(source);
+            using(var rom=NdsRom.Open(source))
+            {
+                var data=Gen5Data.Open(rom);string game=data.Profile.GameCode;
+                var graphics=Narc.Read(rom.ReadFile("a/0/0/4"));var selection=Narc.Read(rom.ReadFile("a/2/0/5"));
+                // The selection sprites are not byte-identical to the battle sprites (same RGCN size, different data); only the format can be checked.
+                Check(new[]{495,498,501}.Select((s,i)=>{byte[] front=Lz11(graphics.Files[s*20]);return front.Length==selection.Files[12+i].Length&&front.AsSpan(0,4).SequenceEqual("RGCN"u8)&&selection.Files[12+i].AsSpan(0,4).SequenceEqual("RGCN"u8);}).All(x=>x),$"Gen5Starters_Real_{game}_BattleSpritesMatchSelectionSlotFormat");
+                int[] chosen=[25,4,7];
+                var result=Gen5Randomizer.Generate(data,new Gen5RandomizerOptions(1){Starters=Gen5StarterMode.Custom,CustomStarters=chosen});
+                Check(result.Changes.Count==3&&result.Files.Count==3&&result.Overlays.Keys.SequenceEqual(new[]{223}),$"Gen5Starters_Real_{game}_TouchesScriptsGraphicsTextAndCryOverlayOnly");
+                string target=Path.Combine(output,game+"-starters.nds");data.Export(target,result);
+                using var exported=NdsRom.Open(target);var check=Gen5Data.Open(exported,requireOriginalTables:false);
+                Check(check.Starters().SequenceEqual(chosen),$"Gen5Starters_Real_{game}_ScriptsGiveTheNewStarters");
+                byte[] cries=exported.ReadOverlay(223);int table=cries.AsSpan().IndexOf(new byte[]{0x08,0x0A,0x07,0x00,0x08,0x00,0x00})+7;
+                Check(Enumerable.Range(0,3).All(i=>BitConverter.ToUInt16(cries,table+i*2)==chosen[i])&&exported.Overlay(223) is {Compressed:false,StoredSize:13696}&&cries.Length==13696,$"Gen5Starters_Real_{game}_CryTableUpdatedInUncompressedOverlay");
+                var newSelection=Narc.Read(exported.ReadFile("a/2/0/5"));
+                Check(chosen.Select((s,i)=>newSelection.Files[12+i].SequenceEqual(Lz11(graphics.Files[s*20]))&&newSelection.Files[i*2].SequenceEqual(graphics.Files[s*20+18])).All(x=>x),$"Gen5Starters_Real_{game}_SelectionSpritesAndPalettesAreTheNewStarters");
+                var types=data.Text(199);var lines=Gen5Text.Read(Narc.Read(exported.ReadFile("a/0/0/3")).Files[430]);var oldLines=Gen5Text.Read(Narc.Read(rom.ReadFile("a/0/0/3")).Files[430]);
+                Check(lines[18].Contains(types[12])&&!lines[18].Contains(types[11])&&lines[17]==oldLines[17]&&lines[16]==oldLines[16]&&lines.Where((l,i)=>i is not 18).SequenceEqual(oldLines.Where((l,i)=>i is not 18)),$"Gen5Starters_Real_{game}_SelectionTextNamesTheNewType ({types[12]})");
+                byte[] script=Narc.Read(exported.ReadFile("a/0/5/7")).Files[792];byte[] oldScript=Narc.Read(rom.ReadFile("a/0/5/7")).Files[792];
+                Check(script.Length==oldScript.Length+16&&script[0x3A0]==4&&script[0x3A1]==0&&BitConverter.ToInt32(script,0x3A2)+0x3A6==oldScript.Length&&script.AsSpan(oldScript.Length,4).SequenceEqual(new byte[]{0x24,0,0xA7,2}),$"Gen5Starters_Real_{game}_PokedexScriptCallsAppendedBlock");
+                var changedPaths=result.Files.Keys.Select(p=>rom.File(p).Id).Append(rom.Overlay(223).FileId).ToHashSet();
+                Check(exported.Files.Where(f=>!changedPaths.Contains(f.Id)).All(f=>exported.ReadFile(f).SequenceEqual(rom.ReadFile(rom.Files[f.Id]))),$"Gen5Starters_Real_{game}_EveryOtherFileIdentical");
+                var random=Gen5Randomizer.Generate(data,new Gen5RandomizerOptions(77){Starters=Gen5StarterMode.Random});var again=Gen5Randomizer.Generate(data,new Gen5RandomizerOptions(77){Starters=Gen5StarterMode.Random});
+                var picked=random.Changes.Select(c=>c.After).ToArray();
+                Check(random.Changes.SequenceEqual(again.Changes)&&picked.Distinct().Count()==picked.Length,$"Gen5Starters_Real_{game}_RandomStartersDistinctAndReproducible ({string.Join(", ",picked.Select(s=>data.SpeciesNames()[s]))})");
+            }
+            foreach(string f in Directory.GetFiles(output))File.Delete(f);
+            Check(Hash(source)==before,$"Gen5Starters_Real_{Path.GetFileNameWithoutExtension(source)}_SourceUnchanged");
+        }
+        Console.WriteLine($"Completed {checks} Gen5 starter real-dump checks; outputs deleted from {output}.");
     }
 
     private static string Hash(string path){using var stream=File.OpenRead(path);return Convert.ToHexString(SHA256.HashData(stream));}

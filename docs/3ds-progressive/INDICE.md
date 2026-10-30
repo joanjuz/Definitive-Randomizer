@@ -38,6 +38,7 @@ Punto de entrada a `docs/3ds-progressive/`. Muchos documentos son **registros hi
 - Fase 1, lectura de datos Gen5 (Negro y Blanco ES): [NDS_FASE1_GEN5_LECTURA.md](NDS_FASE1_GEN5_LECTURA.md)
 - Fase 2a, randomizer Gen5 de entrenadores y encuentros: [NDS_FASE2A_GEN5_RANDOMIZER.md](NDS_FASE2A_GEN5_RANDOMIZER.md)
 - Fase 2b, randomizer DS en la aplicación: [NDS_FASE2B_GEN5_INTERFAZ.md](NDS_FASE2B_GEN5_INTERFAZ.md)
+- Fase 3, overlays e iniciales Gen5: [NDS_FASE3_GEN5_INICIALES.md](NDS_FASE3_GEN5_INICIALES.md)
 
 ## Espada/Escudo (Switch)
 
