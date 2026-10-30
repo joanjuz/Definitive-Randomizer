@@ -11,30 +11,29 @@ It supports the Nintendo 3DS titles X/Y, Omega Ruby/Alpha Sapphire, Sun/Moon and
 | Line | Version | Branch | Notes |
 |---|---|---|---|
 | Stable (WinForms) | v4.17.1 | `Eris-Ultranova` | Current stable release |
-| WPF preview (3DS) | 0.8.0-preview.4 | `feature/3ds-progressive-ui` | Prerelease for testers; not merged into `main` |
-| Sword/Shield (Switch) | in development | `feature/switch-swsh-prototype` | Exports mods instead of rebuilding ROMs; not released |
+| Definitive Randomizer WPF (3DS + Sword/Shield) | 0.9.0-preview.1 | `main` | Prerelease for testers; Sword/Shield exports mods instead of rebuilding ROMs |
 
 - **Platform:** Windows x64
 - **License:** GNU GPL v3
 - **Primary progressive feature target:** Pokémon Ultra Sun / Ultra Moon
 
-The two version numbers are independent: v4.x is the original WinForms line, and 0.8.x numbers the new WPF application ("Definitive Randomizer") until it replaces it.
+The two version numbers are independent: v4.x is the original WinForms line, and 0.x numbers the new WPF application ("Definitive Randomizer") until it replaces it.
 
 ## Definitive Randomizer WPF preview
 
-Windows x64 prereleases of the new WPF editor are published in this repository's [Releases](../../releases). They are built from `feature/3ds-progressive-ui`.
+Windows x64 prereleases of the new WPF editor are published in this repository's [Releases](../../releases). They are built from `main`.
 
-Download the Windows ZIP, extract the complete folder, and run `DefinitiveRandomizer.exe`. The preview includes .NET and the Batch backend. See the [latest tester guide](docs/3ds-progressive/RELEASE_0.8.0_PREVIEW_4.md) for test areas, limitations, and packaging instructions. Personal templates and game data are not included.
+Download the Windows ZIP, extract the complete folder, and run `DefinitiveRandomizer.exe`. The preview includes .NET and the Batch backend. See the [latest tester guide](docs/3ds-progressive/RELEASE_0.9.0_PREVIEW_1.md) for test areas, limitations, and packaging instructions. Personal templates and game data are not included.
 
-## Sword/Shield (in development)
+## Sword/Shield (preview)
 
 The Switch integration adds editors and randomization for Pokémon, moves, learnsets, evolutions, TM/TR and tutors, trainers, encounters, field items, shops, statics, gifts and trades. It also includes history, a Switch-specific Global Template, Batch mod generation and an integrated runtime (PokeFeur) for encounters, level caps and EXP options. Instead of rebuilding a ROM, it exports a mod in Ryujinx format.
 
 Current limits:
 
 - Targets game version 1.3.2 only. Other versions and updates are rejected.
-- Sword has partial in-game confirmation from testing. Shield is validated by automated checks only.
-- Random double battles still need full in-game validation.
+- Sword and Shield have in-game confirmation from the owner's testing (Shield: the options of 0.9.0-preview.1, tested before release). A full playthrough of every event is not claimed.
+- Random double battles have no runtime guard for when the player has only one usable Pokémon; the mandatory early Hop battles stay single.
 - Pokédex animations are temporarily disabled.
 - Console/Atmosphère and DLC are not validated.
 
