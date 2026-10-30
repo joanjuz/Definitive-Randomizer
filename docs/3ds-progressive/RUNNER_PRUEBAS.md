@@ -37,6 +37,7 @@ dotnet .\3DS.Progressive.Tests\bin\Release\net10.0-windows\3DS.Progressive.Tests
 | `--master-batch-only` | — |  |
 | `--native-gen6-only` | — |  |
 | `--native-wild7-only` | — |  |
+| `--nds-only` | — | sí |
 | `--performance-only` | — |  |
 | `--pickup-only` | — |  |
 | `--pokefeur-only` | — |  |
@@ -113,6 +114,7 @@ Necesitan extracciones, ROMs o carpetas de salida. Los argumentos concretos (ent
 | `--export-local-english-for-text-research` | 2 o más |  |
 | `--extract-independent-image` | exactamente 2 |  |
 | `--interrupt-save-check` | exactamente 1 |  |
+| `--nds-roundtrip-probe` | 2 o más |  |
 | `--pokefeur-probe` | exactamente 3 |  |
 | `--read-facilities` | 1 o más |  |
 | `--read-field6` | 1 o más |  |
