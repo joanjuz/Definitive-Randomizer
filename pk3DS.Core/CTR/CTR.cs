@@ -249,7 +249,7 @@ public static class CTRUtil
                                 BUFFER_SIZE = RomfsLen - j > 0x400000 ? 0x400000 : (uint)(RomfsLen - j);
                                 byte[] buf = new byte[BUFFER_SIZE];
                                 byte[] outbuf = new byte[BUFFER_SIZE];
-                                InFileStream.Read(buf, 0, (int)BUFFER_SIZE);
+                                InFileStream.ReadAtLeast(buf.AsSpan(0, (int)BUFFER_SIZE), (int)BUFFER_SIZE, throwOnEndOfStream: false);
                                 aesctr.TransformBlock(buf, 0, (int)BUFFER_SIZE, outbuf, 0);
                                 OutFileStream.Write(outbuf, 0, (int)BUFFER_SIZE);
                                 PB_Show.Invoke(PB_Show.PerformStep);

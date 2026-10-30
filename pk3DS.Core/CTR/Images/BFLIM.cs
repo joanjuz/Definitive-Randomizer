@@ -1,4 +1,5 @@
-﻿using System.IO;
+﻿using System;
+using System.IO;
 using pk3DS.Core.CTR.Images;
 
 namespace pk3DS.Core.CTR;
@@ -23,9 +24,9 @@ public class BFLIM : BXLIM
     private void ReadBFLIM(Stream ms)
     {
         PixelData = new byte[ms.Length - FLIMHeader.SIZE];
-        ms.Read(PixelData, 0, PixelData.Length);
+        ms.ReadAtLeast(PixelData.AsSpan(0, PixelData.Length), PixelData.Length, throwOnEndOfStream: false);
         var footer = new byte[FLIMHeader.SIZE];
-        ms.Read(footer, 0, footer.Length);
+        ms.ReadAtLeast(footer.AsSpan(0, footer.Length), footer.Length, throwOnEndOfStream: false);
         Footer = footer.ToStructure<FLIMHeader>();
     }
 }

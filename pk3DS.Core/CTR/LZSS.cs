@@ -78,13 +78,13 @@ public static class LZSS
         if (type != 0x11)
             throw new InvalidDataException($"The provided stream is not a valid LZ-0x11 compressed stream (invalid type 0x{type:X})");
         byte[] sizeBytes = new byte[3];
-        instream.Read(sizeBytes, 0, 3);
+        instream.ReadAtLeast(sizeBytes.AsSpan(0, 3), 3, throwOnEndOfStream: false);
         int decompressedSize = IOUtils.ToNDSu24(sizeBytes, 0);
         readBytes += 4;
         if (decompressedSize == 0)
         {
             sizeBytes = new byte[4];
-            instream.Read(sizeBytes, 0, 4);
+            instream.ReadAtLeast(sizeBytes.AsSpan(0, 4), 4, throwOnEndOfStream: false);
             decompressedSize = IOUtils.ToNDSs32(sizeBytes, 0);
             readBytes += 4;
         }

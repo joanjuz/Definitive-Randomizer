@@ -169,7 +169,7 @@ public class NCSD
         inputFileStream.Seek(0x4000, SeekOrigin.Begin);
         for (int i = 0; i < ncchSize; i++)
         {
-            inputFileStream.Read(buffer, 0, buffer.Length);
+            inputFileStream.ReadAtLeast(buffer.AsSpan(0, buffer.Length), buffer.Length, throwOnEndOfStream: false);
             outputFileStream.Write(buffer, 0, buffer.Length);
             if (PB_Show.InvokeRequired)
             {

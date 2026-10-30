@@ -327,7 +327,7 @@ public static class ARC
                     var fs = File.OpenRead(path);
                     fs.Seek(darc.Files.Files[i].Offset, SeekOrigin.Begin);
                     byte[] fileBuffer = new byte[darc.Files.Files[i].Length];
-                    fs.Read(fileBuffer, 0, fileBuffer.Length);
+                    fs.ReadAtLeast(fileBuffer.AsSpan(0, fileBuffer.Length), fileBuffer.Length, throwOnEndOfStream: false);
                     fs.Close();
                     File.WriteAllBytes(outPath, fileBuffer);
                 }
@@ -355,7 +355,7 @@ public static class ARC
                 var fs = File.OpenRead(farc.FilePath + "\\" + farc.FileName + farc.Extension);
                 fs.Seek(farc.Files.Files[i].Offset + farc.DataOffset, SeekOrigin.Begin);
                 byte[] fileBuffer = new byte[farc.Files.Files[i].Length];
-                fs.Read(fileBuffer, 0, fileBuffer.Length);
+                fs.ReadAtLeast(fileBuffer.AsSpan(0, fileBuffer.Length), fileBuffer.Length, throwOnEndOfStream: false);
                 fs.Close();
                 File.WriteAllBytes(outPath, fileBuffer);
             }
@@ -375,7 +375,7 @@ public static class ARC
                 var fs = File.OpenRead(path);
                 fs.Seek(gar.Files[i].Offset, SeekOrigin.Begin);
                 byte[] fileBuffer = new byte[gar.Files[i].Length];
-                fs.Read(fileBuffer, 0, fileBuffer.Length);
+                fs.ReadAtLeast(fileBuffer.AsSpan(0, fileBuffer.Length), fileBuffer.Length, throwOnEndOfStream: false);
                 fs.Close();
                 File.WriteAllBytes(dir + gar.Files[i].NameWithExtension, fileBuffer);
                 ret += "Extracted " + gar.Files[i].NameWithExtension + " (Offset: " + gar.Files[i].Offset.ToString("X8") + ", Len: " + gar.Files[i].Length.ToString("X8") + ")." + Environment.NewLine;
@@ -413,7 +413,7 @@ public static class ARC
             var fs = File.OpenRead(path);
             fs.Seek(sharc.Files[i].Offset, SeekOrigin.Begin);
             byte[] fileBuffer = new byte[sharc.Files[i].Length];
-            fs.Read(fileBuffer, 0, fileBuffer.Length);
+            fs.ReadAtLeast(fileBuffer.AsSpan(0, fileBuffer.Length), fileBuffer.Length, throwOnEndOfStream: false);
             fs.Close();
             uint check = 0;
             for (int j = 0; j < fileBuffer.Length; j += 4)
@@ -462,7 +462,7 @@ public static class ARC
                 using var fs = File.OpenRead(path);
                 fs.Seek(darc.Files.Files[i].Offset, SeekOrigin.Begin);
                 byte[] fileBuffer = new byte[darc.Files.Files[i].Length];
-                fs.Read(fileBuffer, 0, fileBuffer.Length);
+                fs.ReadAtLeast(fileBuffer.AsSpan(0, fileBuffer.Length), fileBuffer.Length, throwOnEndOfStream: false);
                 File.WriteAllBytes(Path.Combine(dir, darc.Files.FileNames[i]), fileBuffer);
             }
         }

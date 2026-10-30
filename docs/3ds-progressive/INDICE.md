@@ -12,6 +12,7 @@ Punto de entrada a `docs/3ds-progressive/`. Muchos documentos son **registros hi
 | Matriz de familias 3DS | [ESTADO_CANDIDATO_71.md](ESTADO_CANDIDATO_71.md) (histórico; contrastar con el código) |
 | Rediseño visual WPF | [AUDITORIA_VISUAL_WPF.md](AUDITORIA_VISUAL_WPF.md) |
 | Revisión de estabilidad más reciente | [REVISION_ESTABILIDAD_20261019.md](REVISION_ESTABILIDAD_20261019.md) |
+| Motor heredado duplicado (app frente a LegacyBatch) | [AUDITORIA_MOTOR_DUPLICADO.md](AUDITORIA_MOTOR_DUPLICADO.md) |
 
 ## Contratos y formatos (consultar antes de tocar el módulo)
 

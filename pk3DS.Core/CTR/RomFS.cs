@@ -27,7 +27,7 @@ public class RomFS
             SuperBlockLen += 0x200 - (SuperBlockLen % 0x200);
         byte[] superblock = new byte[SuperBlockLen];
         fs.Seek(0, SeekOrigin.Begin);
-        fs.Read(superblock, 0, superblock.Length);
+        fs.ReadAtLeast(superblock.AsSpan(0, superblock.Length), superblock.Length, throwOnEndOfStream: false);
         SuperBlockHash = SHA256.HashData(superblock);
     }
 
@@ -248,7 +248,7 @@ public class RomFS
         while (remainingSize > 0)
         {
             int sizeToReadWrite = buffer.Length > remainingSize ? remainingSize : buffer.Length;
-            romfsFileStream.Read(buffer, 0, sizeToReadWrite);
+            romfsFileStream.ReadAtLeast(buffer.AsSpan(0, sizeToReadWrite), sizeToReadWrite, throwOnEndOfStream: false);
             outputFileStream.Write(buffer, 0, sizeToReadWrite);
             remainingSize -= sizeToReadWrite;
             if (PB_Show.InvokeRequired)
@@ -444,7 +444,7 @@ public class RomFS
             OutFileStream.Seek(0, SeekOrigin.Begin);
             uint SuperBlockLen = (uint)Align(MasterHashLen + 0x60, MEDIA_UNIT_SIZE);
             byte[] MasterHashes = new byte[SuperBlockLen];
-            OutFileStream.Read(MasterHashes, 0, (int)SuperBlockLen);
+            OutFileStream.ReadAtLeast(MasterHashes.AsSpan(0, (int)SuperBlockLen), (int)SuperBlockLen, throwOnEndOfStream: false);
 
             //var SuperBlockHash = sha.ComputeHash(MasterHashes);
             //Console.WriteLine(SuperBlockHash);
