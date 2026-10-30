@@ -71,24 +71,30 @@ public sealed class Gen5Data
     private const int SeasonLength = 232;
     private static readonly int[] SlotsPerType = [12, 12, 12, 5, 5, 5, 5];
     private readonly NdsRom _rom;
+    private readonly bool _requireOriginalTables;
     private readonly Dictionary<string, Narc> _narcs = new();
 
     public NdsIdentityResult Identity { get; }
     public Gen5Profile Profile { get; }
 
-    private Gen5Data(NdsRom rom, NdsIdentityResult identity, Gen5Profile profile)
+    private Gen5Data(NdsRom rom, NdsIdentityResult identity, Gen5Profile profile, bool requireOriginalTables)
     {
         _rom = rom;
+        _requireOriginalTables = requireOriginalTables;
         Identity = identity;
         Profile = profile;
     }
 
-    public static Gen5Data Open(NdsRom rom)
+    /// <summary>
+    /// Opens a Black/White ROM. Editing requires <paramref name="requireOriginalTables"/>: every table must match its profile CRC32.
+    /// Passing false only checks the game code, to re-read ROMs this tool exported; never randomize from such a view.
+    /// </summary>
+    public static Gen5Data Open(NdsRom rom, bool requireOriginalTables = true)
     {
         var identity = NdsIdentity.Identify(rom);
         var profile = Gen5Profile.All.FirstOrDefault(p => p.GameCode == identity.Profile.GameCode)
             ?? throw new NotSupportedException($"{identity.Profile.Game} todavía no tiene perfil de datos Gen5.");
-        var data = new Gen5Data(rom, identity, profile);
+        var data = new Gen5Data(rom, identity, profile, requireOriginalTables);
         foreach (string key in profile.Files.Keys)
             data.Narc(key);
         return data;
@@ -101,9 +107,24 @@ public sealed class Gen5Data
         var (path, crc) = Profile.Files[key];
         byte[] bytes = _rom.ReadFile(path);
         uint actual = Crc32(bytes);
-        if (actual != crc)
+        if (_requireOriginalTables && actual != crc)
             throw new InvalidDataException($"{path} ({key}) no coincide con el perfil de {Profile.GameCode}: CRC32 {actual:X8}, se esperaba {crc:X8}.");
         return _narcs[key] = NDS.Narc.Read(bytes);
+    }
+
+    public bool RequiresOriginalTables => _requireOriginalTables;
+
+    public string PathOf(string key) => Profile.Files[key].Path;
+
+    /// <summary>Independent copy of a table, safe to modify without affecting what this instance reads.</summary>
+    public Narc CopyNarc(string key) => NDS.Narc.Read(Narc(key).Write());
+
+    /// <summary>Writes a new ROM with the randomized tables. The source ROM is never modified.</summary>
+    public void Export(string output, Gen5RandomizerResult result)
+    {
+        if (!_requireOriginalTables)
+            throw new InvalidOperationException("Solo se exporta desde una ROM con todas sus tablas originales verificadas.");
+        _rom.Save(output, result.Files.ToDictionary(p => _rom.File(p.Key).Id, p => p.Value));
     }
 
     public IReadOnlyList<string> Text(int file) => Gen5Text.Read(Narc(Gen5Profile.TextStrings).Files[file]);

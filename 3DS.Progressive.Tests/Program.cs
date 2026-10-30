@@ -37,6 +37,7 @@ if(args.Length>2&&args[0]=="--check-marts6-full-batch-real"){FullBatchRealChecks
 if(args.Length>2&&args[0]=="--check-marts7-full-batch-real"){FullBatchRealChecks.Run(args[1],args.Skip(2),marts7:true);return;}
 if(args.Length>1&&args[0]=="--read-machine7-recipes"){RealMachine7Checks.Run(args.Skip(1));return;}
 if(args.Length>1&&args[0]=="--review73-real"){Review73Checks.RunReal(args.Skip(1));return;}
+if(args.Length>2&&args[0]=="--nds-gen5-random-probe"){NdsGen5RandomizerChecks.Probe(args[1],args.Skip(2));return;}
 if(args.Length>1&&args[0]=="--nds-gen5-probe"){NdsChecks.ProbeGen5(args.Skip(1));return;}
 if(args.Length>2&&args[0]=="--nds-roundtrip-probe"){NdsChecks.Probe(args[1],args.Skip(2));return;}
 if(args.Length>1&&args[0]=="--requested-real"){RequestedIntegrationChecks.RunReal(args.Skip(1));return;}
@@ -140,7 +141,7 @@ if(args.Length==1&&args[0]=="--utility-ui-only")
     thread.SetApartmentState(ApartmentState.STA);thread.Start();thread.Join();if(failure is not null)throw failure;
     Console.WriteLine($"Completed {checks} utility and ORAS tutor UI checks.");return;
 }
-if(args.Length==1&&args[0]=="--nds-only"){NdsChecks.Run(Check,Reject);Console.WriteLine($"Completed {checks} NDS container checks (synthetic).");return;}
+if(args.Length==1&&args[0]=="--nds-only"){NdsChecks.Run(Check,Reject);NdsGen5RandomizerChecks.Run(Check,Reject);Console.WriteLine($"Completed {checks} NDS container checks (synthetic).");return;}
 if(args.Length==1&&args[0]=="--legacy-parity-only"){LegacyParityChecks.Run(Check,Reject);Console.WriteLine($"Completed {checks} app/LegacyBatch parity checks.");return;}
 if(args.Length==1&&args[0]=="--batch80-only"){Machine6Checks.Run(Check,Reject);RegressionFixes.Run(Check,Reject);Console.WriteLine($"Completed {checks} Batch regression checks.");return;}
 if(args.Length>2&&args[0]=="--export-local-english-for-text-research"){TextClassificationChecks.ExportEnglish(args[1],args.Skip(2));return;}
