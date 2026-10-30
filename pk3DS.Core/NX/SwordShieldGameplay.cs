@@ -73,6 +73,7 @@ public static class SwordShieldGameplay
             var trainerContext=options.TrainerRules.NeedsMoves||options.TrainerRules.SmartItems?SwordShieldBattlePolicy.Prepare(personal,source,options.TrainerRules):null;
             var paths=source.Keys.Where(p=>p.StartsWith("bin/trainer/trainer_poke/",StringComparison.Ordinal)&&p.EndsWith(".bin",StringComparison.Ordinal)).OrderBy(p=>p,StringComparer.Ordinal).ToArray();
             if(paths.Length==0)throw new InvalidDataException("No se encontraron equipos de entrenadores.");
+            int firstGymLevel=options.TrainerRules.DoubleBattleChance>0?FirstGymLevel(Get):0;
             foreach(string path in paths)
             {
                 int id=int.Parse(Path.GetFileNameWithoutExtension(path).Split('_').Last());if(options.TrainerScope is not null&&!options.TrainerScope.Contains(id))continue;
@@ -81,7 +82,8 @@ public static class SwordShieldGameplay
                 int count=header[3];if(count==0)continue;
                 if(data.Length!=count*32)throw new InvalidDataException("El tamaño del equipo no coincide con trainer_data: "+path);
                 // Mandatory early Hop variants can start with only the player starter; their scripts do not guard double battles.
-                if(id is not (>=4 and <=9)&&options.TrainerRules.DoubleBattleChance>0&&header[2]==0&&count>=2&&Pick(options.Seed,path+"/double-battle",100)<options.TrainerRules.DoubleBattleChance)
+                // Doubles start after the first gym: teams no stronger than the first leader stay single, as the player may still have one Pokémon.
+                if(id is not (>=4 and <=9)&&options.TrainerRules.DoubleBattleChance>0&&header[2]==0&&count>=2&&TeamLevel(data,count)>firstGymLevel&&Pick(options.Seed,path+"/double-battle",100)<options.TrainerRules.DoubleBattleChance)
                 {
                     string headerPath=path.Replace("/trainer_poke/","/trainer_data/",StringComparison.Ordinal).Replace("trainer_poke_","trainer_data_",StringComparison.Ordinal);var doubleHeader=(byte[])header.Clone();doubleHeader[2]=1;files.Add(headerPath,doubleHeader);Change(headerPath,"Entrenador #"+id,"Combate doble",0,1);
                 }
@@ -186,6 +188,20 @@ public static class SwordShieldGameplay
             var output=pack.Rewrite(members);if(!output.AsSpan().SequenceEqual(archive))files.Add(PlacementPath,output);
         }
         return new(files,changes,slots,skipped,warnings);
+    }
+    // Trainer 32 is the first gym leader (Milo / Percy) in both Sword and Shield; its level is read from each game's own data.
+    public const int FirstGymLeader=32;
+    private static int FirstGymLevel(Func<string,byte[]> get)
+    {
+        string path=$"bin/trainer/trainer_poke/trainer_poke_{FirstGymLeader:000}.bin";
+        byte[] team=get(path);int level=team.Length>0&&team.Length%32==0?TeamLevel(team,team.Length/32):0;
+        if(level is <1 or >100)throw new InvalidDataException("Equipo del primer líder de gimnasio inválido: "+path);
+        return level;
+    }
+    private static int TeamLevel(byte[] team,int count)
+    {
+        int level=0;for(int i=0;i<count;i++)level=Math.Max(level,BinaryPrimitives.ReadUInt16LittleEndian(team.AsSpan(i*32+10)));
+        return level;
     }
     private static int Pick(uint seed,string key,int count)
     {
