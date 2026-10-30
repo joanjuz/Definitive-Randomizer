@@ -23,8 +23,10 @@ Primer randomizer de DS, para Pokémon Negro (USA/EUR) y Blanco (España). Motor
   - Encuentros: 4.001 huecos cambian; mismas tasas, niveles y huecos vacíos.
   - Nombres e iniciales idénticos; solo difieren los dos NARC randomizados; misma semilla, mismo resultado; originales sin cambios.
 
-## Pendiente
+## Prueba en juego
 
-- Prueba en juego (emulador) de una ROM exportada.
+Confirmada por el propietario el 30/10/2026 en DeSmuME (modo DS) con Blanco ES randomizado (semilla 20261030; entrenadores con BST progresivo, encuentros con BST similar; 5.353 cambios). Comprobado: arranque y partida nueva, primer combate con Cheren/Bel, encuentros salvajes de las primeras rutas, primer gimnasio con movimientos por nivel tras quitar los personalizados, y guardado. No se declara una partida completa ni compatibilidad en modo DSi o consola.
+
+## Pendiente
 - Fase 2b: sección DS en la aplicación para abrir la ROM, elegir opciones, previsualizar cambios y exportar.
 - Después: overlays (BLZ), iniciales, objetos y tiendas, movimientos, Blanco 2/Negro 2 y Gen4.

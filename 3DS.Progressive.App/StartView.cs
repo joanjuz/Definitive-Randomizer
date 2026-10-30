@@ -7,7 +7,7 @@ using UserControl=System.Windows.Controls.UserControl;
 namespace ThreeDS.Progressive;
 internal sealed class StartView:UserControl
 {
-    internal StartView(GameProjectSession? project,bool simplified,Action<bool> chooseMode,Action open,Action guided,Action tour,Action? openSwitch=null)
+    internal StartView(GameProjectSession? project,bool simplified,Action<bool> chooseMode,Action open,Action guided,Action tour,Action? openSwitch=null,Action? openNds=null)
     {
         SetResourceReference(BackgroundProperty,"Bg");
         var scroll=new ScrollViewer{VerticalScrollBarVisibility=ScrollBarVisibility.Auto,HorizontalScrollBarVisibility=ScrollBarVisibility.Disabled};Content=scroll;
@@ -34,6 +34,12 @@ internal sealed class StartView:UserControl
             var swsh=new Button{Content="Espada/Escudo · editor Switch",Margin=new Thickness(0,0,8,8)};
             System.Windows.Automation.AutomationProperties.SetName(swsh,"Abrir editor de Espada/Escudo para exportar mods");
             swsh.Click+=(_,_)=>openSwitch();actions.Children.Add(swsh);
+        }
+        if(openNds is not null)
+        {
+            var nds=new Button{Content="Negro/Blanco · randomizer DS (beta)",Margin=new Thickness(0,0,8,8)};
+            System.Windows.Automation.AutomationProperties.SetName(nds,"Abrir el randomizer de Nintendo DS para Pokémon Negro y Blanco");
+            nds.Click+=(_,_)=>openNds();actions.Children.Add(nds);
         }
         body.Children.Add(new TextBlock{Text="Ayuda breve y opcional · F1 abre la guía de la sección actual.",TextWrapping=TextWrapping.Wrap,Margin=new Thickness(0,5,0,0)});
         SizeChanged+=(_,_)=>cards.Columns=ActualWidth<670?1:2;
