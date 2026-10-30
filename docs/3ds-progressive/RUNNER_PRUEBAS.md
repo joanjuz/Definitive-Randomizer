@@ -32,6 +32,7 @@ dotnet .\3DS.Progressive.Tests\bin\Release\net10.0-windows\3DS.Progressive.Tests
 | `--guidance-only` | — | sí |
 | `--history-inspection-only` | — | sí |
 | `--item-icons-only` | — |  |
+| `--legacy-parity-only` | — | sí |
 | `--manual-edits-only` | — |  |
 | `--master-batch-only` | — |  |
 | `--native-gen6-only` | — |  |

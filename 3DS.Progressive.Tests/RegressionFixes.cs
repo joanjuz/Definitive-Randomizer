@@ -79,7 +79,7 @@ internal static class RegressionFixes
     }
     private static byte[] Compress(byte[] data)
     {string input=Path.Combine(Path.GetTempPath(),Guid.NewGuid()+".bin"),output=input+".lz";try{File.WriteAllBytes(input,data);LZSS.Compress(input,output);return File.ReadAllBytes(output);}finally{File.Delete(input);if(File.Exists(output))File.Delete(output);}}
-    private static byte[] FullBattle()
+    internal static byte[] FullBattle()
     {
         byte[] data=ModuleChecks.ExpandedBattle();byte[] old=data.AsSpan(0x130000+755*12,48).ToArray();
         const int relocations=0x128000;U(0x128,relocations);U(0x12C,6200);

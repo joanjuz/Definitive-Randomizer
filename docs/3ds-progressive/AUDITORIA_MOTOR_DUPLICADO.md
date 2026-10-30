@@ -26,16 +26,24 @@ Solo cuatro archivos se modificaron en WinForms después de que la app los copia
 
 | # | Archivo | Diferencia | Efecto en WinForms/Batch | Severidad |
 |---|---|---|---|---|
-| 1 | `RSTE.cs` (Gen6, entrenadores) | Comprueba `t1 >= 0 && t1 < rTags.Length` antes de `rTags[t1]` | Un índice fuera de rango lanzaría `IndexOutOfRangeException`: fallo explícito, no corrupción | Baja; candidata a portar |
+| 1 | `RSTE.cs` (Gen6, entrenadores) | Comprueba `t1 >= 0 && t1 < rTags.Length` antes de `rTags[t1]` | Un índice fuera de rango lanzaría `IndexOutOfRangeException`: fallo explícito, no corrupción | Baja. **Portada a WinForms** (ver seguimiento) |
 | 2 | `SMTE.cs` (Gen7, entrenadores) | `ImportantTrainers`, `BossTrainers`, `Legendary`, `Mythical` y `FinalEvo` son de instancia; en WinForms son `static` calculados una vez con `Main.Config.USUM` | El Batch usa un proceso `LegacyBatch` por lote con un solo `ProjectRoot`: no mezcla SM y USUM. Solo afecta a WinForms interactivo si se abre SM y después USUM sin reiniciar (comportamiento heredado) | Baja |
-| 3 | Parches Gen7 de `Battle.cro` (`Gen7LuckyChantCrit`, `FairyLockV11`, `MeditateV73`, `NightmareSleepV76`, `MistOwnerActive`, `CustomBattleEffectPatcher`) | La app localiza offsets con `LegacyCroLayout` cuando Giro Vil ya reubicó el CRO y recalcula los hashes después | WinForms aplica Giro Vil al final de la misma ejecución, así que en una aplicación única no hay diferencia. Si se reaplican parches sobre un `Battle.cro` que ya tiene Giro Vil, WinForms devuelve −1 y avisa ("Special battle patch skipped"): fallo explícito | Media: puede dar resultados distintos entre app y Batch al reaplicar |
+| 3 | Parches Gen7 de `Battle.cro` (`Gen7LuckyChantCrit`, `FairyLockV11`, `MeditateV73`, `NightmareSleepV76` y Wish en `CustomBattleEffectPatcher`) | La app localiza offsets con `LegacyCroLayout` cuando Giro Vil ya reubicó el CRO y recalcula los hashes después | WinForms aplica Giro Vil al final de la misma ejecución, así que en una aplicación única no hay diferencia. Si se reaplican parches sobre un `Battle.cro` que ya tiene Giro Vil, WinForms devuelve −1 y avisa ("Special battle patch skipped"): fallo explícito | Media: puede dar resultados distintos entre app y Batch al reaplicar |
 | 4 | `Randomizer.cs` | `GetRandomItemList(GameConfig)` recibe la configuración en lugar de leer la global | Equivalente con una sola ROM por proceso | Ninguna |
+
+**Corrección (30/10/2026):** la versión inicial incluía `Gen7MistOwnerActivePatcher` en el punto 3. Es incorrecto: su código es idéntico en ambos motores (solo cambian dos comentarios de cabecera), no usa `LegacyCroLayout` y solo modifica el segmento de código (offsets < `0xFD000`), que Giro Vil V2 no desplaza. `--legacy-parity-only` comprueba que ambos motores dan el mismo resultado y los mismos bytes.
+
+## Seguimiento (rama `feature/paridad-motor-legacy`)
+
+- Punto 1: comprobación de límites portada a `pk3DS.WinForms/Subforms/Gen6/RSTE.cs`. Con ROMs reales los IDs de `rEnsureMEvo` (máximo 601 en XY y 946 en ORAS) caben en `rTags`, así que el resultado no cambia; solo evita la excepción con tablas de entrenadores más cortas.
+- Punto 3: nueva suite `--legacy-parity-only` (13 comprobaciones, incluida en el CI). Sobre el `Battle.cro` sintético con Giro Vil V2 de `RegressionFixes.FullBattle()`: LegacyBatch localiza el archivo y aun así devuelve −1 sin modificarlo en Lucky Chant, Fairy Lock, Meditate y Nightmare; la app los resuelve y conserva V2. Fija el comportamiento actual: si cambia en cualquiera de los dos motores, la suite falla.
+- Decisión (30/10/2026): el Batch **mantiene el rechazo explícito** y no se porta `LegacyCroLayout` a WinForms. El Batch parte del `Battle.cro` original y aplica Giro Vil al final, así que el caso solo aparece al reaplicar; el rechazo no corrompe datos y `--legacy-parity-only` impide que cambie sin que se note. Portarlo exigiría pruebas con copias reales y en juego.
 
 ## Recomendaciones
 
 1. **Pruebas de paridad** (siguiente paso): para el punto 3, un caso sintético que aplique Giro Vil + otro parche Gen7, reaplique sobre el resultado y compare app frente a WinForms (hash final de `Battle.cro` y código de retorno). Para el punto 1, un caso con `rEnsureMEvo` fuera de rango en ambos motores.
 2. **Portar a WinForms** la comprobación de límites del punto 1 (cambio mínimo y aislado).
-3. Decidir explícitamente si el Batch debe admitir la reaplicación del punto 3; hasta entonces, documentar que el Batch parte de `Battle.cro` original (opción de restaurar copias).
+3. ~~Decidir si el Batch debe admitir la reaplicación del punto 3~~: decidido, se mantiene el rechazo explícito (ver seguimiento).
 4. **Consolidación** en un proyecto compartido: solo después de 1–3 y con comparación byte a byte de salidas en XY, ORAS, SM y USUM. El riesgo actual no la justifica por sí sola.
 
 ## Método
