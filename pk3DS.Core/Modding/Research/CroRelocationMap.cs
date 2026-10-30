@@ -197,6 +197,9 @@ public sealed class CroRelocationMap
                 blockedWords.Add(targetAddress & ~3u);
         }
 
+        var stockReserve=Gen7SinglePurchaseStock.ReservedRange(data,segments[0].Start,segments[0].Start+segments[0].Size);
+        if(stockReserve is {} owned)for(uint word=owned.Start&~3u;word<(ulong)owned.Start+(uint)owned.Length;word+=4)blockedWords.Add(word);
+
         map = new CroRelocationMap(
             data,
             segmentTableOffset,

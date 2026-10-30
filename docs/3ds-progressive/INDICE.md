@@ -1,0 +1,64 @@
+# Índice de documentación
+
+Punto de entrada a `docs/3ds-progressive/`. Muchos documentos son **registros históricos** de una entrega: describen lo que se hizo en esa fecha y pueden haber quedado superados. Ante una discrepancia, prevalecen el código actual y el documento más reciente del módulo. Al añadir un informe nuevo, registrarlo aquí.
+
+## Empezar aquí
+
+| Tema | Documento vigente |
+|---|---|
+| Runner de pruebas y sus opciones | [RUNNER_PRUEBAS.md](RUNNER_PRUEBAS.md) |
+| Última preview publicada (3DS y Espada/Escudo) | [RELEASE_0.9.0_PREVIEW_1.md](RELEASE_0.9.0_PREVIEW_1.md) |
+| Estado de Espada/Escudo | [SWITCH_ESCUDO_VALIDACION_Y_COMBATES_DOBLES.md](SWITCH_ESCUDO_VALIDACION_Y_COMBATES_DOBLES.md) (estado más reciente) y [HOJA_RUTA_SWITCH.md](HOJA_RUTA_SWITCH.md) (planificación) |
+| Matriz de familias 3DS | [ESTADO_CANDIDATO_71.md](ESTADO_CANDIDATO_71.md) (histórico; contrastar con el código) |
+| Rediseño visual WPF | [AUDITORIA_VISUAL_WPF.md](AUDITORIA_VISUAL_WPF.md) |
+| Revisión de estabilidad más reciente | [REVISION_ESTABILIDAD_20261019.md](REVISION_ESTABILIDAD_20261019.md) |
+
+## Contratos y formatos (consultar antes de tocar el módulo)
+
+- Global Template y Batch 3DS: [HITO_16_GLOBAL_TEMPLATE_BATCH.md](HITO_16_GLOBAL_TEMPLATE_BATCH.md), [GLOBAL_TEMPLATE_APLICACION_20261020.md](GLOBAL_TEMPLATE_APLICACION_20261020.md), [MODIFICACIONES_MANUALES_GLOBAL.md](MODIFICACIONES_MANUALES_GLOBAL.md)
+- Creador de templates: [CREADOR_TEMPLATES.md](CREADOR_TEMPLATES.md), [ITERACION_74_PLANTILLAS_VALIDACION.md](ITERACION_74_PLANTILLAS_VALIDACION.md)
+- Compatibilidad de formatos antiguos y hashes de assets: [ITERACION_83_DEFINITIVO_COMPATIBLE.md](ITERACION_83_DEFINITIVO_COMPATIBLE.md)
+- Rendimiento de Batch, rebuild y cachés: [ITERACION_84_RENDIMIENTO_BATCH.md](ITERACION_84_RENDIMIENTO_BATCH.md), [OPTIMIZACION_LECTURA_REBUILD.md](OPTIMIZACION_LECTURA_REBUILD.md), [REBUILD_TIENDAS_RENDIMIENTO.md](REBUILD_TIENDAS_RENDIMIENTO.md), [HISTORIAL_VERIFICADO_REBUILD.md](HISTORIAL_VERIFICADO_REBUILD.md)
+- Encuentros Gen7 (miembros comprimidos) y bloqueo de interacción: [ITERACION_86_ENCUENTROS_BLOQUEO.md](ITERACION_86_ENCUENTROS_BLOQUEO.md)
+- Textos: [TEXTOS_CLASIFICACION.md](TEXTOS_CLASIFICACION.md), [ETIQUETAS_TEXTOS.md](ETIQUETAS_TEXTOS.md), [VARIABLES_COMANDOS_TEXTOS.md](VARIABLES_COMANDOS_TEXTOS.md)
+- Paridad de acciones (datos): [PARIDAD_ACCIONES.csv](PARIDAD_ACCIONES.csv), [PARIDAD_CONSOLIDADA_71.csv](PARIDAD_CONSOLIDADA_71.csv)
+
+## 3DS: funciones específicas
+
+- Compras únicas en tiendas especiales (USUM): [COMPRAS_UNICAS_TIENDAS_ESPECIALES.md](COMPRAS_UNICAS_TIENDAS_ESPECIALES.md), [PENDIENTE_COMPRAS_UNICAS_USUM.md](PENDIENTE_COMPRAS_UNICAS_USUM.md)
+- Pickup (LZ11): [CORRECCION_PICKUP_LZ11.md](CORRECCION_PICKUP_LZ11.md)
+- Asistente y vista guiada: [INICIO_MODOS_ASISTENTE.md](INICIO_MODOS_ASISTENTE.md), [AJUSTES_ASISTENTE_VISTA_GUIADA.md](AJUSTES_ASISTENTE_VISTA_GUIADA.md)
+- Sprites remotos: [SPRITES_REMOTOS_OPCIONALES.md](SPRITES_REMOTOS_OPCIONALES.md)
+- Wild: [WILD_CIERRE_INTEGRAL_LOCAL.md](WILD_CIERRE_INTEGRAL_LOCAL.md)
+
+## Espada/Escudo (Switch)
+
+Orden cronológico aproximado, del más antiguo al más reciente:
+
+1. [VIABILIDAD_SWITCH.md](VIABILIDAD_SWITCH.md)
+2. [SWITCH_SWSH_PROTOTIPO.md](SWITCH_SWSH_PROTOTIPO.md), [SWITCH_SWSH_RANDOMIZACION.md](SWITCH_SWSH_RANDOMIZACION.md)
+3. [SWITCH_SWSH_PRIORIDADES.md](SWITCH_SWSH_PRIORIDADES.md), [SWITCH_ESPADA_CORRECCIONES.md](SWITCH_ESPADA_CORRECCIONES.md)
+4. Combate sorpresa (prototipo propio, ahora investigación): [SWITCH_ESPADA_COMBATE_SORPRESA.md](SWITCH_ESPADA_COMBATE_SORPRESA.md), [SWITCH_ESPADA_COMBATE_SORPRESA_INTEGRACION.md](SWITCH_ESPADA_COMBATE_SORPRESA_INTEGRACION.md)
+5. Runtime PokeFeur: [SWITCH_POKEFEUR_PRUEBA.md](SWITCH_POKEFEUR_PRUEBA.md), [POKEFEUR_RUNTIME_INTEGRACION.md](POKEFEUR_RUNTIME_INTEGRACION.md)
+6. [SWITCH_PKNX_INTEGRACION_Y_SEMILLAS.md](SWITCH_PKNX_INTEGRACION_Y_SEMILLAS.md), [SWITCH_CORRECCION_VISUAL.md](SWITCH_CORRECCION_VISUAL.md)
+7. [SWITCH_PARIDAD_CON_3DS.md](SWITCH_PARIDAD_CON_3DS.md), [SWITCH_TABLAS_Y_ENTRENADORES_IMPORTANTES.md](SWITCH_TABLAS_Y_ENTRENADORES_IMPORTANTES.md)
+8. [SWITCH_GLOBAL_BATCH_Y_AJUSTES.md](SWITCH_GLOBAL_BATCH_Y_AJUSTES.md), [SWITCH_DIVINESWORD_CAPS_Y_ALCANCES.md](SWITCH_DIVINESWORD_CAPS_Y_ALCANCES.md)
+9. [SWITCH_MOVIMIENTOS_EVOLUCIONES_HISTORIAL.md](SWITCH_MOVIMIENTOS_EVOLUCIONES_HISTORIAL.md), [RETIRADA_TEMPORAL_ANIMACIONES_POKEDEX.md](RETIRADA_TEMPORAL_ANIMACIONES_POKEDEX.md)
+10. [SWITCH_ESCUDO_VALIDACION_Y_COMBATES_DOBLES.md](SWITCH_ESCUDO_VALIDACION_Y_COMBATES_DOBLES.md) (más reciente)
+
+Licencias de terceros: [`docs/third-party/`](../third-party/).
+
+## Releases
+
+- Previews WPF: [PREVIEW_1](RELEASE_0.8.0_PREVIEW_1.md), [PREVIEW_2](RELEASE_0.8.0_PREVIEW_2.md), [PREVIEW_3](RELEASE_0.8.0_PREVIEW_3.md), [PREVIEW_4](RELEASE_0.8.0_PREVIEW_4.md), [0.9.0 PREVIEW_1](RELEASE_0.9.0_PREVIEW_1.md)
+- Línea estable WinForms: `release_notes_v4.*_es.md` en la raíz del repositorio.
+
+## Historial de desarrollo 3DS (registros cronológicos)
+
+Registros de entregas pasadas. Útiles para entender por qué existe un comportamiento, no para conocer el estado actual.
+
+- Hitos 01–20: `HITO_01.md` … `HITO_20_PARIDAD_VIVA_Y_WILD_V1.md` (el hito 19 no tiene documento propio).
+- Iteraciones 21–61: `ITERACION_21_GEN6_LOCAL.md` … `ITERACION_61_MT_TUTORES_TIENDAS_GLOBAL_BATCH_LOCAL.md`, con `ITERACIONES_62_63_TEXTOS_WILD_PICKUP_LOCAL.md` y `ITERACIONES_64_70_CIERRE_MODULOS_Y_SUN_LOCAL.md`.
+- Candidato 71: [ESTADO_CANDIDATO_71.md](ESTADO_CANDIDATO_71.md). Las iteraciones 72–73 no tienen archivo propio.
+- Iteraciones 74–86: `ITERACION_74_PLANTILLAS_VALIDACION.md` … `ITERACION_86_ENCUENTROS_BLOQUEO.md` (la 85 no tiene documento propio).
+- Primera parte visual: [HITO_01_1_VISUAL.md](HITO_01_1_VISUAL.md).

@@ -42,6 +42,8 @@ internal static class FieldItems6Checks
             check(updated.Where((b,i)=>i!=start&&i!=start+1).SequenceEqual(old.Where((b,i)=>i!=start&&i!=start+1))&&
                 BitConverter.ToUInt16(updated,start)==10000&&after[visible].AsSpan(^3).SequenceEqual(new byte[]{0xAA,0xBB,0xCC}),version+" field item edits only selected word bytes and preserves script suffix across compression changes");
             check(after.Where((r,i)=>i!=visible).Select((r,i)=>r).Zip(files.Where((r,i)=>i!=visible)).All(p=>p.First.SequenceEqual(p.Second)),version+" unrelated script members unchanged");
+            long allocated=GC.GetAllocatedBytesForCurrentThread();_=editor.Read(id);
+            check(GC.GetAllocatedBytesForCurrentThread()-allocated<100000,version+"_FieldItems_SelectionUsesSmallSnapshot");
             var preview=editor.Preview(options,editor.Entries.Select(e=>e.Id).ToArray());
             check(EditorValues.Flatten(editor.Read(id))["Item"]==10000&&(!oras||File.ReadAllBytes(codePath).SequenceEqual(code)),version+" mixed script and code preview writes nothing");
             check(preview.Changes.All(c=>EditorValues.Flatten(editor.Read(c.Id))["Item"]!=328)&&
@@ -60,6 +62,11 @@ internal static class FieldItems6Checks
             }
             options["RandomPool"]=1;editor.Apply(editor.Preview(options,editor.Entries.Select(e=>e.Id).ToArray()));
             check(editor.Entries.Where(e=>e.Name.Contains("Visible")).Select(e=>EditorValues.Flatten(editor.Read(e.Id))["Item"]).Any(item=>item!=10000),version+" Progressive held item pool generates valid field replacements");
+            byte[] current=File.ReadAllBytes(path);DateTime time=File.GetLastWriteTimeUtc(path);byte[] foreign=(byte[])current.Clone();foreign[^1]^=1;
+            File.WriteAllBytes(path,foreign);File.SetLastWriteTimeUtc(path,time);
+            reject(()=>editor.Preview(options,editor.Entries.Select(e=>e.Id).ToArray()),version+"_FieldItems_SameSizeTimestampChangeRejectsPreview");
+            reject(()=>editor.Save(id,EditorValues.Flatten(editor.Read(id))),version+"_FieldItems_SameSizeTimestampChangeRejectsSave");
+            check(File.ReadAllBytes(path).SequenceEqual(foreign),version+"_FieldItems_ExternalBytesPreserved");
         }
     }
     internal static void RunReal(IEnumerable<string> roots)

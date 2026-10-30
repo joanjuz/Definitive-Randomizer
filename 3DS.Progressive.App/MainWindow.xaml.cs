@@ -69,20 +69,30 @@ public partial class MainWindow : Window
     private readonly ObservableCollection<FlagChoice> _tutorChoices = [];
     private readonly ObservableCollection<FlagChoice> _specialChoices = [];
 
+    private bool _closed;
+    private readonly Action<bool> _interactionProgress;
+    private readonly Action<string,bool> _changedProgress;
+    private readonly Action<string,double> _reportedProgress;
+    private readonly Action<OperationTelemetry> _telemetryProgress;
+
     public MainWindow()
     {
         InitializeComponent();
-        UiProgress.InteractionLockChanged+=blocked=>
+        Closed+=OnWindowClosed;
+        _interactionProgress=blocked=>
         {
-            void Apply(){if(Content is UIElement shell)shell.IsEnabled=!blocked;}
+            if(_closed||Dispatcher.HasShutdownStarted)return;
+            void Apply(){if(!_closed&&Content is UIElement shell)shell.IsEnabled=!blocked;}
             if(Dispatcher.CheckAccess())Apply();else Dispatcher.Invoke(Apply);
         };
-        UiProgress.Changed+=(message,busy)=>
+        _changedProgress=(message,busy)=>
         {
+            if(_closed||Dispatcher.HasShutdownStarted)return;
             if(!Dispatcher.CheckAccess())
             {
                 Dispatcher.BeginInvoke(()=>
                 {
+                    if(_closed)return;
                     OperationProgress.Visibility=busy?Visibility.Visible:Visibility.Collapsed;
                     OperationProgress.IsIndeterminate=true;
                     OperationPercent.Visibility=Visibility.Collapsed;
@@ -95,10 +105,12 @@ public partial class MainWindow : Window
             OperationPercent.Visibility=Visibility.Collapsed;
             if(busy)StatusText.Text=message;
         };
-        UiProgress.Reported+=(message,percentage)=>
+        _reportedProgress=(message,percentage)=>
         {
+            if(_closed||Dispatcher.HasShutdownStarted)return;
             void Update()
             {
+                if(_closed)return;
                 OperationProgress.Visibility=Visibility.Visible;
                 OperationProgress.IsIndeterminate=false;
                 OperationProgress.Value=percentage;
@@ -109,10 +121,12 @@ public partial class MainWindow : Window
             if(Dispatcher.CheckAccess())Update();
             else Dispatcher.BeginInvoke((Action)Update);
         };
-        UiProgress.Telemetry+=snapshot=>
+        _telemetryProgress=snapshot=>
         {
+            if(_closed||Dispatcher.HasShutdownStarted)return;
             void Update()
             {
+                if(_closed)return;
                 _globalOperationActive=snapshot.Busy;
                 OperationStageText.Visibility=snapshot.Busy?Visibility.Visible:Visibility.Collapsed;
                 OperationElapsedText.Visibility=snapshot.Busy?Visibility.Visible:Visibility.Collapsed;
@@ -141,6 +155,10 @@ public partial class MainWindow : Window
             if(Dispatcher.CheckAccess())Update();
             else Dispatcher.BeginInvoke((Action)Update);
         };
+        UiProgress.InteractionLockChanged+=_interactionProgress;
+        UiProgress.Changed+=_changedProgress;
+        UiProgress.Reported+=_reportedProgress;
+        UiProgress.Telemetry+=_telemetryProgress;
         _operationTimer.Tick+=(_,_) =>
         {
             if(_globalOperationActive)
@@ -151,6 +169,23 @@ public partial class MainWindow : Window
         TmFlagsList.ItemsSource = _tmChoices;
         TutorFlagsList.ItemsSource = _tutorChoices;
         SpecialTutorFlagsList.ItemsSource = _specialChoices;
+        InitializeGuidance();
+    }
+
+    private void OnWindowClosed(object? sender,EventArgs e)
+    {
+        _closed=true;
+        ++_sectionLoadVersion;
+        _sectionLoadCancellation?.Cancel();
+        _spriteCancellation?.Cancel();
+        _spriteCancellation?.Dispose();
+        _spriteCancellation=null;
+        _operationTimer.Stop();
+        _globalOperationActive=false;
+        UiProgress.InteractionLockChanged-=_interactionProgress;
+        UiProgress.Changed-=_changedProgress;
+        UiProgress.Reported-=_reportedProgress;
+        UiProgress.Telemetry-=_telemetryProgress;
     }
 
     private void ConfigurePersonalTools(GameProjectSession project)
@@ -206,11 +241,13 @@ public partial class MainWindow : Window
         PokemonListPanel.Visibility=PokemonEditorPanel.Visibility=PersonalToolsPanel.Visibility=
             PokemonInspectorPanel.Visibility=MovesHost.Visibility=Visibility.Collapsed;
         SectionHost.Visibility=Visibility.Visible;_showingMoves=false;
+        SetHomeVisible(false);_activeSection="Extraction";
         StatusText.Text="Extracción de ROM descifrada en una carpeta nueva.";
     }
     private async void OpenProject_Click(object sender, RoutedEventArgs e)
     {
-        if (!ConfirmDiscard() || !ConfirmAuxiliaryLeave())
+        if(SwitchHost.Visibility==Visibility.Visible&&_switchWorkspace is not null){await _switchWorkspace.OpenAsync();return;}
+        if (_closed||UiProgress.IsInteractionBlocked||!ConfirmDiscard() || !ConfirmAuxiliaryLeave())
             return;
 
         var preferences=AppPreferences.Load();
@@ -224,16 +261,19 @@ public partial class MainWindow : Window
         if (dialog.ShowDialog() != System.Windows.Forms.DialogResult.OK)
             return;
 
+        using var interaction=UiProgress.BlockInteraction();
         UiProgress.Begin("Leyendo los archivos del proyecto y construyendo catálogos…");
         try
         {
             var candidate = await Task.Run(()=>GameProjectSession.Open(dialog.SelectedPath));
+            if(_closed)return;
             LoadProject(candidate);
             preferences.DefaultProjectFolder=dialog.SelectedPath;
             preferences.Save();
         }
         catch (Exception ex)
         {
+            if(_closed)return;
             StudioDialog.Error(this, "No se pudo abrir el proyecto", ex.Message);
             StatusText.Text = "Error al abrir proyecto: " + ex.Message;
         }
@@ -242,6 +282,8 @@ public partial class MainWindow : Window
 
     private bool ConfirmAuxiliaryLeave()
     {
+        if(_guidedWindow is not null&&!_guidedWindow.ConfirmLeave())return false;
+        if(_globalTemplateView is not null&&!_globalTemplateView.ConfirmLeave())return false;
         if(SectionHost.Content is TitleScreenView titleScreen&&!titleScreen.ConfirmLeave())return false;
         if(SectionHost.Content is TitleResourcesView titleResources&&!titleResources.ConfirmLeave())return false;
         if(SectionHost.Content is GarcShuffleView shuffle&&!shuffle.ConfirmLeave())return false;
@@ -281,13 +323,16 @@ public partial class MainWindow : Window
     }
 
     private int _sectionLoadVersion;
+    private CancellationTokenSource? _sectionLoadCancellation;
     private async void Section_Click(object sender,RoutedEventArgs e)
     {
-        if(_session is null||sender is not Button {Tag:string section})return;
+        if(_closed||_session is null||sender is not Button {Tag:string section})return;
         if(!ProjectFeatureAvailability.Supports(_session,section))return;
         if(!ConfirmDiscard()||!ConfirmAuxiliaryLeave())return;
         if(HasUnsavedChanges()&&_previous is not null)ShowEntry(_previous);
-        using var interaction=section=="Encounters"?UiProgress.BlockInteraction():null;
+        using var interaction=section is "Encounters" or "FieldItems"?UiProgress.BlockInteraction():null;
+        _sectionLoadCancellation?.Cancel();
+        var cancellation=new CancellationTokenSource();_sectionLoadCancellation=cancellation;
         int loadVersion=++_sectionLoadVersion;
         UiProgress.Begin("Cargando "+section+"…");
         if(!StudioDialog.AutomatedChecks)
@@ -295,13 +340,22 @@ public partial class MainWindow : Window
         try
         {
             GameEncounterService? encounterEditor=null;
+            IProjectEditor? fieldEditor=null;
             if(section=="Encounters")
             {
                 var session=_session;
-                encounterEditor=StudioDialog.AutomatedChecks?new GameEncounterService(session):
-                    await Task.Run(()=>new GameEncounterService(session));
-                if(loadVersion!=_sectionLoadVersion||!ReferenceEquals(_session,session))return;
+                encounterEditor=StudioDialog.AutomatedChecks?new GameEncounterService(session,cancellation.Token):
+                    await Task.Run(()=>new GameEncounterService(session,cancellation.Token),cancellation.Token);
+                if(_closed||cancellation.IsCancellationRequested||loadVersion!=_sectionLoadVersion||!ReferenceEquals(_session,session))return;
             }
+            if(section=="FieldItems")
+            {
+                var session=_session;
+                IProjectEditor Load()=>session.Generation==6?new GameFieldItems6Service(session,cancellation.Token):new GameFieldItemsService(session,cancellation.Token);
+                fieldEditor=StudioDialog.AutomatedChecks?Load():await Task.Run(Load,cancellation.Token);
+                if(_closed||cancellation.IsCancellationRequested||loadVersion!=_sectionLoadVersion||!ReferenceEquals(_session,session))return;
+            }
+            if(_closed||cancellation.IsCancellationRequested||loadVersion!=_sectionLoadVersion)return;
             UserControl view=section switch
             {
                 "Trainers"=>CreateEditor(new GameTrainerService(_session)),
@@ -313,7 +367,7 @@ public partial class MainWindow : Window
                 "Items"=>CreateEditor(new GameItemService(_session)),
                 "PersistentItems" when _session.GameConfiguration.USUM=>CreateEditor(new GamePersistentItemsService(_session)),
                 "Marts"=>_session.Generation==6 ? _mart6View=new Gen6MartView(_session,_sectionOptions.GetValueOrDefault("Tiendas · Gen6")) : _martView=CreateMartView(),
-                "FieldItems"=>CreateEditor(_session.Generation==6?new GameFieldItems6Service(_session):new GameFieldItemsService(_session)),
+                "FieldItems"=>CreateEditor(fieldEditor!),
                 "GameText"=>_gameTextView=new GameTextView(_session),
                 "StoryText"=>_storyTextView=new GameTextView(_session,story:true),
                 "Evolutions"=>CreateEditor(new GameEvolutionService(_session)),
@@ -327,7 +381,7 @@ public partial class MainWindow : Window
                 "CroRecipes"=>_croRecipesView=new CroRecipesView(_session),
                 "UsumRelearner"=>_relearnerView=new UsumRelearnerView(_session),
                 "TemplateStudio"=>_templateStudioView??=new TemplateStudioView(_session),
-                "GlobalTemplate"=>_globalTemplateView??=new GlobalTemplateView(_session,RestoreGlobalOptions,CaptureGlobalOptions,RestoreGlobalOptionsAsync),
+                "GlobalTemplate"=>_globalTemplateView??=new GlobalTemplateView(_session,RestoreGlobalOptions,CaptureGlobalOptions,RestoreGlobalOptionsAsync,ReloadAfterGlobalTemplateAsync),
                 "BatchRom"=>_batchRomView??=new BatchRomBuilderView(_session,
                     _globalTemplateView?.LoadedSourcePath),
 
@@ -362,10 +416,16 @@ public partial class MainWindow : Window
             _personalTools.InvalidatePreview();SectionHost.Visibility=Visibility.Visible;_showingMoves=false;
             PokemonNavButton.Background=MovesButton.Background=TrainersButton.Background=EncountersButton.Background=StaticEncountersButton.Background=MachineTutorButton.Background=LevelUpButton.Background=ItemsButton.Background=MartsButton.Background=FieldItemsButton.Background=GameTextButton.Background=StoryTextButton.Background=EvolutionsButton.Background=HistoryButton.Background=TemplateStudioButton.Background=GlobalTemplateButton.Background=BatchRomButton.Background=PokemonToolsButton.Background=MechanicsButton.Background=RomToolsButton.Background=AutomationButton.Background=ConfigurationButton.Background=Brushes.Transparent;
             ((Button)sender).Background=new SolidColorBrush((Color)ColorConverter.ConvertFromString("#2B4059")!);
+            SetHomeVisible(false);_activeSection=section;ApplyExperienceNavigation();
             StatusText.Text=section=="History"?"Historial persistente de cambios confirmados.":"Editor integrado · guardar registra los cambios en el historial.";
         }
-        catch(Exception ex){StudioDialog.Error(this,"No se pudo cargar la sección",ex.Message);}
-        finally{UiProgress.End();}
+        catch(OperationCanceledException)when(cancellation.IsCancellationRequested){}
+        catch(Exception ex){if(!_closed&&loadVersion==_sectionLoadVersion)StudioDialog.Error(this,"No se pudo cargar la sección",ex.Message);}
+        finally
+        {
+            if(ReferenceEquals(_sectionLoadCancellation,cancellation)){_sectionLoadCancellation=null;UiProgress.End();}
+            cancellation.Dispose();
+        }
     }
 
     private void NavigateSystem(string section)
@@ -393,7 +453,7 @@ public partial class MainWindow : Window
             if(!ConfirmDiscard()||!ConfirmAuxiliaryLeave())return;
             var view=_playerCapsView=new PlayerLevelCapsView(_session);
             _recordView=null;_machineTutorView=null;_martView=null;_mart6View=null;_levelUpView=null;_gameTextView=null;_storyTextView=null;
-            SectionHost.Content=view;
+            SectionHost.Content=view;SetHomeVisible(false);_activeSection=section;
             PokemonListPanel.Visibility=PokemonEditorPanel.Visibility=PersonalToolsPanel.Visibility=
                 PokemonInspectorPanel.Visibility=MovesHost.Visibility=Visibility.Collapsed;
             SectionHost.Visibility=Visibility.Visible;
@@ -413,19 +473,22 @@ public partial class MainWindow : Window
     }
     private async Task ReloadProjectLanguageAsync()
     {
-        if(_session is null||!ConfirmDiscard()||!ConfirmAuxiliaryLeave())return;
+        if(_closed||UiProgress.IsInteractionBlocked||_session is null||!ConfirmDiscard()||!ConfirmAuxiliaryLeave())return;
         string root=_session.ProjectRoot;
+        using var interaction=UiProgress.BlockInteraction();
         UiProgress.Begin("Options · Cargando textos del idioma seleccionado…");
         UiProgress.Stage("Releyendo catálogos originales del juego…");
         try
         {
             var candidate=await Task.Run(()=>GameProjectSession.Open(root));
+            if(_closed)return;
             LoadProject(candidate);
             StatusText.Text="Idioma de datos aplicado: "+
                 AppPreferences.Load().GameTextLanguageIndex+". No se editó la ROM.";
         }
         catch(Exception ex)
         {
+            if(_closed)return;
             StudioDialog.Error(this,"Idioma del juego",ex.Message);
         }
         finally{UiProgress.End();}
@@ -541,6 +604,8 @@ public partial class MainWindow : Window
         var restored=await Task.Run(()=>GameProjectSession.Open(root,recoverInterruptedSave:false));LoadProject(restored);
         StatusText.Text="Archivos seleccionados restaurados, verificados y registrados en el historial.";
     }
+    private async void Rebuild_Click(object sender,RoutedEventArgs e){if(SwitchHost.Visibility==Visibility.Visible&&_switchWorkspace is not null){await _switchWorkspace.ExportAsync();return;}NavigateSystem("Rebuild");}
+
     private async void Backup_Click(object sender,RoutedEventArgs e)
     {
         if(_session is null||_backupRunning)return;
@@ -589,8 +654,23 @@ public partial class MainWindow : Window
         finally{_backupRunning=false;IsEnabled=true;UiProgress.End();}
     }
 
+    private async Task ReloadAfterGlobalTemplateAsync()
+    {
+        if(_session is null||_closed)return;
+        string root=_session.ProjectRoot;
+        using var interaction=UiProgress.BlockInteraction();UiProgress.Begin("Recargando proyecto actualizado…");
+        try
+        {
+            var updated=await Task.Run(()=>GameProjectSession.Open(root,recoverInterruptedSave:false));
+            if(_closed)return;LoadProject(updated);
+            StatusText.Text="Global Template aplicado. Consulta el historial o utiliza Rebuild para construir la ROM.";
+        }
+        finally{UiProgress.End();}
+    }
     internal void LoadProject(GameProjectSession candidate)
     {
+        if(_closed)return;
+        _sectionLoadCancellation?.Cancel();++_sectionLoadVersion;
         _session = candidate;
         _sectionOptions.Clear();
         _recordView=null;_machineTutorView=null;_martView=null;_mart6View=null;_levelUpView=null;_gameTextView=null;_playerCapsView=null;_croRecipesView=null;_relearnerView=null;_typeChartView=null;_shinyRateView=null;_romRebuildView=null;_croIntegrityView=null;_catchZonesView=null;_pickupView=null;_romExtractionView=null;_globalTemplateView=null;_templateStudioView=null;_batchRomView=null;_gen7MartState=null;_gen7MachineState=null;_gen6CompatibilityState=null;_gen6TutorCompatibilityState=null;_shinyOptions=null;SectionHost.Content=null;
@@ -643,13 +723,14 @@ public partial class MainWindow : Window
         EditorContent.IsEnabled = true;
         PersonalActions.IsEnabled = true;
         MovesButton.IsEnabled = true;
-        TrainersButton.IsEnabled = EncountersButton.IsEnabled = EvolutionsButton.IsEnabled = HistoryButton.IsEnabled = BackupButton.IsEnabled = true;
+        TrainersButton.IsEnabled = EncountersButton.IsEnabled = EvolutionsButton.IsEnabled = HistoryButton.IsEnabled = BackupButton.IsEnabled = RebuildButton.IsEnabled = true;
         StaticEncountersButton.IsEnabled=candidate.Generation is 6 or 7;
         MachineTutorButton.IsEnabled=candidate.Generation is 6 or 7;
         LevelUpButton.IsEnabled=true;
         ItemsButton.IsEnabled=true;
-        MartsButton.IsEnabled=ProjectFeatureAvailability.Supports(candidate,"Marts");
-        MartsButton.Visibility=MartsButton.IsEnabled?Visibility.Visible:Visibility.Collapsed;
+        bool supportsMarts=ProjectFeatureAvailability.Supports(candidate,"Marts");
+        MartsButton.IsEnabled=supportsMarts;
+        MartsButton.Visibility=supportsMarts?Visibility.Visible:Visibility.Collapsed;
         MartsButton.Content=candidate.Generation==6?"▦  Tiendas · Gen6":candidate.GameConfiguration.USUM?"▦  Tiendas y BP · USUM":"▦  Tiendas y BP · SM";
         MachineTutorButton.Content=candidate.Generation==6?"▣  MT y MO · Gen6":"▣  MT y tutores";
         FieldItemsButton.IsEnabled=true;
@@ -666,6 +747,7 @@ public partial class MainWindow : Window
         ConfigurePersonalTools(candidate);
         PokemonList.SelectedIndex = 0;
         StatusText.Text = "Proyecto abierto en modo lectura. Guardar requiere confirmación.";
+        GuidedButton.IsEnabled=true;RefreshStart();SetHomeVisible(true);ApplyExperienceNavigation();
     }
 
     private void SearchBox_TextChanged(object sender, TextChangedEventArgs e)
@@ -1018,6 +1100,7 @@ public partial class MainWindow : Window
 
     private void DisplayPokemon()
     {
+        _activeSection="Pokemon";SetHomeVisible(false);
         _recordView=null;_martView=null;_mart6View=null;SectionHost.Visibility=Visibility.Collapsed;SectionHost.Content=null;
         TrainersButton.Background=EncountersButton.Background=EvolutionsButton.Background=HistoryButton.Background=Brushes.Transparent;
         _showingMoves = false;
@@ -1057,6 +1140,7 @@ public partial class MainWindow : Window
             _showingMoves = true;
             PokemonNavButton.Background = Brushes.Transparent;
             MovesButton.Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#2B4059")!);
+            _activeSection="Moves";SetHomeVisible(false);
             StatusText.Text = "Movimientos · edición integrada en Definitive Randomizer.";
         }
         catch (Exception ex)
@@ -1159,8 +1243,9 @@ public partial class MainWindow : Window
 
     private async System.Threading.Tasks.Task UpdateSpriteAsync(int entryIndex)
     {
-        if (_session is null)
+        if (_closed||_session is null)
             return;
+        var session=_session;
 
         _spriteCancellation?.Cancel();
         _spriteCancellation?.Dispose();
@@ -1175,7 +1260,7 @@ public partial class MainWindow : Window
         try
         {
             var result = await _sprites.GetSpriteAsync(entryIndex, speciesId, cancellation.Token);
-            if (cancellation.IsCancellationRequested || _currentIndex != entryIndex)
+            if (_closed || cancellation.IsCancellationRequested || !ReferenceEquals(_session,session) || _currentIndex != entryIndex)
                 return;
 
             PokemonSprite.Source = result.Image;
@@ -1190,13 +1275,12 @@ public partial class MainWindow : Window
 
     protected override void OnClosing(CancelEventArgs e)
     {
-        if(_backupRunning){e.Cancel=true;base.OnClosing(e);return;}
+        if(_backupRunning||_switchWorkspace is not null&&!_switchWorkspace.CanLeave()){e.Cancel=true;base.OnClosing(e);return;}
         if (!ConfirmDiscard() || !ConfirmAuxiliaryLeave())
             e.Cancel = true;
         if (!e.Cancel)
         {
             _spriteCancellation?.Cancel();
-            _spriteCancellation?.Dispose();
         }
         base.OnClosing(e);
     }

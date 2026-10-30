@@ -22,6 +22,9 @@ internal sealed class SystemsView : UserControl
     private readonly Action _backup;
     private readonly Action _personalBatch;
     private readonly TextBlock _status;
+    internal StudioDialog CreateGarcDialog()=>StudioDialog.Create(Window.GetWindow(this),"About GARCs",
+        $"{_project.GameConfiguration.Files.Count()} GARCs · {_project.GameName}",
+        string.Join(Environment.NewLine,_project.GameConfiguration.Files.Select(file=>file.Name+" → "+_project.GameConfiguration.GetGARCFileName(file.Name))),"i","Cerrar",false);
     internal SystemsView(GameProjectSession project,string section,
         Action<string> navigate,Action backup,Action personalBatch)
     {
@@ -353,12 +356,10 @@ internal sealed class SystemsView : UserControl
             "Interfaz Definitive Randomizer sobre pk3DS.Core. Proyecto abierto: "+_project.GameName+
             " · Gen "+_project.Generation+". Historial de modificaciones verificadas. " +
             "Los parches binarios necesitan validación en runtime."));
-        AddButton(helpButtons,"About GARCs · Copiar listado",()=>
+        AddButton(helpButtons,"About GARCs",()=>
         {
-            string result=string.Join(Environment.NewLine,_project.GameConfiguration.Files
-                .Select(x=>x.Name+" → "+_project.GameConfiguration.GetGARCFileName(x.Name)));
-            Clipboard.SetText(result);
-            _status.Text=$"Copiados {_project.GameConfiguration.Files.Count()} GARCs reales al portapapeles.";
+            if(StudioDialog.AutomatedChecks)return;
+            CreateGarcDialog().ShowDialog();
         });
         stack.Children.Add(help);
         var paths=Card("Carpetas predeterminadas · solo en este equipo",

@@ -1,4 +1,4 @@
-using System.ComponentModel;
+﻿using System.ComponentModel;
 using System.Collections.ObjectModel;
 using System.Windows;
 using System.Windows.Controls;
@@ -21,7 +21,7 @@ namespace ThreeDS.Progressive;
 /// <summary>Full-width dark Economy Price table, embedded in Items editor.</summary>
 internal sealed class EconomyPriceView : UserControl
 {
-    private readonly GameItemService _items;
+    private readonly IEconomyEditor _items;
     private readonly ObservableCollection<ItemPriceRow> _rows;
     private readonly ICollectionView _view;
     private readonly DataGrid _grid;
@@ -31,7 +31,7 @@ internal sealed class EconomyPriceView : UserControl
     private ThreeDS.Progressive.Models.EditorProposal? _preview;
     internal event Action? Closed;
     internal event Action? Saved;
-    internal EconomyPriceView(GameItemService items)
+    internal EconomyPriceView(IEconomyEditor items)
     {
         _items=items;
         _rows=new ObservableCollection<ItemPriceRow>(items.PriceRows());
@@ -43,7 +43,7 @@ internal sealed class EconomyPriceView : UserControl
         DockPanel.SetDock(head,Dock.Top);root.Children.Add(head);
         head.Children.Add(new TextBlock {Text="Tabla de precios de economía",FontSize=21,
             Foreground=(Brush)FindResource("TextMain"),FontWeight=FontWeights.SemiBold});
-        head.Children.Add(new TextBlock {Text=$"Preset {items.EconomyPreset}. Compra en múltiplos de 10; venta equivale a la mitad. Nada se guarda hasta aplicar una vista previa.",
+        head.Children.Add(new TextBlock {Text=$"Preset {items.EconomyPreset}. {items.EconomyHelp}",
             Foreground=(Brush)FindResource("TextSoft"),TextWrapping=TextWrapping.Wrap});
         var controls=new WrapPanel {Margin=new Thickness(0,12,0,0)};
         head.Children.Add(controls);

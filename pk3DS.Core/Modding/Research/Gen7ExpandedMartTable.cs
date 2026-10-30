@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.IO;
 
 namespace pk3DS.Core.Modding.Research;
 
@@ -566,6 +567,11 @@ public static class Gen7ExpandedMartTable
             return false;
         }
 
+        try
+        {
+            if(Gen7SinglePurchaseStock.Read(shopCro) is {} stock)rebuilt=Gen7SinglePurchaseStock.Apply(rebuilt,stock.MessageId);
+        }
+        catch(InvalidDataException ex){error=ex.Message;return false;}
         updated =
             rebuilt;
 
@@ -1030,4 +1036,4 @@ public static class Gen7ExpandedMartTable
         int DataSegment,
         int[] Lengths,
         int[] PointerRelocationIndexes);
-}
+}

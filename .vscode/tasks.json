@@ -2,12 +2,12 @@
   "version": "2.0.0",
   "tasks": [
     {
-      "label": "build pk3DS",
+      "label": "build 3DS Progressive",
       "type": "shell",
       "command": "dotnet",
       "args": [
         "build",
-        "pk3DS.slnx",
+        "3DS.Progressive.App/3DS.Progressive.App.csproj",
         "-c",
         "Debug"
       ],
@@ -18,7 +18,71 @@
       "problemMatcher": "$msCompile"
     },
     {
-      "label": "run pk3DS",
+      "label": "run 3DS Progressive",
+      "type": "shell",
+      "command": "dotnet",
+      "args": [
+        "run",
+        "--project",
+        "3DS.Progressive.App/3DS.Progressive.App.csproj",
+        "-c",
+        "Debug"
+      ],
+      "problemMatcher": "$msCompile"
+    },
+    {
+      "label": "build 3DS Progressive tests",
+      "type": "shell",
+      "command": "dotnet",
+      "args": [
+        "build",
+        "3DS.Progressive.Tests/3DS.Progressive.Tests.csproj",
+        "-c",
+        "Debug",
+        "-p:UseAppHost=true"
+      ],
+      "group": "build",
+      "problemMatcher": "$msCompile"
+    },
+    {
+      "label": "test 3DS Progressive (--synthetic-only)",
+      "type": "shell",
+      "command": "dotnet",
+      "args": [
+        "3DS.Progressive.Tests/bin/Debug/net10.0-windows/3DS.Progressive.Tests.dll",
+        "--synthetic-only"
+      ],
+      "dependsOn": "build 3DS Progressive tests",
+      "group": "test",
+      "problemMatcher": []
+    },
+    {
+      "label": "test 3DS Progressive (--swsh-only)",
+      "type": "shell",
+      "command": "dotnet",
+      "args": [
+        "3DS.Progressive.Tests/bin/Debug/net10.0-windows/3DS.Progressive.Tests.dll",
+        "--swsh-only"
+      ],
+      "dependsOn": "build 3DS Progressive tests",
+      "group": "test",
+      "problemMatcher": []
+    },
+    {
+      "label": "build pk3DS (legacy)",
+      "type": "shell",
+      "command": "dotnet",
+      "args": [
+        "build",
+        "pk3DS.slnx",
+        "-c",
+        "Debug"
+      ],
+      "group": "build",
+      "problemMatcher": "$msCompile"
+    },
+    {
+      "label": "run pk3DS (legacy)",
       "type": "shell",
       "command": "dotnet",
       "args": [

@@ -67,6 +67,9 @@ $RECYCLE.BIN/
 .playwright-cli/
 /.agents/skills/
 /skills-lock.json
+/AGENTS.md
+/CLAUDE.md
+/.claude/
 
 # Local validation outputs and private templates (never part of the public release)
 /artifacts/

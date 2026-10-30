@@ -104,6 +104,8 @@ internal static class UiSmoke
         {
             ModuleChecks.CreateArchives(fixture);
             main.LoadProject(fixture.Session);
+            // Loading opens Inicio; select the existing complete-mode flow before inspecting editor navigation.
+            main.ChooseExperience(false);
             check(((Button)main.FindName("MartsButton")).IsEnabled,
                 "WPF USUM exposes Mart/BP editor in main navigation");
             Layout((FrameworkElement)main.Content,1390,845);

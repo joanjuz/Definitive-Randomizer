@@ -114,7 +114,7 @@ internal sealed class GlobalTemplateDocument
                 string.IsNullOrWhiteSpace(id)||!current.Add(id))continue;
             // History records demonstrate that a module ran, but do not invent missing
             // legacy RandSettings or detailed action parameter payloads.
-            actions.Add(new JsonObject{["Id"]=id,["Parameters"]=new JsonObject()});
+            actions.Add(new JsonObject{["Id"]=id,["Parameters"]=entry.Parameters.TryGetValue("ActionParameters",out var payload)?JsonNode.Parse(payload):new JsonObject()});
         }
     }
     internal GlobalTemplateDocument Clone()=>new((JsonObject)_root.DeepClone(),SourcePath);

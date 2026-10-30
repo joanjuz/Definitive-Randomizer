@@ -164,7 +164,7 @@ internal static class VisualRedesignChecks
     {
         SynchronizationContext.SetSynchronizationContext(new DispatcherSynchronizationContext(Dispatcher.CurrentDispatcher));
         var bindingLog=new BindingErrors();System.Diagnostics.PresentationTraceSources.DataBindingSource.Listeners.Add(bindingLog);
-        var app=new ThreeDS.Progressive.App();app.InitializeComponent();StudioDialog.AutomatedChecks=true;
+        var app=new ThreeDS.Progressive.App();app.InitializeComponent();WpfTestHost.SuppressStartup();StudioDialog.AutomatedChecks=true;
         VerifyGridTheme(check,app);
         var main=new MainWindow();var root=(FrameworkElement)main.Content;
         var inspector=(Expander)main.FindName("AdaptiveInspector");var shellGrid=(System.Windows.Controls.Grid)inspector.Parent;
@@ -183,9 +183,9 @@ internal static class VisualRedesignChecks
         Layout(root,1390,800);check(System.Windows.Controls.Grid.GetRow(inspector)==0&&inspector.IsExpanded&&shellGrid.ColumnDefinitions[3].ActualWidth>=185,"wide shell restores inspector beside editor");
         var pinnedSave=(Button)main.FindName("SaveButton");var pinnedBounds=pinnedSave.TransformToAncestor(root).TransformBounds(new Rect(pinnedSave.RenderSize));check(pinnedBounds.Bottom<=root.ActualHeight&&pinnedBounds.Top>=0,"main save action remains in pinned footer");
         check(System.Windows.Automation.AutomationProperties.GetLabeledBy((TextBox)main.FindName("HpBox")) is not null,"static stat field retains an accessible caption");
-        var nav=(Button)main.FindName("StoryTextButton");check(nav.Content is string&&nav.ContentTemplate is not null,"navigation preserves command content while using vector icon presentation");
+        var nav=(Button)main.FindName("StoryTextButton");check(nav.Content is string&&nav.ContentTemplate is not null,"navigation preserves command content while using supplied sprite icon presentation");
         check(new NavigationLabelConverter().Convert("▣  Global Template",typeof(string),null!,System.Globalization.CultureInfo.InvariantCulture).ToString()=="Global Template","visible navigation label excludes Unicode glyph without changing content");
-        check(new NavigationIconConverter().Convert("≡  Story Text",typeof(Geometry),null!,System.Globalization.CultureInfo.InvariantCulture) is Geometry,"navigation uses vector geometry");
+        check(new NavigationIconConverter().Convert("≡  Story Text",typeof(System.Windows.Media.Imaging.BitmapSource),null!,System.Globalization.CultureInfo.InvariantCulture) is System.Windows.Media.Imaging.BitmapSource,"navigation uses supplied transparent artwork");
         var grid=new DataGrid();DarkGridTheme.Apply(grid);grid.Columns.Add(new DataGridTextColumn{Header="Valor",Binding=new System.Windows.Data.Binding("Name")});var collection=new System.Collections.ObjectModel.ObservableCollection<RecordEntry>();grid.ItemsSource=collection;var empty=EditorPresentation.EmptyState(grid,"Sin filas","Añadí una fila para empezar.");Layout(empty,600,250);var notice=Descendants<TextBlock>(empty).Single(t=>t.Text=="Sin filas");var noticePanel=(UIElement)VisualTreeHelper.GetParent(notice);check(noticePanel.Visibility==Visibility.Visible,"empty state appears for an empty data collection");collection.Add(new(1,"Texto"));Pump();check(noticePanel.Visibility==Visibility.Collapsed,"empty state follows collection without removing data grid");
         check(grid.IsEnabled&&grid.Items.Count==1&&grid.RowHeight>=44,"presentation preserves table data and reserves space for cell controls");
         var combo=new SearchableTemplateComboBox{Style=(Style)app.FindResource("GridComboBox")};Layout(combo,250,40);check(combo.ActualHeight<=grid.RowHeight-4,"compact selector fits editable row without clipping");

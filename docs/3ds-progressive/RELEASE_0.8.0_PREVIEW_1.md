@@ -2,6 +2,14 @@
 
 Primera prerelease pública de la interfaz WPF actual, destinada a testers. Se publica desde `feature/3ds-progressive-ui`, sin integrar esta rama en `main` y sin reemplazar la versión estable v4.17.1.
 
+## Actualización de Pickup · 2026-10-16
+
+Este tag y sus archivos de descarga se actualizan para incluir la corrección de compresión de Pickup Gen7. Al editar o randomizar la tabla se conserva su almacenamiento LZ11 original, también al reproducir Global Template y Batch. Se mantienen los objetos aleatorizados y sus probabilidades.
+
+El usuario confirmó que la ROM completa corregida de UltraSol supera los eventos iniciales que se congelaban antes. Las ROMs ya generadas con el defecto no se reparan al actualizar la aplicación: hay que reconstruirlas con esta versión. Los templates no necesitan cambios.
+
+Se añadieron regresiones para tablas comprimidas SM/USUM, guardado manual y replay nativo. No se declara validación de una partida completa ni prueba en juego de SM. El prototipo de compras únicas no forma parte del release. Quienes descargaron el ZIP anterior deben volver a descargarlo y comprobar su SHA-256 actualizado.
+
 ## Cambios incluidos
 
 - Interfaz adaptable, navegación agrupada, formularios y tablas más consistentes, diálogos desplazables y mejoras de accesibilidad.
@@ -46,3 +54,5 @@ En Windows, con .NET SDK 10, Git y los binarios de Mobipeg preparados según `3D
 El script crea una carpeta nueva y un ZIP, incluye ambas aplicaciones autocontenidas y sus dependencias y genera hashes SHA-256. No publica en GitHub ni modifica instalaciones existentes. El código correspondiente se encuentra en el tag `v0.8.0-preview.1`.
 
 Icono de la aplicación: Icons8, imagen proporcionada por el propietario del proyecto. Créditos: https://icons8.com/.
+
+Validación de la actualización de Pickup: compilación Release con apphost, 0 errores y 90 advertencias; 3.651 comprobaciones con --synthetic-only. La primera ejecución sin apphost se detuvo por ausencia del ejecutable LegacyBatch; al compilar con UseAppHost=true, la batería completa pasó sin modificar sus expectativas. Incluye las 112 comprobaciones de Pickup. El usuario validó los eventos iniciales de UltraSol con la receta completa corregida.

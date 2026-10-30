@@ -35,7 +35,10 @@ public sealed class MartShop
 
 public sealed record MartShopPreview(byte[] Original, byte[] Output,
     IReadOnlyList<BatchChange> Changes, Gen7ExpandedMartBuildReport Rebuild,
-    byte[]? ItemOriginal, byte[]? ItemOutput);
+    byte[]? ItemOriginal, byte[]? ItemOutput)
+{
+    internal IReadOnlyList<FileChange> ExtraFiles {get;init;}=[];
+}
 
 /// <summary>
 /// USUM shop editing on detached bytes. Uses the same relocation-aware Core
@@ -63,6 +66,14 @@ public sealed partial class GameMartService
         "Battle Tree · equipamiento", "Battle Tree · megapiedras",
         "Playas · medicina"
     ];
+    private bool _singlePurchase;
+    internal bool HasSinglePurchase=>_singlePurchase;
+    internal const string SinglePurchaseAction="marts.single-purchase-specials";
+    public void SinglePurchaseSpecials()
+    {
+        if(!_project.GameConfiguration.USUM)throw new NotSupportedException("Solo un objeto por tienda especial está disponible únicamente en USUM.");
+        _singlePurchase=true;if(!_presets.Contains(SinglePurchaseAction))_presets.Add(SinglePurchaseAction);
+    }
     private readonly GameProjectSession _project;
     private readonly string _path;
     private readonly byte[] _original;
@@ -79,6 +90,7 @@ public sealed partial class GameMartService
         _project = project;
         _path = Path.Combine(project.GameConfiguration.RomFS, "Shop.cro");
         _original = File.ReadAllBytes(_path);
+        _singlePurchase=project.GameConfiguration.USUM&&Gen7SinglePurchaseStock.Read(_original) is not null;
         if(!project.GameConfiguration.USUM)
         {
             if(_original.Length<0x180||!_original.AsSpan(0x80,4).SequenceEqual("CRO0"u8))throw new InvalidDataException("Shop.cro SM no tiene cabecera CRO0.");
@@ -217,8 +229,27 @@ public sealed partial class GameMartService
             throw new InvalidDataException("El CRO cambió sin cambios de tiendas detectables.");
         var items = PrepareItemPatches();
         changes.AddRange(items.Changes);
+        var extra=new List<FileChange>();
+        if(_project.GameConfiguration.USUM&&(_singlePurchase||Gen7SinglePurchaseStock.Read(_original) is not null))
+        {
+            var installed=Gen7SinglePurchaseStock.Read(_original);
+            var message=SinglePurchaseShopText.Prepare(_project,installed?.MessageId);
+            byte[] patched=Gen7SinglePurchaseStock.Apply(updated,message.Id);
+            if(!patched.AsSpan().SequenceEqual(updated))changes.Add(new(-1,"Tiendas especiales","Una compra por objeto y tienda",installed is null?"Sin límite":"Registro anterior",$"{Gen7SinglePurchaseStock.CurrentOffers(patched).Count} ofertas · guardar y reiniciar conserva el stock"));
+            updated=patched;extra.AddRange(message.Files);
+            if(message.Files.Any(f=>f.Changed))changes.Add(new(-1,"Tiendas especiales","Mensaje de agotado","Sin mensaje propio","Ya compraste este objeto. · todos los idiomas"));
+            var croFiles=new List<byte[]>();
+            foreach(string path in Directory.EnumerateFiles(_project.GameConfiguration.RomFS).Where(p=>Path.GetExtension(p).Equals(".cro",StringComparison.OrdinalIgnoreCase)))
+            {
+                if(string.Equals(path,_path,StringComparison.OrdinalIgnoreCase)){croFiles.Add(updated);continue;}
+                byte[] bytes=File.ReadAllBytes(path);croFiles.Add(bytes);extra.Add(new(path,bytes,bytes));
+            }
+            string crrPath=Path.Combine(_project.GameConfiguration.RomFS,".crr","static.crr");byte[] crr=File.ReadAllBytes(crrPath);
+            extra.Add(new(crrPath,crr,CroIntegrity.RebuildCrr(crr,croFiles)));
+            report=report with{FinalFileSize=updated.Length,CodeBytesAdded=report.CodeBytesAdded+Math.Max(0,updated.Length-report.FinalFileSize)};
+        }
         return new MartShopPreview((byte[])_original.Clone(), updated, changes, report,
-            items.Original, items.Output);
+            items.Original, items.Output){ExtraFiles=extra};
     }
 
     private readonly Dictionary<(bool,int),string> _presetResults=[];
@@ -232,17 +263,19 @@ public sealed partial class GameMartService
     private bool ManualShop(MartShop shop,MartShopPreview preview)=>preview.Changes.Any(c=>c.Id==shop.Index&&c.Name==shop.Name)&&(!_presetResults.TryGetValue((shop.IsBP,shop.Index),out var preset)||preset!=ShopValues(shop));
     internal void RestoreManualItemEffects(System.Text.Json.Nodes.JsonObject payload)
     {
+        if(payload["SinglePurchase"]?.GetValue<bool>()==true)SinglePurchaseSpecials();
         _setCandyPrice=payload["CandyPrice"]?.GetValue<bool>()??false;_setKeyPrice=payload["KeyPrice"]?.GetValue<bool>()??false;_enableVitamin252=payload["Vitamin252"]?.GetValue<bool>()??false;
         _vitaminIds=payload["VitaminIds"]?.AsArray().Select(n=>n!.GetValue<int>()).ToArray()??[];
     }
     public void Apply(MartShopPreview preview)
     {
-        using var manual=Environment.GetEnvironmentVariable("DEFINITIVE_BATCH_REPLAY")=="1"||!RegularShops.Concat(BpShops).Any(s=>ManualShop(s,preview))?null:ManualOperationScope.Begin("shops7","shops7",new{Shops=RegularShops.Concat(BpShops).Where(s=>ManualShop(s,preview)).Select(s=>new{s.Index,s.IsBP,Rows=s.Rows.Select(r=>new{r.ItemId,r.Price}).ToArray()}).ToArray(),CandyPrice=_setCandyPrice,KeyPrice=_setKeyPrice,Vitamin252=_enableVitamin252,VitaminIds=_vitaminIds});
+        using var manual=ManualOperationScope.Current is not null?null:(Environment.GetEnvironmentVariable("DEFINITIVE_BATCH_REPLAY")=="1"&&!_singlePurchase)||(!_singlePurchase&&!RegularShops.Concat(BpShops).Any(s=>ManualShop(s,preview)))?null:ManualOperationScope.Begin("shops7","shops7",new{Shops=RegularShops.Concat(BpShops).Where(s=>Environment.GetEnvironmentVariable("DEFINITIVE_BATCH_REPLAY")!="1"&&ManualShop(s,preview)).Select(s=>new{s.Index,s.IsBP,Rows=s.Rows.Select(r=>new{r.ItemId,r.Price}).ToArray()}).ToArray(),CandyPrice=_setCandyPrice,KeyPrice=_setKeyPrice,Vitamin252=_enableVitamin252,VitaminIds=_vitaminIds,SinglePurchase=_singlePurchase});
         if (preview.Changes.Count == 0)
             throw new InvalidOperationException("No hay cambios para guardar.");
         var fresh = Prepare();
         if (!fresh.Output.AsSpan().SequenceEqual(preview.Output) ||
-            !(fresh.ItemOutput??[]).AsSpan().SequenceEqual(preview.ItemOutput??[]))
+            !(fresh.ItemOutput??[]).AsSpan().SequenceEqual(preview.ItemOutput??[]) ||
+            !(fresh.ExtraFiles??[]).Select(f=>f.Path+":"+Convert.ToHexString(SHA256.HashData(f.Proposed()))).SequenceEqual((preview.ExtraFiles??[]).Select(f=>f.Path+":"+Convert.ToHexString(SHA256.HashData(f.Proposed())))))
             throw new InvalidOperationException("La propuesta cambió desde la vista previa. Generá otra.");
         byte[] onDisk = GarcTransaction.ReadUnchanged(_path, SHA256.HashData(_original));
         var files = new List<FileChange> { new(_path, onDisk, preview.Output) };
@@ -254,6 +287,7 @@ public sealed partial class GameMartService
                 SHA256.HashData(preview.ItemOriginal));
             files.Add(new FileChange(itemPath, current, preview.ItemOutput));
         }
+        foreach(var file in preview.ExtraFiles??[]){GarcTransaction.ReadUnchanged(file.Path,file.Fingerprint);files.Add(file);}
         _project.History.Commit(files, "Tiendas y BP",
             _presets.Count == 0 ? "Editar tiendas" : "Aplicar presets de tiendas",
             preview.Changes, new Dictionary<string,string>

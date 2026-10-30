@@ -1,4 +1,4 @@
-using System.IO;
+﻿using System.IO;
 using pk3DS.Core;
 using pk3DS.Core.Structures;
 using ThreeDS.Progressive.Models;
@@ -6,7 +6,7 @@ using ThreeDS.Progressive.Models;
 namespace ThreeDS.Progressive.Services;
 
 /// <summary>Original pk3DS Item format, preserving undocumented bytes and using transactional history.</summary>
-public sealed class GameItemService : ArchiveProjectEditor
+public sealed class GameItemService : ArchiveProjectEditor, IEconomyEditor
 {
     public GameItemService(GameProjectSession project):base(project,"item")
     {

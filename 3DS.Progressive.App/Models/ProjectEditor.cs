@@ -1,4 +1,4 @@
-using System.Globalization;
+﻿using System.Globalization;
 using ThreeDS.Progressive.Services;
 
 namespace ThreeDS.Progressive.Models;
@@ -60,3 +60,17 @@ internal static class EditorValues
     }
     private static string Label(EditorField f)=>f.Choices?.FirstOrDefault(c=>c.Id==f.Value)?.Display??f.Value.ToString(CultureInfo.InvariantCulture);
 }
+
+/// <summary>Opt-in presentation capability; storage and game-specific rules stay in the provider.</summary>
+public interface ITrainerEditorPresentation { bool UsesTrainerLayout {get;} }
+
+public sealed record TrainerRuleIdentity(int Id,string Group,string Name,int Ace);
+public interface ITrainerTableMetadata { TrainerRuleIdentity TrainerIdentity(int id); }
+
+public interface IContextualRecordEditor { IReadOnlyList<EditorGroup> ReadContext(int id,IReadOnlyDictionary<string,int> values); }
+
+public interface ITableEditorPresentation { bool UsesRecordTable {get;} }
+
+public interface IWildEditorPresentation { bool UsesWildLayout {get;} }
+
+public interface IOptionTemplatePresentation { string ImportOptionsLabel {get;} string ExportOptionsLabel {get;} }

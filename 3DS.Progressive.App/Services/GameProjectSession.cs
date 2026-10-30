@@ -71,6 +71,7 @@ public sealed partial class GameProjectSession
 
     public string ProjectRoot { get; }
     public ProjectHistory History { get; }
+    internal ExeFsBuildCache RebuildExeFsCache {get;}=new();
     internal GameConfig GameConfiguration => _config;
     public string GameName => _config.Version.ToString();
     public int Generation => _config.Generation;

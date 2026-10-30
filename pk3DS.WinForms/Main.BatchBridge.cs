@@ -1,3 +1,4 @@
+using pk3DS.Core;
 using System;
 using System.IO;
 using System.Linq;
@@ -19,6 +20,8 @@ internal sealed class BatchBridgeRequest
     public bool RestoreBackups {get;set;}=true;
     public bool KeepEditableProjects {get;set;}
     public bool AllowAssetMismatch {get;set;}
+    public bool PreviewOnly {get;set;}
+    public int Language {get;set;}=2;
 }
 
 
@@ -51,6 +54,16 @@ public partial class Main
         if(Enumerable.Range(1,job.Count).Any(i=>File.Exists(Path.Combine(output,
             $"{job.BaseName}_{i:00}.3ds"))))
             throw new IOException("Target .3ds already exists; refusing silent overwrite.");
+        if(job.PreviewOnly)
+        {
+            Directory.CreateDirectory(output);
+            using var previewRuntime=BatchRuntime.Begin(message=>File.AppendAllText(Path.Combine(output,"preview-log.txt"),message+Environment.NewLine));
+            if(job.Language<0||job.Language>9)throw new InvalidDataException("Idioma no válido.");
+            CB_Lang.SelectedIndex=job.Language;
+            OpenQuick(source);
+            if(Config is null||Config.Generation is not (6 or 7))throw new InvalidDataException("Proyecto incompatible.");
+            RunGlobalTemplatePreview(job);return;
+        }
         OpenQuick(source);
         if(Config is null||Config.Generation is not (6 or 7))
             throw new InvalidDataException("Batch source must be a fully extracted XY/ORAS/SM/USUM game.");
@@ -70,6 +83,30 @@ public partial class Main
         string report=Path.Combine(output,job.BaseName+"_batch.txt");
         if(!File.Exists(report)||!File.ReadAllText(report).Contains("Completed:"))
             throw new IOException("Original batch executor did not report successful completion.");
+    }
+    private void RunGlobalTemplatePreview(BatchBridgeRequest job)
+    {
+        string source=Path.GetFullPath(job.ProjectRoot),output=Path.GetFullPath(job.OutputDirectory);
+        string stage=Path.Combine(output,"preview-project");
+        if(Directory.Exists(stage)||File.Exists(stage))throw new IOException("La copia de vista previa ya existe.");
+        var template=GlobalRandomizationTemplateFile.Load(job.TemplatePath,CurrentGlobalTemplateGame);
+        int generation=Config.Generation;string game=CurrentGlobalTemplateGame;
+        if(template.Generation!=generation)throw new InvalidDataException("Generación incompatible.");
+        var unsupported=generation==6?BatchGen6ActionExecutor.GetUnsupported(template.Actions):BatchGen7ActionExecutor.GetUnsupported(template.Actions);
+        if(unsupported.Length>0)throw new NotSupportedException(string.Join(", ",unsupported));
+        BatchWorkspace.PrepareCleanCopy(source,stage,Config,ExHeaderPath,false);
+        {
+            OpenQuick(stage);
+            if(Config.Generation!=generation||CurrentGlobalTemplateGame!=game)throw new InvalidDataException("La copia no corresponde al juego original.");
+            int seed=System.Security.Cryptography.RandomNumberGenerator.GetInt32(int.MaxValue);
+            Util.ReseedRand(seed);
+            string previous=Environment.GetEnvironmentVariable("DEFINITIVE_BATCH_REPLAY"),previousTemplate=Environment.GetEnvironmentVariable("DEFINITIVE_TEMPLATE_PATH");
+            Environment.SetEnvironmentVariable("DEFINITIVE_BATCH_REPLAY","1");Environment.SetEnvironmentVariable("DEFINITIVE_TEMPLATE_PATH",job.TemplatePath);
+            try{var warnings=GlobalRandomizationTemplateFile.Apply(template,game);if(warnings.Count>0)throw new InvalidDataException(string.Join(" | ",warnings));if(generation==6)BatchGen6ActionExecutor.Execute(template);else BatchGen7ActionExecutor.Execute(template);}
+            finally{Environment.SetEnvironmentVariable("DEFINITIVE_BATCH_REPLAY",previous);Environment.SetEnvironmentVariable("DEFINITIVE_TEMPLATE_PATH",previousTemplate);}
+            // This bridge deliberately stops before ROM assembly. The exact staged bytes are the proposal.
+            File.WriteAllText(Path.Combine(output,"preview-result.json"),JsonSerializer.Serialize(new{Seed=seed,Actions=template.Actions.Select(a=>a.Id).ToArray()}));
+        }
     }
     internal void RunRelearnerPreviewBridge(string requestFile)
     {

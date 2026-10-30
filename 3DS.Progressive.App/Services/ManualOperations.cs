@@ -115,7 +115,7 @@ internal static class ManualOperations
                             var list=bp?marts.BpShops:marts.RegularShops;if(index<0||index>=list.Count)throw new InvalidDataException("Tienda manual inexistente.");
                             var target=list[index];target.Rows.Clear();foreach(var row in rows)target.Rows.Add(new MartSlotRow(target.Rows.Count+1,row!["ItemId"]!.GetValue<int>(),row["Price"]!.GetValue<int>()));
                         }
-                        marts.RestoreManualItemEffects(p);var preview=marts.Prepare();if(!validateOnly&&preview.Changes.Count>0){using var scope=ManualOperationScope.Begin(kind,op["Key"]!.GetValue<string>(),p);marts.Apply(preview);}break;
+                        marts.RestoreManualItemEffects(p);var preview=marts.Prepare();if(!validateOnly&&preview.Changes.Count>0){var command=(JsonObject)p.DeepClone();if(marts.HasSinglePurchase)command["SinglePurchase"]=true;using var scope=ManualOperationScope.Begin(kind,op["Key"]!.GetValue<string>(),command);marts.Apply(preview);}break;
                     case "pickup":var pickup=new GamePickupService(project);var proposal=pickup.Preview(p["Rows"]!.Deserialize<PickupRow[]>()!);if(!validateOnly&&proposal.Changes.Count>0){using var scope=ManualOperationScope.Begin(kind,op["Key"]!.GetValue<string>(),p);pickup.Apply(proposal);}break;
                     case "machines7":case "tutors7":
                         var machines=new GameMachineTutorService(project);

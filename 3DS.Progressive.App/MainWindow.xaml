@@ -1,4 +1,4 @@
-﻿<Window x:Class="ThreeDS.Progressive.MainWindow"
+<Window x:Class="ThreeDS.Progressive.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:ui="clr-namespace:ThreeDS.Progressive"
         Style="{StaticResource {x:Type Window}}"
@@ -32,6 +32,7 @@
                     <ColumnDefinition Width="*"/>
                     <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
+                <Button x:Name="BrandHomeButton" Click="Home_Click" Background="Transparent" BorderThickness="0" Padding="0" AutomationProperties.Name="Definitive Randomizer · Inicio" ToolTip="Ir a Inicio">
                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                     <Border Width="39" Height="39" CornerRadius="10"
                             Margin="0,0,12,0">
@@ -44,22 +45,24 @@
                                    FontSize="12" FontWeight="SemiBold"/>
                     </StackPanel>
                 </StackPanel>
+                </Button>
                 <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="22,0,12,0">
                     <TextBlock x:Name="ProjectNameText" Text="Sin proyecto cargado"
                                FontSize="14" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"/>
                     <TextBlock x:Name="GameNameText" Text="Seleccioná una carpeta de juego extraído"
                                FontSize="12" Foreground="{DynamicResource TextSoft}" TextTrimming="CharacterEllipsis"/>
                 </StackPanel>
-                <WrapPanel Grid.Column="2" MaxWidth="530" VerticalAlignment="Center">
+                <WrapPanel Grid.Column="2" MaxWidth="620" VerticalAlignment="Center">
                     <Button x:Name="BackupButton" KeyboardNavigation.TabIndex="1" Content="Generar backup" Click="Backup_Click" IsEnabled="False" Margin="0,0,10,0"/>
-                    <Button x:Name="ExtractRomButton" KeyboardNavigation.TabIndex="2" Click="ExtractRom_Click" Content="Extraer ROM..." Margin="0,0,8,0"/>
-                    <Button x:Name="RestoreBackupButton" KeyboardNavigation.TabIndex="3" Click="RestoreBackup_Click" Content="Restaurar backup…" Margin="0,0,8,0"/>
+                    <Button x:Name="RebuildButton" KeyboardNavigation.TabIndex="2" Content="Rebuild" Click="Rebuild_Click" IsEnabled="False" Margin="0,0,8,0" ToolTip="Reconstruir ROM y revisar los cambios guardados"/>
+                    <Button x:Name="ExtractRomButton" KeyboardNavigation.TabIndex="3" Click="ExtractRom_Click" Content="Extraer ROM..." Margin="0,0,8,0"/>
+                    <Button x:Name="RestoreBackupButton" KeyboardNavigation.TabIndex="4" Click="RestoreBackup_Click" Content="Restaurar backup…" Margin="0,0,8,0"/>
                     <Button x:Name="OpenProjectButton" KeyboardNavigation.TabIndex="0" Click="OpenProject_Click" Style="{StaticResource PrimaryButton}" Content="Abrir proyecto..."/>
                 </WrapPanel>
             </Grid>
         </Border>
 
-        <Grid Grid.Row="1" ui:AdaptiveLayout.Inspector="AdaptiveInspector" ui:AdaptiveLayout.CompactWidth="1120">
+        <Grid x:Name="EditorShell" Grid.Row="1" ui:AdaptiveLayout.Inspector="AdaptiveInspector" ui:AdaptiveLayout.CompactWidth="1120">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="218"/>
                 <ColumnDefinition Width="1.1*" MinWidth="165" MaxWidth="235"/>
@@ -73,6 +76,10 @@
                 <DockPanel Margin="13,18">
                     <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Background="Transparent">
                     <StackPanel>
+                        <Button x:Name="HomeButton" Visibility="Collapsed" Content="Inicio" Style="{StaticResource SidebarButton}" Click="Home_Click"/>
+                        <Button x:Name="ModeButton" Visibility="Collapsed" Content="Modo completo · Cambiar" Style="{StaticResource SidebarButton}" Click="Home_Click"/>
+                        <Button x:Name="GuidedButton" Visibility="Collapsed" Content="Randomizado guiado" Style="{StaticResource SidebarButton}" IsEnabled="False" Click="Guided_Click"/>
+                        <Button x:Name="TourButton" Visibility="Collapsed" Content="Vista guiada · F1" Style="{StaticResource SidebarButton}" Click="Tour_Click"/>
                         <TextBlock Text="Edición" Style="{StaticResource SmallHeading}"
                                    Margin="12,0,0,12"/>
                         <Button x:Name="PokemonNavButton" Click="Pokemon_Click" Content="◆  Pokémon" Style="{StaticResource SidebarButton}"
@@ -511,10 +518,13 @@
                             Visibility="Collapsed" Background="{DynamicResource Bg}"/>
         </Grid>
 
+        <ContentControl x:Name="SwitchHost" Grid.Row="1" Panel.ZIndex="11" Background="{DynamicResource Bg}" Visibility="Collapsed" HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch"/>
+        <ContentControl x:Name="HomeHost" Grid.Row="1" Panel.ZIndex="10" Background="{DynamicResource Bg}"/>
+
         <Border Grid.Row="2" Background="{DynamicResource Chrome}" BorderBrush="{DynamicResource Stroke}"
                 BorderThickness="0,1,0,0">
             <DockPanel Margin="18,10" LastChildFill="True">
-                <TextBlock Text="DEFINITIVE RANDOMIZER · V0.8.0 PREVIEW"
+                <TextBlock Text="DEFINITIVE RANDOMIZER · V0.9.0 PREVIEW"
                            DockPanel.Dock="Right" Foreground="{DynamicResource TextSoft}"
                            FontSize="12" VerticalAlignment="Center"/>
                 <TextBlock x:Name="OperationPercent" DockPanel.Dock="Right"
@@ -540,5 +550,6 @@
                 </StackPanel>
             </DockPanel>
         </Border>
+        <Grid x:Name="TourHost" Grid.RowSpan="3" Panel.ZIndex="30" Visibility="Collapsed"/>
     </Grid>
 </Window>

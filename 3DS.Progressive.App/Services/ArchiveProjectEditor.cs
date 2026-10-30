@@ -15,15 +15,43 @@ public abstract class ArchiveProjectEditor : IProjectEditor
     private readonly Dictionary<TextName,IReadOnlyList<MoveChoice>> _choices=[];
     private IReadOnlyList<MoveChoice>? _speciesChoices;
     private readonly Dictionary<string,(string Path,GARCReference Ref,byte[] Hash)> _archives=[];
-    protected ArchiveProjectEditor(GameProjectSession project,params string[] archives)
+    protected virtual bool CacheDisplayRecords=>false;
+    private readonly Dictionary<string,byte[][]> _displayRecords=[];
+    private readonly Dictionary<string,DisplayFileStamp> _displayStamps=[];
+    private readonly Dictionary<string,byte[]> _initialSources=[];
+    protected LazyGARCFile InitialArchive(string name)=>new(new GARC.LazyGARC(_initialSources[name]),_archives[name].Ref,_archives[name].Path);
+    protected void ReleaseInitialSources()=>_initialSources.Clear();
+    protected Dictionary<string,byte[][]> DisplayRecords()
+    {
+        if(!CacheDisplayRecords)return Records();
+        foreach(var (name,stamp) in _displayStamps)stamp.EnsureCurrent(_archives[name].Path);
+        return _displayRecords;
+    }
+    private byte[][] DecodeRecords(string name,byte[] source,GARCReference reference,string path,CancellationToken cancellationToken=default)
+    {
+        if(name!="encdata")return new GARC.MemGARC(source).Files;
+        var lazy=new LazyGARCFile(new GARC.LazyGARC(source),reference,path);
+        var decoded=new byte[lazy.FileCount][];
+        for(int i=0;i<decoded.Length;i++){cancellationToken.ThrowIfCancellationRequested();if(NeedsArchiveRecord(name,i))decoded[i]=lazy[i];}
+        return Config.Generation==6?Gen6EncounterArchiveOrder.EditorOrder(source,decoded):decoded;
+    }
+    protected ArchiveProjectEditor(GameProjectSession project,params string[] archives):this(project,default,archives){}
+    protected ArchiveProjectEditor(GameProjectSession project,CancellationToken cancellationToken,params string[] archives)
     {
         Project=project;Config=project.GameConfiguration;
         foreach(string name in archives)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             var reference=Config.GetGARCReference(name);string path=Path.Combine(Config.RomFS,reference.Reference);
             if(!File.Exists(path))throw new FileNotFoundException($"Falta el archivo {name} requerido por este editor.",path);
-            byte[] bytes=File.ReadAllBytes(path);_ = new GARC.MemGARC(bytes);
+            byte[] bytes=File.ReadAllBytes(path);_ = new GARC.LazyGARC(bytes);
             _archives.Add(name,(path,reference,SHA256.HashData(bytes)));
+            if(CacheDisplayRecords)
+            {
+                _displayRecords[name]=DecodeRecords(name,bytes,reference,path,cancellationToken);
+                _displayStamps[name]=DisplayFileStamp.Capture(path);
+                _initialSources[name]=bytes;
+            }
         }
     }
     public abstract string Title {get;}
@@ -33,17 +61,13 @@ public abstract class ArchiveProjectEditor : IProjectEditor
     protected Dictionary<string,byte[][]> Records()=>_archives.ToDictionary(p=>p.Key,p=>
     {
         byte[] source=GarcTransaction.ReadUnchanged(p.Value.Path,p.Value.Hash);
-        if(p.Key!="encdata")return new GARC.MemGARC(source).Files;
-        var lazy=new LazyGARCFile(new GARC.LazyGARC(source),p.Value.Ref,p.Value.Path);
-        var decoded=new byte[lazy.FileCount][];
-        for(int i=0;i<decoded.Length;i++)if(NeedsArchiveRecord(p.Key,i))decoded[i]=lazy[i];
-        return Config.Generation==6?Gen6EncounterArchiveOrder.EditorOrder(source,decoded):decoded;
+        return DecodeRecords(p.Key,source,p.Value.Ref,p.Value.Path);
     });
     protected abstract IReadOnlyList<EditorGroup> ReadRecord(int id,Dictionary<string,byte[][]> records);
     protected abstract void WriteRecord(int id,IReadOnlyDictionary<string,int> values,Dictionary<string,byte[][]> records);
     protected abstract Dictionary<string,int> Randomize(int id,IReadOnlyDictionary<string,int> options,
         Dictionary<string,byte[][]> records,Random random);
-    public IReadOnlyList<EditorGroup> Read(int id)=>ReadRecord(id,Records());
+    public IReadOnlyList<EditorGroup> Read(int id)=>ReadRecord(id,DisplayRecords());
     public void Save(int id,IReadOnlyDictionary<string,int> values)
     {
         var records=Records();var before=ReadRecord(id,records);
@@ -114,7 +138,11 @@ public abstract class ArchiveProjectEditor : IProjectEditor
         foreach(var file in proposal.Files)GarcTransaction.ReadUnchanged(file.Path,file.Fingerprint);
         Project.History.Commit(proposal.Files,Title,proposal.Action,proposal.Changes,proposal.Parameters);
         foreach(string name in _archives.Keys.ToArray())
-        {var value=_archives[name];_archives[name]=(value.Path,value.Ref,SHA256.HashData(File.ReadAllBytes(value.Path)));}
+        {
+            var value=_archives[name];byte[] bytes=File.ReadAllBytes(value.Path);
+            _archives[name]=(value.Path,value.Ref,SHA256.HashData(bytes));
+            if(CacheDisplayRecords){_displayRecords[name]=DecodeRecords(name,bytes,value.Ref,value.Path);_displayStamps[name]=DisplayFileStamp.Capture(value.Path);}
+        }
         AfterCommit();
     }
     protected virtual void AfterCommit(){}

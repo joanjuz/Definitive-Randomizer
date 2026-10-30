@@ -38,7 +38,7 @@ public partial class StudioDialog : Window
         dlg.ShowDialog();
     }
 
-    private static StudioDialog Create(Window? owner, string title, string message, string? details,
+    internal static StudioDialog Create(Window? owner, string title, string message, string? details,
         string symbol, string action, bool canCancel)
     {
         var dialog = new StudioDialog();

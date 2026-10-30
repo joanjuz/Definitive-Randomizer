@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Security.Cryptography;
@@ -259,7 +259,10 @@ public class RomFS
         }
     }
 
-    public static void BuildRomFS(string infile, string outfile, RichTextBox TB_Progress = null, ProgressBar PB_Show = null)
+    public static void BuildRomFS(string infile,string outfile,RichTextBox TB_Progress=null,ProgressBar PB_Show=null)
+        =>BuildRomFS(infile,outfile,TB_Progress,PB_Show,null);
+
+    public static void BuildRomFS(string infile,string outfile,RichTextBox TB_Progress,ProgressBar PB_Show,Action<string,TimeSpan> timing)
     {
         OutFile = outfile;
         ROOT_DIR = infile;
@@ -267,6 +270,7 @@ public class RomFS
         // delete a process-relative file which may belong to another project.
         string buildTemp = Path.Combine(Path.GetDirectoryName(Path.GetFullPath(outfile)), ".pk3ds-romfs-" + Guid.NewGuid().ToString("N") + ".tmp");
 
+        var phase=System.Diagnostics.Stopwatch.StartNew();
         var FNT = new FileNameTable(ROOT_DIR);
         var RomFiles = new RomfsFile[FNT.NumFiles];
         var In = new LayoutManager.Input[FNT.NumFiles];
@@ -290,7 +294,8 @@ public class RomFS
         using var memoryStream = new MemoryStream();
         UpdateTB(TB_Progress, "Creating RomFS MetaData...");
         BuildRomFSHeader(memoryStream, RomFiles, ROOT_DIR);
-        MakeRomFSData(RomFiles, memoryStream, TB_Progress, PB_Show, buildTemp);
+        timing?.Invoke("RomFS.Metadata",phase.Elapsed);
+        MakeRomFSData(RomFiles, memoryStream, TB_Progress, PB_Show, buildTemp,timing);
     }
 
     internal static ulong Align(ulong input, ulong alignsize)
@@ -303,7 +308,7 @@ public class RomFS
         return output;
     }
 
-    internal static void MakeRomFSData(RomfsFile[] RomFiles, MemoryStream metadata, RichTextBox TB_Progress = null, ProgressBar PB_Show = null, string buildTemp = null)
+    internal static void MakeRomFSData(RomfsFile[] RomFiles, MemoryStream metadata, RichTextBox TB_Progress = null, ProgressBar PB_Show = null, string buildTemp = null, Action<string,TimeSpan> timing = null)
     {
         buildTemp ??= Path.Combine(Path.GetDirectoryName(Path.GetFullPath(OutFile)), ".pk3ds-romfs-" + Guid.NewGuid().ToString("N") + ".tmp");
         UpdateTB(TB_Progress, "Computing IVFC Header Data...");
@@ -353,6 +358,8 @@ public class RomFS
             }
             else { PB_Show.Minimum = 0; PB_Show.Step = 1; PB_Show.Value = 0; PB_Show.Maximum = RomFiles.Length; }
 
+            var copyWatch=System.Diagnostics.Stopwatch.StartNew();
+            byte[] copyBuffer=new byte[0x100000];
             foreach (RomfsFile t in RomFiles)
             {
                 OutFileStream.Seek(baseOfs + (long)t.Offset, SeekOrigin.Begin);
@@ -360,9 +367,9 @@ public class RomFS
                 {
                     while (inStream.Position < inStream.Length)
                     {
-                        byte[] buffer = new byte[inStream.Length - inStream.Position > 0x100000 ? 0x100000 : inStream.Length - inStream.Position];
-                        _ = inStream.Read(buffer, 0, buffer.Length);
-                        OutFileStream.Write(buffer, 0, buffer.Length);
+                        int count=(int)Math.Min(copyBuffer.Length,inStream.Length-inStream.Position);
+                        inStream.ReadExactly(copyBuffer.AsSpan(0,count));
+                        OutFileStream.Write(copyBuffer,0,count);
                     }
                 }
                 if (PB_Show.InvokeRequired)
@@ -371,13 +378,20 @@ public class RomFS
                 }
                 else { PB_Show.PerformStep(); }
             }
+            timing?.Invoke("RomFS.Copy",copyWatch.Elapsed);
             long hashBaseOfs = (long)Align((ulong)OutFileStream.Position, ivfc.Levels[2].BlockSize);
             long hOfs = (long)Align(MasterHashLen, ivfc.Levels[0].BlockSize);
             long cOfs = hashBaseOfs + (long)ivfc.Levels[1].HashOffset;
             for (int i = ivfc.Levels.Length - 1; i >= 0; i--)
             {
                 UpdateTB(TB_Progress, "Computing Level " + i + " Hashes...");
-                byte[] buffer = new byte[(int)ivfc.Levels[i].BlockSize];
+                var hashWatch=System.Diagnostics.Stopwatch.StartNew();
+                int blockSize=checked((int)ivfc.Levels[i].BlockSize);
+                byte[] buffer=new byte[0x100000];
+                byte[] hashes=new byte[buffer.Length/blockSize*32];
+                long paddedLength=(long)Align(ivfc.Levels[i].DataLength,ivfc.Levels[i].BlockSize);
+                // Hash padding as zero bytes, including a final partial source block.
+                if(OutFileStream.Length<hOfs+paddedLength)OutFileStream.SetLength(hOfs+paddedLength);
 
                 var count = (int)(ivfc.Levels[i].DataLength / ivfc.Levels[i].BlockSize);
                 if (PB_Show.InvokeRequired)
@@ -386,27 +400,26 @@ public class RomFS
                 }
                 else { PB_Show.Minimum = 0; PB_Show.Step = 1; PB_Show.Value = 0; PB_Show.Maximum = count; }
 
-                for (long ofs = 0; ofs < (long)ivfc.Levels[i].DataLength; ofs += ivfc.Levels[i].BlockSize)
+                int lastReported=0,reportInterval=Math.Max(1,count/200);
+                for(long ofs=0;ofs<paddedLength;)
                 {
-                    OutFileStream.Seek(hOfs, SeekOrigin.Begin);
-                    OutFileStream.Read(buffer, 0, (int)ivfc.Levels[i].BlockSize);
-                    hOfs = OutFileStream.Position;
-                    byte[] hash = SHA256.HashData(buffer);
-                    OutFileStream.Seek(cOfs, SeekOrigin.Begin);
-                    OutFileStream.Write(hash, 0, hash.Length);
-                    cOfs = OutFileStream.Position;
-                    // A multi-GB RomFS has hundreds of thousands of 4 KB hash
-                    // blocks. Updating a native control for each one dominates
-                    // hashing; report at most about 200 positions per level.
-                    int completed=(int)(ofs/(long)ivfc.Levels[i].BlockSize)+1;
-                    if(completed%Math.Max(1,count/200)==0 || completed>=count)
+                    int bytes=(int)Math.Min(buffer.Length,paddedLength-ofs);
+                    OutFileStream.Seek(hOfs,SeekOrigin.Begin);
+                    OutFileStream.ReadExactly(buffer.AsSpan(0,bytes));hOfs+=bytes;
+                    int blocks=bytes/blockSize;
+                    for(int block=0;block<blocks;block++)
+                        SHA256.HashData(buffer.AsSpan(block*blockSize,blockSize),hashes.AsSpan(block*32,32));
+                    OutFileStream.Seek(cOfs,SeekOrigin.Begin);
+                    OutFileStream.Write(hashes,0,blocks*32);cOfs+=blocks*32;ofs+=bytes;
+                    int completed=(int)(ofs/blockSize);
+                    if(ofs==paddedLength||completed/reportInterval!=lastReported/reportInterval)
                     {
-                        int position=Math.Min(completed,count);
-                        if (PB_Show.InvokeRequired)
-                            PB_Show.Invoke((MethodInvoker)delegate { PB_Show.Value=position; });
+                        lastReported=completed;int position=Math.Min(completed,count);
+                        if(PB_Show.InvokeRequired)PB_Show.Invoke((MethodInvoker)delegate{PB_Show.Value=position;});
                         else PB_Show.Value=position;
                     }
                 }
+                timing?.Invoke("RomFS.IVFC.Level"+i,hashWatch.Elapsed);
 
                 if (i <= 0)
                     continue;

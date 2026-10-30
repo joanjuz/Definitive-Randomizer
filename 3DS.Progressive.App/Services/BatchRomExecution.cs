@@ -52,7 +52,7 @@ internal sealed class BatchRomExecution
         "trades.accept-any","trades.randomize-offers","trades.hide-species-names",
         "pickup.randomize","items.fix-economy","marts.randomize","marts.randomize-bp",
         "marts.expanded-layout","marts.add-rare-candies","marts.add-ev-items",
-        "marts.free-mega-stones","marts.ban-ability-capsule",
+        "marts.free-mega-stones","marts.ban-ability-capsule","marts.single-purchase-specials",
         "move-tutors.randomize","move-tutors.sanity","move-tutors.follow-evolutions",
         "move-tutors.free","field-items.randomize","shiny-rate.apply",
         "mega-evolution.unlock-from-start","battle.persistent-consumables",

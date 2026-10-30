@@ -9,6 +9,7 @@ using pk3DS.Core.Structures.PersonalInfo;
 using ThreeDS.Progressive.Models;
 using ThreeDS.Progressive.Services;
 
+if(RunnerCatalog.IsHelp(args)){RunnerCatalog.Print();return;}
 if(args.Length==3&&args[0]=="--extract-independent-image"){var extraction=new GameRomExtractionService().ExtractAsync(args[1],args[2]).GetAwaiter().GetResult();Console.WriteLine($"PASS EXTRACTION: {extraction.Files} files; source SHA256 {extraction.SourceSha256}; {extraction.Folder}");return;}
 if(args.Length==3&&args[0]=="--audit-catch-templates"){CatchZoneReferenceAudit.Run(args[1],args[2]);return;}
 if(args.Length>2&&args[0]=="--check-catch-real-copies"){CatchZoneRealCopyChecks.Run(args[1],args.Skip(2));return;}
@@ -51,9 +52,35 @@ void Reject(Action action, string name)
     throw new Exception("FAIL: expected rejection: " + name);
 }
 if(args.Length==4&&args[0]=="--check-trades6-package-copy"){PackagedTradeProbe.Run(args[1],args[2],args[3]);return;}
+if(args.Length==1&&args[0]=="--pokefeur-only"){PokeFeurChecks.Run(Check,Reject);Console.WriteLine($"Completed {checks} PokeFeur checks.");return;}
+if(args.Length==1&&args[0]=="--swsh-ui-only")
+{
+    Exception? failure=null;var thread=new Thread(()=>{try{var app=new ThreeDS.Progressive.App();app.InitializeComponent();WpfTestHost.SuppressStartup();ThreeDS.Progressive.StudioDialog.AutomatedChecks=true;SwordShieldChecks.RunUi(Check);SwordShieldRandomizationChecks.RunUi(Check);SwordShieldGameplayChecks.RunUi(Check);SwordSurpriseIntegrationChecks.RunUi(Check); PokeFeurChecks.RunUi(Check);SwitchExpansionChecks.RunUi(Check);SwitchVisualChecks.RunUi(Check);SwitchParityChecks.RunUi(Check);SwitchTableChecks.RunUi(Check);SwitchAutomationChecks.RunUi(Check);DivineSwordChecks.RunUi(Check);SwitchPolishChecks.RunUi(Check);SwitchShieldChecks.RunUi(Check);}catch(Exception ex){failure=ex;}});thread.SetApartmentState(ApartmentState.STA);thread.Start();thread.Join();if(failure is not null)System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(failure).Throw();Console.WriteLine($"Completed {checks} SWSH UI component checks (off-screen; not interactive).");return;
+}
+if(args.Length==1&&args[0]=="--swsh-parity-only"){SwitchParityChecks.Run(Check,Reject);SwitchWorldChecks.Run(Check,Reject);SwitchTableChecks.Run(Check,Reject);SwitchAutomationChecks.Run(Check,Reject);DivineSwordChecks.Run(Check,Reject);SwitchPolishChecks.Run(Check,Reject);SwitchShieldChecks.Run(Check,Reject);Console.WriteLine($"Completed {checks} Switch parity checks (synthetic; not gameplay).");return;}
+if(args.Length==3&&args[0]=="--swsh-global-probe"){SwitchAutomationChecks.Probe(args[1],args[2]);return;}
+if(args.Length==3&&args[0]=="--swsh-version-probe"){SwitchShieldChecks.Probe(args[1],args[2]);return;}
+if(args.Length==2&&args[0]=="--swsh-polish-probe"){SwitchPolishChecks.Probe(args[1]);return;}
+if(args.Length==2&&args[0]=="--swsh-divine-probe"){DivineSwordChecks.Probe(args[1]);return;}
+if(args.Length==2&&args[0]=="--swsh-table-probe"){SwitchTableChecks.Probe(args[1]);return;}
+if(args.Length==2&&args[0]=="--swsh-parity-probe"){SwitchParityChecks.Probe(args[1]);return;}
+if(args.Length==1&&args[0]=="--swsh-only"){SwordShieldChecks.Run(Check,Reject);SwordShieldRandomizationChecks.Run(Check,Reject);SwordShieldGameplayChecks.Run(Check,Reject);SwordSurpriseChecks.Run(Check,Reject);SwordSurpriseIntegrationChecks.Run(Check,Reject);PokeFeurChecks.Run(Check,Reject);SwitchExpansionChecks.Run(Check,Reject);Console.WriteLine($"Completed {checks} SWSH prototype checks (synthetic; not gameplay).");return;}
+if(args.Length==3&&args[0]=="--swsh-visual-preview"){SwitchVisualChecks.Preview(args[1],args[2]);return;}
+if(args.Length==1&&args[0]=="--swsh-expansion-only"){SwitchExpansionChecks.Run(Check,Reject);Console.WriteLine($"Completed {checks} Switch expansion checks.");return;}
+if(args.Length==3&&args[0]=="--swsh-expansion-probe"){SwitchExpansionChecks.Probe(args[1],args[2]);return;}
+if(args.Length==4&&args[0]=="--pokefeur-probe"){PokeFeurRealChecks.Probe(args[1],args[2],args[3]);return;}
+if(args.Length==3&&args[0]=="--sword-surprise-probe"){SwordSurpriseIntegrationChecks.Probe(args[1],args[2]);return;}
+if(args.Length==2&&args[0]=="--sword-surprise-audit"){SwordSurpriseChecks.Probe(args[1]);return;}
+if(args.Length==3&&args[0]=="--swsh-gameplay-probe"){SwordShieldGameplayChecks.Probe(args[1],args[2]);return;}
+if(args.Length==2&&args[0]=="--swsh-read-only"){SwordShieldChecks.ProbeReal(args[1],null);return;}
+if(args.Length==4&&args[0]=="--swsh-random-probe"){SwordShieldRandomizationChecks.ProbeReal(args[1],args[2],uint.Parse(args[3],System.Globalization.CultureInfo.InvariantCulture));return;}
+if(args.Length==3&&args[0]=="--swsh-probe-mod"){SwordShieldChecks.ProbeReal(args[1],args[2]);return;}
+if(args.Length==2&&args[0]=="--single-purchase-backend"){SinglePurchaseChecks.Backend(args[1],Check).GetAwaiter().GetResult();Console.WriteLine($"Completed {checks} single-purchase backend checks.");return;}
+if(args.Length==1&&args[0]=="--single-purchase-only"){SinglePurchaseChecks.Schema(Check,Reject);Console.WriteLine($"Completed {checks} single-purchase schema checks.");return;}
+if(args.Length==3&&args[0]=="--single-purchase-copies"){SinglePurchaseChecks.Schema(Check,Reject);SinglePurchaseChecks.RealCopies(args[1],args[2],Check,Reject);Console.WriteLine($"Completed {checks} single-purchase copy/integration checks.");return;}
 if(args.Length==1&&args[0]=="--interaction-lock-only")
 {
-    Exception? failure=null;var thread=new Thread(()=>{try{ThreeDS.Progressive.StudioDialog.AutomatedChecks=true;var app=new ThreeDS.Progressive.App();app.InitializeComponent();InteractionLockChecks.Run(Check);}catch(Exception ex){failure=ex;}});thread.SetApartmentState(ApartmentState.STA);thread.Start();thread.Join();if(failure is not null)throw failure;Console.WriteLine($"Completed {checks} interaction lock checks.");return;
+    Exception? failure=null;var thread=new Thread(()=>{try{ThreeDS.Progressive.StudioDialog.AutomatedChecks=true;var app=new ThreeDS.Progressive.App();app.InitializeComponent();InteractionLockChecks.Run(Check);}catch(Exception ex){failure=ex;}});thread.SetApartmentState(ApartmentState.STA);thread.Start();thread.Join();if(failure is not null)System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(failure).Throw();Console.WriteLine($"Completed {checks} interaction lock checks.");return;
 }
 if(args.Length==1&&args[0]=="--remote-sprites-only"){RemoteSpriteChecks.Run(Check).GetAwaiter().GetResult();Console.WriteLine($"Completed {checks} remote sprite checks.");return;}
 if(args.Length==1&&args[0]=="--global-options-only"){GlobalEditorBridgeChecks.Run(Check,Reject);Console.WriteLine($"Completed {checks} global checks.");return;}
@@ -89,6 +116,19 @@ if(args.Length==1&&args[0]=="--tm-default-ui-only")
 }
 if(args.Length==1&&args[0]=="--tm7-text-only"){TmDescriptionChecks.Run(Check,Reject);Console.WriteLine($"Completed {checks} TM description checks.");return;}
 if(args.Length==1&&args[0]=="--title-movies-only"){TitleMovieChecks.Run(Check,Reject);Console.WriteLine($"Completed {checks} movie checks.");return;}
+if(args.Length==1&&args[0]=="--performance-only"){PerformanceChecks.Run(Check,Reject);Console.WriteLine($"Completed {checks} performance integrity checks.");return;}
+if(args.Length==1&&args[0]=="--pickup-only"){PickupChecks.Run(Check,Reject);Console.WriteLine($"Completed {checks} Pickup checks.");return;}
+if(args.Length==1&&(args[0]=="--global-apply-only"||args[0]=="--global-apply-ui-only"))
+{
+    if(args[0]=="--global-apply-only")GlobalApplicationChecks.Run(Check,Reject).GetAwaiter().GetResult();
+    Exception? failure=null;var thread=new Thread(()=>{try{var app=new ThreeDS.Progressive.App();app.InitializeComponent();WpfTestHost.SuppressStartup();ThreeDS.Progressive.StudioDialog.AutomatedChecks=true;GlobalApplicationChecks.RunUi(Check);}catch(Exception ex){failure=ex;}});thread.SetApartmentState(ApartmentState.STA);thread.Start();thread.Join();if(failure is not null)System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(failure).Throw();Console.WriteLine($"Completed {checks} global application checks (synthetic replay; UI off-screen).");return;
+}
+if(args.Length==1&&args[0]=="--guidance-only")
+{
+    Exception? failure=null;var thread=new Thread(()=>{try{var app=new ThreeDS.Progressive.App();app.InitializeComponent();WpfTestHost.SuppressStartup();ThreeDS.Progressive.StudioDialog.AutomatedChecks=true;GuidanceChecks.Run(Check,Reject);GuidanceChecks.RunUi(Check);}catch(Exception ex){failure=ex;}});thread.SetApartmentState(ApartmentState.STA);thread.Start();thread.Join();if(failure is not null)System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(failure).Throw();Console.WriteLine($"Completed {checks} guidance checks (off-screen, not interactive).");return;
+}
+if(args.Length==1&&args[0]=="--history-inspection-only"){HistoryInspectionChecks.Run(Check);Console.WriteLine($"Completed {checks} history inspection checks.");return;}
+if(args.Length==1&&args[0]=="--rebuild-stability-only"){RebuildStabilityChecks.Run(Check);Console.WriteLine($"Completed {checks} rebuild stability checks.");return;}
 if(args.Length==1&&args[0]=="--rebuild-cache-only"){RebuildCacheChecks.Run(Check);Console.WriteLine($"Completed {checks} rebuild cache checks.");return;}
 if(args.Length==1&&args[0]=="--titles6-only"){TitleScreenChecks.Run(Check,Reject);Console.WriteLine($"Completed {checks} Gen6 title checks.");return;}
 if(args.Length==1&&args[0]=="--tutors6-only"){Tutor6Checks.Run(Check,Reject);Tutor6CompatibilityChecks.Run(Check,Reject);BatchSourcePolicyChecks.Run(Check,Reject);Console.WriteLine($"Completed {checks} ORAS tutor checks.");return;}
@@ -104,9 +144,17 @@ if(args.Length==2&&args[0]=="--diagnose-text-catalogue"){TextClassificationCheck
 if(args.Length>1&&args[0]=="--read-text-classification"){TextClassificationChecks.ReadReal(args.Skip(1));return;}
 if(args.Length==1&&args[0]=="--editor-modules-only"){ModuleChecks.Run(Check,Reject);RecoveryChecks.Run(Check,Reject);Console.WriteLine($"Completed {checks} editor and recovery checks.");return;}
 if(args.Length>1&&args[0]=="--template-studio-shops-copies"){TemplateStudioChecks.ShopCopies(Check,args.Skip(1).ToArray());Console.WriteLine($"Completed {checks} isolated shop template checks.");return;}
+if(args.Length==1&&args[0]=="--rebuild-marts-ui-only")
+{
+    Exception? failure=null;var thread=new Thread(()=>{try{var app=new ThreeDS.Progressive.App();app.InitializeComponent();WpfTestHost.SuppressStartup();ThreeDS.Progressive.StudioDialog.AutomatedChecks=true;RebuildMartUiChecks.Run(Check);MartSmChecks.Run(Check,Reject);}catch(Exception ex){failure=ex;}});thread.SetApartmentState(ApartmentState.STA);thread.Start();thread.Join();if(failure is not null)System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(failure).Throw();Console.WriteLine($"Completed {checks} rebuild and mart UI checks (off-screen, not interactive).");return;
+}
+if(args.Length==1&&args[0]=="--item-icons-only")
+{
+    Exception? failure=null;var thread=new Thread(()=>{try{var app=new ThreeDS.Progressive.App();app.InitializeComponent();WpfTestHost.SuppressStartup();ItemIconChecks.Run(Check);}catch(Exception ex){failure=ex;}});thread.SetApartmentState(ApartmentState.STA);thread.Start();thread.Join();if(failure is not null)System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(failure).Throw();Console.WriteLine($"Completed {checks} item icon checks (components off-screen).");return;
+}
 if(args.Length==1&&args[0]=="--visual-redesign-only")
 {
-    Exception? failure=null;var thread=new Thread(()=>{try{VisualRedesignChecks.Run(Check);}catch(Exception ex){failure=ex;}});thread.SetApartmentState(ApartmentState.STA);thread.Start();thread.Join();if(failure is not null)throw failure;Console.WriteLine($"Completed {checks} visual redesign checks.");return;
+    Exception? failure=null;var thread=new Thread(()=>{try{VisualRedesignChecks.Run(Check);}catch(Exception ex){failure=ex;}});thread.SetApartmentState(ApartmentState.STA);thread.Start();thread.Join();if(failure is not null)System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(failure).Throw();Console.WriteLine($"Completed {checks} visual redesign checks.");return;
 }
 if(args.Length>=1&&args[0]=="--description-preview-fonts")
 {
@@ -141,6 +189,8 @@ if(args.Length==1&&args[0]=="--text-classification-ui-only")
 }
 if(args.Length==1&&args[0]=="--text-classification-only"){TextClassificationChecks.Run(Check);Console.WriteLine($"Completed {checks} text classification checks.");return;}
 if(args.Length==1&&args[0]=="--text-search-only"){StoryRandomChecks.Run(Check,Reject);Console.WriteLine($"Completed {checks} text search and story checks.");return;}
+// Without arguments run the full regression; --synthetic-only skips the WPF checks. Anything else is a typo or a wrong argument count.
+if(args.Length>0&&!(args.Length==1&&args[0]=="--synthetic-only")){RunnerCatalog.RejectUnknown(args);return;}
 TitleMovieChecks.Run(Check,Reject);
 NativeGen7WildChecks.Run(Check,Reject);Gen7ShinyRecipeChecks.Run(Check,Reject);StarterTextChecks.Run(Check,Reject);TitleScreenChecks.Run(Check,Reject);
 NativeGen7StaticChecks.Run(Check,Reject);
@@ -282,9 +332,10 @@ RequestedIntegrationChecks.Run(Check,Reject);Review73Checks.Run(Check,Reject);
 TemplateChecks.Run(Check, Reject);
 ModuleChecks.Run(Check, Reject);
 StaticGen6Checks.Run(Check, Reject);
+SwordShieldChecks.Run(Check, Reject); SwordShieldRandomizationChecks.Run(Check, Reject); SwordShieldGameplayChecks.Run(Check, Reject); SwordSurpriseChecks.Run(Check, Reject); SwordSurpriseIntegrationChecks.Run(Check, Reject); PokeFeurChecks.Run(Check, Reject);
 StaticStarterChecks.Run(Check, Reject);
 Gen6MechanicsChecks.Run(Check, Reject);
-CroIntegrityChecks.Run(Check, Reject);
+CroIntegrityChecks.Run(Check, Reject); SinglePurchaseChecks.Schema(Check,Reject);
 RomExtractionChecks.Run(Check, Reject);
 PickupChecks.Run(Check, Reject);
 Machine6Checks.Run(Check, Reject);
@@ -309,6 +360,9 @@ ShinyBatchChecks.Run(Check,Reject);
 GlobalCompletionChecks.Run(Check,Reject);
 AesCtrChecks.Run(Check);
 RebuildCacheChecks.Run(Check);
+RebuildStabilityChecks.Run(Check);
+HistoryInspectionChecks.Run(Check);
+GuidanceChecks.Run(Check,Reject);
 StoryRandomChecks.Run(Check,Reject);
 SelectedRestoreChecks.Run(Check,Reject);
 IconChecks.Run(Check,Reject);

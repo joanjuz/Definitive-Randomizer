@@ -96,7 +96,11 @@ public sealed class GamePickupService
             table.AsSpan(oldEnd).CopyTo(next.AsSpan(newEnd));
             for(int i=0;i<rows.Length;i++)
             {BitConverter.GetBytes((ushort)rows[i].Item).CopyTo(next,4+i*12);for(int c=0;c<10;c++)next[6+i*12+c]=(byte)rows[i].Rates[c];}
-            var lazy=new GARC.LazyGARC(source);lazy[0]=next;output=lazy.Save();
+            var lazy=new GARC.LazyGARC(source);
+            // Read the original entry before replacing it so LazyGARC retains
+            // its LZ11 storage state instead of deriving it from the new bytes.
+            _=lazy[0];
+            lazy[0]=next;output=lazy.Save();
             if(!new GARC.LazyGARC(output)[0].AsSpan().SequenceEqual(next))throw new IOException("Falló la relectura Pickup.");
         }
         else

@@ -13,7 +13,7 @@ public sealed record HistoryEntry(Guid Id, DateTimeOffset Time, string Module, s
 public sealed record HistoryDocument(int Version, string Game, string Project, IReadOnlyList<HistoryEntry> Entries);
 
 /// <summary>The journal participates in the same verified commit as the edited game files.</summary>
-public sealed class ProjectHistory
+public sealed partial class ProjectHistory
 {
     private static readonly System.Collections.Concurrent.ConcurrentDictionary<string,object> Locks = new();
     private static readonly JsonSerializerOptions Json = new() { WriteIndented=true };
