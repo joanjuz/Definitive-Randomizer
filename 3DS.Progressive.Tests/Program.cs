@@ -9,6 +9,7 @@ using pk3DS.Core.Structures.PersonalInfo;
 using ThreeDS.Progressive.Models;
 using ThreeDS.Progressive.Services;
 
+if(RunnerCatalog.IsHelp(args)){RunnerCatalog.Print();return;}
 if(args.Length==3&&args[0]=="--extract-independent-image"){var extraction=new GameRomExtractionService().ExtractAsync(args[1],args[2]).GetAwaiter().GetResult();Console.WriteLine($"PASS EXTRACTION: {extraction.Files} files; source SHA256 {extraction.SourceSha256}; {extraction.Folder}");return;}
 if(args.Length==3&&args[0]=="--audit-catch-templates"){CatchZoneReferenceAudit.Run(args[1],args[2]);return;}
 if(args.Length>2&&args[0]=="--check-catch-real-copies"){CatchZoneRealCopyChecks.Run(args[1],args.Skip(2));return;}
@@ -188,6 +189,8 @@ if(args.Length==1&&args[0]=="--text-classification-ui-only")
 }
 if(args.Length==1&&args[0]=="--text-classification-only"){TextClassificationChecks.Run(Check);Console.WriteLine($"Completed {checks} text classification checks.");return;}
 if(args.Length==1&&args[0]=="--text-search-only"){StoryRandomChecks.Run(Check,Reject);Console.WriteLine($"Completed {checks} text search and story checks.");return;}
+// Without arguments run the full regression; --synthetic-only skips the WPF checks. Anything else is a typo or a wrong argument count.
+if(args.Length>0&&!(args.Length==1&&args[0]=="--synthetic-only")){RunnerCatalog.RejectUnknown(args);return;}
 TitleMovieChecks.Run(Check,Reject);
 NativeGen7WildChecks.Run(Check,Reject);Gen7ShinyRecipeChecks.Run(Check,Reject);StarterTextChecks.Run(Check,Reject);TitleScreenChecks.Run(Check,Reject);
 NativeGen7StaticChecks.Run(Check,Reject);

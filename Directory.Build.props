@@ -6,6 +6,5 @@
     <Company>Project Pokémon</Company>
     <Authors>Kaphotics</Authors>
     <Copyright>Kaphotics</Copyright>
-    <SourceRevisionId>$([System.DateTime]::UtcNow.ToString("yyMMddHHmmss"))</SourceRevisionId>
   </PropertyGroup>
 </Project>

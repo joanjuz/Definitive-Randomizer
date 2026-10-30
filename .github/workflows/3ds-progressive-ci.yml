@@ -3,6 +3,7 @@ on:
   push:
     branches:
       - feature/3ds-progressive-ui
+      - feature/switch-swsh-prototype
     paths:
       - "3DS.Progressive.App/**"
       - "3DS.Progressive.Tests/**"
@@ -59,7 +60,8 @@ jobs:
             'template-studio-ui-only', 'template-latest-ui-only', 'template-feedback-ui-only',
             'text-classification-ui-only', 'text-commands-ui-only', 'global-options-only',
             'guidance-only', 'global-apply-only', 'rebuild-marts-ui-only',
-            'history-inspection-only', 'rebuild-stability-only', 'swsh-only', 'swsh-ui-only'
+            'history-inspection-only', 'rebuild-stability-only', 'swsh-only', 'swsh-ui-only',
+            'swsh-parity-only'
           )
           foreach ($suite in $suites) {
             & dotnet $runner "--$suite" 2>&1 | Tee-Object -FilePath "validation-logs/$suite.log"
