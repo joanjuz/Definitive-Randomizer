@@ -1,5 +1,7 @@
 # Hoja de ruta: acercar Espada/Escudo a las herramientas de 3DS
 
+> **Nota (29/10/2026):** la tabla siguiente es la planificación inicial y no se actualiza con cada entrega. Varios módulos marcados como «Pendiente» ya están implementados (movimientos, aprendizajes, evoluciones, MT/TR, tiendas, Global Template y Batch). El estado vigente está en [SWITCH_ESCUDO_VALIDACION_Y_COMBATES_DOBLES.md](SWITCH_ESCUDO_VALIDACION_Y_COMBATES_DOBLES.md) y los informes posteriores listados en [INDICE.md](INDICE.md).
+
 Objetivo acordado: cubrir progresivamente la mayoría de módulos del editor/randomizer 3DS, con exportación de mods. No significa que cualquier formato legible sea ya editable ni que cada parche 3DS tenga equivalente Switch. Mantener versiones y capacidades explícitas por juego.
 
 | Módulo | Estado actual | Siguiente trabajo y criterio de aceptación |
