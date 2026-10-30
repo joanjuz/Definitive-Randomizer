@@ -58,17 +58,47 @@ public static class Gen5Randomizer
 
     public static Gen5RandomizerResult Generate(Gen5Data data, Gen5RandomizerOptions options)
     {
-        foreach (var range in options.BstRanges)
-            if (range.MinLevel < 1 || range.MaxLevel > 100 || range.MinLevel > range.MaxLevel || range.MinBst < 0 || range.MinBst > range.MaxBst)
-                throw new ArgumentException("Rango de BST inválido.", nameof(options));
         var stats = data.BaseStats();
-        if (stats.Count <= MaxSpecies)
-            throw new InvalidDataException("La tabla de estadísticas no cubre las 649 especies de Gen5.");
-        var pool = Enumerable.Range(1, MaxSpecies).Select(s => (Species: s, Bst: stats[s].Total)).ToArray();
+        var Pick = SpeciesPicker(stats, MaxSpecies, options);
         var files = new Dictionary<string, byte[]>();
         var changes = new List<Gen5Change>();
 
-        int Pick(Gen5SpeciesMode mode, string key, int original, int level)
+        // One working copy per table, shared by every step, so steps that touch the same table do not overwrite each other.
+        var working = new Dictionary<string, Narc>();
+        Narc Work(string key) => working.TryGetValue(key, out var narc) ? narc : working[key] = data.CopyNarc(key);
+        if (options.Trainers != Gen5SpeciesMode.Keep)
+            RandomizeTrainers(data, options, Pick, Work, changes);
+        if (options.Wild != Gen5SpeciesMode.Keep)
+            RandomizeWild(data, options, Pick, Work, changes);
+        var overlays = new Dictionary<int, byte[]>();
+        if (options.Starters != Gen5StarterMode.Keep)
+            SetStarters(data, options, stats, Work, overlays, changes);
+        if (options.FieldItems == Gen5ItemMode.Shuffle)
+            ShuffleFieldItems(data, options.Seed, Work, changes);
+        if (options.Shops == Gen5ItemMode.Shuffle)
+            ShuffleShops(data, options.Seed, Work, overlays, changes);
+        foreach (var (key, narc) in working)
+            files[data.PathOf(key)] = narc.Write();
+        return new Gen5RandomizerResult(files, changes, overlays)
+        {
+            RecompressOverlays = overlays.Keys.Where(id => id == data.Profile.ShopOverlay
+                || (id == data.Profile.StarterCryOverlay && data.Profile.RecompressStarterCryOverlay)).ToHashSet(),
+        };
+    }
+
+    /// <summary>
+    /// Species choice shared by the Gen4 and Gen5 randomizers: (mode, slot key, original species, level) → new species among 1..<paramref name="maxSpecies"/>.
+    /// </summary>
+    internal static Func<Gen5SpeciesMode, string, int, int, int> SpeciesPicker(IReadOnlyList<Gen5BaseStats> stats, int maxSpecies, Gen5RandomizerOptions options)
+    {
+        foreach (var range in options.BstRanges)
+            if (range.MinLevel < 1 || range.MaxLevel > 100 || range.MinLevel > range.MaxLevel || range.MinBst < 0 || range.MinBst > range.MaxBst)
+                throw new ArgumentException("Rango de BST inválido.", nameof(options));
+        if (stats.Count <= maxSpecies)
+            throw new InvalidDataException($"La tabla de estadísticas no cubre las {maxSpecies} especies.");
+        var pool = Enumerable.Range(1, maxSpecies).Select(s => (Species: s, Bst: stats[s].Total)).ToArray();
+
+        return (mode, key, original, level) =>
         {
             var candidates = pool;
             if (mode == Gen5SpeciesMode.SimilarBst)
@@ -87,27 +117,6 @@ public static class Gen5Randomizer
                     throw new InvalidDataException($"Ninguna especie tiene BST {range.MinBst}–{range.MaxBst} para el nivel {level}.");
             }
             return candidates[Index(options.Seed, key, candidates.Length)].Species;
-        }
-
-        // One working copy per table, shared by every step, so steps that touch the same table do not overwrite each other.
-        var working = new Dictionary<string, Narc>();
-        Narc Work(string key) => working.TryGetValue(key, out var narc) ? narc : working[key] = data.CopyNarc(key);
-        if (options.Trainers != Gen5SpeciesMode.Keep)
-            RandomizeTrainers(data, options, Pick, Work, changes);
-        if (options.Wild != Gen5SpeciesMode.Keep)
-            RandomizeWild(data, options, Pick, Work, changes);
-        var overlays = new Dictionary<int, byte[]>();
-        if (options.Starters != Gen5StarterMode.Keep)
-            SetStarters(data, options, stats, Work, overlays, changes);
-        if (options.FieldItems == Gen5ItemMode.Shuffle)
-            ShuffleFieldItems(data, options.Seed, Work, changes);
-        if (options.Shops == Gen5ItemMode.Shuffle)
-            ShuffleShops(data, options.Seed, overlays, changes);
-        foreach (var (key, narc) in working)
-            files[data.PathOf(key)] = narc.Write();
-        return new Gen5RandomizerResult(files, changes, overlays)
-        {
-            RecompressOverlays = overlays.ContainsKey(Gen5Profile.ShopOverlay) ? new HashSet<int> { Gen5Profile.ShopOverlay } : new HashSet<int>(),
         };
     }
 
@@ -185,11 +194,6 @@ public static class Gen5Randomizer
         }
     }
 
-    private static readonly byte[] StarterScriptSignature = [0x24, 0x00, 0xA7, 0x02, 0xE7, 0x00, 0x00, 0x00];
-    // Replays the two instructions displaced by the 6-byte call, adds two commands and returns (UPR-ZX bw1NewStarterScript, GPLv3).
-    private static readonly byte[] StarterScriptPatch = [0x24, 0x00, 0xA7, 0x02, 0xE7, 0x00, 0x00, 0x00, 0xDE, 0x00, 0x00, 0x00, 0xF8, 0x01, 0x05, 0x00];
-    private static readonly byte[] StarterCryPrefix = [0x08, 0x0A, 0x07, 0x00, 0x08, 0x00, 0x00];
-
     /// <summary>
     /// Starters across every place the game uses them: script positions, the Pokédex script fix, the selection-screen
     /// sprites and palettes, the cry table in overlay 223 and the type named in the selection text. Every guard runs before
@@ -209,13 +213,15 @@ public static class Gen5Randomizer
         for (int i = 0; i < 3; i++)
             foreach (var (file, offset) in data.Profile.StarterOffsets[i])
                 BinaryPrimitives.WriteUInt16LittleEndian(scripts.Files[file].AsSpan(offset), (ushort)chosen[i]);
-        byte[] dex = scripts.Files[Gen5Profile.PokedexGivenScript];
-        int at = Find(dex, StarterScriptSignature, "la firma del script del Pokédex");
-        byte[] patched = [.. dex, .. StarterScriptPatch];
-        patched[at] = 0x04;
+        // The displaced instruction is replayed by the appended code (UPR-ZX bw1/bw2NewStarterScript, GPLv3).
+        var profile = data.Profile;
+        byte[] dex = scripts.Files[profile.PokedexGivenScript];
+        int at = Find(dex, [.. profile.PokedexSignature], "la firma del script del Pokédex");
+        byte[] patched = [.. dex, .. profile.PokedexPatch];
+        patched[at] = profile.PokedexJump;
         patched[at + 1] = 0x00;
         BinaryPrimitives.WriteInt32LittleEndian(patched.AsSpan(at + 2), dex.Length - (at + 2 + 4));
-        scripts.Files[Gen5Profile.PokedexGivenScript] = patched;
+        scripts.Files[profile.PokedexGivenScript] = patched;
 
         var graphics = data.CopyNarc(Gen5Profile.PokemonGraphics);
         var selection = work(Gen5Profile.StarterGraphics);
@@ -230,37 +236,40 @@ public static class Gen5Randomizer
         }
 
         byte[] cries = data.StarterCryOverlay();
-        int table = Find(cries, StarterCryPrefix, "la tabla de gritos de los iniciales") + StarterCryPrefix.Length;
+        int table = Find(cries, [.. profile.StarterCryPrefix], "la tabla de gritos de los iniciales") + profile.StarterCryPrefix.Count;
         for (int i = 0; i < 3; i++)
         {
             if (BinaryPrimitives.ReadUInt16LittleEndian(cries.AsSpan(table + i * 2)) != original[i])
                 throw new InvalidDataException("La tabla de gritos de los iniciales no contiene los iniciales originales.");
             BinaryPrimitives.WriteUInt16LittleEndian(cries.AsSpan(table + i * 2), (ushort)chosen[i]);
         }
-        overlays[Gen5Profile.StarterCryOverlay] = cries;
+        overlays[profile.StarterCryOverlay] = cries;
 
         // Names come from a text variable; only the type is written into each selection line.
-        var types = data.Text(Gen5Profile.TypeNamesText);
+        var types = data.Text(profile.TypeNamesText);
         var story = work(Gen5Profile.TextStory);
-        byte[] storyFile = story.Files[Gen5Profile.StarterStoryText];
+        byte[] storyFile = story.Files[profile.StarterStoryText];
         var lines = Gen5Text.Read(storyFile);
         var edits = new Dictionary<int, string>();
         for (int i = 0; i < 3; i++)
         {
-            int line = Gen5Profile.StarterTypeLines[i];
+            int line = profile.StarterTypeLines[i];
             string before = types[stats[original[i]].Type1], after = types[stats[chosen[i]].Type1];
             if (CountOf(lines[line], before) != 1)
                 throw new InvalidDataException($"La línea de texto del inicial {i + 1} no contiene el tipo {before} una sola vez.");
             edits[line] = lines[line].Replace(before, after, StringComparison.Ordinal);
         }
-        story.Files[Gen5Profile.StarterStoryText] = Gen5Text.Replace(storyFile, edits);
+        story.Files[profile.StarterStoryText] = Gen5Text.Replace(storyFile, edits);
 
         for (int i = 0; i < 3; i++)
             if (chosen[i] != original[i])
                 changes.Add(new Gen5Change($"Inicial {i + 1}", "Especie", original[i], chosen[i]));
     }
 
-    /// <summary>TMs, HMs and key items (ids read from Black's own item names) never move; neither do unknown ids.</summary>
+    /// <summary>
+    /// TMs, HMs and key items (ids read from Black's and White 2's own item names) never move; neither do unknown ids.
+    /// Every sequel-only item from 621 on is a key item.
+    /// </summary>
     public static bool IsMovableItem(int item) => item is >= 1 and <= 627
         && item is not (>= 120 and <= 133) and not (>= 328 and <= 425) and not (>= 428 and <= 503) and not (>= 505 and <= 536)
         and not 574 and not 578 and not 579 and not 616 and not 617 and not (>= 618 and <= 620) and not (>= 621);
@@ -275,29 +284,34 @@ public static class Gen5Randomizer
             var (file, offset, before) = slots[i];
             BinaryPrimitives.WriteUInt16LittleEndian(scripts.Files[file].AsSpan(offset), (ushort)items[i]);
             if (items[i] != before)
-                changes.Add(new Gen5Change($"{(file == Gen5Profile.ItemBallScript ? "Objeto visible" : "Objeto oculto")} {i + 1}", "Objeto", before, items[i]));
+                changes.Add(new Gen5Change($"{(file == data.Profile.ItemBallScript ? "Objeto visible" : "Objeto oculto")} {i + 1}", "Objeto", before, items[i]));
         }
     }
 
-    private static void ShuffleShops(Gen5Data data, uint seed, Dictionary<int, byte[]> overlays, List<Gen5Change> changes)
+    private static void ShuffleShops(Gen5Data data, uint seed, Func<string, Narc> work, Dictionary<int, byte[]> overlays, List<Gen5Change> changes)
     {
-        byte[] overlay = data.ShopOverlay();
+        var profile = data.Profile;
         var shops = data.Shops();
         var slots = new List<(int Shop, int Index, int Item)>();
         for (int shop = 0; shop < shops.Count; shop++)
-            if (!Gen5Profile.FixedShops.Contains(shop))
+            if (!profile.FixedShops.Contains(shop))
                 for (int i = 0; i < shops[shop].Count; i++)
                     if (IsMovableItem(shops[shop][i]))
                         slots.Add((shop, i, shops[shop][i]));
         int[] items = Shuffle(slots.Select(s => s.Item).ToArray(), seed, "shop");
+        // Sequels keep one list per file of the shop NARC; Black/White keep them all in one overlay.
+        byte[]? overlay = profile.ShopOverlay >= 0 ? data.ShopOverlay() : null;
+        var narc = overlay is null ? work(Gen5Profile.ShopItems) : null;
         for (int i = 0; i < slots.Count; i++)
         {
             var (shop, index, before) = slots[i];
-            BinaryPrimitives.WriteUInt16LittleEndian(overlay.AsSpan(data.Profile.ShopItemOffsets[shop] + index * 2), (ushort)items[i]);
+            var span = overlay is not null ? overlay.AsSpan(profile.ShopItemOffsets[shop] + index * 2) : narc!.Files[shop].AsSpan(index * 2);
+            BinaryPrimitives.WriteUInt16LittleEndian(span, (ushort)items[i]);
             if (items[i] != before)
                 changes.Add(new Gen5Change($"Tienda {shop} · producto {index + 1}", "Objeto", before, items[i]));
         }
-        overlays[Gen5Profile.ShopOverlay] = overlay;
+        if (overlay is not null)
+            overlays[profile.ShopOverlay] = overlay;
     }
 
     // Fisher-Yates with the same seeded index as every other choice.
@@ -354,7 +368,7 @@ public static class Gen5Randomizer
     }
 
     // Deterministic per (seed, slot key): adding or skipping other slots never shifts a choice.
-    private static int Index(uint seed, string key, int count)
+    internal static int Index(uint seed, string key, int count)
     {
         ulong hash = 0xCBF29CE484222325;
         foreach (byte b in Encoding.UTF8.GetBytes(key))

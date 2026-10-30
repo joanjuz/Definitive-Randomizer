@@ -5,7 +5,7 @@ using pk3DS.Core.NDS;
 namespace ThreeDS.Progressive.Services.Nds;
 
 /// <summary>
-/// One opened Black/White ROM for the DS randomizer window. Heavy work runs off the UI thread; callers must not overlap operations.
+/// One opened Black/White or White 2 ROM for the DS randomizer window. Heavy work runs off the UI thread; callers must not overlap operations.
 /// A preview is tied to the options that produced it, so a stale preview is never exported.
 /// </summary>
 internal sealed class NdsGen5Session : IDisposable
@@ -28,7 +28,7 @@ internal sealed class NdsGen5Session : IDisposable
         _rom = rom;
         Data = data;
         _names = data.SpeciesNames();
-        _items = data.Text(Gen5Profile.ItemNamesText);
+        _items = data.Text(data.Profile.ItemNamesText);
         TrainerCount = data.Trainers().Count;
         AreaCount = data.Encounters().Count;
         OriginalStarters = data.Starters();

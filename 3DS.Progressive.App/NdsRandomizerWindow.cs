@@ -52,7 +52,7 @@ internal sealed class NdsRandomizerWindow : Window
 
     internal NdsRandomizerWindow()
     {
-        Title="Randomizer DS · Negro y Blanco (beta)";MaxWidth=SystemParameters.WorkArea.Width-24;MaxHeight=SystemParameters.WorkArea.Height-24;
+        Title="Randomizer DS · Negro, Blanco y Blanco 2 (beta)";MaxWidth=SystemParameters.WorkArea.Width-24;MaxHeight=SystemParameters.WorkArea.Height-24;
         Width=Math.Min(920,MaxWidth);Height=Math.Min(760,MaxHeight);MinWidth=Math.Min(560,Width);MinHeight=Math.Min(520,Height);
         WindowStyle=WindowStyle.None;ResizeMode=ResizeMode.CanResizeWithGrip;WindowStartupLocation=WindowStartupLocation.CenterOwner;ShowInTaskbar=false;
         Background=(Brush)FindResource("Bg");Foreground=(Brush)FindResource("TextMain");
@@ -62,8 +62,8 @@ internal sealed class NdsRandomizerWindow : Window
         var heading=new StackPanel();scroll.Content=heading;
         var title=new TextBlock{Text=Title,FontSize=22,FontWeight=FontWeights.SemiBold};title.MouseLeftButtonDown+=(_,e)=>{if(e.ClickCount==1)DragMove();};heading.Children.Add(title);
         heading.Children.Add(new TextBlock{TextWrapping=TextWrapping.Wrap,Margin=new Thickness(0,6,0,14),
-            Text="Elige un volcado original de Pokémon Negro (USA/EUR) o Blanco (España). La ROM original no se modifica: se exporta una ROM nueva junto con un registro de cambios. "+
-                 "Negro y Blanco son DSi-enhanced: la ROM exportada funciona en modo DS y en emuladores, no en modo DSi."});
+            Text="Elige un volcado original de Pokémon Negro (USA/EUR), Blanco (España) o Blanco 2 (USA/EUR). La ROM original no se modifica: se exporta una ROM nueva junto con un registro de cambios. "+
+                 "Los tres son DSi-enhanced: la ROM exportada funciona en modo DS y en emuladores, no en modo DSi."});
 
         var source=new DockPanel();heading.Children.Add(Section("ROM original"));DockPanel.SetDock(_choose,Dock.Right);source.Children.Add(_choose);source.Children.Add(_path);heading.Children.Add(source);heading.Children.Add(_identity);
         heading.Children.Add(Section("Opciones"));
@@ -87,7 +87,7 @@ internal sealed class NdsRandomizerWindow : Window
         var footer=new WrapPanel{Orientation=Orientation.Horizontal,HorizontalAlignment=System.Windows.HorizontalAlignment.Right,Margin=new Thickness(0,12,0,0)};Grid.SetRow(footer,1);root.Children.Add(footer);
         footer.Children.Add(_export);footer.Children.Add(_close);
 
-        AutomationProperties.SetName(_path,"Ruta de la ROM original");AutomationProperties.SetName(_choose,"Elegir la ROM original de Negro o Blanco");
+        AutomationProperties.SetName(_path,"Ruta de la ROM original");AutomationProperties.SetName(_choose,"Elegir la ROM original de Negro, Blanco o Blanco 2");
         AutomationProperties.SetName(_trainers,"Modo de randomización de entrenadores");AutomationProperties.SetName(_wild,"Modo de randomización de Pokémon salvajes");
         AutomationProperties.SetName(_starters,"Modo de iniciales");AutomationProperties.SetName(_starterPicks[0],"Inicial de la posición Planta");
         AutomationProperties.SetName(_starterPicks[1],"Inicial de la posición Fuego");AutomationProperties.SetName(_starterPicks[2],"Inicial de la posición Agua");
@@ -98,7 +98,7 @@ internal sealed class NdsRandomizerWindow : Window
         EditorPresentation.StyleAction(_export,EditorPresentation.ActionRole.Primary);EditorPresentation.StyleAction(_close,EditorPresentation.ActionRole.Tertiary);
 
         NewSeed();
-        _choose.Click+=async(_,_)=>{var picker=new Microsoft.Win32.OpenFileDialog{Filter="ROM de Nintendo DS (*.nds)|*.nds",Title="ROM original de Pokémon Negro o Blanco"};if(picker.ShowDialog(this)==true)await LoadAsync(picker.FileName);};
+        _choose.Click+=async(_,_)=>{var picker=new Microsoft.Win32.OpenFileDialog{Filter="ROM de Nintendo DS (*.nds)|*.nds",Title="ROM original de Pokémon Negro, Blanco o Blanco 2"};if(picker.ShowDialog(this)==true)await LoadAsync(picker.FileName);};
         _newSeed.Click+=(_,_)=>NewSeed();
         _preview.Click+=async(_,_)=>await PreviewAsync();
         _export.Click+=async(_,_)=>{if(_current is null||_session is null)return;var picker=new Microsoft.Win32.SaveFileDialog{Filter="ROM de Nintendo DS (*.nds)|*.nds",FileName=Path.GetFileNameWithoutExtension(_session.SourcePath)+"-random-"+_current.Options.Seed+".nds",Title="Guardar ROM randomizada"};if(picker.ShowDialog(this)==true)await ExportAsync(picker.FileName);};
