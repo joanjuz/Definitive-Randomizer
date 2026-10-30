@@ -23,7 +23,7 @@ public partial class MainWindow
         if(changed&&IsActive)Dispatcher.BeginInvoke(()=>{if(!_closed)(visible?(UIElement)HomeHost:EditorShell).MoveFocus(new TraversalRequest(FocusNavigationDirection.First));});
     }
     private void RefreshStart()=>HomeHost.Content=new StartView(_session,_simplified,ChooseExperience,
-        ()=>OpenProject_Click(OpenProjectButton,new RoutedEventArgs()),OpenGuided,()=>OpenTour("Home"),OpenSwitchPrototype);
+        ()=>OpenProject_Click(OpenProjectButton,new RoutedEventArgs()),OpenGuided,()=>OpenTour("Home"),OpenSwitchPrototype,OpenNdsRandomizer);
     private void Home_Click(object sender,RoutedEventArgs e)
     {
         if(_closed||UiProgress.IsInteractionBlocked)return;

@@ -75,6 +75,7 @@ dotnet .\3DS.Progressive.Tests\bin\Release\net10.0-windows\3DS.Progressive.Tests
 | `--global-apply-ui-only` | — |  |
 | `--interaction-lock-only` | — | sí |
 | `--rebuild-marts-ui-only` | — | sí |
+| `--nds-ui-only` | — | sí |
 | `--requested-ui-only` | — | sí |
 | `--swsh-ui-only` | — | sí |
 | `--template-feedback-ui-only` | — | sí |
@@ -117,6 +118,7 @@ Necesitan extracciones, ROMs o carpetas de salida. Los argumentos concretos (ent
 | `--nds-gen5-probe` | 1 o más |  |
 | `--nds-gen5-random-probe` | 2 o más |  |
 | `--nds-roundtrip-probe` | 2 o más |  |
+| `--nds-ui-probe` | exactamente 2 |  |
 | `--pokefeur-probe` | exactamente 3 |  |
 | `--read-facilities` | 1 o más |  |
 | `--read-field6` | 1 o más |  |
