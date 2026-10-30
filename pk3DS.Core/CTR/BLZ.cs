@@ -152,6 +152,13 @@ public class BLZCoder
         { Console.Write(Environment.NewLine + "File read error" + Environment.NewLine + e); }
     }
 
+    /// <summary>Decodes an in-memory BLZ buffer (Nintendo DS overlays). Data without a BLZ footer is returned unchanged.</summary>
+    public static byte[] Decompress(byte[] data)
+    {
+        var result = BLZ_Decode(data) ?? throw new InvalidDataException("Datos BLZ inválidos.");
+        return result.buffer.AsSpan(0, result.length).ToArray();
+    }
+
     private static BLZResult BLZ_Decode(byte[] data)
     {
         int raw_len;

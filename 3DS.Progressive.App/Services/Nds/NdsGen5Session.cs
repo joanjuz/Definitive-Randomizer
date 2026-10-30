@@ -19,6 +19,8 @@ internal sealed class NdsGen5Session : IDisposable
     internal bool KnownDump => Data.Identity.KnownDump;
     internal int TrainerCount { get; }
     internal int AreaCount { get; }
+    internal IReadOnlyList<string> SpeciesNames => _names;
+    internal IReadOnlyList<int> OriginalStarters { get; }
 
     private NdsGen5Session(NdsRom rom, Gen5Data data)
     {
@@ -27,6 +29,7 @@ internal sealed class NdsGen5Session : IDisposable
         _names = data.SpeciesNames();
         TrainerCount = data.Trainers().Count;
         AreaCount = data.Encounters().Count;
+        OriginalStarters = data.Starters();
     }
 
     internal static Task<NdsGen5Session> OpenAsync(string path) => Task.Run(() =>
@@ -66,7 +69,7 @@ internal sealed class NdsGen5Session : IDisposable
         var text = new StringBuilder();
         text.AppendLine($"Juego: {Game} ({Data.Profile.GameCode}); volcado original verificado: {(KnownDump ? "sí" : "no")}");
         text.AppendLine($"Origen: {SourcePath}");
-        text.AppendLine($"Semilla: {preview.Options.Seed}. Entrenadores: {ModeName(preview.Options.Trainers)}. Encuentros: {ModeName(preview.Options.Wild)}.");
+        text.AppendLine($"Semilla: {preview.Options.Seed}. Entrenadores: {ModeName(preview.Options.Trainers)}. Encuentros: {ModeName(preview.Options.Wild)}. Iniciales: {StarterModeName(preview.Options.Starters)}.");
         text.AppendLine($"Cambios: {preview.Result.Changes.Count}");
         text.AppendLine();
         foreach (var change in preview.Result.Changes)
@@ -80,6 +83,13 @@ internal sealed class NdsGen5Session : IDisposable
         Gen5SpeciesMode.Random => "aleatorio",
         Gen5SpeciesMode.SimilarBst => "BST similar",
         Gen5SpeciesMode.ProgressiveBst => "BST progresivo por nivel",
+        _ => "sin cambios",
+    };
+
+    internal static string StarterModeName(Gen5StarterMode mode) => mode switch
+    {
+        Gen5StarterMode.Random => "aleatorios",
+        Gen5StarterMode.Custom => "personalizados",
         _ => "sin cambios",
     };
 

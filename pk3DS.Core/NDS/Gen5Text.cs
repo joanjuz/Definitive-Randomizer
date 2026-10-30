@@ -3,6 +3,7 @@ using System;
 using System.Buffers.Binary;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Text;
 
 namespace pk3DS.Core.NDS;
@@ -61,6 +62,116 @@ public static class Gen5Text
             lines.Add(line.ToString());
         }
         return lines;
+    }
+
+    /// <summary>
+    /// Rewrites only the given lines. Unchanged lines keep their encrypted bytes; changed lines are encrypted with their original
+    /// key and stored uncompressed. Line metadata and a second section are preserved, so no changes returns the same bytes.
+    /// </summary>
+    public static byte[] Replace(byte[] data, IReadOnlyDictionary<int, string> changes)
+    {
+        if (changes.Count == 0)
+            return (byte[])data.Clone();
+        int sections = BinaryPrimitives.ReadUInt16LittleEndian(data);
+        int entries = BinaryPrimitives.ReadUInt16LittleEndian(data.AsSpan(2));
+        if (sections is < 1 or > 2)
+            throw new InvalidDataException("Archivo de texto Gen5 con un número de secciones inesperado: " + sections);
+        int section = checked((int)BinaryPrimitives.ReadUInt32LittleEndian(data.AsSpan(12)));
+        int oldSize = checked((int)BinaryPrimitives.ReadUInt32LittleEndian(data.AsSpan(section)));
+        var lines = new List<ushort[]>(entries);
+        var unknowns = new ushort[entries];
+        for (int i = 0; i < entries; i++)
+        {
+            int table = section + 4 + i * 8;
+            int start = section + checked((int)BinaryPrimitives.ReadUInt32LittleEndian(data.AsSpan(table)));
+            int count = BinaryPrimitives.ReadUInt16LittleEndian(data.AsSpan(table + 4));
+            unknowns[i] = BinaryPrimitives.ReadUInt16LittleEndian(data.AsSpan(table + 6));
+            var raw = new ushort[count];
+            for (int k = 0; k < count; k++)
+                raw[k] = BinaryPrimitives.ReadUInt16LittleEndian(data.AsSpan(start + k * 2));
+            lines.Add(raw);
+        }
+        foreach (var (index, text) in changes)
+        {
+            if (index < 0 || index >= entries || lines[index].Length == 0)
+                throw new ArgumentOutOfRangeException(nameof(changes), "Línea de texto Gen5 fuera de rango o vacía: " + index);
+            int key = FirstKey(lines[index]);
+            var plain = Encode(text);
+            plain.Add(0xFFFF);
+            var encrypted = new ushort[plain.Count];
+            for (int k = 0; k < plain.Count; k++)
+            {
+                encrypted[k] = (ushort)(plain[k] ^ key);
+                key = ((key << 3) | (key >> 13)) & 0xFFFF;
+            }
+            lines[index] = encrypted;
+        }
+        int words = lines.Sum(l => l.Length);
+        // Sections end on a 4-byte boundary: pad the last line with one more encrypted terminator, as the game files do.
+        if (words % 2 == 1 && entries > 0)
+        {
+            var last = lines[^1];
+            int key = FirstKey(last);
+            for (int k = 0; k < last.Length; k++)
+                key = ((key << 3) | (key >> 13)) & 0xFFFF;
+            lines[^1] = [.. last, (ushort)(0xFFFF ^ key)];
+            words++;
+        }
+        int size = 4 + entries * 8 + words * 2;
+        byte[] newSection = new byte[size];
+        BinaryPrimitives.WriteUInt32LittleEndian(newSection, (uint)size);
+        int offset = 4 + entries * 8, at = offset;
+        for (int i = 0; i < entries; i++)
+        {
+            BinaryPrimitives.WriteUInt32LittleEndian(newSection.AsSpan(4 + i * 8), (uint)offset);
+            BinaryPrimitives.WriteUInt16LittleEndian(newSection.AsSpan(8 + i * 8), (ushort)lines[i].Length);
+            BinaryPrimitives.WriteUInt16LittleEndian(newSection.AsSpan(10 + i * 8), unknowns[i]);
+            foreach (ushort w in lines[i])
+            {
+                BinaryPrimitives.WriteUInt16LittleEndian(newSection.AsSpan(at), w);
+                at += 2;
+            }
+            offset += lines[i].Length * 2;
+        }
+        var output = new byte[data.Length - oldSize + size];
+        data.AsSpan(0, section).CopyTo(output);
+        newSection.CopyTo(output, section);
+        BinaryPrimitives.WriteUInt32LittleEndian(output.AsSpan(4), (uint)size);
+        if (sections == 2)
+        {
+            int second = checked((int)BinaryPrimitives.ReadUInt32LittleEndian(data.AsSpan(16)));
+            int secondSize = checked((int)BinaryPrimitives.ReadUInt32LittleEndian(data.AsSpan(second)));
+            BinaryPrimitives.WriteUInt32LittleEndian(output.AsSpan(16), (uint)(section + size));
+            data.AsSpan(second, secondSize).CopyTo(output.AsSpan(section + size));
+        }
+        return output;
+    }
+
+    // Key used for the first character, recovered by walking back from the terminator.
+    private static int FirstKey(ushort[] encrypted)
+    {
+        int key = encrypted[^1] ^ 0xFFFF;
+        for (int k = encrypted.Length - 1; k > 0; k--)
+            key = ((key >> 3) | (key << 13)) & 0xFFFF;
+        return key;
+    }
+
+    // Inverse of Read: characters as UTF-16 units and a backslash-x escape with four hex digits as a raw value.
+    private static List<ushort> Encode(string text)
+    {
+        var output = new List<ushort>(text.Length);
+        for (int i = 0; i < text.Length; i++)
+        {
+            if (text[i] == '\\' && i + 5 < text.Length && text[i + 1] == 'x'
+                && ushort.TryParse(text.AsSpan(i + 2, 4), System.Globalization.NumberStyles.HexNumber, null, out ushort value))
+            {
+                output.Add(value);
+                i += 5;
+            }
+            else
+                output.Add(text[i]);
+        }
+        return output;
     }
 
     private static List<ushort> Decompress(ushort[] chars)

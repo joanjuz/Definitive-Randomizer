@@ -10,6 +10,8 @@ namespace pk3DS.Core.NDS;
 
 public enum Gen5SpeciesMode { Keep, Random, SimilarBst, ProgressiveBst }
 
+public enum Gen5StarterMode { Keep, Random, Custom }
+
 /// <summary>Species allowed for a level band in progressive mode. Defaults follow the Switch ranges as a design choice, not shared data.</summary>
 public sealed record Gen5BstRange(int MinLevel, int MaxLevel, int MinBst, int MaxBst)
 {
@@ -24,12 +26,16 @@ public sealed record Gen5RandomizerOptions(uint Seed)
 {
     public Gen5SpeciesMode Trainers { get; init; }
     public Gen5SpeciesMode Wild { get; init; }
+    public Gen5StarterMode Starters { get; init; }
+    /// <summary>Three distinct species (Grass, Fire and Water slots, in that order) for <see cref="Gen5StarterMode.Custom"/>.</summary>
+    public IReadOnlyList<int>? CustomStarters { get; init; }
     public IReadOnlyList<Gen5BstRange> BstRanges { get; init; } = Gen5BstRange.Defaults;
 }
 
 public sealed record Gen5Change(string Location, string Field, int Before, int After);
 
-public sealed record Gen5RandomizerResult(IReadOnlyDictionary<string, byte[]> Files, IReadOnlyList<Gen5Change> Changes);
+public sealed record Gen5RandomizerResult(IReadOnlyDictionary<string, byte[]> Files, IReadOnlyList<Gen5Change> Changes,
+    IReadOnlyDictionary<int, byte[]> Overlays);
 
 /// <summary>
 /// Black/White trainer and wild species randomizer. Choices depend only on the seed and the slot, so a result is reproducible.
@@ -78,7 +84,10 @@ public static class Gen5Randomizer
             RandomizeTrainers(data, options, Pick, files, changes);
         if (options.Wild != Gen5SpeciesMode.Keep)
             RandomizeWild(data, options, Pick, files, changes);
-        return new Gen5RandomizerResult(files, changes);
+        var overlays = new Dictionary<int, byte[]>();
+        if (options.Starters != Gen5StarterMode.Keep)
+            SetStarters(data, options, stats, files, overlays, changes);
+        return new Gen5RandomizerResult(files, changes, overlays);
     }
 
     private static void RandomizeTrainers(Gen5Data data, Gen5RandomizerOptions options, Func<Gen5SpeciesMode, string, int, int, int> pick,
@@ -156,6 +165,125 @@ public static class Gen5Randomizer
             wild.Files[file] = table;
         }
         files[data.PathOf(Gen5Profile.WildPokemon)] = wild.Write();
+    }
+
+    private static readonly byte[] StarterScriptSignature = [0x24, 0x00, 0xA7, 0x02, 0xE7, 0x00, 0x00, 0x00];
+    // Replays the two instructions displaced by the 6-byte call, adds two commands and returns (UPR-ZX bw1NewStarterScript, GPLv3).
+    private static readonly byte[] StarterScriptPatch = [0x24, 0x00, 0xA7, 0x02, 0xE7, 0x00, 0x00, 0x00, 0xDE, 0x00, 0x00, 0x00, 0xF8, 0x01, 0x05, 0x00];
+    private static readonly byte[] StarterCryPrefix = [0x08, 0x0A, 0x07, 0x00, 0x08, 0x00, 0x00];
+
+    /// <summary>
+    /// Starters across every place the game uses them: script positions, the Pokédex script fix, the selection-screen
+    /// sprites and palettes, the cry table in overlay 223 and the type named in the selection text. Every guard runs before
+    /// anything is returned, so an unexpected layout rejects the whole operation.
+    /// </summary>
+    private static void SetStarters(Gen5Data data, Gen5RandomizerOptions options, IReadOnlyList<Gen5BaseStats> stats,
+        Dictionary<string, byte[]> files, Dictionary<int, byte[]> overlays, List<Gen5Change> changes)
+    {
+        int[] chosen = options.Starters == Gen5StarterMode.Custom
+            ? (options.CustomStarters ?? throw new ArgumentException("Faltan los iniciales personalizados.", nameof(options))).ToArray()
+            : PickStarters(options.Seed);
+        if (chosen.Length != 3 || chosen.Distinct().Count() != 3 || chosen.Any(s => s is < 1 or > MaxSpecies))
+            throw new ArgumentException("Se necesitan tres iniciales distintos entre 1 y 649.", nameof(options));
+        var original = data.Starters();
+
+        var scripts = data.CopyNarc(Gen5Profile.Scripts);
+        for (int i = 0; i < 3; i++)
+            foreach (var (file, offset) in data.Profile.StarterOffsets[i])
+                BinaryPrimitives.WriteUInt16LittleEndian(scripts.Files[file].AsSpan(offset), (ushort)chosen[i]);
+        byte[] dex = scripts.Files[Gen5Profile.PokedexGivenScript];
+        int at = Find(dex, StarterScriptSignature, "la firma del script del Pokédex");
+        byte[] patched = [.. dex, .. StarterScriptPatch];
+        patched[at] = 0x04;
+        patched[at + 1] = 0x00;
+        BinaryPrimitives.WriteInt32LittleEndian(patched.AsSpan(at + 2), dex.Length - (at + 2 + 4));
+        scripts.Files[Gen5Profile.PokedexGivenScript] = patched;
+        files[data.PathOf(Gen5Profile.Scripts)] = scripts.Write();
+
+        var graphics = data.CopyNarc(Gen5Profile.PokemonGraphics);
+        var selection = data.CopyNarc(Gen5Profile.StarterGraphics);
+        for (int i = 0; i < 3; i++)
+        {
+            byte[] palette = graphics.Files[chosen[i] * 20 + 18];
+            byte[] sprite = Lz11(graphics.Files[chosen[i] * 20]);
+            if (!palette.AsSpan(0, 4).SequenceEqual("RLCN"u8) || !sprite.AsSpan(0, 4).SequenceEqual("RGCN"u8) || sprite.Length != selection.Files[12 + i].Length)
+                throw new InvalidDataException($"Los gráficos de la especie {chosen[i]} no tienen el formato de la pantalla de elección.");
+            selection.Files[i * 2] = palette;
+            selection.Files[12 + i] = sprite;
+        }
+        files[data.PathOf(Gen5Profile.StarterGraphics)] = selection.Write();
+
+        byte[] cries = data.StarterCryOverlay();
+        int table = Find(cries, StarterCryPrefix, "la tabla de gritos de los iniciales") + StarterCryPrefix.Length;
+        for (int i = 0; i < 3; i++)
+        {
+            if (BinaryPrimitives.ReadUInt16LittleEndian(cries.AsSpan(table + i * 2)) != original[i])
+                throw new InvalidDataException("La tabla de gritos de los iniciales no contiene los iniciales originales.");
+            BinaryPrimitives.WriteUInt16LittleEndian(cries.AsSpan(table + i * 2), (ushort)chosen[i]);
+        }
+        overlays[Gen5Profile.StarterCryOverlay] = cries;
+
+        // Names come from a text variable; only the type is written into each selection line.
+        var types = data.Text(Gen5Profile.TypeNamesText);
+        var story = data.CopyNarc(Gen5Profile.TextStory);
+        byte[] storyFile = story.Files[Gen5Profile.StarterStoryText];
+        var lines = Gen5Text.Read(storyFile);
+        var edits = new Dictionary<int, string>();
+        for (int i = 0; i < 3; i++)
+        {
+            int line = Gen5Profile.StarterTypeLines[i];
+            string before = types[stats[original[i]].Type1], after = types[stats[chosen[i]].Type1];
+            if (CountOf(lines[line], before) != 1)
+                throw new InvalidDataException($"La línea de texto del inicial {i + 1} no contiene el tipo {before} una sola vez.");
+            edits[line] = lines[line].Replace(before, after, StringComparison.Ordinal);
+        }
+        story.Files[Gen5Profile.StarterStoryText] = Gen5Text.Replace(storyFile, edits);
+        files[data.PathOf(Gen5Profile.TextStory)] = story.Write();
+
+        for (int i = 0; i < 3; i++)
+            if (chosen[i] != original[i])
+                changes.Add(new Gen5Change($"Inicial {i + 1}", "Especie", original[i], chosen[i]));
+    }
+
+    private static int[] PickStarters(uint seed)
+    {
+        var picked = new List<int>();
+        for (int attempt = 0; picked.Count < 3; attempt++)
+        {
+            int species = Index(seed, $"starter/{attempt}", MaxSpecies) + 1;
+            if (!picked.Contains(species))
+                picked.Add(species);
+        }
+        return [.. picked];
+    }
+
+    private static int Find(byte[] data, byte[] pattern, string what)
+    {
+        int found = -1;
+        for (int i = 0; i + pattern.Length <= data.Length; i++)
+            if (data.AsSpan(i, pattern.Length).SequenceEqual(pattern))
+            {
+                if (found >= 0)
+                    throw new InvalidDataException($"Se encontró más de una vez {what}.");
+                found = i;
+            }
+        return found >= 0 ? found : throw new InvalidDataException($"No se encontró {what}.");
+    }
+
+    private static int CountOf(string text, string value)
+    {
+        int count = 0;
+        for (int i = text.IndexOf(value, StringComparison.Ordinal); i >= 0; i = text.IndexOf(value, i + value.Length, StringComparison.Ordinal))
+            count++;
+        return count;
+    }
+
+    private static byte[] Lz11(byte[] compressed)
+    {
+        using var input = new MemoryStream(compressed);
+        using var output = new MemoryStream();
+        pk3DS.Core.CTR.LZSS.Decompress(input, compressed.Length, output);
+        return output.ToArray();
     }
 
     // Deterministic per (seed, slot key): adding or skipping other slots never shifts a choice.

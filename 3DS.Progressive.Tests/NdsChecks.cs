@@ -24,7 +24,11 @@ internal static class NdsChecks
             byte[] large=Enumerable.Repeat((byte)0xC9,0x300).ToArray();string moved=Path.Combine(temp,"moved.nds");rom.Save(moved,new Dictionary<int,byte[]>{[2]=large});byte[] movedBytes=File.ReadAllBytes(moved);
             using(var edited=NdsRom.Open(moved))check(edited.Files[2].Start==0x2800&&edited.ReadFile("dat/c.bin").SequenceEqual(large)&&edited.Header.NtrEnd==0x2B00&&movedBytes.AsSpan(0x2400,8).ToArray().All(b=>b==0xFF)&&edited.ReadFile("overlay/0003").SequenceEqual(rom.ReadFile("overlay/0003")),"Nds_RelocatesGrownFileToFreePaddingAndUpdatesHeader");
             string tooLarge=Path.Combine(temp,"too-large.nds");reject(()=>rom.Save(tooLarge,new Dictionary<int,byte[]>{[2]=new byte[0x10000]}),"Nds_RejectsFileWithoutFreeSpace");check(!File.Exists(tooLarge)&&!File.Exists(tooLarge+".partial"),"Nds_RejectedSaveLeavesNoOutput");
-            bool overlayRejected=false;try{rom.Save(Path.Combine(temp,"overlay.nds"),new Dictionary<int,byte[]>{[3]=[0]});}catch(NotSupportedException){overlayRejected=true;}check(overlayRejected,"Nds_RejectsOverlayReplacementUntilSupported");
+            bool overlayRejected=false;try{rom.Save(Path.Combine(temp,"overlay.nds"),new Dictionary<int,byte[]>{[3]=[0]});}catch(NotSupportedException){overlayRejected=true;}check(overlayRejected,"Nds_OverlayFilesOnlyChangeThroughTheOverlayTable");
+            check(rom.Overlays.Count==1&&rom.Overlay(0) is {FileId:3,RamSize:0x10,Compressed:false}&&rom.ReadOverlay(0).SequenceEqual(rom.ReadFile("overlay/0003")),"Nds_ReadsOverlayTable");
+            byte[] newOverlay=Enumerable.Range(0,16).Select(i=>(byte)i).ToArray();string overlayOut=Path.Combine(temp,"overlay-ok.nds");rom.Save(overlayOut,new Dictionary<int,byte[]>(),new Dictionary<int,byte[]>{[0]=newOverlay});
+            using(var edited=NdsRom.Open(overlayOut))check(edited.ReadOverlay(0).SequenceEqual(newOverlay)&&edited.Overlay(0) is {StoredSize:16,Compressed:false}&&edited.ReadFile("a.bin").SequenceEqual(rom.ReadFile("a.bin")),"Nds_ReplacesOverlayUncompressedAndUpdatesItsTable");
+            reject(()=>rom.Save(Path.Combine(temp,"overlay-size.nds"),new Dictionary<int,byte[]>(),new Dictionary<int,byte[]>{[0]=new byte[8]}),"Nds_RejectsOverlayWithDifferentSize");
             reject(()=>rom.Save(source,new Dictionary<int,byte[]>()),"Nds_RejectsWritingOverTheSource");reject(()=>rom.Save(same,new Dictionary<int,byte[]>()),"Nds_RejectsExistingOutput");
             check(File.ReadAllBytes(source).SequenceEqual(original),"Nds_SourceRomIsNeverModified");
             byte[] corrupt=(byte[])original.Clone();corrupt[0x20]^=1;string bad=Path.Combine(temp,"bad.nds");File.WriteAllBytes(bad,corrupt);reject(()=>NdsRom.Open(bad).Dispose(),"Nds_RejectsHeaderWithWrongCrc");
@@ -35,6 +39,10 @@ internal static class NdsChecks
             check(Gen5Data.Crc32("123456789"u8)==0xCBF43926,"Nds_Crc32MatchesStandardCheckValue");
             var lines=Gen5Text.Read(Gen5Message(["Snivy","Línea\nfin",""]));check(lines.Count==3&&lines[0]=="Snivy"&&lines[1]==@"Línea\x000Afin"&&lines[2]=="","Nds_Gen5TextDecryptsLinesAndKeepsControlCodes");
             reject(()=>Gen5Text.Read(new byte[8]),"Nds_Gen5TextRejectsTruncatedFile");
+            byte[] message=Gen5Message(["Uno","Planta y más","Tres"]);
+            check(Gen5Text.Replace(message,new Dictionary<int,string>()).SequenceEqual(message)&&Gen5Text.Replace(message,new Dictionary<int,string>{[1]="Planta y más"}).SequenceEqual(message),"Nds_Gen5TextRewriteWithoutChangesIsByteIdentical");
+            var rewritten=Gen5Text.Read(Gen5Text.Replace(message,new Dictionary<int,string>{[1]="Fuego con \\xFFFE salto"}));
+            check(rewritten.Count==3&&rewritten[0]=="Uno"&&rewritten[1]=="Fuego con \\xFFFE salto"&&rewritten[2]=="Tres","Nds_Gen5TextReplacesOneLineAndKeepsTheOthers");
         }
         finally{Directory.Delete(temp,true);}
     }
@@ -148,6 +156,8 @@ internal static class NdsChecks
         }
         void U32(int at,uint value)=>BinaryPrimitives.WriteUInt32LittleEndian(rom.AsSpan(at),value);
         U32(0x40,0x1000);U32(0x44,(uint)fnt.Length);U32(0x48,0x1100);U32(0x4C,(uint)(files.Length*8));U32(0x80,0x2800);U32(0x84,0x200);
+        // One uncompressed ARM9 overlay (id 0) stored in the unnamed file 3.
+        U32(0x50,0x1200);U32(0x54,32);U32(0x1200,0);U32(0x1204,0x02000000);U32(0x1208,0x10);U32(0x1218,3);U32(0x121C,0x10);
         BinaryPrimitives.WriteUInt16LittleEndian(rom.AsSpan(0x15E),NdsRom.Crc16(rom.AsSpan(0,0x15E)));
         return rom;
     }
