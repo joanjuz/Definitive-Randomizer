@@ -13,6 +13,10 @@ $stage = Join-Path $output $name
 $zip = Join-Path $output ($name+'.zip')
 if ((Test-Path -LiteralPath $stage) -or (Test-Path -LiteralPath $zip)) { throw 'Use a new output directory; existing packages are never overwritten.' }
 $logs = Join-Path $output 'build-logs'
+# Windows PowerShell 5.1 cannot copy or compress paths longer than MAX_PATH; fail before the slow publish.
+$maxPath = 259
+$deepest = @(& git -C $repo ls-files custom_balance_templates pk3DS.WinForms/Templates | ForEach-Object { 'LegacyBatch/custom_balance_templates/'+(Split-Path $_ -Leaf) } | Sort-Object Length -Descending)[0]
+if (($stage.Length+1+$deepest.Length) -gt $maxPath) { throw "Output path too long for Windows PowerShell ($($stage.Length+1+$deepest.Length) > $maxPath characters with $deepest). Use a shorter -OutputDirectory." }
 New-Item -ItemType Directory -Path $stage,$logs -Force | Out-Null
 Push-Location $repo
 try {
@@ -44,6 +48,11 @@ try {
     Copy-Item -LiteralPath (Join-Path $repo 'pk3DS.WinForms/Templates/field_items.txt') -Destination (Join-Path $stage 'custom_balance_templates/field_items.txt') -Force
     Copy-Item -LiteralPath (Join-Path $repo 'pk3DS.WinForms/Templates/field_items.txt') -Destination (Join-Path $stage 'LegacyBatch/custom_balance_templates/field_items.txt') -Force
     Copy-Item -LiteralPath (Join-Path $repo 'LICENSE.md') -Destination $stage
+    # Ship the third-party licenses in docs/third-party as plain files, not only as embedded resources.
+    New-Item -ItemType Directory -Path (Join-Path $stage 'third-party') -Force | Out-Null
+    foreach ($file in @(& git ls-files docs/third-party)) {
+        Copy-Item -LiteralPath (Join-Path $repo $file) -Destination (Join-Path $stage 'third-party') -Force
+    }
     Copy-Item -LiteralPath $notes -Destination (Join-Path $stage 'LEEME.md')
     "Version: $Version`nCommit: $revision`nSource: https://github.com/joanjuz/Definitive-Randomizer/tree/v$Version" | Set-Content -LiteralPath (Join-Path $stage 'VERSION.txt') -Encoding utf8
     # Only remove development metadata from this newly generated package.
@@ -51,7 +60,7 @@ try {
         if (-not $_.FullName.StartsWith($stage+[IO.Path]::DirectorySeparatorChar,[StringComparison]::OrdinalIgnoreCase)) { throw 'Unexpected package path.' }
         Remove-Item -LiteralPath $_.FullName -Force
     }
-    foreach ($required in @('DefinitiveRandomizer.exe','LegacyBatch/pk3DS.WinForms.exe','custom_balance_templates/field_items.txt','Templates/trainer_better_movesets.txt','Tools/Mobipeg/ffmpeg.exe','Tools/Mobipeg/ffprobe.exe','Tools/Mobipeg/mobipeg-v2.3-source.tar.gz','LICENSE.md','LEEME.md')) {
+    foreach ($required in @('DefinitiveRandomizer.exe','LegacyBatch/pk3DS.WinForms.exe','custom_balance_templates/field_items.txt','Templates/trainer_better_movesets.txt','Tools/Mobipeg/ffmpeg.exe','Tools/Mobipeg/ffprobe.exe','Tools/Mobipeg/mobipeg-v2.3-source.tar.gz','LICENSE.md','LEEME.md','third-party/PokeFeur-LICENSE.txt','third-party/pkNX-LICENSE.txt')) {
         if (-not (Test-Path -LiteralPath (Join-Path $stage $required))) { throw "Missing packaged dependency: $required" }
     }
     # Neutral .NET resources suffice; app labels and ROM language banks are unaffected.
@@ -70,6 +79,8 @@ try {
         '{0}  {1}' -f (Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant(),$_.FullName.Substring($stage.Length+1).Replace('\','/')
     }
     $hashes | Set-Content -LiteralPath (Join-Path $stage 'SHA256SUMS.txt') -Encoding utf8
+    $tooLong = @(Get-ChildItem -LiteralPath $stage -Recurse -File | Where-Object { $_.FullName.Length -gt $maxPath })
+    if ($tooLong.Count) { throw "Packaged path too long for Windows PowerShell: $($tooLong[0].FullName)" }
     Compress-Archive -LiteralPath $stage -DestinationPath $zip -CompressionLevel Optimal
     '{0}  {1}' -f (Get-FileHash -LiteralPath $zip -Algorithm SHA256).Hash.ToLowerInvariant(),(Split-Path $zip -Leaf) | Set-Content -LiteralPath (Join-Path $output 'SHA256SUMS.txt') -Encoding utf8
     Write-Output "Package: $zip"
