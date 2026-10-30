@@ -39,6 +39,7 @@ Punto de entrada a `docs/3ds-progressive/`. Muchos documentos son **registros hi
 - Fase 2a, randomizer Gen5 de entrenadores y encuentros: [NDS_FASE2A_GEN5_RANDOMIZER.md](NDS_FASE2A_GEN5_RANDOMIZER.md)
 - Fase 2b, randomizer DS en la aplicación: [NDS_FASE2B_GEN5_INTERFAZ.md](NDS_FASE2B_GEN5_INTERFAZ.md)
 - Fase 3, overlays e iniciales Gen5: [NDS_FASE3_GEN5_INICIALES.md](NDS_FASE3_GEN5_INICIALES.md)
+- Fase 4, objetos del mapa y tiendas Gen5: [NDS_FASE4_GEN5_OBJETOS.md](NDS_FASE4_GEN5_OBJETOS.md)
 
 ## Espada/Escudo (Switch)
 

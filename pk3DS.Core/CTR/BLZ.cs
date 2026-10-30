@@ -152,6 +152,18 @@ public class BLZCoder
         { Console.Write(Environment.NewLine + "File read error" + Environment.NewLine + e); }
     }
 
+    // In-memory use: no command runs and progress goes to an unattached bar.
+    private BLZCoder() => pBar1 = new ProgressBar();
+
+    /// <summary>Encodes an in-memory buffer as a normal (non-ARM9) BLZ stream, the format of Nintendo DS overlays.</summary>
+    public static byte[] Compress(byte[] data)
+    {
+        var result = new BLZCoder().BLZ_Encode(data, BLZ_NORMAL);
+        if (result?.buffer is null)
+            throw new InvalidDataException("No se pudo comprimir con BLZ.");
+        return result.buffer.AsSpan(0, result.length).ToArray();
+    }
+
     /// <summary>Decodes an in-memory BLZ buffer (Nintendo DS overlays). Data without a BLZ footer is returned unchanged.</summary>
     public static byte[] Decompress(byte[] data)
     {

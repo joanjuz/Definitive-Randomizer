@@ -99,21 +99,31 @@ public sealed class NdsRom : IDisposable
     /// Writes a new ROM to <paramref name="output"/> with the given file contents replaced. Unchanged bytes are copied verbatim,
     /// so saving without replacements reproduces the original file exactly. The source ROM is never modified.
     /// </summary>
-    public void Save(string output, IReadOnlyDictionary<int, byte[]> replacements) => Save(output, replacements, null);
+    public void Save(string output, IReadOnlyDictionary<int, byte[]> replacements) => Save(output, replacements, null, null);
 
     /// <summary>
-    /// Like <see cref="Save(string, IReadOnlyDictionary{int, byte[]})"/>, also replacing overlays by id. Overlays are written
-    /// uncompressed and their table entry updated (stored size, compressed flag cleared); the decompressed size must not change.
+    /// Like <see cref="Save(string, IReadOnlyDictionary{int, byte[]})"/>, also replacing overlays by id; the decompressed size must
+    /// not change. By default an overlay is written uncompressed (compressed flag cleared). Ids in <paramref name="recompress"/> are
+    /// BLZ-compressed again, and the result must decompress to the same bytes before it is written.
     /// </summary>
-    public void Save(string output, IReadOnlyDictionary<int, byte[]> replacements, IReadOnlyDictionary<int, byte[]>? overlays)
+    public void Save(string output, IReadOnlyDictionary<int, byte[]> replacements, IReadOnlyDictionary<int, byte[]>? overlays,
+        IReadOnlySet<int>? recompress = null)
     {
-        var overlayFiles = new Dictionary<int, (NdsOverlay Overlay, byte[] Data)>();
+        var overlayFiles = new Dictionary<int, (NdsOverlay Overlay, byte[] Data, byte Flags)>();
         foreach (var (id, data) in overlays ?? new Dictionary<int, byte[]>())
         {
             var overlay = Overlay(id);
             if (data.Length != ReadOverlay(id).Length)
                 throw new InvalidDataException($"El overlay {id} debe conservar su tamaño descomprimido ({data.Length} bytes recibidos).");
-            overlayFiles[overlay.FileId] = (overlay, data);
+            if (recompress?.Contains(id) == true && overlay.Compressed)
+            {
+                byte[] packed = pk3DS.Core.CTR.BLZCoder.Compress(data);
+                if (!pk3DS.Core.CTR.BLZCoder.Decompress(packed).AsSpan().SequenceEqual(data))
+                    throw new InvalidDataException($"La compresión BLZ del overlay {id} no reproduce sus datos.");
+                overlayFiles[overlay.FileId] = (overlay, packed, overlay.Flags);
+            }
+            else
+                overlayFiles[overlay.FileId] = (overlay, data, (byte)(overlay.Flags & ~1));
         }
         string target = System.IO.Path.GetFullPath(output);
         if (string.Equals(target, Path, StringComparison.OrdinalIgnoreCase))
@@ -178,10 +188,10 @@ public sealed class NdsRom : IDisposable
                     WriteAt(output2, fatOffset + (uint)id * 8, fat);
                     ntrEnd = Math.Max(ntrEnd, Align(start + (uint)data.Length, 4));
                 }
-                foreach (var (overlay, data) in overlayFiles.Values)
+                foreach (var (overlay, data, flags) in overlayFiles.Values)
                 {
                     byte[] stored = new byte[4];
-                    BinaryPrimitives.WriteUInt32LittleEndian(stored, ((uint)data.Length & 0xFFFFFF) | ((uint)(overlay.Flags & ~1) << 24));
+                    BinaryPrimitives.WriteUInt32LittleEndian(stored, ((uint)data.Length & 0xFFFFFF) | ((uint)flags << 24));
                     WriteAt(output2, _overlayTable + (uint)overlay.Index * 32 + 28, stored);
                 }
                 BinaryPrimitives.WriteUInt32LittleEndian(header.AsSpan(0x80), ntrEnd);

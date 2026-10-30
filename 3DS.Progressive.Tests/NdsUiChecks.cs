@@ -20,8 +20,8 @@ internal static class NdsUiChecks
 
         var window=new NdsRandomizerWindow();var combos=Descendants<ComboBox>(window).ToArray();
         check(!window.CanExport&&Buttons(window).Single(b=>AutomationProperties.GetName(b)=="Generar vista previa de cambios").IsEnabled==false,"NdsUi_StartsWithoutPreviewOrExport");
-        check(combos.Length==6&&combos.Take(2).All(c=>c.Items.Count==4)&&(string)combos[0].SelectedItem=="BST progresivo por nivel"&&(string)combos[1].SelectedItem=="BST similar","NdsUi_DefaultModesAreProgressiveTrainersAndSimilarWild");
-        check((string)combos[2].SelectedItem=="Sin cambios"&&combos.Skip(3).All(c=>!c.IsEnabled),"NdsUi_StartersDefaultToUnchangedAndPicksDisabled");
+        check(combos.Length==8&&combos.Skip(6).All(c=>c.Items.Count==2&&(string)c.SelectedItem=="Sin cambios")&&combos.Take(2).All(c=>c.Items.Count==4)&&(string)combos[0].SelectedItem=="BST progresivo por nivel"&&(string)combos[1].SelectedItem=="BST similar","NdsUi_DefaultModesAreProgressiveTrainersAndSimilarWild");
+        check((string)combos[2].SelectedItem=="Sin cambios"&&combos.Skip(3).Take(3).All(c=>!c.IsEnabled),"NdsUi_StartersDefaultToUnchangedAndPicksDisabled");
         check(Descendants<FrameworkElement>(window).Where(e=>e is Button or ComboBox or System.Windows.Controls.TextBox or System.Windows.Controls.ListBox).All(e=>AutomationProperties.GetName(e).Length>0),"NdsUi_EveryControlHasAnAccessibleName");
         // Same capture folder the CI uploads; renders at the default and at the minimum width.
         if(Environment.GetEnvironmentVariable("PROGRESSIVE_UI_CAPTURE_DIR") is {Length:>0} captures)
@@ -59,9 +59,11 @@ internal static class NdsUiChecks
             Check(window.CurrentPreview is null&&!window.CanExport,"NdsUi_Real_ChangingAnOptionDiscardsThePreview");
             Pump(window.PreviewAsync());Check(window.CurrentPreview is not null&&window.CurrentPreview.Result.Changes.All(c=>c.Location.StartsWith("Encuentros",StringComparison.Ordinal)),"NdsUi_Real_KeepTrainersOnlyChangesEncounters");
             var combos=Descendants<ComboBox>(window).ToArray();combos[2].SelectedIndex=2;
-            Check(combos.Skip(3).All(c=>c.IsEnabled)&&combos.Skip(3).Select(c=>c.SelectedIndex+1).SequenceEqual(window.Session!.OriginalStarters)&&window.CurrentPreview is null,"NdsUi_Real_CustomStartersStartFromTheOriginals");
+            Check(combos.Skip(3).Take(3).All(c=>c.IsEnabled)&&combos.Skip(3).Take(3).Select(c=>c.SelectedIndex+1).SequenceEqual(window.Session!.OriginalStarters)&&window.CurrentPreview is null,"NdsUi_Real_CustomStartersStartFromTheOriginals");
             combos[3].SelectedIndex=24;combos[4].SelectedIndex=3;combos[5].SelectedIndex=6;Pump(window.PreviewAsync());
             Check(window.CurrentPreview is {Options.Starters:Gen5StarterMode.Custom}&&window.CurrentPreview.Options.CustomStarters!.SequenceEqual(new[]{25,4,7})&&window.CurrentPreview.Result.Overlays.ContainsKey(223),"NdsUi_Real_CustomStartersReachThePreview");
+            combos[6].SelectedIndex=1;combos[7].SelectedIndex=1;Pump(window.PreviewAsync());
+            Check(window.CurrentPreview is {Options.FieldItems:Gen5ItemMode.Shuffle,Options.Shops:Gen5ItemMode.Shuffle}&&window.CurrentPreview.Result.RecompressOverlays.Contains(21),"NdsUi_Real_ItemAndShopOptionsReachThePreview");
             string target=Path.Combine(output,"random.nds");Pump(window.ExportAsync(target));
             Check(File.Exists(target)&&File.Exists(Path.ChangeExtension(target,".cambios.txt"))&&window.Status.StartsWith("ROM exportada",StringComparison.Ordinal),"NdsUi_Real_ExportWritesRomAndChangeLog");
         }

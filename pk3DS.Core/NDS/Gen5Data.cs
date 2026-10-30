@@ -10,7 +10,7 @@ namespace pk3DS.Core.NDS;
 /// <summary>Where each Gen5 table lives in a given game, with the CRC32 its NARC must have (UPR-ZX gen5_offsets.ini, GPLv3).</summary>
 public sealed record Gen5Profile(string GameCode, bool Black, IReadOnlyDictionary<string, (string Path, uint Crc32)> Files,
     int SpeciesNamesText, int TrainerNamesText, int TrainerClassesText, IReadOnlyList<(int File, int Offset)>[] StarterOffsets,
-    uint StarterCryOverlayCrc32)
+    uint StarterCryOverlayCrc32, uint ShopOverlayCrc32, IReadOnlyList<int> ShopItemOffsets)
 {
     public const string TextStrings = "TextStrings", TextStory = "TextStory", PokemonStats = "PokemonStats", Scripts = "Scripts",
         TrainerData = "TrainerData", TrainerPokemon = "TrainerPokemon", WildPokemon = "WildPokemon",
@@ -18,6 +18,10 @@ public sealed record Gen5Profile(string GameCode, bool Black, IReadOnlyDictionar
 
     // Black/White starter data shared by both games (UPR-ZX gen5_offsets.ini and Gen5Constants, GPLv3).
     public const int TypeNamesText = 199, StarterStoryText = 430, PokedexGivenScript = 792, StarterCryOverlay = 223;
+    public const int ItemNamesText = 54, ItemBallScript = 864, HiddenItemScript = 865, ShopOverlay = 21;
+    /// <summary>Items per shop list in overlay 21; TM shops and the progressive Poké Mart lists are never changed.</summary>
+    public static readonly int[] ShopItemSizes = [2, 2, 3, 4, 4, 6, 7, 7, 8, 8, 8, 8, 8, 9, 9, 9, 11, 11, 11, 11, 14, 16, 16, 17, 18, 19];
+    public static readonly int[] FixedShops = [0, 1, 2, 4, 7, 16, 20, 23, 24, 25];
     /// <summary>Story lines naming each starter's type, in starter order (Grass, Fire, Water).</summary>
     public static readonly int[] StarterTypeLines = [18, 17, 16];
 
@@ -43,7 +47,8 @@ public sealed record Gen5Profile(string GameCode, bool Black, IReadOnlyDictionar
 
     public static IReadOnlyList<Gen5Profile> All { get; } =
     [
-        new("IRBO", true, BlackFiles(), 70, 190, 191, BlackWhiteStarters, 0x4FFD3D7F),
+        new("IRBO", true, BlackFiles(), 70, 190, 191, BlackWhiteStarters, 0x4FFD3D7F, 0xF2B9DC42,
+            [0x51538, 0x5153C, 0x51546, 0x5154C, 0x51564, 0x51590, 0x515E4, 0x515F2, 0x51600, 0x51610, 0x51620, 0x51630, 0x51640, 0x51650, 0x51662, 0x51674, 0x51686, 0x5169C, 0x516B2, 0x516C8, 0x516F8, 0x51714, 0x51734, 0x51774, 0x51796, 0x517BA]),
         // Spanish White: White's encounters plus its own text and scripts; the remaining tables match Black (U).
         new("IRAS", false, new Dictionary<string, (string, uint)>(BlackFiles())
         {
@@ -51,7 +56,8 @@ public sealed record Gen5Profile(string GameCode, bool Black, IReadOnlyDictionar
             [Scripts] = ("a/0/5/7", 0x7638D5C9),
             [WildPokemon] = ("a/1/2/6", 0x01FCA7BB),
             [TextStory] = ("a/0/0/3", 0x074DEAC6),
-        }, 70, 190, 191, BlackWhiteStarters, 0x2F3ADC12),
+        }, 70, 190, 191, BlackWhiteStarters, 0x2F3ADC12, 0x3882585C,
+            [0x51534, 0x51538, 0x51542, 0x51548, 0x51560, 0x5158C, 0x515E0, 0x515EE, 0x515FC, 0x5160C, 0x5161C, 0x5162C, 0x5163C, 0x5164C, 0x5165E, 0x51670, 0x51682, 0x51698, 0x516AE, 0x516C4, 0x516F4, 0x51710, 0x51730, 0x51770, 0x51792, 0x517B6]),
     ];
 }
 
@@ -112,6 +118,7 @@ public sealed class Gen5Data
             foreach (string key in profile.Files.Keys)
                 data.Narc(key);
             data.StarterCryOverlay();
+            data.ShopOverlay();
         }
         return data;
     }
@@ -140,19 +147,52 @@ public sealed class Gen5Data
     {
         if (!_requireOriginalTables)
             throw new InvalidOperationException("Solo se exporta desde una ROM con todas sus tablas originales verificadas.");
-        _rom.Save(output, result.Files.ToDictionary(p => _rom.File(p.Key).Id, p => p.Value), result.Overlays);
+        _rom.Save(output, result.Files.ToDictionary(p => _rom.File(p.Key).Id, p => p.Value), result.Overlays, result.RecompressOverlays);
     }
 
     public IReadOnlyList<string> Text(int file) => Gen5Text.Read(Narc(Gen5Profile.TextStrings).Files[file]);
 
     /// <summary>Decompressed overlay, checked against the profile CRC32 when original tables are required.</summary>
-    public byte[] StarterCryOverlay()
+    public byte[] StarterCryOverlay() => Overlay(Gen5Profile.StarterCryOverlay, Profile.StarterCryOverlayCrc32);
+
+    public byte[] ShopOverlay() => Overlay(Gen5Profile.ShopOverlay, Profile.ShopOverlayCrc32);
+
+    private byte[] Overlay(int id, uint crc)
     {
-        byte[] overlay = _rom.ReadOverlay(Gen5Profile.StarterCryOverlay);
+        byte[] overlay = _rom.ReadOverlay(id);
         uint actual = Crc32(overlay);
-        if (_requireOriginalTables && actual != Profile.StarterCryOverlayCrc32)
-            throw new InvalidDataException($"El overlay {Gen5Profile.StarterCryOverlay} no coincide con el perfil de {Profile.GameCode}: CRC32 {actual:X8}, se esperaba {Profile.StarterCryOverlayCrc32:X8}.");
+        if (_requireOriginalTables && actual != crc)
+            throw new InvalidDataException($"El overlay {id} no coincide con el perfil de {Profile.GameCode}: CRC32 {actual:X8}, se esperaba {crc:X8}.");
         return overlay;
+    }
+
+    /// <summary>Item positions in the item-ball and hidden-item scripts: script file, byte offset of the item id, item id.</summary>
+    public IReadOnlyList<(int File, int Offset, int Item)> FieldItems()
+    {
+        var scripts = Narc(Gen5Profile.Scripts).Files;
+        var items = new List<(int, int, int)>();
+        foreach (var (file, command, variable) in new[] { (Gen5Profile.ItemBallScript, 0x28, 0x800C), (Gen5Profile.HiddenItemScript, 0x2A, 0x8000) })
+        {
+            byte[] script = scripts[file];
+            for (int at = 0; at + 4 <= script.Length && BinaryPrimitives.ReadUInt16LittleEndian(script.AsSpan(at)) != 0xFD13; at += 4)
+            {
+                int target = at + 4 + BinaryPrimitives.ReadInt32LittleEndian(script.AsSpan(at));
+                if (target < 0 || target > script.Length)
+                    break;
+                if (target + 8 <= script.Length && BinaryPrimitives.ReadUInt16LittleEndian(script.AsSpan(target + 2)) == command
+                    && BinaryPrimitives.ReadUInt16LittleEndian(script.AsSpan(target + 4)) == variable)
+                    items.Add((file, target + 6, BinaryPrimitives.ReadUInt16LittleEndian(script.AsSpan(target + 6))));
+            }
+        }
+        return items;
+    }
+
+    /// <summary>Every shop list in overlay 21 with its items.</summary>
+    public IReadOnlyList<IReadOnlyList<int>> Shops()
+    {
+        byte[] overlay = ShopOverlay();
+        return Profile.ShopItemOffsets.Select((offset, shop) => (IReadOnlyList<int>)Enumerable.Range(0, Gen5Profile.ShopItemSizes[shop])
+            .Select(i => (int)BinaryPrimitives.ReadUInt16LittleEndian(overlay.AsSpan(offset + i * 2))).ToArray()).ToArray();
     }
 
     public IReadOnlyList<string> SpeciesNames() => Text(Profile.SpeciesNamesText);
