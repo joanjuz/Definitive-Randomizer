@@ -138,6 +138,7 @@ if(args.Length==1&&args[0]=="--utility-ui-only")
     thread.SetApartmentState(ApartmentState.STA);thread.Start();thread.Join();if(failure is not null)throw failure;
     Console.WriteLine($"Completed {checks} utility and ORAS tutor UI checks.");return;
 }
+if(args.Length==1&&args[0]=="--legacy-parity-only"){LegacyParityChecks.Run(Check,Reject);Console.WriteLine($"Completed {checks} app/LegacyBatch parity checks.");return;}
 if(args.Length==1&&args[0]=="--batch80-only"){Machine6Checks.Run(Check,Reject);RegressionFixes.Run(Check,Reject);Console.WriteLine($"Completed {checks} Batch regression checks.");return;}
 if(args.Length>2&&args[0]=="--export-local-english-for-text-research"){TextClassificationChecks.ExportEnglish(args[1],args.Skip(2));return;}
 if(args.Length==2&&args[0]=="--diagnose-text-catalogue"){TextClassificationChecks.Diagnose(args[1]);return;}
