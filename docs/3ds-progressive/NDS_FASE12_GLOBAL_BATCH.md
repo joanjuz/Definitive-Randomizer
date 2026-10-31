@@ -22,3 +22,7 @@ El espacio de trabajo DS tiene ahora, como Espada/Escudo, una página «Global T
   - un template de otro juego se rechaza sin tocar el historial;
   - un lote de dos ROM da ROM distintas, con su registro, y un segundo lote con el mismo nombre se rechaza;
   - captura de la página.
+
+## Prueba en juego
+
+**Confirmada por el propietario el 2026-10-31**: las ROM de prueba de la fase 14, que acumulan las fases 9 a 14, funcionan correctamente en el juego.

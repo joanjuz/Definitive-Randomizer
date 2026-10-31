@@ -95,8 +95,4 @@ Todos los prefijos de UPR-ZX aparecen exactamente una vez en los cinco volcados.
   - las secciones nuevas abren el editor compartido, o un aviso con el motivo si el juego no las tiene;
   - el Global Template repite las operaciones nuevas y los ajustes de ambas generaciones.
 - Regresión completa del runner: todas las suites pasan. En una de las cinco pruebas de interfaz (Platino) hubo un fallo intermitente que no se reprodujo en 16 ejecuciones seguidas.
-- Pendiente: la prueba en juego. Sobre todo:
-  - un tutor y una MT nuevos se aprenden;
-  - la tabla de tipos y la captura garantizada funcionan en combate;
-  - la Recogida da los objetos nuevos;
-  - los nombres barajados se ven bien en Negro, Blanco y Blanco 2.
+- **Confirmada por el propietario el 2026-10-31**: las ROM de prueba de la fase 14, que acumulan las fases 9 a 14, funcionan correctamente en el juego. Se comprobaron, entre otras cosas, tutores y MT nuevos, la tabla de tipos, la captura garantizada, la Recogida y los nombres barajados.

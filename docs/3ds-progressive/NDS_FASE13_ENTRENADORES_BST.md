@@ -87,4 +87,4 @@ En modo romhack son tablas opcionales: si faltan o no se pueden leer, solo los c
   - el código se parchea una vez y no se repite;
   - la ROM exportada se relee con equipos de dos o más Pokémon, movimientos, objetos e IV al máximo.
 - `--nds-ui-probe`: las opciones de entrenador usan las cinco pestañas y la tabla BST, los encuentros muestran su tabla BST y la receta de entrenadores se repite igual desde el Global Template.
-- Pendiente: la prueba en juego, sobre todo de los combates dobles.
+- **Confirmada por el propietario el 2026-10-31**: las ROM de prueba de la fase 14, que acumulan las fases 9 a 14, funcionan correctamente en el juego.

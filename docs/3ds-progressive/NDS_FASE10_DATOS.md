@@ -45,7 +45,10 @@ Las habilidades aleatorias excluyen Superguarda, Predicción, Multitipo, Don Flo
 - `--nds-ui-probe`: las diez secciones abren en la vista compartida, 15/15 en los cinco juegos.
 - Regresión completa en verde (compilación limpia sin advertencias); romhacks 24/24.
 
+## Prueba en juego
+
+**Confirmada por el propietario el 2026-10-31**: las ROM de prueba de la fase 14, que acumulan las fases 9 a 14, funcionan correctamente en el juego.
+
 ## Pendiente
 
-- Prueba en juego de una ROM con estas randomizaciones.
 - Fase C, parte 2: más herramientas de UPR-ZX en entrenadores (por tipo, el rival con su inicial, forzar evolucionados, niveles en %), salvajes (mapeo por área o global), estáticos e intercambios.
