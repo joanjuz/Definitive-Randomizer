@@ -38,6 +38,7 @@ if(args.Length>2&&args[0]=="--check-marts7-full-batch-real"){FullBatchRealChecks
 if(args.Length>1&&args[0]=="--read-machine7-recipes"){RealMachine7Checks.Run(args.Skip(1));return;}
 if(args.Length>1&&args[0]=="--review73-real"){Review73Checks.RunReal(args.Skip(1));return;}
 if(args.Length==3&&args[0]=="--nds-gen5-w2-probe"){NdsGen5RandomizerChecks.ProbeSequel(args[1],args[2]);return;}
+if(args.Length>2&&args[0]=="--nds-gen4-probe"){NdsGen4Checks.Probe(args[1],args.Skip(2));return;}
 if(args.Length>2&&args[0]=="--nds-gen5-items-probe"){NdsGen5RandomizerChecks.ProbeItems(args[1],args.Skip(2));return;}
 if(args.Length>2&&args[0]=="--nds-gen5-starters-probe"){NdsGen5RandomizerChecks.ProbeStarters(args[1],args.Skip(2));return;}
 if(args.Length>2&&args[0]=="--nds-gen5-random-probe"){NdsGen5RandomizerChecks.Probe(args[1],args.Skip(2));return;}
@@ -146,7 +147,7 @@ if(args.Length==1&&args[0]=="--utility-ui-only")
 }
 if(args.Length==1&&args[0]=="--nds-ui-only"){Exception? failure=null;var thread=new Thread(()=>{try{var app=new ThreeDS.Progressive.App();app.InitializeComponent();WpfTestHost.SuppressStartup();ThreeDS.Progressive.StudioDialog.AutomatedChecks=true;NdsUiChecks.RunUi(Check);}catch(Exception ex){failure=ex;}});thread.SetApartmentState(ApartmentState.STA);thread.Start();thread.Join();if(failure is not null)throw failure;Console.WriteLine($"Completed {checks} DS randomizer UI checks (off-screen; not interactive).");return;}
 if(args.Length==3&&args[0]=="--nds-ui-probe"){Exception? failure=null;var thread=new Thread(()=>{try{var app=new ThreeDS.Progressive.App();app.InitializeComponent();WpfTestHost.SuppressStartup();ThreeDS.Progressive.StudioDialog.AutomatedChecks=true;NdsUiChecks.Probe(args[1],args[2]);}catch(Exception ex){failure=ex;}});thread.SetApartmentState(ApartmentState.STA);thread.Start();thread.Join();if(failure is not null)throw failure;return;}
-if(args.Length==1&&args[0]=="--nds-only"){NdsChecks.Run(Check,Reject);NdsGen5RandomizerChecks.Run(Check,Reject);Console.WriteLine($"Completed {checks} NDS container checks (synthetic).");return;}
+if(args.Length==1&&args[0]=="--nds-only"){NdsChecks.Run(Check,Reject);NdsGen5RandomizerChecks.Run(Check,Reject);NdsGen4Checks.Run(Check,Reject);Console.WriteLine($"Completed {checks} NDS container checks (synthetic).");return;}
 if(args.Length==1&&args[0]=="--legacy-parity-only"){LegacyParityChecks.Run(Check,Reject);Console.WriteLine($"Completed {checks} app/LegacyBatch parity checks.");return;}
 if(args.Length==1&&args[0]=="--batch80-only"){Machine6Checks.Run(Check,Reject);RegressionFixes.Run(Check,Reject);Console.WriteLine($"Completed {checks} Batch regression checks.");return;}
 if(args.Length>2&&args[0]=="--export-local-english-for-text-research"){TextClassificationChecks.ExportEnglish(args[1],args.Skip(2));return;}
