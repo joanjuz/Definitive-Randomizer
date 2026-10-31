@@ -14,9 +14,23 @@ public sealed record Gen4Profile(string GameCode, byte Version, Gen4Kind Kind, I
     int SpeciesNamesText, int TrainerNamesText, int TrainerClassesText, int ItemNamesText, int TypeNamesText)
 {
     public const string Text = "Text", PokemonStats = "PokemonStats", TrainerData = "TrainerData", TrainerPokemon = "TrainerPokemon",
-        WildPokemon = "WildPokemon";
+        WildPokemon = "WildPokemon", Scripts = "Scripts";
 
     public string Game => Kind switch { Gen4Kind.DiamondPearl => "Diamante", Gen4Kind.Platinum => "Platino", _ => "HeartGold" };
+
+    /// <summary>CRC32 of the decompressed ARM9, which holds the hidden items and the shops.</summary>
+    public uint Arm9Crc32 { get; init; }
+    /// <summary>Script file listing the item balls; entries in <see cref="ItemBallSkip"/> are not item balls (UPR-ZX ItemBallsSkip).</summary>
+    public int ItemBallScript { get; init; }
+    public IReadOnlyList<int> ItemBallSkip { get; init; } = [];
+    /// <summary>Hidden item table in the ARM9: 8-byte entries starting with the item id.</summary>
+    public int HiddenItemTable { get; init; }
+    public int HiddenItemCount { get; init; }
+    /// <summary>Bytes right before the first shop list in the ARM9; each list ends with 0xFFFF.</summary>
+    public IReadOnlyList<byte> ShopPrefix { get; init; } = [];
+    public int ShopCount { get; init; }
+    /// <summary>TM, Battle Frontier, prize and other special lists that never change (UPR-ZX SkipShops).</summary>
+    public IReadOnlyList<int> FixedShops { get; init; } = [];
 
     public static IReadOnlyList<Gen4Profile> All { get; } =
     [
@@ -27,7 +41,12 @@ public sealed record Gen4Profile(string GameCode, byte Version, Gen4Kind Kind, I
             [TrainerData] = ("poketool/trainer/trdata.narc", 0x4A3C0C89),
             [TrainerPokemon] = ("poketool/trainer/trpoke.narc", 0xC4AA9026),
             [WildPokemon] = ("fielddata/encountdata/d_enc_data.narc", 0xE58BE3CA),
-        }, 362, 559, 560, 344, 565),
+            [Scripts] = ("fielddata/script/scr_seq_release.narc", 0x5FDE722D),
+        }, 362, 559, 560, 344, 565)
+        {
+            Arm9Crc32 = 0x08E0337C, ItemBallScript = 370, ItemBallSkip = [40, 196], HiddenItemTable = 0xF2DB4, HiddenItemCount = 229,
+            ShopPrefix = Convert.FromHexString("391104027511040285AF0302A5AF0302"), ShopCount = 28, FixedShops = [12, 13, 15, 16, 17, 18, 19, 20, 21, 22, 23],
+        },
         new("CPUE", 1, Gen4Kind.Platinum, new Dictionary<string, (string, uint)>
         {
             [Text] = ("msgdata/pl_msg.narc", 0x5666AAEC),
@@ -35,7 +54,12 @@ public sealed record Gen4Profile(string GameCode, byte Version, Gen4Kind Kind, I
             [TrainerData] = ("poketool/trainer/trdata.narc", 0x2EE9B886),
             [TrainerPokemon] = ("poketool/trainer/trpoke.narc", 0x739A02EE),
             [WildPokemon] = ("fielddata/encountdata/pl_enc_data.narc", 0x188084F5),
-        }, 412, 618, 619, 392, 624),
+            [Scripts] = ("fielddata/script/scr_seq.narc", 0x6D482515),
+        }, 412, 618, 619, 392, 624)
+        {
+            Arm9Crc32 = 0x4D104949, ItemBallScript = 404, ItemBallSkip = [25, 238, 321, 325, 326], HiddenItemTable = 0xEA378, HiddenItemCount = 257,
+            ShopPrefix = Convert.FromHexString("ED7F0402258004026180040281800402"), ShopCount = 29, FixedShops = [13, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24],
+        },
         new("IPKE", 0, Gen4Kind.HeartGoldSoulSilver, new Dictionary<string, (string, uint)>
         {
             [Text] = ("a/0/2/7", 0x123DEB0B),
@@ -43,7 +67,12 @@ public sealed record Gen4Profile(string GameCode, byte Version, Gen4Kind Kind, I
             [TrainerData] = ("a/0/5/5", 0x8B9BD9CE),
             [TrainerPokemon] = ("a/0/5/6", 0xE30BC8BE),
             [WildPokemon] = ("a/0/3/7", 0x9B861BD5),
-        }, 237, 729, 730, 222, 735),
+            [Scripts] = ("a/0/1/2", 0xA7E3F740),
+        }, 237, 729, 730, 222, 735)
+        {
+            Arm9Crc32 = 0x99A30D93, ItemBallScript = 141, ItemBallSkip = [58], HiddenItemTable = 0xFA558, HiddenItemCount = 231,
+            ShopPrefix = Convert.FromHexString("298E0402618E0402998E0402B98E0402"), ShopCount = 40, FixedShops = [17, 18, 22, 23, 24, 25, 26, 27, 28, 29, 30, 37, 39],
+        },
     ];
 }
 
@@ -52,6 +81,12 @@ public sealed record Gen4Profile(string GameCode, byte Version, Gen4Kind Kind, I
 /// level band it is met at. Slots that share <paramref name="Group"/> in one file are one encounter table.
 /// </summary>
 public sealed record Gen4EncounterSlot(int File, string Group, int Index, int Offset, int Width, int Species, int MinLevel, int MaxLevel);
+
+/// <summary>A field item: an item ball (offset in the item-ball script) or a hidden item (offset in the ARM9).</summary>
+public sealed record Gen4FieldItem(bool Hidden, int Offset, int Item);
+
+/// <summary>One item of a shop list: its offset in the ARM9 and the item id (0 entries are kept as they are).</summary>
+public sealed record Gen4ShopItem(int Shop, int Index, int Offset, int Item);
 
 /// <summary>Read-only access to Diamond, Platinum and HeartGold data. Every table is checked against its profile CRC32 before it is parsed.</summary>
 public sealed class Gen4Data
@@ -69,6 +104,7 @@ public sealed class Gen4Data
     private readonly NdsRom _rom;
     private readonly bool _requireOriginalTables;
     private readonly Dictionary<string, Narc> _narcs = new();
+    private byte[]? _arm9;
 
     public NdsIdentityResult Identity { get; }
     public Gen4Profile Profile { get; }
@@ -92,9 +128,80 @@ public sealed class Gen4Data
             ?? throw new NotSupportedException($"{identity.Profile.Game} no tiene perfil de datos Gen4.");
         var data = new Gen4Data(rom, identity, profile, requireOriginalTables);
         if (requireOriginalTables)
+        {
             foreach (string key in profile.Files.Keys)
                 data.Narc(key);
+            data.Arm9();
+        }
         return data;
+    }
+
+    /// <summary>Copy of the decompressed ARM9, checked against the profile CRC32 when original tables are required.</summary>
+    public byte[] Arm9()
+    {
+        if (_arm9 is null)
+        {
+            byte[] arm9 = _rom.ReadArm9();
+            uint actual = Gen5Data.Crc32(arm9);
+            if (_requireOriginalTables && actual != Profile.Arm9Crc32)
+                throw new InvalidDataException($"El ARM9 no coincide con el perfil de {Profile.GameCode}: CRC32 {actual:X8}, se esperaba {Profile.Arm9Crc32:X8}.");
+            _arm9 = arm9;
+        }
+        return (byte[])_arm9.Clone();
+    }
+
+    /// <summary>Item balls from the item-ball script, then the hidden items from the ARM9 table.</summary>
+    public IReadOnlyList<Gen4FieldItem> FieldItems()
+    {
+        byte[] script = Narc(Gen4Profile.Scripts).Files[Profile.ItemBallScript];
+        int setVar = Profile.Kind == Gen4Kind.HeartGoldSoulSilver ? 0x29 : 0x28;
+        var items = new List<Gen4FieldItem>();
+        for (int at = 0, index = 0; at + 4 <= script.Length && BinaryPrimitives.ReadUInt16LittleEndian(script.AsSpan(at)) != 0xFD13; at += 4, index++)
+        {
+            int target = at + 4 + BinaryPrimitives.ReadInt32LittleEndian(script.AsSpan(at));
+            if (target < 0 || target > script.Length)
+                break;
+            if (Profile.ItemBallSkip.Contains(index) || target + 6 > script.Length)
+                continue;
+            // setvar 0x8008, item
+            if (BinaryPrimitives.ReadUInt16LittleEndian(script.AsSpan(target)) == setVar && BinaryPrimitives.ReadUInt16LittleEndian(script.AsSpan(target + 2)) == 0x8008)
+                items.Add(new Gen4FieldItem(false, target + 4, BinaryPrimitives.ReadUInt16LittleEndian(script.AsSpan(target + 4))));
+        }
+        byte[] arm9 = Arm9();
+        if (Profile.HiddenItemTable + Profile.HiddenItemCount * 8 > arm9.Length)
+            throw new InvalidDataException("La tabla de objetos ocultos sale del ARM9.");
+        for (int i = 0; i < Profile.HiddenItemCount; i++)
+        {
+            int at = Profile.HiddenItemTable + i * 8;
+            items.Add(new Gen4FieldItem(true, at, BinaryPrimitives.ReadUInt16LittleEndian(arm9.AsSpan(at))));
+        }
+        return items;
+    }
+
+    /// <summary>Every item of every shop list in the ARM9, found after the profile's unique prefix.</summary>
+    public IReadOnlyList<Gen4ShopItem> Shops()
+    {
+        byte[] arm9 = Arm9();
+        int start = -1;
+        byte[] prefix = [.. Profile.ShopPrefix];
+        for (int i = 0; i + prefix.Length <= arm9.Length; i++)
+            if (arm9.AsSpan(i, prefix.Length).SequenceEqual(prefix))
+                start = start == -1 ? i + prefix.Length : throw new InvalidDataException("El prefijo de las tiendas aparece más de una vez en el ARM9.");
+        if (start < 0)
+            throw new InvalidDataException("No se encontraron las tiendas en el ARM9.");
+        var items = new List<Gen4ShopItem>();
+        int at = start;
+        for (int shop = 0; shop < Profile.ShopCount; shop++, at += 2)
+            for (int index = 0; ; index++, at += 2)
+            {
+                if (at + 2 > arm9.Length)
+                    throw new InvalidDataException("Las tiendas salen del ARM9.");
+                int item = BinaryPrimitives.ReadUInt16LittleEndian(arm9.AsSpan(at));
+                if (item == 0xFFFF)
+                    break;
+                items.Add(new Gen4ShopItem(shop, index, at, item));
+            }
+        return items;
     }
 
     private Narc Narc(string key)
@@ -123,7 +230,7 @@ public sealed class Gen4Data
             throw new InvalidOperationException("Solo se exporta desde una ROM con todas sus tablas originales verificadas.");
         if (result.Overlays.Count != 0)
             throw new NotSupportedException("Gen4 todavía no modifica overlays.");
-        _rom.Save(output, result.Files.ToDictionary(p => _rom.File(p.Key).Id, p => p.Value));
+        _rom.Save(output, result.Files.ToDictionary(p => _rom.File(p.Key).Id, p => p.Value), null, null, result.Arm9);
     }
 
     public IReadOnlyList<string> Text(int file) => Gen4Text.Read(Narc(Gen4Profile.Text).Files[file]);

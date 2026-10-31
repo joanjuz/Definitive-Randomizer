@@ -153,12 +153,24 @@ public class BLZCoder
     }
 
     // In-memory use: no command runs and progress goes to an unattached bar.
-    private BLZCoder() => pBar1 = new ProgressBar();
+    private BLZCoder(bool arm9 = false)
+    {
+        pBar1 = new ProgressBar();
+        this.arm9 = arm9;
+    }
 
     /// <summary>Encodes an in-memory buffer as a normal (non-ARM9) BLZ stream, the format of Nintendo DS overlays.</summary>
-    public static byte[] Compress(byte[] data)
+    public static byte[] Compress(byte[] data) => Compress(data, false, BLZ_NORMAL);
+
+    /// <summary>
+    /// Encodes a Nintendo DS ARM9 binary: the first 0x4000 bytes (secure area and the decompressor) stay uncompressed, and the
+    /// optimal search is used so the result fits where the original binary was.
+    /// </summary>
+    public static byte[] CompressArm9(byte[] data) => Compress(data, true, BLZ_BEST);
+
+    private static byte[] Compress(byte[] data, bool arm9, int mode = BLZ_NORMAL)
     {
-        var result = new BLZCoder().BLZ_Encode(data, BLZ_NORMAL);
+        var result = new BLZCoder(arm9).BLZ_Encode(data, mode);
         if (result?.buffer is null)
             throw new InvalidDataException("No se pudo comprimir con BLZ.");
         return result.buffer.AsSpan(0, result.length).ToArray();

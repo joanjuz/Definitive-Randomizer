@@ -63,7 +63,7 @@ internal sealed class NdsRandomizerWindow : Window
         var title=new TextBlock{Text=Title,FontSize=22,FontWeight=FontWeights.SemiBold};title.MouseLeftButtonDown+=(_,e)=>{if(e.ClickCount==1)DragMove();};heading.Children.Add(title);
         heading.Children.Add(new TextBlock{TextWrapping=TextWrapping.Wrap,Margin=new Thickness(0,6,0,14),
             Text="Elige un volcado original de Pokémon Diamante, Platino o HeartGold (USA), Negro (USA/EUR), Blanco (España) o Blanco 2 (USA/EUR). La ROM original no se modifica: se exporta una ROM nueva junto con un registro de cambios. "+
-                 "Negro, Blanco y Blanco 2 son DSi-enhanced: la ROM exportada funciona en modo DS y en emuladores, no en modo DSi. En Diamante, Platino y HeartGold por ahora solo cambian entrenadores y Pokémon salvajes."});
+                 "Negro, Blanco y Blanco 2 son DSi-enhanced: la ROM exportada funciona en modo DS y en emuladores, no en modo DSi. En Diamante, Platino y HeartGold los iniciales todavía no se pueden cambiar."});
 
         var source=new DockPanel();heading.Children.Add(Section("ROM original"));DockPanel.SetDock(_choose,Dock.Right);source.Children.Add(_choose);source.Children.Add(_path);heading.Children.Add(source);heading.Children.Add(_identity);
         heading.Children.Add(Section("Opciones"));
@@ -118,8 +118,8 @@ internal sealed class NdsRandomizerWindow : Window
             _identity.Text=$"{session.Game} · {(session.KnownDump?"volcado original verificado":"código reconocido, volcado no verificado")} · {session.TrainerCount} entrenadores · {session.AreaCount} áreas de encuentro";
             var names=session.SpeciesNames.Skip(1).Take(session.MaxSpecies).ToArray();
             for(int i=0;i<3;i++){_starterPicks[i].ItemsSource=names;_starterPicks[i].SelectedIndex=i<session.OriginalStarters.Count?session.OriginalStarters[i]-1:-1;}
-            // Gen4 games only change trainers and wild Pokémon for now: the other options stay at "Sin cambios".
-            if(!session.SupportsStartersAndItems){_starters.SelectedIndex=0;_fieldItems.SelectedIndex=0;_shops.SelectedIndex=0;}
+            // Gen4 starters cannot change yet: the option stays at "Sin cambios".
+            if(!session.SupportsStarters)_starters.SelectedIndex=0;
             _summary.Text="ROM lista. Revisa las opciones y genera la vista previa.";
         }
         catch(Exception ex) when (ex is IOException or InvalidDataException or NotSupportedException or UnauthorizedAccessException)
@@ -181,7 +181,7 @@ internal sealed class NdsRandomizerWindow : Window
         UpdateButtons();
     }
 
-    private void SetBusy(bool busy){_busy=busy;_choose.IsEnabled=_trainers.IsEnabled=_wild.IsEnabled=_seed.IsEnabled=_newSeed.IsEnabled=!busy;_starters.IsEnabled=_fieldItems.IsEnabled=_shops.IsEnabled=!busy&&_session?.SupportsStartersAndItems!=false;_close.IsEnabled=!busy;UpdateStarterPicks();UpdateButtons();}
+    private void SetBusy(bool busy){_busy=busy;_choose.IsEnabled=_trainers.IsEnabled=_wild.IsEnabled=_seed.IsEnabled=_newSeed.IsEnabled=!busy;_fieldItems.IsEnabled=_shops.IsEnabled=!busy;_starters.IsEnabled=!busy&&_session?.SupportsStarters!=false;_close.IsEnabled=!busy;UpdateStarterPicks();UpdateButtons();}
 
     private void UpdateStarterPicks(){bool custom=!_busy&&_session is not null&&StarterModes[_starters.SelectedIndex].Mode==Gen5StarterMode.Custom;foreach(var pick in _starterPicks)pick.IsEnabled=custom;}
 

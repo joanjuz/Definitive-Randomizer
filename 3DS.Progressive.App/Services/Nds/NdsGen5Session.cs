@@ -6,7 +6,7 @@ namespace ThreeDS.Progressive.Services.Nds;
 
 /// <summary>
 /// One opened DS ROM for the randomizer window: a Gen5 game (Black, White, White 2) or a Gen4 game (Diamond, Platinum,
-/// HeartGold), where only trainers and wild Pokémon can change for now. Heavy work runs off the UI thread; callers must not
+/// HeartGold), where starters cannot change yet. Heavy work runs off the UI thread; callers must not
 /// overlap operations. A preview is tied to the options that produced it, so a stale preview is never exported.
 /// </summary>
 internal sealed class NdsGen5Session : IDisposable
@@ -24,8 +24,8 @@ internal sealed class NdsGen5Session : IDisposable
     internal string Game => Identity.Profile.Game;
     internal string GameCode => Identity.Profile.GameCode;
     internal bool KnownDump => Identity.KnownDump;
-    /// <summary>Starters, field items and shops are only available in Gen5 games.</summary>
-    internal bool SupportsStartersAndItems => Data is not null;
+    /// <summary>Starters can only change in Gen5 games for now.</summary>
+    internal bool SupportsStarters => Data is not null;
     internal int MaxSpecies => Data is not null ? Gen5Randomizer.MaxSpecies : Gen4Data.MaxSpecies;
     internal int TrainerCount { get; }
     internal int AreaCount { get; }

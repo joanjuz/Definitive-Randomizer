@@ -44,6 +44,8 @@ public sealed record Gen5RandomizerResult(IReadOnlyDictionary<string, byte[]> Fi
 {
     /// <summary>Overlays written BLZ-compressed again (too large to store uncompressed); others are written uncompressed.</summary>
     public IReadOnlySet<int> RecompressOverlays { get; init; } = new HashSet<int>();
+    /// <summary>New decompressed ARM9 (Gen4 hidden items and shops), or null when it does not change.</summary>
+    public byte[]? Arm9 { get; init; }
 }
 
 /// <summary>
@@ -315,7 +317,7 @@ public static class Gen5Randomizer
     }
 
     // Fisher-Yates with the same seeded index as every other choice.
-    private static int[] Shuffle(int[] values, uint seed, string key)
+    internal static int[] Shuffle(int[] values, uint seed, string key)
     {
         var result = (int[])values.Clone();
         for (int i = result.Length - 1; i > 0; i--)
