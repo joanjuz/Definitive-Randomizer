@@ -37,8 +37,8 @@ internal sealed class StartView:UserControl
         }
         if(openNds is not null)
         {
-            var nds=new Button{Content="Negro/Blanco · randomizer DS (beta)",Margin=new Thickness(0,0,8,8)};
-            System.Windows.Automation.AutomationProperties.SetName(nds,"Abrir el randomizer de Nintendo DS para Pokémon Negro y Blanco");
+            var nds=new Button{Content="Negro/Blanco/Blanco 2 · randomizer DS (beta)",Margin=new Thickness(0,0,8,8)};
+            System.Windows.Automation.AutomationProperties.SetName(nds,"Abrir el randomizer de Nintendo DS para Pokémon Negro, Blanco y Blanco 2");
             nds.Click+=(_,_)=>openNds();actions.Children.Add(nds);
         }
         body.Children.Add(new TextBlock{Text="Ayuda breve y opcional · F1 abre la guía de la sección actual.",TextWrapping=TextWrapping.Wrap,Margin=new Thickness(0,5,0,0)});

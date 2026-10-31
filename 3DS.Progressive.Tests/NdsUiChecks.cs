@@ -61,9 +61,9 @@ internal static class NdsUiChecks
             var combos=Descendants<ComboBox>(window).ToArray();combos[2].SelectedIndex=2;
             Check(combos.Skip(3).Take(3).All(c=>c.IsEnabled)&&combos.Skip(3).Take(3).Select(c=>c.SelectedIndex+1).SequenceEqual(window.Session!.OriginalStarters)&&window.CurrentPreview is null,"NdsUi_Real_CustomStartersStartFromTheOriginals");
             combos[3].SelectedIndex=24;combos[4].SelectedIndex=3;combos[5].SelectedIndex=6;Pump(window.PreviewAsync());
-            Check(window.CurrentPreview is {Options.Starters:Gen5StarterMode.Custom}&&window.CurrentPreview.Options.CustomStarters!.SequenceEqual(new[]{25,4,7})&&window.CurrentPreview.Result.Overlays.ContainsKey(223),"NdsUi_Real_CustomStartersReachThePreview");
+            Check(window.CurrentPreview is {Options.Starters:Gen5StarterMode.Custom}&&window.CurrentPreview.Options.CustomStarters!.SequenceEqual(new[]{25,4,7})&&window.CurrentPreview.Result.Overlays.ContainsKey(window.Session!.Data.Profile.StarterCryOverlay),"NdsUi_Real_CustomStartersReachThePreview");
             combos[6].SelectedIndex=1;combos[7].SelectedIndex=1;Pump(window.PreviewAsync());
-            Check(window.CurrentPreview is {Options.FieldItems:Gen5ItemMode.Shuffle,Options.Shops:Gen5ItemMode.Shuffle}&&window.CurrentPreview.Result.RecompressOverlays.Contains(21),"NdsUi_Real_ItemAndShopOptionsReachThePreview");
+            Check(window.CurrentPreview is {Options.FieldItems:Gen5ItemMode.Shuffle,Options.Shops:Gen5ItemMode.Shuffle}&&(window.Session!.Data.Profile.ShopOverlay<0?window.CurrentPreview.Result.Files.ContainsKey(window.Session!.Data.PathOf(Gen5Profile.ShopItems)):window.CurrentPreview.Result.RecompressOverlays.Contains(21)),"NdsUi_Real_ItemAndShopOptionsReachThePreview");
             string target=Path.Combine(output,"random.nds");Pump(window.ExportAsync(target));
             Check(File.Exists(target)&&File.Exists(Path.ChangeExtension(target,".cambios.txt"))&&window.Status.StartsWith("ROM exportada",StringComparison.Ordinal),"NdsUi_Real_ExportWritesRomAndChangeLog");
         }

@@ -7,23 +7,51 @@ using System.Linq;
 
 namespace pk3DS.Core.NDS;
 
-/// <summary>Where each Gen5 table lives in a given game, with the CRC32 its NARC must have (UPR-ZX gen5_offsets.ini, GPLv3).</summary>
-public sealed record Gen5Profile(string GameCode, bool Black, IReadOnlyDictionary<string, (string Path, uint Crc32)> Files,
-    int SpeciesNamesText, int TrainerNamesText, int TrainerClassesText, IReadOnlyList<(int File, int Offset)>[] StarterOffsets,
-    uint StarterCryOverlayCrc32, uint ShopOverlayCrc32, IReadOnlyList<int> ShopItemOffsets)
+/// <summary>
+/// Where each Gen5 table lives in a given game, with the CRC32 its NARC must have (UPR-ZX gen5_offsets.ini and Gen5Constants, GPLv3).
+/// Defaults are Black/White's; White 2 overrides every number it does not share.
+/// </summary>
+public sealed record Gen5Profile(string GameCode, bool Black, IReadOnlyDictionary<string, (string Path, uint Crc32)> Files)
 {
     public const string TextStrings = "TextStrings", TextStory = "TextStory", PokemonStats = "PokemonStats", Scripts = "Scripts",
         TrainerData = "TrainerData", TrainerPokemon = "TrainerPokemon", WildPokemon = "WildPokemon",
-        PokemonGraphics = "PokemonGraphics", StarterGraphics = "StarterGraphics";
+        PokemonGraphics = "PokemonGraphics", StarterGraphics = "StarterGraphics", ShopItems = "ShopItems";
 
-    // Black/White starter data shared by both games (UPR-ZX gen5_offsets.ini and Gen5Constants, GPLv3).
-    public const int TypeNamesText = 199, StarterStoryText = 430, PokedexGivenScript = 792, StarterCryOverlay = 223;
-    public const int ItemNamesText = 54, ItemBallScript = 864, HiddenItemScript = 865, ShopOverlay = 21;
-    /// <summary>Items per shop list in overlay 21; TM shops and the progressive Poké Mart lists are never changed.</summary>
-    public static readonly int[] ShopItemSizes = [2, 2, 3, 4, 4, 6, 7, 7, 8, 8, 8, 8, 8, 9, 9, 9, 11, 11, 11, 11, 14, 16, 16, 17, 18, 19];
-    public static readonly int[] FixedShops = [0, 1, 2, 4, 7, 16, 20, 23, 24, 25];
+    /// <summary>Black 2/White 2: shops live in their own NARC and the starter script fix is different.</summary>
+    public bool Sequel { get; init; }
+    public string Game => Sequel ? (Black ? "Negro 2" : "Blanco 2") : Black ? "Negro" : "Blanco";
+    public int SpeciesNamesText { get; init; } = 70;
+    public int TrainerNamesText { get; init; } = 190;
+    public int TrainerClassesText { get; init; } = 191;
+    public int TypeNamesText { get; init; } = 199;
+    public int ItemNamesText { get; init; } = 54;
+
+    public IReadOnlyList<(int File, int Offset)>[] StarterOffsets { get; init; } = BlackWhiteStarters;
+    public int StarterStoryText { get; init; } = 430;
     /// <summary>Story lines naming each starter's type, in starter order (Grass, Fire, Water).</summary>
-    public static readonly int[] StarterTypeLines = [18, 17, 16];
+    public IReadOnlyList<int> StarterTypeLines { get; init; } = [18, 17, 16];
+    public int PokedexGivenScript { get; init; } = 792;
+    /// <summary>Instruction replaced by a jump to <see cref="PokedexPatch"/>, which replays it first (UPR-ZX bw1/bw2NewStarterScript).</summary>
+    public IReadOnlyList<byte> PokedexSignature { get; init; } = [0x24, 0x00, 0xA7, 0x02, 0xE7, 0x00, 0x00, 0x00];
+    public IReadOnlyList<byte> PokedexPatch { get; init; } = [0x24, 0x00, 0xA7, 0x02, 0xE7, 0x00, 0x00, 0x00, 0xDE, 0x00, 0x00, 0x00, 0xF8, 0x01, 0x05, 0x00];
+    /// <summary>Script command written over the signature: a call (0x04) in Black/White, a jump (0x1E) in the sequels.</summary>
+    public byte PokedexJump { get; init; } = 0x04;
+    public int StarterCryOverlay { get; init; } = 223;
+    public uint StarterCryOverlayCrc32 { get; init; }
+    public IReadOnlyList<byte> StarterCryPrefix { get; init; } = [0x08, 0x0A, 0x07, 0x00, 0x08, 0x00, 0x00];
+    /// <summary>Write the cry overlay BLZ-compressed again instead of uncompressed.</summary>
+    public bool RecompressStarterCryOverlay { get; init; }
+
+    public int ItemBallScript { get; init; } = 864;
+    public int HiddenItemScript { get; init; } = 865;
+    /// <summary>Overlay with the shop lists, or -1 when they are files of the <see cref="ShopItems"/> NARC.</summary>
+    public int ShopOverlay { get; init; } = 21;
+    public uint ShopOverlayCrc32 { get; init; }
+    public IReadOnlyList<int> ShopItemOffsets { get; init; } = [];
+    /// <summary>Items per shop list; in the shop NARC each file holds exactly one list.</summary>
+    public IReadOnlyList<int> ShopItemSizes { get; init; } = [2, 2, 3, 4, 4, 6, 7, 7, 8, 8, 8, 8, 8, 9, 9, 9, 11, 11, 11, 11, 14, 16, 16, 17, 18, 19];
+    /// <summary>TM shops and the progressive Poké Mart lists are never changed.</summary>
+    public IReadOnlyList<int> FixedShops { get; init; } = [0, 1, 2, 4, 7, 16, 20, 23, 24, 25];
 
     private static readonly IReadOnlyList<(int, int)>[] BlackWhiteStarters =
     [
@@ -47,8 +75,11 @@ public sealed record Gen5Profile(string GameCode, bool Black, IReadOnlyDictionar
 
     public static IReadOnlyList<Gen5Profile> All { get; } =
     [
-        new("IRBO", true, BlackFiles(), 70, 190, 191, BlackWhiteStarters, 0x4FFD3D7F, 0xF2B9DC42,
-            [0x51538, 0x5153C, 0x51546, 0x5154C, 0x51564, 0x51590, 0x515E4, 0x515F2, 0x51600, 0x51610, 0x51620, 0x51630, 0x51640, 0x51650, 0x51662, 0x51674, 0x51686, 0x5169C, 0x516B2, 0x516C8, 0x516F8, 0x51714, 0x51734, 0x51774, 0x51796, 0x517BA]),
+        new("IRBO", true, BlackFiles())
+        {
+            StarterCryOverlayCrc32 = 0x4FFD3D7F, ShopOverlayCrc32 = 0xF2B9DC42,
+            ShopItemOffsets = [0x51538, 0x5153C, 0x51546, 0x5154C, 0x51564, 0x51590, 0x515E4, 0x515F2, 0x51600, 0x51610, 0x51620, 0x51630, 0x51640, 0x51650, 0x51662, 0x51674, 0x51686, 0x5169C, 0x516B2, 0x516C8, 0x516F8, 0x51714, 0x51734, 0x51774, 0x51796, 0x517BA],
+        },
         // Spanish White: White's encounters plus its own text and scripts; the remaining tables match Black (U).
         new("IRAS", false, new Dictionary<string, (string, uint)>(BlackFiles())
         {
@@ -56,8 +87,39 @@ public sealed record Gen5Profile(string GameCode, bool Black, IReadOnlyDictionar
             [Scripts] = ("a/0/5/7", 0x7638D5C9),
             [WildPokemon] = ("a/1/2/6", 0x01FCA7BB),
             [TextStory] = ("a/0/0/3", 0x074DEAC6),
-        }, 70, 190, 191, BlackWhiteStarters, 0x2F3ADC12, 0x3882585C,
-            [0x51534, 0x51538, 0x51542, 0x51548, 0x51560, 0x5158C, 0x515E0, 0x515EE, 0x515FC, 0x5160C, 0x5161C, 0x5162C, 0x5163C, 0x5164C, 0x5165E, 0x51670, 0x51682, 0x51698, 0x516AE, 0x516C4, 0x516F4, 0x51710, 0x51730, 0x51770, 0x51792, 0x517B6]),
+        })
+        {
+            StarterCryOverlayCrc32 = 0x2F3ADC12, ShopOverlayCrc32 = 0x3882585C,
+            ShopItemOffsets = [0x51534, 0x51538, 0x51542, 0x51548, 0x51560, 0x5158C, 0x515E0, 0x515EE, 0x515FC, 0x5160C, 0x5161C, 0x5162C, 0x5163C, 0x5164C, 0x5165E, 0x51670, 0x51682, 0x51698, 0x516AE, 0x516C4, 0x516F4, 0x51710, 0x51730, 0x51770, 0x51792, 0x517B6],
+        },
+        // White 2 (U): every table shares Black 2 (U)'s CRC32 except the encounters, as UPR-ZX records; verified on the owner's dump.
+        new("IRDO", false, new Dictionary<string, (string, uint)>
+        {
+            [TextStrings] = ("a/0/0/2", 0x0AAFBD81),
+            [TextStory] = ("a/0/0/3", 0x579FA304),
+            [PokemonGraphics] = ("a/0/0/4", 0xF7FF84DC),
+            [PokemonStats] = ("a/0/1/6", 0x01A12D6A),
+            [Scripts] = ("a/0/5/6", 0xEA1E0890),
+            [TrainerData] = ("a/0/9/1", 0x0852918C),
+            [TrainerPokemon] = ("a/0/9/2", 0x9435BD3C),
+            [WildPokemon] = ("a/1/2/7", 0xA35466D9),
+            [StarterGraphics] = ("a/2/0/2", 0x83EB4FF0),
+            [ShopItems] = ("a/2/8/2", 0x52CABC05),
+        })
+        {
+            Sequel = true, SpeciesNamesText = 90, TrainerNamesText = 382, TrainerClassesText = 383, TypeNamesText = 398, ItemNamesText = 64,
+            StarterOffsets = [[(854, 0x58B), (854, 0x590), (854, 0x595)], [(854, 0x5C0), (854, 0x5C5), (854, 0x5CA)], [(854, 0x5E2), (854, 0x5E7), (854, 0x5EC)]],
+            StarterStoryText = 169, StarterTypeLines = [37, 36, 35], PokedexGivenScript = 854,
+            PokedexSignature = [0x28, 0x00, 0xA1, 0x40, 0x04, 0x00],
+            PokedexPatch = [0x28, 0x00, 0xA1, 0x40, 0x04, 0x00, 0xDE, 0x00, 0x00, 0x00, 0xFD, 0x01, 0x05, 0x00],
+            PokedexJump = 0x1E,
+            StarterCryOverlay = 316, StarterCryOverlayCrc32 = 0xD7EED8D1, StarterCryPrefix = [0x08, 0x0A, 0x07, 0x00, 0x00, 0x08, 0x00, 0x00],
+            RecompressStarterCryOverlay = true,
+            ItemBallScript = 1240, HiddenItemScript = 1241,
+            // 32 shops used of the NARC's 80 files; Poké Mart tiers 0-5 and TM shops 7, 10, 12, 17 and 24 stay as they are.
+            ShopOverlay = -1, ShopItemSizes = [2, 11, 14, 17, 18, 19, 10, 2, 8, 10, 4, 11, 4, 11, 11, 8, 8, 3, 9, 8, 8, 4, 9, 16, 2, 16, 6, 7, 9, 10, 7, 10],
+            FixedShops = [0, 1, 2, 3, 4, 5, 7, 10, 12, 17, 24],
+        },
     ];
 }
 
@@ -82,7 +144,7 @@ public sealed record Gen5EncounterArea(int File, int Season, int Type, int Rate,
     public string TypeName => TypeNames[Type];
 }
 
-/// <summary>Read-only access to Black/White data. Every table is checked against its profile CRC32 before it is parsed.</summary>
+/// <summary>Read-only access to Black/White and White 2 data. Every table is checked against its profile CRC32 before it is parsed.</summary>
 public sealed class Gen5Data
 {
     private const int SeasonLength = 232;
@@ -103,7 +165,7 @@ public sealed class Gen5Data
     }
 
     /// <summary>
-    /// Opens a Black/White ROM. Editing requires <paramref name="requireOriginalTables"/>: every table must match its profile CRC32.
+    /// Opens a Black/White or White 2 ROM. Editing requires <paramref name="requireOriginalTables"/>: every table must match its profile CRC32.
     /// Passing false only checks the game code, to re-read ROMs this tool exported; never randomize from such a view.
     /// </summary>
     public static Gen5Data Open(NdsRom rom, bool requireOriginalTables = true)
@@ -118,7 +180,8 @@ public sealed class Gen5Data
             foreach (string key in profile.Files.Keys)
                 data.Narc(key);
             data.StarterCryOverlay();
-            data.ShopOverlay();
+            if (profile.ShopOverlay >= 0)
+                data.ShopOverlay();
         }
         return data;
     }
@@ -153,9 +216,10 @@ public sealed class Gen5Data
     public IReadOnlyList<string> Text(int file) => Gen5Text.Read(Narc(Gen5Profile.TextStrings).Files[file]);
 
     /// <summary>Decompressed overlay, checked against the profile CRC32 when original tables are required.</summary>
-    public byte[] StarterCryOverlay() => Overlay(Gen5Profile.StarterCryOverlay, Profile.StarterCryOverlayCrc32);
+    public byte[] StarterCryOverlay() => Overlay(Profile.StarterCryOverlay, Profile.StarterCryOverlayCrc32);
 
-    public byte[] ShopOverlay() => Overlay(Gen5Profile.ShopOverlay, Profile.ShopOverlayCrc32);
+    public byte[] ShopOverlay() => Profile.ShopOverlay >= 0 ? Overlay(Profile.ShopOverlay, Profile.ShopOverlayCrc32)
+        : throw new NotSupportedException($"Las tiendas de {Profile.Game} están en {PathOf(Gen5Profile.ShopItems)}, no en un overlay.");
 
     private byte[] Overlay(int id, uint crc)
     {
@@ -171,7 +235,7 @@ public sealed class Gen5Data
     {
         var scripts = Narc(Gen5Profile.Scripts).Files;
         var items = new List<(int, int, int)>();
-        foreach (var (file, command, variable) in new[] { (Gen5Profile.ItemBallScript, 0x28, 0x800C), (Gen5Profile.HiddenItemScript, 0x2A, 0x8000) })
+        foreach (var (file, command, variable) in new[] { (Profile.ItemBallScript, 0x28, 0x800C), (Profile.HiddenItemScript, 0x2A, 0x8000) })
         {
             byte[] script = scripts[file];
             for (int at = 0; at + 4 <= script.Length && BinaryPrimitives.ReadUInt16LittleEndian(script.AsSpan(at)) != 0xFD13; at += 4)
@@ -187,11 +251,18 @@ public sealed class Gen5Data
         return items;
     }
 
-    /// <summary>Every shop list in overlay 21 with its items.</summary>
+    /// <summary>Every shop list with its items, from the shop overlay (Black/White) or the shop NARC (sequels).</summary>
     public IReadOnlyList<IReadOnlyList<int>> Shops()
     {
+        if (Profile.ShopOverlay < 0)
+        {
+            var files = Narc(Gen5Profile.ShopItems).Files;
+            return Profile.ShopItemSizes.Select((size, shop) => files[shop].Length != size * 2
+                ? throw new InvalidDataException($"La tienda {shop} no tiene {size} objetos.")
+                : (IReadOnlyList<int>)Enumerable.Range(0, size).Select(i => (int)BinaryPrimitives.ReadUInt16LittleEndian(files[shop].AsSpan(i * 2))).ToArray()).ToArray();
+        }
         byte[] overlay = ShopOverlay();
-        return Profile.ShopItemOffsets.Select((offset, shop) => (IReadOnlyList<int>)Enumerable.Range(0, Gen5Profile.ShopItemSizes[shop])
+        return Profile.ShopItemOffsets.Select((offset, shop) => (IReadOnlyList<int>)Enumerable.Range(0, Profile.ShopItemSizes[shop])
             .Select(i => (int)BinaryPrimitives.ReadUInt16LittleEndian(overlay.AsSpan(offset + i * 2))).ToArray()).ToArray();
     }
 

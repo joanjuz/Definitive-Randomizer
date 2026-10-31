@@ -32,6 +32,11 @@ internal static class NdsGen5RandomizerChecks
             reject(()=>Gen5Randomizer.Generate(data,new Gen5RandomizerOptions(1){Starters=Gen5StarterMode.Custom,CustomStarters=[1,4,700]}),"Gen5Rand_StartersRejectSpeciesOutsideGen5");
             reject(()=>Gen5Randomizer.Generate(data,new Gen5RandomizerOptions(1){Starters=Gen5StarterMode.Custom}),"Gen5Rand_CustomStartersRequireThreeSpecies");
             check(new[]{17,1,213,327,504,537,577,615}.All(Gen5Randomizer.IsMovableItem)&&!new[]{0,120,133,328,419,420,425,428,503,505,536,574,578,579,616,617,618,620,621,626,700}.Any(Gen5Randomizer.IsMovableItem),"Gen5Rand_TmsHmsKeyAndUnknownItemsNeverMove");
+            var w2=Gen5Profile.All.Single(p=>p.GameCode=="IRDO");var bw=Gen5Profile.All.Where(p=>!p.Sequel).ToArray();
+            check(w2 is {Sequel:true,ShopOverlay:-1,StarterCryOverlay:316,PokedexJump:0x1E,RecompressStarterCryOverlay:true}&&w2.ShopItemSizes.Count==32&&w2.FixedShops.All(s=>s<32)&&w2.Files.ContainsKey(Gen5Profile.ShopItems)
+                &&w2.StarterOffsets.All(o=>o.All(x=>x.File==854))&&w2.PokedexPatch.Take(w2.PokedexSignature.Count).SequenceEqual(w2.PokedexSignature)
+                &&bw.Length==2&&bw.All(p=>p is {ShopOverlay:21,StarterCryOverlay:223,PokedexJump:4,RecompressStarterCryOverlay:false}&&p.ShopItemOffsets.Count==p.ShopItemSizes.Count&&!p.Files.ContainsKey(Gen5Profile.ShopItems)&&p.PokedexPatch.Take(p.PokedexSignature.Count).SequenceEqual(p.PokedexSignature)),
+                "Gen5Rand_White2ProfileUsesShopNarcAndItsOwnStarterData");
         }
         finally{Directory.Delete(temp,true);}
     }
@@ -122,7 +127,7 @@ internal static class NdsGen5RandomizerChecks
             {
                 var data=Gen5Data.Open(rom);string game=data.Profile.GameCode;
                 var field=data.FieldItems();var shops=data.Shops();
-                Check(field.Count==483&&field.Count(f=>f.File==864)==306&&shops.Count==26&&shops.Select(s=>s.Count).SequenceEqual(Gen5Profile.ShopItemSizes),$"Gen5Items_Real_{game}_Reads306BallsAnd177HiddenItemsAnd26Shops");
+                Check(field.Count==483&&field.Count(f=>f.File==864)==306&&shops.Count==26&&shops.Select(s=>s.Count).SequenceEqual(data.Profile.ShopItemSizes),$"Gen5Items_Real_{game}_Reads306BallsAnd177HiddenItemsAnd26Shops");
                 var options=new Gen5RandomizerOptions(5){FieldItems=Gen5ItemMode.Shuffle,Shops=Gen5ItemMode.Shuffle,Starters=Gen5StarterMode.Custom,CustomStarters=[25,4,7]};
                 var result=Gen5Randomizer.Generate(data,options);
                 Check(result.Overlays.Keys.Order().SequenceEqual(new[]{21,223})&&result.RecompressOverlays.SetEquals(new[]{21}),$"Gen5Items_Real_{game}_ShopsRecompressOverlay21AndStartersKeep223Uncompressed");
@@ -132,7 +137,7 @@ internal static class NdsGen5RandomizerChecks
                 Check(newField.Count==field.Count&&newField.Zip(field).All(p=>p.First.File==p.Second.File&&p.First.Offset==p.Second.Offset)&&Bag(newField.Select(f=>f.Item))==Bag(field.Select(f=>f.Item)),$"Gen5Items_Real_{game}_FieldItemsKeepPositionsAndTheSameItems");
                 Check(newField.Zip(field).Where(p=>!Gen5Randomizer.IsMovableItem(p.Second.Item)).All(p=>p.First.Item==p.Second.Item)&&newField.Zip(field).Count(p=>p.First.Item!=p.Second.Item)>200,$"Gen5Items_Real_{game}_TmsStayAndRegularItemsMove ({newField.Zip(field).Count(p=>p.First.Item!=p.Second.Item)} cambiados)");
                 var newShops=check.Shops();
-                Check(Gen5Profile.FixedShops.All(s=>newShops[s].SequenceEqual(shops[s]))&&Bag(newShops.SelectMany(s=>s))==Bag(shops.SelectMany(s=>s))&&newShops.Select(s=>s.Count).SequenceEqual(Gen5Profile.ShopItemSizes),$"Gen5Items_Real_{game}_ShopsKeepFixedListsAndTheSameItems");
+                Check(data.Profile.FixedShops.All(s=>newShops[s].SequenceEqual(shops[s]))&&Bag(newShops.SelectMany(s=>s))==Bag(shops.SelectMany(s=>s))&&newShops.Select(s=>s.Count).SequenceEqual(data.Profile.ShopItemSizes),$"Gen5Items_Real_{game}_ShopsKeepFixedListsAndTheSameItems");
                 byte[] plain=exported.ReadOverlay(21);var ovl=exported.Overlay(21);
                 Check(ovl.Compressed&&plain.Length==rom.ReadOverlay(21).Length&&exported.Files[ovl.FileId].Start==rom.Files[ovl.FileId].Start,$"Gen5Items_Real_{game}_Overlay21StaysCompressedInItsSlot ({ovl.StoredSize} bytes)");
                 Check(check.Starters().SequenceEqual(new[]{25,4,7}),$"Gen5Items_Real_{game}_StartersAndItemsShareTheScriptsTable");
@@ -144,6 +149,62 @@ internal static class NdsGen5RandomizerChecks
             Check(Hash(source)==before,$"Gen5Items_Real_{Path.GetFileNameWithoutExtension(source)}_SourceUnchanged");
         }
         Console.WriteLine($"Completed {checks} Gen5 item real-dump checks; outputs deleted from {output}.");
+    }
+
+    // White 2 on the owner's dump: every option at once, then each table re-read from the exported ROM.
+    internal static void ProbeSequel(string output,string source)
+    {
+        int checks=0;void Check(bool ok,string name){if(!ok)throw new Exception("FAIL "+name);checks++;Console.WriteLine("PASS "+name);}
+        output=Path.GetFullPath(output);source=Path.GetFullPath(source);if(Directory.Exists(output)||File.Exists(output))throw new IOException("El destino debe ser nuevo.");Directory.CreateDirectory(output);
+        static byte[] Lz11(byte[] data){using var input=new MemoryStream(data);using var result=new MemoryStream();pk3DS.Core.CTR.LZSS.Decompress(input,data.Length,result);return result.ToArray();}
+        static string Bag(IEnumerable<int> items)=>string.Join(",",items.Order());
+        string before=Hash(source);
+        using(var rom=NdsRom.Open(source))
+        {
+            var data=Gen5Data.Open(rom);var p=data.Profile;
+            Check(p.GameCode=="IRDO"&&p.Sequel&&data.Identity.KnownDump,"Gen5W2_Real_KnownWhite2DumpUsesTheSequelProfile");
+            var names=data.SpeciesNames();var trainers=data.Trainers();var areas=data.Encounters();
+            Check(names[495]=="Snivy"&&names[649]=="Genesect"&&data.Text(p.ItemNamesText)[1]=="Master Ball"&&data.Text(p.TypeNamesText)[11]=="Grass","Gen5W2_Real_SpeciesItemAndTypeNamesFromTheirOwnTexts");
+            var leaders=trainers.Where(t=>t.ClassName=="Leader"&&t.Id<200).OrderBy(t=>t.Team.Max(m=>m.Level)).Select(t=>t.Name).ToArray();
+            Check(trainers.Count==813&&leaders.SequenceEqual(new[]{"Cheren","Roxie","Burgh","Elesa","Clay","Skyla","Drayden","Marlon"}),$"Gen5W2_Real_813TrainersAndTheEightGymLeadersInOrder");
+            Check(areas.Count>0&&areas.All(a=>a.Slots.All(s=>s.Species<=Gen5Randomizer.MaxSpecies)),$"Gen5W2_Real_EncountersParse ({areas.Count} áreas)");
+            Check(data.Starters().SequenceEqual(new[]{495,498,501}),"Gen5W2_Real_StartersAreSnivyTepigOshawott");
+            var field=data.FieldItems();var shops=data.Shops();
+            Check(field.Count(f=>f.File==p.ItemBallScript)>200&&field.Count(f=>f.File==p.HiddenItemScript)>100&&shops.Count==32&&shops[7].SequenceEqual(new[]{331,335}),$"Gen5W2_Real_ReadsFieldItemsAndThe32Shops ({field.Count(f=>f.File==p.ItemBallScript)} visibles, {field.Count(f=>f.File==p.HiddenItemScript)} ocultos)");
+
+            int[] chosen=[25,4,7];
+            var options=new Gen5RandomizerOptions(2026){Trainers=Gen5SpeciesMode.ProgressiveBst,Wild=Gen5SpeciesMode.SimilarBst,Starters=Gen5StarterMode.Custom,CustomStarters=chosen,FieldItems=Gen5ItemMode.Shuffle,Shops=Gen5ItemMode.Shuffle};
+            var result=Gen5Randomizer.Generate(data,options);
+            Check(result.Overlays.Keys.SequenceEqual(new[]{316})&&result.RecompressOverlays.SetEquals(new[]{316})&&result.Files.ContainsKey("a/2/8/2"),"Gen5W2_Real_ShopsGoToTheirNarcAndOnlyTheCryOverlayIsRecompressed");
+            string target=Path.Combine(output,"IRDO-all.nds");data.Export(target,result);
+            using var exported=NdsRom.Open(target);var check=Gen5Data.Open(exported,requireOriginalTables:false);
+            var newTrainers=check.Trainers();
+            Check(newTrainers.Count==trainers.Count&&newTrainers.Zip(trainers).All(t=>t.First.Team.Count==t.Second.Team.Count&&t.First.Team.Zip(t.Second.Team).All(m=>m.First.Level==m.Second.Level&&m.First.HeldItem==m.Second.HeldItem)),"Gen5W2_Real_TrainersKeepTeamSizesLevelsAndItems");
+            Check(newTrainers.SelectMany(t=>t.Team).Count(m=>m.Species is <1 or >Gen5Randomizer.MaxSpecies)==0&&result.Changes.Count(c=>c.Location.StartsWith("Entrenador"))>1000,"Gen5W2_Real_TrainerSpeciesChangedAndValid");
+            var newAreas=check.Encounters();
+            Check(newAreas.Count==areas.Count&&newAreas.Zip(areas).All(a=>a.First.Rate==a.Second.Rate&&a.First.Slots.Zip(a.Second.Slots).All(s=>s.First.MinLevel==s.Second.MinLevel&&s.First.MaxLevel==s.Second.MaxLevel)),"Gen5W2_Real_EncountersKeepRatesAndLevels");
+            Check(check.Starters().SequenceEqual(chosen),"Gen5W2_Real_ScriptsGiveTheNewStarters");
+            var ovl=exported.Overlay(316);byte[] cries=exported.ReadOverlay(316);int table=cries.AsSpan().IndexOf([.. p.StarterCryPrefix])+p.StarterCryPrefix.Count;
+            Check(ovl.Compressed&&cries.Length==rom.ReadOverlay(316).Length&&Enumerable.Range(0,3).All(i=>BitConverter.ToUInt16(cries,table+i*2)==chosen[i])&&exported.Files[ovl.FileId].Start==rom.Files[ovl.FileId].Start,$"Gen5W2_Real_CryTableUpdatedInRecompressedOverlay ({ovl.StoredSize} bytes)");
+            var graphics=Narc.Read(rom.ReadFile("a/0/0/4"));var selection=Narc.Read(exported.ReadFile("a/2/0/2"));
+            Check(chosen.Select((s,i)=>selection.Files[12+i].SequenceEqual(Lz11(graphics.Files[s*20]))&&selection.Files[i*2].SequenceEqual(graphics.Files[s*20+18])).All(x=>x),"Gen5W2_Real_SelectionSpritesAndPalettesAreTheNewStarters");
+            var lines=Gen5Text.Read(Narc.Read(exported.ReadFile("a/0/0/3")).Files[169]);var oldLines=Gen5Text.Read(Narc.Read(rom.ReadFile("a/0/0/3")).Files[169]);
+            Check(lines[37].Contains("Electric")&&lines[36]==oldLines[36]&&lines[35]==oldLines[35]&&lines.Where((l,i)=>i!=37).SequenceEqual(oldLines.Where((l,i)=>i!=37)),"Gen5W2_Real_SelectionTextNamesTheNewType");
+            byte[] script=Narc.Read(exported.ReadFile("a/0/5/6")).Files[854];byte[] oldScript=Narc.Read(rom.ReadFile("a/0/5/6")).Files[854];
+            Check(script.Length==oldScript.Length+14&&script[0x6BE]==0x1E&&script[0x6BF]==0&&BitConverter.ToInt32(script,0x6C0)+0x6C4==oldScript.Length&&script.AsSpan(oldScript.Length,6).SequenceEqual(new byte[]{0x28,0,0xA1,0x40,4,0}),"Gen5W2_Real_PokedexScriptJumpsToAppendedBlock");
+            var newField=check.FieldItems();
+            Check(newField.Count==field.Count&&newField.Zip(field).All(f=>f.First.Offset==f.Second.Offset&&(Gen5Randomizer.IsMovableItem(f.Second.Item)||f.First.Item==f.Second.Item))&&Bag(newField.Select(f=>f.Item))==Bag(field.Select(f=>f.Item)),"Gen5W2_Real_FieldItemsSameItemsAndFixedOnesStay");
+            var newShops=check.Shops();
+            Check(p.FixedShops.All(s=>newShops[s].SequenceEqual(shops[s]))&&Bag(newShops.SelectMany(s=>s))==Bag(shops.SelectMany(s=>s))&&!newShops.SequenceEqual(shops),"Gen5W2_Real_ShopsShuffledExceptFixedLists");
+            var shopNarc=Narc.Read(exported.ReadFile("a/2/8/2"));var oldShopNarc=Narc.Read(rom.ReadFile("a/2/8/2"));
+            Check(shopNarc.Files.Count==80&&shopNarc.Files.Skip(32).Zip(oldShopNarc.Files.Skip(32)).All(f=>f.First.SequenceEqual(f.Second)),"Gen5W2_Real_UnusedShopFilesUntouched");
+            var changedIds=result.Files.Keys.Select(k=>rom.File(k).Id).Append(rom.Overlay(316).FileId).ToHashSet();
+            Check(exported.Files.Where(f=>!changedIds.Contains(f.Id)).All(f=>exported.ReadFile(f).SequenceEqual(rom.ReadFile(rom.Files[f.Id]))),"Gen5W2_Real_EveryOtherFileIdentical");
+            Check(Gen5Randomizer.Generate(data,options).Changes.SequenceEqual(result.Changes),"Gen5W2_Real_SameSeedSameResult");
+        }
+        foreach(string f in Directory.GetFiles(output))File.Delete(f);
+        Check(Hash(source)==before,"Gen5W2_Real_SourceUnchanged");
+        Console.WriteLine($"Completed {checks} White 2 real-dump checks; outputs deleted from {output}.");
     }
 
     private static string Hash(string path){using var stream=File.OpenRead(path);return Convert.ToHexString(SHA256.HashData(stream));}
