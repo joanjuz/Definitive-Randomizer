@@ -67,7 +67,17 @@ public sealed partial class GameMartService
         "Playas · medicina"
     ];
     private bool _singlePurchase;
+    private IReadOnlyList<ushort>? _singlePurchaseExempt;
     internal bool HasSinglePurchase=>_singlePurchase;
+    /// <summary>Items with no purchase limit: the pending white list, or the one already in Shop.cro.</summary>
+    internal IReadOnlyList<ushort> SinglePurchaseExempt=>_singlePurchaseExempt??(_project.GameConfiguration.USUM?Gen7SinglePurchaseStock.Read(_original)?.ExemptItems:null)??[];
+    internal void SetSinglePurchaseExempt(IEnumerable<ushort> items)
+    {
+        if(!_project.GameConfiguration.USUM)throw new NotSupportedException("La lista blanca de compras únicas está disponible únicamente en USUM.");
+        var list=items.Distinct().Order().ToArray();
+        if(list.Any(i=>i==0||i>=_project.ItemNames.Count))throw new ArgumentException("La lista blanca tiene un objeto inválido.");
+        _singlePurchaseExempt=list;
+    }
     internal const string SinglePurchaseAction="marts.single-purchase-specials";
     public void SinglePurchaseSpecials()
     {
@@ -234,7 +244,10 @@ public sealed partial class GameMartService
         {
             var installed=Gen7SinglePurchaseStock.Read(_original);
             var message=SinglePurchaseShopText.Prepare(_project,installed?.MessageId);
-            byte[] patched=Gen7SinglePurchaseStock.Apply(updated,message.Id);
+            byte[] patched=Gen7SinglePurchaseStock.Apply(updated,message.Id,_singlePurchaseExempt);
+            var exemptBefore=installed?.ExemptItems??[];var exemptAfter=Gen7SinglePurchaseStock.Read(patched)!.ExemptItems;
+            string ExemptNames(IReadOnlyList<ushort> items)=>items.Count==0?"Ninguno":string.Join(", ",items.Select(i=>_project.ItemNames[i]));
+            if(!exemptBefore.SequenceEqual(exemptAfter)||installed is null&&(_singlePurchaseExempt?.Count??0)>0)changes.Add(new(-1,"Tiendas especiales","Lista blanca (sin límite)",ExemptNames(exemptBefore),ExemptNames(_singlePurchaseExempt??exemptAfter)));
             if(!patched.AsSpan().SequenceEqual(updated))changes.Add(new(-1,"Tiendas especiales","Una compra por objeto y tienda",installed is null?"Sin límite":"Registro anterior",$"{Gen7SinglePurchaseStock.CurrentOffers(patched).Count} ofertas · guardar y reiniciar conserva el stock"));
             updated=patched;extra.AddRange(message.Files);
             if(message.Files.Any(f=>f.Changed))changes.Add(new(-1,"Tiendas especiales","Mensaje de agotado","Sin mensaje propio","Ya compraste este objeto. · todos los idiomas"));
@@ -264,12 +277,13 @@ public sealed partial class GameMartService
     internal void RestoreManualItemEffects(System.Text.Json.Nodes.JsonObject payload)
     {
         if(payload["SinglePurchase"]?.GetValue<bool>()==true)SinglePurchaseSpecials();
+        if(payload["SinglePurchaseExempt"] is System.Text.Json.Nodes.JsonArray exempt)SetSinglePurchaseExempt(exempt.Select(n=>n!.GetValue<ushort>()));
         _setCandyPrice=payload["CandyPrice"]?.GetValue<bool>()??false;_setKeyPrice=payload["KeyPrice"]?.GetValue<bool>()??false;_enableVitamin252=payload["Vitamin252"]?.GetValue<bool>()??false;
         _vitaminIds=payload["VitaminIds"]?.AsArray().Select(n=>n!.GetValue<int>()).ToArray()??[];
     }
     public void Apply(MartShopPreview preview)
     {
-        using var manual=ManualOperationScope.Current is not null?null:(Environment.GetEnvironmentVariable("DEFINITIVE_BATCH_REPLAY")=="1"&&!_singlePurchase)||(!_singlePurchase&&!RegularShops.Concat(BpShops).Any(s=>ManualShop(s,preview)))?null:ManualOperationScope.Begin("shops7","shops7",new{Shops=RegularShops.Concat(BpShops).Where(s=>Environment.GetEnvironmentVariable("DEFINITIVE_BATCH_REPLAY")!="1"&&ManualShop(s,preview)).Select(s=>new{s.Index,s.IsBP,Rows=s.Rows.Select(r=>new{r.ItemId,r.Price}).ToArray()}).ToArray(),CandyPrice=_setCandyPrice,KeyPrice=_setKeyPrice,Vitamin252=_enableVitamin252,VitaminIds=_vitaminIds,SinglePurchase=_singlePurchase});
+        using var manual=ManualOperationScope.Current is not null?null:(Environment.GetEnvironmentVariable("DEFINITIVE_BATCH_REPLAY")=="1"&&!_singlePurchase)||(!_singlePurchase&&!RegularShops.Concat(BpShops).Any(s=>ManualShop(s,preview)))?null:ManualOperationScope.Begin("shops7","shops7",new{Shops=RegularShops.Concat(BpShops).Where(s=>Environment.GetEnvironmentVariable("DEFINITIVE_BATCH_REPLAY")!="1"&&ManualShop(s,preview)).Select(s=>new{s.Index,s.IsBP,Rows=s.Rows.Select(r=>new{r.ItemId,r.Price}).ToArray()}).ToArray(),CandyPrice=_setCandyPrice,KeyPrice=_setKeyPrice,Vitamin252=_enableVitamin252,VitaminIds=_vitaminIds,SinglePurchase=_singlePurchase,SinglePurchaseExempt=_singlePurchaseExempt});
         if (preview.Changes.Count == 0)
             throw new InvalidOperationException("No hay cambios para guardar.");
         var fresh = Prepare();

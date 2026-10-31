@@ -36,6 +36,7 @@ internal sealed record RomBuildJournal(DateTimeOffset CompletedUtc,string Projec
 internal sealed class BatchRomExecution
 {
     // Parity with BatchGen7ActionExecutor.Supported from the original executable.
+    internal static bool Supports(string actionId)=>SupportedActionIds.Contains(actionId);
     private static readonly HashSet<string> SupportedActionIds=new(StringComparer.OrdinalIgnoreCase)
     {
         "manual-edits.apply","rng.seed","moves.balance","moves.randomize","moves.metronome",
@@ -56,7 +57,8 @@ internal sealed class BatchRomExecution
         "move-tutors.randomize","move-tutors.sanity","move-tutors.follow-evolutions",
         "move-tutors.free","field-items.randomize","shiny-rate.apply",
         "mega-evolution.unlock-from-start","battle.persistent-consumables",
-        "usum.move-relearner","player.level-caps"
+        "usum.move-relearner","player.level-caps",
+        Gen7Adjustments.ObedienceActionId,Gen7Adjustments.NoMegasActionId,Gen7Adjustments.UltraWarpHintActionId
     };
     private readonly GameProjectSession _project;
     internal static readonly HashSet<string> Gen6ActionIds=new(StringComparer.OrdinalIgnoreCase)
@@ -94,7 +96,7 @@ internal sealed class BatchRomExecution
         NativeGen7WildBridge.ValidateSession(_project,template);NativeRecipeCompletion.ValidateGen7Parameters(_project,template);_=NativeGen7MartBridge.ValidateSession(_project,template);NativeGen7MachineBridge.ValidateSession(_project,template);NativeMasterBatchBridge.ValidateSession(_project,template);if(_project.Generation==7)NativeGen7FieldBridge.ValidateSession(_project,template);
         ManualEditTemplate.ValidateSession(_project,template);
         if(template.Actions.Count==0)throw new InvalidDataException("El template no tiene acciones de batch.");
-        if(template.SettingsCount==0&&template.Actions.Any(id=>id!="rng.seed"&&id!=ManualEditTemplate.ActionId&&!NativeMasterBatchBridge.ActionIds.Contains(id,StringComparer.OrdinalIgnoreCase)&&!(_project.Generation==7&&NativeGen7FieldBridge.ActionIds.Contains(id,StringComparer.OrdinalIgnoreCase))&&!(_project.Generation==7&&NativeGen7MachineBridge.ActionIds.Contains(id,StringComparer.OrdinalIgnoreCase))&&!(_project.Generation==7&&NativeGen7MartBridge.ActionIds.Contains(id,StringComparer.OrdinalIgnoreCase))&&!(_project.Generation==7&&NativeRecipeCompletion.Gen7ParameterActions.Contains(id,StringComparer.OrdinalIgnoreCase))&&!(_project.Generation==7&&NativeGen7WildBridge.ActionIds.Contains(id,StringComparer.OrdinalIgnoreCase))&&!(_project.Generation==6?NativeBatchGen6Bridge.ActionIds:NativeBatchGen7StaticBridge.ActionIds).Contains(id,StringComparer.OrdinalIgnoreCase)))
+        if(template.SettingsCount==0&&template.Actions.Any(id=>id!="rng.seed"&&id!=ManualEditTemplate.ActionId&&!NativeMasterBatchBridge.ActionIds.Contains(id,StringComparer.OrdinalIgnoreCase)&&!(_project.Generation==7&&NativeGen7FieldBridge.ActionIds.Contains(id,StringComparer.OrdinalIgnoreCase))&&!(_project.Generation==7&&NativeGen7MachineBridge.ActionIds.Contains(id,StringComparer.OrdinalIgnoreCase))&&!(_project.Generation==7&&NativeGen7MartBridge.ActionIds.Contains(id,StringComparer.OrdinalIgnoreCase))&&!(_project.Generation==7&&NativeRecipeCompletion.Gen7ParameterActions.Contains(id,StringComparer.OrdinalIgnoreCase))&&!(_project.Generation==7&&NativeGen7WildBridge.ActionIds.Contains(id,StringComparer.OrdinalIgnoreCase))&&!(_project.Generation==7&&Gen7Adjustments.ActionIds(_project.GameConfiguration.USUM).Contains(id,StringComparer.OrdinalIgnoreCase))&&!(_project.Generation==6?NativeBatchGen6Bridge.ActionIds:NativeBatchGen7StaticBridge.ActionIds).Contains(id,StringComparer.OrdinalIgnoreCase)))
             throw new InvalidDataException("Este template se creó solo desde historial: no contiene RandSettings. Importá y guardá una receta completa antes de construir.");
         var supported=_project.Generation==6?Gen6ActionIds:SupportedActionIds;
         var unsupported=template.Actions.Where(id=>!supported.Contains(id)&&id!=ManualEditTemplate.ActionId).ToArray();
