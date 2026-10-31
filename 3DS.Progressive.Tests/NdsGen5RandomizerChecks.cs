@@ -233,7 +233,7 @@ internal static class NdsGen5RandomizerChecks
 
     private static byte[] SyntheticBlack(IReadOnlyDictionary<string,byte[]>? extra=null)
     {
-        var text=new byte[192][];for(int i=0;i<text.Length;i++)text[i]=[];
+        var text=new byte[204][];for(int i=0;i<text.Length;i++)text[i]=[];text[203]=Gen5Message(Enumerable.Range(0,560).Select(i=>"Mov"+i).ToArray());
         text[70]=Gen5Message(Enumerable.Range(0,650).Select(i=>"Especie"+i).ToArray());text[190]=Gen5Message(["","Ana","Beto"]);text[191]=Gen5Message(["Clase"]);text[54]=Gen5Message(Enumerable.Range(0,640).Select(i=>"Objeto"+i).ToArray());
         var stats=Enumerable.Range(0,650).Select(s=>Enumerable.Repeat((byte)Math.Min(255,s),6).Concat(new byte[]{11,3}).ToArray()).ToArray();
         byte[] header(int flags,int count){var h=new byte[20];h[0]=(byte)flags;h[3]=(byte)count;return h;}

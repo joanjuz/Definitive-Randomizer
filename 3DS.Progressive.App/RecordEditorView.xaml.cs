@@ -44,6 +44,8 @@ public partial class RecordEditorView : UserControl
         if(editor is ThreeDS.Progressive.Services.GameTrainerService||editor is ITrainerEditorPresentation {UsesTrainerLayout:true})
             TrainerCapsButton.Visibility=TrainerMovesButton.Visibility=Visibility.Visible;
         if(editor is ThreeDS.Progressive.Services.Switch.SwordShieldRecordEditor)TrainerMovesButton.Visibility=Visibility.Collapsed;
+        // DS trainers have no level-cap or trainer-move rule tables yet.
+        if(editor is ThreeDS.Progressive.Services.Nds.NdsRecordEditor)TrainerCapsButton.Visibility=TrainerMovesButton.Visibility=Visibility.Collapsed;
         if(editor is ThreeDS.Progressive.Services.Switch.SwordShieldRecordEditor {HasTradeEvolutionAction:true})AddInspectorAction("Eliminar evoluciones por intercambio · nivel 37",ShowSwitchTradePreview);
         if(editor is ThreeDS.Progressive.Services.GameEncounterService wildClipboard && wildClipboard.SupportsWildTemplate)
             WildCopyButton.Visibility=WildPasteButton.Visibility=WildPasteAreaButton.Visibility=

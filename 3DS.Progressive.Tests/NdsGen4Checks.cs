@@ -27,6 +27,17 @@ internal static class NdsGen4Checks
                 int expected=kind==Gen4Kind.DiamondPearl?12+1+5:36+1+5+1;
                 check(slots.Count==expected&&slots.All(s=>s.Species is >=1 and <=Gen4Data.MaxSpecies),$"Gen4_{name}_ReadsGrassAlternateAndWaterSlots ({slots.Count})");
                 var keep=Gen4Randomizer.Generate(data,new Gen5RandomizerOptions(3));check(keep.Files.Count==0&&keep.Changes.Count==0,$"Gen4_{name}_KeepChangesNothing");
+                // Manual edits as cells: trainer species/level/item and encounter species and levels, then a draft view reads them back.
+                var cells=NdsCells.Read(data,NdsSection.Trainers);var wildCells=NdsCells.Read(data,NdsSection.Encounters);
+                check(cells.Count(c=>c.Entry==2)==7&&cells.Single(c=>c.Key=="1:P1.Species").Value==388&&wildCells.All(c=>c.Value>=c.Min&&c.Value<=c.Max),$"Gen4Cells_{name}_ReadTrainerAndEncounterCells");
+                var level=wildCells.First(c=>c.Field.EndsWith("nivel máximo")||c.Field.EndsWith("· nivel"));
+                var written=NdsCells.Write(data,NdsSection.Trainers,new Dictionary<string,int>{["1:P1.Species"]=25,["2:P0.Level"]=77,["2:P0.Item"]=4});
+                var writtenWild=NdsCells.Write(data,NdsSection.Encounters,new Dictionary<string,int>{[wildCells[0].Key]=150,[level.Key]=level.Value+1});
+                var draft=data.WithDraft(written.Files.Concat(writtenWild.Files).ToDictionary(p=>p.Key,p=>p.Value),new Dictionary<int,byte[]>(),null);
+                var editedTrainers=draft.Trainers();var editedWild=NdsCells.Read(draft,NdsSection.Encounters);
+                check(written.Changes.Count==3&&editedTrainers[0].Team[1].Species==25&&editedTrainers[1].Team[0] is {Level:77,HeldItem:4,Moves.Count:4}&&editedWild[0].Value==150
+                    &&editedWild.Single(c=>c.Key==level.Key).Value==level.Value+1&&draft.IsDraft,$"Gen4Cells_{name}_WriteEditsReadBackThroughADraft");
+                reject(()=>NdsCells.Write(data,NdsSection.Trainers,new Dictionary<string,int>{["1:P1.Species"]=494}),$"Gen4Cells_{name}_RejectsValuesOutOfRange");
                 reject(()=>Gen4Randomizer.Generate(data,new Gen5RandomizerOptions(3){Starters=Gen5StarterMode.Custom,CustomStarters=[1,1,4]}),$"Gen4_{name}_RejectsRepeatedCustomStarters");
                 reject(()=>Gen4Randomizer.Generate(data,new Gen5RandomizerOptions(3){Starters=Gen5StarterMode.Custom,CustomStarters=[1,4,494]}),$"Gen4_{name}_RejectsStartersOutsideGen4");
                 var options=new Gen5RandomizerOptions(3){Trainers=Gen5SpeciesMode.Random,Wild=Gen5SpeciesMode.Random};
@@ -153,7 +164,9 @@ internal static class NdsGen4Checks
     private static byte[] Synthetic(Gen4Profile profile,bool romhack=false)
     {
         bool hgss=profile.Kind==Gen4Kind.HeartGoldSoulSilver;
-        var text=new byte[Math.Max(profile.TrainerClassesText,profile.SpeciesNamesText)+1][];for(int i=0;i<text.Length;i++)text[i]=Gen4Message([]);
+        var text=new byte[new[]{profile.TrainerClassesText,profile.SpeciesNamesText,profile.MoveNamesText,profile.ItemNamesText}.Max()+1][];for(int i=0;i<text.Length;i++)text[i]=Gen4Message([]);
+        text[profile.MoveNamesText]=Gen4Message(Enumerable.Range(0,468).Select(i=>"Mov"+new string((char)('a'+i%26),1+i/26)).ToArray());
+        text[profile.ItemNamesText]=Gen4Message(Enumerable.Range(0,537).Select(i=>"Obj"+new string((char)('a'+i%26),1+i/26)).ToArray());
         text[profile.SpeciesNamesText]=Gen4Message(Enumerable.Range(0,494).Select(i=>"S"+new string((char)('a'+i%26),1+i/26)).ToArray());
         text[profile.TrainerNamesText]=Gen4Message(["","ANA","BETO"]);text[profile.TrainerClassesText]=Gen4Message(["Leader"]);
         var stats=Enumerable.Range(0,494).Select(s=>Enumerable.Repeat((byte)Math.Min(255,s/2),6).Concat(new byte[]{1,2}).ToArray()).ToArray();
