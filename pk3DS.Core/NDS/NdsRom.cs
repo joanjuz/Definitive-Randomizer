@@ -111,8 +111,18 @@ public sealed class NdsRom : IDisposable
         if (U32(after, 0) != NitroCode)
             return new Arm9Layout(offset, ram, size, null, -1, false);
         int moduleParams = checked((int)U32(after, 4));
-        bool compressed = moduleParams + 0x18 <= size && U32(ReadAt(offset + (uint)moduleParams + 0x14, 4), 0) != 0;
+        bool compressed = moduleParams + 0x18 <= size && U32(ReadAt(offset + (uint)moduleParams + 0x14, 4), 0) != 0 && HasBlzFooter(offset, size);
         return new Arm9Layout(offset, ram, size, after, moduleParams, compressed);
+    }
+
+    // BLZ footer: header length 8-11 and a compressed length close to the stored size (UPR-ZX NDSRom.getARM9).
+    private bool HasBlzFooter(uint offset, uint size)
+    {
+        if (size < 8)
+            return false;
+        byte[] footer = ReadAt(offset + size - 8, 8);
+        uint packed = U32(footer, 0) & 0xFFFFFF;
+        return footer[3] is >= 0x08 and <= 0x0B && packed > size * 9L / 10 && packed < size * 11L / 10;
     }
 
     /// <summary>ARM9 binary as the game runs it: BLZ-decompressed when its module parameters mark it compressed.</summary>

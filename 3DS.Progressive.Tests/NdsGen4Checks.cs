@@ -56,6 +56,19 @@ internal static class NdsGen4Checks
             check(new[]{1,17,111,135,213,327}.All(Gen4Randomizer.IsMovableItem)&&!new[]{0,112,134,328,419,420,427,428,464,536,537}.Any(Gen4Randomizer.IsMovableItem),"Gen4_TmsHmsKeyAndExclusiveItemsNeverMove");
             check(Gen4Profile.All.All(p=>p.ShopPrefix.Count==16&&p.FixedShops.All(s=>s<p.ShopCount)&&p.HiddenItemCount>200&&p.Files.ContainsKey(Gen4Profile.Scripts)),"Gen4_ProfilesDescribeItemsAndShops");
             Arm9Checks(check,reject,temp);
+            var hg=Gen4Profile.All.Single(p=>p.Kind==Gen4Kind.HeartGoldSoulSilver);string hackPath=Path.Combine(temp,"hgss-romhack.nds");File.WriteAllBytes(hackPath,Synthetic(hg,romhack:true));
+            using(var hackRom=NdsRom.Open(hackPath))
+            {
+                reject(()=>Gen4Data.Open(hackRom),"Gen4Romhack_StrictOpenRejectsModifiedTablesAndCutFiles");
+                var hack=Gen4Data.OpenRomhack(hackRom);var slots=hack.Encounters();
+                check(hack.IsRomhack&&new[]{Gen5Feature.Starters,Gen5Feature.Shops,Gen5Feature.HiddenItems}.All(hack.Unavailable.ContainsKey)&&hack.FieldItems().Count==0
+                    &&slots.Count(s=>s.File==1)==slots.Count(s=>s.File==0)-1&&slots.All(s=>s.Offset+s.Width<=(s.File==1?192:196)),"Gen4Romhack_ReadsCutEncounterFilesAndListsUnavailableOptions");
+                reject(()=>Gen4Randomizer.Generate(hack,new Gen5RandomizerOptions(4){Shops=Gen5ItemMode.Shuffle}),"Gen4Romhack_RejectsUnavailableShops");
+                var hacked=Gen4Randomizer.Generate(hack,new Gen5RandomizerOptions(4){Trainers=Gen5SpeciesMode.Random,Wild=Gen5SpeciesMode.Random,FieldItems=Gen5ItemMode.Shuffle});
+                string hackOut=Path.Combine(temp,"hgss-romhack-out.nds");hack.Export(hackOut,hacked);
+                using var exported=NdsRom.Open(hackOut);var again=Gen4Data.Open(exported,requireOriginalTables:false);
+                check(hacked.Arm9 is null&&again.Encounters().Count==slots.Count&&Narc.Read(exported.ReadFile(hg.Files[Gen4Profile.WildPokemon].Path)).Files[1].Length==192,"Gen4Romhack_ExportKeepsCutFilesAndLeavesTheArm9");
+            }
         }
         finally{try{Directory.Delete(temp,true);}catch(IOException){}}
     }
@@ -66,7 +79,8 @@ internal static class NdsGen4Checks
     {
         var random=new Random(5);
         const int moduleParams=0xBA0;
-        byte[] plain=new byte[0x6000];for(int i=0;i<plain.Length;i++)plain[i]=(byte)(i%97<40?0:random.Next(4));
+        // Large enough that the compressed part dominates, as in a real ARM9 (the BLZ footer check expects that).
+        byte[] plain=new byte[0x50000];for(int i=0;i<plain.Length;i++)plain[i]=(byte)(i%97<35?0:random.Next(256));
         // An uncompressed binary has no compressed end in its module parameters.
         plain.AsSpan(moduleParams+0x14,4).Clear();
         foreach(bool compressed in new[]{false,true})
@@ -78,11 +92,11 @@ internal static class NdsGen4Checks
             using var rom=NdsRom.Open(path);
             byte[] read=rom.ReadArm9();
             check(read.Length==plain.Length&&(compressed?read.AsSpan(0,moduleParams+0x14).SequenceEqual(plain.AsSpan(0,moduleParams+0x14)):read.SequenceEqual(plain)),$"NdsArm9_{name}_ReadsTheRunningBinary");
-            byte[] changed=(byte[])read.Clone();changed[0x5000]^=0x5A;changed[0x10]^=0x11;
+            byte[] changed=(byte[])read.Clone();changed[0x4F000]^=0x5A;changed[0x10]^=0x11;
             string output=Path.Combine(temp,"arm9-"+name+"-out.nds");rom.Save(output,new Dictionary<int,byte[]>(),null,null,changed);
             using var saved=NdsRom.Open(output);byte[] again=saved.ReadArm9();
             byte[] header=File.ReadAllBytes(output)[..0x200];uint size=BinaryPrimitives.ReadUInt32LittleEndian(header.AsSpan(0x2C));byte[] raw=File.ReadAllBytes(output);
-            check(again.AsSpan(0x5000).SequenceEqual(changed.AsSpan(0x5000))&&again[0x10]==changed[0x10]&&BinaryPrimitives.ReadUInt32LittleEndian(raw.AsSpan(0x4000+(int)size))==0xDEC00621
+            check(again.AsSpan(0x4F000).SequenceEqual(changed.AsSpan(0x4F000))&&again[0x10]==changed[0x10]&&BinaryPrimitives.ReadUInt32LittleEndian(raw.AsSpan(0x4000+(int)size))==0xDEC00621
                 &&(!compressed||BinaryPrimitives.ReadUInt32LittleEndian(raw.AsSpan(0x4000+moduleParams+0x14))==0x2000000u+size),$"NdsArm9_{name}_SavesInPlaceWithFooterAndModuleParams");
             reject(()=>rom.Save(Path.Combine(temp,"arm9-"+name+"-short.nds"),new Dictionary<int,byte[]>(),null,null,changed[..^4]),$"NdsArm9_{name}_RejectsASizeChange");
         }
@@ -136,7 +150,7 @@ internal static class NdsGen4Checks
     }
 
     // Two trainers (one without items or moves, one with both) and one encounter file in the layout of the profile's game.
-    private static byte[] Synthetic(Gen4Profile profile)
+    private static byte[] Synthetic(Gen4Profile profile,bool romhack=false)
     {
         bool hgss=profile.Kind==Gen4Kind.HeartGoldSoulSilver;
         var text=new byte[Math.Max(profile.TrainerClassesText,profile.SpeciesNamesText)+1][];for(int i=0;i<text.Length;i++)text[i]=Gen4Message([]);
@@ -156,7 +170,7 @@ internal static class NdsGen4Checks
             for(int t=0;t<3;t++)for(int i=0;i<12;i++)BinaryPrimitives.WriteUInt16LittleEndian(wild.AsSpan(20+t*24+i*2),(ushort)(i<6?16:19));
             BinaryPrimitives.WriteUInt16LittleEndian(wild.AsSpan(92),(ushort)252);
             for(int i=0;i<5;i++){wild[100+i*4]=20;wild[101+i*4]=30;BinaryPrimitives.WriteUInt16LittleEndian(wild.AsSpan(102+i*4),(ushort)72);}
-            BinaryPrimitives.WriteUInt16LittleEndian(wild.AsSpan(188),(ushort)206);
+            BinaryPrimitives.WriteUInt16LittleEndian(wild.AsSpan(188),(ushort)206);if(romhack)BinaryPrimitives.WriteUInt16LittleEndian(wild.AsSpan(192),(ushort)130);
         }
         else
         {
@@ -170,8 +184,13 @@ internal static class NdsGen4Checks
             [profile.Files[Gen4Profile.PokemonStats].Path]=NdsGen5RandomizerChecks.BuildNarc(stats),
             [profile.Files[Gen4Profile.TrainerData].Path]=NdsGen5RandomizerChecks.BuildNarc(headers),
             [profile.Files[Gen4Profile.TrainerPokemon].Path]=NdsGen5RandomizerChecks.BuildNarc(teams),
-            [profile.Files[Gen4Profile.WildPokemon].Path]=NdsGen5RandomizerChecks.BuildNarc([wild]),
+            [profile.Files[Gen4Profile.WildPokemon].Path]=NdsGen5RandomizerChecks.BuildNarc(romhack&&hgss?[wild,wild[..192]]:[wild]),
         };
+        if(romhack)
+        {
+            var scripts=new byte[profile.ItemBallScript+1][];for(int i=0;i<scripts.Length;i++)scripts[i]=[0x13,0xFD];
+            files[profile.Files[Gen4Profile.Scripts].Path]=NdsGen5RandomizerChecks.BuildNarc(scripts);
+        }
         return NdsGen5RandomizerChecks.BuildRom(files,profile.GameCode,profile.Version);
     }
 
@@ -249,6 +268,40 @@ internal static class NdsGen4Checks
             &&(hgss||lines[1].Contains("Mouse Pokémon"))&&lines.Where((l,i)=>!named.Contains(i)).SequenceEqual(oldLines.Where((l,i)=>!named.Contains(i))),$"Gen4Starters_Real_{game}_SelectionTextNamesTheNewStarters");
         var random=Gen4Randomizer.Generate(data,new Gen5RandomizerOptions(77){Starters=Gen5StarterMode.Random});
         Check(random.Changes.Select(c=>c.After).Distinct().Count()==random.Changes.Count&&random.Changes.SequenceEqual(Gen4Randomizer.Generate(data,new Gen5RandomizerOptions(77){Starters=Gen5StarterMode.Random}).Changes),$"Gen4Starters_Real_{game}_RandomStartersDistinctAndReproducible");
+    }
+
+    // Romhacks of supported games (Gen4 or Gen5): rejected as originals, opened as romhacks, randomized with every option their
+    // code allows, exported to an isolated folder and read back; the source must not change.
+    internal static void ProbeRomhacks(string output,IEnumerable<string> roms)
+    {
+        int checks=0;void Check(bool ok,string name){if(!ok)throw new Exception("FAIL "+name);checks++;Console.WriteLine("PASS "+name);}
+        output=Path.GetFullPath(output);if(Directory.Exists(output)||File.Exists(output))throw new IOException("El destino debe ser nuevo.");Directory.CreateDirectory(output);
+        foreach(string source in roms.Select(Path.GetFullPath))
+        {
+            string before=Hash(source),name=Path.GetFileNameWithoutExtension(source).Replace(' ','_');
+            using(var rom=NdsRom.Open(source))
+            {
+                bool gen4=NdsIdentity.Identify(rom).Profile.Generation==4;
+                bool strictRejects;try{if(gen4)Gen4Data.Open(rom);else Gen5Data.Open(rom);strictRejects=false;}catch(InvalidDataException){strictRejects=true;}
+                Check(strictRejects,$"Romhack_Real_{name}_RejectedAsAnOriginal");
+                var g4=gen4?Gen4Data.OpenRomhack(rom):null;var g5=gen4?null:Gen5Data.OpenRomhack(rom);
+                var unavailable=g4?.Unavailable??g5!.Unavailable;
+                Check(g4?.IsRomhack??g5!.IsRomhack,$"Romhack_Real_{name}_OpensAsRomhack (no disponible: {(unavailable.Count==0?"nada":string.Join(", ",unavailable.Keys))})");
+                var options=new Gen5RandomizerOptions(31){Trainers=Gen5SpeciesMode.ProgressiveBst,Wild=Gen5SpeciesMode.SimilarBst,FieldItems=Gen5ItemMode.Shuffle,
+                    Starters=unavailable.ContainsKey(Gen5Feature.Starters)?Gen5StarterMode.Keep:Gen5StarterMode.Random,Shops=unavailable.ContainsKey(Gen5Feature.Shops)?Gen5ItemMode.Keep:Gen5ItemMode.Shuffle};
+                var result=g4 is not null?Gen4Randomizer.Generate(g4,options):Gen5Randomizer.Generate(g5!,options);
+                Check(result.Changes.Count>1000&&(options.Starters==Gen5StarterMode.Keep||result.Changes.Count(c=>c.Location.StartsWith("Inicial",StringComparison.Ordinal))>0),$"Romhack_Real_{name}_RandomizesTheAvailableOptions ({result.Changes.Count} cambios)");
+                Check(unavailable.ContainsKey(Gen5Feature.Starters)==false||result.Overlays.Count==0&&(gen4?result.Arm9 is null||!unavailable.ContainsKey(Gen5Feature.Shops)&&!unavailable.ContainsKey(Gen5Feature.HiddenItems):true),$"Romhack_Real_{name}_LeavesModifiedCodeAlone");
+                string target=Path.Combine(output,name+".nds");if(g4 is not null)g4.Export(target,result);else g5!.Export(target,result);
+                using var exported=NdsRom.Open(target);
+                int trainers=g4?.Trainers().Count??g5!.Trainers().Count,again=gen4?Gen4Data.Open(exported,requireOriginalTables:false).Trainers().Count:Gen5Data.Open(exported,requireOriginalTables:false).Trainers().Count;
+                var changedIds=result.Files.Keys.Select(p=>rom.File(p).Id).Concat(result.Overlays.Keys.Select(o=>rom.Overlay(o).FileId)).ToHashSet();
+                Check(again==trainers&&exported.Files.Where(f=>!changedIds.Contains(f.Id)).All(f=>exported.ReadFile(f).SequenceEqual(rom.ReadFile(rom.Files[f.Id]))),$"Romhack_Real_{name}_ExportReadsBackAndKeepsEveryOtherFile");
+            }
+            foreach(string f in Directory.GetFiles(output))File.Delete(f);
+            Check(Hash(source)==before,$"Romhack_Real_{name}_SourceUnchanged");
+        }
+        Console.WriteLine($"Completed {checks} romhack real-ROM checks; outputs deleted from {output}.");
     }
 
     private static string Hash(string path)

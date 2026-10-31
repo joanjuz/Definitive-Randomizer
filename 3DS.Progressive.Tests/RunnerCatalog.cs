@@ -93,6 +93,7 @@ internal static class RunnerCatalog
         new("--nds-gen5-random-probe","2 o más",RunnerCategory.Real,false),
         new("--nds-gen5-starters-probe","2 o más",RunnerCategory.Real,false),
         new("--nds-gen5-w2-probe","exactamente 2",RunnerCategory.Real,false),
+        new("--nds-romhack-probe","2 o más",RunnerCategory.Real,false),
         new("--nds-roundtrip-probe","2 o más",RunnerCategory.Real,false),
         new("--nds-ui-probe","exactamente 2",RunnerCategory.Real,false),
         new("--pokefeur-probe","exactamente 3",RunnerCategory.Real,false),

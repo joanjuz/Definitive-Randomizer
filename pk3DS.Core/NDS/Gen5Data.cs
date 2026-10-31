@@ -123,6 +123,12 @@ public sealed record Gen5Profile(string GameCode, bool Black, IReadOnlyDictionar
     ];
 }
 
+/// <summary>Names of the options a ROM may not support, used by <c>Unavailable</c> in <see cref="Gen5Data"/> and <see cref="Gen4Data"/>.</summary>
+public static class Gen5Feature
+{
+    public const string Starters = "Iniciales", Shops = "Tiendas", HiddenItems = "Objetos ocultos";
+}
+
 public sealed record Gen5BaseStats(int Index, byte HP, byte Attack, byte Defense, byte Speed, byte SpAttack, byte SpDefense, byte Type1, byte Type2)
 {
     public int Total => HP + Attack + Defense + Speed + SpAttack + SpDefense;
@@ -151,17 +157,69 @@ public sealed class Gen5Data
     private static readonly int[] SlotsPerType = [12, 12, 12, 5, 5, 5, 5];
     private readonly NdsRom _rom;
     private readonly bool _requireOriginalTables;
+    private readonly bool _romhack;
     private readonly Dictionary<string, Narc> _narcs = new();
 
     public NdsIdentityResult Identity { get; }
     public Gen5Profile Profile { get; }
+    /// <summary>Opened with <see cref="OpenRomhack"/>: tables are modified, code binaries are checked one by one.</summary>
+    public bool IsRomhack => _romhack;
+    /// <summary>Options this ROM cannot use, with the reason (empty for originals).</summary>
+    public IReadOnlyDictionary<string, string> Unavailable { get; private set; } = new Dictionary<string, string>();
 
-    private Gen5Data(NdsRom rom, NdsIdentityResult identity, Gen5Profile profile, bool requireOriginalTables)
+    private Gen5Data(NdsRom rom, NdsIdentityResult identity, Gen5Profile profile, bool requireOriginalTables, bool romhack = false)
     {
         _rom = rom;
         _requireOriginalTables = requireOriginalTables;
+        _romhack = romhack;
         Identity = identity;
         Profile = profile;
+    }
+
+    /// <summary>
+    /// Opens a romhack of a supported game: tables need not match the profile CRC32, but every table must parse and keep the
+    /// structure the randomizer relies on. Options that patch code (overlays, ARM9) stay available only while that binary is
+    /// still the original; <see cref="Unavailable"/> says which ones are not and why. Exporting is allowed.
+    /// </summary>
+    public static Gen5Data OpenRomhack(NdsRom rom)
+    {
+        var data = new Gen5Data(rom, NdsIdentity.Identify(rom), ProfileFor(rom), requireOriginalTables: false, romhack: true);
+        foreach (string key in data.Profile.Files.Keys)
+            data.Narc(key);
+        if (data.SpeciesNames().Count <= Gen5Randomizer.MaxSpecies || data.BaseStats().Count <= Gen5Randomizer.MaxSpecies)
+            throw new InvalidDataException("El romhack no tiene los nombres o las estadísticas de las 649 especies donde los espera el perfil.");
+        data.Text(data.Profile.ItemNamesText);
+        data.Trainers();
+        data.Encounters();
+        data.FieldItems();
+        var unavailable = new Dictionary<string, string>();
+        if (!data.OverlayIsOriginal(data.Profile.StarterCryOverlay, data.Profile.StarterCryOverlayCrc32))
+            unavailable[Gen5Feature.Starters] = $"el romhack modifica el overlay {data.Profile.StarterCryOverlay} de los iniciales";
+        else
+            try { data.Starters(); }
+            catch (InvalidDataException ex) { unavailable[Gen5Feature.Starters] = "los scripts de los iniciales no son los esperados: " + ex.Message; }
+        if (data.Profile.ShopOverlay >= 0 && !data.OverlayIsOriginal(data.Profile.ShopOverlay, data.Profile.ShopOverlayCrc32))
+            unavailable[Gen5Feature.Shops] = $"el romhack modifica el overlay {data.Profile.ShopOverlay} de las tiendas";
+        else if (data.Profile.ShopOverlay < 0)
+            try { data.Shops(); }
+            catch (InvalidDataException ex) { unavailable[Gen5Feature.Shops] = ex.Message; }
+        data.Unavailable = unavailable;
+        if (!unavailable.ContainsKey(Gen5Feature.Starters) && Gen5Randomizer.StartersProblem(data) is { } problem)
+            unavailable[Gen5Feature.Starters] = "los iniciales no están donde se esperan: " + problem;
+        return data;
+    }
+
+    private bool OverlayIsOriginal(int id, uint crc)
+    {
+        try { return Crc32(_rom.ReadOverlay(id)) == crc; }
+        catch (InvalidDataException) { return false; }
+    }
+
+    private static Gen5Profile ProfileFor(NdsRom rom)
+    {
+        var identity = NdsIdentity.Identify(rom);
+        return Gen5Profile.All.FirstOrDefault(p => p.GameCode == identity.Profile.GameCode)
+            ?? throw new NotSupportedException($"{identity.Profile.Game} todavía no tiene perfil de datos Gen5.");
     }
 
     /// <summary>
@@ -171,8 +229,7 @@ public sealed class Gen5Data
     public static Gen5Data Open(NdsRom rom, bool requireOriginalTables = true)
     {
         var identity = NdsIdentity.Identify(rom);
-        var profile = Gen5Profile.All.FirstOrDefault(p => p.GameCode == identity.Profile.GameCode)
-            ?? throw new NotSupportedException($"{identity.Profile.Game} todavía no tiene perfil de datos Gen5.");
+        var profile = ProfileFor(rom);
         var data = new Gen5Data(rom, identity, profile, requireOriginalTables);
         // Strict mode verifies every table up front; a verification view only reads what it is asked for.
         if (requireOriginalTables)
@@ -208,8 +265,8 @@ public sealed class Gen5Data
     /// <summary>Writes a new ROM with the randomized tables. The source ROM is never modified.</summary>
     public void Export(string output, Gen5RandomizerResult result)
     {
-        if (!_requireOriginalTables)
-            throw new InvalidOperationException("Solo se exporta desde una ROM con todas sus tablas originales verificadas.");
+        if (!_requireOriginalTables && !_romhack)
+            throw new InvalidOperationException("Solo se exporta desde una ROM con todas sus tablas originales verificadas o abierta como romhack.");
         _rom.Save(output, result.Files.ToDictionary(p => _rom.File(p.Key).Id, p => p.Value), result.Overlays, result.RecompressOverlays);
     }
 
@@ -225,7 +282,8 @@ public sealed class Gen5Data
     {
         byte[] overlay = _rom.ReadOverlay(id);
         uint actual = Crc32(overlay);
-        if (_requireOriginalTables && actual != crc)
+        // Code is never patched unless it is the original, romhacks included.
+        if ((_requireOriginalTables || _romhack) && actual != crc)
             throw new InvalidDataException($"El overlay {id} no coincide con el perfil de {Profile.GameCode}: CRC32 {actual:X8}, se esperaba {crc:X8}.");
         return overlay;
     }
@@ -237,7 +295,7 @@ public sealed class Gen5Data
         var items = new List<(int, int, int)>();
         foreach (var (file, command, variable) in new[] { (Profile.ItemBallScript, 0x28, 0x800C), (Profile.HiddenItemScript, 0x2A, 0x8000) })
         {
-            byte[] script = scripts[file];
+            byte[] script = file < scripts.Count ? scripts[file] : throw new InvalidDataException("Faltan los scripts de objetos " + file + ".");
             for (int at = 0; at + 4 <= script.Length && BinaryPrimitives.ReadUInt16LittleEndian(script.AsSpan(at)) != 0xFD13; at += 4)
             {
                 int target = at + 4 + BinaryPrimitives.ReadInt32LittleEndian(script.AsSpan(at));

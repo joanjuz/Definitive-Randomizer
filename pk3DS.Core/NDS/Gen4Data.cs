@@ -124,19 +124,68 @@ public sealed class Gen4Data
 
     private readonly NdsRom _rom;
     private readonly bool _requireOriginalTables;
+    private readonly bool _romhack;
     private readonly Dictionary<string, Narc> _narcs = new();
     private byte[]? _arm9;
 
     public NdsIdentityResult Identity { get; }
     public Gen4Profile Profile { get; }
+    /// <summary>Opened with <see cref="OpenRomhack"/>: tables are modified, code binaries are checked one by one.</summary>
+    public bool IsRomhack => _romhack;
+    /// <summary>Options this ROM cannot use, with the reason (empty for originals).</summary>
+    public IReadOnlyDictionary<string, string> Unavailable { get; private set; } = new Dictionary<string, string>();
 
-    private Gen4Data(NdsRom rom, NdsIdentityResult identity, Gen4Profile profile, bool requireOriginalTables)
+    private Gen4Data(NdsRom rom, NdsIdentityResult identity, Gen4Profile profile, bool requireOriginalTables, bool romhack = false)
     {
         _rom = rom;
         _requireOriginalTables = requireOriginalTables;
+        _romhack = romhack;
         Identity = identity;
         Profile = profile;
     }
+
+    /// <summary>
+    /// Opens a romhack of a supported game: tables need not match the profile CRC32, but every table must parse and keep the
+    /// structure the randomizer relies on. Options that patch code (overlays, ARM9) stay available only while that binary is
+    /// still the original; <see cref="Unavailable"/> says which ones are not and why. Exporting is allowed.
+    /// </summary>
+    public static Gen4Data OpenRomhack(NdsRom rom)
+    {
+        var identity = NdsIdentity.Identify(rom);
+        var data = new Gen4Data(rom, identity, ProfileFor(identity), requireOriginalTables: false, romhack: true);
+        foreach (string key in data.Profile.Files.Keys)
+            data.Narc(key);
+        if (data.SpeciesNames().Count <= MaxSpecies || data.BaseStats().Count <= MaxSpecies)
+            throw new InvalidDataException("El romhack no tiene los nombres o las estadísticas de las 493 especies donde los espera el perfil.");
+        data.Text(data.Profile.ItemNamesText);
+        data.Trainers();
+        data.Encounters();
+        bool arm9 = Matches(() => data._rom.ReadArm9(), data.Profile.Arm9Crc32);
+        bool overlay = Matches(() => data._rom.ReadOverlay(data.Profile.StarterOverlay), data.Profile.StarterOverlayCrc32);
+        var unavailable = new Dictionary<string, string>();
+        if (!overlay || (!arm9 && data.Profile.Kind == Gen4Kind.HeartGoldSoulSilver))
+            unavailable[Gen5Feature.Starters] = overlay ? "el romhack modifica el ARM9, donde están los iniciales" : $"el romhack modifica el overlay {data.Profile.StarterOverlay} de los iniciales";
+        if (!arm9)
+        {
+            unavailable[Gen5Feature.Shops] = "el romhack modifica el ARM9, donde están las tiendas";
+            unavailable[Gen5Feature.HiddenItems] = "el romhack modifica el ARM9, donde están los objetos ocultos";
+        }
+        data.Unavailable = unavailable;
+        if (!unavailable.ContainsKey(Gen5Feature.Starters) && Gen4Randomizer.StartersProblem(data) is { } problem)
+            unavailable[Gen5Feature.Starters] = "los iniciales no están donde se esperan: " + problem;
+        data.FieldItems();
+        return data;
+    }
+
+    private static bool Matches(Func<byte[]> read, uint crc)
+    {
+        try { return Gen5Data.Crc32(read()) == crc; }
+        catch (InvalidDataException) { return false; }
+    }
+
+    private static Gen4Profile ProfileFor(NdsIdentityResult identity) =>
+        Gen4Profile.All.FirstOrDefault(p => p.GameCode == identity.Profile.GameCode && p.Version == identity.Profile.Version)
+            ?? throw new NotSupportedException($"{identity.Profile.Game} no tiene perfil de datos Gen4.");
 
     /// <summary>
     /// Opens a Diamond, Platinum or HeartGold ROM. Editing requires <paramref name="requireOriginalTables"/>: every table must match
@@ -145,8 +194,7 @@ public sealed class Gen4Data
     public static Gen4Data Open(NdsRom rom, bool requireOriginalTables = true)
     {
         var identity = NdsIdentity.Identify(rom);
-        var profile = Gen4Profile.All.FirstOrDefault(p => p.GameCode == identity.Profile.GameCode && p.Version == identity.Profile.Version)
-            ?? throw new NotSupportedException($"{identity.Profile.Game} no tiene perfil de datos Gen4.");
+        var profile = ProfileFor(identity);
         var data = new Gen4Data(rom, identity, profile, requireOriginalTables);
         if (requireOriginalTables)
         {
@@ -165,7 +213,8 @@ public sealed class Gen4Data
         {
             byte[] arm9 = _rom.ReadArm9();
             uint actual = Gen5Data.Crc32(arm9);
-            if (_requireOriginalTables && actual != Profile.Arm9Crc32)
+            // Code is never patched unless it is the original, romhacks included.
+            if ((_requireOriginalTables || _romhack) && actual != Profile.Arm9Crc32)
                 throw new InvalidDataException($"El ARM9 no coincide con el perfil de {Profile.GameCode}: CRC32 {actual:X8}, se esperaba {Profile.Arm9Crc32:X8}.");
             _arm9 = arm9;
         }
@@ -177,7 +226,7 @@ public sealed class Gen4Data
     {
         byte[] overlay = _rom.ReadOverlay(Profile.StarterOverlay);
         uint actual = Gen5Data.Crc32(overlay);
-        if (_requireOriginalTables && actual != Profile.StarterOverlayCrc32)
+        if ((_requireOriginalTables || _romhack) && actual != Profile.StarterOverlayCrc32)
             throw new InvalidDataException($"El overlay {Profile.StarterOverlay} no coincide con el perfil de {Profile.GameCode}: CRC32 {actual:X8}, se esperaba {Profile.StarterOverlayCrc32:X8}.");
         return overlay;
     }
@@ -206,10 +255,11 @@ public sealed class Gen4Data
         return found >= 0 ? found : throw new InvalidDataException($"No se encontró {what}.");
     }
 
-    /// <summary>Item balls from the item-ball script, then the hidden items from the ARM9 table.</summary>
+    /// <summary>Item balls from the item-ball script, then the hidden items from the ARM9 table (unless a romhack changed the ARM9).</summary>
     public IReadOnlyList<Gen4FieldItem> FieldItems()
     {
-        byte[] script = Narc(Gen4Profile.Scripts).Files[Profile.ItemBallScript];
+        var scriptFiles = Narc(Gen4Profile.Scripts).Files;
+        byte[] script = Profile.ItemBallScript < scriptFiles.Count ? scriptFiles[Profile.ItemBallScript] : throw new InvalidDataException("Falta el script de objetos " + Profile.ItemBallScript + ".");
         int setVar = Profile.Kind == Gen4Kind.HeartGoldSoulSilver ? 0x29 : 0x28;
         var items = new List<Gen4FieldItem>();
         for (int at = 0, index = 0; at + 4 <= script.Length && BinaryPrimitives.ReadUInt16LittleEndian(script.AsSpan(at)) != 0xFD13; at += 4, index++)
@@ -223,6 +273,8 @@ public sealed class Gen4Data
             if (BinaryPrimitives.ReadUInt16LittleEndian(script.AsSpan(target)) == setVar && BinaryPrimitives.ReadUInt16LittleEndian(script.AsSpan(target + 2)) == 0x8008)
                 items.Add(new Gen4FieldItem(false, target + 4, BinaryPrimitives.ReadUInt16LittleEndian(script.AsSpan(target + 4))));
         }
+        if (Unavailable.ContainsKey(Gen5Feature.HiddenItems))
+            return items;
         byte[] arm9 = Arm9();
         if (Profile.HiddenItemTable + Profile.HiddenItemCount * 8 > arm9.Length)
             throw new InvalidDataException("La tabla de objetos ocultos sale del ARM9.");
@@ -282,8 +334,8 @@ public sealed class Gen4Data
     /// <summary>Writes a new ROM with the randomized tables. The source ROM is never modified.</summary>
     public void Export(string output, Gen5RandomizerResult result)
     {
-        if (!_requireOriginalTables)
-            throw new InvalidOperationException("Solo se exporta desde una ROM con todas sus tablas originales verificadas.");
+        if (!_requireOriginalTables && !_romhack)
+            throw new InvalidOperationException("Solo se exporta desde una ROM con todas sus tablas originales verificadas o abierta como romhack.");
         if (result.Overlays.Keys.Any(id => id != Profile.StarterOverlay))
             throw new InvalidOperationException("Gen4 solo modifica el overlay de los iniciales.");
         _rom.Save(output, result.Files.ToDictionary(p => _rom.File(p.Key).Id, p => p.Value), result.Overlays, result.RecompressOverlays, result.Arm9);
@@ -351,7 +403,9 @@ public sealed class Gen4Data
         for (int file = 0; file < files.Count; file++)
         {
             byte[] data = files[file];
-            if (data.Length != (hgss ? HgssLength : DpptLength))
+            // Romhacks may cut tables off the end of a file (Sacred Gold, Renegade Platinum): only the tables that fit are read.
+            int expected = hgss ? HgssLength : DpptLength, minimum = hgss ? 100 : 204;
+            if (!_requireOriginalTables ? data.Length < minimum || data.Length > expected : data.Length != expected)
                 throw new InvalidDataException("Tabla de encuentros Gen4 con tamaño inesperado: " + file);
             if (hgss)
                 ReadHgss(file, data, slots);
@@ -380,7 +434,7 @@ public sealed class Gen4Data
             }
         }
         int offset = 204;
-        for (int set = 0; set < 5; set++, offset += 44)
+        for (int set = 0; set < 5 && offset + 44 <= data.Length; set++, offset += 44)
         {
             if (U32(offset) == 0 || set == 1)
                 continue;
@@ -408,7 +462,7 @@ public sealed class Gen4Data
             if (U16(92 + i * 2) is >= 1 and <= MaxSpecies)
                 slots.Add(new Gen4EncounterSlot(file, i < 2 ? "Radio Hoenn" : "Radio Sinnoh", i % 2, 92 + i * 2, 2, U16(92 + i * 2), grassTop, grassTop));
         int offset = 100;
-        for (int set = 1; set < 6; set++)
+        for (int set = 1; set < 6 && offset + 4 * HgssAmounts[set] <= data.Length; set++)
         {
             for (int i = 0; data[set] != 0 && i < HgssAmounts[set]; i++)
             {
@@ -418,7 +472,7 @@ public sealed class Gen4Data
             offset += 4 * HgssAmounts[set];
         }
         string[] extras = ["Enjambre", "Enjambre", "Pesca nocturna", "Enjambre de pesca"];
-        for (int i = 0; i < 4; i++)
+        for (int i = 0; i < 4 && offset + i * 2 + 2 <= data.Length; i++)
             if (U16(offset + i * 2) is >= 1 and <= MaxSpecies)
                 slots.Add(new Gen4EncounterSlot(file, extras[i], i, offset + i * 2, 2, U16(offset + i * 2), grassTop, grassTop));
     }
