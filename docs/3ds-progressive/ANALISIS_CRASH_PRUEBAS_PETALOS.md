@@ -40,13 +40,27 @@ Todo se hizo sobre copias, con extracciones en `D:\Progra\Pokemon\Randomizer\Ana
 
 **Causa del cuelgue: sin determinar.** Hace falta reproducirlo, con una partida previa a hablar con el kahuna o cerca de la prueba de Mina.
 
-### Hipótesis abierta: el gancho de la cafetería
+### Descartado: el gancho de la cafetería
 
-`CAFE.asm` engancha `0x39A044`, el lanzador genérico de scripts de campo, con 15 llamadores. Desvía al recordador (`0x157C`) cualquier ID de script entre `0x14AA` y `0x14B7`.
-- Esos IDs son los casos de un `switch` del script 16.
-- `0x14AC`, `0x14B0` y `0x14B4` también aparecen en otros ~25 scripts de campo.
+`CAFE.asm` engancha `0x39A044`, el lanzador genérico de scripts de campo, y desvía al recordador (`0x157C`) los IDs de script `0x14AA`–`0x14B7`. Se analizaron los 759 scripts AMX de `a/0/9/2`, descomprimidos y con sus tablas `switch`:
+- Los IDs de script son globales, y cada uno lo atiende un único script.
+- `0x14AA`–`0x14B8` (15 IDs consecutivos) son casos del script 16, y `0x157C` del script 23.
+- Como las cafeterías abren el recordador, el script 16 es el de las cafeterías.
+- Por tanto el gancho no puede interceptar otros diálogos, en particular la entrega de los pétalos.
 
-Si la charla con el kahuna usa alguno de esos IDs, se abriría el recordador fuera de contexto. No se pudo confirmar sin reproducirlo.
+Aparecen valores iguales en otros scripts, pero son constantes que se pasan a funciones nativas, no lanzamientos de esos scripts.
+
+Nota: el parche original deja fuera `0x14B8`, el decimoquinto caso. Probablemente sea una cafetería que no abre el recordador. No se cambió sin confirmarlo en el juego.
+
+### Otras comprobaciones descartadas
+
+- **Encuentros salvajes:** las 794 tablas son válidas (especies, formas existentes, niveles, probabilidades y SOS). El viaje con el capitán al siguiente lugar no carga datos inválidos.
+- **Gancho de intercambios (`0x3843F4`):** sustituye una sola llamada dentro de la preparación del intercambio. No es una función común.
+- **Líneas de texto general vaciadas o recortadas:** son del buscador de cajas, del Pokémon Resort y de los créditos.
+
+### Estado
+
+La causa sigue sin determinar. Ningún cambio de la ROM actúa de forma demostrable en la entrega de los pétalos. Para cerrarlo hace falta una partida anterior a la escena.
 
 ## Fallos encontrados y corregidos
 
