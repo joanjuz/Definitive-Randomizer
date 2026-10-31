@@ -41,8 +41,19 @@
             <Setter Property="VerticalGridLinesBrush" Value="{DynamicResource Stroke}"/>
             <Setter Property="HorizontalGridLinesBrush" Value="{DynamicResource Stroke}"/>
         </Style>
-        <!-- Every table cell centers its content vertically: the default template left text at the top of the 37-44 px rows. -->
+        <!-- Every table cell centers its content vertically: the default template left text at the top of the 37-44 px rows.
+             The selected cell uses the theme colors instead of the system blue, also in tables without DarkGridTheme. -->
         <Style TargetType="{x:Type DataGridCell}">
+            <Style.Triggers>
+                <Trigger Property="IsSelected" Value="True">
+                    <Setter Property="Background" Value="{DynamicResource Selected}"/>
+                    <Setter Property="Foreground" Value="{DynamicResource SelectionText}"/>
+                    <Setter Property="BorderBrush" Value="{DynamicResource Selected}"/>
+                </Trigger>
+                <Trigger Property="IsKeyboardFocusWithin" Value="True">
+                    <Setter Property="BorderBrush" Value="{DynamicResource Accent}"/>
+                </Trigger>
+            </Style.Triggers>
             <Setter Property="Template"><Setter.Value>
                 <ControlTemplate TargetType="{x:Type DataGridCell}">
                     <Border Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}"
@@ -497,6 +508,8 @@
         <Style x:Key="TertiaryButton" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}"><Setter Property="Background" Value="Transparent"/><Setter Property="BorderBrush" Value="Transparent"/><Setter Property="Foreground" Value="{DynamicResource TextSoft}"/></Style>
         <Style x:Key="GridComboBox" TargetType="ComboBox" BasedOn="{StaticResource {x:Type ComboBox}}"><Setter Property="MinHeight" Value="30"/><Setter Property="Padding" Value="8,4"/></Style>
         <Style x:Key="GridTextBox" TargetType="TextBox" BasedOn="{StaticResource {x:Type TextBox}}"><Setter Property="MinHeight" Value="30"/><Setter Property="Padding" Value="8,4"/><Setter Property="Typography.NumeralAlignment" Value="Tabular"/></Style>
+        <!-- Editor inside a table cell (rows of 34-44 px): compact, but the same dark input as the rest of the app. -->
+        <Style x:Key="GridCellEditor" TargetType="TextBox" BasedOn="{StaticResource {x:Type TextBox}}"><Setter Property="MinHeight" Value="0"/><Setter Property="Padding" Value="6,2"/><Setter Property="Margin" Value="2,1"/><Setter Property="Typography.NumeralAlignment" Value="Tabular"/></Style>
         <Style x:Key="GridButton" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}"><Setter Property="MinHeight" Value="30"/><Setter Property="Padding" Value="8,4"/></Style>
         </ResourceDictionary>
     </Application.Resources>

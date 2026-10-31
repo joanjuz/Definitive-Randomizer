@@ -197,7 +197,10 @@ internal sealed class MachineTutorView : UserControl
         _machineColumns.Add(_machineGrid);
         _machineGrid.Columns[0].Width=60;
         _machineGrid.Columns[1].MinWidth=220;
-        machines.Children.Add(TableWithOptions(_machineGrid,machineOptions));
+        machines.Children.Add(TableWithOptions(_machineGrid,OptionCards.Column(
+            OptionCards.Card("Asignación de MT","Cambia el movimiento de cada MT. Al guardar se actualizan code.bin y las descripciones de las MT.",commands),
+            OptionCards.Card("Compatibilidad de MT",null,tmCompatibilityControls))));
+        OptionCards.Primary(_saveMachines);
         tabs.Items.Add(new TabItem {Header="MT",Content=machines});
 
         var tutoring=new DockPanel {Margin=new Thickness(4)};
@@ -375,7 +378,11 @@ internal sealed class MachineTutorView : UserControl
             _tutorColumns.Add(table);
         }
         _tutorGrid=_tutorColumns[0];
-        tutoring.Children.Add(TableWithOptions(_tutorGrid,tutorHeader));
+        var tutorItems=tutorHeader.Children.Cast<UIElement>().ToArray();
+        tutoring.Children.Add(TableWithOptions(_tutorGrid,OptionCards.Column(
+            OptionCards.Card("Movimientos y precios",null,tutorItems.Take(2).ToArray()),
+            OptionCards.Card("Compatibilidad de tutores",null,tutorItems.Skip(2).ToArray()))));
+        OptionCards.Primary(_applyTutorChanges);
         tabs.Items.Add(new TabItem {Header="Tutores · movimientos y BP",Content=tutoring});
         Rebind();
     }
@@ -386,7 +393,7 @@ internal sealed class MachineTutorView : UserControl
         grid.ColumnDefinitions.Add(new ColumnDefinition {Width=new GridLength(1,GridUnitType.Star),MinWidth=320});
         grid.ColumnDefinitions.Add(new ColumnDefinition {Width=new GridLength(340)});
         table.Margin=new Thickness(0,0,14,0);grid.Children.Add(table);
-        var scroll=new ScrollViewer {Content=options,VerticalScrollBarVisibility=ScrollBarVisibility.Auto,HorizontalScrollBarVisibility=ScrollBarVisibility.Disabled};
+        var scroll=new ScrollViewer {Content=options,VerticalScrollBarVisibility=ScrollBarVisibility.Auto,HorizontalScrollBarVisibility=ScrollBarVisibility.Disabled,Padding=new Thickness(0,0,6,0)};
         Grid.SetColumn(scroll,1);grid.Children.Add(scroll);
         return grid;
     }

@@ -248,19 +248,19 @@ internal static class UiSmoke
                 "WPF Static Encounters displays the Pokémon sprite for the selected gift");
             Layout(staticView,1170,720);Capture(staticView,"static-encounters-editor.png");
             // Sections like pk3DS: the list shows one kind of record at a time; "Todos" shows everything.
-            var sectionButtons=Logical(staticView).OfType<Button>().Where(b=>b.Content is string s&&(s.StartsWith("Regalos (")||s.StartsWith("Estáticos (")||s.StartsWith("Intercambios (")||s.StartsWith("Todos ("))).ToArray();
+            var sectionSelector=Logical(staticView).OfType<ComboBox>().First(c=>System.Windows.Automation.AutomationProperties.GetName(c)=="Sección de la lista");
             var records=(ListBox)staticView.FindName("RecordList");
-            int giftsShown=records.Items.Count;
-            sectionButtons.First(b=>((string)b.Content).StartsWith("Estáticos (")).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            int giftsShown=records.Items.Count;string firstLabel=(string)sectionSelector.SelectedItem;
+            sectionSelector.SelectedIndex=2;
             int staticShown=records.Items.Count;bool onlyStatic=records.Items.Cast<ThreeDS.Progressive.Models.RecordEntry>().All(e=>e.Name.StartsWith("Encuentro estático"));
-            sectionButtons.First(b=>((string)b.Content).StartsWith("Todos (")).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
-            check(sectionButtons.Length==4&&giftsShown==1&&staticShown==200&&onlyStatic&&records.Items.Count==202,"WPF Static Encounters splits gifts, static encounters and trades into sections");
+            sectionSelector.SelectedIndex=0;
+            check(sectionSelector.Items.Count==4&&firstLabel=="Regalos (1)"&&giftsShown==1&&staticShown==200&&onlyStatic&&records.Items.Count==202,"WPF Static Encounters splits gifts, static encounters and trades into sections");
             // Every table: content centered vertically, and the dark editor while editing a value.
             var cell=new DataGridCell{Style=(Style)Application.Current.Resources[typeof(DataGridCell)]};cell.ApplyTemplate();
             var presenter=Walk(cell).OfType<ContentPresenter>().FirstOrDefault();
             var editor=new TextBox{Style=DataGridTextColumn.DefaultEditingElementStyle};
-            GridEditing.Prepare(null,new DataGridPreparingCellForEditEventArgs(new DataGridTextColumn(),new DataGridRow(),new RoutedEventArgs(),editor));
-            check(presenter?.VerticalAlignment==VerticalAlignment.Center&&ReferenceEquals(editor.Style,Application.Current.FindResource("GridTextBox")),
+            GridEditing.Restyle(editor,new RoutedEventArgs(FrameworkElement.LoadedEvent));
+            check(presenter?.VerticalAlignment==VerticalAlignment.Center&&ReferenceEquals(editor.Style,Application.Current.FindResource("GridCellEditor")),
                 "WPF tables center cell content vertically and edit values with the dark input style");
             if(fixture.Game.USUM)
             {

@@ -118,7 +118,7 @@ internal sealed class LevelUpView : UserControl
         _editButtons.Add(Action("+ Añadir",Add));
         _editButtons.Add(Action("− Quitar",Remove));
         _editButtons.Add(Action("Metrónomo",()=>{if(_rows.Count==0)return;foreach(var row in _rows)row.Move=118;RebuildCards();Dirty();}));
-        _editButtons.Add(Action("Randomizar especie",Randomize));
+        _editButtons.Add(Action("Randomizar",Randomize));
         Action("Exportar CSV",Export);
         var randomSettings=new Border
         {
@@ -173,7 +173,11 @@ internal sealed class LevelUpView : UserControl
         _discardBulk.Click+=(_,_)=>DiscardPreview();
         _discardBulk.Margin=new Thickness(8,0,0,0);
         bulkButtons.Children.Add(_discardBulk);
-        options.Content=randomSettings;
+        options.Padding=new Thickness(0,0,6,0);
+        options.Content=OptionCards.Column(
+            OptionCards.Card("Especie seleccionada","Cambios de esta especie; se guardan con «Guardar movimientos».",new UIElement[]{actions},2),
+            OptionCards.Card("Randomizar todos los Pokémon","Genera una vista previa de los aprendizajes de todas las especies. No se escribe nada hasta aplicar la propuesta.",settingsGrid,bulkButtons));
+        OptionCards.Primary(_applyBulk);
         _previewBanner.Foreground=(Brush)FindResource("Accent");
         _previewBanner.FontWeight=FontWeights.SemiBold;
         _previewBanner.Margin=new Thickness(0,0,0,8);

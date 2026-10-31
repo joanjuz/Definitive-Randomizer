@@ -129,7 +129,7 @@
    <ContentControl Grid.ColumnSpan="3" x:Name="TrainerRulesHost" Visibility="Collapsed"
                    Background="{DynamicResource Bg}"/>
   </Grid>
-  <Border Grid.Row="2" Background="{DynamicResource Chrome}" Padding="20,12" BorderBrush="{DynamicResource Stroke}" BorderThickness="0,1,0,0"><StackPanel><WrapPanel HorizontalAlignment="Right"><Button x:Name="SaveButton" Style="{StaticResource PrimaryButton}" Content="Guardar cambios" Click="Save_Click" IsEnabled="False" Margin="0,0,0,10"/>
-     <Button Style="{StaticResource TertiaryButton}" Content="Descartar cambios" Click="Discard_Click" Margin="0,0,0,18"/></WrapPanel><TextBlock x:Name="StatusText" Text="Editor listo." FontSize="12" Foreground="{DynamicResource TextSoft}" TextWrapping="Wrap"/></StackPanel></Border>
+  <Border Grid.Row="2" Background="{DynamicResource Chrome}" Padding="20,12" BorderBrush="{DynamicResource Stroke}" BorderThickness="0,1,0,0"><StackPanel><WrapPanel HorizontalAlignment="Right"><Button x:Name="SaveButton" Style="{StaticResource PrimaryButton}" Content="Guardar cambios" Click="Save_Click" IsEnabled="False" Margin="0,0,10,10" VerticalAlignment="Center"/>
+     <Button Style="{StaticResource TertiaryButton}" Content="Descartar cambios" Click="Discard_Click" Margin="0,0,0,10" VerticalAlignment="Center"/></WrapPanel><TextBlock x:Name="StatusText" Text="Editor listo." FontSize="12" Foreground="{DynamicResource TextSoft}" TextWrapping="Wrap"/></StackPanel></Border>
  </Grid>
 </UserControl>

@@ -176,4 +176,4 @@ No se ejecutó --all-ui-only, porque esa suite muestra ventanas. Tampoco se usar
 
 ## Seguimiento 2026-10-31: tablas
 
-Celdas centradas en vertical, editor oscuro al editar, líneas en el color del tema, secciones en los encuentros estáticos y tablas verticales con las opciones a la derecha en Level Up y MT/tutores. Detalle en [TABLAS_CENTRADO_EDICION_SECCIONES.md](TABLAS_CENTRADO_EDICION_SECCIONES.md).
+Celdas centradas en vertical, editor oscuro al editar, selección con los colores del tema, líneas en el color del tema, selector de secciones en los encuentros estáticos y tablas verticales con las opciones en tarjetas a la derecha en Level Up y MT/tutores. La auditoría `--visual-audit` recorre la ventana real y debe terminar con 0 problemas antes de entregar cambios visuales. Detalle en [TABLAS_CENTRADO_EDICION_SECCIONES.md](TABLAS_CENTRADO_EDICION_SECCIONES.md).

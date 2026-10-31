@@ -77,10 +77,14 @@ public partial class RecordEditorView : UserControl
             if(state?.Template is { } saved)optionTemplate.RestoreOptions(saved);}
         RecordList.ItemsSource=editor.Entries;CountText.Text=editor.Entries.Count+" entradas";
         BuildRecordSections(editor);
+        // Inspector buttons sit in a narrow column: long labels go on two lines instead of being cut.
+        WrapInspectorActions(InspectorBody);
+        // Same for the record list: long names ("#002 · Área 000 · tabla 1 · Noche") wrap instead of a horizontal scroll bar.
+        RecordList.DisplayMemberPath="";RecordList.SetResourceReference(ItemsControl.ItemTemplateProperty,"WrappedRecordContent");ScrollViewer.SetHorizontalScrollBarVisibility(RecordList,ScrollBarVisibility.Disabled);var style=new Style(typeof(ListBoxItem),(Style)FindResource(typeof(ListBoxItem)));style.Setters.Add(new Setter(System.Windows.Controls.Control.HorizontalContentAlignmentProperty,System.Windows.HorizontalAlignment.Stretch));RecordList.ItemContainerStyle=style;
+
         if(editor is IOptionTemplatePresentation labels)
         {
             ImportOptionsButton.Content=labels.ImportOptionsLabel;ExportOptionsButton.Content=labels.ExportOptionsLabel;WrapInspectorActions(InspectorBody);
-            RecordList.DisplayMemberPath="";RecordList.SetResourceReference(ItemsControl.ItemTemplateProperty,"WrappedRecordContent");ScrollViewer.SetHorizontalScrollBarVisibility(RecordList,ScrollBarVisibility.Disabled);var style=new Style(typeof(ListBoxItem),(Style)FindResource(typeof(ListBoxItem)));style.Setters.Add(new Setter(System.Windows.Controls.Control.HorizontalContentAlignmentProperty,System.Windows.HorizontalAlignment.Stretch));RecordList.ItemContainerStyle=style;
         }
         // Cargar las reglas del entrenador que realmente estará seleccionado, no las del ID por defecto del host.
         if(editor is ThreeDS.Progressive.Services.GameTrainerService trainers&&editor.Entries.Count>0)
@@ -725,7 +729,7 @@ public partial class RecordEditorView : UserControl
     }
     // Search text plus the selected section (editors with IRecordSections).
     private string? _section;
-    private WrapPanel? _sectionBar;
+    private StackPanel? _sectionBar;
     private void ApplyRecordFilter()
     {
         if(RecordList?.ItemsSource is null)return;
@@ -740,30 +744,24 @@ public partial class RecordEditorView : UserControl
         if(_sectionBar is not null&&_sectionBar.Parent is System.Windows.Controls.Panel old)old.Children.Remove(_sectionBar);
         _sectionBar=null;_section=null;
         if(editor is not IRecordSections sections||SearchText.Parent is not StackPanel host)return;
-        _sectionBar=new WrapPanel{Margin=new Thickness(0,0,0,10)};
-        System.Windows.Automation.AutomationProperties.SetName(_sectionBar,"Secciones");
-        var buttons=new List<System.Windows.Controls.Button>();
-        void Select(string? section)
+        // One row in the narrow list column: a section selector ("Regalos (1)", "Estáticos (200)"...).
+        var choices=new string?[]{null}.Concat(sections.Sections).Select(section=>(Section:section,Label:$"{section??"Todos"} ({(section is null?editor.Entries.Count:editor.Entries.Count(e=>sections.SectionOf(e.Id)==section))})")).ToArray();
+        var selector=new System.Windows.Controls.ComboBox{ItemsSource=choices.Select(c=>c.Label).ToArray(),Margin=new Thickness(0,0,0,10)};
+        System.Windows.Automation.AutomationProperties.SetName(selector,"Sección de la lista");
+        var caption=new TextBlock{Text="Sección",FontSize=12,Margin=new Thickness(0,0,0,4)};caption.SetResourceReference(TextBlock.ForegroundProperty,"TextSoft");
+        _sectionBar=new StackPanel();_sectionBar.Children.Add(caption);_sectionBar.Children.Add(selector);
+        int current=1;
+        selector.SelectionChanged+=(_,_)=>
         {
-            if(_dirty&&!ConfirmLeave())return;
-            _section=section;
-            foreach(var b in buttons)
-            {
-                bool on=Equals(b.Tag,section);
-                b.SetResourceReference(StyleProperty,on?"PrimaryButton":"SecondaryButton");
-                System.Windows.Automation.AutomationProperties.SetItemStatus(b,on?"Seleccionada":"");
-            }
+            if(_loading||selector.SelectedIndex<0||selector.SelectedIndex==current)return;
+            if(_dirty&&!ConfirmLeave()){_loading=true;selector.SelectedIndex=current;_loading=false;return;}
+            current=selector.SelectedIndex;_section=choices[current].Section;
             ApplyRecordFilter();
             if(RecordList.Items.Count>0)RecordList.SelectedIndex=0;
-        }
-        foreach(var section in new string?[]{null}.Concat(sections.Sections))
-        {
-            int count=section is null?editor.Entries.Count:editor.Entries.Count(e=>sections.SectionOf(e.Id)==section);
-            var button=new System.Windows.Controls.Button{Content=$"{section??"Todos"} ({count})",Tag=section,Margin=new Thickness(0,0,6,6),Padding=new Thickness(10,4,10,4)};
-            button.Click+=(_,_)=>Select(section);buttons.Add(button);_sectionBar.Children.Add(button);
-        }
+        };
         host.Children.Insert(host.Children.IndexOf(SearchText)+1,_sectionBar);
-        Select(sections.Sections[0]);
+        _section=choices[1].Section;bool loading=_loading;_loading=true;selector.SelectedIndex=1;_loading=loading;
+        ApplyRecordFilter();
     }
     internal bool PrepareToLeave()
     {if(!ConfirmLeave())return false;if(_dirty&&_id>=0)Show(_id);return true;}
