@@ -41,6 +41,14 @@ internal static class NdsUiChecks
             string fake=Path.Combine(temp,"fake.nds");File.WriteAllBytes(fake,NdsGen5RandomizerChecks.BuildRom(new Dictionary<string,byte[]>{["a/0/0/2"]=NdsGen5RandomizerChecks.BuildNarc([])},"IRBO"));
             Pump(window.LoadAsync(fake));
             check(window.Session is null&&window.Status.StartsWith("No se puede usar esta ROM",StringComparison.Ordinal)&&!window.CanExport,"NdsUi_RejectsRomWhoseTablesDoNotMatch");
+            // With "Admitir romhacks", a structurally valid ROM opens as a romhack; options whose code is not original stay off.
+            var romhacks=Descendants<System.Windows.Controls.CheckBox>(window).Single();romhacks.IsChecked=true;
+            string hack=Path.Combine(temp,"romhack.nds");File.WriteAllBytes(hack,NdsGen5RandomizerChecks.SyntheticBlackRomhack());
+            Pump(window.LoadAsync(hack));var hackCombos=Descendants<ComboBox>(window).ToArray();
+            check(window.Session is {IsRomhack:true}&&!hackCombos[2].IsEnabled&&!hackCombos[7].IsEnabled&&hackCombos[6].IsEnabled&&hackCombos[0].IsEnabled,"NdsUi_RomhackOptionOpensModifiedRomWithCodeOptionsOff");
+            // A ROM whose tables do not parse is still rejected; the ROM already open stays loaded.
+            var loaded=window.Session;Pump(window.LoadAsync(fake));
+            check(ReferenceEquals(window.Session,loaded)&&window.Status.StartsWith("No se puede usar esta ROM",StringComparison.Ordinal),"NdsUi_RomhackOptionStillRejectsTablesThatDoNotParse");
         }
         finally{window.Close();Directory.Delete(temp,true);}
     }

@@ -60,6 +60,7 @@ public static class Gen5Randomizer
 
     public static Gen5RandomizerResult Generate(Gen5Data data, Gen5RandomizerOptions options)
     {
+        RejectUnavailable(data.Unavailable, options);
         var stats = data.BaseStats();
         var Pick = SpeciesPicker(stats, MaxSpecies, options);
         var files = new Dictionary<string, byte[]>();
@@ -86,6 +87,28 @@ public static class Gen5Randomizer
             RecompressOverlays = overlays.Keys.Where(id => id == data.Profile.ShopOverlay
                 || (id == data.Profile.StarterCryOverlay && data.Profile.RecompressStarterCryOverlay)).ToHashSet(),
         };
+    }
+
+    /// <summary>Dry run of the starter changes with the original starters, to know before randomizing whether a romhack supports them.</summary>
+    internal static string? StartersProblem(Gen5Data data)
+    {
+        try
+        {
+            Generate(data, new Gen5RandomizerOptions(0) { Starters = Gen5StarterMode.Custom, CustomStarters = [.. data.Starters()] });
+            return null;
+        }
+        catch (InvalidDataException ex)
+        {
+            return ex.Message;
+        }
+    }
+
+    /// <summary>Romhacks whose code changed cannot use the options that patch it; asking for one rejects the whole run.</summary>
+    internal static void RejectUnavailable(IReadOnlyDictionary<string, string> unavailable, Gen5RandomizerOptions options)
+    {
+        foreach (var (feature, used) in new[] { (Gen5Feature.Starters, options.Starters != Gen5StarterMode.Keep), (Gen5Feature.Shops, options.Shops != Gen5ItemMode.Keep) })
+            if (used && unavailable.TryGetValue(feature, out string? reason))
+                throw new ArgumentException($"{feature}: no disponible en esta ROM ({reason}).", nameof(options));
     }
 
     /// <summary>

@@ -31,6 +31,20 @@ internal static class NdsGen5RandomizerChecks
             reject(()=>Gen5Randomizer.Generate(data,new Gen5RandomizerOptions(1){Starters=Gen5StarterMode.Custom,CustomStarters=[1,1,4]}),"Gen5Rand_StartersRejectDuplicates");
             reject(()=>Gen5Randomizer.Generate(data,new Gen5RandomizerOptions(1){Starters=Gen5StarterMode.Custom,CustomStarters=[1,4,700]}),"Gen5Rand_StartersRejectSpeciesOutsideGen5");
             reject(()=>Gen5Randomizer.Generate(data,new Gen5RandomizerOptions(1){Starters=Gen5StarterMode.Custom}),"Gen5Rand_CustomStartersRequireThreeSpecies");
+            reject(()=>Gen5Data.OpenRomhack(rom),"Gen5Romhack_RejectsTablesThatDoNotParse");
+            string hackPath=Path.Combine(temp,"romhack.nds");File.WriteAllBytes(hackPath,SyntheticBlackRomhack());
+            using(var hackRom=NdsRom.Open(hackPath))
+            {
+                reject(()=>Gen5Data.Open(hackRom),"Gen5Romhack_StrictOpenStillRejectsModifiedTables");
+                var hack=Gen5Data.OpenRomhack(hackRom);
+                check(hack.IsRomhack&&!hack.RequiresOriginalTables&&hack.Unavailable.ContainsKey(Gen5Feature.Starters)&&hack.Unavailable.ContainsKey(Gen5Feature.Shops)&&!hack.Unavailable.ContainsKey(Gen5Feature.HiddenItems),"Gen5Romhack_OpensAndListsOptionsWhoseCodeIsNotOriginal");
+                reject(()=>Gen5Randomizer.Generate(hack,new Gen5RandomizerOptions(2){Starters=Gen5StarterMode.Random}),"Gen5Romhack_RejectsUnavailableStarters");
+                reject(()=>Gen5Randomizer.Generate(hack,new Gen5RandomizerOptions(2){Shops=Gen5ItemMode.Shuffle}),"Gen5Romhack_RejectsUnavailableShops");
+                var hacked=Gen5Randomizer.Generate(hack,new Gen5RandomizerOptions(2){Trainers=Gen5SpeciesMode.Random,Wild=Gen5SpeciesMode.Random,FieldItems=Gen5ItemMode.Shuffle});
+                string hackOut=Path.Combine(temp,"romhack-out.nds");hack.Export(hackOut,hacked);
+                using var exported=NdsRom.Open(hackOut);var again=Gen5Data.Open(exported,requireOriginalTables:false);
+                check(hacked.Changes.Count>0&&hacked.Overlays.Count==0&&again.Trainers().Count==hack.Trainers().Count&&again.Encounters().Count==hack.Encounters().Count,"Gen5Romhack_ExportsTrainersAndEncounters");
+            }
             check(new[]{17,1,213,327,504,537,577,615}.All(Gen5Randomizer.IsMovableItem)&&!new[]{0,120,133,328,419,420,425,428,503,505,536,574,578,579,616,617,618,620,621,626,700}.Any(Gen5Randomizer.IsMovableItem),"Gen5Rand_TmsHmsKeyAndUnknownItemsNeverMove");
             var w2=Gen5Profile.All.Single(p=>p.GameCode=="IRDO");var bw=Gen5Profile.All.Where(p=>!p.Sequel).ToArray();
             check(w2 is {Sequel:true,ShopOverlay:-1,StarterCryOverlay:316,PokedexJump:0x1E,RecompressStarterCryOverlay:true}&&w2.ShopItemSizes.Count==32&&w2.FixedShops.All(s=>s<32)&&w2.Files.ContainsKey(Gen5Profile.ShopItems)
@@ -210,10 +224,17 @@ internal static class NdsGen5RandomizerChecks
     private static string Hash(string path){using var stream=File.OpenRead(path);return Convert.ToHexString(SHA256.HashData(stream));}
 
     // Black (U) code and paths with small tables: 650 species whose BST equals 6*species, three trainers and one wild area.
-    private static byte[] SyntheticBlack()
+    // Every profile table present and parseable but none original, and no overlays: what a romhack looks like to the profile.
+    internal static byte[] SyntheticBlackRomhack()
+    {
+        var scripts=new byte[866][];for(int i=0;i<scripts.Length;i++)scripts[i]=[0x13,0xFD];
+        return SyntheticBlack(new Dictionary<string,byte[]>{["a/0/5/7"]=BuildNarc(scripts),["a/0/0/3"]=BuildNarc([]),["a/0/0/4"]=BuildNarc([]),["a/2/0/5"]=BuildNarc([])});
+    }
+
+    private static byte[] SyntheticBlack(IReadOnlyDictionary<string,byte[]>? extra=null)
     {
         var text=new byte[192][];for(int i=0;i<text.Length;i++)text[i]=[];
-        text[70]=Gen5Message(Enumerable.Range(0,650).Select(i=>"Especie"+i).ToArray());text[190]=Gen5Message(["","Ana","Beto"]);text[191]=Gen5Message(["Clase"]);
+        text[70]=Gen5Message(Enumerable.Range(0,650).Select(i=>"Especie"+i).ToArray());text[190]=Gen5Message(["","Ana","Beto"]);text[191]=Gen5Message(["Clase"]);text[54]=Gen5Message(Enumerable.Range(0,640).Select(i=>"Objeto"+i).ToArray());
         var stats=Enumerable.Range(0,650).Select(s=>Enumerable.Repeat((byte)Math.Min(255,s),6).Concat(new byte[]{11,3}).ToArray()).ToArray();
         byte[] header(int flags,int count){var h=new byte[20];h[0]=(byte)flags;h[3]=(byte)count;return h;}
         byte[] mon(int level,int species,int form){var m=new byte[8];BinaryPrimitives.WriteUInt16LittleEndian(m.AsSpan(2),(ushort)level);BinaryPrimitives.WriteUInt16LittleEndian(m.AsSpan(4),(ushort)species);BinaryPrimitives.WriteUInt16LittleEndian(m.AsSpan(6),(ushort)form);return m;}
@@ -225,6 +246,7 @@ internal static class NdsGen5RandomizerChecks
             ["a/0/0/2"]=BuildNarc(text),["a/0/1/6"]=BuildNarc(stats),["a/0/5/7"]=BuildNarc([]),
             ["a/0/9/2"]=BuildNarc([new byte[20],header(3,2),header(0,1)]),["a/0/9/3"]=BuildNarc([[],team1,mon(15,20,0)]),["a/1/2/6"]=BuildNarc([wild]),
         };
+        foreach(var (path,data) in extra??new Dictionary<string,byte[]>())files[path]=data;
         return BuildRom(files,"IRBO");
     }
 

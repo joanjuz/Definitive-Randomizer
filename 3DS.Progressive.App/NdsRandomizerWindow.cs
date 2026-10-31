@@ -7,6 +7,7 @@ using pk3DS.Core.NDS;
 using ThreeDS.Progressive.Services.Nds;
 using Brush=System.Windows.Media.Brush;
 using Button=System.Windows.Controls.Button;
+using CheckBox=System.Windows.Controls.CheckBox;
 using ComboBox=System.Windows.Controls.ComboBox;
 using ListBox=System.Windows.Controls.ListBox;
 using Orientation=System.Windows.Controls.Orientation;
@@ -26,6 +27,7 @@ internal sealed class NdsRandomizerWindow : Window
     private readonly TextBox _path=new(){IsReadOnly=true,Margin=new Thickness(0,0,8,0)};
     private readonly Button _choose=new(){Content="Elegir ROM…"};
     private readonly TextBlock _identity=new(){TextWrapping=TextWrapping.Wrap,Margin=new Thickness(0,8,0,0)};
+    private readonly CheckBox _romhacks=new(){Content="Admitir romhacks (tablas modificadas; beta)",Margin=new Thickness(0,8,0,0)};
     private readonly ComboBox _trainers=ModeCombo(Gen5SpeciesMode.ProgressiveBst);
     private readonly ComboBox _wild=ModeCombo(Gen5SpeciesMode.SimilarBst);
     private static readonly (Gen5StarterMode Mode,string Label)[] StarterModes=[(Gen5StarterMode.Keep,"Sin cambios"),(Gen5StarterMode.Random,"Aleatorios"),(Gen5StarterMode.Custom,"Personalizados")];
@@ -63,9 +65,10 @@ internal sealed class NdsRandomizerWindow : Window
         var title=new TextBlock{Text=Title,FontSize=22,FontWeight=FontWeights.SemiBold};title.MouseLeftButtonDown+=(_,e)=>{if(e.ClickCount==1)DragMove();};heading.Children.Add(title);
         heading.Children.Add(new TextBlock{TextWrapping=TextWrapping.Wrap,Margin=new Thickness(0,6,0,14),
             Text="Elige un volcado original de Pokémon Diamante, Platino o HeartGold (USA), Negro (USA/EUR), Blanco (España) o Blanco 2 (USA/EUR). La ROM original no se modifica: se exporta una ROM nueva junto con un registro de cambios. "+
-                 "Negro, Blanco y Blanco 2 son DSi-enhanced: la ROM exportada funciona en modo DS y en emuladores, no en modo DSi."});
+                 "Negro, Blanco y Blanco 2 son DSi-enhanced: la ROM exportada funciona en modo DS y en emuladores, no en modo DSi. "+
+                 "Con «Admitir romhacks» se aceptan ROM modificadas de esos juegos: solo se activan las opciones cuyo código sigue siendo el original."});
 
-        var source=new DockPanel();heading.Children.Add(Section("ROM original"));DockPanel.SetDock(_choose,Dock.Right);source.Children.Add(_choose);source.Children.Add(_path);heading.Children.Add(source);heading.Children.Add(_identity);
+        var source=new DockPanel();heading.Children.Add(Section("ROM original"));DockPanel.SetDock(_choose,Dock.Right);source.Children.Add(_choose);source.Children.Add(_path);heading.Children.Add(source);heading.Children.Add(_romhacks);heading.Children.Add(_identity);
         heading.Children.Add(Section("Opciones"));
         var options=new Grid{Margin=new Thickness(0,0,0,4)};options.ColumnDefinitions.Add(new ColumnDefinition{Width=GridLength.Auto});options.ColumnDefinitions.Add(new ColumnDefinition{Width=new GridLength(1,GridUnitType.Star)});
         void Row(string label,FrameworkElement control){int row=options.RowDefinitions.Count;options.RowDefinitions.Add(new RowDefinition{Height=GridLength.Auto});
@@ -87,7 +90,7 @@ internal sealed class NdsRandomizerWindow : Window
         var footer=new WrapPanel{Orientation=Orientation.Horizontal,HorizontalAlignment=System.Windows.HorizontalAlignment.Right,Margin=new Thickness(0,12,0,0)};Grid.SetRow(footer,1);root.Children.Add(footer);
         footer.Children.Add(_export);footer.Children.Add(_close);
 
-        AutomationProperties.SetName(_path,"Ruta de la ROM original");AutomationProperties.SetName(_choose,"Elegir la ROM original de Nintendo DS");
+        AutomationProperties.SetName(_path,"Ruta de la ROM original");AutomationProperties.SetName(_choose,"Elegir la ROM original de Nintendo DS");AutomationProperties.SetName(_romhacks,"Admitir romhacks");
         AutomationProperties.SetName(_trainers,"Modo de randomización de entrenadores");AutomationProperties.SetName(_wild,"Modo de randomización de Pokémon salvajes");
         AutomationProperties.SetName(_starters,"Modo de iniciales");AutomationProperties.SetName(_starterPicks[0],"Inicial de la posición Planta");
         AutomationProperties.SetName(_starterPicks[1],"Inicial de la posición Fuego");AutomationProperties.SetName(_starterPicks[2],"Inicial de la posición Agua");
@@ -113,11 +116,16 @@ internal sealed class NdsRandomizerWindow : Window
         if(_busy)return;SetBusy(true);_summary.Text="Leyendo y verificando la ROM…";
         try
         {
-            var session=await NdsGen5Session.OpenAsync(path);
+            var session=await NdsGen5Session.OpenAsync(path,_romhacks.IsChecked==true);
             _session?.Dispose();_session=session;_path.Text=session.SourcePath;
-            _identity.Text=$"{session.Game} · {(session.KnownDump?"volcado original verificado":"código reconocido, volcado no verificado")} · {session.TrainerCount} entrenadores · {session.AreaCount} áreas de encuentro";
+            string kind=session.IsRomhack?"romhack (tablas modificadas)":session.KnownDump?"volcado original verificado":"código reconocido, volcado no verificado";
+            _identity.Text=$"{session.Game} · {kind} · {session.TrainerCount} entrenadores · {session.AreaCount} áreas de encuentro"+
+                string.Concat(session.Unavailable.Select(u=>$"\nNo disponible · {u.Key}: {u.Value}."));
             var names=session.SpeciesNames.Skip(1).Take(session.MaxSpecies).ToArray();
-            for(int i=0;i<3;i++){_starterPicks[i].ItemsSource=names;_starterPicks[i].SelectedIndex=session.OriginalStarters[i]-1;}
+            for(int i=0;i<3;i++){_starterPicks[i].ItemsSource=names;_starterPicks[i].SelectedIndex=i<session.OriginalStarters.Count?session.OriginalStarters[i]-1:-1;}
+            // Options the ROM cannot use stay at "Sin cambios" and disabled.
+            if(!session.Allows(Gen5Feature.Starters))_starters.SelectedIndex=0;
+            if(!session.Allows(Gen5Feature.Shops))_shops.SelectedIndex=0;
             _summary.Text="ROM lista. Revisa las opciones y genera la vista previa.";
         }
         catch(Exception ex) when (ex is IOException or InvalidDataException or NotSupportedException or UnauthorizedAccessException)
@@ -179,7 +187,7 @@ internal sealed class NdsRandomizerWindow : Window
         UpdateButtons();
     }
 
-    private void SetBusy(bool busy){_busy=busy;_choose.IsEnabled=_trainers.IsEnabled=_wild.IsEnabled=_seed.IsEnabled=_newSeed.IsEnabled=!busy;_starters.IsEnabled=_fieldItems.IsEnabled=_shops.IsEnabled=!busy;_close.IsEnabled=!busy;UpdateStarterPicks();UpdateButtons();}
+    private void SetBusy(bool busy){_busy=busy;_choose.IsEnabled=_trainers.IsEnabled=_wild.IsEnabled=_seed.IsEnabled=_newSeed.IsEnabled=!busy;_fieldItems.IsEnabled=_romhacks.IsEnabled=!busy;_starters.IsEnabled=!busy&&_session?.Allows(Gen5Feature.Starters)!=false;_shops.IsEnabled=!busy&&_session?.Allows(Gen5Feature.Shops)!=false;_close.IsEnabled=!busy;UpdateStarterPicks();UpdateButtons();}
 
     private void UpdateStarterPicks(){bool custom=!_busy&&_session is not null&&StarterModes[_starters.SelectedIndex].Mode==Gen5StarterMode.Custom;foreach(var pick in _starterPicks)pick.IsEnabled=custom;}
 

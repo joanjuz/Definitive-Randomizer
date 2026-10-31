@@ -28,8 +28,13 @@ internal sealed class NdsGen5Session : IDisposable
     internal int TrainerCount { get; }
     internal int AreaCount { get; }
     internal IReadOnlyList<string> SpeciesNames => _names;
-    /// <summary>Original starters (Grass, Fire, Water).</summary>
+    /// <summary>Original starters (Grass, Fire, Water); empty when the ROM cannot change them.</summary>
     internal IReadOnlyList<int> OriginalStarters { get; }
+    /// <summary>Opened as a romhack: modified tables, only the options whose code is still original.</summary>
+    internal bool IsRomhack => Data?.IsRomhack ?? Gen4!.IsRomhack;
+    /// <summary>Options this ROM cannot use, with the reason.</summary>
+    internal IReadOnlyDictionary<string, string> Unavailable => Data?.Unavailable ?? Gen4!.Unavailable;
+    internal bool Allows(string feature) => !Unavailable.ContainsKey(feature);
 
     private NdsGen5Session(NdsRom rom, Gen5Data data)
     {
@@ -40,7 +45,7 @@ internal sealed class NdsGen5Session : IDisposable
         _items = data.Text(data.Profile.ItemNamesText);
         TrainerCount = data.Trainers().Count;
         AreaCount = data.Encounters().Count;
-        OriginalStarters = data.Starters();
+        OriginalStarters = Allows(Gen5Feature.Starters) ? data.Starters() : [];
     }
 
     private NdsGen5Session(NdsRom rom, Gen4Data data)
@@ -52,20 +57,30 @@ internal sealed class NdsGen5Session : IDisposable
         _items = data.Text(data.Profile.ItemNamesText);
         TrainerCount = data.Trainers().Count;
         AreaCount = Gen4Areas(data);
-        OriginalStarters = data.Starters();
+        OriginalStarters = Allows(Gen5Feature.Starters) ? data.Starters() : [];
     }
 
     // A Gen4 encounter table is one group of slots in one file.
     private static int Gen4Areas(Gen4Data data) => data.Encounters().Select(s => (s.File, s.Group)).Distinct().Count();
 
-    internal static Task<NdsGen5Session> OpenAsync(string path) => Task.Run(() =>
+    /// <summary>
+    /// Opens an original dump. With <paramref name="allowRomhack"/>, a ROM of a supported game whose tables do not match the
+    /// originals is opened as a romhack instead of being rejected; an original is always opened as an original.
+    /// </summary>
+    internal static Task<NdsGen5Session> OpenAsync(string path, bool allowRomhack = false) => Task.Run(() =>
     {
         var rom = NdsRom.Open(path);
         try
         {
-            return NdsIdentity.Identify(rom).Profile.Generation == 4
-                ? new NdsGen5Session(rom, Gen4Data.Open(rom))
-                : new NdsGen5Session(rom, Gen5Data.Open(rom));
+            bool gen4 = NdsIdentity.Identify(rom).Profile.Generation == 4;
+            try
+            {
+                return gen4 ? new NdsGen5Session(rom, Gen4Data.Open(rom)) : new NdsGen5Session(rom, Gen5Data.Open(rom));
+            }
+            catch (InvalidDataException) when (allowRomhack)
+            {
+                return gen4 ? new NdsGen5Session(rom, Gen4Data.OpenRomhack(rom)) : new NdsGen5Session(rom, Gen5Data.OpenRomhack(rom));
+            }
         }
         catch
         {
@@ -103,7 +118,7 @@ internal sealed class NdsGen5Session : IDisposable
                 throw new InvalidDataException("La ROM exportada no conserva el número de entrenadores o de áreas.");
         }
         var text = new StringBuilder();
-        text.AppendLine($"Juego: {Game} ({GameCode}); volcado original verificado: {(KnownDump ? "sí" : "no")}");
+        text.AppendLine($"Juego: {Game} ({GameCode}); volcado original verificado: {(KnownDump ? "sí" : "no")}{(IsRomhack ? "; romhack (tablas modificadas)" : "")}");
         text.AppendLine($"Origen: {SourcePath}");
         text.AppendLine($"Semilla: {preview.Options.Seed}. Entrenadores: {ModeName(preview.Options.Trainers)}. Encuentros: {ModeName(preview.Options.Wild)}. Iniciales: {StarterModeName(preview.Options.Starters)}. Objetos del mapa: {ItemModeName(preview.Options.FieldItems)}. Tiendas: {ItemModeName(preview.Options.Shops)}.");
         text.AppendLine($"Cambios: {preview.Result.Changes.Count}");

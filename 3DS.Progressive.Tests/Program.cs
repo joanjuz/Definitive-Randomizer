@@ -38,6 +38,7 @@ if(args.Length>2&&args[0]=="--check-marts7-full-batch-real"){FullBatchRealChecks
 if(args.Length>1&&args[0]=="--read-machine7-recipes"){RealMachine7Checks.Run(args.Skip(1));return;}
 if(args.Length>1&&args[0]=="--review73-real"){Review73Checks.RunReal(args.Skip(1));return;}
 if(args.Length==3&&args[0]=="--nds-gen5-w2-probe"){NdsGen5RandomizerChecks.ProbeSequel(args[1],args[2]);return;}
+if(args.Length>2&&args[0]=="--nds-romhack-probe"){NdsGen4Checks.ProbeRomhacks(args[1],args.Skip(2));return;}
 if(args.Length>2&&args[0]=="--nds-gen4-probe"){NdsGen4Checks.Probe(args[1],args.Skip(2));return;}
 if(args.Length>2&&args[0]=="--nds-gen5-items-probe"){NdsGen5RandomizerChecks.ProbeItems(args[1],args.Skip(2));return;}
 if(args.Length>2&&args[0]=="--nds-gen5-starters-probe"){NdsGen5RandomizerChecks.ProbeStarters(args[1],args.Skip(2));return;}

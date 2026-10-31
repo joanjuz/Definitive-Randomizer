@@ -121,6 +121,7 @@ Necesitan extracciones, ROMs o carpetas de salida. Los argumentos concretos (ent
 | `--nds-gen5-random-probe` | 2 o más |  |
 | `--nds-gen5-starters-probe` | 2 o más |  |
 | `--nds-gen5-w2-probe` | exactamente 2 |  |
+| `--nds-romhack-probe` | 2 o más |  |
 | `--nds-roundtrip-probe` | 2 o más |  |
 | `--nds-ui-probe` | exactamente 2 |  |
 | `--pokefeur-probe` | exactamente 3 |  |

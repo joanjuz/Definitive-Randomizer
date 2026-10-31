@@ -15,6 +15,7 @@ public static class Gen4Randomizer
 {
     public static Gen5RandomizerResult Generate(Gen4Data data, Gen5RandomizerOptions options)
     {
+        Gen5Randomizer.RejectUnavailable(data.Unavailable, options);
         var pick = Gen5Randomizer.SpeciesPicker(data.BaseStats(), Gen4Data.MaxSpecies, options);
         var files = new Dictionary<string, byte[]>();
         var changes = new List<Gen5Change>();
@@ -92,7 +93,10 @@ public static class Gen4Randomizer
             rivals += hgss ? PatchHgssRival(scripts.Files[file], chosen, original) : PatchDpptRival(scripts.Files[file], chosen, original, profile.Kind);
         foreach (int file in profile.TagScripts)
             tags += PatchTagBattle(scripts.Files[file], chosen, original);
-        if (rivals != profile.RivalScriptCount || tags != profile.TagScriptCount)
+        // Every branch found compares the original starters; a romhack may add branches (Renegade Platinum has one more rival battle).
+        bool expected = data.IsRomhack ? rivals >= profile.RivalScriptCount && tags >= profile.TagScriptCount
+            : rivals == profile.RivalScriptCount && tags == profile.TagScriptCount;
+        if (!expected)
             throw new InvalidDataException($"Los scripts del rival no son los esperados ({rivals} de {profile.RivalScriptCount} combates, {tags} de {profile.TagScriptCount} combates dobles).");
 
         SetSelectionText(data, chosen, original, files);
@@ -264,6 +268,20 @@ public static class Gen4Randomizer
         return [.. picked];
     }
 
+    /// <summary>Dry run of the starter changes with the original starters, to know before randomizing whether a romhack supports them.</summary>
+    internal static string? StartersProblem(Gen4Data data)
+    {
+        try
+        {
+            Generate(data, new Gen5RandomizerOptions(0) { Starters = Gen5StarterMode.Custom, CustomStarters = [.. data.Starters()] });
+            return null;
+        }
+        catch (InvalidDataException ex)
+        {
+            return ex.Message;
+        }
+    }
+
     /// <summary>
     /// Only ordinary items move: TMs, HMs, key items, version exclusives and the unused ids (UPR-ZX Gen4 allowed items:
     /// everything from 112 to 134 and from 328 on) stay where they are.
@@ -275,11 +293,13 @@ public static class Gen4Randomizer
         var slots = data.FieldItems().Where(s => IsMovableItem(s.Item)).ToArray();
         int[] items = Gen5Randomizer.Shuffle(slots.Select(s => s.Item).ToArray(), seed, "field");
         byte[] script = scripts.Files[data.Profile.ItemBallScript];
-        arm9 ??= data.Arm9();
+        // Romhacks with a modified ARM9 have no hidden items to write.
+        if (slots.Any(s => s.Hidden))
+            arm9 ??= data.Arm9();
         for (int i = 0; i < slots.Length; i++)
         {
             var (hidden, offset, before) = slots[i];
-            BinaryPrimitives.WriteUInt16LittleEndian((hidden ? arm9 : script).AsSpan(offset), (ushort)items[i]);
+            BinaryPrimitives.WriteUInt16LittleEndian((hidden ? arm9! : script).AsSpan(offset), (ushort)items[i]);
             if (items[i] != before)
                 changes.Add(new Gen5Change($"{(hidden ? "Objeto oculto" : "Objeto visible")} {i + 1}", "Objeto", before, items[i]));
         }
