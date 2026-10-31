@@ -116,6 +116,7 @@ Necesitan extracciones, ROMs o carpetas de salida. Los argumentos concretos (ent
 | `--extract-independent-image` | exactamente 2 |  |
 | `--interrupt-save-check` | exactamente 1 |  |
 | `--nds-gen5-probe` | 1 o más |  |
+| `--nds-data-probe` | 2 o más |  |
 | `--nds-gen4-probe` | 2 o más |  |
 | `--nds-gen5-items-probe` | 2 o más |  |
 | `--nds-gen5-random-probe` | 2 o más |  |

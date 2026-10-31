@@ -20,7 +20,7 @@ namespace ThreeDS.Progressive;
 internal sealed class NdsWorkspaceView:UserControl
 {
     private static readonly (NdsSection Section,string Route)[] Sections=
-        [(NdsSection.Trainers,"Trainers"),(NdsSection.Encounters,"Encounters"),(NdsSection.Starters,"Starters"),(NdsSection.FieldItems,"FieldItems"),(NdsSection.Shops,"Shops")];
+        [(NdsSection.Pokemon,"Pokemon"),(NdsSection.Moves,"Moves"),(NdsSection.Learnsets,"Learnsets"),(NdsSection.Evolutions,"Evolutions"),(NdsSection.Machines,"Machines"),(NdsSection.Trainers,"Trainers"),(NdsSection.Encounters,"Encounters"),(NdsSection.Starters,"Starters"),(NdsSection.FieldItems,"FieldItems"),(NdsSection.Shops,"Shops")];
     private readonly Window _owner;
     private readonly ContentControl _page=new(){HorizontalContentAlignment=HorizontalAlignment.Stretch,VerticalContentAlignment=VerticalAlignment.Stretch};
     private readonly Dictionary<string,Button> _navigation=new();
@@ -135,9 +135,11 @@ internal sealed class NdsWorkspaceView:UserControl
             else
             {
                 var section=Sections.First(s=>s.Route==route).Section;
-                if(section==NdsSection.Shops&&!Project!.Allows(Gen5Feature.Shops)||section==NdsSection.Starters&&!Project!.Allows(Gen5Feature.Starters))
+                string? feature=section switch{NdsSection.Shops=>Gen5Feature.Shops,NdsSection.Starters=>Gen5Feature.Starters,NdsSection.Moves=>Gen5Feature.Moves,
+                    NdsSection.Learnsets=>Gen5Feature.Learnsets,NdsSection.Evolutions=>Gen5Feature.Evolutions,_=>null};
+                if(feature is not null&&!Project!.Allows(feature))
                 {
-                    content=Notice(NdsProject.SectionName(section),"No disponible en esta ROM: "+Project!.Unavailable[section==NdsSection.Shops?Gen5Feature.Shops:Gen5Feature.Starters]+".");
+                    content=Notice(NdsProject.SectionName(section),"No disponible en esta ROM: "+Project.Unavailable[feature]+".");
                 }
                 else
                 {

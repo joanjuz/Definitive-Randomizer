@@ -161,15 +161,19 @@ internal static class NdsGen4Checks
     }
 
     // Two trainers (one without items or moves, one with both) and one encounter file in the layout of the profile's game.
+    internal static byte[] SyntheticRom(Gen4Profile profile)=>Synthetic(profile);
+
     private static byte[] Synthetic(Gen4Profile profile,bool romhack=false)
     {
         bool hgss=profile.Kind==Gen4Kind.HeartGoldSoulSilver;
-        var text=new byte[new[]{profile.TrainerClassesText,profile.SpeciesNamesText,profile.MoveNamesText,profile.ItemNamesText}.Max()+1][];for(int i=0;i<text.Length;i++)text[i]=Gen4Message([]);
+        var text=new byte[new[]{profile.TrainerClassesText,profile.SpeciesNamesText,profile.MoveNamesText,profile.ItemNamesText,profile.AbilityNamesText,profile.TypeNamesText}.Max()+1][];for(int i=0;i<text.Length;i++)text[i]=Gen4Message([]);
         text[profile.MoveNamesText]=Gen4Message(Enumerable.Range(0,468).Select(i=>"Mov"+new string((char)('a'+i%26),1+i/26)).ToArray());
         text[profile.ItemNamesText]=Gen4Message(Enumerable.Range(0,537).Select(i=>"Obj"+new string((char)('a'+i%26),1+i/26)).ToArray());
+        text[profile.TypeNamesText]=Gen4Message(Enumerable.Range(0,18).Select(i=>"Tipo"+(char)('a'+i)).ToArray());
+        text[profile.AbilityNamesText]=Gen4Message(Enumerable.Range(0,124).Select(i=>"Hab"+new string((char)('a'+i%26),1+i/26)).ToArray());
         text[profile.SpeciesNamesText]=Gen4Message(Enumerable.Range(0,494).Select(i=>"S"+new string((char)('a'+i%26),1+i/26)).ToArray());
         text[profile.TrainerNamesText]=Gen4Message(["","ANA","BETO"]);text[profile.TrainerClassesText]=Gen4Message(["Leader"]);
-        var stats=Enumerable.Range(0,494).Select(s=>Enumerable.Repeat((byte)Math.Min(255,s/2),6).Concat(new byte[]{1,2}).ToArray()).ToArray();
+        var stats=Enumerable.Range(0,494).Select(s=>{var p=new byte[44];for(int i=0;i<6;i++)p[i]=(byte)Math.Clamp(s/2+i*5,10,255);p[6]=1;p[7]=2;p[8]=45;p[22]=65;p[23]=34;return p;}).ToArray();
         int seal=profile.Kind==Gen4Kind.DiamondPearl?0:2;
         byte[] Mon(int level,int species,int form,byte[] extra){var m=new byte[6];m[0]=50;m[1]=0x10;BinaryPrimitives.WriteUInt16LittleEndian(m.AsSpan(2),(ushort)level);BinaryPrimitives.WriteUInt16LittleEndian(m.AsSpan(4),(ushort)(species|form<<10));return [..m,..extra,..Enumerable.Repeat((byte)0xAB,seal)];}
         byte[] Header(int flags,int count){var h=new byte[20];h[0]=(byte)flags;h[3]=(byte)count;return h;}
@@ -198,6 +202,9 @@ internal static class NdsGen4Checks
             [profile.Files[Gen4Profile.TrainerData].Path]=NdsGen5RandomizerChecks.BuildNarc(headers),
             [profile.Files[Gen4Profile.TrainerPokemon].Path]=NdsGen5RandomizerChecks.BuildNarc(teams),
             [profile.Files[Gen4Profile.WildPokemon].Path]=NdsGen5RandomizerChecks.BuildNarc(romhack&&hgss?[wild,wild[..192]]:[wild]),
+            [profile.Files[Gen4Profile.Learnsets].Path]=NdsGen5RandomizerChecks.BuildNarc(Enumerable.Range(0,494).Select(_=>new byte[]{0x21,0x02,0x2D,0x06,0xFF,0xFF}).ToArray()),
+            [profile.Files[Gen4Profile.Evolutions].Path]=NdsGen5RandomizerChecks.BuildNarc(Enumerable.Range(0,494).Select(s=>{var e=new byte[44];if(s is 1 or 2){BinaryPrimitives.WriteUInt16LittleEndian(e,4);BinaryPrimitives.WriteUInt16LittleEndian(e.AsSpan(2),(ushort)(s*16));BinaryPrimitives.WriteUInt16LittleEndian(e.AsSpan(4),(ushort)(s+1));}if(s==4){BinaryPrimitives.WriteUInt16LittleEndian(e,6);BinaryPrimitives.WriteUInt16LittleEndian(e.AsSpan(4),5);}return e;}).ToArray()),
+            [profile.Files[Gen4Profile.Moves].Path]=NdsGen5RandomizerChecks.BuildNarc(Enumerable.Range(0,468).Select(m=>{var d=new byte[16];d[2]=(byte)(m%3);d[3]=(byte)(m%5==0?0:40);d[4]=(byte)(m%18==9?0:m%18);d[5]=100;d[6]=20;return d;}).ToArray()),
         };
         if(romhack)
         {

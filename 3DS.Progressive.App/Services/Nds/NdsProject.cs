@@ -52,6 +52,11 @@ internal sealed class NdsProject : IDisposable
     internal IReadOnlyList<string> SpeciesNames { get; }
     internal IReadOnlyList<string> ItemNames { get; }
     internal IReadOnlyList<string> MoveNames { get; }
+    internal IReadOnlyList<string> TypeNames => Source.TypeNames;
+    internal IReadOnlyList<string> AbilityNames => Source.AbilityNames;
+    /// <summary>Names, layouts and the TM list of the open game (read once: they do not change with edits).</summary>
+    internal NdsDataSource Source => _source ??= _gen4 is not null ? NdsDataSource.Of(_gen4) : NdsDataSource.Of(_gen5!);
+    private NdsDataSource? _source;
 
     private NdsProject(NdsRom rom, Gen5Data? gen5, Gen4Data? gen4)
     {
@@ -101,6 +106,9 @@ internal sealed class NdsProject : IDisposable
 
     internal NdsPreview PreviewRandom(string action, Gen5RandomizerOptions options) =>
         new(_id, Revision, action, options.Seed, _gen4 is not null ? Gen4Randomizer.Generate(Gen4View, options) : Gen5Randomizer.Generate(Gen5View, options));
+
+    internal NdsPreview PreviewData(string action, NdsSection section, NdsDataOptions options) =>
+        new(_id, Revision, action, options.Seed, _gen4 is not null ? NdsDataRandomizer.Generate(Gen4View, section, options) : NdsDataRandomizer.Generate(Gen5View, section, options));
 
     /// <summary>Applies a preview made at the current revision: its tables replace the current ones and it joins the change log.</summary>
     internal void Apply(NdsPreview preview)
@@ -184,6 +192,14 @@ internal sealed class NdsProject : IDisposable
     internal string Describe(Gen5Change change) => change.Field switch
     {
         "Especie" => $"{change.Location}: {Name(SpeciesNames, change.Before)} → {Name(SpeciesNames, change.After)}",
+        "Movimiento" => $"{change.Location} · {change.Field}: {Name(MoveNames, change.Before)} → {Name(MoveNames, change.After)}",
+        "Tipo" or "Tipo 1" or "Tipo 2" => $"{change.Location} · {change.Field}: {Name(TypeNames, change.Before)} → {Name(TypeNames, change.After)}",
+        "Categoría" => $"{change.Location} · {change.Field}: {Name(Source.Categories, change.Before)} → {Name(Source.Categories, change.After)}",
+        "Crecimiento" => $"{change.Location} · {change.Field}: {Name(NdsDataSource.GrowthNames, change.Before)} → {Name(NdsDataSource.GrowthNames, change.After)}",
+        "Método" => $"{change.Location} · {change.Field}: {Name(Source.EvolutionMethods, change.Before)} → {Name(Source.EvolutionMethods, change.After)}",
+        "Objeto común" or "Objeto raro" or "Objeto (hierba oscura)" => $"{change.Location} · {change.Field}: {Name(ItemNames, change.Before)} → {Name(ItemNames, change.After)}",
+        _ when change.Field.StartsWith("Habilidad", StringComparison.Ordinal) => $"{change.Location} · {change.Field}: {Name(AbilityNames, change.Before)} → {Name(AbilityNames, change.After)}",
+        _ when change.Field.StartsWith("MT", StringComparison.Ordinal) || change.Field.StartsWith("MO", StringComparison.Ordinal) => $"{change.Location} · {change.Field}: {(change.Before == 1 ? "sí" : "no")} → {(change.After == 1 ? "sí" : "no")}",
         "Objeto" or "Objeto equipado" => $"{change.Location}: {change.Field} {Name(ItemNames, change.Before)} → {Name(ItemNames, change.After)}",
         _ when change.Field.StartsWith("Producto", StringComparison.Ordinal) => $"{change.Location} · {change.Field}: {Name(ItemNames, change.Before)} → {Name(ItemNames, change.After)}",
         _ when change.Field.StartsWith("Movimiento ", StringComparison.Ordinal) => $"{change.Location} · {change.Field}: {Name(MoveNames, change.Before)} → {Name(MoveNames, change.After)}",
@@ -195,6 +211,11 @@ internal sealed class NdsProject : IDisposable
 
     internal static string SectionName(NdsSection section) => section switch
     {
+        NdsSection.Pokemon => "Pokémon",
+        NdsSection.Moves => "Movimientos",
+        NdsSection.Learnsets => "Level Up",
+        NdsSection.Evolutions => "Evoluciones",
+        NdsSection.Machines => "MT/MO",
         NdsSection.Starters => "Iniciales",
         NdsSection.Trainers => "Entrenadores",
         NdsSection.Encounters => "Encuentros",

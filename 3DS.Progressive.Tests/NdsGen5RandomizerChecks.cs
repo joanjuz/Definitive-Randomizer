@@ -231,11 +231,14 @@ internal static class NdsGen5RandomizerChecks
         return SyntheticBlack(new Dictionary<string,byte[]>{["a/0/5/7"]=BuildNarc(scripts),["a/0/0/3"]=BuildNarc([]),["a/0/0/4"]=BuildNarc([]),["a/2/0/5"]=BuildNarc([])});
     }
 
+    internal static byte[] SyntheticBlackRom()=>SyntheticBlack();
+
     private static byte[] SyntheticBlack(IReadOnlyDictionary<string,byte[]>? extra=null)
     {
         var text=new byte[204][];for(int i=0;i<text.Length;i++)text[i]=[];text[203]=Gen5Message(Enumerable.Range(0,560).Select(i=>"Mov"+i).ToArray());
+        text[199]=Gen5Message(Enumerable.Range(0,17).Select(i=>"Tipo"+i).ToArray());text[182]=Gen5Message(Enumerable.Range(0,165).Select(i=>"Hab"+i).ToArray());
         text[70]=Gen5Message(Enumerable.Range(0,650).Select(i=>"Especie"+i).ToArray());text[190]=Gen5Message(["","Ana","Beto"]);text[191]=Gen5Message(["Clase"]);text[54]=Gen5Message(Enumerable.Range(0,640).Select(i=>"Objeto"+i).ToArray());
-        var stats=Enumerable.Range(0,650).Select(s=>Enumerable.Repeat((byte)Math.Min(255,s),6).Concat(new byte[]{11,3}).ToArray()).ToArray();
+        var stats=Enumerable.Range(0,650).Select(s=>{var p=new byte[60];for(int i=0;i<6;i++)p[i]=(byte)Math.Clamp(s+i*7,10,255);p[6]=11;p[7]=3;p[8]=45;p[24]=65;p[25]=34;return p;}).ToArray();
         byte[] header(int flags,int count){var h=new byte[20];h[0]=(byte)flags;h[3]=(byte)count;return h;}
         byte[] mon(int level,int species,int form){var m=new byte[8];BinaryPrimitives.WriteUInt16LittleEndian(m.AsSpan(2),(ushort)level);BinaryPrimitives.WriteUInt16LittleEndian(m.AsSpan(4),(ushort)species);BinaryPrimitives.WriteUInt16LittleEndian(m.AsSpan(6),(ushort)form);return m;}
         byte[] u16(params int[] v)=>v.SelectMany(x=>BitConverter.GetBytes((ushort)x)).ToArray();
@@ -244,6 +247,9 @@ internal static class NdsGen5RandomizerChecks
         var files=new Dictionary<string,byte[]>
         {
             ["a/0/0/2"]=BuildNarc(text),["a/0/1/6"]=BuildNarc(stats),["a/0/5/7"]=BuildNarc([]),
+            ["a/0/1/8"]=BuildNarc(Enumerable.Range(0,650).Select(_=>u16(33,1,45,3,0xFFFF,0xFFFF)).ToArray()),
+            ["a/0/1/9"]=BuildNarc(Enumerable.Range(0,650).Select(s=>{var e=new byte[42];if(s is 1 or 2){BinaryPrimitives.WriteUInt16LittleEndian(e,4);BinaryPrimitives.WriteUInt16LittleEndian(e.AsSpan(2),(ushort)(s*16));BinaryPrimitives.WriteUInt16LittleEndian(e.AsSpan(4),(ushort)(s+1));}if(s==4){BinaryPrimitives.WriteUInt16LittleEndian(e,5);BinaryPrimitives.WriteUInt16LittleEndian(e.AsSpan(4),5);}return e;}).ToArray()),
+            ["a/0/2/1"]=BuildNarc(Enumerable.Range(0,560).Select(m=>{var d=new byte[36];d[0]=(byte)(m%17);d[2]=(byte)(m%3);d[3]=(byte)(m%5==0?0:40);d[4]=100;d[5]=20;return d;}).ToArray()),
             ["a/0/9/2"]=BuildNarc([new byte[20],header(3,2),header(0,1)]),["a/0/9/3"]=BuildNarc([[],team1,mon(15,20,0)]),["a/1/2/6"]=BuildNarc([wild]),
         };
         foreach(var (path,data) in extra??new Dictionary<string,byte[]>())files[path]=data;

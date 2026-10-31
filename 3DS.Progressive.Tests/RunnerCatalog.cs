@@ -88,6 +88,7 @@ internal static class RunnerCatalog
         new("--extract-independent-image","exactamente 2",RunnerCategory.Real,false),
         new("--interrupt-save-check","exactamente 1",RunnerCategory.Real,false),
         new("--nds-gen5-probe","1 o más",RunnerCategory.Real,false),
+        new("--nds-data-probe","2 o más",RunnerCategory.Real,false),
         new("--nds-gen4-probe","2 o más",RunnerCategory.Real,false),
         new("--nds-gen5-items-probe","2 o más",RunnerCategory.Real,false),
         new("--nds-gen5-random-probe","2 o más",RunnerCategory.Real,false),

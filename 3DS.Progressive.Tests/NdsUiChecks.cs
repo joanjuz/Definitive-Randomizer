@@ -19,7 +19,7 @@ internal static class NdsUiChecks
         entry!.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));check(opened,"NdsUi_HomeEntryOpensDsWorkspace");
 
         var owner=new Window();var workspace=new NdsWorkspaceView(owner);
-        string[] sections=["Inicio","Entrenadores","Encuentros","Iniciales","Objetos del mapa","Tiendas","Historial de cambios"];
+        string[] sections=["Inicio","Pokémon","Movimientos","Level Up","Evoluciones","MT/MO","Entrenadores","Encuentros","Iniciales","Objetos del mapa","Tiendas","Historial de cambios"];
         check(sections.All(s=>Buttons(workspace).Any(b=>AutomationProperties.GetName(b)=="Sección DS · "+s))&&workspace.Project is null&&workspace.CurrentRoute=="Home","NdsUi_WorkspaceShowsTheSidebarSectionsWithoutARom");
         Pump(workspace.NavigateAsync("Trainers"));
         check(workspace.CurrentRoute=="Home","NdsUi_SectionsNeedAnOpenRom");
@@ -80,7 +80,7 @@ internal static class NdsUiChecks
         {
             Pump(workspace.LoadAsync(rom));var project=workspace.Project;
             Check(project is {IsRomhack:false}&&project.Identity.KnownDump,$"NdsUi_Real_LoadsVerifiedOriginal ({project?.Game})");
-            foreach(string route in new[]{"Trainers","Encounters","Starters","FieldItems","Shops"})
+            foreach(string route in new[]{"Pokemon","Moves","Learnsets","Evolutions","Machines","Trainers","Encounters","Starters","FieldItems","Shops"})
             {
                 Pump(workspace.NavigateAsync(route));
                 Check(workspace.CurrentRoute==route&&Descendants<RecordEditorView>(workspace).Count()==1,$"NdsUi_Real_{route}OpensInTheSharedEditor");
