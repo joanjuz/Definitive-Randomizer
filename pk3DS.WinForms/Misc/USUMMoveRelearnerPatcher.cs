@@ -46,17 +46,33 @@ internal static class USUMMoveRelearnerPatcher
         0xAA, 0x14, 0x00, 0x00, 0xB7, 0x14, 0x00, 0x00, 0x7C, 0x15, 0x00, 0x00,
     ];
 
-    // Learn.asm code starts at 0x5B9D04. Address 0x5B9D00 is deliberately
-    // left untouched because the ASM uses it as runtime storage (poke_ptr).
-    private static readonly byte[] LearnPayload =
+    // Learn.asm code starts at 0x5B9D04. Its last word is the address of the
+    // runtime storage (poke_ptr). The original ASM used 0x5B9D00, inside .text:
+    // read-only on a real 3DS, so the first store faulted there (emulators allow
+    // it). The storage is now the last word of the .bss page (0x6D3FFC): bss ends
+    // at 0x6D3F04 in both Ultra Sun and Ultra Moon, the page up to 0x6D4000 is
+    // mapped read/write, and nothing clears or references those bytes.
+    private const uint LegacyPokePointer = 0x5B9D00;
+    private const uint PokePointer = 0x6D3FFC;
+    private static readonly byte[] LearnPayload = WithPokePointer(
     [
         0xF0, 0x43, 0x2D, 0xE9, 0x38, 0x40, 0x9F, 0xE5, 0x00, 0x10, 0x84, 0xE5,
         0x50, 0x1E, 0xFA, 0xEA, 0x1F, 0x40, 0x2D, 0xE9, 0x00, 0x40, 0xA0, 0xE1,
         0x24, 0x00, 0x9F, 0xE5, 0x00, 0x00, 0x90, 0xE5, 0xE5, 0xA6, 0xF5, 0xEB,
         0x04, 0x00, 0x50, 0xE1, 0x00, 0x00, 0x00, 0xBA, 0x01, 0x00, 0x00, 0xEA,
         0x1F, 0x40, 0xBD, 0xE8, 0xE1, 0x1E, 0xFA, 0xEA, 0x1F, 0x40, 0xBD, 0xE8,
-        0x02, 0x00, 0x50, 0xE3, 0xA4, 0x1E, 0xFA, 0xEA, 0x00, 0x9D, 0x5B, 0x00,
-    ];
+        0x02, 0x00, 0x50, 0xE3, 0xA4, 0x1E, 0xFA, 0xEA, 0x00, 0x00, 0x00, 0x00,
+    ], PokePointer);
+
+    // Payload installed by earlier versions (storage in .text). It is upgraded in place.
+    private static readonly byte[] LegacyLearnPayload = WithPokePointer(LearnPayload, LegacyPokePointer);
+
+    private static byte[] WithPokePointer(byte[] payload, uint address)
+    {
+        byte[] result = (byte[])payload.Clone();
+        BitConverter.GetBytes(address).CopyTo(result, result.Length - 4);
+        return result;
+    }
     // Ultra Moon uses the same café hook/payload as Ultra Sun, but the
     // Learn.asm hooks are shifted forward by one ARM instruction (+4 bytes).
     //
@@ -81,6 +97,7 @@ internal static class USUMMoveRelearnerPatcher
     ];
 
     private static readonly byte[] MoonLearnPayload = CreateMoonLearnPayload();
+    private static readonly byte[] LegacyMoonLearnPayload = WithPokePointer(MoonLearnPayload, LegacyPokePointer);
 
     private static byte[] CreateMoonLearnPayload()
     {
@@ -251,10 +268,11 @@ internal static class USUMMoveRelearnerPatcher
 
         bool cafePayloadDone = Matches(code, ToOffset(CafePayloadAddress), CafePayload);
         bool learnPayloadDone = Matches(code, ToOffset(LearnPayloadAddress), LearnPayload);
+        bool learnPayloadLegacy = Matches(code, ToOffset(LearnPayloadAddress), LegacyLearnPayload);
 
         if (cafeHookDone && !cafePayloadDone)
             throw new InvalidDataException("The café hook is already modified, but its payload does not match this patch.");
-        if ((learnInitDone || learnCheckDone) && !learnPayloadDone)
+        if ((learnInitDone || learnCheckDone) && !learnPayloadDone && !learnPayloadLegacy)
             throw new InvalidDataException("A Learn.asm hook is already modified, but its payload does not match this patch.");
 
         if (cafeHookDone && learnInitDone && learnCheckDone && cafePayloadDone && learnPayloadDone)
@@ -451,6 +469,10 @@ internal static class USUMMoveRelearnerPatcher
         bool learnPayloadDone =
             Matches(code, learnPayloadOffset, MoonLearnPayload);
 
+        // An earlier install keeps its pointer in .text; its cave is ours and is rewritten.
+        bool learnPayloadLegacy =
+            Matches(code, learnPayloadOffset, LegacyMoonLearnPayload);
+
         // The payload caves are the only regions besides the three hooks that
         // Move Relearner owns. Unrelated modifications anywhere else in
         // code.bin are intentionally ignored.
@@ -462,7 +484,7 @@ internal static class USUMMoveRelearnerPatcher
                 "is already in use by another patch. Nothing was changed.");
         }
 
-        if (!learnPayloadDone &&
+        if (!learnPayloadDone && !learnPayloadLegacy &&
             !IsAllZero(code, learnPayloadOffset, MoonLearnPayload.Length))
         {
             throw new InvalidDataException(
