@@ -15,7 +15,8 @@ public sealed record Gen5Profile(string GameCode, bool Black, IReadOnlyDictionar
 {
     public const string TextStrings = "TextStrings", TextStory = "TextStory", PokemonStats = "PokemonStats", Scripts = "Scripts",
         TrainerData = "TrainerData", TrainerPokemon = "TrainerPokemon", WildPokemon = "WildPokemon",
-        PokemonGraphics = "PokemonGraphics", StarterGraphics = "StarterGraphics", ShopItems = "ShopItems";
+        PokemonGraphics = "PokemonGraphics", StarterGraphics = "StarterGraphics", ShopItems = "ShopItems",
+        Learnsets = "Learnsets", Evolutions = "Evolutions", Moves = "Moves";
 
     /// <summary>Black 2/White 2: shops live in their own NARC and the starter script fix is different.</summary>
     public bool Sequel { get; init; }
@@ -73,6 +74,9 @@ public sealed record Gen5Profile(string GameCode, bool Black, IReadOnlyDictionar
         [TextStory] = ("a/0/0/3", 0xA1D418F5),
         [PokemonGraphics] = ("a/0/0/4", 0x227031B2),
         [StarterGraphics] = ("a/2/0/5", 0x2AE60524),
+        [Learnsets] = ("a/0/1/8", 0xA03DCC02),
+        [Evolutions] = ("a/0/1/9", 0x494DF5A2),
+        [Moves] = ("a/0/2/1", 0xA62E835C),
     };
 
     public static IReadOnlyList<Gen5Profile> All { get; } =
@@ -107,6 +111,9 @@ public sealed record Gen5Profile(string GameCode, bool Black, IReadOnlyDictionar
             [WildPokemon] = ("a/1/2/7", 0xA35466D9),
             [StarterGraphics] = ("a/2/0/2", 0x83EB4FF0),
             [ShopItems] = ("a/2/8/2", 0x52CABC05),
+            [Learnsets] = ("a/0/1/8", 0x57FBEC75),
+            [Evolutions] = ("a/0/1/9", 0xE7A49FB7),
+            [Moves] = ("a/0/2/1", 0xA62E835C),
         })
         {
             Sequel = true, SpeciesNamesText = 90, TrainerNamesText = 382, TrainerClassesText = 383, TypeNamesText = 398, ItemNamesText = 64,
@@ -129,7 +136,14 @@ public sealed record Gen5Profile(string GameCode, bool Black, IReadOnlyDictionar
 /// <summary>Names of the options a ROM may not support, used by <c>Unavailable</c> in <see cref="Gen5Data"/> and <see cref="Gen4Data"/>.</summary>
 public static class Gen5Feature
 {
-    public const string Starters = "Iniciales", Shops = "Tiendas", HiddenItems = "Objetos ocultos";
+    public const string Starters = "Iniciales", Shops = "Tiendas", HiddenItems = "Objetos ocultos",
+        Moves = "Movimientos", Learnsets = "Level Up", Evolutions = "Evoluciones";
+
+    /// <summary>Data tables a romhack may break without breaking the rest: the option that needs each one.</summary>
+    internal static readonly IReadOnlyDictionary<string, string> OptionalTables = new Dictionary<string, string>
+    {
+        ["Moves"] = Moves, ["Learnsets"] = Learnsets, ["Evolutions"] = Evolutions,
+    };
 }
 
 public sealed record Gen5BaseStats(int Index, byte HP, byte Attack, byte Defense, byte Speed, byte SpAttack, byte SpDefense, byte Type1, byte Type2)
@@ -199,6 +213,9 @@ public sealed class Gen5Data
         Unavailable = root.Unavailable;
     }
 
+    /// <summary>ARM9 as the game runs it, only for reading (the TM list); DSi-enhanced games never get it rewritten.</summary>
+    public byte[] ReadArm9() => _rom.ReadArm9();
+
     /// <summary>Script file as it is in the ROM, before any draft change (code patches are detected against it).</summary>
     internal byte[] OriginalScript(int index) => (_base ?? this).Narc(Gen5Profile.Scripts).Files[index];
 
@@ -210,8 +227,13 @@ public sealed class Gen5Data
     public static Gen5Data OpenRomhack(NdsRom rom)
     {
         var data = new Gen5Data(rom, NdsIdentity.Identify(rom), ProfileFor(rom), requireOriginalTables: false, romhack: true);
+        var unavailable = new Dictionary<string, string>();
         foreach (string key in data.Profile.Files.Keys)
-            data.Narc(key);
+            try { data.Narc(key); }
+            catch (InvalidDataException ex) when (Gen5Feature.OptionalTables.TryGetValue(key, out string? feature))
+            {
+                unavailable[feature] = $"{data.PathOf(key)} no se puede leer ({ex.Message})";
+            }
         if (data.SpeciesNames().Count <= Gen5Randomizer.MaxSpecies || data.BaseStats().Count <= Gen5Randomizer.MaxSpecies)
             throw new InvalidDataException("El romhack no tiene los nombres o las estadísticas de las 649 especies donde los espera el perfil.");
         data.Text(data.Profile.ItemNamesText);
@@ -219,7 +241,6 @@ public sealed class Gen5Data
         data.Trainers();
         data.Encounters();
         data.FieldItems();
-        var unavailable = new Dictionary<string, string>();
         if (!data.OverlayIsOriginal(data.Profile.StarterCryOverlay, data.Profile.StarterCryOverlayCrc32))
             unavailable[Gen5Feature.Starters] = $"el romhack modifica el overlay {data.Profile.StarterCryOverlay} de los iniciales";
         else

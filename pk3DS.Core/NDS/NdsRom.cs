@@ -108,8 +108,9 @@ public sealed class NdsRom : IDisposable
         byte[] header = ReadAt(0, 0x200);
         uint offset = U32(header, 0x20), ram = U32(header, 0x28), size = U32(header, 0x2C);
         byte[] after = ReadAt(offset + size, 12);
+        // DSi-enhanced games (Black, White, White 2) have no footer but a BLZ-compressed ARM9: readable, never rewritten.
         if (U32(after, 0) != NitroCode)
-            return new Arm9Layout(offset, ram, size, null, -1, false);
+            return new Arm9Layout(offset, ram, size, null, -1, HasBlzFooter(offset, size));
         int moduleParams = checked((int)U32(after, 4));
         bool compressed = moduleParams + 0x18 <= size && U32(ReadAt(offset + (uint)moduleParams + 0x14, 4), 0) != 0 && HasBlzFooter(offset, size);
         return new Arm9Layout(offset, ram, size, after, moduleParams, compressed);
@@ -142,6 +143,8 @@ public sealed class NdsRom : IDisposable
             throw new InvalidDataException($"El ARM9 debe conservar su tamaño ({arm9.Length} bytes recibidos).");
         if (!layout.Compressed)
             return arm9;
+        if (layout.ModuleParams < 0)
+            throw new InvalidOperationException("El ARM9 comprimido no tiene parámetros de módulo: no se puede reescribir.");
         byte[] packed = pk3DS.Core.CTR.BLZCoder.CompressArm9(arm9);
         if (!pk3DS.Core.CTR.BLZCoder.Decompress(packed).AsSpan().SequenceEqual(arm9) || !packed.AsSpan(0, 0x4000).SequenceEqual(arm9.AsSpan(0, 0x4000)))
             throw new InvalidDataException("La compresión BLZ del ARM9 no reproduce sus datos.");

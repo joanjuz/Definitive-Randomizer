@@ -14,7 +14,7 @@ public sealed record Gen4Profile(string GameCode, byte Version, Gen4Kind Kind, I
     int SpeciesNamesText, int TrainerNamesText, int TrainerClassesText, int ItemNamesText, int TypeNamesText)
 {
     public const string Text = "Text", PokemonStats = "PokemonStats", TrainerData = "TrainerData", TrainerPokemon = "TrainerPokemon",
-        WildPokemon = "WildPokemon", Scripts = "Scripts";
+        WildPokemon = "WildPokemon", Scripts = "Scripts", Learnsets = "Learnsets", Evolutions = "Evolutions", Moves = "Moves";
 
     public string Game => Kind switch { Gen4Kind.DiamondPearl => "Diamante", Gen4Kind.Platinum => "Platino", _ => "HeartGold" };
 
@@ -59,6 +59,9 @@ public sealed record Gen4Profile(string GameCode, byte Version, Gen4Kind Kind, I
             [TrainerPokemon] = ("poketool/trainer/trpoke.narc", 0xC4AA9026),
             [WildPokemon] = ("fielddata/encountdata/d_enc_data.narc", 0xE58BE3CA),
             [Scripts] = ("fielddata/script/scr_seq_release.narc", 0x5FDE722D),
+            [Learnsets] = ("poketool/personal/wotbl.narc", 0x2AC7EF62),
+            [Evolutions] = ("poketool/personal/evo.narc", 0x0F425176),
+            [Moves] = ("poketool/waza/waza_tbl.narc", 0x1D89A95D),
         }, 362, 559, 560, 344, 565)
         {
             MoveNamesText = 588, AbilityNamesText = 552, Arm9Crc32 = 0x08E0337C, ItemBallScript = 370, ItemBallSkip = [40, 196], HiddenItemTable = 0xF2DB4, HiddenItemCount = 229,
@@ -74,6 +77,9 @@ public sealed record Gen4Profile(string GameCode, byte Version, Gen4Kind Kind, I
             [TrainerPokemon] = ("poketool/trainer/trpoke.narc", 0x739A02EE),
             [WildPokemon] = ("fielddata/encountdata/pl_enc_data.narc", 0x188084F5),
             [Scripts] = ("fielddata/script/scr_seq.narc", 0x6D482515),
+            [Learnsets] = ("poketool/personal/wotbl.narc", 0x977997B9),
+            [Evolutions] = ("poketool/personal/evo.narc", 0x6711E4B4),
+            [Moves] = ("poketool/waza/pl_waza_tbl.narc", 0xB2D18230),
         }, 412, 618, 619, 392, 624)
         {
             MoveNamesText = 647, AbilityNamesText = 610, Arm9Crc32 = 0x4D104949, ItemBallScript = 404, ItemBallSkip = [25, 238, 321, 325, 326], HiddenItemTable = 0xEA378, HiddenItemCount = 257,
@@ -89,6 +95,9 @@ public sealed record Gen4Profile(string GameCode, byte Version, Gen4Kind Kind, I
             [TrainerPokemon] = ("a/0/5/6", 0xE30BC8BE),
             [WildPokemon] = ("a/0/3/7", 0x9B861BD5),
             [Scripts] = ("a/0/1/2", 0xA7E3F740),
+            [Learnsets] = ("a/0/3/3", 0xF0F9B169),
+            [Evolutions] = ("a/0/3/4", 0x6711E4B4),
+            [Moves] = ("a/0/1/1", 0x284AEE7A),
         }, 237, 729, 730, 222, 735)
         {
             MoveNamesText = 750, AbilityNamesText = 720, Arm9Crc32 = 0x99A30D93, ItemBallScript = 141, ItemBallSkip = [58], HiddenItemTable = 0xFA558, HiddenItemCount = 231,
@@ -180,8 +189,13 @@ public sealed class Gen4Data
     {
         var identity = NdsIdentity.Identify(rom);
         var data = new Gen4Data(rom, identity, ProfileFor(identity), requireOriginalTables: false, romhack: true);
+        var unavailable = new Dictionary<string, string>();
         foreach (string key in data.Profile.Files.Keys)
-            data.Narc(key);
+            try { data.Narc(key); }
+            catch (InvalidDataException ex) when (Gen5Feature.OptionalTables.TryGetValue(key, out string? feature))
+            {
+                unavailable[feature] = $"{data.PathOf(key)} no se puede leer ({ex.Message})";
+            }
         if (data.SpeciesNames().Count <= MaxSpecies || data.BaseStats().Count <= MaxSpecies)
             throw new InvalidDataException("El romhack no tiene los nombres o las estadísticas de las 493 especies donde los espera el perfil.");
         data.Text(data.Profile.ItemNamesText);
@@ -190,7 +204,6 @@ public sealed class Gen4Data
         data.Encounters();
         bool arm9 = Matches(() => data._rom.ReadArm9(), data.Profile.Arm9Crc32);
         bool overlay = Matches(() => data._rom.ReadOverlay(data.Profile.StarterOverlay), data.Profile.StarterOverlayCrc32);
-        var unavailable = new Dictionary<string, string>();
         if (!overlay || (!arm9 && data.Profile.Kind == Gen4Kind.HeartGoldSoulSilver))
             unavailable[Gen5Feature.Starters] = overlay ? "el romhack modifica el ARM9, donde están los iniciales" : $"el romhack modifica el overlay {data.Profile.StarterOverlay} de los iniciales";
         if (!arm9)

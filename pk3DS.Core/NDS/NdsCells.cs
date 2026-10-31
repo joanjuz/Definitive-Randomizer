@@ -8,10 +8,10 @@ using System.Linq;
 namespace pk3DS.Core.NDS;
 
 /// <summary>Editable sections of a DS game, in the order the workspace shows them.</summary>
-public enum NdsSection { Starters, Trainers, Encounters, FieldItems, Shops }
+public enum NdsSection { Starters, Trainers, Encounters, FieldItems, Shops, Pokemon, Moves, Learnsets, Evolutions, Machines }
 
 /// <summary>What a cell's value names, so the editor can offer a list instead of a number.</summary>
-public enum NdsValueKind { Number, Species, Item, Move }
+public enum NdsValueKind { Number, Species, Item, Move, Type, Ability, Option, Flag }
 
 /// <summary>
 /// One editable value: the entry it belongs to (a trainer, an area, a shop…), its group and field, and its range.
@@ -19,6 +19,8 @@ public enum NdsValueKind { Number, Species, Item, Move }
 /// </summary>
 public sealed record NdsCell(int Entry, string EntryName, string Group, string Field, string Local, int Value, int Min, int Max, NdsValueKind Kind)
 {
+    /// <summary>Names of the values of an <see cref="NdsValueKind.Option"/> cell, by value.</summary>
+    public IReadOnlyList<string>? Options { get; init; }
     public string Key => Entry + ":" + Local;
 }
 
@@ -27,15 +29,19 @@ public sealed record NdsCell(int Entry, string EntryName, string Group, string F
 /// returned like a randomizer result so edits and randomizations stack the same way. Starters go through the randomizer's
 /// custom-starter path, which updates every place the game uses them.
 /// </summary>
-public static class NdsCells
+public static partial class NdsCells
 {
     private enum Target { File, Overlay, Arm9 }
 
     // Where a cell lives: a file of a NARC (by profile key), an overlay or the ARM9; Width is 1, 2 or 4 bytes.
-    private sealed record Location(NdsCell Cell, Target Target, string NarcKey, int File, int Overlay, int Offset, int Width, int FormOffset = -1);
+    // Shift/Bits select a bit field inside the value (packed learnset entries, TM/HM flags); 0 bits means the whole value.
+    private sealed record Location(NdsCell Cell, Target Target, string NarcKey, int File, int Overlay, int Offset, int Width, int FormOffset = -1, int Shift = 0, int Bits = 0);
 
     public static IReadOnlyList<NdsCell> Read(Gen5Data data, NdsSection section) =>
         section == NdsSection.Starters ? StarterCells(data.Starters(), data.SpeciesNames(), Gen5Randomizer.MaxSpecies) : Locate(data, section).Select(l => l.Cell).ToArray();
+
+    private static IReadOnlyList<Location> Locate(Gen5Data data, NdsSection section) => section >= NdsSection.Pokemon ? LocateData(NdsDataSource.Of(data), section) : LocateGame(data, section);
+    private static IReadOnlyList<Location> Locate(Gen4Data data, NdsSection section) => section >= NdsSection.Pokemon ? LocateData(NdsDataSource.Of(data), section) : LocateGame(data, section);
 
     public static IReadOnlyList<NdsCell> Read(Gen4Data data, NdsSection section) =>
         section == NdsSection.Starters ? StarterCells(data.Starters(), data.SpeciesNames(), Gen4Data.MaxSpecies) : Locate(data, section).Select(l => l.Cell).ToArray();
@@ -99,7 +105,13 @@ public static class NdsCells
                 Target.Overlay => overlay(at.Overlay),
                 _ => (arm9 ?? throw new InvalidOperationException("Esta sección no usa el ARM9."))(),
             };
-            Write(target, at.Offset, at.Width, value);
+            if (at.Bits > 0)
+            {
+                int mask = ((1 << at.Bits) - 1) << at.Shift;
+                Write(target, at.Offset, at.Width, (ReadValue(target, at.Offset, at.Width) & ~mask) | ((value << at.Shift) & mask));
+            }
+            else
+                Write(target, at.Offset, at.Width, value);
             // A new species cannot keep the old one's form; form 0 always exists.
             if (at.FormOffset >= 0)
                 Write(target, at.FormOffset, 2, 0);
@@ -107,6 +119,13 @@ public static class NdsCells
         }
         return (narcs.ToDictionary(p => pathOf(p.Key), p => p.Value.Write()), changes);
     }
+
+    private static int ReadValue(byte[] data, int offset, int width) => width switch
+    {
+        1 => data[offset],
+        2 => BinaryPrimitives.ReadUInt16LittleEndian(data.AsSpan(offset)),
+        _ => (int)BinaryPrimitives.ReadUInt32LittleEndian(data.AsSpan(offset)),
+    };
 
     private static void Write(byte[] data, int offset, int width, int value)
     {
@@ -124,7 +143,7 @@ public static class NdsCells
 
     // ---- Gen5 ----
 
-    private static IReadOnlyList<Location> Locate(Gen5Data data, NdsSection section)
+    private static IReadOnlyList<Location> LocateGame(Gen5Data data, NdsSection section)
     {
         var list = new List<Location>();
         int items = MaxId(data.Text(data.Profile.ItemNamesText));
@@ -207,7 +226,7 @@ public static class NdsCells
 
     // ---- Gen4 ----
 
-    private static IReadOnlyList<Location> Locate(Gen4Data data, NdsSection section)
+    private static IReadOnlyList<Location> LocateGame(Gen4Data data, NdsSection section)
     {
         var list = new List<Location>();
         int items = MaxId(data.Text(data.Profile.ItemNamesText));
