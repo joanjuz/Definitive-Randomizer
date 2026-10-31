@@ -7,15 +7,15 @@ using System.Linq;
 namespace pk3DS.Core.NDS;
 
 /// <summary>
-/// Diamond, Platinum and HeartGold trainer and wild species randomizer, with the same modes, seed handling and change log as Gen5.
-/// Starters, items and shops are not supported yet and are rejected instead of ignored.
+/// Diamond, Platinum and HeartGold randomizer for trainers, wild Pokémon, field items and shops, with the same modes, seed
+/// handling and change log as Gen5. Starters are not supported yet and are rejected instead of ignored.
 /// </summary>
 public static class Gen4Randomizer
 {
     public static Gen5RandomizerResult Generate(Gen4Data data, Gen5RandomizerOptions options)
     {
-        if (options.Starters != Gen5StarterMode.Keep || options.FieldItems != Gen5ItemMode.Keep || options.Shops != Gen5ItemMode.Keep)
-            throw new ArgumentException("En Gen4 solo se pueden cambiar entrenadores y Pokémon salvajes por ahora.", nameof(options));
+        if (options.Starters != Gen5StarterMode.Keep)
+            throw new ArgumentException("En Gen4 todavía no se pueden cambiar los iniciales.", nameof(options));
         var pick = Gen5Randomizer.SpeciesPicker(data.BaseStats(), Gen4Data.MaxSpecies, options);
         var files = new Dictionary<string, byte[]>();
         var changes = new List<Gen5Change>();
@@ -23,7 +23,48 @@ public static class Gen4Randomizer
             RandomizeTrainers(data, options, pick, files, changes);
         if (options.Wild != Gen5SpeciesMode.Keep)
             RandomizeWild(data, options, pick, files, changes);
-        return new Gen5RandomizerResult(files, changes, new Dictionary<int, byte[]>());
+        byte[]? arm9 = null;
+        if (options.FieldItems == Gen5ItemMode.Shuffle)
+            ShuffleFieldItems(data, options.Seed, files, ref arm9, changes);
+        if (options.Shops == Gen5ItemMode.Shuffle)
+            ShuffleShops(data, options.Seed, ref arm9, changes);
+        return new Gen5RandomizerResult(files, changes, new Dictionary<int, byte[]>()) { Arm9 = arm9 };
+    }
+
+    /// <summary>
+    /// Only ordinary items move: TMs, HMs, key items, version exclusives and the unused ids (UPR-ZX Gen4 allowed items:
+    /// everything from 112 to 134 and from 328 on) stay where they are.
+    /// </summary>
+    public static bool IsMovableItem(int item) => item is (>= 1 and <= 111) or (>= 135 and <= 327);
+
+    private static void ShuffleFieldItems(Gen4Data data, uint seed, Dictionary<string, byte[]> files, ref byte[]? arm9, List<Gen5Change> changes)
+    {
+        var slots = data.FieldItems().Where(s => IsMovableItem(s.Item)).ToArray();
+        int[] items = Gen5Randomizer.Shuffle(slots.Select(s => s.Item).ToArray(), seed, "field");
+        var scripts = data.CopyNarc(Gen4Profile.Scripts);
+        byte[] script = scripts.Files[data.Profile.ItemBallScript];
+        arm9 ??= data.Arm9();
+        for (int i = 0; i < slots.Length; i++)
+        {
+            var (hidden, offset, before) = slots[i];
+            BinaryPrimitives.WriteUInt16LittleEndian((hidden ? arm9 : script).AsSpan(offset), (ushort)items[i]);
+            if (items[i] != before)
+                changes.Add(new Gen5Change($"{(hidden ? "Objeto oculto" : "Objeto visible")} {i + 1}", "Objeto", before, items[i]));
+        }
+        files[data.PathOf(Gen4Profile.Scripts)] = scripts.Write();
+    }
+
+    private static void ShuffleShops(Gen4Data data, uint seed, ref byte[]? arm9, List<Gen5Change> changes)
+    {
+        var slots = data.Shops().Where(s => !data.Profile.FixedShops.Contains(s.Shop) && IsMovableItem(s.Item)).ToArray();
+        int[] items = Gen5Randomizer.Shuffle(slots.Select(s => s.Item).ToArray(), seed, "shop");
+        arm9 ??= data.Arm9();
+        for (int i = 0; i < slots.Length; i++)
+        {
+            BinaryPrimitives.WriteUInt16LittleEndian(arm9.AsSpan(slots[i].Offset), (ushort)items[i]);
+            if (items[i] != slots[i].Item)
+                changes.Add(new Gen5Change($"Tienda {slots[i].Shop} · producto {slots[i].Index + 1}", "Objeto", slots[i].Item, items[i]));
+        }
     }
 
     private static void RandomizeTrainers(Gen4Data data, Gen5RandomizerOptions options, Func<Gen5SpeciesMode, string, int, int, int> pick,

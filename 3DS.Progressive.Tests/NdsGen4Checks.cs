@@ -27,7 +27,7 @@ internal static class NdsGen4Checks
                 int expected=kind==Gen4Kind.DiamondPearl?12+1+5:36+1+5+1;
                 check(slots.Count==expected&&slots.All(s=>s.Species is >=1 and <=Gen4Data.MaxSpecies),$"Gen4_{name}_ReadsGrassAlternateAndWaterSlots ({slots.Count})");
                 var keep=Gen4Randomizer.Generate(data,new Gen5RandomizerOptions(3));check(keep.Files.Count==0&&keep.Changes.Count==0,$"Gen4_{name}_KeepChangesNothing");
-                reject(()=>Gen4Randomizer.Generate(data,new Gen5RandomizerOptions(3){Starters=Gen5StarterMode.Random}),$"Gen4_{name}_RejectsOptionsItDoesNotSupport");
+                reject(()=>Gen4Randomizer.Generate(data,new Gen5RandomizerOptions(3){Starters=Gen5StarterMode.Random}),$"Gen4_{name}_RejectsStarterOptions");
                 var options=new Gen5RandomizerOptions(3){Trainers=Gen5SpeciesMode.Random,Wild=Gen5SpeciesMode.Random};
                 var a=Gen4Randomizer.Generate(data,options);var b=Gen4Randomizer.Generate(data,options);var c=Gen4Randomizer.Generate(data,options with{Seed=4});
                 check(a.Changes.SequenceEqual(b.Changes)&&!a.Changes.SequenceEqual(c.Changes)&&a.Overlays.Count==0,$"Gen4_{name}_DeterministicBySeed");
@@ -48,8 +48,56 @@ internal static class NdsGen4Checks
             }
             string bad=Path.Combine(temp,"bad.nds");var dp=Gen4Profile.All.Single(p=>p.Kind==Gen4Kind.DiamondPearl);File.WriteAllBytes(bad,Synthetic(dp));
             using(var rom=NdsRom.Open(bad))reject(()=>Gen4Data.Open(rom),"Gen4_StrictOpenRejectsTablesThatAreNotTheOriginals");
+            check(new[]{1,17,111,135,213,327}.All(Gen4Randomizer.IsMovableItem)&&!new[]{0,112,134,328,419,420,427,428,464,536,537}.Any(Gen4Randomizer.IsMovableItem),"Gen4_TmsHmsKeyAndExclusiveItemsNeverMove");
+            check(Gen4Profile.All.All(p=>p.ShopPrefix.Count==16&&p.FixedShops.All(s=>s<p.ShopCount)&&p.HiddenItemCount>200&&p.Files.ContainsKey(Gen4Profile.Scripts)),"Gen4_ProfilesDescribeItemsAndShops");
+            Arm9Checks(check,reject,temp);
         }
         finally{try{Directory.Delete(temp,true);}catch(IOException){}}
+    }
+
+    // ARM9 writer: an uncompressed binary is replaced in place; a BLZ-compressed one is compressed again with its first 0x4000
+    // bytes raw and the module parameters' compressed end updated; DSi-enhanced games and size changes are rejected.
+    private static void Arm9Checks(Action<bool,string> check,Action<Action,string> reject,string temp)
+    {
+        var random=new Random(5);
+        const int moduleParams=0xBA0;
+        byte[] plain=new byte[0x6000];for(int i=0;i<plain.Length;i++)plain[i]=(byte)(i%97<40?0:random.Next(4));
+        // An uncompressed binary has no compressed end in its module parameters.
+        plain.AsSpan(moduleParams+0x14,4).Clear();
+        foreach(bool compressed in new[]{false,true})
+        {
+            string name=compressed?"Compressed":"Plain";
+            byte[] stored=plain;
+            if(compressed){stored=pk3DS.Core.CTR.BLZCoder.CompressArm9(plain);BinaryPrimitives.WriteUInt32LittleEndian(stored.AsSpan(moduleParams+0x14),0x2000000u+(uint)stored.Length);}
+            string path=Path.Combine(temp,"arm9-"+name+".nds");File.WriteAllBytes(path,RomWithArm9(stored,moduleParams,dsi:false));
+            using var rom=NdsRom.Open(path);
+            byte[] read=rom.ReadArm9();
+            check(read.Length==plain.Length&&(compressed?read.AsSpan(0,moduleParams+0x14).SequenceEqual(plain.AsSpan(0,moduleParams+0x14)):read.SequenceEqual(plain)),$"NdsArm9_{name}_ReadsTheRunningBinary");
+            byte[] changed=(byte[])read.Clone();changed[0x5000]^=0x5A;changed[0x10]^=0x11;
+            string output=Path.Combine(temp,"arm9-"+name+"-out.nds");rom.Save(output,new Dictionary<int,byte[]>(),null,null,changed);
+            using var saved=NdsRom.Open(output);byte[] again=saved.ReadArm9();
+            byte[] header=File.ReadAllBytes(output)[..0x200];uint size=BinaryPrimitives.ReadUInt32LittleEndian(header.AsSpan(0x2C));byte[] raw=File.ReadAllBytes(output);
+            check(again.AsSpan(0x5000).SequenceEqual(changed.AsSpan(0x5000))&&again[0x10]==changed[0x10]&&BinaryPrimitives.ReadUInt32LittleEndian(raw.AsSpan(0x4000+(int)size))==0xDEC00621
+                &&(!compressed||BinaryPrimitives.ReadUInt32LittleEndian(raw.AsSpan(0x4000+moduleParams+0x14))==0x2000000u+size),$"NdsArm9_{name}_SavesInPlaceWithFooterAndModuleParams");
+            reject(()=>rom.Save(Path.Combine(temp,"arm9-"+name+"-short.nds"),new Dictionary<int,byte[]>(),null,null,changed[..^4]),$"NdsArm9_{name}_RejectsASizeChange");
+        }
+        string dsi=Path.Combine(temp,"arm9-dsi.nds");File.WriteAllBytes(dsi,RomWithArm9(plain,moduleParams,dsi:true));
+        using(var rom=NdsRom.Open(dsi))reject(()=>rom.Save(Path.Combine(temp,"arm9-dsi-out.nds"),new Dictionary<int,byte[]>(),null,null,rom.ReadArm9()),"NdsArm9_RejectsDsiEnhancedGames");
+    }
+
+    // Minimal ROM: header, ARM9 at 0x4000 followed by its nitrocode footer, then an empty file table.
+    private static byte[] RomWithArm9(byte[] arm9,int moduleParams,bool dsi)
+    {
+        int fnt=(0x4000+arm9.Length+12+0x1FF)&~0x1FF,fat=fnt+0x200,end=fat+0x200;
+        byte[] rom=Enumerable.Repeat((byte)0xFF,end+0x1000).ToArray();rom.AsSpan(0,0x4000).Clear();
+        "SYNTHETIC"u8.CopyTo(rom);"TEST"u8.CopyTo(rom.AsSpan(0x0C));if(dsi)rom[0x12]=2;
+        void U32(int o,uint v)=>BinaryPrimitives.WriteUInt32LittleEndian(rom.AsSpan(o),v);
+        U32(0x20,0x4000);U32(0x24,0x2000800);U32(0x28,0x2000000);U32(0x2C,(uint)arm9.Length);arm9.CopyTo(rom,0x4000);
+        U32(0x4000+arm9.Length,0xDEC00621);U32(0x4000+arm9.Length+4,(uint)moduleParams);U32(0x4000+arm9.Length+8,0);
+        rom.AsSpan(fnt,8).Clear();U32(fnt,8);BinaryPrimitives.WriteUInt16LittleEndian(rom.AsSpan(fnt+6),1);rom[fnt+8]=0;
+        U32(0x40,(uint)fnt);U32(0x44,9);U32(0x48,(uint)fat);U32(0x4C,0);U32(0x80,(uint)end);U32(0x84,0x4000);
+        BinaryPrimitives.WriteUInt16LittleEndian(rom.AsSpan(0x15E),NdsRom.Crc16(rom.AsSpan(0,0x15E)));
+        return rom;
     }
 
     // Synthetic Gen4 message file: count, key, encrypted pointer table, then encrypted lines (one line optionally 9-bit compressed).
@@ -138,15 +186,28 @@ internal static class NdsGen4Checks
                 string[] leaders=data.Profile.Kind==Gen4Kind.HeartGoldSoulSilver?["Falkner","Bugsy","Whitney","Morty","Chuck","Jasmine","Pryce","Clair"]:["Roark","Gardenia","Maylene","Wake","Fantina","Byron","Candice","Volkner"];
                 Check(leaders.All(l=>trainers.Any(t=>t.ClassName=="Leader"&&t.Name==l)),$"Gen4_Real_{game}_ReadsAllEightGymLeaders ({trainers.Count} entrenadores)");
                 Check(slots.Count>5000&&slots.All(s=>s.Species is >=1 and <=Gen4Data.MaxSpecies),$"Gen4_Real_{game}_ReadsEncounterSlots ({slots.Count})");
-                var options=new Gen5RandomizerOptions(2026){Trainers=Gen5SpeciesMode.ProgressiveBst,Wild=Gen5SpeciesMode.SimilarBst};
+                var field=data.FieldItems();var shops=data.Shops();
+                Check(field.Count(f=>!f.Hidden)>250&&field.Count(f=>f.Hidden)==data.Profile.HiddenItemCount&&shops.Select(s=>s.Shop).Distinct().Count()==data.Profile.ShopCount,$"Gen4_Real_{game}_ReadsFieldItemsAndShops ({field.Count(f=>!f.Hidden)} visibles, {field.Count(f=>f.Hidden)} ocultos, {shops.Count} productos)");
+                var options=new Gen5RandomizerOptions(2026){Trainers=Gen5SpeciesMode.ProgressiveBst,Wild=Gen5SpeciesMode.SimilarBst,FieldItems=Gen5ItemMode.Shuffle,Shops=Gen5ItemMode.Shuffle};
                 var result=Gen4Randomizer.Generate(data,options);
-                Check(result.Files.Count==3&&result.Changes.Count>5000,$"Gen4_Real_{game}_ChangesTrainersAndEncounters ({result.Changes.Count} cambios)");
+                Check(result.Files.Count==4&&result.Arm9 is not null&&result.Changes.Count>5000,$"Gen4_Real_{game}_ChangesTrainersEncountersItemsAndShops ({result.Changes.Count} cambios)");
                 string target=Path.Combine(output,game+".nds");data.Export(target,result);
                 using var exported=NdsRom.Open(target);var check=Gen4Data.Open(exported,requireOriginalTables:false);
                 var newTrainers=check.Trainers();
                 Check(newTrainers.Count==trainers.Count&&newTrainers.Zip(trainers).All(t=>t.First.Team.Count==t.Second.Team.Count&&t.First.Team.Zip(t.Second.Team).All(m=>m.First.Level==m.Second.Level&&m.First.HeldItem==m.Second.HeldItem&&m.First.Difficulty==m.Second.Difficulty&&m.First.Species is >=1 and <=Gen4Data.MaxSpecies)),$"Gen4_Real_{game}_TrainersKeepSizesLevelsAndItems");
                 var newSlots=check.Encounters();
                 Check(newSlots.Count==slots.Count&&newSlots.Zip(slots).All(s=>s.First.Offset==s.Second.Offset&&s.First.MinLevel==s.Second.MinLevel&&s.First.MaxLevel==s.Second.MaxLevel),$"Gen4_Real_{game}_EncountersKeepSlotsAndLevels");
+                static string Bag(IEnumerable<int> items)=>string.Join(",",items.Order());
+                var newField=check.FieldItems();
+                Check(newField.Count==field.Count&&newField.Zip(field).All(f=>f.First.Offset==f.Second.Offset&&(Gen4Randomizer.IsMovableItem(f.Second.Item)||f.First.Item==f.Second.Item))&&Bag(newField.Select(f=>f.Item))==Bag(field.Select(f=>f.Item))
+                    &&newField.Zip(field).Count(f=>f.First.Item!=f.Second.Item)>200,$"Gen4_Real_{game}_FieldItemsSameItemsAndFixedOnesStay");
+                var newShops=check.Shops();
+                Check(newShops.Count==shops.Count&&newShops.Zip(shops).All(s=>s.First.Offset==s.Second.Offset&&(data.Profile.FixedShops.Contains(s.Second.Shop)||!Gen4Randomizer.IsMovableItem(s.Second.Item)?s.First.Item==s.Second.Item:Gen4Randomizer.IsMovableItem(s.First.Item)))
+                    &&Bag(newShops.Select(s=>s.Item))==Bag(shops.Select(s=>s.Item)),$"Gen4_Real_{game}_ShopsShuffledExceptFixedLists");
+                byte[] arm9=exported.ReadArm9();
+                // A recompressed ARM9 differs only in the 4-byte "compressed end" of its module parameters.
+                var arm9Diff=Enumerable.Range(0,arm9.Length).Where(i=>arm9[i]!=result.Arm9![i]).ToArray();
+                Check(arm9.Length==result.Arm9!.Length&&(arm9Diff.Length==0||arm9Diff[^1]-arm9Diff[0]<4)&&exported.Overlays.All(o=>exported.ReadFile(exported.Files[o.FileId]).SequenceEqual(rom.ReadFile(rom.Files[o.FileId]))),$"Gen4_Real_{game}_Arm9WrittenAndOverlaysUntouched ({(arm9Diff.Length==0?"sin comprimir":"recomprimido")}, {exported.Header.NtrEnd==rom.Header.NtrEnd})");
                 var changedIds=result.Files.Keys.Select(p=>rom.File(p).Id).ToHashSet();
                 Check(exported.Files.Where(f=>!changedIds.Contains(f.Id)).All(f=>exported.ReadFile(f).SequenceEqual(rom.ReadFile(rom.Files[f.Id]))),$"Gen4_Real_{game}_EveryOtherFileIdentical");
                 Check(Gen4Randomizer.Generate(data,options).Changes.SequenceEqual(result.Changes),$"Gen4_Real_{game}_SameSeedSameResult");

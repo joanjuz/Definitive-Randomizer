@@ -61,10 +61,11 @@ internal static class NdsUiChecks
             var combos=Descendants<ComboBox>(window).ToArray();
             if(window.Session!.Gen4 is not null)
             {
-                // Gen4: starters, field items and shops stay disabled at "Sin cambios"; the preview only has species changes.
-                Check(new[]{2,6,7}.All(i=>!combos[i].IsEnabled&&combos[i].SelectedIndex==0)&&combos.Take(2).All(c=>c.IsEnabled)&&window.Session.OriginalStarters.Count==0,"NdsUi_Real_Gen4DisablesStartersItemsAndShops");
-                combos[0].SelectedIndex=3;Pump(window.PreviewAsync());
-                Check(window.CurrentPreview is {Result.Overlays.Count:0}&&window.CurrentPreview.Result.Changes.Any(c=>c.Location.StartsWith("Entrenador",StringComparison.Ordinal)),"NdsUi_Real_Gen4PreviewChangesTrainersAndEncounters");
+                // Gen4: starters stay disabled at "Sin cambios"; items and shops change the ARM9 and the item-ball script.
+                Check(!combos[2].IsEnabled&&combos[2].SelectedIndex==0&&combos.Take(2).Concat(combos.Skip(6)).All(c=>c.IsEnabled)&&window.Session.OriginalStarters.Count==0,"NdsUi_Real_Gen4DisablesStartersOnly");
+                combos[0].SelectedIndex=3;combos[6].SelectedIndex=1;combos[7].SelectedIndex=1;Pump(window.PreviewAsync());
+                Check(window.CurrentPreview is {Result.Overlays.Count:0,Result.Arm9:not null}&&window.CurrentPreview.Result.Changes.Any(c=>c.Location.StartsWith("Entrenador",StringComparison.Ordinal))
+                    &&window.CurrentPreview.Result.Changes.Any(c=>c.Location.StartsWith("Tienda",StringComparison.Ordinal))&&window.CurrentPreview.Result.Changes.Any(c=>c.Location.StartsWith("Objeto oculto",StringComparison.Ordinal)),"NdsUi_Real_Gen4PreviewChangesTrainersEncountersItemsAndShops");
             }
             else
             {

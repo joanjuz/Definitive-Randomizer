@@ -95,6 +95,53 @@ public sealed class NdsRom : IDisposable
         return overlay.Compressed ? pk3DS.Core.CTR.BLZCoder.Decompress(stored) : stored;
     }
 
+    private const uint NitroCode = 0xDEC00621;
+
+    /// <summary>
+    /// ARM9 binary as stored: its ROM offset, RAM address and size, the 12-byte footer when the binary has one, and where the
+    /// module parameters are; <paramref name="Compressed"/> when their "compressed end" field is set (BLZ, as in HeartGold).
+    /// </summary>
+    private sealed record Arm9Layout(uint Offset, uint RamAddress, uint Size, byte[]? Footer, int ModuleParams, bool Compressed);
+
+    private Arm9Layout ReadArm9Layout()
+    {
+        byte[] header = ReadAt(0, 0x200);
+        uint offset = U32(header, 0x20), ram = U32(header, 0x28), size = U32(header, 0x2C);
+        byte[] after = ReadAt(offset + size, 12);
+        if (U32(after, 0) != NitroCode)
+            return new Arm9Layout(offset, ram, size, null, -1, false);
+        int moduleParams = checked((int)U32(after, 4));
+        bool compressed = moduleParams + 0x18 <= size && U32(ReadAt(offset + (uint)moduleParams + 0x14, 4), 0) != 0;
+        return new Arm9Layout(offset, ram, size, after, moduleParams, compressed);
+    }
+
+    /// <summary>ARM9 binary as the game runs it: BLZ-decompressed when its module parameters mark it compressed.</summary>
+    public byte[] ReadArm9()
+    {
+        var layout = ReadArm9Layout();
+        byte[] stored = ReadAt(layout.Offset, checked((int)layout.Size));
+        return layout.Compressed ? pk3DS.Core.CTR.BLZCoder.Decompress(stored) : stored;
+    }
+
+    // A changed ARM9 is stored the way the original was (compressed or not) and must fit where the original was.
+    private byte[] StoreArm9(Arm9Layout layout, byte[] arm9)
+    {
+        if (Header.IsDsiEnhanced)
+            throw new InvalidOperationException("No se modifica el ARM9 de juegos DSi-enhanced: está protegido por las firmas DSi.");
+        if (arm9.Length != ReadArm9().Length)
+            throw new InvalidDataException($"El ARM9 debe conservar su tamaño ({arm9.Length} bytes recibidos).");
+        if (!layout.Compressed)
+            return arm9;
+        byte[] packed = pk3DS.Core.CTR.BLZCoder.CompressArm9(arm9);
+        if (!pk3DS.Core.CTR.BLZCoder.Decompress(packed).AsSpan().SequenceEqual(arm9) || !packed.AsSpan(0, 0x4000).SequenceEqual(arm9.AsSpan(0, 0x4000)))
+            throw new InvalidDataException("La compresión BLZ del ARM9 no reproduce sus datos.");
+        if (packed.Length > layout.Size)
+            throw new InvalidDataException($"El ARM9 comprimido ({packed.Length} bytes) no cabe en su sitio ({layout.Size} bytes).");
+        // The module parameters (in the uncompressed start) tell the loader where the compressed data ends.
+        BinaryPrimitives.WriteUInt32LittleEndian(packed.AsSpan(layout.ModuleParams + 0x14), layout.RamAddress + (uint)packed.Length);
+        return packed;
+    }
+
     /// <summary>
     /// Writes a new ROM to <paramref name="output"/> with the given file contents replaced. Unchanged bytes are copied verbatim,
     /// so saving without replacements reproduces the original file exactly. The source ROM is never modified.
@@ -104,11 +151,14 @@ public sealed class NdsRom : IDisposable
     /// <summary>
     /// Like <see cref="Save(string, IReadOnlyDictionary{int, byte[]})"/>, also replacing overlays by id; the decompressed size must
     /// not change. By default an overlay is written uncompressed (compressed flag cleared). Ids in <paramref name="recompress"/> are
-    /// BLZ-compressed again, and the result must decompress to the same bytes before it is written.
+    /// BLZ-compressed again, and the result must decompress to the same bytes before it is written. A new <paramref name="arm9"/>
+    /// (decompressed, same size) is stored like the original and written in place; it is rejected for DSi-enhanced games.
     /// </summary>
     public void Save(string output, IReadOnlyDictionary<int, byte[]> replacements, IReadOnlyDictionary<int, byte[]>? overlays,
-        IReadOnlySet<int>? recompress = null)
+        IReadOnlySet<int>? recompress = null, byte[]? arm9 = null)
     {
+        var arm9Layout = arm9 is null ? null : ReadArm9Layout();
+        byte[]? arm9Stored = arm9Layout is null ? null : StoreArm9(arm9Layout, arm9!);
         var overlayFiles = new Dictionary<int, (NdsOverlay Overlay, byte[] Data, byte Flags)>();
         foreach (var (id, data) in overlays ?? new Dictionary<int, byte[]>())
         {
@@ -187,6 +237,21 @@ public sealed class NdsRom : IDisposable
                     BinaryPrimitives.WriteUInt32LittleEndian(fat.AsSpan(4), start + (uint)data.Length);
                     WriteAt(output2, fatOffset + (uint)id * 8, fat);
                     ntrEnd = Math.Max(ntrEnd, Align(start + (uint)data.Length, 4));
+                }
+                if (arm9Layout is not null && arm9Stored is not null)
+                {
+                    // Same place; a shorter compressed binary moves its footer up and pads the rest of the old space.
+                    uint oldEnd = arm9Layout.Offset + arm9Layout.Size + (arm9Layout.Footer is null ? 0u : 12u);
+                    WriteAt(output2, arm9Layout.Offset, arm9Stored);
+                    uint end = arm9Layout.Offset + (uint)arm9Stored.Length;
+                    if (arm9Layout.Footer is not null)
+                    {
+                        WriteAt(output2, end, arm9Layout.Footer);
+                        end += 12;
+                    }
+                    if (end < oldEnd)
+                        WriteAt(output2, end, new byte[oldEnd - end]);
+                    BinaryPrimitives.WriteUInt32LittleEndian(header.AsSpan(0x2C), (uint)arm9Stored.Length);
                 }
                 foreach (var (overlay, data, flags) in overlayFiles.Values)
                 {
