@@ -98,6 +98,8 @@ def check(ok,name):
  if not ok:raise AssertionError(name)
  checks.append(name);print('PASS',name)
 m=Machine();offers=registry['Offers']
+# White list: registered rows the shop never finds (shop field with bit 15); they must stay unlimited.
+exempt={(o['Shop'],o['Item']) for o in registry.get('Exempt',[])};offers=[o for o in offers if (o['Shop'],o['Item']) not in exempt]
 for offer in offers:
  shop,item=offer['Shop'],offer['Item'];m.reset();m.context(shop,item);before=m.flags()
  check(m.preflight()==0 and m.get(CTX+0x86,'<h')==1 and m.flags()==before,f'all_offers_available_without_consumption_shop_{shop}_item_{item}')
@@ -136,12 +138,12 @@ prototype=[(10,101),(11,101),(10,102)]
 for mask in range(8):
  m.reset();m.put(FIELD+0xd04,0x44525331);m.put(FIELD+0xd08,0x53544f43);m.put(FIELD+0xd0c,mask);before=m.flags()
  for bit,key in enumerate(prototype):
-  m.context(*key);check(m.preflight()==(4 if mask&(1<<bit) else 0) and m.flags()==before,f'prototype_mask_{mask}_key_{bit}_read_only_exact_status')
+  m.context(*key);check(m.preflight()==(4 if mask&(1<<bit) and key not in exempt else 0) and m.flags()==before,f'prototype_mask_{mask}_key_{bit}_read_only_exact_status')
  unrelated=next(o for o in offers if (o['Shop'],o['Item']) not in prototype)
  m.context(unrelated['Shop'],unrelated['Item']);check(m.preflight()==0 and m.confirm(),f'prototype_mask_{mask}_unbought_item_purchasable')
  check(m.get(FIELD+0xd04)==0x44525332 and m.get(FIELD+0xd08)==registry['Identity'],f'prototype_mask_{mask}_migrates_on_successful_purchase')
  for bit,key in enumerate(prototype):
-  m.context(*key);check(m.preflight()==(4 if mask&(1<<bit) else 0),f'prototype_mask_{mask}_preserves_purchase_{bit}_after_migration')
+  m.context(*key);check(m.preflight()==(4 if mask&(1<<bit) and key not in exempt else 0),f'prototype_mask_{mask}_preserves_purchase_{bit}_after_migration')
  check(all(m.flags()[i]==before[i] for i in range(0x1000) if not 0xd04<=i<0xe04),f'prototype_mask_{mask}_does_not_modify_other_save_bytes')
 for name,offset,value in [('foreign_prototype_identity',0xd08,1),('unknown_prototype_bit',0xd0c,8),('occupied_prototype_tail',0xd10,1)]:
  m.reset();m.put(FIELD+0xd04,0x44525331);m.put(FIELD+0xd08,0x53544f43);m.put(FIELD+offset,value);m.context(shop,item);before=m.flags()
@@ -154,6 +156,9 @@ if a.legacy_save:
  check(m.confirm() and m.bag.get(234)==1 and m.preflight()==4,'real_prototype_save_leftovers_purchase_then_exhaustion')
  check(m.message_lifecycle()[1:]==(1,0),'real_prototype_save_exhausted_dialog_returns_to_shop')
  check(a.legacy_save.read_bytes()==save,'real_prototype_save_source_unchanged')
+for shop,item in sorted(exempt):
+ m.reset();m.context(shop,item);before=m.flags()
+ check(m.preflight()==0 and m.confirm() and m.preflight()==0 and m.confirm() and m.bag.get(item)==2 and m.flags()==before,f'whitelist_item_unlimited_without_save_bits_shop_{shop}_item_{item}')
 check(a.shop.read_bytes()==source,'input_cro_unchanged')
 a.output.parent.mkdir(parents=True,exist_ok=True);a.output.write_text(json.dumps({'Checks':checks,'Count':len(checks),'ShopSha256':hashlib.sha256(source).hexdigest(),'Offers':len(offers),'Scope':'ARM only: imports stubbed, message entry routing, synthetic save memory; no actual game UI/save'},indent=2),encoding='utf-8')
 print('Completed',len(checks),'integrated ARM checks.')

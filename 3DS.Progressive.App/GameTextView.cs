@@ -117,6 +117,12 @@ internal sealed class GameTextView : UserControl
             };
             DockPanel.SetDock(importAll,Dock.Right);footer.Children.Add(importAll);
             importAll.Click+=(_,_)=>TryImportAll();
+            if(project.GameConfiguration.USUM)
+            {
+                var hint=new Button{Content="Pista de GAME FREAK en el Ultraviaje",Margin=new Thickness(0,0,8,8),
+                    ToolTip="Cuando la Unidad Ultra ofrece explorar el Ultraespacio, añade que en GAME FREAK (Ciudad Kantai) enseñan otra forma de controlar a Lunala o Solgaleo. Español e inglés."};
+                hint.Click+=(_,_)=>TryUltraWarpHint(project);randomizers.Children.Add(hint);
+            }
         }
         footer.Children.Add(_status);
         var content=new Grid();content.ColumnDefinitions.Add(new ColumnDefinition {Width=new GridLength(1,GridUnitType.Star),MinWidth=200,MaxWidth=310});
@@ -248,6 +254,23 @@ internal sealed class GameTextView : UserControl
             Load(_id);_status.Text="Texto guardado, verificado y registrado en el historial.";
         }
         catch(Exception ex){StudioDialog.Error(Window.GetWindow(this),"No se pudo guardar el texto",ex.Message);}
+    }
+    private void TryUltraWarpHint(GameProjectSession project)
+    {
+        if(_searching)return;
+        try
+        {
+            _grid.CommitEdit(DataGridEditingUnit.Cell,true);_grid.CommitEdit(DataGridEditingUnit.Row,true);
+            if(_dirty)throw new InvalidOperationException("Guardá o descartá primero las líneas editadas.");
+            var (files,changes)=Gen7Adjustments.PreviewUltraWarpHint(project);
+            if(changes.Count==0){_status.Text="El texto del Ultraviaje ya menciona GAME FREAK.";return;}
+            if(!StudioDialog.Confirm(Window.GetWindow(this),"Pista del Ultraviaje",$"Se añadirá una página a {changes.Count} línea(s) del archivo 366 (español e inglés).",
+                string.Join(Environment.NewLine+Environment.NewLine,changes.Select(c=>$"{c.Name}, {c.Field}:{Environment.NewLine}{c.After}"))))return;
+            Gen7Adjustments.ApplyUltraWarpHint(project,files,changes);
+            _service.Reload();if(_id>=0)Load(_id);
+            _status.Text="Pista del Ultraviaje añadida y registrada en el historial.";
+        }
+        catch(Exception ex){StudioDialog.Error(Window.GetWindow(this),"Pista del Ultraviaje",ex.Message);}
     }
     private void TryRandomize(bool all)
     {

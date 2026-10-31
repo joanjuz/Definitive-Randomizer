@@ -28,8 +28,10 @@ internal sealed class MartEditorView : UserControl
     private readonly Button[] _recipeFlags=Enumerable.Range(0,7).Select(_=>new Button()).ToArray();
     private readonly bool[] _recipeSelected=new bool[7];
     private int _previewSeed=System.Security.Cryptography.RandomNumberGenerator.GetInt32(int.MaxValue);
-    internal Gen7MartState RememberRecipe()=>new(_recipeSelected[0],_recipeSelected[1],_recipeSelected[2],_recipeSelected[3],_recipeSelected[4],_recipeSelected[5],_specialOnly.IsChecked==true,_protectX.IsChecked==true,_recipeSelected[6]);
-    internal void RestoreRecipe(Gen7MartState s){bool[] flags=[s.RandomRegular,s.RandomBP,s.Candies,s.Vitamins,s.FreeMega,s.BanCapsule,s.SinglePurchase];for(int i=0;i<flags.Length;i++)SetRecipeSelection(i,flags[i]);_specialOnly.IsChecked=s.SpecialsOnly;_protectX.IsChecked=s.ProtectX;}
+    // Single purchase white list chosen here; null keeps the one already in Shop.cro.
+    private IReadOnlyList<ushort>? _exempt;
+    internal Gen7MartState RememberRecipe()=>new(_recipeSelected[0],_recipeSelected[1],_recipeSelected[2],_recipeSelected[3],_recipeSelected[4],_recipeSelected[5],_specialOnly.IsChecked==true,_protectX.IsChecked==true,_recipeSelected[6],_exempt);
+    internal void RestoreRecipe(Gen7MartState s){bool[] flags=[s.RandomRegular,s.RandomBP,s.Candies,s.Vitamins,s.FreeMega,s.BanCapsule,s.SinglePurchase];for(int i=0;i<flags.Length;i++)SetRecipeSelection(i,flags[i]);_specialOnly.IsChecked=s.SpecialsOnly;_protectX.IsChecked=s.ProtectX;_exempt=s.Exempt;}
     private readonly GameProjectSession _project;
     private GameMartService _service;
     private MartShopPreview? _pending;
@@ -87,6 +89,9 @@ internal sealed class MartEditorView : UserControl
             recipes.Children.Add(button);
         }
         heading.Children.Add(recipes);
+        var whitelist=Add(recipes,"Lista blanca de compra única…",EditWhitelist);
+        whitelist.Margin=new Thickness(0,4,8,8);whitelist.Visibility=project.GameConfiguration.USUM?Visibility.Visible:Visibility.Collapsed;
+        whitelist.ToolTip="Objetos que se pueden comprar sin límite aunque esté activa la compra única. Se guarda en Shop.cro y en Global/Batch.";
         Add(recipes,"Restablecer opciones",()=>{for(int i=0;i<_recipeSelected.Length;i++)SetRecipeSelection(i,false);Dirty();Preview();});
         var actions = new WrapPanel();
         heading.Children.Add(actions);
@@ -276,6 +281,14 @@ internal sealed class MartEditorView : UserControl
         Dirty();
     }
     private void SlotChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e) => Dirty();
+    private void EditWhitelist()
+    {
+        var window=new SinglePurchaseWhitelistWindow(_items,_exempt??_service.SinglePurchaseExempt){Owner=Window.GetWindow(this)};
+        if(window.ShowDialog()!=true)return;
+        _exempt=window.Selected;
+        // The white list only means something with the single purchase.
+        SetRecipeSelection(6,true);Dirty();Preview();
+    }
     private void Dirty()
     {
         if (_loading) return;

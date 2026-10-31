@@ -87,6 +87,27 @@ internal sealed class SystemsView : UserControl
         {StudioDialog.Error(Window.GetWindow(b),"Herramientas del sistema",ex.Message);}};
         panel.Children.Add(b);return b;
     }
+    private void ObeyTrades()
+    {
+        var file=Gen7Adjustments.PreviewObedience(_project);
+        if(file is null){StudioDialog.Notice(Window.GetWindow(this),"Obediencia","code.bin ya tiene el ajuste: los Pokémon intercambiados obedecen siempre.");return;}
+        if(!StudioDialog.Confirm(Window.GetWindow(this),"Obediencia",
+            "Los Pokémon de otros entrenadores obedecerán a cualquier nivel.",
+            "Tabla de obediencia de code.bin: 20 / 35 / 50 / 65 / 80 / 100 según las grandes pruebas → 100 siempre. Se comprueba que la tabla sea la original."))return;
+        Gen7Adjustments.ApplyObedience(_project,file);
+        _status.Text="Obediencia aplicada en code.bin y registrada en el historial.";
+    }
+    private void RemoveObtainableMegas()
+    {
+        var proposals=Gen7Adjustments.PreviewNoMegas(_project);
+        var changes=proposals.SelectMany(p=>p.Proposal.Changes).ToArray();
+        if(changes.Length==0){StudioDialog.Notice(Window.GetWindow(this),"Formas Mega","No hay formas Mega en salvajes, estáticos, regalos, intercambios ni evoluciones.");return;}
+        if(!StudioDialog.Confirm(Window.GetWindow(this),"Formas Mega",
+            $"{changes.Length} forma(s) Mega pasarán a su forma base. Los combates Totem, los entrenadores y las demás formas de combate no cambian.",
+            string.Join(Environment.NewLine,changes.Take(60).Select(c=>$"{c.Name} · {c.Field}: {c.Before} → {c.After}"))+(changes.Length>60?Environment.NewLine+"…":"")))return;
+        Gen7Adjustments.ApplyNoMegas(proposals);
+        _status.Text=$"{changes.Length} forma(s) Mega quitadas y registradas en el historial.";
+    }
     internal void OpenRebuildForChecks()=>_navigate("Rebuild");
     internal void OpenPlayerCapsForChecks()=>_navigate("PlayerCaps");
     internal void OpenCroRecipesForChecks()=>_navigate("CroRecipes");
@@ -121,6 +142,15 @@ internal sealed class SystemsView : UserControl
         AddButton((StackPanel)staticCard.Child,"Abrir Encuentros estáticos",()=>_navigate("StaticEncounters")).IsEnabled=
             _project.Generation==7;
         if(_project.Generation==7)stack.Children.Add(staticCard);
+        if(_project.Generation==7)
+        {
+            var adjustments=Card("Obediencia y formas Mega · Gen7",
+                "Que los Pokémon intercambiados obedezcan siempre, aunque los level caps dejen subir por encima del límite de las grandes pruebas, y que el jugador no pueda conseguir formas Mega en salvajes, estáticos, regalos, intercambios ni evoluciones. Ambos se guardan en el historial y en Global/Batch.");
+            var panel=(StackPanel)adjustments.Child;
+            AddButton(panel,"Los Pokémon intercambiados siempre obedecen",ObeyTrades);
+            AddButton(panel,"Quitar formas Mega obtenibles",RemoveObtainableMegas);
+            stack.Children.Add(adjustments);
+        }
         var trades6=Card("Intercambios Progressive · Gen6","Aceptar cualquier Pokémon y editar o randomizar las ofertas en XY/ORAS. En ORAS se habilita también el selector PC; todos los cambios se verifican y guardan juntos.");
         AddButton((StackPanel)trades6.Child,"Abrir intercambios Gen6",()=>_navigate("Trade6"));if(ProjectFeatureAvailability.Supports(_project,"Trade6"))stack.Children.Add(trades6);
         var catchZones=Card("Enable Catch Zones · Gen6","Parches Progressive para encuentros, mapas y archivos adicionales XY/ORAS. Vista previa verificada e historial conjunto; se rechazan archivos previos incompatibles.");

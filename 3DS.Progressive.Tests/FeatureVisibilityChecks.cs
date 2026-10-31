@@ -32,6 +32,8 @@ internal static class FeatureVisibilityChecks
             var mechanics=new SystemsView(f.Session,"Mechanics",_=>{},()=>{},()=>{});
             var buttons=Tree(mechanics).OfType<Button>().Select(b=>b.Content?.ToString()).ToArray();
             check(buttons.Contains("Abrir Catch Zones")== (f.Game.Generation==6)&&buttons.Contains("Abrir O-Powers")== (f.Game.Generation==6)&&buttons.Contains("Abrir intercambios Gen6")== (f.Game.Generation==6),version+" mechanics only expose Gen6 actions in Gen6");
+            check(buttons.Contains("Los Pokémon intercambiados siempre obedecen")==(f.Game.Generation==7)&&buttons.Contains("Quitar formas Mega obtenibles")==(f.Game.Generation==7),version+" Gen7 obedience and Mega adjustments only appear in Gen7");
+            check(Tree(new GameTextView(f.Session,story:true)).OfType<Button>().Any(b=>b.Content?.ToString()=="Pista de GAME FREAK en el Ultraviaje")==f.Game.USUM,version+" Ultra Warp Ride hint only appears in USUM story text");
             check(buttons.Contains("Abrir Player Level Caps")==f.Game.USUM&&buttons.Contains("Abrir USUM Relearner")==f.Game.USUM&&buttons.Contains("Abrir CRO Recipes")==f.Game.USUM,version+" USUM mechanics are absent from incompatible games");
             var tools=new SystemsView(f.Session,"PokemonTools",_=>{},()=>{},()=>{});
             check(Tree(tools).OfType<Button>().Any(b=>b.Content?.ToString()=="Abrir OWSE [Dev]")== (f.Game.Generation==7),version+" Gen7 map explorer is hidden in Gen6");
