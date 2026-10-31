@@ -50,7 +50,7 @@ Todo se hizo sobre copias, con extracciones en `D:\Progra\Pokemon\Randomizer\Ana
 
 Aparecen valores iguales en otros scripts, pero son constantes que se pasan a funciones nativas, no lanzamientos de esos scripts.
 
-Nota: el parche original deja fuera `0x14B8`, el decimoquinto caso. Probablemente sea una cafetería que no abre el recordador. No se cambió sin confirmarlo en el juego.
+El parche original dejaba fuera `0x14B8`, el decimoquinto caso. El propietario confirmó que la última cafetería no abría el recordador. **Corregido:** el rango llega ahora hasta `0x14B8`, y las ROM con el payload antiguo se actualizan reescribiendo ese límite.
 
 ### Otras comprobaciones descartadas
 

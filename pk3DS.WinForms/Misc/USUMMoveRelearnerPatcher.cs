@@ -35,16 +35,30 @@ internal static class USUMMoveRelearnerPatcher
     // b 0x5B9D14
     private static readonly byte[] LearnCheckHookPatched = [0x4D, 0xE1, 0x05, 0xEA];
 
-    // CAFE.asm detour @ 0x5B9FA0.
-    // Café script IDs 0x14AA..0x14B7 are redirected to relearner script 0x157C.
-    private static readonly byte[] CafePayload =
+    // CAFE.asm detour @ 0x5B9FA0, hooked into the field script launcher.
+    // Script IDs are global: the café script (AMX 16 in a/0/9/2) is the only one
+    // handling 0x14AA..0x14B8, one entry per café. The original ASM stopped at
+    // 0x14B7, so the last café (Pokémon League) never opened the relearner.
+    // Those IDs are redirected to relearner script 0x157C.
+    private const int CafeLastIdOffset = 0x34;
+    private static readonly byte[] CafePayload = WithCafeLastId(
     [
         0x04, 0x00, 0x2D, 0xE9, 0x24, 0x20, 0x9F, 0xE5, 0x02, 0x00, 0x51, 0xE1,
         0x04, 0x00, 0x00, 0xBA, 0x1C, 0x20, 0x9F, 0xE5, 0x02, 0x00, 0x51, 0xE1,
         0x01, 0x00, 0x00, 0xCA, 0xFF, 0xFF, 0xFF, 0xEA, 0x10, 0x10, 0x9F, 0xE5,
         0x04, 0x00, 0xBD, 0xE8, 0xF0, 0x4F, 0x2D, 0xE9, 0x1D, 0x80, 0xF7, 0xEA,
-        0xAA, 0x14, 0x00, 0x00, 0xB7, 0x14, 0x00, 0x00, 0x7C, 0x15, 0x00, 0x00,
-    ];
+        0xAA, 0x14, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x7C, 0x15, 0x00, 0x00,
+    ], 0x14B8);
+
+    // Payload installed by earlier versions (last café ID 0x14B7). It is upgraded in place.
+    private static readonly byte[] LegacyCafePayload = WithCafeLastId(CafePayload, 0x14B7);
+
+    private static byte[] WithCafeLastId(byte[] payload, uint lastId)
+    {
+        byte[] result = (byte[])payload.Clone();
+        BitConverter.GetBytes(lastId).CopyTo(result, CafeLastIdOffset);
+        return result;
+    }
 
     // Learn.asm code starts at 0x5B9D04. Its last word is the address of the
     // runtime storage (poke_ptr). The original ASM used 0x5B9D00, inside .text:
@@ -267,10 +281,11 @@ internal static class USUMMoveRelearnerPatcher
             code, LearnCheckHookAddress, LearnCheckHookOriginal, LearnCheckHookPatched, "Learn.asm check hook");
 
         bool cafePayloadDone = Matches(code, ToOffset(CafePayloadAddress), CafePayload);
+        bool cafePayloadLegacy = Matches(code, ToOffset(CafePayloadAddress), LegacyCafePayload);
         bool learnPayloadDone = Matches(code, ToOffset(LearnPayloadAddress), LearnPayload);
         bool learnPayloadLegacy = Matches(code, ToOffset(LearnPayloadAddress), LegacyLearnPayload);
 
-        if (cafeHookDone && !cafePayloadDone)
+        if (cafeHookDone && !cafePayloadDone && !cafePayloadLegacy)
             throw new InvalidDataException("The café hook is already modified, but its payload does not match this patch.");
         if ((learnInitDone || learnCheckDone) && !learnPayloadDone && !learnPayloadLegacy)
             throw new InvalidDataException("A Learn.asm hook is already modified, but its payload does not match this patch.");
@@ -466,6 +481,10 @@ internal static class USUMMoveRelearnerPatcher
         bool cafePayloadDone =
             Matches(code, cafePayloadOffset, CafePayload);
 
+        // An earlier install stops at 0x14B7; its cave is ours and is rewritten.
+        bool cafePayloadLegacy =
+            Matches(code, cafePayloadOffset, LegacyCafePayload);
+
         bool learnPayloadDone =
             Matches(code, learnPayloadOffset, MoonLearnPayload);
 
@@ -476,7 +495,7 @@ internal static class USUMMoveRelearnerPatcher
         // The payload caves are the only regions besides the three hooks that
         // Move Relearner owns. Unrelated modifications anywhere else in
         // code.bin are intentionally ignored.
-        if (!cafePayloadDone &&
+        if (!cafePayloadDone && !cafePayloadLegacy &&
             !IsAllZero(code, cafePayloadOffset, CafePayload.Length))
         {
             throw new InvalidDataException(
