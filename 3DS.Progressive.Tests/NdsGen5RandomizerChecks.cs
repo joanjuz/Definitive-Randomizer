@@ -255,7 +255,7 @@ internal static class NdsGen5RandomizerChecks
     }
 
     // Minimal ROM with a nested FNT built from slash paths, files aligned to 0x200 and 64 KiB of free padding at the end.
-    internal static byte[] BuildRom(IReadOnlyDictionary<string,byte[]> files,string gameCode)
+    internal static byte[] BuildRom(IReadOnlyDictionary<string,byte[]> files,string gameCode,byte version=0)
     {
         var dirs=new List<string>{""};foreach(string p in files.Keys.Order(StringComparer.Ordinal)){var parts=p.Split('/');for(int i=1;i<parts.Length;i++){string d=string.Join('/',parts[..i]);if(!dirs.Contains(d))dirs.Add(d);}}
         string Parent(string d)=>d.Contains('/')?d[..d.LastIndexOf('/')]:"";
@@ -275,7 +275,7 @@ internal static class NdsGen5RandomizerChecks
         int fntOffset=0x1000,fatOffset=(fntOffset+fnt.Count+0x1FF)&~0x1FF,dataStart=(fatOffset+order.Count*8+0x1FF)&~0x1FF;
         int end=dataStart;var starts=new int[order.Count];for(int i=0;i<order.Count;i++){starts[i]=end;end=(end+files[order[i]].Length+0x1FF)&~0x1FF;}
         byte[] rom=Enumerable.Repeat((byte)0xFF,end+0x10000).ToArray();rom.AsSpan(0,0x1000).Clear();
-        "SYNTHETIC"u8.CopyTo(rom);System.Text.Encoding.ASCII.GetBytes(gameCode).CopyTo(rom,0x0C);fnt.ToArray().CopyTo(rom,fntOffset);
+        "SYNTHETIC"u8.CopyTo(rom);System.Text.Encoding.ASCII.GetBytes(gameCode).CopyTo(rom,0x0C);rom[0x1E]=version;fnt.ToArray().CopyTo(rom,fntOffset);
         for(int i=0;i<order.Count;i++){byte[] f=files[order[i]];f.CopyTo(rom,starts[i]);BinaryPrimitives.WriteUInt32LittleEndian(rom.AsSpan(fatOffset+i*8),(uint)starts[i]);BinaryPrimitives.WriteUInt32LittleEndian(rom.AsSpan(fatOffset+i*8+4),(uint)(starts[i]+f.Length));}
         void U32(int o,int v)=>BinaryPrimitives.WriteUInt32LittleEndian(rom.AsSpan(o),(uint)v);
         U32(0x40,fntOffset);U32(0x44,fnt.Count);U32(0x48,fatOffset);U32(0x4C,order.Count*8);U32(0x80,end);U32(0x84,0x200);

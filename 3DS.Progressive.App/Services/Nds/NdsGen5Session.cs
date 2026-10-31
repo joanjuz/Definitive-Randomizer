@@ -5,8 +5,9 @@ using pk3DS.Core.NDS;
 namespace ThreeDS.Progressive.Services.Nds;
 
 /// <summary>
-/// One opened Black/White or White 2 ROM for the DS randomizer window. Heavy work runs off the UI thread; callers must not overlap operations.
-/// A preview is tied to the options that produced it, so a stale preview is never exported.
+/// One opened DS ROM for the randomizer window: a Gen5 game (Black, White, White 2) or a Gen4 game (Diamond, Platinum,
+/// HeartGold), where only trainers and wild Pokémon can change for now. Heavy work runs off the UI thread; callers must not
+/// overlap operations. A preview is tied to the options that produced it, so a stale preview is never exported.
 /// </summary>
 internal sealed class NdsGen5Session : IDisposable
 {
@@ -14,19 +15,29 @@ internal sealed class NdsGen5Session : IDisposable
     private readonly IReadOnlyList<string> _names;
     private readonly IReadOnlyList<string> _items;
 
-    internal Gen5Data Data { get; }
+    /// <summary>Gen5 data, or null for a Gen4 game.</summary>
+    internal Gen5Data? Data { get; }
+    /// <summary>Gen4 data, or null for a Gen5 game.</summary>
+    internal Gen4Data? Gen4 { get; }
+    internal NdsIdentityResult Identity { get; }
     internal string SourcePath => _rom.Path;
-    internal string Game => Data.Identity.Profile.Game;
-    internal bool KnownDump => Data.Identity.KnownDump;
+    internal string Game => Identity.Profile.Game;
+    internal string GameCode => Identity.Profile.GameCode;
+    internal bool KnownDump => Identity.KnownDump;
+    /// <summary>Starters, field items and shops are only available in Gen5 games.</summary>
+    internal bool SupportsStartersAndItems => Data is not null;
+    internal int MaxSpecies => Data is not null ? Gen5Randomizer.MaxSpecies : Gen4Data.MaxSpecies;
     internal int TrainerCount { get; }
     internal int AreaCount { get; }
     internal IReadOnlyList<string> SpeciesNames => _names;
+    /// <summary>Original starters (Grass, Fire, Water); empty for Gen4 games.</summary>
     internal IReadOnlyList<int> OriginalStarters { get; }
 
     private NdsGen5Session(NdsRom rom, Gen5Data data)
     {
         _rom = rom;
         Data = data;
+        Identity = data.Identity;
         _names = data.SpeciesNames();
         _items = data.Text(data.Profile.ItemNamesText);
         TrainerCount = data.Trainers().Count;
@@ -34,12 +45,29 @@ internal sealed class NdsGen5Session : IDisposable
         OriginalStarters = data.Starters();
     }
 
+    private NdsGen5Session(NdsRom rom, Gen4Data data)
+    {
+        _rom = rom;
+        Gen4 = data;
+        Identity = data.Identity;
+        _names = data.SpeciesNames();
+        _items = data.Text(data.Profile.ItemNamesText);
+        TrainerCount = data.Trainers().Count;
+        AreaCount = Gen4Areas(data);
+        OriginalStarters = [];
+    }
+
+    // A Gen4 encounter table is one group of slots in one file.
+    private static int Gen4Areas(Gen4Data data) => data.Encounters().Select(s => (s.File, s.Group)).Distinct().Count();
+
     internal static Task<NdsGen5Session> OpenAsync(string path) => Task.Run(() =>
     {
         var rom = NdsRom.Open(path);
         try
         {
-            return new NdsGen5Session(rom, Gen5Data.Open(rom));
+            return NdsIdentity.Identify(rom).Profile.Generation == 4
+                ? new NdsGen5Session(rom, Gen4Data.Open(rom))
+                : new NdsGen5Session(rom, Gen5Data.Open(rom));
         }
         catch
         {
@@ -49,7 +77,7 @@ internal sealed class NdsGen5Session : IDisposable
     });
 
     internal Task<NdsGen5Preview> PreviewAsync(Gen5RandomizerOptions options) =>
-        Task.Run(() => new NdsGen5Preview(options, Gen5Randomizer.Generate(Data, options)));
+        Task.Run(() => new NdsGen5Preview(options, Data is not null ? Gen5Randomizer.Generate(Data, options) : Gen4Randomizer.Generate(Gen4!, options)));
 
     internal string Describe(Gen5Change change) => change.Field switch
     {
@@ -64,15 +92,20 @@ internal sealed class NdsGen5Session : IDisposable
         string log = Path.ChangeExtension(output, ".cambios.txt");
         if (File.Exists(log))
             throw new IOException("Ya existe el registro de cambios: " + log);
-        Data.Export(output, preview.Result);
+        if (Data is not null)
+            Data.Export(output, preview.Result);
+        else
+            Gen4!.Export(output, preview.Result);
         using (var exported = NdsRom.Open(output))
         {
-            var check = Gen5Data.Open(exported, requireOriginalTables: false);
-            if (check.Trainers().Count != TrainerCount || check.Encounters().Count != AreaCount)
+            (int trainers, int areas) = Data is not null
+                ? (Gen5Data.Open(exported, requireOriginalTables: false) is var gen5 ? (gen5.Trainers().Count, gen5.Encounters().Count) : default)
+                : (Gen4Data.Open(exported, requireOriginalTables: false) is var gen4 ? (gen4.Trainers().Count, Gen4Areas(gen4)) : default);
+            if (trainers != TrainerCount || areas != AreaCount)
                 throw new InvalidDataException("La ROM exportada no conserva el número de entrenadores o de áreas.");
         }
         var text = new StringBuilder();
-        text.AppendLine($"Juego: {Game} ({Data.Profile.GameCode}); volcado original verificado: {(KnownDump ? "sí" : "no")}");
+        text.AppendLine($"Juego: {Game} ({GameCode}); volcado original verificado: {(KnownDump ? "sí" : "no")}");
         text.AppendLine($"Origen: {SourcePath}");
         text.AppendLine($"Semilla: {preview.Options.Seed}. Entrenadores: {ModeName(preview.Options.Trainers)}. Encuentros: {ModeName(preview.Options.Wild)}. Iniciales: {StarterModeName(preview.Options.Starters)}. Objetos del mapa: {ItemModeName(preview.Options.FieldItems)}. Tiendas: {ItemModeName(preview.Options.Shops)}.");
         text.AppendLine($"Cambios: {preview.Result.Changes.Count}");
