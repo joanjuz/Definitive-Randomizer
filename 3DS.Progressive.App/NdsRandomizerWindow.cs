@@ -63,7 +63,7 @@ internal sealed class NdsRandomizerWindow : Window
         var title=new TextBlock{Text=Title,FontSize=22,FontWeight=FontWeights.SemiBold};title.MouseLeftButtonDown+=(_,e)=>{if(e.ClickCount==1)DragMove();};heading.Children.Add(title);
         heading.Children.Add(new TextBlock{TextWrapping=TextWrapping.Wrap,Margin=new Thickness(0,6,0,14),
             Text="Elige un volcado original de Pokémon Diamante, Platino o HeartGold (USA), Negro (USA/EUR), Blanco (España) o Blanco 2 (USA/EUR). La ROM original no se modifica: se exporta una ROM nueva junto con un registro de cambios. "+
-                 "Negro, Blanco y Blanco 2 son DSi-enhanced: la ROM exportada funciona en modo DS y en emuladores, no en modo DSi. En Diamante, Platino y HeartGold los iniciales todavía no se pueden cambiar."});
+                 "Negro, Blanco y Blanco 2 son DSi-enhanced: la ROM exportada funciona en modo DS y en emuladores, no en modo DSi."});
 
         var source=new DockPanel();heading.Children.Add(Section("ROM original"));DockPanel.SetDock(_choose,Dock.Right);source.Children.Add(_choose);source.Children.Add(_path);heading.Children.Add(source);heading.Children.Add(_identity);
         heading.Children.Add(Section("Opciones"));
@@ -79,7 +79,7 @@ internal sealed class NdsRandomizerWindow : Window
         heading.Children.Add(options);
         heading.Children.Add(new TextBlock{TextWrapping=TextWrapping.Wrap,Foreground=(Brush)FindResource("TextSoft"),Margin=new Thickness(0,2,0,10),
             Text="BST progresivo: cada nivel tiene un rango de BST (nv. 1–10: 180–320 … nv. 51–100: 480–680). Los entrenadores pierden sus movimientos personalizados y usan los de nivel de la nueva especie. En cada área, la misma especie original se cambia por la misma especie nueva. "+
-                 "Los iniciales cambian en la entrega, la pantalla de elección (imagen, grito y tipo) y el Pokédex. "+
+                 "Los iniciales cambian en la entrega, la pantalla de elección y los combates del rival que dependen de ellos. "+
                  "Barajar objetos y tiendas reparte los mismos objetos en otro orden: las MT, MO y objetos clave no se mueven, y las tiendas de MT y las de progreso no cambian."});
         var previewRow=new WrapPanel();previewRow.Children.Add(_preview);heading.Children.Add(previewRow);heading.Children.Add(_summary);
 
@@ -117,9 +117,7 @@ internal sealed class NdsRandomizerWindow : Window
             _session?.Dispose();_session=session;_path.Text=session.SourcePath;
             _identity.Text=$"{session.Game} · {(session.KnownDump?"volcado original verificado":"código reconocido, volcado no verificado")} · {session.TrainerCount} entrenadores · {session.AreaCount} áreas de encuentro";
             var names=session.SpeciesNames.Skip(1).Take(session.MaxSpecies).ToArray();
-            for(int i=0;i<3;i++){_starterPicks[i].ItemsSource=names;_starterPicks[i].SelectedIndex=i<session.OriginalStarters.Count?session.OriginalStarters[i]-1:-1;}
-            // Gen4 starters cannot change yet: the option stays at "Sin cambios".
-            if(!session.SupportsStarters)_starters.SelectedIndex=0;
+            for(int i=0;i<3;i++){_starterPicks[i].ItemsSource=names;_starterPicks[i].SelectedIndex=session.OriginalStarters[i]-1;}
             _summary.Text="ROM lista. Revisa las opciones y genera la vista previa.";
         }
         catch(Exception ex) when (ex is IOException or InvalidDataException or NotSupportedException or UnauthorizedAccessException)
@@ -181,7 +179,7 @@ internal sealed class NdsRandomizerWindow : Window
         UpdateButtons();
     }
 
-    private void SetBusy(bool busy){_busy=busy;_choose.IsEnabled=_trainers.IsEnabled=_wild.IsEnabled=_seed.IsEnabled=_newSeed.IsEnabled=!busy;_fieldItems.IsEnabled=_shops.IsEnabled=!busy;_starters.IsEnabled=!busy&&_session?.SupportsStarters!=false;_close.IsEnabled=!busy;UpdateStarterPicks();UpdateButtons();}
+    private void SetBusy(bool busy){_busy=busy;_choose.IsEnabled=_trainers.IsEnabled=_wild.IsEnabled=_seed.IsEnabled=_newSeed.IsEnabled=!busy;_starters.IsEnabled=_fieldItems.IsEnabled=_shops.IsEnabled=!busy;_close.IsEnabled=!busy;UpdateStarterPicks();UpdateButtons();}
 
     private void UpdateStarterPicks(){bool custom=!_busy&&_session is not null&&StarterModes[_starters.SelectedIndex].Mode==Gen5StarterMode.Custom;foreach(var pick in _starterPicks)pick.IsEnabled=custom;}
 

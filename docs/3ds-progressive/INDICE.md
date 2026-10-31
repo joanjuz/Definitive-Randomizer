@@ -43,6 +43,7 @@ Punto de entrada a `docs/3ds-progressive/`. Muchos documentos son **registros hi
 - Fase 5, Blanco 2 (USA/EUR): [NDS_FASE5_BLANCO2.md](NDS_FASE5_BLANCO2.md)
 - Fase 6, Gen4 (Diamante, Platino y HeartGold): entrenadores y encuentros: [NDS_FASE6_GEN4.md](NDS_FASE6_GEN4.md)
 - Fase 7a, ARM9, objetos del mapa y tiendas de Gen4: [NDS_FASE7A_GEN4_OBJETOS.md](NDS_FASE7A_GEN4_OBJETOS.md)
+- Fase 7b, iniciales de Gen4: [NDS_FASE7B_GEN4_INICIALES.md](NDS_FASE7B_GEN4_INICIALES.md)
 
 ## Espada/Escudo (Switch)
 

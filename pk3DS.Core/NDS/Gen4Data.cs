@@ -32,6 +32,21 @@ public sealed record Gen4Profile(string GameCode, byte Version, Gen4Kind Kind, I
     /// <summary>TM, Battle Frontier, prize and other special lists that never change (UPR-ZX SkipShops).</summary>
     public IReadOnlyList<int> FixedShops { get; init; } = [];
 
+    /// <summary>Overlay with the starters (Diamond/Platinum, at <see cref="StarterOffset"/>) or their cries (HeartGold).</summary>
+    public int StarterOverlay { get; init; }
+    public uint StarterOverlayCrc32 { get; init; }
+    public int StarterOffset { get; init; }
+    /// <summary>Selection-screen text: lines 1-3 (and 4-6 in HeartGold) name each starter.</summary>
+    public int StarterScreenText { get; init; }
+    /// <summary>Pokédex category names ("Tiny Leaf Pokémon"), used by the Diamond/Platinum selection text.</summary>
+    public int DexCategoryText { get; init; }
+    /// <summary>Scripts with rival battles that branch on the player's starter, and how many such branches there are.</summary>
+    public IReadOnlyList<int> RivalScripts { get; init; } = [];
+    public int RivalScriptCount { get; init; }
+    /// <summary>Diamond/Platinum tag battles whose partner depends on the player's starter, and how many there are.</summary>
+    public IReadOnlyList<int> TagScripts { get; init; } = [];
+    public int TagScriptCount { get; init; }
+
     public static IReadOnlyList<Gen4Profile> All { get; } =
     [
         new("ADAE", 5, Gen4Kind.DiamondPearl, new Dictionary<string, (string, uint)>
@@ -46,6 +61,8 @@ public sealed record Gen4Profile(string GameCode, byte Version, Gen4Kind Kind, I
         {
             Arm9Crc32 = 0x08E0337C, ItemBallScript = 370, ItemBallSkip = [40, 196], HiddenItemTable = 0xF2DB4, HiddenItemCount = 229,
             ShopPrefix = Convert.FromHexString("391104027511040285AF0302A5AF0302"), ShopCount = 28, FixedShops = [12, 13, 15, 16, 17, 18, 19, 20, 21, 22, 23],
+            StarterOverlay = 64, StarterOverlayCrc32 = 0x727963E2, StarterOffset = 0x1B88, StarterScreenText = 320, DexCategoryText = 621,
+            RivalScripts = [34, 90, 118, 180, 195, 394], RivalScriptCount = 7, TagScripts = [2, 131, 230], TagScriptCount = 5,
         },
         new("CPUE", 1, Gen4Kind.Platinum, new Dictionary<string, (string, uint)>
         {
@@ -59,6 +76,8 @@ public sealed record Gen4Profile(string GameCode, byte Version, Gen4Kind Kind, I
         {
             Arm9Crc32 = 0x4D104949, ItemBallScript = 404, ItemBallSkip = [25, 238, 321, 325, 326], HiddenItemTable = 0xEA378, HiddenItemCount = 257,
             ShopPrefix = Convert.FromHexString("ED7F0402258004026180040281800402"), ShopCount = 29, FixedShops = [13, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24],
+            StarterOverlay = 78, StarterOverlayCrc32 = 0x091E8E97, StarterOffset = 0x1BC0, StarterScreenText = 360, DexCategoryText = 711,
+            RivalScripts = [31, 36, 112, 123, 186, 427, 429, 1096], RivalScriptCount = 9, TagScripts = [2, 136, 201, 236], TagScriptCount = 6,
         },
         new("IPKE", 0, Gen4Kind.HeartGoldSoulSilver, new Dictionary<string, (string, uint)>
         {
@@ -72,6 +91,8 @@ public sealed record Gen4Profile(string GameCode, byte Version, Gen4Kind Kind, I
         {
             Arm9Crc32 = 0x99A30D93, ItemBallScript = 141, ItemBallSkip = [58], HiddenItemTable = 0xFA558, HiddenItemCount = 231,
             ShopPrefix = Convert.FromHexString("298E0402618E0402998E0402B98E0402"), ShopCount = 40, FixedShops = [17, 18, 22, 23, 24, 25, 26, 27, 28, 29, 30, 37, 39],
+            StarterOverlay = 61, StarterOverlayCrc32 = 0xEE849CB4, StarterScreenText = 190,
+            RivalScripts = [7, 23, 96, 110, 819, 850, 866], RivalScriptCount = 7,
         },
     ];
 }
@@ -132,6 +153,7 @@ public sealed class Gen4Data
             foreach (string key in profile.Files.Keys)
                 data.Narc(key);
             data.Arm9();
+            data.StarterOverlay();
         }
         return data;
     }
@@ -148,6 +170,40 @@ public sealed class Gen4Data
             _arm9 = arm9;
         }
         return (byte[])_arm9.Clone();
+    }
+
+    /// <summary>Decompressed starter overlay, checked against the profile CRC32 when original tables are required.</summary>
+    public byte[] StarterOverlay()
+    {
+        byte[] overlay = _rom.ReadOverlay(Profile.StarterOverlay);
+        uint actual = Gen5Data.Crc32(overlay);
+        if (_requireOriginalTables && actual != Profile.StarterOverlayCrc32)
+            throw new InvalidDataException($"El overlay {Profile.StarterOverlay} no coincide con el perfil de {Profile.GameCode}: CRC32 {actual:X8}, se esperaba {Profile.StarterOverlayCrc32:X8}.");
+        return overlay;
+    }
+
+    // HeartGold keeps its starters in the ARM9, 13 bytes before this code (UPR-ZX hgssStarterCodeSuffix).
+    private static readonly byte[] HgssStarterSuffix = [0x03, 0x03, 0x1A, 0x12, 0x01, 0x23, 0x00, 0x00];
+
+    /// <summary>Where the three starters are: ARM9 offset in HeartGold, starter-overlay offset in Diamond/Platinum (16-bit values, 4 bytes apart).</summary>
+    public int StarterTable(byte[] arm9) => Profile.Kind == Gen4Kind.HeartGoldSoulSilver ? FindUnique(arm9, HgssStarterSuffix, "los iniciales en el ARM9") - 13 : Profile.StarterOffset;
+
+    /// <summary>The three starters (Grass, Fire, Water).</summary>
+    public IReadOnlyList<int> Starters()
+    {
+        byte[] source = Profile.Kind == Gen4Kind.HeartGoldSoulSilver ? Arm9() : StarterOverlay();
+        int at = StarterTable(source);
+        return Enumerable.Range(0, 3).Select(i => (int)BinaryPrimitives.ReadUInt16LittleEndian(source.AsSpan(at + i * 4))).ToArray();
+    }
+
+    internal static int FindUnique(byte[] data, IReadOnlyList<byte> pattern, string what)
+    {
+        byte[] bytes = [.. pattern];
+        int found = -1;
+        for (int i = 0; i + bytes.Length <= data.Length; i++)
+            if (data.AsSpan(i, bytes.Length).SequenceEqual(bytes))
+                found = found == -1 ? i : throw new InvalidDataException($"Se encontró más de una vez {what}.");
+        return found >= 0 ? found : throw new InvalidDataException($"No se encontró {what}.");
     }
 
     /// <summary>Item balls from the item-ball script, then the hidden items from the ARM9 table.</summary>
@@ -228,9 +284,9 @@ public sealed class Gen4Data
     {
         if (!_requireOriginalTables)
             throw new InvalidOperationException("Solo se exporta desde una ROM con todas sus tablas originales verificadas.");
-        if (result.Overlays.Count != 0)
-            throw new NotSupportedException("Gen4 todavía no modifica overlays.");
-        _rom.Save(output, result.Files.ToDictionary(p => _rom.File(p.Key).Id, p => p.Value), null, null, result.Arm9);
+        if (result.Overlays.Keys.Any(id => id != Profile.StarterOverlay))
+            throw new InvalidOperationException("Gen4 solo modifica el overlay de los iniciales.");
+        _rom.Save(output, result.Files.ToDictionary(p => _rom.File(p.Key).Id, p => p.Value), result.Overlays, result.RecompressOverlays, result.Arm9);
     }
 
     public IReadOnlyList<string> Text(int file) => Gen4Text.Read(Narc(Gen4Profile.Text).Files[file]);

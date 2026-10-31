@@ -58,24 +58,17 @@ internal static class NdsUiChecks
             var trainers=Descendants<ComboBox>(window).First();trainers.SelectedIndex=0;
             Check(window.CurrentPreview is null&&!window.CanExport,"NdsUi_Real_ChangingAnOptionDiscardsThePreview");
             Pump(window.PreviewAsync());Check(window.CurrentPreview is not null&&window.CurrentPreview.Result.Changes.All(c=>c.Location.StartsWith("Encuentros",StringComparison.Ordinal)),"NdsUi_Real_KeepTrainersOnlyChangesEncounters");
-            var combos=Descendants<ComboBox>(window).ToArray();
-            if(window.Session!.Gen4 is not null)
-            {
-                // Gen4: starters stay disabled at "Sin cambios"; items and shops change the ARM9 and the item-ball script.
-                Check(!combos[2].IsEnabled&&combos[2].SelectedIndex==0&&combos.Take(2).Concat(combos.Skip(6)).All(c=>c.IsEnabled)&&window.Session.OriginalStarters.Count==0,"NdsUi_Real_Gen4DisablesStartersOnly");
-                combos[0].SelectedIndex=3;combos[6].SelectedIndex=1;combos[7].SelectedIndex=1;Pump(window.PreviewAsync());
-                Check(window.CurrentPreview is {Result.Overlays.Count:0,Result.Arm9:not null}&&window.CurrentPreview.Result.Changes.Any(c=>c.Location.StartsWith("Entrenador",StringComparison.Ordinal))
-                    &&window.CurrentPreview.Result.Changes.Any(c=>c.Location.StartsWith("Tienda",StringComparison.Ordinal))&&window.CurrentPreview.Result.Changes.Any(c=>c.Location.StartsWith("Objeto oculto",StringComparison.Ordinal)),"NdsUi_Real_Gen4PreviewChangesTrainersEncountersItemsAndShops");
-            }
-            else
-            {
-                combos[2].SelectedIndex=2;
-                Check(combos.Skip(3).Take(3).All(c=>c.IsEnabled)&&combos.Skip(3).Take(3).Select(c=>c.SelectedIndex+1).SequenceEqual(window.Session!.OriginalStarters)&&window.CurrentPreview is null,"NdsUi_Real_CustomStartersStartFromTheOriginals");
-                combos[3].SelectedIndex=24;combos[4].SelectedIndex=3;combos[5].SelectedIndex=6;Pump(window.PreviewAsync());
-                Check(window.CurrentPreview is {Options.Starters:Gen5StarterMode.Custom}&&window.CurrentPreview.Options.CustomStarters!.SequenceEqual(new[]{25,4,7})&&window.CurrentPreview.Result.Overlays.ContainsKey(window.Session!.Data!.Profile.StarterCryOverlay),"NdsUi_Real_CustomStartersReachThePreview");
-                combos[6].SelectedIndex=1;combos[7].SelectedIndex=1;Pump(window.PreviewAsync());
-                Check(window.CurrentPreview is {Options.FieldItems:Gen5ItemMode.Shuffle,Options.Shops:Gen5ItemMode.Shuffle}&&(window.Session!.Data!.Profile.ShopOverlay<0?window.CurrentPreview.Result.Files.ContainsKey(window.Session!.Data!.PathOf(Gen5Profile.ShopItems)):window.CurrentPreview.Result.RecompressOverlays.Contains(21)),"NdsUi_Real_ItemAndShopOptionsReachThePreview");
-            }
+            var combos=Descendants<ComboBox>(window).ToArray();var session=window.Session!;
+            combos[2].SelectedIndex=2;
+            Check(combos.Skip(3).Take(3).All(c=>c.IsEnabled)&&combos.Skip(3).Take(3).Select(c=>c.SelectedIndex+1).SequenceEqual(session.OriginalStarters)&&window.CurrentPreview is null,"NdsUi_Real_CustomStartersStartFromTheOriginals");
+            combos[3].SelectedIndex=24;combos[4].SelectedIndex=3;combos[5].SelectedIndex=6;Pump(window.PreviewAsync());
+            int starterOverlay=session.Data?.Profile.StarterCryOverlay??session.Gen4!.Profile.StarterOverlay;
+            Check(window.CurrentPreview is {Options.Starters:Gen5StarterMode.Custom}&&window.CurrentPreview.Options.CustomStarters!.SequenceEqual(new[]{25,4,7})&&window.CurrentPreview.Result.Overlays.ContainsKey(starterOverlay),"NdsUi_Real_CustomStartersReachThePreview");
+            combos[6].SelectedIndex=1;combos[7].SelectedIndex=1;Pump(window.PreviewAsync());
+            // Gen4 keeps hidden items and shops in the ARM9; Gen5 in a shop overlay (Black/White) or the shop NARC (White 2).
+            bool shopsWritten=session.Gen4 is not null?window.CurrentPreview?.Result.Arm9 is not null
+                :session.Data!.Profile.ShopOverlay<0?window.CurrentPreview!.Result.Files.ContainsKey(session.Data.PathOf(Gen5Profile.ShopItems)):window.CurrentPreview!.Result.RecompressOverlays.Contains(21);
+            Check(window.CurrentPreview is {Options.FieldItems:Gen5ItemMode.Shuffle,Options.Shops:Gen5ItemMode.Shuffle}&&shopsWritten,"NdsUi_Real_ItemAndShopOptionsReachThePreview");
             string target=Path.Combine(output,"random.nds");Pump(window.ExportAsync(target));
             Check(File.Exists(target)&&File.Exists(Path.ChangeExtension(target,".cambios.txt"))&&window.Status.StartsWith("ROM exportada",StringComparison.Ordinal),"NdsUi_Real_ExportWritesRomAndChangeLog");
         }

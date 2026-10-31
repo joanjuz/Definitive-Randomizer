@@ -27,7 +27,8 @@ internal static class NdsGen4Checks
                 int expected=kind==Gen4Kind.DiamondPearl?12+1+5:36+1+5+1;
                 check(slots.Count==expected&&slots.All(s=>s.Species is >=1 and <=Gen4Data.MaxSpecies),$"Gen4_{name}_ReadsGrassAlternateAndWaterSlots ({slots.Count})");
                 var keep=Gen4Randomizer.Generate(data,new Gen5RandomizerOptions(3));check(keep.Files.Count==0&&keep.Changes.Count==0,$"Gen4_{name}_KeepChangesNothing");
-                reject(()=>Gen4Randomizer.Generate(data,new Gen5RandomizerOptions(3){Starters=Gen5StarterMode.Random}),$"Gen4_{name}_RejectsStarterOptions");
+                reject(()=>Gen4Randomizer.Generate(data,new Gen5RandomizerOptions(3){Starters=Gen5StarterMode.Custom,CustomStarters=[1,1,4]}),$"Gen4_{name}_RejectsRepeatedCustomStarters");
+                reject(()=>Gen4Randomizer.Generate(data,new Gen5RandomizerOptions(3){Starters=Gen5StarterMode.Custom,CustomStarters=[1,4,494]}),$"Gen4_{name}_RejectsStartersOutsideGen4");
                 var options=new Gen5RandomizerOptions(3){Trainers=Gen5SpeciesMode.Random,Wild=Gen5SpeciesMode.Random};
                 var a=Gen4Randomizer.Generate(data,options);var b=Gen4Randomizer.Generate(data,options);var c=Gen4Randomizer.Generate(data,options with{Seed=4});
                 check(a.Changes.SequenceEqual(b.Changes)&&!a.Changes.SequenceEqual(c.Changes)&&a.Overlays.Count==0,$"Gen4_{name}_DeterministicBySeed");
@@ -48,6 +49,10 @@ internal static class NdsGen4Checks
             }
             string bad=Path.Combine(temp,"bad.nds");var dp=Gen4Profile.All.Single(p=>p.Kind==Gen4Kind.DiamondPearl);File.WriteAllBytes(bad,Synthetic(dp));
             using(var rom=NdsRom.Open(bad))reject(()=>Gen4Data.Open(rom),"Gen4_StrictOpenRejectsTablesThatAreNotTheOriginals");
+            byte[] message=Gen4Message(["","TURTWIG la hoja","Ana Beto"],compressed:2);
+            var edited=Gen4Text.Read(Gen4Text.Replace(message,new Dictionary<int,string>{[1]=@"\vFF00\z0003PIKACHU\vFF00\z0000!\nWill you?"}));
+            check(edited.Count==3&&edited[0]==""&&edited[1]==@"\vFF00\z0003PIKACHU\vFF00\z0000!\nWill you?"&&edited[2]=="Ana Beto",$"Gen4Text_ReplaceRewritesOneLineAndKeepsTheOthers");
+            reject(()=>Gen4Text.Replace(message,new Dictionary<int,string>{[1]="\u4E00\u4E01"}),"Gen4Text_ReplaceRejectsCharactersOutsideTheTable");
             check(new[]{1,17,111,135,213,327}.All(Gen4Randomizer.IsMovableItem)&&!new[]{0,112,134,328,419,420,427,428,464,536,537}.Any(Gen4Randomizer.IsMovableItem),"Gen4_TmsHmsKeyAndExclusiveItemsNeverMove");
             check(Gen4Profile.All.All(p=>p.ShopPrefix.Count==16&&p.FixedShops.All(s=>s<p.ShopCount)&&p.HiddenItemCount>200&&p.Files.ContainsKey(Gen4Profile.Scripts)),"Gen4_ProfilesDescribeItemsAndShops");
             Arm9Checks(check,reject,temp);
@@ -191,6 +196,7 @@ internal static class NdsGen4Checks
                 var options=new Gen5RandomizerOptions(2026){Trainers=Gen5SpeciesMode.ProgressiveBst,Wild=Gen5SpeciesMode.SimilarBst,FieldItems=Gen5ItemMode.Shuffle,Shops=Gen5ItemMode.Shuffle};
                 var result=Gen4Randomizer.Generate(data,options);
                 Check(result.Files.Count==4&&result.Arm9 is not null&&result.Changes.Count>5000,$"Gen4_Real_{game}_ChangesTrainersEncountersItemsAndShops ({result.Changes.Count} cambios)");
+                ProbeStarters(data,rom,output,game,Check);
                 string target=Path.Combine(output,game+".nds");data.Export(target,result);
                 using var exported=NdsRom.Open(target);var check=Gen4Data.Open(exported,requireOriginalTables:false);
                 var newTrainers=check.Trainers();
@@ -216,6 +222,33 @@ internal static class NdsGen4Checks
             Check(Hash(source)==before,$"Gen4_Real_{game}_SourceUnchanged");
         }
         Console.WriteLine($"Completed {checks} Gen4 real-dump checks; outputs deleted from {output}.");
+    }
+
+    // Custom starters: table, cries or selection graphics, rival and tag-battle scripts and the selection text, then re-read.
+    private static void ProbeStarters(Gen4Data data,NdsRom rom,string output,string game,Action<bool,string> Check)
+    {
+        bool hgss=data.Profile.Kind==Gen4Kind.HeartGoldSoulSilver;int[] original=hgss?[152,155,158]:[387,390,393],chosen=[25,4,7];
+        Check(data.Starters().SequenceEqual(original),$"Gen4Starters_Real_{game}_ReadsTheOriginalStarters");
+        var result=Gen4Randomizer.Generate(data,new Gen5RandomizerOptions(9){Starters=Gen5StarterMode.Custom,CustomStarters=chosen});
+        Check(result.Changes.Count==3&&result.Overlays.Keys.SequenceEqual(new[]{data.Profile.StarterOverlay})&&result.Files.Keys.Order().SequenceEqual(new[]{data.PathOf(Gen4Profile.Scripts),data.PathOf(Gen4Profile.Text)}.Order())&&(result.Arm9 is not null)==hgss,
+            $"Gen4Starters_Real_{game}_TouchesTableScriptsTextAndStarterOverlayOnly");
+        string target=Path.Combine(output,game+"-starters.nds");data.Export(target,result);
+        using var exported=NdsRom.Open(target);var check=Gen4Data.Open(exported,requireOriginalTables:false);
+        Check(check.Starters().SequenceEqual(chosen),$"Gen4Starters_Real_{game}_TableHasTheNewStarters");
+        byte[] overlay=exported.ReadOverlay(data.Profile.StarterOverlay),oldOverlay=rom.ReadOverlay(data.Profile.StarterOverlay);
+        var changedBytes=Enumerable.Range(0,overlay.Length).Where(i=>overlay[i]!=oldOverlay[i]).ToArray();
+        Check(overlay.Length==oldOverlay.Length&&(hgss?changedBytes.Length<=6&&exported.Overlay(61).Compressed&&exported.Files[exported.Overlay(61).FileId].Start==rom.Files[rom.Overlay(61).FileId].Start
+            :changedBytes.All(i=>i<data.Profile.StarterOffset+12&&(i>=data.Profile.StarterOffset||i<0x800))),$"Gen4Starters_Real_{game}_OverlayChangesOnlyTheStarterData ({changedBytes.Length} bytes)");
+        var scripts=Narc.Read(exported.ReadFile(data.PathOf(Gen4Profile.Scripts)));var oldScripts=Narc.Read(rom.ReadFile(data.PathOf(Gen4Profile.Scripts)));
+        var changedScripts=Enumerable.Range(0,scripts.Files.Count).Where(i=>!scripts.Files[i].SequenceEqual(oldScripts.Files[i])).ToArray();
+        Check(changedScripts.All(i=>data.Profile.RivalScripts.Contains(i)||data.Profile.TagScripts.Contains(i))&&changedScripts.Length>=data.Profile.RivalScripts.Count,$"Gen4Starters_Real_{game}_OnlyRivalAndTagScriptsChange ({changedScripts.Length})");
+        var lines=Gen4Text.Read(Narc.Read(exported.ReadFile(data.PathOf(Gen4Profile.Text))).Files[data.Profile.StarterScreenText]);
+        var oldLines=Gen4Text.Read(Narc.Read(rom.ReadFile(data.PathOf(Gen4Profile.Text))).Files[data.Profile.StarterScreenText]);
+        int[] named=hgss?[1,2,3,4,5,6]:[1,2,3];
+        Check(lines.Count==oldLines.Count&&lines[1].Contains("PIKACHU")&&lines[2].Contains("CHARMANDER")&&lines[3].Contains("SQUIRTLE")&&(!hgss||lines[4].Contains("Electric-type")&&lines[6].Contains("Water-type"))
+            &&(hgss||lines[1].Contains("Mouse Pokémon"))&&lines.Where((l,i)=>!named.Contains(i)).SequenceEqual(oldLines.Where((l,i)=>!named.Contains(i))),$"Gen4Starters_Real_{game}_SelectionTextNamesTheNewStarters");
+        var random=Gen4Randomizer.Generate(data,new Gen5RandomizerOptions(77){Starters=Gen5StarterMode.Random});
+        Check(random.Changes.Select(c=>c.After).Distinct().Count()==random.Changes.Count&&random.Changes.SequenceEqual(Gen4Randomizer.Generate(data,new Gen5RandomizerOptions(77){Starters=Gen5StarterMode.Random}).Changes),$"Gen4Starters_Real_{game}_RandomStartersDistinctAndReproducible");
     }
 
     private static string Hash(string path)
