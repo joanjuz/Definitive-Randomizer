@@ -31,7 +31,6 @@ internal sealed class LevelUpView : UserControl
     private readonly DataGrid _grid;
     private readonly List<DataGrid> _moveColumns=[];
     private LevelUpMoveEntry? _selectedMove;
-    private readonly UniformGrid _columnHost=new() {Columns=3};
     private readonly ListBox _species;
     private readonly TextBox _search;
     private readonly Button _save;
@@ -99,8 +98,15 @@ internal sealed class LevelUpView : UserControl
         _species=new ListBox {ItemsSource=_service.Entries,DisplayMemberPath="Name"};
         _species.SelectionChanged+=(_,_)=>SelectSpecies();
         left.Children.Add(_species);
-        var right=new DockPanel();
-        Grid.SetColumn(right,1);columns.Children.Add(right);
+        // One vertical move table in the middle and the randomizer options on the right.
+        var body=new Grid();
+        body.ColumnDefinitions.Add(new ColumnDefinition {Width=new GridLength(1,GridUnitType.Star),MinWidth=320});
+        body.ColumnDefinitions.Add(new ColumnDefinition {Width=new GridLength(340)});
+        Grid.SetColumn(body,1);columns.Children.Add(body);
+        var right=new DockPanel {Margin=new Thickness(0,0,14,0)};
+        body.Children.Add(right);
+        var options=new ScrollViewer {VerticalScrollBarVisibility=ScrollBarVisibility.Auto,HorizontalScrollBarVisibility=ScrollBarVisibility.Disabled};
+        Grid.SetColumn(options,1);body.Children.Add(options);
         var actions=new WrapPanel {Margin=new Thickness(0,0,0,12)};
         DockPanel.SetDock(actions,Dock.Top);right.Children.Add(actions);
         Button Action(string text,Action callback)
@@ -126,9 +132,9 @@ internal sealed class LevelUpView : UserControl
         {
             Text="RANDOMIZADOR ORIGINAL · TODOS LOS POKÉMON",
             Foreground=(Brush)FindResource("TextMain"),FontWeight=FontWeights.SemiBold,
-            Margin=new Thickness(0,0,0,9)
+            Margin=new Thickness(0,0,0,9),TextWrapping=TextWrapping.Wrap
         });
-        var settingsGrid=new UniformGrid {Columns=3};
+        var settingsGrid=new StackPanel();
         settingsBody.Children.Add(settingsGrid);
         void AddChoice(CheckBox choice,TextBox? value=null,string? label=null)
         {
@@ -167,14 +173,13 @@ internal sealed class LevelUpView : UserControl
         _discardBulk.Click+=(_,_)=>DiscardPreview();
         _discardBulk.Margin=new Thickness(8,0,0,0);
         bulkButtons.Children.Add(_discardBulk);
-        DockPanel.SetDock(randomSettings,Dock.Top);right.Children.Add(randomSettings);
+        options.Content=randomSettings;
         _previewBanner.Foreground=(Brush)FindResource("Accent");
         _previewBanner.FontWeight=FontWeights.SemiBold;
         _previewBanner.Margin=new Thickness(0,0,0,8);
         DockPanel.SetDock(_previewBanner,Dock.Top);right.Children.Add(_previewBanner);
-        // Like MT: three independent two-column DataGrids, each with normal
-        // 34px rows. No stretched cells and no hidden row-header strip.
-        for(int column=0;column<3;column++)
+        // A single two-column DataGrid with normal 34px rows, its own vertical scroll and no row-header strip.
+        for(int column=0;column<1;column++)
         {
             var table=new DataGrid
             {
@@ -187,7 +192,7 @@ internal sealed class LevelUpView : UserControl
                 BorderBrush=(Brush)FindResource("Stroke"),BorderThickness=new Thickness(1),
                 HorizontalGridLinesBrush=(Brush)FindResource("Stroke"),
                 HorizontalScrollBarVisibility=ScrollBarVisibility.Disabled,
-                VerticalScrollBarVisibility=ScrollBarVisibility.Hidden
+                VerticalScrollBarVisibility=ScrollBarVisibility.Auto
             };
             var headStyle=new Style(typeof(DataGridColumnHeader));
             headStyle.Setters.Add(new Setter(Control.BackgroundProperty,(Brush)FindResource("Surface")));
@@ -207,6 +212,7 @@ internal sealed class LevelUpView : UserControl
                 {Mode=BindingMode.TwoWay,UpdateSourceTrigger=UpdateSourceTrigger.PropertyChanged},
                 Width=new DataGridLength(1,DataGridLengthUnitType.Star),MinWidth=180
             });
+            DarkGridTheme.Apply(table);table.RowHeight=34;table.MinRowHeight=34;
             table.CellEditEnding+=(_,_)=>Dirty();
             table.SelectionChanged+=(_,_)=>
             {
@@ -216,18 +222,9 @@ internal sealed class LevelUpView : UserControl
                     foreach(var other in _moveColumns.Where(g=>g!=table))other.SelectedItem=null;
                 }
             };
-            table.Margin=new Thickness(column==0?0:8,0,0,0);
-            _moveColumns.Add(table);_columnHost.Children.Add(table);
+            _moveColumns.Add(table);right.Children.Add(table);
         }
         _grid=_moveColumns[0]; // Legacy edit commands reference the first table.
-        var compactScroll=new ScrollViewer
-        {
-            VerticalScrollBarVisibility=ScrollBarVisibility.Auto,
-            HorizontalScrollBarVisibility=ScrollBarVisibility.Auto,Content=_columnHost
-        };
-        right.Children.Add(compactScroll);
-        right.SizeChanged+=(_,_)=>_columnHost.Columns=right.ActualWidth>=820?3:
-            right.ActualWidth>=540?2:1;
         _loading=true;_species.SelectedIndex=0;_loading=false;
         if(_species.SelectedItem is PokemonListEntry p)Load(p.Index);
     }

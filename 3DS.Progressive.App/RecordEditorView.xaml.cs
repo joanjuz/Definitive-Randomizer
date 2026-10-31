@@ -76,6 +76,7 @@ public partial class RecordEditorView : UserControl
             {ImportOptionsButton.Content="Importar plantilla de objetos";ExportOptionsButton.Content="Exportar plantilla de objetos";}
             if(state?.Template is { } saved)optionTemplate.RestoreOptions(saved);}
         RecordList.ItemsSource=editor.Entries;CountText.Text=editor.Entries.Count+" entradas";
+        BuildRecordSections(editor);
         if(editor is IOptionTemplatePresentation labels)
         {
             ImportOptionsButton.Content=labels.ImportOptionsLabel;ExportOptionsButton.Content=labels.ExportOptionsLabel;WrapInspectorActions(InspectorBody);
@@ -720,9 +721,49 @@ public partial class RecordEditorView : UserControl
     {
         if(_loading||RecordList?.ItemsSource is null)return;
         if(_dirty&&!ConfirmLeave()){_loading=true;SearchText.Text="";_loading=false;return;}
-        Invalidate();string text=SearchText.Text.Trim();
-        CollectionViewSource.GetDefaultView(RecordList.ItemsSource).Filter=o=>o is RecordEntry entry&&
+        Invalidate();ApplyRecordFilter();
+    }
+    // Search text plus the selected section (editors with IRecordSections).
+    private string? _section;
+    private WrapPanel? _sectionBar;
+    private void ApplyRecordFilter()
+    {
+        if(RecordList?.ItemsSource is null)return;
+        string text=SearchText.Text.Trim();var sections=Editor as IRecordSections;
+        var view=CollectionViewSource.GetDefaultView(RecordList.ItemsSource);
+        view.Filter=o=>o is RecordEntry entry&&(_section is null||sections is null||sections.SectionOf(entry.Id)==_section)&&
             (entry.Name.Contains(text,StringComparison.OrdinalIgnoreCase)||entry.Id.ToString().Contains(text));
+        CountText.Text=view.Cast<object>().Count()+" entradas";
+    }
+    private void BuildRecordSections(IProjectEditor editor)
+    {
+        if(_sectionBar is not null&&_sectionBar.Parent is System.Windows.Controls.Panel old)old.Children.Remove(_sectionBar);
+        _sectionBar=null;_section=null;
+        if(editor is not IRecordSections sections||SearchText.Parent is not StackPanel host)return;
+        _sectionBar=new WrapPanel{Margin=new Thickness(0,0,0,10)};
+        System.Windows.Automation.AutomationProperties.SetName(_sectionBar,"Secciones");
+        var buttons=new List<System.Windows.Controls.Button>();
+        void Select(string? section)
+        {
+            if(_dirty&&!ConfirmLeave())return;
+            _section=section;
+            foreach(var b in buttons)
+            {
+                bool on=Equals(b.Tag,section);
+                b.SetResourceReference(StyleProperty,on?"PrimaryButton":"SecondaryButton");
+                System.Windows.Automation.AutomationProperties.SetItemStatus(b,on?"Seleccionada":"");
+            }
+            ApplyRecordFilter();
+            if(RecordList.Items.Count>0)RecordList.SelectedIndex=0;
+        }
+        foreach(var section in new string?[]{null}.Concat(sections.Sections))
+        {
+            int count=section is null?editor.Entries.Count:editor.Entries.Count(e=>sections.SectionOf(e.Id)==section);
+            var button=new System.Windows.Controls.Button{Content=$"{section??"Todos"} ({count})",Tag=section,Margin=new Thickness(0,0,6,6),Padding=new Thickness(10,4,10,4)};
+            button.Click+=(_,_)=>Select(section);buttons.Add(button);_sectionBar.Children.Add(button);
+        }
+        host.Children.Insert(host.Children.IndexOf(SearchText)+1,_sectionBar);
+        Select(sections.Sections[0]);
     }
     internal bool PrepareToLeave()
     {if(!ConfirmLeave())return false;if(_dirty&&_id>=0)Show(_id);return true;}
@@ -1139,7 +1180,7 @@ public partial class RecordEditorView : UserControl
         UiProgress.Begin("Guardando y verificando "+Editor.Title+"…");
         if(!StudioDialog.AutomatedChecks)
             await System.Windows.Threading.Dispatcher.Yield(System.Windows.Threading.DispatcherPriority.Background);
-        try{Editor.Apply(proposal);if(Editor is IOptionTemplatePresentation){_loading=true;try{RecordList.ItemsSource=Editor.Entries;CollectionViewSource.GetDefaultView(RecordList.ItemsSource).Filter=o=>o is RecordEntry entry&&(entry.Name.Contains(SearchText.Text.Trim(),StringComparison.OrdinalIgnoreCase)||entry.Id.ToString().Contains(SearchText.Text.Trim()));RecordList.SelectedItem=Editor.Entries.FirstOrDefault(e=>e.Id==_id);CountText.Text=Editor.Entries.Count+" entradas";}finally{_loading=false;}}Invalidate();ProposalText.Text="Propuesta guardada y verificada. El historial quedó actualizado.";}
+        try{Editor.Apply(proposal);if(Editor is IOptionTemplatePresentation){_loading=true;try{RecordList.ItemsSource=Editor.Entries;ApplyRecordFilter();RecordList.SelectedItem=Editor.Entries.FirstOrDefault(e=>e.Id==_id);}finally{_loading=false;}}Invalidate();ProposalText.Text="Propuesta guardada y verificada. El historial quedó actualizado.";}
         catch(Exception ex){Invalidate();ProposalText.Text=ex.Message;}
         finally{UiProgress.End();}
     }

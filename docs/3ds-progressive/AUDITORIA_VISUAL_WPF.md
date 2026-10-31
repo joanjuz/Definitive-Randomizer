@@ -173,3 +173,7 @@ No se mostraron ventanas interactivas ni se controló el escritorio. Se crearon 
 Siguen pendientes: Tab/Shift+Tab y recuperación real del foco tras un diálogo modal, Narrador, cambio efectivo del alto contraste del sistema y traslado entre monitores con DPI distintos. El cambio de paleta se simula dentro de la aplicación. No se ejecutó el workflow en GitHub ni se publicaron sus artefactos; los pasos de publicación existentes se conservaron pero no se probaron mediante una publicación local.
 
 No se ejecutó --all-ui-only, porque esa suite muestra ventanas. Tampoco se usaron ROMs originales, emuladores o assets reales para validar jugabilidad. No se hicieron commits ni push y el hash de la distribución instalada sigue coincidiendo con el consignado arriba.
+
+## Seguimiento 2026-10-31: tablas
+
+Celdas centradas en vertical, editor oscuro al editar, líneas en el color del tema, secciones en los encuentros estáticos y tablas verticales con las opciones a la derecha en Level Up y MT/tutores. Detalle en [TABLAS_CENTRADO_EDICION_SECCIONES.md](TABLAS_CENTRADO_EDICION_SECCIONES.md).

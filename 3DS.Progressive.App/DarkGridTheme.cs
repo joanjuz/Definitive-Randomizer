@@ -56,7 +56,7 @@ internal static class DarkGridTheme
         var disabledRow=new Trigger{Property=UIElement.IsEnabledProperty,Value=false};
         disabledRow.Setters.Add(ResourceSetter(Control.ForegroundProperty,"DisabledText"));rows.Triggers.Add(disabledRow);
         grid.RowStyle=rows;
-        var cells=new Style(typeof(DataGridCell));
+        var cells=new Style(typeof(DataGridCell),System.Windows.Application.Current.TryFindResource(typeof(DataGridCell)) as Style);
         cells.Setters.Add(new Setter(Control.BackgroundProperty,Brushes.Transparent));
         cells.Setters.Add(ResourceSetter(Control.ForegroundProperty,"TextMain"));
         cells.Setters.Add(new Setter(Control.BorderThicknessProperty,new Thickness(1)));

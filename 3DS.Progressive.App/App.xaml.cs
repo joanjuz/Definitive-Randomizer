@@ -9,5 +9,6 @@ public partial class App : System.Windows.Application
         InitializeComponent();
         AccessiblePalette.Install(this);
         PresentationAccessibility.Install();
+        GridEditing.Install();
     }
 }
