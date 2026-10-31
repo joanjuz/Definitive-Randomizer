@@ -47,7 +47,7 @@ internal static class SinglePurchaseChecks
         check(paths.All(p=>ProjectHistory.Hash(File.ReadAllBytes(p.Key))==p.Value),"SinglePurchase_OriginalBackendPreviewNeverModifiesSource");
     }
     static byte[] Part(byte[] bytes,Gen7ShopGroupedTableSnapshot table)=>bytes.AsSpan((int)table.DataStart,table.DataLength).ToArray();
-    static void CopyModules(Fixture f,string rom)
+    internal static void CopyModules(Fixture f,string rom)
     {
         foreach(string file in Directory.GetFiles(rom,"*.cro"))File.Copy(file,Path.Combine(f.Game.RomFS,Path.GetFileName(file)),true);
         Directory.CreateDirectory(Path.Combine(f.Game.RomFS,".crr"));File.Copy(Path.Combine(rom,".crr","static.crr"),Path.Combine(f.Game.RomFS,".crr","static.crr"),true);

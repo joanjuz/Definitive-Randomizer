@@ -679,6 +679,9 @@ internal static class BatchGen7ActionExecutor
         "battle.persistent-consumables",
         USUMMoveRelearnerPatcher.ActionId,
         "player.level-caps",
+        BatchGen6ActionExecutor.TradedObedienceActionId,
+        BatchGen6ActionExecutor.NoMegasActionId,
+        BatchGen6ActionExecutor.UltraWarpHintActionId,
     };
 
     internal static string[] GetUnsupported(IEnumerable<GlobalRandomizationAction> actions)
@@ -743,6 +746,8 @@ internal static class BatchGen7ActionExecutor
         BatchBridgeProgress.ActionGroup("PlayerLevelCaps",actions.Keys,id=>id.StartsWith("player.",StringComparison.OrdinalIgnoreCase));
         Main.SaveGameText();
         BatchGen6ActionExecutor.ApplyManual(template);
+        // After the manual edits, so that none of them brings back a Mega form.
+        BatchGen6ActionExecutor.RunGen7Adjustments(template);
         BatchGen6ActionExecutor.FinalizeSinglePurchase(template);
     }
 

@@ -91,6 +91,10 @@ public sealed partial class GameStaticEncounterService : ArchiveProjectEditor
     internal GameProjectSession ProjectSession=>Project;
     public bool SupportsTotemRules=>Config.USUM;
     private static readonly int[] TotemEntryIds=[4,9,137,249,24,146,39,45,162,160,229,231];
+    // USUM Totem battles (and Ultra Necrozma) cannot be caught, so their forms are not obtainable.
+    protected override bool ObtainableRecord(int id)=>!(Config.USUM&&_slots[id].File==1&&TotemEntryIds.Contains(_slots[id].Index));
+    /// <summary>Record of a 0-based entry of encounterstatic file 0 (gifts), 1 (static) or 4 (trades).</summary>
+    internal int RecordId(int file,int index)=>_slots.First(p=>p.Value.File==file&&p.Value.Index==index).Key;
 
     /// <summary>Exact 0-based original Static Encounter indexes, not UI IDs.</summary>
     public IReadOnlyList<TotemRuleRow> TotemRules()

@@ -84,6 +84,8 @@ if(args.Length==2&&args[0]=="--swsh-read-only"){SwordShieldChecks.ProbeReal(args
 if(args.Length==4&&args[0]=="--swsh-random-probe"){SwordShieldRandomizationChecks.ProbeReal(args[1],args[2],uint.Parse(args[3],System.Globalization.CultureInfo.InvariantCulture));return;}
 if(args.Length==3&&args[0]=="--swsh-probe-mod"){SwordShieldChecks.ProbeReal(args[1],args[2]);return;}
 if(args.Length==2&&args[0]=="--single-purchase-backend"){SinglePurchaseChecks.Backend(args[1],Check).GetAwaiter().GetResult();Console.WriteLine($"Completed {checks} single-purchase backend checks.");return;}
+if(args.Length==1&&args[0]=="--gen7-adjust-only"){Gen7AdjustmentChecks.Run(Check,Reject);Console.WriteLine($"Completed {checks} Gen7 adjustment checks.");return;}
+if(args.Length==3&&args[0]=="--gen7-adjust-real"){Gen7AdjustmentChecks.Run(Check,Reject);Gen7AdjustmentChecks.RealCopies(args[1],args[2],Check,Reject);Console.WriteLine($"Completed {checks} Gen7 adjustment checks with real copies.");return;}
 if(args.Length==1&&args[0]=="--single-purchase-only"){SinglePurchaseChecks.Schema(Check,Reject);Console.WriteLine($"Completed {checks} single-purchase schema checks.");return;}
 if(args.Length==3&&args[0]=="--single-purchase-copies"){SinglePurchaseChecks.Schema(Check,Reject);SinglePurchaseChecks.RealCopies(args[1],args[2],Check,Reject);Console.WriteLine($"Completed {checks} single-purchase copy/integration checks.");return;}
 if(args.Length==1&&args[0]=="--interaction-lock-only")
@@ -347,7 +349,7 @@ StaticGen6Checks.Run(Check, Reject);
 SwordShieldChecks.Run(Check, Reject); SwordShieldRandomizationChecks.Run(Check, Reject); SwordShieldGameplayChecks.Run(Check, Reject); SwordSurpriseChecks.Run(Check, Reject); SwordSurpriseIntegrationChecks.Run(Check, Reject); PokeFeurChecks.Run(Check, Reject);
 StaticStarterChecks.Run(Check, Reject);
 Gen6MechanicsChecks.Run(Check, Reject);
-CroIntegrityChecks.Run(Check, Reject); SinglePurchaseChecks.Schema(Check,Reject);
+CroIntegrityChecks.Run(Check, Reject); SinglePurchaseChecks.Schema(Check,Reject); Gen7AdjustmentChecks.Run(Check,Reject);
 RomExtractionChecks.Run(Check, Reject);
 PickupChecks.Run(Check, Reject);
 Machine6Checks.Run(Check, Reject);

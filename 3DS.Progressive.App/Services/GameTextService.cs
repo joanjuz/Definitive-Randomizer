@@ -296,6 +296,8 @@ public sealed class GameTextService
         RefreshCatalogue();
     }
     public string Export(int id)=>string.Join(Environment.NewLine,Read(id).Select((line,i)=>$"[{i:0000}] {line}"));
+    /// <summary>After another operation of the app saved this bank (the Ultra Warp Ride hint).</summary>
+    internal void Reload(){_sha=SHA256.HashData(File.ReadAllBytes(_path));RefreshCatalogue();}
 }
 
 public sealed record TextBankPreview(byte[] Original,byte[] Output,

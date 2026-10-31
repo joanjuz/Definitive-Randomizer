@@ -97,6 +97,25 @@ internal static class BatchGen6ActionExecutor
         string path=System.IO.Path.GetFullPath(System.IO.Path.Combine(System.IO.Path.GetDirectoryName(typeof(BatchGen6ActionExecutor).Assembly.Location),"..","3DS.Progressive.dll"));var bridge=Assembly.LoadFrom(path).GetType("ThreeDS.Progressive.Services.NativeGen7WildBridge",true);
         try{bridge.GetMethod("Execute",BindingFlags.Public|BindingFlags.Static).Invoke(null,new object[]{System.IO.Directory.GetParent(Main.RomFSPath).FullName,json,unchecked((int)Util.Random32())});}catch(TargetInvocationException ex)when(ex.InnerException!=null){ExceptionDispatchInfo.Capture(ex.InnerException).Throw();}return true;
     }
+    internal const string TradedObedienceActionId="player.traded-obedience",NoMegasActionId="pokemon.no-obtainable-megas",UltraWarpHintActionId="usum.ultra-warp-hint";
+    /// <summary>Gen7 adjustments implemented by the app (Gen7Adjustments): traded obedience, Ultra Warp Ride hint, no obtainable Mega forms (last).</summary>
+    internal static void RunGen7Adjustments(GlobalRandomizationTemplate template)
+    {
+        string[] ids=[TradedObedienceActionId,UltraWarpHintActionId,NoMegasActionId];
+        var selected=ids.Where(id=>template.Actions.Any(a=>a.Id.Equals(id,StringComparison.OrdinalIgnoreCase))).ToArray();
+        if(selected.Length==0)return;
+        if(selected.Contains(UltraWarpHintActionId)&&!Main.Config.USUM)throw new NotSupportedException("The Ultra Warp Ride hint requires Ultra Sun / Ultra Moon.");
+        Main.SaveGameText();
+        string path=Path.GetFullPath(Path.Combine(Path.GetDirectoryName(typeof(BatchGen6ActionExecutor).Assembly.Location),"..","3DS.Progressive.dll"));
+        var bridge=Assembly.LoadFrom(path).GetType("ThreeDS.Progressive.Services.Gen7Adjustments",true);
+        foreach(string id in selected)
+        {
+            try{BatchRuntime.Log((string)bridge.GetMethod("Execute",BindingFlags.Static|BindingFlags.Public).Invoke(null,new object[]{Directory.GetParent(Main.RomFSPath).FullName,id}));}
+            catch(TargetInvocationException ex)when(ex.InnerException!=null){ExceptionDispatchInfo.Capture(ex.InnerException).Throw();}
+        }
+        Main.Config.InitializeAll();
+        BatchBridgeProgress.ActionGroup("Ajustes Gen7",template.Actions.Select(a=>a.Id),id=>selected.Contains(id,StringComparer.OrdinalIgnoreCase));
+    }
     internal static void FinalizeSinglePurchase(GlobalRandomizationTemplate template)
     {
         bool selected=template.Actions.Any(a=>a.Id.Equals("marts.single-purchase-specials",StringComparison.OrdinalIgnoreCase));
@@ -107,7 +126,7 @@ internal static class BatchGen6ActionExecutor
         if(!selected&&pk3DS.Core.Modding.Research.Gen7SinglePurchaseStock.Read(shop) is null)return;
         Main.SaveGameText();string path=Path.GetFullPath(Path.Combine(Path.GetDirectoryName(typeof(BatchGen6ActionExecutor).Assembly.Location),"..","3DS.Progressive.dll"));
         var bridge=Assembly.LoadFrom(path).GetType("ThreeDS.Progressive.Services.NativeGen7MartBridge",true);
-        try{bridge.GetMethod("FinalizeSinglePurchase",BindingFlags.Static|BindingFlags.Public).Invoke(null,new object[]{Directory.GetParent(Main.RomFSPath).FullName,selected});}
+        try{bridge.GetMethod("FinalizeSinglePurchase",BindingFlags.Static|BindingFlags.Public).Invoke(null,new object[]{Directory.GetParent(Main.RomFSPath).FullName,selected,System.Text.Json.JsonSerializer.Serialize(template)});}
         catch(TargetInvocationException ex)when(ex.InnerException!=null){ExceptionDispatchInfo.Capture(ex.InnerException).Throw();}
         Main.Config.InitializeGameText();
     }

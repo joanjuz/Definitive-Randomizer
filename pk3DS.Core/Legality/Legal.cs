@@ -574,4 +574,11 @@ public static partial class Legal
 
     public static readonly HashSet<int> BattlePrimals = [382, 383];
     public static readonly HashSet<int> BattleExclusiveForms = [.. BattleForms.Concat(BattleMegas.Concat(BattlePrimals))];
+
+    /// <summary>Mega, Primal or Ultra Necrozma form; other battle forms (Zen, School, Blade...) are not included.</summary>
+    public static bool IsMegaForm(int species, int form) => form > 0 && species switch
+    {
+        800 => form == 3, // Necrozma: Dusk Mane and Dawn Wings are regular forms.
+        _ => BattleMegas.Contains(species) || BattlePrimals.Contains(species),
+    };
 }
