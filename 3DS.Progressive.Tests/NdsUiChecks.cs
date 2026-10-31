@@ -19,7 +19,7 @@ internal static class NdsUiChecks
         entry!.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));check(opened,"NdsUi_HomeEntryOpensDsWorkspace");
 
         var owner=new Window();var workspace=new NdsWorkspaceView(owner);
-        string[] sections=["Inicio","Pokémon","Movimientos","Level Up","Evoluciones","MT/MO","Entrenadores","Encuentros","Iniciales","Objetos del mapa","Tiendas","Historial de cambios"];
+        string[] sections=["Inicio","Pokémon","Movimientos","Level Up","Evoluciones","MT/MO","Entrenadores","Encuentros","Iniciales","Estáticos y regalos","Intercambios","Objetos del mapa","Tiendas","Ajustes del juego","Global Template y Batch","Historial de cambios"];
         check(sections.All(s=>Buttons(workspace).Any(b=>AutomationProperties.GetName(b)=="Sección DS · "+s))&&workspace.Project is null&&workspace.CurrentRoute=="Home","NdsUi_WorkspaceShowsTheSidebarSectionsWithoutARom");
         Pump(workspace.NavigateAsync("Trainers"));
         check(workspace.CurrentRoute=="Home","NdsUi_SectionsNeedAnOpenRom");
@@ -50,7 +50,7 @@ internal static class NdsUiChecks
             check(trainers.UsesTrainerLayout&&trainers.Entries.Count==2&&team["P0.Species"].Choices!.Count==Gen5Randomizer.MaxSpecies&&team.ContainsKey("P0.Item")&&team.ContainsKey("P1.Move4"),"NdsUi_TrainerFieldsUseTheSharedKeysAndNames");
             var values=team.ToDictionary(p=>p.Key,p=>p.Value.Value);values["P0.Species"]=25;values["P0.Level"]=33;trainers.Save(1,values);
             check(project!.HasChanges&&project.History.Count==1&&trainers.Read(1).SelectMany(g=>g.Fields).Single(f=>f.Key=="P0.Species").Value==25,"NdsUi_ManualSaveStacksAChange");
-            var proposal=trainers.Preview(new Dictionary<string,int>{["Mode"]=0},[2]);
+            var proposal=trainers.Preview(Defaults(trainers,("Mode",0)),[2]);
             check(proposal.Changes.Count>0&&proposal.Changes.All(c=>c.Name.StartsWith("Entrenador 2",StringComparison.Ordinal)),"NdsUi_RandomizationRespectsTheChosenScope");
             trainers.Apply(proposal);
             check(project.History.Count==2&&trainers.Read(1).SelectMany(g=>g.Fields).Single(f=>f.Key=="P0.Species").Value==25,"NdsUi_ApplyKeepsEarlierEdits");
@@ -71,6 +71,14 @@ internal static class NdsUiChecks
     }
 
     // Full flow through the workspace with a real dump: every section edited or randomized, stacked and exported once.
+    // The options dialog always sends every field: its defaults with some values changed.
+    private static Dictionary<string,int> Defaults(NdsRecordEditor editor,params (string Key,int Value)[] changed)
+    {
+        var values=editor.RandomOptions.SelectMany(g=>g.Fields).ToDictionary(f=>f.Key,f=>f.Value);
+        foreach(var (key,value) in changed)values[key]=value;
+        return values;
+    }
+
     internal static void Probe(string rom,string output)
     {
         int checks=0;void Check(bool ok,string name){if(!ok)throw new Exception("FAIL "+name);checks++;Console.WriteLine("PASS "+name);}
@@ -80,7 +88,7 @@ internal static class NdsUiChecks
         {
             Pump(workspace.LoadAsync(rom));var project=workspace.Project;
             Check(project is {IsRomhack:false}&&project.Identity.KnownDump,$"NdsUi_Real_LoadsVerifiedOriginal ({project?.Game})");
-            foreach(string route in new[]{"Pokemon","Moves","Learnsets","Evolutions","Machines","Trainers","Encounters","Starters","FieldItems","Shops"})
+            foreach(string route in new[]{"Pokemon","Moves","Learnsets","Evolutions","Machines","Trainers","Encounters","Starters","Statics","Trades","FieldItems","Shops"})
             {
                 Pump(workspace.NavigateAsync(route));
                 Check(workspace.CurrentRoute==route&&Descendants<RecordEditorView>(workspace).Count()==1,$"NdsUi_Real_{route}OpensInTheSharedEditor");
@@ -88,13 +96,13 @@ internal static class NdsUiChecks
             }
             var trainers=new NdsRecordEditor(project!,NdsSection.Trainers);int first=trainers.Entries[0].Id;
             var values=trainers.Read(first).SelectMany(g=>g.Fields).ToDictionary(f=>f.Key,f=>f.Value);values["P0.Species"]=133;trainers.Save(first,values);
-            var wild=new NdsRecordEditor(project!,NdsSection.Encounters);wild.Apply(wild.Preview(new Dictionary<string,int>{["Mode"]=1},wild.Entries.Select(e=>e.Id).ToArray()));
+            var wild=new NdsRecordEditor(project!,NdsSection.Encounters);wild.Apply(wild.Preview(Defaults(wild,("Mode",1)),wild.Entries.Select(e=>e.Id).ToArray()));
             var starters=new NdsRecordEditor(project!,NdsSection.Starters);
             // Starters twice: code patches must not stack; the second choice wins everywhere.
             starters.Save(0,new Dictionary<string,int>{["Starter1"]=25,["Starter2"]=4,["Starter3"]=7});
             starters.Save(0,new Dictionary<string,int>{["Starter1"]=1,["Starter2"]=4,["Starter3"]=258});
-            var items=new NdsRecordEditor(project!,NdsSection.FieldItems);items.Apply(items.Preview(new Dictionary<string,int>{["Shuffle"]=1},items.Entries.Select(e=>e.Id).ToArray()));
-            var shops=new NdsRecordEditor(project!,NdsSection.Shops);shops.Apply(shops.Preview(new Dictionary<string,int>{["Shuffle"]=1},shops.Entries.Select(e=>e.Id).ToArray()));
+            var items=new NdsRecordEditor(project!,NdsSection.FieldItems);items.Apply(items.Preview(Defaults(items,("Shuffle",1)),items.Entries.Select(e=>e.Id).ToArray()));
+            var shops=new NdsRecordEditor(project!,NdsSection.Shops);shops.Apply(shops.Preview(Defaults(shops,("Shuffle",1)),shops.Entries.Select(e=>e.Id).ToArray()));
             Check(project!.History.Count==6&&project.HasChanges,$"NdsUi_Real_SixOperationsStack ({project.History.Sum(o=>o.Changes.Count)} cambios)");
             string target=Path.Combine(output,"random.nds");Pump(workspace.ExportToAsync(target));
             Check(File.Exists(target)&&File.Exists(Path.ChangeExtension(target,".cambios.txt")),"NdsUi_Real_ExportWritesRomAndChangeLog");
@@ -116,6 +124,26 @@ internal static class NdsUiChecks
                 }
                 Check(finalStarters.SequenceEqual(new[]{1,4,258})&&species==133&&dexOnce,"NdsUi_Real_StartersPatchedOnceAndEditsSurviveLaterRandomizations");
             }
+            // Every recipe kind in the template: manual edits, species, data randomizations and (Gen4) game tweaks.
+            project.Apply(project.PreviewData("Randomizar Pokémon",NdsSection.Pokemon,new NdsDataOptions(5){Stats=NdsStatsMode.Shuffle,Types=true,Scope=new HashSet<int>{1,4,7}}));
+            if(project.TweaksProblem is null)project.Apply(project.PreviewTweaks(new NdsTweakOptions{FastestText=true,NationalDexAtStart=true}));
+            // Global Template: the history saved, read back and replayed with its seeds on a fresh session gives the same changes.
+            string templatePath=Path.Combine(output,"global.json");NdsProject.WriteGlobal(templatePath,project.CaptureGlobal());
+            var template=NdsProject.ReadGlobal(templatePath);
+            using(var replay=NdsProject.Open(rom,false))
+            {
+                replay.ApplyGlobal(template,newSeeds:false);
+                Check(replay.History.Count==project.History.Count&&replay.History.Zip(project.History).All(p=>p.First.Action==p.Second.Action&&p.First.Changes.SequenceEqual(p.Second.Changes)),
+                    "NdsUi_Real_GlobalTemplateReplaysTheSameChanges");
+                var other=(System.Text.Json.Nodes.JsonObject)template.DeepClone();other["Game"]="XXXX";
+                bool refused=false;try{replay.ApplyGlobal(other,newSeeds:false);}catch(InvalidOperationException){refused=true;}
+                Check(refused&&replay.History.Count==project.History.Count,"NdsUi_Real_GlobalTemplateRefusesOtherGames");
+            }
+            // Batch: new ROMs with new seeds, verified on export; existing outputs are never overwritten.
+            var batch=NdsProject.BuildBatch(rom,false,template,2,output,"batch",null,CancellationToken.None);
+            bool kept=false;try{NdsProject.BuildBatch(rom,false,template,1,output,"batch",null,CancellationToken.None);}catch(IOException){kept=true;}
+            Check(batch.Count==2&&batch.All(File.Exists)&&batch.All(b=>File.Exists(Path.ChangeExtension(b,".cambios.txt")))&&Hash(batch[0])!=Hash(batch[1])&&kept,"NdsUi_Real_BatchBuildsDistinctRomsWithoutOverwriting");
+            Pump(workspace.NavigateAsync("Template"));Capture(workspace,"nds-workspace-template");
         }
         finally{workspace.Project?.Dispose();}
         Check(Hash(rom)==before,"NdsUi_Real_SourceUnchanged");

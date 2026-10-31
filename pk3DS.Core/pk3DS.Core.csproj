@@ -18,5 +18,7 @@
     </EmbeddedResource>
     <!-- Gen4 character table from UPR-ZX (GPLv3, derived from thenewpoketext); see docs/third-party/UPR-ZX-LICENSE.txt. -->
     <EmbeddedResource Include="NDS\Generation4.tbl" LogicalName="pk3DS.Core.NDS.Generation4.tbl" />
+    <!-- Gen4 tweak patches from UPR-ZX (GPLv3); see docs/third-party/UPR-ZX-LICENSE.txt. -->
+    <EmbeddedResource Include="NDS\Patches\*.ips" LogicalName="pk3DS.Core.NDS.Patches.%(Filename)%(Extension)" />
   </ItemGroup>
 </Project>

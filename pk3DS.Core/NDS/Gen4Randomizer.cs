@@ -35,6 +35,15 @@ public static class Gen4Randomizer
         // Starters and item balls share the scripts table: one working copy, written once.
         if (scripts.IsValueCreated)
             files[data.PathOf(Gen4Profile.Scripts)] = scripts.Value.Write();
+        // Levels and forced evolutions work on the new tables as cells, the way manual edits do.
+        if (options.AdjustsTrainers || options.WildLevelPercent != 0)
+            foreach (var (section, edits) in Gen5Randomizer.Adjustments(options, s => NdsCells.Read(data.WithDraft(files, overlays, arm9), s)))
+            {
+                var adjusted = NdsCells.Write(data.WithDraft(files, overlays, arm9), section, edits);
+                foreach (var (path, bytes) in adjusted.Files)
+                    files[path] = bytes;
+                changes.AddRange(adjusted.Changes);
+            }
         return new Gen5RandomizerResult(files, changes, overlays)
         {
             Arm9 = arm9,
@@ -330,13 +339,15 @@ public static class Gen4Randomizer
         }
     }
 
-    private static void RandomizeTrainers(Gen4Data data, Gen5RandomizerOptions options, Func<Gen5SpeciesMode, string, int, int, int> pick,
+    private static void RandomizeTrainers(Gen4Data data, Gen5RandomizerOptions options, SpeciesPick pick,
         Dictionary<string, byte[]> files, List<Gen5Change> changes)
     {
         var headers = data.CopyNarc(Gen4Profile.TrainerData);
         var teams = data.CopyNarc(Gen4Profile.TrainerPokemon);
+        var stats = data.BaseStats();
         foreach (var trainer in data.Trainers().Where(t => options.InScope(t.Id)))
         {
+            var theme = Gen5Randomizer.Theme(options, stats, Gen4Data.MaxSpecies, trainer.Id);
             string location = $"Entrenador {trainer.Id} · {trainer.ClassName} {trainer.Name}".TrimEnd();
             int oldSize = data.TeamEntrySize(trainer.Flags);
             // New species cannot keep moves picked for the old one: drop custom moves so the game uses level-up moves.
@@ -346,7 +357,7 @@ public static class Gen4Randomizer
             for (int slot = 0; slot < trainer.Team.Count; slot++)
             {
                 var p = trainer.Team[slot];
-                int species = pick(options.Trainers, $"trainer/{trainer.Id}/{slot}", p.Species, p.Level);
+                int species = pick(options.Trainers, $"trainer/{trainer.Id}/{slot}", p.Species, p.Level, theme);
                 if (species != p.Species)
                     changes.Add(new Gen5Change($"{location} · Pokémon {slot + 1} · nivel {p.Level}", "Especie", p.Species, species));
                 byte[] entry = new byte[newSize];
@@ -374,7 +385,7 @@ public static class Gen4Randomizer
         files[data.PathOf(Gen4Profile.TrainerPokemon)] = teams.Write();
     }
 
-    private static void RandomizeWild(Gen4Data data, Gen5RandomizerOptions options, Func<Gen5SpeciesMode, string, int, int, int> pick,
+    private static void RandomizeWild(Gen4Data data, Gen5RandomizerOptions options, SpeciesPick pick,
         Dictionary<string, byte[]> files, List<Gen5Change> changes)
     {
         var wild = data.CopyNarc(Gen4Profile.WildPokemon);
@@ -383,7 +394,7 @@ public static class Gen4Randomizer
             if (slot.Species is < 1 or > Gen4Data.MaxSpecies)
                 continue;
             // Same original species in one table maps to the same new species, keeping the table's rates.
-            int replacement = pick(options.Wild, $"wild/{slot.File}/{slot.Group}/{slot.Species}", slot.Species, slot.MaxLevel);
+            int replacement = pick(options.Wild, options.WildGlobalMapping ? $"wild/{slot.Species}" : $"wild/{slot.File}/{slot.Group}/{slot.Species}", slot.Species, slot.MaxLevel);
             var span = wild.Files[slot.File].AsSpan(slot.Offset);
             if (slot.Width == 4)
                 BinaryPrimitives.WriteUInt32LittleEndian(span, (uint)replacement);

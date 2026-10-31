@@ -8,7 +8,7 @@ using System.Linq;
 namespace pk3DS.Core.NDS;
 
 /// <summary>Editable sections of a DS game, in the order the workspace shows them.</summary>
-public enum NdsSection { Starters, Trainers, Encounters, FieldItems, Shops, Pokemon, Moves, Learnsets, Evolutions, Machines }
+public enum NdsSection { Starters, Trainers, Encounters, FieldItems, Shops, Pokemon, Moves, Learnsets, Evolutions, Machines, Statics, Trades }
 
 /// <summary>What a cell's value names, so the editor can offer a list instead of a number.</summary>
 public enum NdsValueKind { Number, Species, Item, Move, Type, Ability, Option, Flag }
@@ -35,7 +35,11 @@ public static partial class NdsCells
 
     // Where a cell lives: a file of a NARC (by profile key), an overlay or the ARM9; Width is 1, 2 or 4 bytes.
     // Shift/Bits select a bit field inside the value (packed learnset entries, TM/HM flags); 0 bits means the whole value.
-    private sealed record Location(NdsCell Cell, Target Target, string NarcKey, int File, int Overlay, int Offset, int Width, int FormOffset = -1, int Shift = 0, int Bits = 0);
+    private sealed record Location(NdsCell Cell, Target Target, string NarcKey, int File, int Overlay, int Offset, int Width, int FormOffset = -1, int Shift = 0, int Bits = 0)
+    {
+        /// <summary>Other positions of the same NARC that hold the same value and change with it (static encounters' script copies).</summary>
+        public IReadOnlyList<(int File, int Offset)> Copies { get; init; } = [];
+    }
 
     public static IReadOnlyList<NdsCell> Read(Gen5Data data, NdsSection section) =>
         section == NdsSection.Starters ? StarterCells(data.Starters(), data.SpeciesNames(), Gen5Randomizer.MaxSpecies) : Locate(data, section).Select(l => l.Cell).ToArray();
@@ -112,6 +116,8 @@ public static partial class NdsCells
             }
             else
                 Write(target, at.Offset, at.Width, value);
+            foreach (var (file, offset) in at.Copies)
+                Write(narcs[at.NarcKey].Files[file], offset, at.Width, value);
             // A new species cannot keep the old one's form; form 0 always exists.
             if (at.FormOffset >= 0)
                 Write(target, at.FormOffset, 2, 0);
