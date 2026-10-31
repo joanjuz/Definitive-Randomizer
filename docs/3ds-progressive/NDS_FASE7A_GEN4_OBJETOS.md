@@ -35,7 +35,6 @@ Barajado de objetos del mapa y tiendas en Diamante, Platino y HeartGold. En Gen4
 
   Sustituyen a las `*-random-prueba.nds` de la fase 6.
 
-## Pendiente
+## Prueba en juego
 
-- Prueba en juego, sobre todo HeartGold: arranca con el ARM9 recomprimido, recoger objetos visibles y ocultos (con el Zahorí) y comprar en una tienda especial.
-- Fase 7b: iniciales de Gen4.
+**Confirmada por el propietario el 2026-10-31**: las ROM de prueba de las fases 4 a 8 funcionan en DeSmuME y están bien randomizadas. Eran Blanco ES (objetos y tiendas), Blanco 2, Diamante, Platino y HeartGold con todas las opciones, y los romhacks Renegade Platinum y Volt White 2.

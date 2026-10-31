@@ -61,8 +61,6 @@ public partial class MoveEditor7 : Form
 
     private void FixMoveEditorOptionsLayout()
     {
-        const int gap = 6;
-
         B_Table.Location = new System.Drawing.Point(
             B_Table.Left,
             B_Table.Top + 22
@@ -1157,8 +1155,7 @@ public partial class MoveEditor7 : Form
         for (int i = 0; i < CB_Move.Items.Count; i++)
         {
             CB_Move.SelectedIndex = i;
-            if (CB_Move.SelectedIndex is not (117 and 32))
-                NUD_PP.Value = 0;
+            NUD_PP.Value = 0;
             if (CB_Move.SelectedIndex == 117)
                 NUD_PP.Value = 40;
             if (CB_Move.SelectedIndex == 32)

@@ -6,5 +6,8 @@
     <Company>Project Pokémon</Company>
     <Authors>Kaphotics</Authors>
     <Copyright>Kaphotics</Copyright>
+    <!-- The build is warning-free (2026-10-31): these compiler warnings fail the build so they do not come back.
+         Only stable compiler diagnostics are listed, so a newer SDK's analyzers cannot break CI on their own. -->
+    <WarningsAsErrors>$(WarningsAsErrors);nullable;CS0108;CS0219;CS0414;CS8794</WarningsAsErrors>
   </PropertyGroup>
 </Project>

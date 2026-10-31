@@ -79,8 +79,8 @@ internal sealed class BatchRomBuilderView : UserControl
             Visibility=Visibility.Collapsed,Foreground=(Brush)FindResource("TextMain"),
             Margin=new Thickness(0,5,0,10)
         };
-        _allowMismatch.Checked+=(_,_)=>_build.IsEnabled=_ready is not null;
-        _allowMismatch.Unchecked+=(_,_)=>_build.IsEnabled=false;
+        _allowMismatch.Checked+=(_,_)=>_build!.IsEnabled=_ready is not null;
+        _allowMismatch.Unchecked+=(_,_)=>_build!.IsEnabled=false;
         buttons.Children.Add(_allowMismatch);
         var bar=new WrapPanel();
         buttons.Children.Add(bar);
@@ -103,7 +103,7 @@ internal sealed class BatchRomBuilderView : UserControl
         var browse=Add(fileRow,"Elegir…",()=>
         {
             var chooser=new Microsoft.Win32.OpenFileDialog{Filter="Global ROM Template|*.json"};
-            if(chooser.ShowDialog(Window.GetWindow(this))==true)_template.Text=chooser.FileName;
+            if(chooser.ShowDialog(Window.GetWindow(this))==true)_template!.Text=chooser.FileName;
         });
         DockPanel.SetDock(browse,Dock.Right);
         _template=new TextBox{Text=suggestedTemplate??"",MinHeight=34};
@@ -117,7 +117,7 @@ internal sealed class BatchRomBuilderView : UserControl
             using var browser=new System.Windows.Forms.FolderBrowserDialog
             {Description="Elegí la carpeta destino de los .3ds."};
             if(browser.ShowDialog()==System.Windows.Forms.DialogResult.OK)
-                _destination.Text=browser.SelectedPath;
+                _destination!.Text=browser.SelectedPath;
         });
         DockPanel.SetDock(outputButton,Dock.Right);
         _destination=new TextBox{Text=Path.Combine(Directory.GetParent(project.ProjectRoot)?.FullName

@@ -30,6 +30,6 @@ Los objetos que no se mueven se comprobaron con los nombres de Blanco 2: los mis
 - Ventana DS: `--nds-ui-probe` 9/9 con Blanco 2, Negro y Blanco ES. Pruebas reales anteriores de Negro y Blanco ES sin cambios: 16, 14, 20 y 20.
 - ROM de prueba para el juego: `D:\Nintendo\DS\Juegos\Pruebas\Blanco2-todo-prueba.nds` (todas las opciones, semilla 20261030, 7957 cambios; iniciales Pikachu, Charmander y Squirtle).
 
-## Pendiente
+## Prueba en juego
 
-Prueba en juego (partida nueva): elegir inicial (imagen, grito, tipo en el texto), comprobar que el Pokédex se recibe, combates contra entrenadores y salvajes, recoger objetos y comprar en una tienda especial.
+**Confirmada por el propietario el 2026-10-31**: las ROM de prueba de las fases 4 a 8 funcionan en DeSmuME y están bien randomizadas. Eran Blanco ES (objetos y tiendas), Blanco 2, Diamante, Platino y HeartGold con todas las opciones, y los romhacks Renegade Platinum y Volt White 2.

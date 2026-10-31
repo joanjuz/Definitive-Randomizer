@@ -34,7 +34,6 @@ Perla, SoulSilver y otras regiones no tienen perfil. Cada NARC se comprueba con 
 - Ventana DS: `--nds-ui-only` 7; `--nds-ui-probe` 8/8 con HeartGold y con Diamante (iniciales, objetos y tiendas desactivados) y 9/9 con Blanco ES.
 - ROM de prueba para el juego (semilla 20261030, entrenadores BST progresivo, encuentros BST similar), en `D:\Nintendo\DS\Juegos\Pruebas`: `Diamante-random-prueba.nds` (8242 cambios), `Platino-random-prueba.nds` (8573) y `HeartGold-random-prueba.nds` (8127), cada una con su `.cambios.txt`.
 
-## Pendiente
+## Prueba en juego
 
-- Prueba en juego de las tres ROM (partida nueva): combates contra entrenadores (incluido el primer líder) y Pokémon salvajes en hierba, de día y de noche, y con caña.
-- Fases siguientes de Gen4: iniciales, objetos y tiendas.
+**Confirmada por el propietario el 2026-10-31**: las ROM de prueba de las fases 4 a 8 funcionan en DeSmuME y están bien randomizadas. Eran Blanco ES (objetos y tiendas), Blanco 2, Diamante, Platino y HeartGold con todas las opciones, y los romhacks Renegade Platinum y Volt White 2.

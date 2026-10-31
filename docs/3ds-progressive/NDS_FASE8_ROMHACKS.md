@@ -35,7 +35,10 @@ Modo **romhack** para ROM modificadas de los juegos admitidos (Diamante, Platino
   - la exportación se relee y conserva el resto de archivos;
   - el origen no cambia.
 
+## Prueba en juego
+
+**Confirmada por el propietario el 2026-10-31**: las ROM de prueba de las fases 4 a 8 funcionan en DeSmuME y están bien randomizadas. Eran Blanco ES (objetos y tiendas), Blanco 2, Diamante, Platino y HeartGold con todas las opciones, y los romhacks Renegade Platinum y Volt White 2.
+
 ## Pendiente
 
-- Prueba en juego de un romhack exportado, por ejemplo Renegade Platinum con iniciales o Volt White 2.
-- Los romhacks de otros juegos (Perla, SoulSilver, Negro 2, otras regiones) no se admiten: necesitarían el perfil de su juego original.
+Los romhacks de otros juegos (Perla, SoulSilver, Negro 2, otras regiones) no se admiten: necesitarían el perfil de su juego original.

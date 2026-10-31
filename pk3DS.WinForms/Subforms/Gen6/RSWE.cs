@@ -830,10 +830,10 @@ public partial class RSWE : Form
         RandomizationSessionState.MarkAction("wild-encounters.modify-levels");
         WinFormsUtil.Alert("Modified all Level ranges according to specification!", "Press the Dump Tables button to view the new Level ranges!");
     }
-    private Button? B_AdvancedWildLevels;
-    private NumericUpDown? NUD_WildLevelFlat;
-    private NumericUpDown? NUD_WildLevelMultiplier;
-    private CheckBox? CHK_WildLevelKeepRange;
+    private Button B_AdvancedWildLevels;
+    private NumericUpDown NUD_WildLevelFlat;
+    private NumericUpDown NUD_WildLevelMultiplier;
+    private CheckBox CHK_WildLevelKeepRange;
 
     private void AddAdvancedWildLevelScaler()
     {
@@ -919,7 +919,7 @@ public partial class RSWE : Form
         }
     }
 
-    private void ApplyAdvancedWildLevelScaling(object? sender, EventArgs e)
+    private void ApplyAdvancedWildLevelScaling(object sender, EventArgs e)
     {
         if (DialogResult.Yes != WinFormsUtil.Prompt(
             MessageBoxButtons.YesNo,
@@ -1002,11 +1002,11 @@ public partial class RSWE : Form
         int scaled = (int)Math.Round((level * multiplier) + flat, MidpointRounding.AwayFromZero);
         return Math.Max(1, Math.Min(100, scaled));
     }
-    private GroupBox? GB_WildLevelScalerVisible;
-    private NumericUpDown? NUD_WildLevelFlatVisible;
-    private NumericUpDown? NUD_WildLevelMultiplierVisible;
-    private CheckBox? CHK_WildLevelKeepRangeVisible;
-    private Button? B_ApplyWildLevelScalingVisible;
+    private GroupBox GB_WildLevelScalerVisible;
+    private NumericUpDown NUD_WildLevelFlatVisible;
+    private NumericUpDown NUD_WildLevelMultiplierVisible;
+    private CheckBox CHK_WildLevelKeepRangeVisible;
+    private Button B_ApplyWildLevelScalingVisible;
 
     private void AddAdvancedWildLevelScalerVisible()
     {

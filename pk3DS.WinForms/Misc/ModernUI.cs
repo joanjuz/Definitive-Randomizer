@@ -1110,10 +1110,10 @@ internal static class ModernUI
         check.CheckedChanged += DependentCheckChanged;
         Update();
 
-        void DependentCheckChanged(object? sender, EventArgs e) => Update();
+        void DependentCheckChanged(object sender, EventArgs e) => Update();
     }
 
-    private static Label? FindLabelByText(Control root, string text)
+    private static Label FindLabelByText(Control root, string text)
     {
         return FindControls<Label>(root)
             .FirstOrDefault(label => string.Equals(label.Text, text, StringComparison.Ordinal));
@@ -1145,7 +1145,7 @@ internal static class ModernUI
         return label;
     }
 
-    private static void MoveAndSize(Control? control, int x, int y, int width, int height)
+    private static void MoveAndSize(Control control, int x, int y, int width, int height)
     {
         if (control == null)
             return;
@@ -1153,7 +1153,7 @@ internal static class ModernUI
         control.Size = new Size(width, height);
     }
 
-    private static T? FindControl<T>(Control root, string name) where T : Control
+    private static T FindControl<T>(Control root, string name) where T : Control
     {
         foreach (Control control in EnumerateControls(root))
             if (control is T typed && string.Equals(control.Name, name, StringComparison.Ordinal))

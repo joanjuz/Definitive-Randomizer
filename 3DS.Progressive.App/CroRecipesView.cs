@@ -36,7 +36,7 @@ internal sealed class CroRecipesView : UserControl
             Margin=new Thickness(0,6,0,9)});
         var actions=new WrapPanel();header.Children.Add(actions);
         Add(actions,"Añadir recetas JSON…",AddFiles);
-        Add(actions,"Limpiar selección",()=>{_files.Items.Clear();Clear();});
+        Add(actions,"Limpiar selección",()=>{_files!.Items.Clear();Clear();});
         Add(actions,"Generar vista previa",Preview);
         _apply=Add(actions,"Aplicar recetas CRO",Apply);
         _apply.IsEnabled=false;

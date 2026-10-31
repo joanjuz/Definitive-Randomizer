@@ -35,10 +35,6 @@ Iniciales aleatorios o personalizados en Diamante, Platino y HeartGold, como en 
 
   Sustituyen a las `*-todo-prueba.nds` de la fase 7a.
 
-## Pendiente
+## Prueba en juego
 
-Prueba en juego (partida nueva):
-- la pantalla de elección muestra la imagen, el nombre y el texto correctos (y el grito en HeartGold);
-- el inicial recibido es el elegido;
-- el primer combate contra el rival usa el inicial que corresponde;
-- en Diamante/Platino, los combates dobles con acompañante.
+**Confirmada por el propietario el 2026-10-31**: las ROM de prueba de las fases 4 a 8 funcionan en DeSmuME y están bien randomizadas. Eran Blanco ES (objetos y tiendas), Blanco 2, Diamante, Platino y HeartGold con todas las opciones, y los romhacks Renegade Platinum y Volt White 2.

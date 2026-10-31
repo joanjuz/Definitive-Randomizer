@@ -75,7 +75,7 @@ internal sealed class PlayerLevelCapsView : UserControl
             if(_preset.SelectedValue is not int shift||!byte.TryParse(_finalCap.Text,out var cap))return;
             if(cap<5||cap>100)throw new ArgumentException("El cap final debe estar entre 5 y 100.");
             Reload(LevelCapPresets.Build(shift,cap));
-            _summary.Text="Preset: "+LevelCapShifts.Describe(shift)+". "+LevelCapPresets.Summarise(GetTable());
+            _summary!.Text="Preset: "+LevelCapShifts.Describe(shift)+". "+LevelCapPresets.Summarise(GetTable());
         });
         var commands=new WrapPanel();_operations.Children.Add(commands);
         ActionButton(commands,"Sync Trainer Caps",SyncTrainers);
