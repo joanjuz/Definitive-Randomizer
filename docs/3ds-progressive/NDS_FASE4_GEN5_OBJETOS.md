@@ -20,6 +20,6 @@ Barajado de los objetos del mapa y de las tiendas especiales. Código en `pk3DS.
 - Ventana DS: «Objetos del mapa» y «Tiendas» (sin cambios o barajar); `--nds-ui-only` 7 y `--nds-ui-probe` 9 con Blanco ES.
 - ROM de prueba para el juego: `D:\Nintendo\DS\Juegos\Pruebas\Blanco-ES-objetos-tiendas-prueba.nds` (solo objetos y tiendas, 575 cambios).
 
-## Pendiente
+## Prueba en juego
 
-Prueba en juego: recoger objetos visibles y ocultos y comprar en una tienda especial (por ejemplo, la de hierbas o la de vitaminas).
+**Confirmada por el propietario el 2026-10-31**: las ROM de prueba de las fases 4 a 8 funcionan en DeSmuME y están bien randomizadas. Eran Blanco ES (objetos y tiendas), Blanco 2, Diamante, Platino y HeartGold con todas las opciones, y los romhacks Renegade Platinum y Volt White 2.
