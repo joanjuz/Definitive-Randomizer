@@ -146,6 +146,24 @@ public abstract class ArchiveProjectEditor : IProjectEditor
         AfterCommit();
     }
     protected virtual void AfterCommit(){}
+    internal const string NoMegasActionId="pokemon.no-obtainable-megas";
+    /// <summary>Records that are not obtainable by the player (Totem battles) keep their forms.</summary>
+    protected virtual bool ObtainableRecord(int id)=>true;
+    /// <summary>Every Species/Form pair with a Mega form (or Primal, Ultra Necrozma) goes back to its base form. Other battle forms stay.</summary>
+    internal EditorProposal PreviewWithoutMegas()
+    {
+        var records=Records();var changes=new List<BatchChange>();
+        foreach(var entry in Entries.Where(e=>ObtainableRecord(e.Id)))
+        {
+            var before=ReadRecord(entry.Id,records);var values=EditorValues.Flatten(before);bool changed=false;
+            foreach(string key in values.Keys.Where(k=>k.EndsWith("Form",StringComparison.Ordinal)).ToArray())
+                if(values.TryGetValue(key[..^4]+"Species",out int species)&&Legal.IsMegaForm(species,values[key])){values[key]=0;changed=true;}
+            if(!changed)continue;
+            WriteRecord(entry.Id,values,records);
+            changes.AddRange(EditorValues.Diff(entry.Id,entry.Name,before,ReadRecord(entry.Id,records)));
+        }
+        return new(ProposalOwner,"Quitar formas Mega obtenibles",0,Build(records),changes,new Dictionary<string,string>{["ActionId"]=NoMegasActionId});
+    }
     protected IReadOnlyList<MoveChoice> Choices(TextName text)
     {if(!_choices.TryGetValue(text,out var choices))_choices[text]=choices=Config.GetText(text).Select((n,i)=>new MoveChoice(i,n)).ToArray();return choices;}
     protected IReadOnlyList<MoveChoice> SpeciesChoices=>_speciesChoices??=Choices(TextName.SpeciesNames).Take(Config.MaxSpeciesID+1).ToArray();

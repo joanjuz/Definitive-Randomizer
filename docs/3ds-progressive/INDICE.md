@@ -28,6 +28,7 @@ Punto de entrada a `docs/3ds-progressive/`. Muchos documentos son **registros hi
 ## 3DS: funciones específicas
 
 - Compras únicas en tiendas especiales (USUM): [COMPRAS_UNICAS_TIENDAS_ESPECIALES.md](COMPRAS_UNICAS_TIENDAS_ESPECIALES.md), [PENDIENTE_COMPRAS_UNICAS_USUM.md](PENDIENTE_COMPRAS_UNICAS_USUM.md)
+- Gen7: obediencia de intercambios, formas Mega obtenibles, pista del Ultraviaje y lista blanca de compra única: [GEN7_OBEDIENCIA_MEGAS_ULTRAVIAJE_LISTA_BLANCA.md](GEN7_OBEDIENCIA_MEGAS_ULTRAVIAJE_LISTA_BLANCA.md)
 - Pickup (LZ11): [CORRECCION_PICKUP_LZ11.md](CORRECCION_PICKUP_LZ11.md)
 - Asistente y vista guiada: [INICIO_MODOS_ASISTENTE.md](INICIO_MODOS_ASISTENTE.md), [AJUSTES_ASISTENTE_VISTA_GUIADA.md](AJUSTES_ASISTENTE_VISTA_GUIADA.md)
 - Sprites remotos: [SPRITES_REMOTOS_OPCIONALES.md](SPRITES_REMOTOS_OPCIONALES.md)

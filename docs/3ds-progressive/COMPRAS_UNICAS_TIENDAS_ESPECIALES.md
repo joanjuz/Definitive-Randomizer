@@ -10,6 +10,10 @@ La política se registra en el historial como operación reproducible; puede exp
 
 El registro usa tienda + ID, conserva sus posiciones al reordenar o editar filas y no guarda nombres dependientes del idioma. Retirar un objeto no libera su bit para otro objeto. Quitar la selección pendiente no desinstala una política ya guardada en una ROM.
 
+## Lista blanca
+
+Desde el 31/10/2026, «Lista blanca de compra única…» deja objetos sin límite aunque la política esté activa. Sus filas siguen en el registro, con su bit de la partida, pero marcadas para que la tienda no las encuentre; no cambia el código ARM. Detalles en [GEN7_OBEDIENCIA_MEGAS_ULTRAVIAJE_LISTA_BLANCA.md](GEN7_OBEDIENCIA_MEGAS_ULTRAVIAJE_LISTA_BLANCA.md).
+
 ## Mensaje
 
 Se añade una entrada al final del banco 95 de Game Text en los diez idiomas; en español: **Ya compraste este objeto.** No se sustituyen los mensajes originales de dinero, bolsa ni las líneas existentes. El nuevo estado de agotado tiene una ruta propia. Shop.cro, textos y CRR se guardan con el historial mediante la transacción existente, comprobando dependencias antes de escribir.
