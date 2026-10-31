@@ -37,8 +37,8 @@ internal sealed class StartView:UserControl
         }
         if(openNds is not null)
         {
-            var nds=new Button{Content="Nintendo DS · randomizer Gen4/Gen5 (beta)",Margin=new Thickness(0,0,8,8)};
-            System.Windows.Automation.AutomationProperties.SetName(nds,"Abrir el randomizer de Nintendo DS para Pokémon Diamante, Platino, HeartGold, Negro, Blanco y Blanco 2");
+            var nds=new Button{Content="Nintendo DS · Gen4/Gen5 (beta)",Margin=new Thickness(0,0,8,8)};
+            System.Windows.Automation.AutomationProperties.SetName(nds,"Abrir el espacio de trabajo de Nintendo DS para Pokémon Diamante, Platino, HeartGold, Negro, Blanco y Blanco 2");
             nds.Click+=(_,_)=>openNds();actions.Children.Add(nds);
         }
         body.Children.Add(new TextBlock{Text="Ayuda breve y opcional · F1 abre la guía de la sección actual.",TextWrapping=TextWrapping.Wrap,Margin=new Thickness(0,5,0,0)});

@@ -25,6 +25,8 @@ public sealed record Gen5Profile(string GameCode, bool Black, IReadOnlyDictionar
     public int TrainerClassesText { get; init; } = 191;
     public int TypeNamesText { get; init; } = 199;
     public int ItemNamesText { get; init; } = 54;
+    public int MoveNamesText { get; init; } = 203;
+    public int AbilityNamesText { get; init; } = 182;
 
     public IReadOnlyList<(int File, int Offset)>[] StarterOffsets { get; init; } = BlackWhiteStarters;
     public int StarterStoryText { get; init; } = 430;
@@ -108,6 +110,7 @@ public sealed record Gen5Profile(string GameCode, bool Black, IReadOnlyDictionar
         })
         {
             Sequel = true, SpeciesNamesText = 90, TrainerNamesText = 382, TrainerClassesText = 383, TypeNamesText = 398, ItemNamesText = 64,
+            MoveNamesText = 403, AbilityNamesText = 374,
             StarterOffsets = [[(854, 0x58B), (854, 0x590), (854, 0x595)], [(854, 0x5C0), (854, 0x5C5), (854, 0x5CA)], [(854, 0x5E2), (854, 0x5E7), (854, 0x5EC)]],
             StarterStoryText = 169, StarterTypeLines = [37, 36, 35], PokedexGivenScript = 854,
             PokedexSignature = [0x28, 0x00, 0xA1, 0x40, 0x04, 0x00],
@@ -159,9 +162,14 @@ public sealed class Gen5Data
     private readonly bool _requireOriginalTables;
     private readonly bool _romhack;
     private readonly Dictionary<string, Narc> _narcs = new();
+    private readonly Gen5Data? _base;
+    private readonly IReadOnlyDictionary<string, byte[]>? _draftFiles;
+    private readonly IReadOnlyDictionary<int, byte[]>? _draftOverlays;
 
     public NdsIdentityResult Identity { get; }
     public Gen5Profile Profile { get; }
+    /// <summary>Created by <see cref="WithDraft"/>: reads changed tables first and cannot export.</summary>
+    public bool IsDraft => _base is not null;
     /// <summary>Opened with <see cref="OpenRomhack"/>: tables are modified, code binaries are checked one by one.</summary>
     public bool IsRomhack => _romhack;
     /// <summary>Options this ROM cannot use, with the reason (empty for originals).</summary>
@@ -177,6 +185,24 @@ public sealed class Gen5Data
     }
 
     /// <summary>
+    /// View of this ROM with some tables already changed: <paramref name="files"/> by ROM path and decompressed overlays by id
+    /// replace the originals when read. Used to stack edits and randomizations before one export; a draft view never exports.
+    /// </summary>
+    public Gen5Data WithDraft(IReadOnlyDictionary<string, byte[]> files, IReadOnlyDictionary<int, byte[]> overlays) => new(_base ?? this, files, overlays);
+
+    private Gen5Data(Gen5Data root, IReadOnlyDictionary<string, byte[]> files, IReadOnlyDictionary<int, byte[]> overlays)
+        : this(root._rom, root.Identity, root.Profile, requireOriginalTables: false, romhack: root._romhack)
+    {
+        _base = root;
+        _draftFiles = files;
+        _draftOverlays = overlays;
+        Unavailable = root.Unavailable;
+    }
+
+    /// <summary>Script file as it is in the ROM, before any draft change (code patches are detected against it).</summary>
+    internal byte[] OriginalScript(int index) => (_base ?? this).Narc(Gen5Profile.Scripts).Files[index];
+
+    /// <summary>
     /// Opens a romhack of a supported game: tables need not match the profile CRC32, but every table must parse and keep the
     /// structure the randomizer relies on. Options that patch code (overlays, ARM9) stay available only while that binary is
     /// still the original; <see cref="Unavailable"/> says which ones are not and why. Exporting is allowed.
@@ -189,6 +215,7 @@ public sealed class Gen5Data
         if (data.SpeciesNames().Count <= Gen5Randomizer.MaxSpecies || data.BaseStats().Count <= Gen5Randomizer.MaxSpecies)
             throw new InvalidDataException("El romhack no tiene los nombres o las estadísticas de las 649 especies donde los espera el perfil.");
         data.Text(data.Profile.ItemNamesText);
+        data.Text(data.Profile.MoveNamesText);
         data.Trainers();
         data.Encounters();
         data.FieldItems();
@@ -248,6 +275,10 @@ public sealed class Gen5Data
         if (_narcs.TryGetValue(key, out var cached))
             return cached;
         var (path, crc) = Profile.Files[key];
+        if (_draftFiles is not null && _draftFiles.TryGetValue(path, out byte[]? draft))
+            return _narcs[key] = NDS.Narc.Read(draft);
+        if (_base is not null)
+            return _narcs[key] = _base.Narc(key);
         byte[] bytes = _rom.ReadFile(path);
         uint actual = Crc32(bytes);
         if (_requireOriginalTables && actual != crc)
@@ -265,12 +296,16 @@ public sealed class Gen5Data
     /// <summary>Writes a new ROM with the randomized tables. The source ROM is never modified.</summary>
     public void Export(string output, Gen5RandomizerResult result)
     {
-        if (!_requireOriginalTables && !_romhack)
+        if (IsDraft || !_requireOriginalTables && !_romhack)
             throw new InvalidOperationException("Solo se exporta desde una ROM con todas sus tablas originales verificadas o abierta como romhack.");
         _rom.Save(output, result.Files.ToDictionary(p => _rom.File(p.Key).Id, p => p.Value), result.Overlays, result.RecompressOverlays);
     }
 
-    public IReadOnlyList<string> Text(int file) => Gen5Text.Read(Narc(Gen5Profile.TextStrings).Files[file]);
+    public IReadOnlyList<string> Text(int file)
+    {
+        var files = Narc(Gen5Profile.TextStrings).Files;
+        return file >= 0 && file < files.Count ? Gen5Text.Read(files[file]) : throw new InvalidDataException("Falta el archivo de texto " + file + ".");
+    }
 
     /// <summary>Decompressed overlay, checked against the profile CRC32 when original tables are required.</summary>
     public byte[] StarterCryOverlay() => Overlay(Profile.StarterCryOverlay, Profile.StarterCryOverlayCrc32);
@@ -280,6 +315,10 @@ public sealed class Gen5Data
 
     private byte[] Overlay(int id, uint crc)
     {
+        if (_draftOverlays is not null && _draftOverlays.TryGetValue(id, out byte[]? draft))
+            return (byte[])draft.Clone();
+        if (_base is not null)
+            return _base.Overlay(id, crc);
         byte[] overlay = _rom.ReadOverlay(id);
         uint actual = Crc32(overlay);
         // Code is never patched unless it is the original, romhacks included.

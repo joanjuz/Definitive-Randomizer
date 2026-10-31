@@ -46,6 +46,7 @@ Punto de entrada a `docs/3ds-progressive/`. Muchos documentos son **registros hi
 - Fase 7a, ARM9, objetos del mapa y tiendas de Gen4: [NDS_FASE7A_GEN4_OBJETOS.md](NDS_FASE7A_GEN4_OBJETOS.md)
 - Fase 7b, iniciales de Gen4: [NDS_FASE7B_GEN4_INICIALES.md](NDS_FASE7B_GEN4_INICIALES.md)
 - Fase 8, perfil de romhacks: [NDS_FASE8_ROMHACKS.md](NDS_FASE8_ROMHACKS.md)
+- Fase 9, DS integrado en la interfaz principal (espacio de trabajo y vista compartida): [NDS_FASE9_INTEGRACION.md](NDS_FASE9_INTEGRACION.md)
 
 ## Espada/Escudo (Switch)
 

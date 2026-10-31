@@ -27,7 +27,7 @@ public partial class MainWindow
     private void Home_Click(object sender,RoutedEventArgs e)
     {
         if(_closed||UiProgress.IsInteractionBlocked)return;
-        if(_switchWorkspace?.Busy==true)return;HideSwitchWorkspace();
+        if(_switchWorkspace?.Busy==true||_ndsWorkspace?.Busy==true)return;if(NdsVisible&&!_ndsWorkspace!.CanLeave())return;HideSwitchWorkspace();
         RefreshStart();SetHomeVisible(true);
     }
     internal void ChooseExperience(bool simplified)

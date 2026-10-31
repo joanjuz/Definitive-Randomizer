@@ -246,6 +246,7 @@ public partial class MainWindow : Window
     }
     private async void OpenProject_Click(object sender, RoutedEventArgs e)
     {
+        if(NdsVisible){await _ndsWorkspace!.OpenAsync();RefreshNdsHeader();return;}
         if(SwitchHost.Visibility==Visibility.Visible&&_switchWorkspace is not null){await _switchWorkspace.OpenAsync();return;}
         if (_closed||UiProgress.IsInteractionBlocked||!ConfirmDiscard() || !ConfirmAuxiliaryLeave())
             return;
@@ -604,7 +605,7 @@ public partial class MainWindow : Window
         var restored=await Task.Run(()=>GameProjectSession.Open(root,recoverInterruptedSave:false));LoadProject(restored);
         StatusText.Text="Archivos seleccionados restaurados, verificados y registrados en el historial.";
     }
-    private async void Rebuild_Click(object sender,RoutedEventArgs e){if(SwitchHost.Visibility==Visibility.Visible&&_switchWorkspace is not null){await _switchWorkspace.ExportAsync();return;}NavigateSystem("Rebuild");}
+    private async void Rebuild_Click(object sender,RoutedEventArgs e){if(NdsVisible){await _ndsWorkspace!.ExportAsync();RefreshNdsHeader();return;}if(SwitchHost.Visibility==Visibility.Visible&&_switchWorkspace is not null){await _switchWorkspace.ExportAsync();return;}NavigateSystem("Rebuild");}
 
     private async void Backup_Click(object sender,RoutedEventArgs e)
     {
@@ -1275,7 +1276,8 @@ public partial class MainWindow : Window
 
     protected override void OnClosing(CancelEventArgs e)
     {
-        if(_backupRunning||_switchWorkspace is not null&&!_switchWorkspace.CanLeave()){e.Cancel=true;base.OnClosing(e);return;}
+        if(_backupRunning||_switchWorkspace is not null&&!_switchWorkspace.CanLeave()||_ndsWorkspace is not null&&!_ndsWorkspace.CanLeave()){e.Cancel=true;base.OnClosing(e);return;}
+        if(_ndsWorkspace?.Project is {HasChanges:true} nds&&!StudioDialog.AutomatedChecks&&!StudioDialog.Confirm(this,"Nintendo DS","Hay cambios sin exportar en "+nds.Game+". ¿Cerrar y descartarlos?")){e.Cancel=true;base.OnClosing(e);return;}
         if (!ConfirmDiscard() || !ConfirmAuxiliaryLeave())
             e.Cancel = true;
         if (!e.Cancel)

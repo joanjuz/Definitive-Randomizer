@@ -18,6 +18,8 @@ public sealed record Gen4Profile(string GameCode, byte Version, Gen4Kind Kind, I
 
     public string Game => Kind switch { Gen4Kind.DiamondPearl => "Diamante", Gen4Kind.Platinum => "Platino", _ => "HeartGold" };
 
+    public int MoveNamesText { get; init; }
+    public int AbilityNamesText { get; init; }
     /// <summary>CRC32 of the decompressed ARM9, which holds the hidden items and the shops.</summary>
     public uint Arm9Crc32 { get; init; }
     /// <summary>Script file listing the item balls; entries in <see cref="ItemBallSkip"/> are not item balls (UPR-ZX ItemBallsSkip).</summary>
@@ -59,7 +61,7 @@ public sealed record Gen4Profile(string GameCode, byte Version, Gen4Kind Kind, I
             [Scripts] = ("fielddata/script/scr_seq_release.narc", 0x5FDE722D),
         }, 362, 559, 560, 344, 565)
         {
-            Arm9Crc32 = 0x08E0337C, ItemBallScript = 370, ItemBallSkip = [40, 196], HiddenItemTable = 0xF2DB4, HiddenItemCount = 229,
+            MoveNamesText = 588, AbilityNamesText = 552, Arm9Crc32 = 0x08E0337C, ItemBallScript = 370, ItemBallSkip = [40, 196], HiddenItemTable = 0xF2DB4, HiddenItemCount = 229,
             ShopPrefix = Convert.FromHexString("391104027511040285AF0302A5AF0302"), ShopCount = 28, FixedShops = [12, 13, 15, 16, 17, 18, 19, 20, 21, 22, 23],
             StarterOverlay = 64, StarterOverlayCrc32 = 0x727963E2, StarterOffset = 0x1B88, StarterScreenText = 320, DexCategoryText = 621,
             RivalScripts = [34, 90, 118, 180, 195, 394], RivalScriptCount = 7, TagScripts = [2, 131, 230], TagScriptCount = 5,
@@ -74,7 +76,7 @@ public sealed record Gen4Profile(string GameCode, byte Version, Gen4Kind Kind, I
             [Scripts] = ("fielddata/script/scr_seq.narc", 0x6D482515),
         }, 412, 618, 619, 392, 624)
         {
-            Arm9Crc32 = 0x4D104949, ItemBallScript = 404, ItemBallSkip = [25, 238, 321, 325, 326], HiddenItemTable = 0xEA378, HiddenItemCount = 257,
+            MoveNamesText = 647, AbilityNamesText = 610, Arm9Crc32 = 0x4D104949, ItemBallScript = 404, ItemBallSkip = [25, 238, 321, 325, 326], HiddenItemTable = 0xEA378, HiddenItemCount = 257,
             ShopPrefix = Convert.FromHexString("ED7F0402258004026180040281800402"), ShopCount = 29, FixedShops = [13, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24],
             StarterOverlay = 78, StarterOverlayCrc32 = 0x091E8E97, StarterOffset = 0x1BC0, StarterScreenText = 360, DexCategoryText = 711,
             RivalScripts = [31, 36, 112, 123, 186, 427, 429, 1096], RivalScriptCount = 9, TagScripts = [2, 136, 201, 236], TagScriptCount = 6,
@@ -89,7 +91,7 @@ public sealed record Gen4Profile(string GameCode, byte Version, Gen4Kind Kind, I
             [Scripts] = ("a/0/1/2", 0xA7E3F740),
         }, 237, 729, 730, 222, 735)
         {
-            Arm9Crc32 = 0x99A30D93, ItemBallScript = 141, ItemBallSkip = [58], HiddenItemTable = 0xFA558, HiddenItemCount = 231,
+            MoveNamesText = 750, AbilityNamesText = 720, Arm9Crc32 = 0x99A30D93, ItemBallScript = 141, ItemBallSkip = [58], HiddenItemTable = 0xFA558, HiddenItemCount = 231,
             ShopPrefix = Convert.FromHexString("298E0402618E0402998E0402B98E0402"), ShopCount = 40, FixedShops = [17, 18, 22, 23, 24, 25, 26, 27, 28, 29, 30, 37, 39],
             StarterOverlay = 61, StarterOverlayCrc32 = 0xEE849CB4, StarterScreenText = 190,
             RivalScripts = [7, 23, 96, 110, 819, 850, 866], RivalScriptCount = 7,
@@ -127,9 +129,14 @@ public sealed class Gen4Data
     private readonly bool _romhack;
     private readonly Dictionary<string, Narc> _narcs = new();
     private byte[]? _arm9;
+    private readonly Gen4Data? _base;
+    private readonly IReadOnlyDictionary<string, byte[]>? _draftFiles;
+    private readonly IReadOnlyDictionary<int, byte[]>? _draftOverlays;
 
     public NdsIdentityResult Identity { get; }
     public Gen4Profile Profile { get; }
+    /// <summary>Created by <see cref="WithDraft"/>: reads changed tables first and cannot export.</summary>
+    public bool IsDraft => _base is not null;
     /// <summary>Opened with <see cref="OpenRomhack"/>: tables are modified, code binaries are checked one by one.</summary>
     public bool IsRomhack => _romhack;
     /// <summary>Options this ROM cannot use, with the reason (empty for originals).</summary>
@@ -145,6 +152,26 @@ public sealed class Gen4Data
     }
 
     /// <summary>
+    /// View of this ROM with some tables already changed: <paramref name="files"/> by ROM path and decompressed overlays by id
+    /// and a decompressed ARM9 replace the originals when read. Used to stack edits and randomizations before one export; a draft view never exports.
+    /// </summary>
+    public Gen4Data WithDraft(IReadOnlyDictionary<string, byte[]> files, IReadOnlyDictionary<int, byte[]> overlays, byte[]? arm9) =>
+        new(_base ?? this, files, overlays, arm9);
+
+    private Gen4Data(Gen4Data root, IReadOnlyDictionary<string, byte[]> files, IReadOnlyDictionary<int, byte[]> overlays, byte[]? arm9)
+        : this(root._rom, root.Identity, root.Profile, requireOriginalTables: false, romhack: root._romhack)
+    {
+        _base = root;
+        _draftFiles = files;
+        _draftOverlays = overlays;
+        _arm9 = arm9 is null ? null : (byte[])arm9.Clone();
+        Unavailable = root.Unavailable;
+    }
+
+    /// <summary>Starter overlay as it is in the ROM, before any draft change (the selection-screen code patch starts from it).</summary>
+    internal byte[] OriginalStarterOverlay() => (_base ?? this).StarterOverlay();
+
+    /// <summary>
     /// Opens a romhack of a supported game: tables need not match the profile CRC32, but every table must parse and keep the
     /// structure the randomizer relies on. Options that patch code (overlays, ARM9) stay available only while that binary is
     /// still the original; <see cref="Unavailable"/> says which ones are not and why. Exporting is allowed.
@@ -158,6 +185,7 @@ public sealed class Gen4Data
         if (data.SpeciesNames().Count <= MaxSpecies || data.BaseStats().Count <= MaxSpecies)
             throw new InvalidDataException("El romhack no tiene los nombres o las estadísticas de las 493 especies donde los espera el perfil.");
         data.Text(data.Profile.ItemNamesText);
+        data.Text(data.Profile.MoveNamesText);
         data.Trainers();
         data.Encounters();
         bool arm9 = Matches(() => data._rom.ReadArm9(), data.Profile.Arm9Crc32);
@@ -209,6 +237,8 @@ public sealed class Gen4Data
     /// <summary>Copy of the decompressed ARM9, checked against the profile CRC32 when original tables are required.</summary>
     public byte[] Arm9()
     {
+        if (_arm9 is null && _base is not null)
+            _arm9 = _base.Arm9();
         if (_arm9 is null)
         {
             byte[] arm9 = _rom.ReadArm9();
@@ -224,6 +254,10 @@ public sealed class Gen4Data
     /// <summary>Decompressed starter overlay, checked against the profile CRC32 when original tables are required.</summary>
     public byte[] StarterOverlay()
     {
+        if (_draftOverlays is not null && _draftOverlays.TryGetValue(Profile.StarterOverlay, out byte[]? draft))
+            return (byte[])draft.Clone();
+        if (_base is not null)
+            return _base.StarterOverlay();
         byte[] overlay = _rom.ReadOverlay(Profile.StarterOverlay);
         uint actual = Gen5Data.Crc32(overlay);
         if ((_requireOriginalTables || _romhack) && actual != Profile.StarterOverlayCrc32)
@@ -317,6 +351,10 @@ public sealed class Gen4Data
         if (_narcs.TryGetValue(key, out var cached))
             return cached;
         var (path, crc) = Profile.Files[key];
+        if (_draftFiles is not null && _draftFiles.TryGetValue(path, out byte[]? draft))
+            return _narcs[key] = NDS.Narc.Read(draft);
+        if (_base is not null)
+            return _narcs[key] = _base.Narc(key);
         byte[] bytes = _rom.ReadFile(path);
         uint actual = Gen5Data.Crc32(bytes);
         if (_requireOriginalTables && actual != crc)
@@ -334,14 +372,18 @@ public sealed class Gen4Data
     /// <summary>Writes a new ROM with the randomized tables. The source ROM is never modified.</summary>
     public void Export(string output, Gen5RandomizerResult result)
     {
-        if (!_requireOriginalTables && !_romhack)
+        if (IsDraft || !_requireOriginalTables && !_romhack)
             throw new InvalidOperationException("Solo se exporta desde una ROM con todas sus tablas originales verificadas o abierta como romhack.");
         if (result.Overlays.Keys.Any(id => id != Profile.StarterOverlay))
             throw new InvalidOperationException("Gen4 solo modifica el overlay de los iniciales.");
         _rom.Save(output, result.Files.ToDictionary(p => _rom.File(p.Key).Id, p => p.Value), result.Overlays, result.RecompressOverlays, result.Arm9);
     }
 
-    public IReadOnlyList<string> Text(int file) => Gen4Text.Read(Narc(Gen4Profile.Text).Files[file]);
+    public IReadOnlyList<string> Text(int file)
+    {
+        var files = Narc(Gen4Profile.Text).Files;
+        return file >= 0 && file < files.Count ? Gen4Text.Read(files[file]) : throw new InvalidDataException("Falta el archivo de texto " + file + ".");
+    }
 
     public IReadOnlyList<string> SpeciesNames() => Text(Profile.SpeciesNamesText);
 

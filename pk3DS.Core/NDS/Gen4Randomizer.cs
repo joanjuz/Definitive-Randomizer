@@ -29,9 +29,9 @@ public static class Gen4Randomizer
         if (options.Starters != Gen5StarterMode.Keep)
             SetStarters(data, options, scripts.Value, ref arm9, overlays, files, changes);
         if (options.FieldItems == Gen5ItemMode.Shuffle)
-            ShuffleFieldItems(data, options.Seed, scripts.Value, ref arm9, changes);
+            ShuffleFieldItems(data, options, scripts.Value, ref arm9, changes);
         if (options.Shops == Gen5ItemMode.Shuffle)
-            ShuffleShops(data, options.Seed, ref arm9, changes);
+            ShuffleShops(data, options, ref arm9, changes);
         // Starters and item balls share the scripts table: one working copy, written once.
         if (scripts.IsValueCreated)
             files[data.PathOf(Gen4Profile.Scripts)] = scripts.Value.Write();
@@ -44,6 +44,7 @@ public static class Gen4Randomizer
     }
 
     // Rival battle choice in Diamond/Platinum scripts: the two compared species follow at +0x08 and +0x15 (UPR-ZX dpptRivalScriptMagic).
+    // The species bytes inside each pattern are wildcards (checked against the current starters), so starters can change again.
     private static readonly byte[] DpptRivalMagic = [0xDE, 0x00, 0x0C, 0x80, 0x11, 0x00, 0x0C, 0x80, 0x83, 0x01, 0x1C, 0x00, 0x01];
     private static readonly byte[] DpptTagMagic = [0xDE, 0x00, 0x0C, 0x80, 0x28, 0x00, 0x04, 0x80];
     private static readonly byte[] DpptTagMagic2 = [0x11, 0x00, 0x0C, 0x80, 0x86, 0x01, 0x1C, 0x00, 0x01];
@@ -68,7 +69,9 @@ public static class Gen4Randomizer
         var original = data.Starters();
         bool hgss = profile.Kind == Gen4Kind.HeartGoldSoulSilver;
 
-        byte[] overlay = data.StarterOverlay();
+        // Diamond/Platinum: only starters change this overlay, so the selection-screen patch always starts from the original
+        // (patching twice would shift the code again); HeartGold's cry overlay only gets values written.
+        byte[] overlay = hgss ? data.StarterOverlay() : data.OriginalStarterOverlay();
         byte[] table = hgss ? (arm9 ??= data.Arm9()) : overlay;
         int at = data.StarterTable(table);
         for (int i = 0; i < 3; i++)
@@ -153,7 +156,7 @@ public static class Gen4Randomizer
     private static int PatchDpptRival(byte[] file, int[] chosen, IReadOnlyList<int> original, Gen4Kind kind)
     {
         int count = 0;
-        foreach (int at in Occurrences(file, DpptRivalMagic))
+        foreach (int at in Occurrences(file, DpptRivalMagic, 8))
         {
             int jump = at + DpptRivalMagic.Length, target = BinaryPrimitives.ReadInt32LittleEndian(file.AsSpan(jump)) + jump + 4;
             if (target < 0 || target + 2 > file.Length)
@@ -163,7 +166,7 @@ public static class Gen4Randomizer
             if (command != 0xE5 && command != 0x28F && (command != 0x125 || kind != Gen4Kind.Platinum))
                 continue;
             if (BinaryPrimitives.ReadUInt16LittleEndian(file.AsSpan(at + 0x8)) != original[0] || BinaryPrimitives.ReadUInt16LittleEndian(file.AsSpan(at + 0x15)) != original[1])
-                throw new InvalidDataException("Un script del rival no compara los iniciales originales.");
+                continue; // same script shape comparing other species: not a starter branch
             BinaryPrimitives.WriteUInt16LittleEndian(file.AsSpan(at + 0x8), (ushort)chosen[0]);
             BinaryPrimitives.WriteUInt16LittleEndian(file.AsSpan(at + 0x15), (ushort)chosen[1]);
             count++;
@@ -177,14 +180,14 @@ public static class Gen4Randomizer
         foreach (int at in Occurrences(file, DpptTagMagic))
         {
             int second = at + DpptTagMagic.Length + 2;
-            if (second + DpptTagMagic2.Length + 4 > file.Length || !file.AsSpan(second, DpptTagMagic2.Length).SequenceEqual(DpptTagMagic2))
+            if (second + DpptTagMagic2.Length + 4 > file.Length || !Matches(file, second, DpptTagMagic2, 4))
                 continue;
             int jump = second + DpptTagMagic2.Length, target = BinaryPrimitives.ReadInt32LittleEndian(file.AsSpan(jump)) + jump + 4;
             if (target < 0 || target + 2 > file.Length || BinaryPrimitives.ReadUInt16LittleEndian(file.AsSpan(target)) != 0x1B)
                 continue;
             int partner = BinaryPrimitives.ReadUInt16LittleEndian(file.AsSpan(at + 0x21));
             if (BinaryPrimitives.ReadUInt16LittleEndian(file.AsSpan(at + 0xE)) != original[1] || (partner != original[0] && partner != original[2]))
-                throw new InvalidDataException("Un combate doble no compara los iniciales originales.");
+                continue;
             BinaryPrimitives.WriteUInt16LittleEndian(file.AsSpan(at + 0x21), (ushort)(partner == original[0] ? chosen[0] : chosen[2]));
             BinaryPrimitives.WriteUInt16LittleEndian(file.AsSpan(at + 0xE), (ushort)chosen[1]);
             count++;
@@ -194,7 +197,7 @@ public static class Gen4Randomizer
 
     private static int PatchHgssRival(byte[] file, int[] chosen, IReadOnlyList<int> original)
     {
-        var found = Occurrences(file, HgssRivalMagic).ToArray();
+        var found = Occurrences(file, HgssRivalMagic, 8).Where(at => BinaryPrimitives.ReadUInt16LittleEndian(file.AsSpan(at + 8)) == original[0]).ToArray();
         if (found.Length != 1)
             return 0;
         int at = found[0], second = BinaryPrimitives.ReadInt32LittleEndian(file.AsSpan(at + 13)) + at + 17;
@@ -249,11 +252,20 @@ public static class Gen4Randomizer
 
     private static string TitleCase(string upper) => upper.Length == 0 ? upper : upper[0] + upper[1..].ToLowerInvariant();
 
-    private static IEnumerable<int> Occurrences(byte[] data, byte[] pattern)
+    // Positions of pattern, with the two bytes at wildcard (a species id) free; -1 means no wildcard.
+    private static IEnumerable<int> Occurrences(byte[] data, byte[] pattern, int wildcard = -1)
     {
         for (int i = 0; i + pattern.Length <= data.Length; i++)
-            if (data.AsSpan(i, pattern.Length).SequenceEqual(pattern))
+            if (Matches(data, i, pattern, wildcard))
                 yield return i;
+    }
+
+    private static bool Matches(byte[] data, int at, byte[] pattern, int wildcard)
+    {
+        for (int j = 0; j < pattern.Length; j++)
+            if (j != wildcard && j != wildcard + 1 && data[at + j] != pattern[j])
+                return false;
+        return true;
     }
 
     private static int[] PickStarters(uint seed)
@@ -288,10 +300,10 @@ public static class Gen4Randomizer
     /// </summary>
     public static bool IsMovableItem(int item) => item is (>= 1 and <= 111) or (>= 135 and <= 327);
 
-    private static void ShuffleFieldItems(Gen4Data data, uint seed, Narc scripts, ref byte[]? arm9, List<Gen5Change> changes)
+    private static void ShuffleFieldItems(Gen4Data data, Gen5RandomizerOptions options, Narc scripts, ref byte[]? arm9, List<Gen5Change> changes)
     {
-        var slots = data.FieldItems().Where(s => IsMovableItem(s.Item)).ToArray();
-        int[] items = Gen5Randomizer.Shuffle(slots.Select(s => s.Item).ToArray(), seed, "field");
+        var slots = data.FieldItems().Where((s, i) => IsMovableItem(s.Item) && options.InScope(i)).ToArray();
+        int[] items = Gen5Randomizer.Shuffle(slots.Select(s => s.Item).ToArray(), options.Seed, "field");
         byte[] script = scripts.Files[data.Profile.ItemBallScript];
         // Romhacks with a modified ARM9 have no hidden items to write.
         if (slots.Any(s => s.Hidden))
@@ -305,10 +317,10 @@ public static class Gen4Randomizer
         }
     }
 
-    private static void ShuffleShops(Gen4Data data, uint seed, ref byte[]? arm9, List<Gen5Change> changes)
+    private static void ShuffleShops(Gen4Data data, Gen5RandomizerOptions options, ref byte[]? arm9, List<Gen5Change> changes)
     {
-        var slots = data.Shops().Where(s => !data.Profile.FixedShops.Contains(s.Shop) && IsMovableItem(s.Item)).ToArray();
-        int[] items = Gen5Randomizer.Shuffle(slots.Select(s => s.Item).ToArray(), seed, "shop");
+        var slots = data.Shops().Where(s => !data.Profile.FixedShops.Contains(s.Shop) && IsMovableItem(s.Item) && options.InScope(s.Shop)).ToArray();
+        int[] items = Gen5Randomizer.Shuffle(slots.Select(s => s.Item).ToArray(), options.Seed, "shop");
         arm9 ??= data.Arm9();
         for (int i = 0; i < slots.Length; i++)
         {
@@ -323,7 +335,7 @@ public static class Gen4Randomizer
     {
         var headers = data.CopyNarc(Gen4Profile.TrainerData);
         var teams = data.CopyNarc(Gen4Profile.TrainerPokemon);
-        foreach (var trainer in data.Trainers())
+        foreach (var trainer in data.Trainers().Where(t => options.InScope(t.Id)))
         {
             string location = $"Entrenador {trainer.Id} · {trainer.ClassName} {trainer.Name}".TrimEnd();
             int oldSize = data.TeamEntrySize(trainer.Flags);
@@ -366,7 +378,7 @@ public static class Gen4Randomizer
         Dictionary<string, byte[]> files, List<Gen5Change> changes)
     {
         var wild = data.CopyNarc(Gen4Profile.WildPokemon);
-        foreach (var slot in data.Encounters())
+        foreach (var slot in data.Encounters().Where(s => options.InScope(s.File)))
         {
             if (slot.Species is < 1 or > Gen4Data.MaxSpecies)
                 continue;
