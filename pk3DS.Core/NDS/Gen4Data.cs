@@ -15,7 +15,7 @@ public sealed record Gen4Profile(string GameCode, byte Version, Gen4Kind Kind, I
 {
     public const string Text = "Text", PokemonStats = "PokemonStats", TrainerData = "TrainerData", TrainerPokemon = "TrainerPokemon",
         WildPokemon = "WildPokemon", Scripts = "Scripts", Learnsets = "Learnsets", Evolutions = "Evolutions", Moves = "Moves", Trades = "Trades",
-        BattleSkillSubSeq = "BattleSkillSubSeq";
+        BattleSkillSubSeq = "BattleSkillSubSeq", EggMoves = "EggMoves";
 
     public string Game => Kind switch { Gen4Kind.DiamondPearl => "Diamante", Gen4Kind.Platinum => "Platino", _ => "HeartGold" };
 
@@ -50,6 +50,33 @@ public sealed record Gen4Profile(string GameCode, byte Version, Gen4Kind Kind, I
     public IReadOnlyList<int> TagScripts { get; init; } = [];
     public int TagScriptCount { get; init; }
 
+    /// <summary>Field overlay (UPR-ZX FieldOvlNumber): Diamond/Platinum egg moves, the tutor moves and Platinum's tutor compatibility.</summary>
+    public int FieldOverlay { get; init; } = -1;
+    public uint FieldOverlayCrc32 { get; init; }
+    /// <summary>Battle overlay (UPR-ZX BattleOvlNumber): type chart, Pickup items and the catch check.</summary>
+    public int BattleOverlay { get; init; } = -1;
+    public uint BattleOverlayCrc32 { get; init; }
+    /// <summary>Script and offset of the item the Diamond/Platinum starter comes with (UPR-ZX StarterPokemonHeldItemOffset); -1 when there is none.</summary>
+    public int StarterItemScript { get; init; } = -1;
+    public int StarterItemOffset { get; init; }
+    public int ItemDescriptionsText { get; init; }
+    public int MoveDescriptionsText { get; init; }
+    /// <summary>Text files where people name a TM's move, by TM number (UPR-ZX TMText); the name is replaced when the TM changes.</summary>
+    public IReadOnlyDictionary<int, IReadOnlyList<int>> TmTexts { get; init; } = new Dictionary<int, IReadOnlyList<int>>();
+    /// <summary>Move tutors in the field overlay: how many, where the first move is and the size of each entry (UPR-ZX MoveTutor*).</summary>
+    public int TutorCount { get; init; }
+    public int TutorOffset { get; init; }
+    public int TutorStride { get; init; }
+    /// <summary>Tutor compatibility: bytes per species from this offset, in the field overlay (Platinum) or in <see cref="TutorCompatFile"/> (HeartGold).</summary>
+    public int TutorCompatOffset { get; init; }
+    public int TutorCompatBytes { get; init; }
+    public string? TutorCompatFile { get; init; }
+    public uint TutorCompatFileCrc32 { get; init; }
+
+    // "TM=file,file TM=file…" as UPR-ZX lists them.
+    private static IReadOnlyDictionary<int, IReadOnlyList<int>> Texts(string list) => list.Split(' ')
+        .ToDictionary(e => int.Parse(e.Split('=')[0]), e => (IReadOnlyList<int>)e.Split('=')[1].Split(',').Select(int.Parse).ToArray());
+
     public static IReadOnlyList<Gen4Profile> All { get; } =
     [
         new("ADAE", 5, Gen4Kind.DiamondPearl, new Dictionary<string, (string, uint)>
@@ -71,6 +98,8 @@ public sealed record Gen4Profile(string GameCode, byte Version, Gen4Kind Kind, I
             ShopPrefix = Convert.FromHexString("391104027511040285AF0302A5AF0302"), ShopCount = 28, FixedShops = [12, 13, 15, 16, 17, 18, 19, 20, 21, 22, 23],
             StarterOverlay = 64, StarterOverlayCrc32 = 0x727963E2, StarterOffset = 0x1B88, StarterScreenText = 320, DexCategoryText = 621,
             RivalScripts = [34, 90, 118, 180, 195, 394], RivalScriptCount = 7, TagScripts = [2, 131, 230], TagScriptCount = 5,
+            FieldOverlay = 5, FieldOverlayCrc32 = 0x52005967, BattleOverlay = 11, BattleOverlayCrc32 = 0x3DCCA476, StarterItemScript = 342, StarterItemOffset = 0x2B4,
+            ItemDescriptionsText = 343, MoveDescriptionsText = 587, TmTexts = Texts("42=538 48=54 56=466 63=135 66=453 67=90 76=60 77=437 78=419 88=518 92=449"),
         },
         new("CPUE", 1, Gen4Kind.Platinum, new Dictionary<string, (string, uint)>
         {
@@ -91,6 +120,9 @@ public sealed record Gen4Profile(string GameCode, byte Version, Gen4Kind Kind, I
             ShopPrefix = Convert.FromHexString("ED7F0402258004026180040281800402"), ShopCount = 29, FixedShops = [13, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24],
             StarterOverlay = 78, StarterOverlayCrc32 = 0x091E8E97, StarterOffset = 0x1BC0, StarterScreenText = 360, DexCategoryText = 711,
             RivalScripts = [31, 36, 112, 123, 186, 427, 429, 1096], RivalScriptCount = 9, TagScripts = [2, 136, 201, 236], TagScriptCount = 6,
+            FieldOverlay = 5, FieldOverlayCrc32 = 0x3E286491, BattleOverlay = 16, BattleOverlayCrc32 = 0x25EBE8C1, StarterItemScript = 427, StarterItemOffset = 0x460,
+            ItemDescriptionsText = 391, MoveDescriptionsText = 646, TmTexts = Texts("27=561 42=594 48=61 56=517 63=143 66=504 67=98 76=67 77=488 78=470 88=574 92=500"),
+            TutorCount = 38, TutorOffset = 0x2FF64, TutorStride = 12, TutorCompatOffset = 0x3012C, TutorCompatBytes = 5,
         },
         new("IPKE", 0, Gen4Kind.HeartGoldSoulSilver, new Dictionary<string, (string, uint)>
         {
@@ -105,12 +137,17 @@ public sealed record Gen4Profile(string GameCode, byte Version, Gen4Kind Kind, I
             [Moves] = ("a/0/1/1", 0x284AEE7A),
             [Trades] = ("a/1/1/2", 0x24561BD6),
             [BattleSkillSubSeq] = ("a/0/0/1", 0x6644F919),
+            [EggMoves] = ("a/2/2/9", 0x67123F30),
         }, 237, 729, 730, 222, 735)
         {
             MoveNamesText = 750, AbilityNamesText = 720, Arm9Crc32 = 0x99A30D93, ItemBallScript = 141, ItemBallSkip = [58], HiddenItemTable = 0xFA558, HiddenItemCount = 231,
             ShopPrefix = Convert.FromHexString("298E0402618E0402998E0402B98E0402"), ShopCount = 40, FixedShops = [17, 18, 22, 23, 24, 25, 26, 27, 28, 29, 30, 37, 39],
             StarterOverlay = 61, StarterOverlayCrc32 = 0xEE849CB4, StarterScreenText = 190,
             RivalScripts = [7, 23, 96, 110, 819, 850, 866], RivalScriptCount = 7,
+            FieldOverlay = 1, FieldOverlayCrc32 = 0x21F7A855, BattleOverlay = 12, BattleOverlayCrc32 = 0x90D2AF3E, ItemDescriptionsText = 221, MoveDescriptionsText = 749,
+            TmTexts = Texts("1=574 7=622 23=606 30=614 45=582 51=558 59=129,631 89=567 3=469 19=492 34=485 48=531 50=53 80=462 84=514 92=454 "
+                + "5=380 10=627 11=67 12=386 29=534 36=403 37=370 44=378 47=372 57=345 70=56 83=397 85=452"),
+            TutorCount = 52, TutorOffset = 0x23AE0, TutorStride = 4, TutorCompatFile = "fielddata/wazaoshie/waza_oshie.bin", TutorCompatFileCrc32 = 0x1DFC77A1, TutorCompatBytes = 8,
         },
     ];
 }
@@ -193,6 +230,57 @@ public sealed class Gen4Data
     /// <summary>Starter overlay as it is in the ROM, before any draft change (the selection-screen code patch starts from it).</summary>
     internal byte[] OriginalStarterOverlay() => (_base ?? this).StarterOverlay();
 
+    /// <summary>Overlays this profile reads or patches, with the CRC32 each one must have.</summary>
+    public IReadOnlyDictionary<int, uint> KnownOverlays
+    {
+        get
+        {
+            var known = new Dictionary<int, uint> { [Profile.StarterOverlay] = Profile.StarterOverlayCrc32 };
+            if (Profile.FieldOverlay >= 0)
+                known[Profile.FieldOverlay] = Profile.FieldOverlayCrc32;
+            if (Profile.BattleOverlay >= 0)
+                known[Profile.BattleOverlay] = Profile.BattleOverlayCrc32;
+            return known;
+        }
+    }
+
+    /// <summary>Decompressed copy of a known overlay with the draft's changes; code is only read from the original (CRC32), romhacks included.</summary>
+    public byte[] ReadOverlay(int id)
+    {
+        if (id == Profile.StarterOverlay)
+            return StarterOverlay();
+        if (!KnownOverlays.TryGetValue(id, out uint crc))
+            throw new InvalidOperationException("El perfil no usa el overlay " + id + ".");
+        if (_draftOverlays is not null && _draftOverlays.TryGetValue(id, out byte[]? draft))
+            return (byte[])draft.Clone();
+        if (_base is not null)
+            return _base.ReadOverlay(id);
+        byte[] overlay = _rom.ReadOverlay(id);
+        uint actual = Gen5Data.Crc32(overlay);
+        if ((_requireOriginalTables || _romhack) && actual != crc)
+            throw new InvalidDataException($"El overlay {id} no coincide con el perfil de {Profile.GameCode}: CRC32 {actual:X8}, se esperaba {crc:X8}.");
+        return overlay;
+    }
+
+    /// <summary>Overlay as it is in the ROM, before any draft change (code patches are located in it).</summary>
+    internal byte[] OriginalOverlay(int id) => (_base ?? this).ReadOverlay(id);
+
+    /// <summary>A plain file of the profile (not a NARC) with the draft's changes, checked against its CRC32 when original tables are required.</summary>
+    public byte[] ReadRawFile(string path)
+    {
+        if (path != Profile.TutorCompatFile)
+            throw new InvalidOperationException("El perfil no usa el archivo " + path + ".");
+        if (_draftFiles is not null && _draftFiles.TryGetValue(path, out byte[]? draft))
+            return (byte[])draft.Clone();
+        if (_base is not null)
+            return _base.ReadRawFile(path);
+        byte[] bytes = _rom.ReadFile(path);
+        uint actual = Gen5Data.Crc32(bytes);
+        if (_requireOriginalTables && actual != Profile.TutorCompatFileCrc32)
+            throw new InvalidDataException($"{path} no coincide con el perfil de {Profile.GameCode}: CRC32 {actual:X8}, se esperaba {Profile.TutorCompatFileCrc32:X8}.");
+        return bytes;
+    }
+
     /// <summary>
     /// Opens a romhack of a supported game: tables need not match the profile CRC32, but every table must parse and keep the
     /// structure the randomizer relies on. Options that patch code (overlays, ARM9) stay available only while that binary is
@@ -224,6 +312,17 @@ public sealed class Gen4Data
             unavailable[Gen5Feature.Shops] = "el romhack modifica el ARM9, donde están las tiendas";
             unavailable[Gen5Feature.HiddenItems] = "el romhack modifica el ARM9, donde están los objetos ocultos";
         }
+        if (!Matches(() => data._rom.ReadOverlay(data.Profile.FieldOverlay), data.Profile.FieldOverlayCrc32))
+        {
+            string reason = $"el romhack modifica el overlay {data.Profile.FieldOverlay} de campo";
+            if (data.Profile.Kind != Gen4Kind.HeartGoldSoulSilver)
+                unavailable[Gen5Feature.EggMoves] = reason + ", donde están los movimientos huevo";
+            if (data.Profile.TutorCount > 0)
+                unavailable[Gen5Feature.Tutors] = reason + ", donde están los tutores";
+        }
+        if (data.Profile.TutorCompatFile is { } compat)
+            try { data._rom.ReadFile(compat); }
+            catch (FileNotFoundException) { unavailable[Gen5Feature.Tutors] = compat + " no existe"; }
         data.Unavailable = unavailable;
         if (!unavailable.ContainsKey(Gen5Feature.Starters) && Gen4Randomizer.StartersProblem(data) is { } problem)
             unavailable[Gen5Feature.Starters] = "los iniciales no están donde se esperan: " + problem;
@@ -400,8 +499,8 @@ public sealed class Gen4Data
     {
         if (IsDraft || !_requireOriginalTables && !_romhack)
             throw new InvalidOperationException("Solo se exporta desde una ROM con todas sus tablas originales verificadas o abierta como romhack.");
-        if (result.Overlays.Keys.Any(id => id != Profile.StarterOverlay))
-            throw new InvalidOperationException("Gen4 solo modifica el overlay de los iniciales.");
+        if (result.Overlays.Keys.Any(id => !KnownOverlays.ContainsKey(id)))
+            throw new InvalidOperationException("Gen4 solo modifica los overlays de su perfil (iniciales, campo y combate).");
         _rom.Save(output, result.Files.ToDictionary(p => _rom.File(p.Key).Id, p => p.Value), result.Overlays, result.RecompressOverlays, result.Arm9);
     }
 

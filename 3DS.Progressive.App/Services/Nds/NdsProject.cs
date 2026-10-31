@@ -150,15 +150,34 @@ internal sealed class NdsProject : IDisposable
     /// <summary>Why double battles cannot be used on this ROM, or null when they can.</summary>
     internal string? DoublesProblem => _gen4 is not null ? NdsTrainerTools.DoublesProblem(_gen4) : NdsTrainerTools.DoublesProblem(_gen5!);
 
-    /// <summary>Why game tweaks cannot be applied to this ROM, or null when they can (Gen4 only).</summary>
-    internal string? TweaksProblem => _gen4 is null
-        ? "Negro, Blanco y Blanco 2 guardan estos ajustes en el ARM9, protegido por las firmas DSi, y el del Pokédex Nacional comparte script con los iniciales"
+    /// <summary>Why the ARM9 tweaks (fastest text, national dex, running without shoes) cannot be applied, or null when they can.</summary>
+    internal string? Arm9TweaksProblem => _gen4 is null
+        ? "Negro, Blanco y Blanco 2 guardan el texto instantáneo en el ARM9, protegido por las firmas DSi, y el Pokédex Nacional comparte script con los iniciales"
         : NdsTweaks.Problem(_gen4);
     internal bool IsPlatinum => _gen4?.Profile.Kind == Gen4Kind.Platinum;
 
     internal NdsPreview PreviewTweaks(NdsTweakOptions options) =>
-        new(_id, Revision, "Ajustes del juego", null, NdsTweaks.Apply(Gen4View, options),
+        new(_id, Revision, "Ajustes del juego", options.RandomPickupItems ? options.Seed : null, _gen4 is not null ? NdsTweaks.Apply(Gen4View, options) : NdsTweaks.Apply(Gen5View, options),
             new JsonObject { ["Kind"] = "Tweaks", ["Options"] = JsonSerializer.SerializeToNode(options, RecipeJson) });
+
+    /// <summary>Why a section cannot be edited in this ROM (the game lacks it, or a romhack changed what it needs), or null.</summary>
+    internal string? SectionProblem(NdsSection section)
+    {
+        string? feature = section switch
+        {
+            NdsSection.Shops => Gen5Feature.Shops, NdsSection.Starters => Gen5Feature.Starters, NdsSection.Moves => Gen5Feature.Moves,
+            NdsSection.Learnsets => Gen5Feature.Learnsets, NdsSection.Evolutions => Gen5Feature.Evolutions, NdsSection.Trades => Gen5Feature.Trades,
+            NdsSection.EggMoves => Gen5Feature.EggMoves, NdsSection.Tutors => Gen5Feature.Tutors, _ => null,
+        };
+        if (feature is not null && Unavailable.TryGetValue(feature, out string? reason))
+            return "No disponible en esta ROM: " + reason + ".";
+        if (section == NdsSection.Tutors && Source.Tables.TutorCount == 0)
+            return Game + " no tiene tutores de movimientos.";
+        if (section == NdsSection.MoveLists && Source.Tables.TutorCount == 0 && Source.MachineTable < 0)
+            return Generation == 5 ? Game + " no tiene tutores de movimientos, y la lista de MT de Negro y Blanco está en el ARM9 DSi, que no se modifica."
+                : "No disponible en esta ROM: el romhack modifica el ARM9, donde está la lista de MT.";
+        return null;
+    }
 
     internal NdsPreview PreviewData(string action, NdsSection section, NdsDataOptions options) =>
         new(_id, Revision, action, options.Seed, _gen4 is not null ? NdsDataRandomizer.Generate(Gen4View, section, options) : NdsDataRandomizer.Generate(Gen5View, section, options),
@@ -231,7 +250,8 @@ internal sealed class NdsProject : IDisposable
             "Trainers" => PreviewTrainers(action, Options().Deserialize<Gen5RandomizerOptions>(RecipeJson)! with { Scope = scope },
                 Options("Tools").Deserialize<NdsTrainerOptions>(RecipeJson)! with { Scope = scope }),
             "Data" => PreviewData(action, Section(), Options().Deserialize<NdsDataOptions>(RecipeJson)! with { Scope = scope }),
-            "Tweaks" => PreviewTweaks(op["Options"]!.Deserialize<NdsTweakOptions>(RecipeJson)!),
+            // Batch draws a new seed for the random Pickup items too.
+            "Tweaks" => PreviewTweaks(Options().Deserialize<NdsTweakOptions>(RecipeJson)!),
             _ => throw new InvalidDataException("Tipo de operación desconocido en el template: " + kind),
         };
     }
@@ -357,6 +377,11 @@ internal sealed class NdsProject : IDisposable
         _ when change.Field.EndsWith("Objeto equipado", StringComparison.Ordinal) => $"{change.Location} · {change.Field}: {Name(ItemNames, change.Before)} → {Name(ItemNames, change.After)}",
         _ when change.Field.Contains("· Movimiento ", StringComparison.Ordinal) => $"{change.Location} · {change.Field}: {Name(MoveNames, change.Before)} → {Name(MoveNames, change.After)}",
         "Combate doble" => $"{change.Location}: combate individual → doble",
+        "Objeto del inicial" => $"{change.Location} · {change.Field}: {Name(ItemNames, change.Before)} → {Name(ItemNames, change.After)}",
+        "Texto" => change.Location,
+        "Textos actualizados" => $"{change.Location}: {change.After} textos actualizados (descripción, color del disco y diálogos)",
+        _ when change.Location == "Recogida" => $"{change.Location} · {change.Field}: {Name(ItemNames, change.Before)} → {Name(ItemNames, change.After)}",
+        _ when change.Field.StartsWith("Tutor ", StringComparison.Ordinal) => $"{change.Location} · {change.Field}: {(change.Before == 1 ? "sí" : "no")} → {(change.After == 1 ? "sí" : "no")}",
         "Objeto" => $"{change.Location}: {change.Field} {Name(ItemNames, change.Before)} → {Name(ItemNames, change.After)}",
         _ when change.Field.StartsWith("Producto", StringComparison.Ordinal) => $"{change.Location} · {change.Field}: {Name(ItemNames, change.Before)} → {Name(ItemNames, change.After)}",
         _ when change.Field.StartsWith("Movimiento ", StringComparison.Ordinal) => $"{change.Location} · {change.Field}: {Name(MoveNames, change.Before)} → {Name(MoveNames, change.After)}",
@@ -375,6 +400,9 @@ internal sealed class NdsProject : IDisposable
         NdsSection.Machines => "MT/MO",
         NdsSection.Statics => "Estáticos y regalos",
         NdsSection.Trades => "Intercambios",
+        NdsSection.EggMoves => "Movimientos huevo",
+        NdsSection.Tutors => "Tutores",
+        NdsSection.MoveLists => "Listas de MT y tutores",
         NdsSection.Starters => "Iniciales",
         NdsSection.Trainers => "Entrenadores",
         NdsSection.Encounters => "Encuentros",

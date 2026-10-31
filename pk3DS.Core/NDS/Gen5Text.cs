@@ -66,7 +66,8 @@ public static class Gen5Text
 
     /// <summary>
     /// Rewrites only the given lines. Unchanged lines keep their encrypted bytes; changed lines are encrypted with their original
-    /// key and stored uncompressed. Line metadata and a second section are preserved, so no changes returns the same bytes.
+    /// key, compressed again when the original line was (and the text allows it) and stored uncompressed otherwise. Line metadata and
+    /// a second section are preserved, so no changes returns the same bytes.
     /// </summary>
     public static byte[] Replace(byte[] data, IReadOnlyDictionary<int, string> changes)
     {
@@ -97,7 +98,12 @@ public static class Gen5Text
                 throw new ArgumentOutOfRangeException(nameof(changes), "Línea de texto Gen5 fuera de rango o vacía: " + index);
             int key = FirstKey(lines[index]);
             var plain = Encode(text);
-            plain.Add(0xFFFF);
+            // A compressed line stays compressed, so moving lines around keeps the file size (the DSi games have no room to grow).
+            if ((lines[index][0] ^ key) == 0xF100 && plain.All(c => c > 1 && c < 0x1FF && (c & 0xFF) != 0xFF))
+                plain = Compress(plain);
+            // A compressed stream that ends in a word of ones already carries the terminator, as the game files store it.
+            if (plain[^1] != 0xFFFF || plain[0] != 0xF100)
+                plain.Add(0xFFFF);
             var encrypted = new ushort[plain.Count];
             for (int k = 0; k < plain.Count; k++)
             {
@@ -171,6 +177,23 @@ public static class Gen5Text
             else
                 output.Add(text[i]);
         }
+        return output;
+    }
+
+    // Inverse of Decompress: 0xF100, then 9-bit values packed from the low bits up and ended by 0x1FF; the last word is filled with ones.
+    private static List<ushort> Compress(IReadOnlyList<ushort> chars)
+    {
+        var output = new List<ushort> { 0xF100 };
+        int buffer = 0, bits = 0;
+        foreach (int value in chars.Append((ushort)0x1FF))
+        {
+            buffer |= value << bits;
+            bits += 9;
+            for (; bits >= 16; bits -= 16, buffer >>= 16)
+                output.Add((ushort)buffer);
+        }
+        if (bits > 0)
+            output.Add((ushort)(buffer | (0xFFFF << bits)));
         return output;
     }
 

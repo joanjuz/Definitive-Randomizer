@@ -51,6 +51,7 @@ Punto de entrada a `docs/3ds-progressive/`. Muchos documentos son **registros hi
 - Fase 11, más herramientas de UPR-ZX (entrenadores, salvajes, estáticos, intercambios) y ajustes del juego de Gen4: [NDS_FASE11_UPR_AJUSTES.md](NDS_FASE11_UPR_AJUSTES.md)
 - Fase 12, Global Template y Batch ROM Builder para DS: [NDS_FASE12_GLOBAL_BATCH.md](NDS_FASE12_GLOBAL_BATCH.md)
 - Fase 13, reglas de entrenador (equipos, movimientos, objetos, IV, IA), combates dobles y tabla BST editable: [NDS_FASE13_ENTRENADORES_BST.md](NDS_FASE13_ENTRENADORES_BST.md)
+- Fase 14, movimientos huevo, tutores, lista de MT de Gen4, objeto del inicial, nombres de entrenador y más ajustes (tabla de tipos, captura, Recogida, Gen5): [NDS_FASE14_TUTORES_HUEVO_AJUSTES.md](NDS_FASE14_TUTORES_HUEVO_AJUSTES.md)
 
 ## Espada/Escudo (Switch)
 

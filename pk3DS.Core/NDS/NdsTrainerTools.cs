@@ -23,9 +23,14 @@ public sealed record NdsTrainerOptions(uint Seed)
     public bool MaxAi { get; init; }
     /// <summary>Percentage of single battles turned into double battles (UPR-ZX double battle mode at 100).</summary>
     public int DoubleChance { get; init; }
+    /// <summary>Trainer names are shuffled among the trainers (UPR-ZX random names, with the game's own names instead of an external list).</summary>
+    public bool ShuffleNames { get; init; }
+    /// <summary>Trainer class names are shuffled among the classes.</summary>
+    public bool ShuffleClassNames { get; init; }
     public IReadOnlySet<int>? Scope { get; init; }
     internal bool InScope(int id) => Scope is null || Scope.Contains(id);
-    public bool ChangesAnything => MinTeamSize > 0 || Moves != NdsTrainerMoveMode.Keep || Items != NdsTrainerItemMode.Keep || MaxIvs || MaxAi || DoubleChance > 0;
+    public bool ChangesAnything => MinTeamSize > 0 || Moves != NdsTrainerMoveMode.Keep || Items != NdsTrainerItemMode.Keep || MaxIvs || MaxAi || DoubleChance > 0
+        || ShuffleNames || ShuffleClassNames;
 }
 
 /// <summary>
@@ -48,6 +53,33 @@ public static class NdsTrainerTools
     private static readonly HashSet<int> Gen4PartnerTrainers = [608, 609, 610, 611, 612];
     // Trainers whose strongest Pokémon is below this level are early scripted battles (UPR-ZX skips the first rival battles).
     private const int DoublesMinLevel = 8;
+
+    // Names and classes shuffled within the game: lines with text variables (the rival's name) and empty lines stay.
+    private static void ShuffleTexts(NdsTrainerOptions options, Narc text, int namesFile, int classesFile, Func<byte[], IReadOnlyList<string>> read,
+        Func<byte[], IReadOnlyDictionary<int, string>, byte[]> replace, List<Gen5Change> changes)
+    {
+        foreach (var (file, wanted, label) in new[] { (namesFile, options.ShuffleNames, "Nombres de entrenador"), (classesFile, options.ShuffleClassNames, "Clases de entrenador") })
+        {
+            if (!wanted)
+                continue;
+            // The lines themselves are permuted, so the text file keeps its exact size (the DSi games have no free space for it to grow).
+            var lines = read(text.Files[file]);
+            int[] slots = Enumerable.Range(0, lines.Count).Where(i => Shufflable(lines[i])).ToArray();
+            string[] shuffled = slots.Select(i => lines[i]).ToArray();
+            for (int i = shuffled.Length - 1; i > 0; i--)
+            {
+                int j = Gen5Randomizer.Index(options.Seed, $"{label}/{i}", i + 1);
+                (shuffled[i], shuffled[j]) = (shuffled[j], shuffled[i]);
+            }
+            var edits = slots.Select((line, i) => (line, text: shuffled[i])).Where(p => p.text != lines[p.line]).ToDictionary(p => p.line, p => p.text);
+            if (edits.Count == 0)
+                continue;
+            text.Files[file] = replace(text.Files[file], edits);
+            changes.AddRange(edits.Select(p => $"{label} · {lines[p.Key]} → {p.Value}").Distinct().Select(l => new Gen5Change(l, "Texto", 0, 0)));
+        }
+    }
+
+    private static bool Shufflable(string line) => line.Trim().Length > 0 && !line.Contains('\\');
 
     public static string? DoublesProblem(Gen5Data data) => data.Unavailable.TryGetValue(Gen5Feature.Doubles, out string? reason) ? reason : null;
     public static string? DoublesProblem(Gen4Data data) => data.Unavailable.TryGetValue(Gen5Feature.Doubles, out string? reason) ? reason
@@ -88,6 +120,13 @@ public static class NdsTrainerTools
         var overlays = new Dictionary<int, byte[]>();
         if (converted > 0 && PatchGen5Doubles(data, files, overlays))
             changes.Add(new Gen5Change("Combates dobles", "Código del overlay de campo y cajas de texto", 0, 1));
+        if (options.ShuffleNames || options.ShuffleClassNames)
+        {
+            var text = data.CopyNarc(Gen5Profile.TextStrings);
+            var p = data.Profile;
+            ShuffleTexts(options, text, p.TrainerNamesText, p.TrainerClassesText, Gen5Text.Read, Gen5Text.Replace, changes);
+            files[data.PathOf(Gen5Profile.TextStrings)] = text.Write();
+        }
         return new Gen5RandomizerResult(files, changes, overlays) { RecompressOverlays = overlays.Keys.ToHashSet() };
     }
 
@@ -105,6 +144,12 @@ public static class NdsTrainerTools
         byte[]? arm9 = null;
         if (converted > 0 && PatchGen4Doubles(data, files, out arm9))
             changes.Add(new Gen5Change("Combates dobles", "Código del ARM9 y secuencia de fin de combate", 0, 1));
+        if (options.ShuffleNames || options.ShuffleClassNames)
+        {
+            var text = data.CopyNarc(Gen4Profile.Text);
+            ShuffleTexts(options, text, data.Profile.TrainerNamesText, data.Profile.TrainerClassesText, Gen4Text.Read, Gen4Text.Replace, changes);
+            files[data.PathOf(Gen4Profile.Text)] = text.Write();
+        }
         return new Gen5RandomizerResult(files, changes, new Dictionary<int, byte[]>()) { Arm9 = arm9 };
     }
 

@@ -8,6 +8,29 @@ using System.Linq;
 namespace pk3DS.Core.NDS;
 
 /// <summary>
+/// Where a game keeps its egg moves, tutor moves and tutor compatibility (UPR-ZX gen4/gen5_offsets.ini and Gen4/Gen5Constants, GPLv3,
+/// checked on the owner's dumps). Parts the game lacks, or that a romhack changed, are left out.
+/// </summary>
+public sealed record NdsMoveTables
+{
+    /// <summary>Overlay with the egg move list after the UPR-ZX prefix (Diamond/Platinum), or -1.</summary>
+    public int EggOverlay { get; init; } = -1;
+    /// <summary>The "EggMoves" NARC: one file per species with a count and the moves (Gen5) or one list for every species (HeartGold).</summary>
+    public bool EggNarc { get; init; }
+    public bool EggNarcPerSpecies { get; init; }
+    public int TutorOverlay { get; init; } = -1;
+    public int TutorCount { get; init; }
+    public int TutorOffset { get; init; }
+    public int TutorStride { get; init; }
+    /// <summary>Tutor compatibility: in an overlay (Platinum), in a plain file (HeartGold) or in the species data (Black 2/White 2).</summary>
+    public int CompatOverlay { get; init; } = -1;
+    public string? CompatFile { get; init; }
+    public bool CompatInPersonal { get; init; }
+    public int CompatOffset { get; init; }
+    public int CompatBytes { get; init; }
+}
+
+/// <summary>
 /// Gen4/Gen5 species, move, learnset, evolution and TM/HM tables seen the same way: where each one lives and the byte layout
 /// of the generation (UPR-ZX Gen4Constants/Gen5Constants and the owner's dumps). Built from a game view, draft views included.
 /// </summary>
@@ -23,13 +46,24 @@ public sealed class NdsDataSource
     public IReadOnlyList<string> ItemNames { get; }
     /// <summary>Move taught by each TM/HM, in the order of the compatibility bits (TMs, then HMs); empty when the ARM9 list is not found.</summary>
     public IReadOnlyList<int> MachineMoves { get; }
+    /// <summary>ARM9 offset of TM01's move when the TM list can be edited (Gen4 with its original ARM9), or -1.</summary>
+    public int MachineTable { get; private set; } = -1;
+    public NdsMoveTables Tables { get; }
     internal Func<string, Narc> Copy { get; }
     internal Func<string, string> PathOf { get; }
     internal string Personal { get; }
+    /// <summary>Decompressed copy of one of the game's overlays, with the draft's changes.</summary>
+    internal Func<int, byte[]> Overlay { get; }
+    /// <summary>Copy of one of the game's plain files (HeartGold tutor compatibility), with the draft's changes.</summary>
+    internal Func<string, byte[]> RawFile { get; }
 
     private NdsDataSource(string gameCode, int generation, int maxSpecies, Func<string, Narc> copy, Func<string, string> pathOf, Func<int, IReadOnlyList<string>> text,
-        int speciesText, int moveText, int typeText, int abilityText, int itemText, string personal, Func<byte[]?> arm9)
+        int speciesText, int moveText, int typeText, int abilityText, int itemText, string personal, Func<byte[]?> arm9,
+        Func<int, byte[]> overlay, Func<string, byte[]> rawFile, NdsMoveTables tables, bool editableMachines)
     {
+        Overlay = overlay;
+        RawFile = rawFile;
+        Tables = tables;
         GameCode = gameCode;
         Generation = generation;
         MaxSpecies = maxSpecies;
@@ -41,15 +75,31 @@ public sealed class NdsDataSource
         TypeNames = text(typeText);
         AbilityNames = text(abilityText);
         ItemNames = text(itemText);
-        MachineMoves = ReadMachines(arm9);
+        MachineMoves = ReadMachines(arm9, editableMachines);
     }
 
     public static NdsDataSource Of(Gen5Data data) => new(data.Profile.GameCode, 5, Gen5Randomizer.MaxSpecies, data.CopyNarc, data.PathOf, data.Text, data.Profile.SpeciesNamesText,
-        data.Profile.MoveNamesText, data.Profile.TypeNamesText, data.Profile.AbilityNamesText, data.Profile.ItemNamesText, Gen5Profile.PokemonStats, () => Try(data.ReadArm9));
+        data.Profile.MoveNamesText, data.Profile.TypeNamesText, data.Profile.AbilityNamesText, data.Profile.ItemNamesText, Gen5Profile.PokemonStats, () => Try(data.ReadArm9),
+        data.ReadOverlay, path => throw new InvalidOperationException("Gen5 no usa el archivo " + path + "."), new NdsMoveTables
+        {
+            EggNarc = !data.Unavailable.ContainsKey(Gen5Feature.EggMoves), EggNarcPerSpecies = true,
+            TutorOverlay = data.Profile.FieldOverlay, TutorCount = data.Unavailable.ContainsKey(Gen5Feature.Tutors) ? 0 : data.Profile.TutorCount,
+            TutorOffset = data.Profile.TutorOffset, TutorStride = data.Profile.TutorStride, CompatInPersonal = true, CompatOffset = 0x3C,
+        }, editableMachines: false);
 
-    public static NdsDataSource Of(Gen4Data data) => new(data.Profile.GameCode, 4, Gen4Data.MaxSpecies, data.CopyNarc, data.PathOf, data.Text, data.Profile.SpeciesNamesText,
-        data.Profile.MoveNamesText, data.Profile.TypeNamesText, data.Profile.AbilityNamesText, data.Profile.ItemNamesText, Gen4Profile.PokemonStats,
-        () => data.Unavailable.ContainsKey(Gen5Feature.Shops) ? null : Try(data.Arm9));
+    public static NdsDataSource Of(Gen4Data data)
+    {
+        var p = data.Profile;
+        bool hgss = p.Kind == Gen4Kind.HeartGoldSoulSilver, eggs = !data.Unavailable.ContainsKey(Gen5Feature.EggMoves);
+        bool arm9 = !data.Unavailable.ContainsKey(Gen5Feature.Shops);
+        return new(p.GameCode, 4, Gen4Data.MaxSpecies, data.CopyNarc, data.PathOf, data.Text, p.SpeciesNamesText, p.MoveNamesText, p.TypeNamesText, p.AbilityNamesText,
+            p.ItemNamesText, Gen4Profile.PokemonStats, () => arm9 ? Try(data.Arm9) : null, data.ReadOverlay, data.ReadRawFile, new NdsMoveTables
+            {
+                EggOverlay = !hgss && eggs ? p.FieldOverlay : -1, EggNarc = hgss && eggs,
+                TutorOverlay = p.FieldOverlay, TutorCount = data.Unavailable.ContainsKey(Gen5Feature.Tutors) ? 0 : p.TutorCount, TutorOffset = p.TutorOffset, TutorStride = p.TutorStride,
+                CompatOverlay = hgss ? -1 : p.FieldOverlay, CompatFile = p.TutorCompatFile, CompatOffset = p.TutorCompatOffset, CompatBytes = p.TutorCompatBytes,
+            }, editableMachines: arm9);
+    }
 
     private static byte[]? Try(Func<byte[]> read)
     {
@@ -93,7 +143,7 @@ public sealed class NdsDataSource
     internal int LevelMethod => 4;
     public bool IsTradeMethod(int method) => method is 5 or 6 || G5 && method == 7;
 
-    private IReadOnlyList<int> ReadMachines(Func<byte[]?> arm9)
+    private IReadOnlyList<int> ReadMachines(Func<byte[]?> arm9, bool editable)
     {
         byte[]? code = arm9();
         if (code is null)
@@ -111,9 +161,20 @@ public sealed class NdsDataSource
         int total = TmCount + HmCount;
         if (at < 0 || at + total * 2 > code.Length)
             return [];
+        if (editable && !G5)
+            MachineTable = at;
         var list = Enumerable.Range(0, total).Select(i => (int)BinaryPrimitives.ReadUInt16LittleEndian(code.AsSpan(at + i * 2))).ToArray();
         // Gen5 stores TM01-92, HM01-06, TM93-95; the compatibility bits are TM01-95 then HM01-06.
         return G5 ? [.. list[..92], .. list[98..101], .. list[92..98]] : list;
+    }
+
+    /// <summary>Move taught by each tutor, in the order of the tutor list (empty when the game has no tutors).</summary>
+    public IReadOnlyList<int> TutorMoves()
+    {
+        if (Tables.TutorCount == 0)
+            return [];
+        byte[] overlay = Overlay(Tables.TutorOverlay);
+        return Enumerable.Range(0, Tables.TutorCount).Select(i => (int)BinaryPrimitives.ReadUInt16LittleEndian(overlay.AsSpan(Tables.TutorOffset + i * Tables.TutorStride))).ToArray();
     }
 
     public string MachineName(int bit) => (bit < TmCount ? "MT" + (bit + 1).ToString("00") : "MO" + (bit - TmCount + 1).ToString("00"))
@@ -260,6 +321,83 @@ public static partial class NdsCells
                 }
                 break;
             }
+            case NdsSection.EggMoves:
+            {
+                var t = s.Tables;
+                Location Egg(int species, int i, int value, Target target, int file, int overlay, int offset) =>
+                    new(new NdsCell(species, Name(species), "Movimientos huevo", "Movimiento huevo " + (i + 1), "E" + i, value, 1, moveMax, NdsValueKind.Move),
+                        target, Gen5Profile.EggMoves, file, overlay, offset, 2);
+                if (t.EggNarc && t.EggNarcPerSpecies)
+                {
+                    var eggs = s.Copy(Gen5Profile.EggMoves).Files;
+                    for (int species = 1; species <= s.MaxSpecies && species < eggs.Count; species++)
+                    {
+                        byte[] e = eggs[species];
+                        int count = e.Length >= 2 ? BinaryPrimitives.ReadUInt16LittleEndian(e) : 0;
+                        for (int i = 0; i < count && 4 + i * 2 <= e.Length; i++)
+                            list.Add(Egg(species, i, BinaryPrimitives.ReadUInt16LittleEndian(e.AsSpan(2 + i * 2)), Target.File, species, -1, 2 + i * 2));
+                    }
+                }
+                else if (t.EggNarc || t.EggOverlay >= 0)
+                {
+                    byte[] data = t.EggNarc ? s.Copy(Gen4Profile.EggMoves).Files[0] : s.Overlay(t.EggOverlay);
+                    int start = t.EggNarc ? 0 : Gen4Data.FindUnique(data, EggPrefix, "la lista de movimientos huevo") + EggPrefix.Length;
+                    // 20000 + species starts a species, its moves follow, 0xFFFF ends the list (UPR-ZX readEggMoves).
+                    for (int at = start, species = 0, i = 0; at + 2 <= data.Length; at += 2)
+                    {
+                        int value = BinaryPrimitives.ReadUInt16LittleEndian(data.AsSpan(at));
+                        if (value == 0xFFFF)
+                            break;
+                        if (value > 20000)
+                        {
+                            (species, i) = (value - 20000, 0);
+                            continue;
+                        }
+                        if (species >= 1 && species <= s.MaxSpecies)
+                            list.Add(t.EggNarc ? Egg(species, i, value, Target.File, 0, -1, at) : Egg(species, i, value, Target.Overlay, -1, t.EggOverlay, at));
+                        i++;
+                    }
+                }
+                break;
+            }
+            case NdsSection.Tutors:
+            {
+                var t = s.Tables;
+                if (t.TutorCount == 0)
+                    break;
+                var moves = s.TutorMoves();
+                var personal = t.CompatInPersonal ? s.Copy(s.Personal).Files : null;
+                byte[]? compat = t.CompatOverlay >= 0 ? s.Overlay(t.CompatOverlay) : t.CompatFile is { } file ? s.RawFile(file) : null;
+                for (int species = 1; species <= s.MaxSpecies; species++)
+                    for (int i = 0; i < t.TutorCount; i++)
+                    {
+                        (int offset, int bit) = personal is not null ? Bw2TutorBit(i) : (t.CompatOffset + (species - 1) * t.CompatBytes + i / 8, i % 8);
+                        if (personal is not null)
+                            offset += t.CompatOffset;
+                        byte[]? data = personal is null ? compat : species < personal.Count ? personal[species] : null;
+                        if (data is null || offset >= data.Length)
+                            continue;
+                        // One group, so the table shows a single row with every tutor as a column, like the TMs.
+                        var cell = new NdsCell(species, Name(species), "Tutores", $"Tutor {i + 1:00}" + (moves[i] < s.MoveNames.Count ? " · " + s.MoveNames[moves[i]] : ""),
+                            "T" + i, (data[offset] >> bit) & 1, 0, 1, NdsValueKind.Flag);
+                        list.Add(personal is not null ? new(cell, Target.File, s.Personal, species, -1, offset, 1, -1, bit, 1)
+                            : t.CompatOverlay >= 0 ? new(cell, Target.Overlay, "", -1, t.CompatOverlay, offset, 1, -1, bit, 1)
+                            : new(cell, Target.Raw, t.CompatFile!, -1, -1, offset, 1, -1, bit, 1));
+                    }
+                break;
+            }
+            case NdsSection.MoveLists:
+            {
+                // HMs stay: the story needs their field moves.
+                for (int i = 0; s.MachineTable >= 0 && i < s.TmCount && i < s.MachineMoves.Count; i++)
+                    list.Add(new(new NdsCell(0, "Movimientos de las MT", "MT", $"Movimiento de la MT{i + 1:00}", "TM" + i, s.MachineMoves[i], 1, moveMax, NdsValueKind.Move),
+                        Target.Arm9, "", -1, -1, s.MachineTable + i * 2, 2));
+                var tutors = s.TutorMoves();
+                for (int i = 0; i < tutors.Count; i++)
+                    list.Add(new(new NdsCell(1, "Movimientos de los tutores", "Tutores", $"Movimiento del tutor {i + 1:00}", "Tutor" + i, tutors[i], 1, moveMax, NdsValueKind.Move),
+                        Target.Overlay, "", -1, s.Tables.TutorOverlay, s.Tables.TutorOffset + i * s.Tables.TutorStride, 2));
+                break;
+            }
             case NdsSection.Machines:
             {
                 var personal = s.Copy(s.Personal).Files;
@@ -276,5 +414,21 @@ public static partial class NdsCells
             }
         }
         return list;
+    }
+
+    // Diamond/Platinum egg moves start right after these bytes in the field overlay (UPR-ZX dpptEggMoveTablePrefix).
+    private static readonly byte[] EggPrefix = [0x40, 0x01, 0x66, 0x01];
+
+    // Black 2/White 2 keep the tutor flags in four 32-bit blocks whose order is not the tutor list's (UPR-ZX getMoveTutorCompatibility).
+    private static (int Offset, int Bit) Bw2TutorBit(int tutor)
+    {
+        int[] personalCounts = [15, 17, 13, 15], moveCounts = [13, 15, 15, 17], personalToMove = [1, 3, 0, 2];
+        for (int block = 0; block < 4; block++)
+        {
+            int first = moveCounts.Take(personalToMove[block]).Sum();
+            if (tutor >= first && tutor < first + personalCounts[block])
+                return (block * 4 + (tutor - first) / 8, (tutor - first) % 8);
+        }
+        throw new ArgumentOutOfRangeException(nameof(tutor));
     }
 }

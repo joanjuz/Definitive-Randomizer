@@ -208,6 +208,8 @@ internal static class NdsGen4Checks
             [profile.Files[Gen4Profile.Evolutions].Path]=NdsGen5RandomizerChecks.BuildNarc(Enumerable.Range(0,494).Select(s=>{var e=new byte[44];if(s is 1 or 2){BinaryPrimitives.WriteUInt16LittleEndian(e,4);BinaryPrimitives.WriteUInt16LittleEndian(e.AsSpan(2),(ushort)(s*16));BinaryPrimitives.WriteUInt16LittleEndian(e.AsSpan(4),(ushort)(s+1));}if(s==4){BinaryPrimitives.WriteUInt16LittleEndian(e,6);BinaryPrimitives.WriteUInt16LittleEndian(e.AsSpan(4),5);}return e;}).ToArray()),
             [profile.Files[Gen4Profile.Moves].Path]=NdsGen5RandomizerChecks.BuildNarc(Enumerable.Range(0,468).Select(m=>{var d=new byte[16];d[2]=(byte)(m%3);d[3]=(byte)(m%5==0?0:40);d[4]=(byte)(m%18==9?0:m%18);d[5]=100;d[6]=20;return d;}).ToArray()),
         };
+        // HeartGold egg moves: 20000 + species, then its moves; Bulbasaur has two and Charmander one.
+        if(hgss)files[profile.Files[Gen4Profile.EggMoves].Path]=NdsGen5RandomizerChecks.BuildNarc([[..new ushort[]{20001,33,45,20004,52,0xFFFF}.SelectMany(v=>BitConverter.GetBytes(v))]]);
         if(romhack)
         {
             var scripts=new byte[profile.ItemBallScript+1][];for(int i=0;i<scripts.Length;i++)scripts[i]=[0x13,0xFD];
