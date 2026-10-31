@@ -6,6 +6,10 @@
 - En la prueba de Mina, después del combate del pétalo, el juego se cuelga al volver a hablar con el kahuna. Pasa con dos kahunas.
 - El recordador de las cafeterías funciona.
 - No hay partida guardada del momento del cuelgue.
+- Aclaración del propietario:
+  - El cuelgue ocurre al final de la escena, cuando se entrega el pétalo. Una de las dos veces fue con Kiawe (Pétalo Rojo; texto 487, entrenador #504).
+  - En la historia principal, los kahunas funcionan bien.
+  - No se puede reproducir, porque no hay partida previa.
 
 ## Lo que se comprobó
 
