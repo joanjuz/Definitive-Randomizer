@@ -7,12 +7,12 @@ internal static class NdsDataChecks
 {
     private sealed record Game(string Name, NdsDataSource Source, Func<NdsSection,IReadOnlyList<NdsCell>> Read,
         Func<NdsSection,IReadOnlyDictionary<string,int>,Gen5RandomizerResult> Write, Func<NdsSection,NdsDataOptions,Gen5RandomizerResult> Random,
-        Func<IReadOnlyDictionary<string,byte[]>,Game> Draft, Func<Gen5RandomizerOptions,Gen5RandomizerResult> Species);
+        Func<IReadOnlyDictionary<string,byte[]>,Game> Draft, Func<Gen5RandomizerOptions,Gen5RandomizerResult> Species, Func<NdsTrainerOptions,Gen5RandomizerResult> Trainers);
 
     private static Game Of(string name,Gen5Data data)=>new(name,NdsDataSource.Of(data),s=>NdsCells.Read(data,s),(s,e)=>NdsCells.Write(data,s,e),
-        (s,o)=>NdsDataRandomizer.Generate(data,s,o),files=>Of(name,data.WithDraft(files,new Dictionary<int,byte[]>())),o=>Gen5Randomizer.Generate(data,o));
+        (s,o)=>NdsDataRandomizer.Generate(data,s,o),files=>Of(name,data.WithDraft(files,new Dictionary<int,byte[]>())),o=>Gen5Randomizer.Generate(data,o),o=>NdsTrainerTools.Generate(data,o));
     private static Game Of(string name,Gen4Data data)=>new(name,NdsDataSource.Of(data),s=>NdsCells.Read(data,s),(s,e)=>NdsCells.Write(data,s,e),
-        (s,o)=>NdsDataRandomizer.Generate(data,s,o),files=>Of(name,data.WithDraft(files,new Dictionary<int,byte[]>(),null)),o=>Gen4Randomizer.Generate(data,o));
+        (s,o)=>NdsDataRandomizer.Generate(data,s,o),files=>Of(name,data.WithDraft(files,new Dictionary<int,byte[]>(),null)),o=>Gen4Randomizer.Generate(data,o),o=>NdsTrainerTools.Generate(data,o));
 
     internal static void Run(Action<bool,string> check,Action<Action,string> reject)
     {
@@ -91,6 +91,24 @@ internal static class NdsDataChecks
         var mapping=oldWild.Zip(newWild).Where(p=>p.First.Kind==NdsValueKind.Species&&p.First.Value>0).GroupBy(p=>p.First.Value).ToArray();
         check(mapping.All(g=>g.Select(p=>p.Second.Value).Distinct().Count()==1)&&oldWild.Zip(newWild).Where(p=>p.First.Field.Contains("nivel")).All(p=>p.Second.Value==Math.Clamp((int)Math.Round(p.First.Value*0.5),1,100)),
             $"NdsData_{n}_WildGlobalMappingAndLevelsLowered");
+        // Trainer rules: three Pokémon minimum, level-up moves and held items added to the format, IVs and AI at the maximum.
+        var ruled=game.Trainers(new NdsTrainerOptions(16){MinTeamSize=3,Moves=NdsTrainerMoveMode.LevelUp,Items=NdsTrainerItemMode.Smart,MaxIvs=true,MaxAi=true});
+        var ruledTeams=Table(game.Draft(ruled.Files).Read(NdsSection.Trainers));var learnTable=Table(game.Read(NdsSection.Learnsets));
+        int[] AtLevel(int species,int level){var row=learnTable[species];var l=new List<int>();for(int i=0;row.ContainsKey($"M{i}.Move");i++)if(row[$"M{i}.Level"]<=level){l.Remove(row[$"M{i}.Move"]);l.Add(row[$"M{i}.Move"]);}var t=l.TakeLast(4).ToList();while(t.Count<4)t.Add(0);return [..t];}
+        bool Ruled(Dictionary<string,int> team)=>Enumerable.Range(0,3).All(i=>team.ContainsKey($"P{i}.Species")&&team.ContainsKey($"P{i}.Item")&&team[$"P{i}.Item"]>0
+            &&Enumerable.Range(0,4).Select(m=>team[$"P{i}.Move{m+1}"]).SequenceEqual(AtLevel(team[$"P{i}.Species"],team[$"P{i}.Level"])));
+        check(ruledTeams.Count==oldTeam.Count&&ruledTeams.Values.All(Ruled)&&ruled.Changes.Any(c=>c.Field=="IA")&&ruled.Changes.Any(c=>c.Field.EndsWith("Dificultad (IV)")),$"NdsData_{n}_TrainerRulesRewriteTeams");
+        var stripped=game.Draft(ruled.Files).Trainers(new NdsTrainerOptions(17){Items=NdsTrainerItemMode.None});
+        check(Table(game.Draft(stripped.Files).Read(NdsSection.Trainers)).Values.All(t=>!t.Keys.Any(k=>k.EndsWith(".Item"))&&t.ContainsKey("P0.Move1")),$"NdsData_{n}_TrainerItemsRemovedKeepsMoves");
+        var better=game.Trainers(new NdsTrainerOptions(18){Moves=NdsTrainerMoveMode.Better});var betterTeams=Table(game.Draft(better.Files).Read(NdsSection.Trainers));var moveTable=Table(game.Read(NdsSection.Moves));
+        check(betterTeams.Values.All(t=>Enumerable.Range(0,6).Where(i=>t.ContainsKey($"P{i}.Move1")).All(i=>Enumerable.Range(1,4).Select(m=>t[$"P{i}.Move{m}"]).Where(m=>m>0).Distinct().Count()==Enumerable.Range(1,4).Count(m=>t[$"P{i}.Move{m}"]>0))),
+            $"NdsData_{n}_BetterMovesetsWithoutRepeats");
+        // Growth standardized (legendaries slow), wild items from the held-item list or empty; no legendaries for trainers and wild.
+        var grown=After(NdsSection.Pokemon,new NdsDataOptions(19){StandardizeGrowth=true,WildHeldItems=true});
+        check(grown.All(p=>p.Value["Growth"]==(NdsDataRandomizer.IsLegendary(p.Key)?5:0)&&p.Value.Where(k=>k.Key.StartsWith("Item")).All(k=>k.Value==0||NdsTrainerTools.HeldItemIds.Contains(k.Value)))
+            &&grown.Values.Any(r=>r["Item1"]>0),$"NdsData_{n}_GrowthStandardizedAndWildItems");
+        var common=game.Species(new Gen5RandomizerOptions(20){Trainers=Gen5SpeciesMode.Random,Wild=Gen5SpeciesMode.Random,BanLegendaries=true});
+        check(common.Changes.Where(c=>c.Field=="Especie"||c.Field.EndsWith("especie")).All(c=>!NdsDataRandomizer.IsLegendary(c.After)),$"NdsData_{n}_NoLegendariesForTrainersAndWild");
         var a=game.Random(NdsSection.Pokemon,new NdsDataOptions(11){Stats=NdsStatsMode.Random,Types=true});var b=game.Random(NdsSection.Pokemon,new NdsDataOptions(11){Stats=NdsStatsMode.Random,Types=true});
         var scoped=game.Random(NdsSection.Pokemon,new NdsDataOptions(11){Stats=NdsStatsMode.Random,Scope=new HashSet<int>{1}});
         check(a.Changes.SequenceEqual(b.Changes)&&scoped.Changes.All(c=>c.Location.StartsWith(s.SpeciesNames[1]+" ",StringComparison.Ordinal)),$"NdsData_{n}_DeterministicAndScoped");
@@ -162,6 +180,25 @@ internal static class NdsDataChecks
                 Check((tweakArm9 is null||readArm9!.Length==tweakArm9.Length&&(arm9Diff.Length==0||arm9Diff[^1]-arm9Diff[0]<4))&&sections.All(x=>again.Read(x).Select(c=>(c.Key,c.Value)).SequenceEqual(final[x].Select(c=>(c.Key,c.Value)))),$"NdsData_Real_{code}_ExportReadsBackEverySection");
                 var changedIds=files.Keys.Select(p=>rom.File(p).Id).ToHashSet();
                 Check(exported.Files.Where(f=>!changedIds.Contains(f.Id)).All(f=>exported.ReadFile(f).SequenceEqual(rom.ReadFile(rom.Files[f.Id]))),$"NdsData_Real_{code}_EveryOtherFileIdentical");
+            }
+            // Trainer rules and double battles on every trainer, exported and read back; a second application patches no code again.
+            using(var rom=NdsRom.Open(source))
+            {
+                bool gen4=NdsIdentity.Identify(rom).Profile.Generation==4;
+                Gen5Data? g5=gen4?null:Gen5Data.Open(rom);Gen4Data? g4=gen4?Gen4Data.Open(rom):null;
+                var rules=new NdsTrainerOptions(31){MinTeamSize=2,Moves=NdsTrainerMoveMode.Better,Items=NdsTrainerItemMode.Smart,MaxIvs=true,MaxAi=true,DoubleChance=100};
+                var first=gen4?NdsTrainerTools.Generate(g4!,rules):NdsTrainerTools.Generate(g5!,rules);
+                int doubles=first.Changes.Count(c=>c.Field=="Combate doble");
+                Check(doubles>100&&first.Changes.Any(c=>c.Location=="Combates dobles")&&(gen4?first.Arm9 is not null:first.Overlays.Count==1),$"NdsData_Real_{code}_DoubleBattlesPatchCodeOnce ({doubles} entrenadores)");
+                var again=gen4?NdsTrainerTools.Generate(g4!.WithDraft(first.Files,first.Overlays,first.Arm9),rules):NdsTrainerTools.Generate(g5!.WithDraft(first.Files,first.Overlays),rules);
+                Check(!again.Changes.Any(c=>c.Location=="Combates dobles"||c.Field=="Combate doble")&&again.Arm9 is null&&again.Overlays.Count==0,$"NdsData_Real_{code}_DoubleBattlesNotPatchedTwice");
+                string target=Path.Combine(output,code+"-trainers.nds");
+                if(gen4)g4!.Export(target,first);else g5!.Export(target,first);
+                using var exported=NdsRom.Open(target);
+                var trainers=gen4?Gen4Data.Open(exported,requireOriginalTables:false).Trainers():Gen5Data.Open(exported,requireOriginalTables:false).Trainers();
+                var originals=gen4?g4!.Trainers():g5!.Trainers();
+                bool teams=trainers.Zip(originals).All(p=>p.Second.Team.Count==0||p.First.Team.Count>=2&&p.First.HasMoves&&p.First.HasItems&&p.First.Team.All(m=>m.Difficulty==255&&m.HeldItem>0&&m.Moves.Count(x=>x>0)>=1));
+                Check(teams&&trainers.Count(t=>t.BattleType!=0)>=doubles,$"NdsData_Real_{code}_TrainerRulesExportAndReadBack");
             }
             foreach(string f in Directory.GetFiles(output))File.Delete(f);
             Check(Hash(source)==before,$"NdsData_Real_{code}_SourceUnchanged");

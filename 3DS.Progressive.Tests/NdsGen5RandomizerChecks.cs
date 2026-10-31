@@ -256,6 +256,7 @@ internal static class NdsGen5RandomizerChecks
             ["a/0/0/2"]=BuildNarc(text),["a/0/1/6"]=BuildNarc(stats),["a/0/5/7"]=BuildNarc([]),
             ["a/0/1/8"]=BuildNarc(Enumerable.Range(0,650).Select(_=>u16(33,1,45,3,0xFFFF,0xFFFF)).ToArray()),
             ["a/0/1/9"]=BuildNarc(Enumerable.Range(0,650).Select(s=>{var e=new byte[42];if(s is 1 or 2){BinaryPrimitives.WriteUInt16LittleEndian(e,4);BinaryPrimitives.WriteUInt16LittleEndian(e.AsSpan(2),(ushort)(s*16));BinaryPrimitives.WriteUInt16LittleEndian(e.AsSpan(4),(ushort)(s+1));}if(s==4){BinaryPrimitives.WriteUInt16LittleEndian(e,5);BinaryPrimitives.WriteUInt16LittleEndian(e.AsSpan(4),5);}return e;}).ToArray()),
+            ["a/0/9/0"]=BuildNarc([new byte[8]]),
             ["a/1/6/5"]=BuildNarc([Trade(108,4,0x4C,0x5C,25,100,1),Trade(108,4,0x4C,0x5C,129,0,0)]),
             ["a/0/2/1"]=BuildNarc(Enumerable.Range(0,560).Select(m=>{var d=new byte[36];d[0]=(byte)(m%17);d[2]=(byte)(m%3);d[3]=(byte)(m%5==0?0:40);d[4]=100;d[5]=20;return d;}).ToArray()),
             ["a/0/9/2"]=BuildNarc([new byte[20],header(3,2),header(0,1)]),["a/0/9/3"]=BuildNarc([[],team1,mon(15,20,0)]),["a/1/2/6"]=BuildNarc([wild]),

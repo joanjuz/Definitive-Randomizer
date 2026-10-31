@@ -21,6 +21,10 @@ public sealed record NdsDataOptions(uint Seed)
     public bool FollowEvolutions { get; init; } = true;
     /// <summary>Raises every catch rate below this value to it (0 keeps them).</summary>
     public int MinCatchRate { get; init; }
+    /// <summary>Wild held items (common, rare and, in Gen5, dark grass) become random held items.</summary>
+    public bool WildHeldItems { get; init; }
+    /// <summary>Every species gets the Medium Fast growth rate, legendaries Slow (UPR-ZX "standardize EXP curves").</summary>
+    public bool StandardizeGrowth { get; init; }
     public bool MovePower { get; init; }
     public bool MoveAccuracy { get; init; }
     public bool MovePp { get; init; }
@@ -127,6 +131,11 @@ public static class NdsDataRandomizer
                     }
                     if (options.MinCatchRate > 0 && row["CatchRate"] < options.MinCatchRate)
                         Set(species, "CatchRate", Math.Min(255, options.MinCatchRate), pokemon);
+                    if (options.StandardizeGrowth)
+                        Set(species, "Growth", IsLegendary(species) ? 5 : 0, pokemon);
+                    // Half of the slots stay empty, as in the games, so wild Pokémon do not all hold something.
+                    for (int i = 1; options.WildHeldItems && row.ContainsKey("Item" + i); i++)
+                        Set(species, "Item" + i, Pick($"wilditem/{species}/{i}", 2) == 0 ? 0 : NdsTrainerTools.HeldItemIds[Pick($"wilditem/{species}/{i}/id", NdsTrainerTools.HeldItemIds.Count)], pokemon);
                 }
                 break;
             }

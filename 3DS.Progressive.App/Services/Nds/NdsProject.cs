@@ -112,6 +112,44 @@ internal sealed class NdsProject : IDisposable
         new(_id, Revision, action, options.Seed, _gen4 is not null ? Gen4Randomizer.Generate(Gen4View, options) : Gen5Randomizer.Generate(Gen5View, options),
             new JsonObject { ["Kind"] = "Species", ["Action"] = action, ["Options"] = JsonSerializer.SerializeToNode(options, RecipeJson) });
 
+    /// <summary>
+    /// Trainer randomization in one operation: species (and levels, themes, forced evolutions), then the team rules on the result
+    /// (team size, moves, held items, IVs, AI, double battles).
+    /// </summary>
+    internal NdsPreview PreviewTrainers(string action, Gen5RandomizerOptions species, NdsTrainerOptions tools)
+    {
+        var first = _gen4 is not null ? Gen4Randomizer.Generate(Gen4View, species) : Gen5Randomizer.Generate(Gen5View, species);
+        var result = first;
+        if (tools.ChangesAnything)
+        {
+            var files = new Dictionary<string, byte[]>(_files);
+            foreach (var (path, data) in first.Files)
+                files[path] = data;
+            var second = _gen4 is not null
+                ? NdsTrainerTools.Generate(_gen4.WithDraft(files, new Dictionary<int, byte[]>(_overlays), first.Arm9 ?? _arm9), tools)
+                : NdsTrainerTools.Generate(_gen5!.WithDraft(files, new Dictionary<int, byte[]>(_overlays)), tools);
+            var merged = new Dictionary<string, byte[]>(first.Files);
+            foreach (var (path, data) in second.Files)
+                merged[path] = data;
+            var overlays = new Dictionary<int, byte[]>(first.Overlays);
+            foreach (var (id, data) in second.Overlays)
+                overlays[id] = data;
+            result = new Gen5RandomizerResult(merged, [.. first.Changes, .. second.Changes], overlays)
+            {
+                RecompressOverlays = first.RecompressOverlays.Union(second.RecompressOverlays).ToHashSet(),
+                Arm9 = second.Arm9 ?? first.Arm9,
+            };
+        }
+        return new(_id, Revision, action, species.Seed, result, new JsonObject
+        {
+            ["Kind"] = "Trainers", ["Action"] = action,
+            ["Options"] = JsonSerializer.SerializeToNode(species, RecipeJson), ["Tools"] = JsonSerializer.SerializeToNode(tools, RecipeJson),
+        });
+    }
+
+    /// <summary>Why double battles cannot be used on this ROM, or null when they can.</summary>
+    internal string? DoublesProblem => _gen4 is not null ? NdsTrainerTools.DoublesProblem(_gen4) : NdsTrainerTools.DoublesProblem(_gen5!);
+
     /// <summary>Why game tweaks cannot be applied to this ROM, or null when they can (Gen4 only).</summary>
     internal string? TweaksProblem => _gen4 is null
         ? "Negro, Blanco y Blanco 2 guardan estos ajustes en el ARM9, protegido por las firmas DSi, y el del Pokédex Nacional comparte script con los iniciales"
@@ -176,9 +214,9 @@ internal sealed class NdsProject : IDisposable
         NdsSection Section() => Enum.Parse<NdsSection>(op["Section"]!.GetValue<string>());
         // The scope (a set, which System.Text.Json cannot create as IReadOnlySet) is read apart and set back with "with".
         HashSet<int>? scope = null;
-        JsonNode Options()
+        JsonNode Options(string key = "Options")
         {
-            var options = (JsonObject)op["Options"]!.DeepClone();
+            var options = (JsonObject)op[key]!.DeepClone();
             if (newSeed)
                 options["Seed"] = pk3DS.Core.NX.SwitchSeed.New32();
             scope = options["Scope"]?.Deserialize<HashSet<int>>();
@@ -190,6 +228,8 @@ internal sealed class NdsProject : IDisposable
         {
             "Edit" => PreviewEdits(Section(), op["Edits"]!.Deserialize<Dictionary<string, int>>()!),
             "Species" => PreviewRandom(action, Options().Deserialize<Gen5RandomizerOptions>(RecipeJson)! with { Scope = scope }),
+            "Trainers" => PreviewTrainers(action, Options().Deserialize<Gen5RandomizerOptions>(RecipeJson)! with { Scope = scope },
+                Options("Tools").Deserialize<NdsTrainerOptions>(RecipeJson)! with { Scope = scope }),
             "Data" => PreviewData(action, Section(), Options().Deserialize<NdsDataOptions>(RecipeJson)! with { Scope = scope }),
             "Tweaks" => PreviewTweaks(op["Options"]!.Deserialize<NdsTweakOptions>(RecipeJson)!),
             _ => throw new InvalidDataException("Tipo de operación desconocido en el template: " + kind),
@@ -314,7 +354,10 @@ internal sealed class NdsProject : IDisposable
         _ when change.Field.StartsWith("Bytes del", StringComparison.Ordinal) => $"{change.Location}: {change.After} {change.Field.ToLowerInvariant()} cambiados",
         _ when change.Field.StartsWith("Habilidad", StringComparison.Ordinal) => $"{change.Location} · {change.Field}: {Name(AbilityNames, change.Before)} → {Name(AbilityNames, change.After)}",
         _ when change.Field.StartsWith("MT", StringComparison.Ordinal) || change.Field.StartsWith("MO", StringComparison.Ordinal) => $"{change.Location} · {change.Field}: {(change.Before == 1 ? "sí" : "no")} → {(change.After == 1 ? "sí" : "no")}",
-        "Objeto" or "Objeto equipado" => $"{change.Location}: {change.Field} {Name(ItemNames, change.Before)} → {Name(ItemNames, change.After)}",
+        _ when change.Field.EndsWith("Objeto equipado", StringComparison.Ordinal) => $"{change.Location} · {change.Field}: {Name(ItemNames, change.Before)} → {Name(ItemNames, change.After)}",
+        _ when change.Field.Contains("· Movimiento ", StringComparison.Ordinal) => $"{change.Location} · {change.Field}: {Name(MoveNames, change.Before)} → {Name(MoveNames, change.After)}",
+        "Combate doble" => $"{change.Location}: combate individual → doble",
+        "Objeto" => $"{change.Location}: {change.Field} {Name(ItemNames, change.Before)} → {Name(ItemNames, change.After)}",
         _ when change.Field.StartsWith("Producto", StringComparison.Ordinal) => $"{change.Location} · {change.Field}: {Name(ItemNames, change.Before)} → {Name(ItemNames, change.After)}",
         _ when change.Field.StartsWith("Movimiento ", StringComparison.Ordinal) => $"{change.Location} · {change.Field}: {Name(MoveNames, change.Before)} → {Name(MoveNames, change.After)}",
         _ when change.Field.EndsWith("especie", StringComparison.Ordinal) || change.Field is "Planta" or "Fuego" or "Agua" => $"{change.Location} · {change.Field}: {Name(SpeciesNames, change.Before)} → {Name(SpeciesNames, change.After)}",

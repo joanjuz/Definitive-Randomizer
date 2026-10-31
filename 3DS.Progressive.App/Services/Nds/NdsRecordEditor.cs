@@ -90,16 +90,26 @@ internal sealed class NdsRecordEditor : IProjectEditor, ITrainerEditorPresentati
 
     public IReadOnlyList<EditorGroup> RandomOptions => _section switch
     {
+        // Keys follow the shared trainer tabs (RecordEditorView.TrainerOptionCategory): levels, moves, items/AI/battles and the BST table.
         NdsSection.Trainers =>
         [
-            new EditorGroup(Title, [new EditorField("Mode", "Especies", 2, 0, 3, Choices([.. SpeciesModes, "Sin cambios (solo niveles y evoluciones)"]))]),
-            new EditorGroup("Al estilo de Universal Randomizer", [Flag("Theme", "Un tipo por entrenador (temático)", 0),
-                new EditorField("Evolved", "Forzar evolución final desde el nivel (0 = no)", 0, 0, 100), new EditorField("Levels", "Niveles (+/- %)", 0, -50, 100)]),
+            new EditorGroup("Pokémon y equipos", [new EditorField("Mode", "Especies", 1, 0, 2, Choices(SpeciesChoices)), Flag("Theme", "Un tipo por entrenador", 0), Flag("NoLegend", "Sin legendarios", 0),
+                new EditorField("TeamSize", "Pokémon mínimos por equipo (0 = sin cambios)", 0, 0, 6), Flag("MaxIVs", "IV al máximo", 0)]),
+            new EditorGroup("Niveles de entrenadores", [new EditorField("Levels", "Niveles (+/- %)", 0, -50, 100), new EditorField("EvolvedLevel", "Forzar evolución final desde el nivel (0 = no)", 0, 0, 100)]),
+            new EditorGroup("Movimientos", [new EditorField("CB_Moves", "Movimientos de los entrenadores", 0, 0, 4,
+                Choices("Sin cambios", "Los de su nivel (Level Up)", "Mejores movesets (más fuertes, STAB, MT)", "Aleatorios", "Solo Metrónomo"))]),
+            new EditorGroup("IA, objetos y combates", [new EditorField("HeldItems", "Objetos equipados", 0, 0, 3, Choices("Sin cambios", "Aleatorios", "Inteligentes (según tipo y estadísticas)", "Ninguno")),
+                Flag("MaxAI", "IA al máximo", 0),
+                new EditorField("DoubleChance", _project.DoublesProblem is { } problem ? "Combates dobles · no disponible: " + problem : _project.Generation == 5
+                    ? "Combates dobles (%) · experimental en Gen5" : "Combates dobles (%)", 0, 0, _project.DoublesProblem is null ? 100 : 0)]),
+            new EditorGroup("BST progresivo", [Flag("CHK_ProgressiveBST", "Usar rangos BST por nivel", 1)]),
+            .. BstRanges(),
         ],
         NdsSection.Encounters =>
         [
-            new EditorGroup(Title, [new EditorField("Mode", "Especies", 2, 0, 3, Choices([.. SpeciesModes, "Sin cambios (solo niveles)"]))]),
-            new EditorGroup("Al estilo de Universal Randomizer", [Flag("Global", "Misma especie nueva en todo el juego (mapeo global)", 0), new EditorField("Levels", "Niveles (+/- %)", 0, -50, 100)]),
+            new EditorGroup(Title, [new EditorField("Mode", "Especies", 1, 0, 2, Choices(SpeciesChoices)), Flag("Progressive", "BST progresivo por nivel (tabla)", 0)]),
+            new EditorGroup("Al estilo de Universal Randomizer", [Flag("Global", "Mapeo global de especies", 0), Flag("NoLegend", "Sin legendarios", 0), new EditorField("Levels", "Niveles (+/- %)", 0, -50, 100)]),
+            .. BstRanges(),
         ],
         NdsSection.Statics => [new EditorGroup(Title, [new EditorField("Mode", "Especies", 2, 0, 2, Choices("Aleatorias", "BST similar", "Legendarios por legendarios"))])],
         NdsSection.Trades => [new EditorGroup(Title, [Flag("Given", "Randomizar el Pokémon que entregan", 1), Flag("Requested", "Randomizar el Pokémon que piden", 1)])],
@@ -108,7 +118,8 @@ internal sealed class NdsRecordEditor : IProjectEditor, ITrainerEditorPresentati
         [
             new EditorGroup("Estadísticas base", [new EditorField("Stats", "Estadísticas", 0, 0, 2, Choices("Sin cambios", "Barajar (mismo total)", "Aleatorias (mismo total)"))]),
             new EditorGroup("Tipos y habilidades", [Flag("Types", "Tipos aleatorios", 0), Flag("Abilities", "Habilidades aleatorias (sin Superguarda, Multitipo…)", 0), Flag("Follow", "Las evoluciones heredan tipos y habilidades", 1)]),
-            new EditorGroup("Captura", [new EditorField("MinCatch", "Ratio de captura mínimo (0 = sin cambios)", 0, 0, 255)]),
+            new EditorGroup("Captura, experiencia y objetos", [new EditorField("MinCatch", "Ratio de captura mínimo (0 = sin cambios)", 0, 0, 255),
+                Flag("Growth", "Crecimiento medio rápido (legendarios lento)", 0), Flag("WildItems", "Objetos salvajes aleatorios", 0)]),
         ],
         NdsSection.Moves => [new EditorGroup(Title, [Flag("Power", "Poder aleatorio (20–150)", 1), Flag("Accuracy", "Precisión aleatoria (50–100)", 0), Flag("PP", "PP aleatorios (5–40)", 0), Flag("Types", "Tipos aleatorios", 0)])],
         NdsSection.Learnsets => [new EditorGroup(Title, [new EditorField("Mode", "Movimientos por nivel", 0, 0, 1, Choices("Aleatorios", "Solo Metrónomo")), new EditorField("SameType", "Del mismo tipo que el Pokémon (%)", 50, 0, 100)])],
@@ -119,32 +130,62 @@ internal sealed class NdsRecordEditor : IProjectEditor, ITrainerEditorPresentati
     };
 
     private static EditorField Flag(string key, string label, int value) => new(key, label, value, 0, 1);
+
+    private static readonly string[] SpeciesChoices = ["Aleatorias", "BST similar", "Sin cambios (solo las demás opciones)"];
+
+    // The editable BST table of 3DS and Switch, read back by key prefix "BST.n.".
+    private static IEnumerable<EditorGroup> BstRanges() => Gen5BstRange.Defaults.Select((r, i) => new EditorGroup("Rango " + (i + 1),
+    [
+        new EditorField($"BST.{i}.MinLevel", "Nivel mínimo", r.MinLevel, 1, 100), new EditorField($"BST.{i}.MaxLevel", "Nivel máximo", r.MaxLevel, 1, 100),
+        new EditorField($"BST.{i}.MinBST", "BST mínimo", r.MinBst, 0, 1530), new EditorField($"BST.{i}.MaxBST", "BST máximo", r.MaxBst, 0, 1530), Flag($"BST.{i}.FullRandom", "Full Random", 0),
+    ]));
+
+    private static IReadOnlyList<Gen5BstRange> ReadRanges(IReadOnlyDictionary<string, int> options)
+    {
+        var ranges = options.Where(p => p.Key.StartsWith("BST.", StringComparison.Ordinal)).GroupBy(p => int.Parse(p.Key.Split('.')[1])).OrderBy(g => g.Key)
+            .Select(g => { int V(string name) => options[$"BST.{g.Key}.{name}"]; return new Gen5BstRange(V("MinLevel"), V("MaxLevel"), V("MinBST"), V("MaxBST"), V("FullRandom") == 1); }).ToArray();
+        return ranges.Length > 0 ? ranges : Gen5BstRange.Defaults;
+    }
     private static IReadOnlyList<MoveChoice> Choices(params string[] names) => names.Select((n, i) => new MoveChoice(i, n)).ToArray();
 
     public EditorProposal Preview(IReadOnlyDictionary<string, int> options, IReadOnlyList<int> scope)
     {
-        EditorValues.Validate(RandomOptions, options);
+        // The BST table may have more or fewer rows than the defaults; ProgressiveBstTable checks it.
+        EditorValues.Validate(RandomOptions.Select(g => g with { Fields = g.Fields.Where(f => !f.Key.StartsWith("BST.", StringComparison.Ordinal)).ToArray() }), options);
         Refresh();
         if (scope.Count == 0)
             throw new ArgumentException("No hay entradas en el alcance elegido.");
         uint seed = SwitchSeed.New32();
         if (IsData(_section))
             return Propose(DataPreview(options, scope, seed), seed);
-        int mode = options.GetValueOrDefault("Mode", 2);
-        // The fourth choice keeps species and only applies levels and forced evolutions.
-        var species = mode == 3 ? Gen5SpeciesMode.Keep : (Gen5SpeciesMode)(mode + 1);
+        int mode = options.GetValueOrDefault("Mode", 1);
+        bool progressive = options.GetValueOrDefault(_section == NdsSection.Trainers ? "CHK_ProgressiveBST" : "Progressive") == 1;
+        // "Sin cambios" keeps species and only applies the other options; the BST table replaces "BST similar".
+        var species = _section is not (NdsSection.Trainers or NdsSection.Encounters) ? Gen5SpeciesMode.Random
+            : mode == 2 ? Gen5SpeciesMode.Keep : progressive ? Gen5SpeciesMode.ProgressiveBst : mode == 0 ? Gen5SpeciesMode.Random : Gen5SpeciesMode.SimilarBst;
+        var ranges = ReadRanges(options);
         // The whole section is one scope value: null keeps the randomizers' original behaviour.
         IReadOnlySet<int>? chosen = scope.Count == Entries.Count ? null : scope.ToHashSet();
         var config = _section switch
         {
             NdsSection.Trainers => new Gen5RandomizerOptions(seed) { Trainers = species, Scope = chosen, TypeThemedTrainers = options.GetValueOrDefault("Theme") == 1,
-                ForceFullyEvolvedLevel = options.GetValueOrDefault("Evolved"), TrainerLevelPercent = options.GetValueOrDefault("Levels") },
-            NdsSection.Encounters => new Gen5RandomizerOptions(seed) { Wild = species, Scope = chosen, WildGlobalMapping = options.GetValueOrDefault("Global") == 1, WildLevelPercent = options.GetValueOrDefault("Levels") },
+                ForceFullyEvolvedLevel = options.GetValueOrDefault("EvolvedLevel"), TrainerLevelPercent = options.GetValueOrDefault("Levels"), BstRanges = ranges, BanLegendaries = options.GetValueOrDefault("NoLegend") == 1 },
+            NdsSection.Encounters => new Gen5RandomizerOptions(seed) { Wild = species, Scope = chosen, WildGlobalMapping = options.GetValueOrDefault("Global") == 1,
+                WildLevelPercent = options.GetValueOrDefault("Levels"), BstRanges = ranges, BanLegendaries = options.GetValueOrDefault("NoLegend") == 1 },
             NdsSection.Starters => new Gen5RandomizerOptions(seed) { Starters = Gen5StarterMode.Random },
             NdsSection.FieldItems => new Gen5RandomizerOptions(seed) { FieldItems = Gen5ItemMode.Shuffle, Scope = chosen },
             _ => new Gen5RandomizerOptions(seed) { Shops = Gen5ItemMode.Shuffle, Scope = chosen },
         };
         string action = "Randomizar " + Title.ToLowerInvariant() + (_section is NdsSection.Trainers or NdsSection.Encounters && species != Gen5SpeciesMode.Keep ? " · " + SpeciesModes[(int)species - 1] : "");
+        if (_section == NdsSection.Trainers)
+        {
+            var tools = new NdsTrainerOptions(seed ^ 0x5EED)
+            {
+                MinTeamSize = options.GetValueOrDefault("TeamSize"), Moves = (NdsTrainerMoveMode)options.GetValueOrDefault("CB_Moves"), Items = (NdsTrainerItemMode)options.GetValueOrDefault("HeldItems"),
+                MaxIvs = options.GetValueOrDefault("MaxIVs") == 1, MaxAi = options.GetValueOrDefault("MaxAI") == 1, DoubleChance = options.GetValueOrDefault("DoubleChance"), Scope = chosen,
+            };
+            return Propose(_project.PreviewTrainers(action, (Gen5RandomizerOptions)config, tools), seed);
+        }
         return Propose(_project.PreviewRandom(action, config), seed);
     }
 
@@ -154,7 +195,8 @@ internal sealed class NdsRecordEditor : IProjectEditor, ITrainerEditorPresentati
         IReadOnlySet<int>? chosen = scope.Count == Entries.Count ? null : scope.ToHashSet();
         var config = _section switch
         {
-            NdsSection.Pokemon => new NdsDataOptions(seed) { Stats = (NdsStatsMode)V("Stats"), Types = V("Types") == 1, Abilities = V("Abilities") == 1, FollowEvolutions = V("Follow", 1) == 1, MinCatchRate = V("MinCatch"), Scope = chosen },
+            NdsSection.Pokemon => new NdsDataOptions(seed) { Stats = (NdsStatsMode)V("Stats"), Types = V("Types") == 1, Abilities = V("Abilities") == 1, FollowEvolutions = V("Follow", 1) == 1, MinCatchRate = V("MinCatch"),
+                StandardizeGrowth = V("Growth") == 1, WildHeldItems = V("WildItems") == 1, Scope = chosen },
             NdsSection.Moves => new NdsDataOptions(seed) { MovePower = V("Power") == 1, MoveAccuracy = V("Accuracy") == 1, MovePp = V("PP") == 1, MoveTypes = V("Types") == 1, Scope = chosen },
             NdsSection.Learnsets => new NdsDataOptions(seed) { Learnsets = V("Mode") == 1 ? NdsLearnsetMode.Metronome : NdsLearnsetMode.Random, SameTypePercent = V("SameType", 50), Scope = chosen },
             NdsSection.Evolutions => new NdsDataOptions(seed) { RemoveTradeEvolutions = V("Trade") == 1, RandomEvolutions = V("Random") == 1, RemoveTimeEvolutions = V("Time") == 1,
