@@ -16,7 +16,8 @@ public enum Gen5StarterMode { Keep, Random, Custom }
 public enum Gen5ItemMode { Keep, Shuffle }
 
 /// <summary>Species allowed for a level band in progressive mode. Defaults follow the Switch ranges as a design choice, not shared data.</summary>
-public sealed record Gen5BstRange(int MinLevel, int MaxLevel, int MinBst, int MaxBst)
+/// <summary>Species strength allowed at a level band; <paramref name="FullRandom"/> allows any species there (3DS "Full Random").</summary>
+public sealed record Gen5BstRange(int MinLevel, int MaxLevel, int MinBst, int MaxBst, bool FullRandom = false)
 {
     public static IReadOnlyList<Gen5BstRange> Defaults { get; } = Array.AsReadOnly(new[]
     {
@@ -51,6 +52,8 @@ public sealed record Gen5RandomizerOptions(uint Seed)
     public bool WildGlobalMapping { get; init; }
     /// <summary>Wild levels change by this percentage, between 1 and 100 (0 = off).</summary>
     public int WildLevelPercent { get; init; }
+    /// <summary>Legendary and mythical species are never chosen for trainers or wild slots.</summary>
+    public bool BanLegendaries { get; init; }
     internal bool AdjustsTrainers => TrainerLevelPercent != 0 || ForceFullyEvolvedLevel > 0;
 }
 
@@ -206,11 +209,11 @@ public static class Gen5Randomizer
     internal static SpeciesPick SpeciesPicker(IReadOnlyList<Gen5BaseStats> stats, int maxSpecies, Gen5RandomizerOptions options)
     {
         foreach (var range in options.BstRanges)
-            if (range.MinLevel < 1 || range.MaxLevel > 100 || range.MinLevel > range.MaxLevel || range.MinBst < 0 || range.MinBst > range.MaxBst)
+            if (range.MinLevel < 1 || range.MaxLevel > 100 || range.MinLevel > range.MaxLevel || !range.FullRandom && (range.MinBst < 0 || range.MinBst > range.MaxBst))
                 throw new ArgumentException("Rango de BST inválido.", nameof(options));
         if (stats.Count <= maxSpecies)
             throw new InvalidDataException($"La tabla de estadísticas no cubre las {maxSpecies} especies.");
-        var pool = Enumerable.Range(1, maxSpecies).Select(s => (Species: s, Bst: stats[s].Total)).ToArray();
+        var pool = Enumerable.Range(1, maxSpecies).Where(s => !options.BanLegendaries || !NdsDataRandomizer.IsLegendary(s)).Select(s => (Species: s, Bst: stats[s].Total)).ToArray();
 
         return (mode, key, original, level, allow) =>
         {
@@ -226,7 +229,7 @@ public static class Gen5Randomizer
             {
                 var range = options.BstRanges.FirstOrDefault(r => level >= r.MinLevel && level <= r.MaxLevel)
                     ?? throw new InvalidDataException("Ningún rango de BST cubre el nivel " + level + ".");
-                candidates = pool.Where(p => p.Bst >= range.MinBst && p.Bst <= range.MaxBst).ToArray();
+                candidates = range.FullRandom ? pool : pool.Where(p => p.Bst >= range.MinBst && p.Bst <= range.MaxBst).ToArray();
                 if (candidates.Length == 0)
                     throw new InvalidDataException($"Ninguna especie tiene BST {range.MinBst}–{range.MaxBst} para el nivel {level}.");
             }

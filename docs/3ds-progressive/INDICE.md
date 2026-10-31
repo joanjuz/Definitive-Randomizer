@@ -50,6 +50,7 @@ Punto de entrada a `docs/3ds-progressive/`. Muchos documentos son **registros hi
 - Fase 10, datos de Pokémon, movimientos, Level Up, evoluciones y MT/MO con randomización al estilo UPR-ZX: [NDS_FASE10_DATOS.md](NDS_FASE10_DATOS.md)
 - Fase 11, más herramientas de UPR-ZX (entrenadores, salvajes, estáticos, intercambios) y ajustes del juego de Gen4: [NDS_FASE11_UPR_AJUSTES.md](NDS_FASE11_UPR_AJUSTES.md)
 - Fase 12, Global Template y Batch ROM Builder para DS: [NDS_FASE12_GLOBAL_BATCH.md](NDS_FASE12_GLOBAL_BATCH.md)
+- Fase 13, reglas de entrenador (equipos, movimientos, objetos, IV, IA), combates dobles y tabla BST editable: [NDS_FASE13_ENTRENADORES_BST.md](NDS_FASE13_ENTRENADORES_BST.md)
 
 ## Espada/Escudo (Switch)
 

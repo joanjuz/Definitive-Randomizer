@@ -93,6 +93,24 @@ internal static class NdsUiChecks
                 Pump(workspace.NavigateAsync(route));
                 Check(workspace.CurrentRoute==route&&Descendants<RecordEditorView>(workspace).Count()==1,$"NdsUi_Real_{route}OpensInTheSharedEditor");
                 Capture(workspace,"nds-workspace-"+route.ToLowerInvariant());
+                if(route is "Trainers" or "Encounters")
+                {
+                    // The shared options dialog: trainer tabs with the BST table, and the wild BST table.
+                    var view=Descendants<RecordEditorView>(workspace).Single();
+                    ((Button)view.FindName("RandomizerButton")).RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));
+                    var options=(StackPanel)view.FindName("OptionsPanel");
+                    if(route=="Trainers")
+                    {
+                        var tabs=options.Children.OfType<TabControl>().Single();
+                        for(int i=0;i<tabs.Items.Count;i++){tabs.SelectedIndex=i;Capture(workspace,"nds-trainer-options-"+i);}
+                        Check(tabs.Items.Count==5&&view.OptionControls.ContainsKey("DoubleChance")&&view.OptionControls.ContainsKey("CB_Moves")&&Descendants<ProgressiveBstTable>(options).Count()==1,"NdsUi_Real_TrainerOptionsUseTheSharedTabsAndBstTable");
+                    }
+                    else
+                    {
+                        Capture(workspace,"nds-wild-options");
+                        Check(Descendants<ProgressiveBstTable>(options).Count()==1&&view.OptionControls.ContainsKey("Progressive"),"NdsUi_Real_WildOptionsShowTheBstTable");
+                    }
+                }
             }
             var trainers=new NdsRecordEditor(project!,NdsSection.Trainers);int first=trainers.Entries[0].Id;
             var values=trainers.Read(first).SelectMany(g=>g.Fields).ToDictionary(f=>f.Key,f=>f.Value);values["P0.Species"]=133;trainers.Save(first,values);
@@ -126,6 +144,8 @@ internal static class NdsUiChecks
             }
             // Every recipe kind in the template: manual edits, species, data randomizations and (Gen4) game tweaks.
             project.Apply(project.PreviewData("Randomizar Pokémon",NdsSection.Pokemon,new NdsDataOptions(5){Stats=NdsStatsMode.Shuffle,Types=true,Scope=new HashSet<int>{1,4,7}}));
+            var ruled=new NdsRecordEditor(project,NdsSection.Trainers);
+            ruled.Apply(ruled.Preview(Defaults(ruled,("TeamSize",3),("CB_Moves",2),("HeldItems",2),("MaxAI",1),("DoubleChance",50)),ruled.Entries.Select(e=>e.Id).ToArray()));
             if(project.TweaksProblem is null)project.Apply(project.PreviewTweaks(new NdsTweakOptions{FastestText=true,NationalDexAtStart=true}));
             // Global Template: the history saved, read back and replayed with its seeds on a fresh session gives the same changes.
             string templatePath=Path.Combine(output,"global.json");NdsProject.WriteGlobal(templatePath,project.CaptureGlobal());

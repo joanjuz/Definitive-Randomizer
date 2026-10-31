@@ -14,7 +14,8 @@ public sealed record Gen4Profile(string GameCode, byte Version, Gen4Kind Kind, I
     int SpeciesNamesText, int TrainerNamesText, int TrainerClassesText, int ItemNamesText, int TypeNamesText)
 {
     public const string Text = "Text", PokemonStats = "PokemonStats", TrainerData = "TrainerData", TrainerPokemon = "TrainerPokemon",
-        WildPokemon = "WildPokemon", Scripts = "Scripts", Learnsets = "Learnsets", Evolutions = "Evolutions", Moves = "Moves", Trades = "Trades";
+        WildPokemon = "WildPokemon", Scripts = "Scripts", Learnsets = "Learnsets", Evolutions = "Evolutions", Moves = "Moves", Trades = "Trades",
+        BattleSkillSubSeq = "BattleSkillSubSeq";
 
     public string Game => Kind switch { Gen4Kind.DiamondPearl => "Diamante", Gen4Kind.Platinum => "Platino", _ => "HeartGold" };
 
@@ -63,6 +64,7 @@ public sealed record Gen4Profile(string GameCode, byte Version, Gen4Kind Kind, I
             [Evolutions] = ("poketool/personal/evo.narc", 0x0F425176),
             [Moves] = ("poketool/waza/waza_tbl.narc", 0x1D89A95D),
             [Trades] = ("fielddata/pokemon_trade/fld_trade.narc", 0x08464A7E),
+            [BattleSkillSubSeq] = ("battle/skill/sub_seq.narc", 0xE03D048D),
         }, 362, 559, 560, 344, 565)
         {
             MoveNamesText = 588, AbilityNamesText = 552, Arm9Crc32 = 0x08E0337C, ItemBallScript = 370, ItemBallSkip = [40, 196], HiddenItemTable = 0xF2DB4, HiddenItemCount = 229,
@@ -82,6 +84,7 @@ public sealed record Gen4Profile(string GameCode, byte Version, Gen4Kind Kind, I
             [Evolutions] = ("poketool/personal/evo.narc", 0x6711E4B4),
             [Moves] = ("poketool/waza/pl_waza_tbl.narc", 0xB2D18230),
             [Trades] = ("fielddata/pokemon_trade/fld_trade.narc", 0xB98CC1AF),
+            [BattleSkillSubSeq] = ("battle/skill/sub_seq.narc", 0xB02FF213),
         }, 412, 618, 619, 392, 624)
         {
             MoveNamesText = 647, AbilityNamesText = 610, Arm9Crc32 = 0x4D104949, ItemBallScript = 404, ItemBallSkip = [25, 238, 321, 325, 326], HiddenItemTable = 0xEA378, HiddenItemCount = 257,
@@ -101,6 +104,7 @@ public sealed record Gen4Profile(string GameCode, byte Version, Gen4Kind Kind, I
             [Evolutions] = ("a/0/3/4", 0x6711E4B4),
             [Moves] = ("a/0/1/1", 0x284AEE7A),
             [Trades] = ("a/1/1/2", 0x24561BD6),
+            [BattleSkillSubSeq] = ("a/0/0/1", 0x6644F919),
         }, 237, 729, 730, 222, 735)
         {
             MoveNamesText = 750, AbilityNamesText = 720, Arm9Crc32 = 0x99A30D93, ItemBallScript = 141, ItemBallSkip = [58], HiddenItemTable = 0xFA558, HiddenItemCount = 231,
@@ -183,6 +187,9 @@ public sealed class Gen4Data
     /// <summary>Script file as it is in the ROM, before any draft change (script tweaks only apply to originals).</summary>
     internal byte[] OriginalScript(int index) => (_base ?? this).Narc(Gen4Profile.Scripts).Files[index];
 
+    /// <summary>ARM9 as it is in the ROM, before any draft change (code patches are detected against it).</summary>
+    internal byte[] OriginalArm9() => _base is not null ? _base.Arm9() : _rom.ReadArm9();
+
     /// <summary>Starter overlay as it is in the ROM, before any draft change (the selection-screen code patch starts from it).</summary>
     internal byte[] OriginalStarterOverlay() => (_base ?? this).StarterOverlay();
 
@@ -198,7 +205,7 @@ public sealed class Gen4Data
         var unavailable = new Dictionary<string, string>();
         foreach (string key in data.Profile.Files.Keys)
             try { data.Narc(key); }
-            catch (InvalidDataException ex) when (Gen5Feature.OptionalTables.TryGetValue(key, out string? feature))
+            catch (Exception ex) when (ex is InvalidDataException or FileNotFoundException && Gen5Feature.OptionalTables.TryGetValue(key, out string? feature))
             {
                 unavailable[feature] = $"{data.PathOf(key)} no se puede leer ({ex.Message})";
             }
