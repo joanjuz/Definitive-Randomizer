@@ -7,7 +7,7 @@ Punto de entrada a `docs/3ds-progressive/`. Muchos documentos son **registros hi
 | Tema | Documento vigente |
 |---|---|
 | Runner de pruebas y sus opciones | [RUNNER_PRUEBAS.md](RUNNER_PRUEBAS.md) |
-| Última preview publicada (3DS y Espada/Escudo) | [RELEASE_0.9.0_PREVIEW_1.md](RELEASE_0.9.0_PREVIEW_1.md) |
+| Última preview publicada (3DS, Espada/Escudo y Nintendo DS) | [RELEASE_0.10.0_PREVIEW_1.md](RELEASE_0.10.0_PREVIEW_1.md) |
 | Estado de Espada/Escudo | [SWITCH_ESCUDO_VALIDACION_Y_COMBATES_DOBLES.md](SWITCH_ESCUDO_VALIDACION_Y_COMBATES_DOBLES.md) (estado más reciente) y [HOJA_RUTA_SWITCH.md](HOJA_RUTA_SWITCH.md) (planificación) |
 | Matriz de familias 3DS | [ESTADO_CANDIDATO_71.md](ESTADO_CANDIDATO_71.md) (histórico; contrastar con el código) |
 | Rediseño visual WPF | [AUDITORIA_VISUAL_WPF.md](AUDITORIA_VISUAL_WPF.md) |
@@ -66,7 +66,7 @@ Licencias de terceros: [`docs/third-party/`](../third-party/).
 
 ## Releases
 
-- Previews WPF: [PREVIEW_1](RELEASE_0.8.0_PREVIEW_1.md), [PREVIEW_2](RELEASE_0.8.0_PREVIEW_2.md), [PREVIEW_3](RELEASE_0.8.0_PREVIEW_3.md), [PREVIEW_4](RELEASE_0.8.0_PREVIEW_4.md), [0.9.0 PREVIEW_1](RELEASE_0.9.0_PREVIEW_1.md)
+- Previews WPF: [PREVIEW_1](RELEASE_0.8.0_PREVIEW_1.md), [PREVIEW_2](RELEASE_0.8.0_PREVIEW_2.md), [PREVIEW_3](RELEASE_0.8.0_PREVIEW_3.md), [PREVIEW_4](RELEASE_0.8.0_PREVIEW_4.md), [0.9.0 PREVIEW_1](RELEASE_0.9.0_PREVIEW_1.md), [0.10.0 PREVIEW_1](RELEASE_0.10.0_PREVIEW_1.md)
 - Línea estable WinForms: `release_notes_v4.*_es.md` en la raíz del repositorio.
 
 ## Historial de desarrollo 3DS (registros cronológicos)
