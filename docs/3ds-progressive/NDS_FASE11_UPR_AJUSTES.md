@@ -56,3 +56,7 @@ En **Negro, Blanco y Blanco 2** la página explica por qué no hay ajustes: el t
   - en Gen4, los ajustes cambian 17 bytes del ARM9 y sus scripts, y el ajuste de script no se repite;
   - la ROM exportada conserva el ARM9 ajustado y se relee igual en las nueve secciones.
 - Regresión completa (ver el PR).
+
+## Prueba en juego
+
+**Confirmada por el propietario el 2026-10-31**: las ROM de prueba de la fase 14, que acumulan las fases 9 a 14, funcionan correctamente en el juego.

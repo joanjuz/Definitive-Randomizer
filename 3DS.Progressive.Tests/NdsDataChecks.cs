@@ -109,6 +109,16 @@ internal static class NdsDataChecks
             &&grown.Values.Any(r=>r["Item1"]>0),$"NdsData_{n}_GrowthStandardizedAndWildItems");
         var common=game.Species(new Gen5RandomizerOptions(20){Trainers=Gen5SpeciesMode.Random,Wild=Gen5SpeciesMode.Random,BanLegendaries=true});
         check(common.Changes.Where(c=>c.Field=="Especie"||c.Field.EndsWith("especie")).All(c=>!NdsDataRandomizer.IsLegendary(c.After)),$"NdsData_{n}_NoLegendariesForTrainersAndWild");
+        // Egg moves (Gen5 and HeartGold layouts): read, randomized keeping each list's length, Metronome only.
+        if(n!="Dp")
+        {
+            var eggs=Table(game.Read(NdsSection.EggMoves));var randomEggs=After(NdsSection.EggMoves,new NdsDataOptions(21){EggMoves=NdsLearnsetMode.Random});
+            var metronomeEggs=After(NdsSection.EggMoves,new NdsDataOptions(21){EggMoves=NdsLearnsetMode.Metronome});
+            check(eggs[1]["E0"]==33&&eggs[1]["E1"]==45&&randomEggs.All(p=>p.Value.Count==eggs[p.Key].Count)&&randomEggs[1]["E0"]!=randomEggs[1]["E1"]&&metronomeEggs.Values.All(r=>r.Values.All(m=>m==118))
+                &&game.Write(NdsSection.EggMoves,new Dictionary<string,int>{["1:E1"]=50}).Changes.Single().After==50,$"NdsData_{n}_EggMovesReadRandomizedAndEdited");
+        }
+        // Black and Diamond have no move tutors.
+        if(n!="Hgss")check(game.Read(NdsSection.Tutors).Count==0&&game.Read(NdsSection.MoveLists).All(c=>c.Entry==0),$"NdsData_{n}_NoTutorsInBlackAndDiamond");
         var a=game.Random(NdsSection.Pokemon,new NdsDataOptions(11){Stats=NdsStatsMode.Random,Types=true});var b=game.Random(NdsSection.Pokemon,new NdsDataOptions(11){Stats=NdsStatsMode.Random,Types=true});
         var scoped=game.Random(NdsSection.Pokemon,new NdsDataOptions(11){Stats=NdsStatsMode.Random,Scope=new HashSet<int>{1}});
         check(a.Changes.SequenceEqual(b.Changes)&&scoped.Changes.All(c=>c.Location.StartsWith(s.SpeciesNames[1]+" ",StringComparison.Ordinal)),$"NdsData_{n}_DeterministicAndScoped");
@@ -117,7 +127,7 @@ internal static class NdsDataChecks
     // Real dumps: every data section edited and randomized, stacked through drafts, exported once and read back.
     internal static void Probe(string output,IEnumerable<string> roms)
     {
-        int checks=0;void Check(bool ok,string name){if(!ok)throw new Exception("FAIL "+name);checks++;Console.WriteLine("PASS "+name);}
+        int checks=0;void Check(bool ok,string name){if(!ok)throw new Exception("FAIL "+name+(name.Contains("Shuffled")?"":""));checks++;Console.WriteLine("PASS "+name);}
         output=Path.GetFullPath(output);if(Directory.Exists(output)||File.Exists(output))throw new IOException("El destino debe ser nuevo.");Directory.CreateDirectory(output);
         NdsSection[] sections=[NdsSection.Pokemon,NdsSection.Moves,NdsSection.Learnsets,NdsSection.Evolutions,NdsSection.Machines,NdsSection.Statics,NdsSection.Trades,NdsSection.Trainers,NdsSection.Encounters];
         foreach(string source in roms.Select(Path.GetFullPath))
@@ -199,6 +209,82 @@ internal static class NdsDataChecks
                 var originals=gen4?g4!.Trainers():g5!.Trainers();
                 bool teams=trainers.Zip(originals).All(p=>p.Second.Team.Count==0||p.First.Team.Count>=2&&p.First.HasMoves&&p.First.HasItems&&p.First.Team.All(m=>m.Difficulty==255&&m.HeldItem>0&&m.Moves.Count(x=>x>0)>=1));
                 Check(teams&&trainers.Count(t=>t.BattleType!=0)>=doubles,$"NdsData_Real_{code}_TrainerRulesExportAndReadBack");
+            }
+            // Phase 14: egg moves, TM and tutor lists, tutor compatibility, starter item, trainer names and overlay tweaks, stacked, exported and read back.
+            using(var rom=NdsRom.Open(source))
+            {
+                bool gen4=NdsIdentity.Identify(rom).Profile.Generation==4;
+                Gen5Data? g5=gen4?null:Gen5Data.Open(rom);Gen4Data? g4=gen4?Gen4Data.Open(rom):null;
+                var files=new Dictionary<string,byte[]>();var overlays=new Dictionary<int,byte[]>();var recompress=new HashSet<int>();byte[]? arm9=null;
+                Gen4Data D4()=>g4!.WithDraft(new Dictionary<string,byte[]>(files),new Dictionary<int,byte[]>(overlays),arm9);
+                Gen5Data D5()=>g5!.WithDraft(new Dictionary<string,byte[]>(files),new Dictionary<int,byte[]>(overlays));
+                IReadOnlyList<NdsCell> Read(NdsSection x)=>gen4?NdsCells.Read(D4(),x):NdsCells.Read(D5(),x);
+                Gen5RandomizerResult Data(NdsSection x,NdsDataOptions o)=>gen4?NdsDataRandomizer.Generate(D4(),x,o):NdsDataRandomizer.Generate(D5(),x,o);
+                void Stack(Gen5RandomizerResult r){foreach(var (p,d) in r.Files)files[p]=d;foreach(var (i,d) in r.Overlays)overlays[i]=d;recompress.UnionWith(r.RecompressOverlays);if(r.Arm9 is not null)arm9=r.Arm9;}
+                var eggs=Table(Read(NdsSection.EggMoves));int eggCount=eggs.Values.Sum(r=>r.Count);
+                Check(eggs.Count>=190&&eggCount>=1700&&eggs.Values.All(r=>r.Values.All(m=>m is >0 and <560)),$"NdsData_Real_{code}_ReadsEggMoves ({eggs.Count} especies, {eggCount} movimientos)");
+                Stack(Data(NdsSection.EggMoves,new NdsDataOptions(41){EggMoves=NdsLearnsetMode.Random}));
+                var newEggs=Table(Read(NdsSection.EggMoves));
+                Check(newEggs.Keys.Order().SequenceEqual(eggs.Keys.Order())&&newEggs.All(p=>p.Value.Count==eggs[p.Key].Count)&&newEggs.Count(p=>!p.Value.OrderBy(k=>k.Key).Select(k=>k.Value).SequenceEqual(eggs[p.Key].OrderBy(k=>k.Key).Select(k=>k.Value)))>eggs.Count/2,
+                    $"NdsData_Real_{code}_EggMovesRandomKeepCounts");
+                var lists=Table(Read(NdsSection.MoveLists));
+                (int Tms,int Tutors,int FirstTutor) expected=code switch{"ADAE"=>(92,0,0),"CPUE"=>(92,38,291),"IPKE"=>(92,52,291),"IRDO"=>(0,60,20),_=>(0,0,0)};
+                Check((lists.TryGetValue(0,out var tmRow)?tmRow.Count:0)==expected.Tms&&(lists.TryGetValue(1,out var tutorRow)?tutorRow.Count:0)==expected.Tutors&&(expected.Tutors==0||tutorRow!["Tutor0"]==expected.FirstTutor),
+                    $"NdsData_Real_{code}_ReadsTmAndTutorLists ({expected.Tms} MT, {expected.Tutors} tutores)");
+                if(lists.Count>0)
+                {
+                    var s=gen4?NdsDataSource.Of(g4!):NdsDataSource.Of(g5!);var hms=s.MachineMoves.Skip(s.TmCount).ToHashSet();
+                    var listed=Data(NdsSection.MoveLists,new NdsDataOptions(42){RandomTmMoves=true,RandomTutorMoves=true});Stack(listed);
+                    var newLists=Table(Read(NdsSection.MoveLists));var taught=newLists.Values.SelectMany(r=>r.Values).ToArray();
+                    bool fieldKept=(expected.Tms==0||newLists[0]["TM69"]==148)&&(code!="IPKE"||newLists[1]["Tutor51"]==29);
+                    Check(taught.Distinct().Count()==taught.Length&&!taught.Any(hms.Contains)&&fieldKept&&newLists.Sum(p=>p.Value.Count(k=>k.Value!=lists[p.Key][k.Key]))>(expected.Tms+expected.Tutors)/2,
+                        $"NdsData_Real_{code}_TmAndTutorMovesRandomWithoutRepeatsKeepingHmsAndFieldMoves");
+                    if(expected.Tms>0)
+                    {
+                        // TM01's item description and disc colour follow its new move.
+                        var text=Narc.Read(files[g4!.PathOf(Gen4Profile.Text)]);var oldDesc=g4.Text(g4.Profile.ItemDescriptionsText)[328];var newDesc=Gen4Text.Read(text.Files[g4.Profile.ItemDescriptionsText])[328];
+                        Check(newDesc!=oldDesc&&newDesc.Split("\\n").All(l=>l.Length<=38)&&listed.Changes.Any(c=>c.Field=="Textos actualizados")&&!arm9!.SequenceEqual(g4.Arm9()),$"NdsData_Real_{code}_TmDescriptionsAndColoursFollowTheMoves");
+                        // A second change of the lists still finds every table (TM01's colour is part of the colour table's prefix).
+                        var relisted=Data(NdsSection.MoveLists,new NdsDataOptions(47){RandomTmMoves=true});Stack(relisted);
+                        Check(relisted.Changes.Count(c=>c.Field.StartsWith("Movimiento de la MT"))>40&&relisted.Changes.Any(c=>c.Field=="Textos actualizados"),$"NdsData_Real_{code}_TmListChangesTwice");
+                    }
+                }
+                if(expected.Tutors>0)
+                {
+                    var compat=Table(Read(NdsSection.Tutors));
+                    Check(compat.Count==(gen4?Gen4Data.MaxSpecies:Gen5Randomizer.MaxSpecies)&&compat.Values.All(r=>r.Count==expected.Tutors)&&compat.Values.Any(r=>r.Values.Contains(1))&&compat.Values.Any(r=>r.Values.Contains(0)),
+                        $"NdsData_Real_{code}_ReadsTutorCompatibility");
+                    Stack(Data(NdsSection.Tutors,new NdsDataOptions(43){Tutors=NdsMachineMode.Full}));
+                    Check(Table(Read(NdsSection.Tutors)).Values.All(r=>r.Values.All(v=>v==1))&&Table(Read(NdsSection.Pokemon))[1]["Stat0"]==Table(gen4?NdsCells.Read(g4!,NdsSection.Pokemon):NdsCells.Read(g5!,NdsSection.Pokemon))[1]["Stat0"],
+                        $"NdsData_Real_{code}_TutorCompatibilityFullKeepsSpeciesData");
+                }
+                if(code is "ADAE" or "CPUE")
+                {
+                    var starters=NdsCells.Read(D4(),NdsSection.Starters);
+                    Stack(Gen4Randomizer.Generate(D4(),new Gen5RandomizerOptions(44){RandomStarterItem=true}));
+                    int item=NdsCells.Read(D4(),NdsSection.Starters).Single(c=>c.Local=="Item").Value;
+                    Check(starters.Single(c=>c.Local=="Item").Value==0&&NdsTrainerTools.HeldItemIds.Contains(item),$"NdsData_Real_{code}_StarterHeldItem ({g4!.Text(g4.Profile.ItemNamesText)[item]})");
+                }
+                var names=gen4?NdsTrainerTools.Generate(D4(),new NdsTrainerOptions(45){ShuffleNames=true,ShuffleClassNames=true}):NdsTrainerTools.Generate(D5(),new NdsTrainerOptions(45){ShuffleNames=true,ShuffleClassNames=true});
+                var oldTrainers=gen4?g4!.Trainers():g5!.Trainers();Stack(names);var newTrainers=gen4?D4().Trainers():D5().Trainers();
+                Check(newTrainers.Count==oldTrainers.Count&&newTrainers.Zip(oldTrainers).Count(p=>p.First.Name!=p.Second.Name)>oldTrainers.Count/3&&newTrainers.Zip(oldTrainers).Count(p=>p.First.ClassName!=p.Second.ClassName)>oldTrainers.Count/3
+                    &&newTrainers.Zip(oldTrainers).All(p=>p.First.Team.Count==p.Second.Team.Count),$"NdsData_Real_{code}_TrainerNamesAndClassesShuffled ({newTrainers.Zip(oldTrainers).Count(p=>p.First.Name!=p.Second.Name)} nombres y {newTrainers.Zip(oldTrainers).Count(p=>p.First.ClassName!=p.Second.ClassName)} clases de {oldTrainers.Count})");
+                var tweakOptions=gen4?new NdsTweakOptions{UpdateTypeEffectiveness=true,GuaranteedCatch=true,RandomPickupItems=true,Seed=46}
+                    :new NdsTweakOptions{RunWithoutRunningShoes=true,UpdateTypeEffectiveness=true,GuaranteedCatch=true,DisableLowHpMusic=true,RandomPickupItems=true,Seed=46};
+                var untweaked=new Dictionary<int,byte[]>(overlays);var tweaks=gen4?NdsTweaks.Apply(D4(),tweakOptions):NdsTweaks.Apply(D5(),tweakOptions);Stack(tweaks);
+                int patched=tweaks.Overlays.Sum(o=>{var original=untweaked.TryGetValue(o.Key,out var draft)?draft:gen4?g4!.ReadOverlay(o.Key):g5!.ReadOverlay(o.Key);return Enumerable.Range(0,original.Length).Count(i=>original[i]!=o.Value[i]);});
+                Check(patched is >4 and <80&&tweaks.Changes.Count(c=>c.Location=="Recogida")==29&&tweaks.Overlays.Keys.All(id=>(gen4?g4!.KnownOverlays:g5!.KnownOverlays).ContainsKey(id)),
+                    $"NdsData_Real_{code}_OverlayTweaksAndPickup ({patched} bytes en {tweaks.Overlays.Count} overlays)");
+                bool twice=false;try{if(gen4)NdsTweaks.Apply(D4(),new NdsTweakOptions{UpdateTypeEffectiveness=true});else NdsTweaks.Apply(D5(),new NdsTweakOptions{GuaranteedCatch=true});}catch(InvalidDataException){twice=true;}
+                Check(twice,$"NdsData_Real_{code}_OverlayTweaksApplyOnlyOnce");
+                NdsSection[] read=[NdsSection.EggMoves,NdsSection.MoveLists,NdsSection.Tutors,NdsSection.Starters,NdsSection.Trainers];
+                var final=read.ToDictionary(x=>x,x=>Read(x).Select(c=>(c.Key,c.Value)).ToArray());
+                string target=Path.Combine(output,code+"-fase14.nds");
+                var all=new Gen5RandomizerResult(files,[],overlays){Arm9=arm9,RecompressOverlays=recompress};
+                if(gen4)g4!.Export(target,all);else g5!.Export(target,all);
+                using var exported=NdsRom.Open(target);
+                Func<NdsSection,IReadOnlyList<NdsCell>> again=gen4?x=>NdsCells.Read(Gen4Data.Open(exported,requireOriginalTables:false),x):x=>NdsCells.Read(Gen5Data.Open(exported,requireOriginalTables:false),x);
+                Check(read.All(x=>again(x).Select(c=>(c.Key,c.Value)).SequenceEqual(final[x])),$"NdsData_Real_{code}_Phase14ExportReadsBack");
             }
             foreach(string f in Directory.GetFiles(output))File.Delete(f);
             Check(Hash(source)==before,$"NdsData_Real_{code}_SourceUnchanged");

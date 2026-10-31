@@ -48,6 +48,16 @@ public sealed record NdsDataOptions(uint Seed)
     public NdsStaticMode Statics { get; init; }
     public bool TradeGiven { get; init; }
     public bool TradeRequested { get; init; }
+    /// <summary>Egg moves: random (with <see cref="SameTypePercent"/>) or Metronome only.</summary>
+    public NdsLearnsetMode EggMoves { get; init; }
+    /// <summary>Tutor compatibility, with the TM modes (no tutor is kept as HMs are).</summary>
+    public NdsMachineMode Tutors { get; init; }
+    public int TutorPercent { get; init; } = 50;
+    /// <summary>Each TM (Gen4) or tutor teaches a different random move; HMs and the moves they teach never change.</summary>
+    public bool RandomTmMoves { get; init; }
+    public bool RandomTutorMoves { get; init; }
+    /// <summary>TMs and tutors that teach a move used outside battle (Flash, Headbutt…) keep it.</summary>
+    public bool KeepFieldMoves { get; init; } = true;
     public IReadOnlySet<int>? Scope { get; init; }
     internal bool InScope(int entry) => Scope is null || Scope.Contains(entry);
 }
@@ -61,6 +71,9 @@ public static class NdsDataRandomizer
 {
     // Struggle never changes; Metronome is the move of the Metronome-only mode.
     private const int Struggle = 165, Metronome = 118;
+    // Moves used outside battle in Gen4/Gen5 (UPR-ZX field moves): Cut, Fly, Surf, Strength, Dig, Teleport, Waterfall, Softboiled,
+    // Flash, Milk Drink, Sweet Scent, Rock Smash, Secret Power, Dive, Headbutt, Defog and Rock Climb.
+    private static readonly HashSet<int> FieldMoves = [15, 19, 57, 70, 91, 100, 127, 135, 148, 208, 230, 249, 290, 291, 29, 432, 431];
     // Abilities that break or do nothing on other species (Wonder Guard, Forecast, Multitype, Flower Gift, Illusion, Zen Mode).
     private static readonly HashSet<int> BannedAbilities = [25, 59, 121, 122, 149, 161];
     // Legendary and mythical species of Gen1-5, by National Dex number.
@@ -163,37 +176,82 @@ public static class NdsDataRandomizer
                 var sets = Table(NdsSection.Learnsets);
                 var pokemon = Table(NdsSection.Pokemon);
                 var moves = Table(NdsSection.Moves);
-                int[] pool = moves.Keys.Where(m => m != Struggle).Order().ToArray();
-                int[] damaging = pool.Where(m => moves[m]["Power"] > 0).ToArray();
                 foreach (var (species, row) in sets)
                 {
                     if (!options.InScope(species))
                         continue;
                     int count = row.Keys.Count(k => k.EndsWith(".Move", StringComparison.Ordinal));
-                    if (options.Learnsets == NdsLearnsetMode.Metronome)
-                    {
-                        for (int i = 0; i < count; i++)
-                            Set(species, "M" + i + ".Move", Metronome, sets);
-                        continue;
-                    }
-                    var own = pokemon.TryGetValue(species, out var p) ? new[] { p["Type1"], p["Type2"] } : [];
-                    int[] stab = damaging.Where(m => own.Contains(moves[m]["Type"])).ToArray();
-                    var used = new HashSet<int>();
+                    var chosen = RandomMoves(species, count, "learn", options.Learnsets, firstDamaging: true, pokemon, moves, options.SameTypePercent, Pick);
                     for (int i = 0; i < count; i++)
+                        Set(species, "M" + i + ".Move", chosen[i], sets);
+                }
+                break;
+            }
+            case NdsSection.EggMoves when options.EggMoves != NdsLearnsetMode.Keep:
+            {
+                var eggs = Table(NdsSection.EggMoves);
+                var pokemon = Table(NdsSection.Pokemon);
+                var moves = Table(NdsSection.Moves);
+                foreach (var (species, row) in eggs)
+                {
+                    if (!options.InScope(species))
+                        continue;
+                    var chosen = RandomMoves(species, row.Count, "egg", options.EggMoves, firstDamaging: false, pokemon, moves, options.SameTypePercent, Pick);
+                    for (int i = 0; i < row.Count; i++)
+                        Set(species, "E" + i, chosen[i], eggs);
+                }
+                break;
+            }
+            case NdsSection.Tutors when options.Tutors != NdsMachineMode.Keep:
+            {
+                var compat = Table(NdsSection.Tutors);
+                var pokemon = Table(NdsSection.Pokemon);
+                var moves = Table(NdsSection.Moves);
+                var tutors = source.TutorMoves();
+                int MoveType(int tutor) => tutor < tutors.Count && moves.TryGetValue(tutors[tutor], out var m) ? m["Type"] : -1;
+                foreach (var (species, row) in compat)
+                {
+                    if (!options.InScope(species))
+                        continue;
+                    var own = pokemon.TryGetValue(species, out var p) ? new[] { p["Type1"], p["Type2"] } : [];
+                    foreach (string local in row.Keys)
                     {
-                        int move = 0;
-                        // The first move always deals damage; several tries avoid repeating a move in one learnset.
-                        for (int attempt = 0; attempt < 8 && (move == 0 || used.Contains(move)); attempt++)
+                        int tutor = int.Parse(local[1..]);
+                        int value = options.Tutors switch
                         {
-                            string key = $"learn/{species}/{i}/{attempt}";
-                            bool sameType = stab.Length > 0 && Pick(key + "/stab", 100) < options.SameTypePercent;
-                            int[] from = sameType ? stab : i == 0 ? damaging : pool;
-                            move = from[Pick(key, from.Length)];
-                        }
-                        used.Add(move);
-                        Set(species, "M" + i + ".Move", move, sets);
+                            NdsMachineMode.Full => 1,
+                            NdsMachineMode.TypeBased when own.Contains(MoveType(tutor)) => 1,
+                            NdsMachineMode.TypeBased when MoveType(tutor) == 0 => Pick($"tutor/{species}/{tutor}", 100) < 75 ? 1 : 0,
+                            _ => Pick($"tutor/{species}/{tutor}", 100) < options.TutorPercent ? 1 : 0,
+                        };
+                        Set(species, local, value, compat);
                     }
                 }
+                break;
+            }
+            case NdsSection.MoveLists when options.RandomTmMoves || options.RandomTutorMoves:
+            {
+                var lists = Table(NdsSection.MoveLists);
+                var moves = Table(NdsSection.Moves);
+                bool Randomized(int entry, int move) => (entry == 0 ? options.RandomTmMoves : options.RandomTutorMoves) && options.InScope(entry)
+                    && !(options.KeepFieldMoves && FieldMoves.Contains(move));
+                // No move is taught twice: what stays (HMs, kept TMs and tutors) is taken first.
+                var used = new HashSet<int>(source.MachineMoves.Skip(source.TmCount)) { Struggle };
+                foreach (var (entry, row) in lists)
+                    foreach (int move in row.Values.Where(m => !Randomized(entry, m)))
+                        used.Add(move);
+                foreach (var (entry, row) in lists.OrderBy(p => p.Key))
+                    foreach (var (local, move) in row.OrderBy(p => int.Parse(string.Concat(p.Key.Where(char.IsDigit)))))
+                    {
+                        if (!Randomized(entry, move))
+                            continue;
+                        int[] free = moves.Keys.Where(m => !used.Contains(m)).Order().ToArray();
+                        if (free.Length == 0)
+                            break;
+                        int chosen = free[Pick($"list/{entry}/{local}", free.Length)];
+                        used.Add(chosen);
+                        Set(entry, local, chosen, lists);
+                    }
                 break;
             }
             case NdsSection.Evolutions:
@@ -306,6 +364,35 @@ public static class NdsDataRandomizer
             }
         }
         return edits;
+    }
+
+    // Moves for a learnset or egg move list: Metronome only, or random with a chance of sharing the species' type; several tries
+    // avoid repeating a move in one list, and a learnset starts with a damaging move.
+    private static int[] RandomMoves(int species, int count, string tag, NdsLearnsetMode mode, bool firstDamaging, IReadOnlyDictionary<int, Dictionary<string, int>> pokemon,
+        IReadOnlyDictionary<int, Dictionary<string, int>> moves, int sameTypePercent, Func<string, int, int> pick)
+    {
+        if (mode == NdsLearnsetMode.Metronome)
+            return Enumerable.Repeat(Metronome, count).ToArray();
+        int[] pool = moves.Keys.Where(m => m != Struggle).Order().ToArray();
+        int[] damaging = pool.Where(m => moves[m]["Power"] > 0).ToArray();
+        var own = pokemon.TryGetValue(species, out var p) ? new[] { p["Type1"], p["Type2"] } : [];
+        int[] stab = damaging.Where(m => own.Contains(moves[m]["Type"])).ToArray();
+        var used = new HashSet<int>();
+        var result = new int[count];
+        for (int i = 0; i < count; i++)
+        {
+            int move = 0;
+            for (int attempt = 0; attempt < 8 && (move == 0 || used.Contains(move)); attempt++)
+            {
+                string key = $"{tag}/{species}/{i}/{attempt}";
+                bool sameType = stab.Length > 0 && pick(key + "/stab", 100) < sameTypePercent;
+                int[] from = sameType ? stab : i == 0 && firstDamaging ? damaging : pool;
+                move = from[pick(key, from.Length)];
+            }
+            used.Add(move);
+            result[i] = move;
+        }
+        return result;
     }
 
     // Species → the species it evolves from (first one found), from the evolution table.

@@ -88,6 +88,13 @@ internal static class NdsUiChecks
         {
             Pump(workspace.LoadAsync(rom));var project=workspace.Project;
             Check(project is {IsRomhack:false}&&project.Identity.KnownDump,$"NdsUi_Real_LoadsVerifiedOriginal ({project?.Game})");
+            // Phase 14 sections: the shared editor where the game has them, a notice that says why where it does not.
+            foreach(var (route,section) in new[]{("MoveLists",NdsSection.MoveLists),("Tutors",NdsSection.Tutors),("EggMoves",NdsSection.EggMoves)})
+            {
+                Pump(workspace.NavigateAsync(route));bool available=project!.SectionProblem(section) is null;
+                Check(workspace.CurrentRoute==route&&Descendants<RecordEditorView>(workspace).Count()==(available?1:0),$"NdsUi_Real_{route}{(available?"OpensInTheSharedEditor":"ShowsWhyItIsMissing")}");
+                Capture(workspace,"nds-workspace-"+route.ToLowerInvariant());
+            }
             foreach(string route in new[]{"Pokemon","Moves","Learnsets","Evolutions","Machines","Trainers","Encounters","Starters","Statics","Trades","FieldItems","Shops"})
             {
                 Pump(workspace.NavigateAsync(route));
@@ -117,8 +124,10 @@ internal static class NdsUiChecks
             var wild=new NdsRecordEditor(project!,NdsSection.Encounters);wild.Apply(wild.Preview(Defaults(wild,("Mode",1)),wild.Entries.Select(e=>e.Id).ToArray()));
             var starters=new NdsRecordEditor(project!,NdsSection.Starters);
             // Starters twice: code patches must not stack; the second choice wins everywhere.
-            starters.Save(0,new Dictionary<string,int>{["Starter1"]=25,["Starter2"]=4,["Starter3"]=7});
-            starters.Save(0,new Dictionary<string,int>{["Starter1"]=1,["Starter2"]=4,["Starter3"]=258});
+            // Every field is saved, as the editor does (Diamond/Platinum also show the starter's item).
+            Dictionary<string,int> Starters(int a,int b,int c){var v=starters.Read(0).SelectMany(g=>g.Fields).ToDictionary(f=>f.Key,f=>f.Value);v["Starter1"]=a;v["Starter2"]=b;v["Starter3"]=c;return v;}
+            starters.Save(0,Starters(25,4,7));
+            starters.Save(0,Starters(1,4,258));
             var items=new NdsRecordEditor(project!,NdsSection.FieldItems);items.Apply(items.Preview(Defaults(items,("Shuffle",1)),items.Entries.Select(e=>e.Id).ToArray()));
             var shops=new NdsRecordEditor(project!,NdsSection.Shops);shops.Apply(shops.Preview(Defaults(shops,("Shuffle",1)),shops.Entries.Select(e=>e.Id).ToArray()));
             Check(project!.History.Count==6&&project.HasChanges,$"NdsUi_Real_SixOperationsStack ({project.History.Sum(o=>o.Changes.Count)} cambios)");
@@ -146,7 +155,11 @@ internal static class NdsUiChecks
             project.Apply(project.PreviewData("Randomizar Pokémon",NdsSection.Pokemon,new NdsDataOptions(5){Stats=NdsStatsMode.Shuffle,Types=true,Scope=new HashSet<int>{1,4,7}}));
             var ruled=new NdsRecordEditor(project,NdsSection.Trainers);
             ruled.Apply(ruled.Preview(Defaults(ruled,("TeamSize",3),("CB_Moves",2),("HeldItems",2),("MaxAI",1),("DoubleChance",50)),ruled.Entries.Select(e=>e.Id).ToArray()));
-            if(project.TweaksProblem is null)project.Apply(project.PreviewTweaks(new NdsTweakOptions{FastestText=true,NationalDexAtStart=true}));
+            // Phase 14: TM/tutor lists, tutor compatibility and egg moves, then tweaks of both generations (Pickup with its seed).
+            foreach(var section in new[]{NdsSection.MoveLists,NdsSection.Tutors,NdsSection.EggMoves}.Where(s=>project.SectionProblem(s) is null))
+                {var editor=new NdsRecordEditor(project,section);editor.Apply(editor.Preview(Defaults(editor),editor.Entries.Select(e=>e.Id).ToArray()));}
+            project.Apply(project.PreviewTweaks(project.Generation==4?new NdsTweakOptions{FastestText=project.Arm9TweaksProblem is null,NationalDexAtStart=true,UpdateTypeEffectiveness=true,GuaranteedCatch=true,RandomPickupItems=true,Seed=9}
+                :new NdsTweakOptions{RunWithoutRunningShoes=true,UpdateTypeEffectiveness=true,GuaranteedCatch=true,DisableLowHpMusic=true,RandomPickupItems=true,Seed=9}));
             // Global Template: the history saved, read back and replayed with its seeds on a fresh session gives the same changes.
             string templatePath=Path.Combine(output,"global.json");NdsProject.WriteGlobal(templatePath,project.CaptureGlobal());
             var template=NdsProject.ReadGlobal(templatePath);
@@ -163,7 +176,7 @@ internal static class NdsUiChecks
             var batch=NdsProject.BuildBatch(rom,false,template,2,output,"batch",null,CancellationToken.None);
             bool kept=false;try{NdsProject.BuildBatch(rom,false,template,1,output,"batch",null,CancellationToken.None);}catch(IOException){kept=true;}
             Check(batch.Count==2&&batch.All(File.Exists)&&batch.All(b=>File.Exists(Path.ChangeExtension(b,".cambios.txt")))&&Hash(batch[0])!=Hash(batch[1])&&kept,"NdsUi_Real_BatchBuildsDistinctRomsWithoutOverwriting");
-            Pump(workspace.NavigateAsync("Template"));Capture(workspace,"nds-workspace-template");
+            Pump(workspace.NavigateAsync("Template"));Capture(workspace,"nds-workspace-template");Pump(workspace.NavigateAsync("Tweaks"));Capture(workspace,"nds-workspace-tweaks-gen"+project.Generation);
         }
         finally{workspace.Project?.Dispose();}
         Check(Hash(rom)==before,"NdsUi_Real_SourceUnchanged");

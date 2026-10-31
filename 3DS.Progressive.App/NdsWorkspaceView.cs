@@ -22,7 +22,7 @@ namespace ThreeDS.Progressive;
 internal sealed class NdsWorkspaceView:UserControl
 {
     private static readonly (NdsSection Section,string Route)[] Sections=
-        [(NdsSection.Pokemon,"Pokemon"),(NdsSection.Moves,"Moves"),(NdsSection.Learnsets,"Learnsets"),(NdsSection.Evolutions,"Evolutions"),(NdsSection.Machines,"Machines"),(NdsSection.Trainers,"Trainers"),(NdsSection.Encounters,"Encounters"),(NdsSection.Starters,"Starters"),(NdsSection.Statics,"Statics"),(NdsSection.Trades,"Trades"),(NdsSection.FieldItems,"FieldItems"),(NdsSection.Shops,"Shops")];
+        [(NdsSection.Pokemon,"Pokemon"),(NdsSection.Moves,"Moves"),(NdsSection.Learnsets,"Learnsets"),(NdsSection.Evolutions,"Evolutions"),(NdsSection.Machines,"Machines"),(NdsSection.MoveLists,"MoveLists"),(NdsSection.Tutors,"Tutors"),(NdsSection.EggMoves,"EggMoves"),(NdsSection.Trainers,"Trainers"),(NdsSection.Encounters,"Encounters"),(NdsSection.Starters,"Starters"),(NdsSection.Statics,"Statics"),(NdsSection.Trades,"Trades"),(NdsSection.FieldItems,"FieldItems"),(NdsSection.Shops,"Shops")];
     private readonly Window _owner;
     private readonly ContentControl _page=new(){HorizontalContentAlignment=HorizontalAlignment.Stretch,VerticalContentAlignment=VerticalAlignment.Stretch};
     private readonly Dictionary<string,Button> _navigation=new();
@@ -139,11 +139,9 @@ internal sealed class NdsWorkspaceView:UserControl
             else
             {
                 var section=Sections.First(s=>s.Route==route).Section;
-                string? feature=section switch{NdsSection.Shops=>Gen5Feature.Shops,NdsSection.Starters=>Gen5Feature.Starters,NdsSection.Moves=>Gen5Feature.Moves,
-                    NdsSection.Learnsets=>Gen5Feature.Learnsets,NdsSection.Evolutions=>Gen5Feature.Evolutions,NdsSection.Trades=>Gen5Feature.Trades,_=>null};
-                if(feature is not null&&!Project!.Allows(feature))
+                if(Project!.SectionProblem(section) is {} problem)
                 {
-                    content=Notice(NdsProject.SectionName(section),"No disponible en esta ROM: "+Project.Unavailable[feature]+".");
+                    content=Notice(NdsProject.SectionName(section),problem);
                 }
                 else
                 {
@@ -189,28 +187,35 @@ internal sealed class NdsWorkspaceView:UserControl
         return new ScrollViewer{Content=panel,VerticalScrollBarVisibility=ScrollBarVisibility.Auto};
     }
 
-    // Gen4 tweaks from Universal Pokémon Randomizer ZX, applied as one more stacked operation.
+    // Tweaks from Universal Pokémon Randomizer ZX, applied as one more stacked operation.
     private FrameworkElement TweaksPage()
     {
         var panel=new StackPanel{Margin=new Thickness(24)};
         panel.Children.Add(new TextBlock{Text="Ajustes del juego",FontSize=23,FontWeight=FontWeights.SemiBold});
         var intro=new TextBlock{TextWrapping=TextWrapping.Wrap,Margin=new Thickness(0,6,0,10),
-            Text="Ajustes de Universal Pokémon Randomizer ZX para Diamante, Platino y HeartGold. Solo se aplican sobre el código original del juego y se exportan con el resto de cambios."};
+            Text="Ajustes de Universal Pokémon Randomizer ZX. Solo se aplican sobre el código original del juego (ARM9, overlays y scripts) y se exportan con el resto de cambios."};
         intro.SetResourceReference(TextBlock.ForegroundProperty,"TextSoft");panel.Children.Add(intro);
         if(Project is null){panel.Children.Add(new TextBlock{Text="Abre una ROM para ver sus ajustes."});return panel;}
-        if(Project.TweaksProblem is {} problem){panel.Children.Add(new TextBlock{Text="No disponible en esta ROM: "+problem+".",TextWrapping=TextWrapping.Wrap});return panel;}
         CheckBox Box(string text,string name){var box=new CheckBox{Content=text,Margin=new Thickness(0,6,0,0)};AutomationProperties.SetName(box,name);panel.Children.Add(box);return box;}
-        var fast=Box("Texto instantáneo","Texto instantáneo");var dex=Box("Pokédex Nacional desde el inicio","Pokédex Nacional desde el inicio");
-        var shoes=Box("Correr sin las Deportivas","Correr sin las Deportivas");
+        bool gen4=Project.Generation==4;string? arm9=Project.Arm9TweaksProblem;
+        var fast=gen4&&arm9 is null?Box("Texto instantáneo","Texto instantáneo"):null;var dex=gen4?Box("Pokédex Nacional desde el inicio","Pokédex Nacional desde el inicio"):null;
+        var shoes=!gen4||arm9 is null?Box("Correr sin las Deportivas","Correr sin las Deportivas"):null;
         var distortion=Project.IsPlatinum?Box("Mundo Distorsión más rápido","Mundo Distorsión más rápido"):null;
-        var note=new TextBlock{TextWrapping=TextWrapping.Wrap,Margin=new Thickness(0,10,0,0),Text="Los ajustes de script (Pokédex Nacional, Mundo Distorsión) se aplican una sola vez sobre el script original."};
+        var types=Box("Tabla de tipos de Gen6 (Acero ya no resiste Fantasma ni Siniestro)","Tabla de tipos de Gen6");
+        var catching=Box("Captura garantizada (todas las Poké Ball atrapan)","Captura garantizada");
+        var music=gen4?null:Box("Sin música de PS bajos","Sin música de PS bajos");
+        var pickup=Box("Objetos de Recogida aleatorios","Objetos de Recogida aleatorios");
+        if(arm9 is not null){var off=new TextBlock{TextWrapping=TextWrapping.Wrap,Margin=new Thickness(0,8,0,0),Text="No disponible: "+arm9+"."};off.SetResourceReference(TextBlock.ForegroundProperty,"TextSoft");panel.Children.Add(off);}
+        var note=new TextBlock{TextWrapping=TextWrapping.Wrap,Margin=new Thickness(0,10,0,0),Text="Cada ajuste se aplica una sola vez: los de código y script comprueban que siguen siendo los originales. La Recogida aleatoria usa una semilla nueva en cada lote."};
         note.SetResourceReference(TextBlock.ForegroundProperty,"TextSoft");panel.Children.Add(note);
         var apply=new Button{Content="Aplicar ajustes",Margin=new Thickness(0,12,0,0),HorizontalAlignment=HorizontalAlignment.Left};AutomationProperties.SetName(apply,"Aplicar ajustes del juego");
         EditorPresentation.StyleAction(apply,EditorPresentation.ActionRole.Primary);panel.Children.Add(apply);
         var result=new TextBlock{TextWrapping=TextWrapping.Wrap,Margin=new Thickness(0,8,0,0)};panel.Children.Add(result);
         apply.Click+=(_,_)=>
         {
-            var options=new NdsTweakOptions{FastestText=fast.IsChecked==true,NationalDexAtStart=dex.IsChecked==true,RunWithoutRunningShoes=shoes.IsChecked==true,FastDistortionWorld=distortion?.IsChecked==true};
+            var options=new NdsTweakOptions{FastestText=fast?.IsChecked==true,NationalDexAtStart=dex?.IsChecked==true,RunWithoutRunningShoes=shoes?.IsChecked==true,FastDistortionWorld=distortion?.IsChecked==true,
+                UpdateTypeEffectiveness=types.IsChecked==true,GuaranteedCatch=catching.IsChecked==true,DisableLowHpMusic=music?.IsChecked==true,RandomPickupItems=pickup.IsChecked==true};
+            if(options.RandomPickupItems)options=options with{Seed=pk3DS.Core.NX.SwitchSeed.New32()};
             if(options==new NdsTweakOptions()){result.Text="Elige al menos un ajuste.";return;}
             try{Project.Apply(Project.PreviewTweaks(options));result.Text="Ajustes aplicados; se escribirán al exportar.";UpdateStatus();ContextChanged?.Invoke();}
             catch(Exception ex) when (ex is InvalidDataException or ArgumentException or InvalidOperationException){result.Text="No se pudo aplicar: "+ex.Message;}

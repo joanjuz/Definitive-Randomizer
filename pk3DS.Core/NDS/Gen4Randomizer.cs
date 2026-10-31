@@ -28,6 +28,8 @@ public static class Gen4Randomizer
         var scripts = new Lazy<Narc>(() => data.CopyNarc(Gen4Profile.Scripts));
         if (options.Starters != Gen5StarterMode.Keep)
             SetStarters(data, options, scripts.Value, ref arm9, overlays, files, changes);
+        if (options.StarterItem is not null || options.RandomStarterItem)
+            SetStarterItem(data, options, scripts.Value, changes);
         if (options.FieldItems == Gen5ItemMode.Shuffle)
             ShuffleFieldItems(data, options, scripts.Value, ref arm9, changes);
         if (options.Shops == Gen5ItemMode.Shuffle)
@@ -50,6 +52,38 @@ public static class Gen4Randomizer
             // HeartGold's cry overlay is stored compressed and does not fit uncompressed; Diamond/Platinum's is not compressed.
             RecompressOverlays = overlays.Keys.ToHashSet(),
         };
+    }
+
+    /// <summary>Item the Diamond/Platinum starter comes with, or null when the game (or a romhack's script) has no such item.</summary>
+    internal static int? StarterItem(Gen4Data data)
+    {
+        var profile = data.Profile;
+        if (profile.StarterItemScript < 0 || data.Unavailable.ContainsKey(Gen5Feature.Starters))
+            return null;
+        var scripts = data.CopyNarc(Gen4Profile.Scripts).Files;
+        return profile.StarterItemScript < scripts.Count && StarterItemAt(scripts[profile.StarterItemScript], profile.StarterItemOffset) ? BinaryPrimitives.ReadUInt16LittleEndian(scripts[profile.StarterItemScript].AsSpan(profile.StarterItemOffset)) : null;
+    }
+
+    // The item is the third value of the script's "give Pokémon" command (0x96: species variable, level 5, item).
+    private static bool StarterItemAt(byte[] script, int at) => at >= 6 && at + 2 <= script.Length
+        && BinaryPrimitives.ReadUInt16LittleEndian(script.AsSpan(at - 6)) == 0x96 && BinaryPrimitives.ReadUInt16LittleEndian(script.AsSpan(at - 2)) == 5;
+
+    private static void SetStarterItem(Gen4Data data, Gen5RandomizerOptions options, Narc scripts, List<Gen5Change> changes)
+    {
+        var profile = data.Profile;
+        if (profile.StarterItemScript < 0)
+            throw new ArgumentException("HeartGold no da el inicial con un objeto.", nameof(options));
+        byte[] script = scripts.Files[profile.StarterItemScript];
+        if (!StarterItemAt(script, profile.StarterItemOffset))
+            throw new InvalidDataException("El script del inicial no tiene la forma esperada.");
+        int items = data.Text(profile.ItemNamesText).Count - 1;
+        int item = options.StarterItem ?? NdsTrainerTools.HeldItemIds[Gen5Randomizer.Index(options.Seed, "starteritem", NdsTrainerTools.HeldItemIds.Count)];
+        if (item < 0 || item > items)
+            throw new ArgumentException($"El objeto del inicial debe estar entre 0 y {items}.", nameof(options));
+        int before = BinaryPrimitives.ReadUInt16LittleEndian(script.AsSpan(profile.StarterItemOffset));
+        BinaryPrimitives.WriteUInt16LittleEndian(script.AsSpan(profile.StarterItemOffset), (ushort)item);
+        if (before != item)
+            changes.Add(new Gen5Change("Iniciales", "Objeto del inicial", before, item));
     }
 
     // Rival battle choice in Diamond/Platinum scripts: the two compared species follow at +0x08 and +0x15 (UPR-ZX dpptRivalScriptMagic).

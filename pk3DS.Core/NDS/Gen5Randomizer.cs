@@ -33,6 +33,9 @@ public sealed record Gen5RandomizerOptions(uint Seed)
     public Gen5StarterMode Starters { get; init; }
     /// <summary>Three distinct species (Grass, Fire and Water slots, in that order) for <see cref="Gen5StarterMode.Custom"/>.</summary>
     public IReadOnlyList<int>? CustomStarters { get; init; }
+    /// <summary>Item the Diamond/Platinum starter comes with (null keeps it); <see cref="RandomStarterItem"/> picks a random held item instead.</summary>
+    public int? StarterItem { get; init; }
+    public bool RandomStarterItem { get; init; }
     public Gen5ItemMode FieldItems { get; init; }
     public Gen5ItemMode Shops { get; init; }
     public IReadOnlyList<Gen5BstRange> BstRanges { get; init; } = Gen5BstRange.Defaults;
@@ -84,6 +87,8 @@ public static class Gen5Randomizer
     public static Gen5RandomizerResult Generate(Gen5Data data, Gen5RandomizerOptions options)
     {
         RejectUnavailable(data.Unavailable, options);
+        if (options.StarterItem is not null || options.RandomStarterItem)
+            throw new ArgumentException("Negro, Blanco y Blanco 2 no dan el inicial con un objeto.", nameof(options));
         var stats = data.BaseStats();
         var Pick = SpeciesPicker(stats, MaxSpecies, options);
         var files = new Dictionary<string, byte[]>();

@@ -16,7 +16,7 @@ public sealed record Gen5Profile(string GameCode, bool Black, IReadOnlyDictionar
     public const string TextStrings = "TextStrings", TextStory = "TextStory", PokemonStats = "PokemonStats", Scripts = "Scripts",
         TrainerData = "TrainerData", TrainerPokemon = "TrainerPokemon", WildPokemon = "WildPokemon",
         PokemonGraphics = "PokemonGraphics", StarterGraphics = "StarterGraphics", ShopItems = "ShopItems",
-        Learnsets = "Learnsets", Evolutions = "Evolutions", Moves = "Moves", Trades = "Trades", TrainerTextBoxes = "TrainerTextBoxes";
+        Learnsets = "Learnsets", Evolutions = "Evolutions", Moves = "Moves", Trades = "Trades", TrainerTextBoxes = "TrainerTextBoxes", EggMoves = "EggMoves";
 
     /// <summary>Black 2/White 2: shops live in their own NARC and the starter script fix is different.</summary>
     public bool Sequel { get; init; }
@@ -53,6 +53,19 @@ public sealed record Gen5Profile(string GameCode, bool Black, IReadOnlyDictionar
     public int FieldOverlay { get; init; } = 21;
     public uint FieldOverlayCrc32 { get; init; }
     public uint ShopOverlayCrc32 { get; init; }
+    /// <summary>Battle overlay (UPR-ZX BattleOvlNumber): type chart and catch check.</summary>
+    public int BattleOverlay { get; init; } = 93;
+    public uint BattleOverlayCrc32 { get; init; }
+    /// <summary>Overlay with the Pickup item table (UPR-ZX PickupOvlNumber).</summary>
+    public int PickupOverlay { get; init; } = 92;
+    public uint PickupOverlayCrc32 { get; init; }
+    /// <summary>Overlay that starts the low-HP music (UPR-ZX LowHealthMusicOvlNumber).</summary>
+    public int LowHpOverlay { get; init; } = 94;
+    public uint LowHpOverlayCrc32 { get; init; }
+    /// <summary>Black 2/White 2 move tutors in the field overlay: how many, the first move and the entry size (UPR-ZX MoveTutorDataOffset).</summary>
+    public int TutorCount { get; init; }
+    public int TutorOffset { get; init; }
+    public int TutorStride { get; init; } = 12;
     public IReadOnlyList<int> ShopItemOffsets { get; init; } = [];
     /// <summary>Items per shop list; in the shop NARC each file holds exactly one list.</summary>
     public IReadOnlyList<int> ShopItemSizes { get; init; } = [2, 2, 3, 4, 4, 6, 7, 7, 8, 8, 8, 8, 8, 9, 9, 9, 11, 11, 11, 11, 14, 16, 16, 17, 18, 19];
@@ -82,6 +95,7 @@ public sealed record Gen5Profile(string GameCode, bool Black, IReadOnlyDictionar
         [Moves] = ("a/0/2/1", 0xA62E835C),
         [Trades] = ("a/1/6/5", 0x42F5F462),
         [TrainerTextBoxes] = ("a/0/9/0", 0xDB72FD1A),
+        [EggMoves] = ("a/1/2/3", 0x784B2D4F),
     };
 
     public static IReadOnlyList<Gen5Profile> All { get; } =
@@ -89,6 +103,7 @@ public sealed record Gen5Profile(string GameCode, bool Black, IReadOnlyDictionar
         new("IRBO", true, BlackFiles())
         {
             StarterCryOverlayCrc32 = 0x4FFD3D7F, ShopOverlayCrc32 = 0xF2B9DC42, FieldOverlayCrc32 = 0xF2B9DC42,
+            BattleOverlayCrc32 = 0xA36EECA9, PickupOverlayCrc32 = 0xD4CF0B58, LowHpOverlayCrc32 = 0x58394A4F,
             ShopItemOffsets = [0x51538, 0x5153C, 0x51546, 0x5154C, 0x51564, 0x51590, 0x515E4, 0x515F2, 0x51600, 0x51610, 0x51620, 0x51630, 0x51640, 0x51650, 0x51662, 0x51674, 0x51686, 0x5169C, 0x516B2, 0x516C8, 0x516F8, 0x51714, 0x51734, 0x51774, 0x51796, 0x517BA],
         },
         // Spanish White: White's encounters plus its own text and scripts; the remaining tables match Black (U).
@@ -102,6 +117,7 @@ public sealed record Gen5Profile(string GameCode, bool Black, IReadOnlyDictionar
         })
         {
             StarterCryOverlayCrc32 = 0x2F3ADC12, ShopOverlayCrc32 = 0x3882585C, FieldOverlayCrc32 = 0x3882585C,
+            BattleOverlayCrc32 = 0x73422427, PickupOverlayCrc32 = 0x8043EB67, LowHpOverlayCrc32 = 0x325AA919,
             ShopItemOffsets = [0x51534, 0x51538, 0x51542, 0x51548, 0x51560, 0x5158C, 0x515E0, 0x515EE, 0x515FC, 0x5160C, 0x5161C, 0x5162C, 0x5163C, 0x5164C, 0x5165E, 0x51670, 0x51682, 0x51698, 0x516AE, 0x516C4, 0x516F4, 0x51710, 0x51730, 0x51770, 0x51792, 0x517B6],
         },
         // White 2 (U): every table shares Black 2 (U)'s CRC32 except the encounters, as UPR-ZX records; verified on the owner's dump.
@@ -122,6 +138,7 @@ public sealed record Gen5Profile(string GameCode, bool Black, IReadOnlyDictionar
             [Moves] = ("a/0/2/1", 0xA62E835C),
             [Trades] = ("a/1/6/3", 0x15ED8FFA),
             [TrainerTextBoxes] = ("a/0/8/9", 0xC73441C5),
+            [EggMoves] = ("a/1/2/4", 0x784B2D4F),
         })
         {
             Sequel = true, SpeciesNamesText = 90, TrainerNamesText = 382, TrainerClassesText = 383, TypeNamesText = 398, ItemNamesText = 64,
@@ -133,6 +150,8 @@ public sealed record Gen5Profile(string GameCode, bool Black, IReadOnlyDictionar
             PokedexJump = 0x1E,
             StarterCryOverlay = 316, StarterCryOverlayCrc32 = 0xD7EED8D1, StarterCryPrefix = [0x08, 0x0A, 0x07, 0x00, 0x00, 0x08, 0x00, 0x00],
             RecompressStarterCryOverlay = true, FieldOverlay = 36, FieldOverlayCrc32 = 0xE3CF3D36,
+            BattleOverlay = 167, BattleOverlayCrc32 = 0x3E3CA5FA, PickupOverlay = 166, PickupOverlayCrc32 = 0x759F8A03, LowHpOverlay = 168, LowHpOverlayCrc32 = 0xEDE00D9D,
+            TutorCount = 60, TutorOffset = 0x5152C,
             ItemBallScript = 1240, HiddenItemScript = 1241,
             // 32 shops used of the NARC's 80 files; Poké Mart tiers 0-5 and TM shops 7, 10, 12, 17 and 24 stay as they are.
             ShopOverlay = -1, ShopItemSizes = [2, 11, 14, 17, 18, 19, 10, 2, 8, 10, 4, 11, 4, 11, 11, 8, 8, 3, 9, 8, 8, 4, 9, 16, 2, 16, 6, 7, 9, 10, 7, 10],
@@ -145,13 +164,14 @@ public sealed record Gen5Profile(string GameCode, bool Black, IReadOnlyDictionar
 public static class Gen5Feature
 {
     public const string Starters = "Iniciales", Shops = "Tiendas", HiddenItems = "Objetos ocultos",
-        Moves = "Movimientos", Learnsets = "Level Up", Evolutions = "Evoluciones", Trades = "Intercambios", Doubles = "Combates dobles";
+        Moves = "Movimientos", Learnsets = "Level Up", Evolutions = "Evoluciones", Trades = "Intercambios", Doubles = "Combates dobles",
+        EggMoves = "Movimientos huevo", Tutors = "Tutores";
 
     /// <summary>Data tables a romhack may break without breaking the rest: the option that needs each one.</summary>
     internal static readonly IReadOnlyDictionary<string, string> OptionalTables = new Dictionary<string, string>
     {
         ["Moves"] = Moves, ["Learnsets"] = Learnsets, ["Evolutions"] = Evolutions, ["Trades"] = Trades,
-        ["TrainerTextBoxes"] = Doubles, ["BattleSkillSubSeq"] = Doubles,
+        ["TrainerTextBoxes"] = Doubles, ["BattleSkillSubSeq"] = Doubles, ["EggMoves"] = EggMoves,
     };
 }
 
@@ -262,7 +282,11 @@ public sealed class Gen5Data
             try { data.Starters(); }
             catch (InvalidDataException ex) { unavailable[Gen5Feature.Starters] = "los scripts de los iniciales no son los esperados: " + ex.Message; }
         if (!data.OverlayIsOriginal(data.Profile.FieldOverlay, data.Profile.FieldOverlayCrc32))
+        {
             unavailable[Gen5Feature.Doubles] = $"el romhack modifica el overlay {data.Profile.FieldOverlay} de campo";
+            if (data.Profile.TutorCount > 0)
+                unavailable[Gen5Feature.Tutors] = $"el romhack modifica el overlay {data.Profile.FieldOverlay} de campo, donde están los tutores";
+        }
         if (data.Profile.ShopOverlay >= 0 && !data.OverlayIsOriginal(data.Profile.ShopOverlay, data.Profile.ShopOverlayCrc32))
             unavailable[Gen5Feature.Shops] = $"el romhack modifica el overlay {data.Profile.ShopOverlay} de las tiendas";
         else if (data.Profile.ShopOverlay < 0)
@@ -350,6 +374,28 @@ public sealed class Gen5Data
     public byte[] StarterCryOverlay() => Overlay(Profile.StarterCryOverlay, Profile.StarterCryOverlayCrc32);
 
     public byte[] FieldOverlay() => Overlay(Profile.FieldOverlay, Profile.FieldOverlayCrc32);
+
+    /// <summary>Overlays this profile reads or patches, with the CRC32 each one must have.</summary>
+    public IReadOnlyDictionary<int, uint> KnownOverlays
+    {
+        get
+        {
+            var known = new Dictionary<int, uint>
+            {
+                [Profile.StarterCryOverlay] = Profile.StarterCryOverlayCrc32, [Profile.FieldOverlay] = Profile.FieldOverlayCrc32,
+                [Profile.BattleOverlay] = Profile.BattleOverlayCrc32, [Profile.PickupOverlay] = Profile.PickupOverlayCrc32, [Profile.LowHpOverlay] = Profile.LowHpOverlayCrc32,
+            };
+            if (Profile.ShopOverlay >= 0)
+                known[Profile.ShopOverlay] = Profile.ShopOverlayCrc32;
+            return known;
+        }
+    }
+
+    /// <summary>Decompressed copy of a known overlay with the draft's changes; code is only read from the original (CRC32), romhacks included.</summary>
+    public byte[] ReadOverlay(int id) => Overlay(id, KnownOverlays.TryGetValue(id, out uint crc) ? crc : throw new InvalidOperationException("El perfil no usa el overlay " + id + "."));
+
+    /// <summary>Overlay as it is in the ROM, before any draft change (code patches are located in it).</summary>
+    internal byte[] OriginalOverlay(int id) => (_base ?? this).ReadOverlay(id);
 
     public byte[] ShopOverlay() => Profile.ShopOverlay >= 0 ? Overlay(Profile.ShopOverlay, Profile.ShopOverlayCrc32)
         : throw new NotSupportedException($"Las tiendas de {Profile.Game} están en {PathOf(Gen5Profile.ShopItems)}, no en un overlay.");

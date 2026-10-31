@@ -8,7 +8,7 @@ using System.Linq;
 namespace pk3DS.Core.NDS;
 
 /// <summary>Editable sections of a DS game, in the order the workspace shows them.</summary>
-public enum NdsSection { Starters, Trainers, Encounters, FieldItems, Shops, Pokemon, Moves, Learnsets, Evolutions, Machines, Statics, Trades }
+public enum NdsSection { Starters, Trainers, Encounters, FieldItems, Shops, Pokemon, Moves, Learnsets, Evolutions, Machines, Statics, Trades, EggMoves, Tutors, MoveLists }
 
 /// <summary>What a cell's value names, so the editor can offer a list instead of a number.</summary>
 public enum NdsValueKind { Number, Species, Item, Move, Type, Ability, Option, Flag }
@@ -31,9 +31,9 @@ public sealed record NdsCell(int Entry, string EntryName, string Group, string F
 /// </summary>
 public static partial class NdsCells
 {
-    private enum Target { File, Overlay, Arm9 }
+    private enum Target { File, Overlay, Arm9, Raw }
 
-    // Where a cell lives: a file of a NARC (by profile key), an overlay or the ARM9; Width is 1, 2 or 4 bytes.
+    // Where a cell lives: a file of a NARC (by profile key), an overlay, the ARM9 or a plain file (path in NarcKey); Width is 1, 2 or 4 bytes.
     // Shift/Bits select a bit field inside the value (packed learnset entries, TM/HM flags); 0 bits means the whole value.
     private sealed record Location(NdsCell Cell, Target Target, string NarcKey, int File, int Overlay, int Offset, int Width, int FormOffset = -1, int Shift = 0, int Bits = 0)
     {
@@ -47,32 +47,50 @@ public static partial class NdsCells
     private static IReadOnlyList<Location> Locate(Gen5Data data, NdsSection section) => section >= NdsSection.Pokemon ? LocateData(NdsDataSource.Of(data), section) : LocateGame(data, section);
     private static IReadOnlyList<Location> Locate(Gen4Data data, NdsSection section) => section >= NdsSection.Pokemon ? LocateData(NdsDataSource.Of(data), section) : LocateGame(data, section);
 
-    public static IReadOnlyList<NdsCell> Read(Gen4Data data, NdsSection section) =>
-        section == NdsSection.Starters ? StarterCells(data.Starters(), data.SpeciesNames(), Gen4Data.MaxSpecies) : Locate(data, section).Select(l => l.Cell).ToArray();
+    public static IReadOnlyList<NdsCell> Read(Gen4Data data, NdsSection section)
+    {
+        if (section != NdsSection.Starters)
+            return Locate(data, section).Select(l => l.Cell).ToArray();
+        var cells = StarterCells(data.Starters(), data.SpeciesNames(), Gen4Data.MaxSpecies).ToList();
+        // Diamond/Platinum give the starter with an item (none in the originals), set in the same script.
+        if (Gen4Randomizer.StarterItem(data) is { } item)
+            cells.Add(new NdsCell(0, "Iniciales", "Iniciales", "Objeto del inicial", "Item", item, 0, MaxId(data.Text(data.Profile.ItemNamesText)), NdsValueKind.Item));
+        return cells;
+    }
 
     public static Gen5RandomizerResult Write(Gen5Data data, NdsSection section, IReadOnlyDictionary<string, int> edits)
     {
         if (section == NdsSection.Starters)
             return Gen5Randomizer.Generate(data, new Gen5RandomizerOptions(0) { Starters = Gen5StarterMode.Custom, CustomStarters = StarterValues(data.Starters(), edits, Gen5Randomizer.MaxSpecies) });
         var overlays = new Dictionary<int, byte[]>();
-        var result = Apply(Locate(data, section), edits, data.CopyNarc, data.PathOf, id => overlays.TryGetValue(id, out var o) ? o : overlays[id] = OverlayOf(data, id), null);
-        return new Gen5RandomizerResult(result.Files, result.Changes, overlays)
-        {
-            RecompressOverlays = overlays.Keys.Where(id => id == data.Profile.ShopOverlay).ToHashSet(),
-        };
+        var result = Apply(Locate(data, section), edits, data.CopyNarc, data.PathOf, id => overlays.TryGetValue(id, out var o) ? o : overlays[id] = data.ReadOverlay(id), null, null);
+        // Overlays stored compressed are compressed again (the shop and field overlays do not fit uncompressed).
+        return new Gen5RandomizerResult(result.Files, result.Changes, overlays) { RecompressOverlays = overlays.Keys.ToHashSet() };
     }
 
     public static Gen5RandomizerResult Write(Gen4Data data, NdsSection section, IReadOnlyDictionary<string, int> edits)
     {
         if (section == NdsSection.Starters)
-            return Gen4Randomizer.Generate(data, new Gen5RandomizerOptions(0) { Starters = Gen5StarterMode.Custom, CustomStarters = StarterValues(data.Starters(), edits, Gen4Data.MaxSpecies) });
+        {
+            var current = data.Starters();
+            var values = StarterValues(current, edits, Gen4Data.MaxSpecies);
+            return Gen4Randomizer.Generate(data, new Gen5RandomizerOptions(0)
+            {
+                Starters = values.SequenceEqual(current) ? Gen5StarterMode.Keep : Gen5StarterMode.Custom, CustomStarters = values,
+                StarterItem = edits.TryGetValue("0:Item", out int item) ? item : null,
+            });
+        }
         byte[]? arm9 = null;
-        var result = Apply(Locate(data, section), edits, data.CopyNarc, data.PathOf, _ => throw new InvalidOperationException(), () => arm9 ??= data.Arm9());
-        return new Gen5RandomizerResult(result.Files, result.Changes, new Dictionary<int, byte[]>()) { Arm9 = arm9 };
+        var overlays = new Dictionary<int, byte[]>();
+        var locations = Locate(data, section);
+        var result = Apply(locations, edits, data.CopyNarc, data.PathOf, id => overlays.TryGetValue(id, out var o) ? o : overlays[id] = data.ReadOverlay(id), () => arm9 ??= data.Arm9(), data.ReadRawFile);
+        var files = new Dictionary<string, byte[]>(result.Files);
+        var changes = result.Changes.ToList();
+        // A new TM or tutor move also changes descriptions, disc colours, dialogue and HeartGold's Headbutt script.
+        if (section == NdsSection.MoveLists)
+            NdsMoveLists.FollowUp(data, locations.Select(l => l.Cell).ToArray(), edits, files, arm9, changes);
+        return new Gen5RandomizerResult(files, changes, overlays) { Arm9 = arm9, RecompressOverlays = overlays.Keys.ToHashSet() };
     }
-
-    private static byte[] OverlayOf(Gen5Data data, int id) => id == data.Profile.ShopOverlay ? data.ShopOverlay()
-        : throw new InvalidOperationException("Overlay inesperado en una edición: " + id);
 
     private static IReadOnlyList<NdsCell> StarterCells(IReadOnlyList<int> starters, IReadOnlyList<string> names, int max)
     {
@@ -89,10 +107,11 @@ public static partial class NdsCells
     }
 
     private static (IReadOnlyDictionary<string, byte[]> Files, IReadOnlyList<Gen5Change> Changes) Apply(IReadOnlyList<Location> locations,
-        IReadOnlyDictionary<string, int> edits, Func<string, Narc> copy, Func<string, string> pathOf, Func<int, byte[]> overlay, Func<byte[]>? arm9)
+        IReadOnlyDictionary<string, int> edits, Func<string, Narc> copy, Func<string, string> pathOf, Func<int, byte[]> overlay, Func<byte[]>? arm9, Func<string, byte[]>? raw)
     {
         var byKey = locations.ToDictionary(l => l.Cell.Key);
         var narcs = new Dictionary<string, Narc>();
+        var raws = new Dictionary<string, byte[]>();
         var changes = new List<Gen5Change>();
         foreach (var (key, value) in edits)
         {
@@ -107,6 +126,7 @@ public static partial class NdsCells
             {
                 Target.File => (narcs.TryGetValue(at.NarcKey, out var n) ? n : narcs[at.NarcKey] = copy(at.NarcKey)).Files[at.File],
                 Target.Overlay => overlay(at.Overlay),
+                Target.Raw => raws.TryGetValue(at.NarcKey, out var r) ? r : raws[at.NarcKey] = (raw ?? throw new InvalidOperationException("Esta sección no usa archivos sueltos."))(at.NarcKey),
                 _ => (arm9 ?? throw new InvalidOperationException("Esta sección no usa el ARM9."))(),
             };
             if (at.Bits > 0)
@@ -123,7 +143,10 @@ public static partial class NdsCells
                 Write(target, at.FormOffset, 2, 0);
             changes.Add(new Gen5Change($"{cell.EntryName} · {cell.Group}", cell.Field, cell.Value, value) );
         }
-        return (narcs.ToDictionary(p => pathOf(p.Key), p => p.Value.Write()), changes);
+        var files = narcs.ToDictionary(p => pathOf(p.Key), p => p.Value.Write());
+        foreach (var (path, bytes) in raws)
+            files[path] = bytes;
+        return (files, changes);
     }
 
     private static int ReadValue(byte[] data, int offset, int width) => width switch

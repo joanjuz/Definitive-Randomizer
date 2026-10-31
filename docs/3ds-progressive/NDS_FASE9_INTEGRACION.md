@@ -39,3 +39,7 @@ Nintendo DS deja de tener una ventana propia y funciona como Espada/Escudo: Inic
 ## Siguiente
 
 Fase B, datos nuevos editables en el mismo espacio de trabajo: Pokémon (estadísticas, tipos, habilidades, ratio de captura), Movimientos, Level Up, Evoluciones, MT/MO, Estáticos e Intercambios. Después, las herramientas de randomización de UPR-ZX (fase C).
+
+## Prueba en juego
+
+**Confirmada por el propietario el 2026-10-31**: las ROM de prueba de la fase 14, que acumulan las fases 9 a 14, funcionan correctamente en el juego.
