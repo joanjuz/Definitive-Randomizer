@@ -479,7 +479,6 @@ internal static class CustomBalanceTemplates
 
         const string token = "Gen7NightmareSleepV76";
         const string finalNote = "Pesadilla / Nightmare: target awake -> stock Sleep only; target already asleep -> vanilla Nightmare.";
-        const string finalDescription = "Si está despierto, duerme al objetivo.\\nSi ya duerme, pierde 1/4 de sus PS máximos por turno";
 
         string[] lines = File.ReadAllLines(path);
         int headerLine = -1;

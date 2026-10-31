@@ -329,7 +329,7 @@ public partial class TrainerRand : Form
         section.BringToFront();
     }
 
-    private static void Move(Control parent, Control control, int x, int y, int width = 0, int height = 0)
+    private static new void Move(Control parent, Control control, int x, int y, int width = 0, int height = 0)
     {
         if (control.Parent != null)
             control.Parent.Controls.Remove(control);

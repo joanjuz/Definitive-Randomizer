@@ -57,7 +57,7 @@ internal static class Program
                     {
                         using var node=System.Text.Json.JsonDocument.Parse(
                             System.IO.File.ReadAllText(args[1]));
-                        string? stage=node.RootElement.GetProperty("StageRoot").GetString();
+                        string stage=node.RootElement.GetProperty("StageRoot").GetString();
                         if(!string.IsNullOrWhiteSpace(stage))
                         {
                             System.IO.Directory.CreateDirectory(stage);
@@ -87,9 +87,9 @@ internal static class Program
                 {
                     try
                     {
-                        string? request=System.IO.File.ReadAllText(args[1]);
+                        string request=System.IO.File.ReadAllText(args[1]);
                         using var node=System.Text.Json.JsonDocument.Parse(request);
-                        string? folder=node.RootElement.GetProperty("OutputDirectory").GetString();
+                        string folder=node.RootElement.GetProperty("OutputDirectory").GetString();
                         if(!string.IsNullOrWhiteSpace(folder))
                         {
                             System.IO.Directory.CreateDirectory(folder);

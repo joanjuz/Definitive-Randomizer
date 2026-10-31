@@ -13,6 +13,7 @@ Punto de entrada a `docs/3ds-progressive/`. Muchos documentos son **registros hi
 | Rediseño visual WPF | [AUDITORIA_VISUAL_WPF.md](AUDITORIA_VISUAL_WPF.md) |
 | Revisión de estabilidad más reciente | [REVISION_ESTABILIDAD_20261019.md](REVISION_ESTABILIDAD_20261019.md) |
 | Motor heredado duplicado (app frente a LegacyBatch) | [AUDITORIA_MOTOR_DUPLICADO.md](AUDITORIA_MOTOR_DUPLICADO.md) |
+| Compilación sin advertencias y advertencias tratadas como error | [COMPILACION_SIN_ADVERTENCIAS.md](COMPILACION_SIN_ADVERTENCIAS.md) |
 
 ## Contratos y formatos (consultar antes de tocar el módulo)
 

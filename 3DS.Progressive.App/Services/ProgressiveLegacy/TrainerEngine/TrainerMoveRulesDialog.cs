@@ -336,7 +336,7 @@ public static class TrainerMoveRulesDialog
             editableRules.ResetBindings();
         };
 
-        List<TrainerMoveRule>? acceptedRules = null;
+        List<TrainerMoveRule> acceptedRules = null;
 
         ok.Click += (_, _) =>
         {

@@ -1324,7 +1324,6 @@ public partial class MartEditor7UU : Form
             SetListBPItem();
 
         SetMegaStoneBPPrices(0);
-        freeMegaStonesOnSave = true;
 
         if (entryBPItem == MegaStoneBPShopIndex)
             GetListBPItem();
@@ -1567,7 +1566,6 @@ public partial class MartEditor7UU : Form
     private bool randomizeMartsOnSave;
     private bool randomizeBPMartsOnSave;
     private bool randomizeMartsSpecialOnly;
-    private bool freeMegaStonesOnSave;
 
     private Button B_AddRareCandies;
     private Button B_AddEVItems;

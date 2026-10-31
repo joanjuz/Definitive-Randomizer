@@ -255,7 +255,7 @@ internal sealed class MachineTutorView : UserControl
                 return;
             }
             _tutorPreview=_service.PreviewTutorEdits();
-            _applyTutorChanges.IsEnabled=_tutorPreview.Changes.Count>0;
+            _applyTutorChanges!.IsEnabled=_tutorPreview.Changes.Count>0;
             string details=string.Join(Environment.NewLine,_tutorPreview.Changes.Take(12)
                 .Select(d=>$"{d.Name}: {d.Field} {d.Before} → {d.After}"));
             _status.Text=$"{_tutorPreview.Changes.Count} cambios · " +

@@ -506,10 +506,10 @@ public partial class SMWE : Form
         wild7.Execute(Areas, encdata);
     }
 
-    private CheckBox? CHK_ProgressiveWildBST;
-    private CheckBox? CHK_AllCanCallAllies;
-    private Button? B_SetProgressiveWildBST;
-    private Button? B_WildTemplate;
+    private CheckBox CHK_ProgressiveWildBST;
+    private CheckBox CHK_AllCanCallAllies;
+    private Button B_SetProgressiveWildBST;
+    private Button B_WildTemplate;
 
     private System.Collections.Generic.List<ProgressiveBSTRule> ProgressiveWildBSTRules =
         GetDefaultProgressiveWildBSTRules();
@@ -770,7 +770,7 @@ public partial class SMWE : Form
             WinFormsUtil.Alert("Wild Encounter settings applied.");
     }
 
-    private void ApplyProgressiveWildRanges(System.Collections.Generic.IEnumerable<WildProgressiveBSTTemplateRule>? ranges)
+    private void ApplyProgressiveWildRanges(System.Collections.Generic.IEnumerable<WildProgressiveBSTTemplateRule> ranges)
     {
         if (ranges is null)
             return;
@@ -1098,10 +1098,10 @@ public partial class SMWE : Form
                     $"{rule.FullRandom}"));
     }
 
-    private Button? B_AdvancedWildLevels;
-    private NumericUpDown? NUD_WildLevelFlat;
-    private NumericUpDown? NUD_WildLevelMultiplier;
-    private CheckBox? CHK_WildLevelKeepRange;
+    private Button B_AdvancedWildLevels;
+    private NumericUpDown NUD_WildLevelFlat;
+    private NumericUpDown NUD_WildLevelMultiplier;
+    private CheckBox CHK_WildLevelKeepRange;
 
     private void AddAdvancedWildLevelScaler()
     {
@@ -1187,7 +1187,7 @@ public partial class SMWE : Form
         }
     }
 
-    private void ApplyAdvancedWildLevelScaling(object? sender, EventArgs e)
+    private void ApplyAdvancedWildLevelScaling(object sender, EventArgs e)
     {
         if (DialogResult.Yes != WinFormsUtil.Prompt(
             MessageBoxButtons.YesNo,

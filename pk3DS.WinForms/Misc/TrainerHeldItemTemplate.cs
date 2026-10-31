@@ -30,7 +30,7 @@ public sealed class TrainerHeldItemTemplate
         try
         {
             string path = DefaultPath;
-            string? folder = Path.GetDirectoryName(path);
+            string folder = Path.GetDirectoryName(path);
             if (!string.IsNullOrWhiteSpace(folder))
                 Directory.CreateDirectory(folder);
 
@@ -51,7 +51,7 @@ public sealed class TrainerHeldItemTemplate
 
         try
         {
-            string? folder = Path.GetDirectoryName(path);
+            string folder = Path.GetDirectoryName(path);
             if (!string.IsNullOrWhiteSpace(folder))
                 Directory.CreateDirectory(folder);
 

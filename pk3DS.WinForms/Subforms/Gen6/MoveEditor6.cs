@@ -873,8 +873,7 @@ public partial class MoveEditor6 : Form
         for (int i = 0; i < CB_Move.Items.Count; i++)
         {
             CB_Move.SelectedIndex = i;
-            if (CB_Move.SelectedIndex is not (117 and 32))
-                NUD_PP.Value = 0;
+            NUD_PP.Value = 0;
             if (CB_Move.SelectedIndex == 117)
                 NUD_PP.Value = 40;
             if (CB_Move.SelectedIndex == 32)

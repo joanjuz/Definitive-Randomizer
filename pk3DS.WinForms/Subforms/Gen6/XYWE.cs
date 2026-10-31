@@ -670,10 +670,10 @@ public partial class XYWE : Form
         RandomizationSessionState.MarkAction("wild-encounters.modify-levels");
         WinFormsUtil.Alert("Modified all Level ranges according to specification!", "Press the Dump Tables button to view the new Level ranges!");
     }
-    private Button? B_AdvancedWildLevels;
-    private NumericUpDown? NUD_WildLevelFlat;
-    private NumericUpDown? NUD_WildLevelMultiplier;
-    private CheckBox? CHK_WildLevelKeepRange;
+    private Button B_AdvancedWildLevels;
+    private NumericUpDown NUD_WildLevelFlat;
+    private NumericUpDown NUD_WildLevelMultiplier;
+    private CheckBox CHK_WildLevelKeepRange;
 
     private void AddAdvancedWildLevelScaler()
     {
@@ -759,7 +759,7 @@ public partial class XYWE : Form
         }
     }
 
-    private void ApplyAdvancedWildLevelScaling(object? sender, EventArgs e)
+    private void ApplyAdvancedWildLevelScaling(object sender, EventArgs e)
     {
         if (DialogResult.Yes != WinFormsUtil.Prompt(
             MessageBoxButtons.YesNo,
