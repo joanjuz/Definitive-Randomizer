@@ -16,7 +16,7 @@ public sealed record Gen5Profile(string GameCode, bool Black, IReadOnlyDictionar
     public const string TextStrings = "TextStrings", TextStory = "TextStory", PokemonStats = "PokemonStats", Scripts = "Scripts",
         TrainerData = "TrainerData", TrainerPokemon = "TrainerPokemon", WildPokemon = "WildPokemon",
         PokemonGraphics = "PokemonGraphics", StarterGraphics = "StarterGraphics", ShopItems = "ShopItems",
-        Learnsets = "Learnsets", Evolutions = "Evolutions", Moves = "Moves";
+        Learnsets = "Learnsets", Evolutions = "Evolutions", Moves = "Moves", Trades = "Trades";
 
     /// <summary>Black 2/White 2: shops live in their own NARC and the starter script fix is different.</summary>
     public bool Sequel { get; init; }
@@ -77,6 +77,7 @@ public sealed record Gen5Profile(string GameCode, bool Black, IReadOnlyDictionar
         [Learnsets] = ("a/0/1/8", 0xA03DCC02),
         [Evolutions] = ("a/0/1/9", 0x494DF5A2),
         [Moves] = ("a/0/2/1", 0xA62E835C),
+        [Trades] = ("a/1/6/5", 0x42F5F462),
     };
 
     public static IReadOnlyList<Gen5Profile> All { get; } =
@@ -93,6 +94,7 @@ public sealed record Gen5Profile(string GameCode, bool Black, IReadOnlyDictionar
             [Scripts] = ("a/0/5/7", 0x7638D5C9),
             [WildPokemon] = ("a/1/2/6", 0x01FCA7BB),
             [TextStory] = ("a/0/0/3", 0x074DEAC6),
+            [Trades] = ("a/1/6/5", 0x192D997F),
         })
         {
             StarterCryOverlayCrc32 = 0x2F3ADC12, ShopOverlayCrc32 = 0x3882585C,
@@ -114,6 +116,7 @@ public sealed record Gen5Profile(string GameCode, bool Black, IReadOnlyDictionar
             [Learnsets] = ("a/0/1/8", 0x57FBEC75),
             [Evolutions] = ("a/0/1/9", 0xE7A49FB7),
             [Moves] = ("a/0/2/1", 0xA62E835C),
+            [Trades] = ("a/1/6/3", 0x15ED8FFA),
         })
         {
             Sequel = true, SpeciesNamesText = 90, TrainerNamesText = 382, TrainerClassesText = 383, TypeNamesText = 398, ItemNamesText = 64,
@@ -137,12 +140,12 @@ public sealed record Gen5Profile(string GameCode, bool Black, IReadOnlyDictionar
 public static class Gen5Feature
 {
     public const string Starters = "Iniciales", Shops = "Tiendas", HiddenItems = "Objetos ocultos",
-        Moves = "Movimientos", Learnsets = "Level Up", Evolutions = "Evoluciones";
+        Moves = "Movimientos", Learnsets = "Level Up", Evolutions = "Evoluciones", Trades = "Intercambios";
 
     /// <summary>Data tables a romhack may break without breaking the rest: the option that needs each one.</summary>
     internal static readonly IReadOnlyDictionary<string, string> OptionalTables = new Dictionary<string, string>
     {
-        ["Moves"] = Moves, ["Learnsets"] = Learnsets, ["Evolutions"] = Evolutions,
+        ["Moves"] = Moves, ["Learnsets"] = Learnsets, ["Evolutions"] = Evolutions, ["Trades"] = Trades,
     };
 }
 

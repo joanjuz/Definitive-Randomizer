@@ -14,6 +14,7 @@ namespace pk3DS.Core.NDS;
 public sealed class NdsDataSource
 {
     public int Generation { get; }
+    public string GameCode { get; }
     public int MaxSpecies { get; }
     public IReadOnlyList<string> SpeciesNames { get; }
     public IReadOnlyList<string> MoveNames { get; }
@@ -26,9 +27,10 @@ public sealed class NdsDataSource
     internal Func<string, string> PathOf { get; }
     internal string Personal { get; }
 
-    private NdsDataSource(int generation, int maxSpecies, Func<string, Narc> copy, Func<string, string> pathOf, Func<int, IReadOnlyList<string>> text,
+    private NdsDataSource(string gameCode, int generation, int maxSpecies, Func<string, Narc> copy, Func<string, string> pathOf, Func<int, IReadOnlyList<string>> text,
         int speciesText, int moveText, int typeText, int abilityText, int itemText, string personal, Func<byte[]?> arm9)
     {
+        GameCode = gameCode;
         Generation = generation;
         MaxSpecies = maxSpecies;
         Copy = copy;
@@ -42,10 +44,10 @@ public sealed class NdsDataSource
         MachineMoves = ReadMachines(arm9);
     }
 
-    public static NdsDataSource Of(Gen5Data data) => new(5, Gen5Randomizer.MaxSpecies, data.CopyNarc, data.PathOf, data.Text, data.Profile.SpeciesNamesText,
+    public static NdsDataSource Of(Gen5Data data) => new(data.Profile.GameCode, 5, Gen5Randomizer.MaxSpecies, data.CopyNarc, data.PathOf, data.Text, data.Profile.SpeciesNamesText,
         data.Profile.MoveNamesText, data.Profile.TypeNamesText, data.Profile.AbilityNamesText, data.Profile.ItemNamesText, Gen5Profile.PokemonStats, () => Try(data.ReadArm9));
 
-    public static NdsDataSource Of(Gen4Data data) => new(4, Gen4Data.MaxSpecies, data.CopyNarc, data.PathOf, data.Text, data.Profile.SpeciesNamesText,
+    public static NdsDataSource Of(Gen4Data data) => new(data.Profile.GameCode, 4, Gen4Data.MaxSpecies, data.CopyNarc, data.PathOf, data.Text, data.Profile.SpeciesNamesText,
         data.Profile.MoveNamesText, data.Profile.TypeNamesText, data.Profile.AbilityNamesText, data.Profile.ItemNamesText, Gen4Profile.PokemonStats,
         () => data.Unavailable.ContainsKey(Gen5Feature.Shops) ? null : Try(data.Arm9));
 
@@ -212,6 +214,49 @@ public static partial class NdsCells
                         list.Add(L("Parámetro (nivel u objeto)", "E" + i + ".Param", BinaryPrimitives.ReadUInt16LittleEndian(e.AsSpan(i * 6 + 2)), 0, 0xFFFF, NdsValueKind.Number, i * 6 + 2));
                         list.Add(L("Especie", "E" + i + ".Species", BinaryPrimitives.ReadUInt16LittleEndian(e.AsSpan(i * 6 + 4)), 0, s.MaxSpecies, NdsValueKind.Species, i * 6 + 4));
                     }
+                }
+                break;
+            }
+            case NdsSection.Statics:
+            {
+                if (!NdsStaticsData.ByGame.TryGetValue(s.GameCode, out var statics))
+                    break;
+                var scripts = s.Copy(Gen5Profile.Scripts).Files;
+                int U16(int file, int offset) => file < scripts.Count && offset + 2 <= scripts[file].Length ? BinaryPrimitives.ReadUInt16LittleEndian(scripts[file].AsSpan(offset)) : -1;
+                for (int i = 0; i < statics.Count; i++)
+                {
+                    var st = statics[i];
+                    // Every position must hold the same valid species, or the entry does not belong to this game's scripts.
+                    var values = st.Species.Select(p => U16(p.File, p.Offset)).Distinct().ToArray();
+                    if (values.Length != 1 || values[0] is < 1 || values[0] > s.MaxSpecies)
+                        continue;
+                    var first = st.Species[0];
+                    list.Add(new(new NdsCell(i, st.Name, "Estático", "Especie", "Species", values[0], 1, s.MaxSpecies, NdsValueKind.Species),
+                        Target.File, Gen5Profile.Scripts, first.File, -1, first.Offset, 2) { Copies = st.Species.Skip(1).ToArray() });
+                    if (st.Level is { } at && at.File < scripts.Count && at.Offset < scripts[at.File].Length && scripts[at.File][at.Offset] is >= 1 and <= 100)
+                        list.Add(new(new NdsCell(i, st.Name, "Estático", "Nivel", "Level", scripts[at.File][at.Offset], 1, 100, NdsValueKind.Number), Target.File, Gen5Profile.Scripts, at.File, -1, at.Offset, 1));
+                }
+                break;
+            }
+            case NdsSection.Trades:
+            {
+                var trades = s.Copy(Gen5Profile.Trades).Files;
+                // Given species, requested species and held item (UPR-ZX getIngameTrades): 4-byte values.
+                (int Given, int Item, int Requested) at = s.Generation == 5 ? (4, 0x4C, 0x5C) : (0, 0x3C, 0x4C);
+                for (int i = 0; i < trades.Count; i++)
+                {
+                    byte[] t = trades[i];
+                    if (at.Requested + 4 > t.Length)
+                        continue;
+                    int given = (int)BinaryPrimitives.ReadUInt32LittleEndian(t.AsSpan(at.Given)), requested = (int)BinaryPrimitives.ReadUInt32LittleEndian(t.AsSpan(at.Requested));
+                    if (given is < 1 || given > s.MaxSpecies || requested < 0 || requested > s.MaxSpecies)
+                        continue;
+                    string name = "Intercambio " + (i + 1) + " · " + Name(given);
+                    Location L(string field, string local, int value, int min, int max, NdsValueKind kind, int offset) =>
+                        new(new NdsCell(i, name, "Intercambio", field, local, value, min, max, kind), Target.File, Gen5Profile.Trades, i, -1, offset, 4);
+                    list.Add(L("Especie entregada", "Given", given, 1, s.MaxSpecies, NdsValueKind.Species, at.Given));
+                    list.Add(L("Especie pedida", "Requested", requested, 0, s.MaxSpecies, NdsValueKind.Species, at.Requested));
+                    list.Add(L("Objeto", "Item", (int)BinaryPrimitives.ReadUInt32LittleEndian(t.AsSpan(at.Item)), 0, itemMax, NdsValueKind.Item, at.Item));
                 }
                 break;
             }

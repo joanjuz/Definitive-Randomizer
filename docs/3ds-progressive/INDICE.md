@@ -48,6 +48,8 @@ Punto de entrada a `docs/3ds-progressive/`. Muchos documentos son **registros hi
 - Fase 8, perfil de romhacks: [NDS_FASE8_ROMHACKS.md](NDS_FASE8_ROMHACKS.md)
 - Fase 9, DS integrado en la interfaz principal (espacio de trabajo y vista compartida): [NDS_FASE9_INTEGRACION.md](NDS_FASE9_INTEGRACION.md)
 - Fase 10, datos de Pokémon, movimientos, Level Up, evoluciones y MT/MO con randomización al estilo UPR-ZX: [NDS_FASE10_DATOS.md](NDS_FASE10_DATOS.md)
+- Fase 11, más herramientas de UPR-ZX (entrenadores, salvajes, estáticos, intercambios) y ajustes del juego de Gen4: [NDS_FASE11_UPR_AJUSTES.md](NDS_FASE11_UPR_AJUSTES.md)
+- Fase 12, Global Template y Batch ROM Builder para DS: [NDS_FASE12_GLOBAL_BATCH.md](NDS_FASE12_GLOBAL_BATCH.md)
 
 ## Espada/Escudo (Switch)
 

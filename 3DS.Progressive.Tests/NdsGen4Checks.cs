@@ -202,6 +202,7 @@ internal static class NdsGen4Checks
             [profile.Files[Gen4Profile.TrainerData].Path]=NdsGen5RandomizerChecks.BuildNarc(headers),
             [profile.Files[Gen4Profile.TrainerPokemon].Path]=NdsGen5RandomizerChecks.BuildNarc(teams),
             [profile.Files[Gen4Profile.WildPokemon].Path]=NdsGen5RandomizerChecks.BuildNarc(romhack&&hgss?[wild,wild[..192]]:[wild]),
+            [profile.Files[Gen4Profile.Trades].Path]=NdsGen5RandomizerChecks.BuildNarc([NdsGen5RandomizerChecks.Trade(hgss?84:80,0,0x3C,0x4C,25,100,1),NdsGen5RandomizerChecks.Trade(hgss?84:80,0,0x3C,0x4C,129,0,0)]),
             [profile.Files[Gen4Profile.Learnsets].Path]=NdsGen5RandomizerChecks.BuildNarc(Enumerable.Range(0,494).Select(_=>new byte[]{0x21,0x02,0x2D,0x06,0xFF,0xFF}).ToArray()),
             [profile.Files[Gen4Profile.Evolutions].Path]=NdsGen5RandomizerChecks.BuildNarc(Enumerable.Range(0,494).Select(s=>{var e=new byte[44];if(s is 1 or 2){BinaryPrimitives.WriteUInt16LittleEndian(e,4);BinaryPrimitives.WriteUInt16LittleEndian(e.AsSpan(2),(ushort)(s*16));BinaryPrimitives.WriteUInt16LittleEndian(e.AsSpan(4),(ushort)(s+1));}if(s==4){BinaryPrimitives.WriteUInt16LittleEndian(e,6);BinaryPrimitives.WriteUInt16LittleEndian(e.AsSpan(4),5);}return e;}).ToArray()),
             [profile.Files[Gen4Profile.Moves].Path]=NdsGen5RandomizerChecks.BuildNarc(Enumerable.Range(0,468).Select(m=>{var d=new byte[16];d[2]=(byte)(m%3);d[3]=(byte)(m%5==0?0:40);d[4]=(byte)(m%18==9?0:m%18);d[5]=100;d[6]=20;return d;}).ToArray()),

@@ -90,10 +90,19 @@ internal sealed class NdsRecordEditor : IProjectEditor, ITrainerEditorPresentati
 
     public IReadOnlyList<EditorGroup> RandomOptions => _section switch
     {
-        NdsSection.Trainers or NdsSection.Encounters =>
+        NdsSection.Trainers =>
         [
-            new EditorGroup(Title, [new EditorField("Mode", "Especies", 2, 0, 2, SpeciesModes.Select((m, i) => new MoveChoice(i, m)).ToArray())]),
+            new EditorGroup(Title, [new EditorField("Mode", "Especies", 2, 0, 3, Choices([.. SpeciesModes, "Sin cambios (solo niveles y evoluciones)"]))]),
+            new EditorGroup("Al estilo de Universal Randomizer", [Flag("Theme", "Un tipo por entrenador (temático)", 0),
+                new EditorField("Evolved", "Forzar evolución final desde el nivel (0 = no)", 0, 0, 100), new EditorField("Levels", "Niveles (+/- %)", 0, -50, 100)]),
         ],
+        NdsSection.Encounters =>
+        [
+            new EditorGroup(Title, [new EditorField("Mode", "Especies", 2, 0, 3, Choices([.. SpeciesModes, "Sin cambios (solo niveles)"]))]),
+            new EditorGroup("Al estilo de Universal Randomizer", [Flag("Global", "Misma especie nueva en todo el juego (mapeo global)", 0), new EditorField("Levels", "Niveles (+/- %)", 0, -50, 100)]),
+        ],
+        NdsSection.Statics => [new EditorGroup(Title, [new EditorField("Mode", "Especies", 2, 0, 2, Choices("Aleatorias", "BST similar", "Legendarios por legendarios"))])],
+        NdsSection.Trades => [new EditorGroup(Title, [Flag("Given", "Randomizar el Pokémon que entregan", 1), Flag("Requested", "Randomizar el Pokémon que piden", 1)])],
         NdsSection.Starters => [new EditorGroup(Title, [new EditorField("Random", "Iniciales aleatorios (tres especies distintas)", 1, 1, 1)])],
         NdsSection.Pokemon =>
         [
@@ -103,7 +112,8 @@ internal sealed class NdsRecordEditor : IProjectEditor, ITrainerEditorPresentati
         ],
         NdsSection.Moves => [new EditorGroup(Title, [Flag("Power", "Poder aleatorio (20–150)", 1), Flag("Accuracy", "Precisión aleatoria (50–100)", 0), Flag("PP", "PP aleatorios (5–40)", 0), Flag("Types", "Tipos aleatorios", 0)])],
         NdsSection.Learnsets => [new EditorGroup(Title, [new EditorField("Mode", "Movimientos por nivel", 0, 0, 1, Choices("Aleatorios", "Solo Metrónomo")), new EditorField("SameType", "Del mismo tipo que el Pokémon (%)", 50, 0, 100)])],
-        NdsSection.Evolutions => [new EditorGroup(Title, [Flag("Trade", "Evoluciones por intercambio → nivel 37", 1), Flag("Random", "Evoluciones aleatorias de fuerza similar", 0)])],
+        NdsSection.Evolutions => [new EditorGroup(Title, [Flag("Trade", "Evoluciones por intercambio → nivel 37", 1), Flag("Random", "Evoluciones aleatorias de fuerza similar", 0),
+            Flag("Time", "Quitar evoluciones por hora del día", 0), new EditorField("MaxLevel", "Nivel máximo de evolución (0 = sin cambios)", 0, 0, 100)])],
         NdsSection.Machines => [new EditorGroup(Title, [new EditorField("Mode", "Compatibilidad", 0, 0, 2, Choices("Aleatoria", "Por tipo (mismo tipo siempre)", "Completa")), new EditorField("Percent", "Probabilidad (%)", 50, 0, 100), Flag("KeepHms", "Conservar la compatibilidad de las MO", 1)])],
         _ => [new EditorGroup(Title, [new EditorField("Shuffle", "Barajar (solo objetos normales; MT, MO y objetos clave no se mueven)", 1, 1, 1)])],
     };
@@ -120,18 +130,21 @@ internal sealed class NdsRecordEditor : IProjectEditor, ITrainerEditorPresentati
         uint seed = SwitchSeed.New32();
         if (IsData(_section))
             return Propose(DataPreview(options, scope, seed), seed);
-        var species = (Gen5SpeciesMode)(options.GetValueOrDefault("Mode", 2) + 1);
+        int mode = options.GetValueOrDefault("Mode", 2);
+        // The fourth choice keeps species and only applies levels and forced evolutions.
+        var species = mode == 3 ? Gen5SpeciesMode.Keep : (Gen5SpeciesMode)(mode + 1);
         // The whole section is one scope value: null keeps the randomizers' original behaviour.
         IReadOnlySet<int>? chosen = scope.Count == Entries.Count ? null : scope.ToHashSet();
         var config = _section switch
         {
-            NdsSection.Trainers => new Gen5RandomizerOptions(seed) { Trainers = species, Scope = chosen },
-            NdsSection.Encounters => new Gen5RandomizerOptions(seed) { Wild = species, Scope = chosen },
+            NdsSection.Trainers => new Gen5RandomizerOptions(seed) { Trainers = species, Scope = chosen, TypeThemedTrainers = options.GetValueOrDefault("Theme") == 1,
+                ForceFullyEvolvedLevel = options.GetValueOrDefault("Evolved"), TrainerLevelPercent = options.GetValueOrDefault("Levels") },
+            NdsSection.Encounters => new Gen5RandomizerOptions(seed) { Wild = species, Scope = chosen, WildGlobalMapping = options.GetValueOrDefault("Global") == 1, WildLevelPercent = options.GetValueOrDefault("Levels") },
             NdsSection.Starters => new Gen5RandomizerOptions(seed) { Starters = Gen5StarterMode.Random },
             NdsSection.FieldItems => new Gen5RandomizerOptions(seed) { FieldItems = Gen5ItemMode.Shuffle, Scope = chosen },
             _ => new Gen5RandomizerOptions(seed) { Shops = Gen5ItemMode.Shuffle, Scope = chosen },
         };
-        string action = "Randomizar " + Title.ToLowerInvariant() + (_section is NdsSection.Trainers or NdsSection.Encounters ? " · " + SpeciesModes[(int)species - 1] : "");
+        string action = "Randomizar " + Title.ToLowerInvariant() + (_section is NdsSection.Trainers or NdsSection.Encounters && species != Gen5SpeciesMode.Keep ? " · " + SpeciesModes[(int)species - 1] : "");
         return Propose(_project.PreviewRandom(action, config), seed);
     }
 
@@ -144,7 +157,10 @@ internal sealed class NdsRecordEditor : IProjectEditor, ITrainerEditorPresentati
             NdsSection.Pokemon => new NdsDataOptions(seed) { Stats = (NdsStatsMode)V("Stats"), Types = V("Types") == 1, Abilities = V("Abilities") == 1, FollowEvolutions = V("Follow", 1) == 1, MinCatchRate = V("MinCatch"), Scope = chosen },
             NdsSection.Moves => new NdsDataOptions(seed) { MovePower = V("Power") == 1, MoveAccuracy = V("Accuracy") == 1, MovePp = V("PP") == 1, MoveTypes = V("Types") == 1, Scope = chosen },
             NdsSection.Learnsets => new NdsDataOptions(seed) { Learnsets = V("Mode") == 1 ? NdsLearnsetMode.Metronome : NdsLearnsetMode.Random, SameTypePercent = V("SameType", 50), Scope = chosen },
-            NdsSection.Evolutions => new NdsDataOptions(seed) { RemoveTradeEvolutions = V("Trade") == 1, RandomEvolutions = V("Random") == 1, Scope = chosen },
+            NdsSection.Evolutions => new NdsDataOptions(seed) { RemoveTradeEvolutions = V("Trade") == 1, RandomEvolutions = V("Random") == 1, RemoveTimeEvolutions = V("Time") == 1,
+                MaxEvolutionLevel = V("MaxLevel"), Scope = chosen },
+            NdsSection.Statics => new NdsDataOptions(seed) { Statics = (NdsStaticMode)(V("Mode", 2) + 1), Scope = chosen },
+            NdsSection.Trades => new NdsDataOptions(seed) { TradeGiven = V("Given") == 1, TradeRequested = V("Requested") == 1, Scope = chosen },
             _ => new NdsDataOptions(seed) { Machines = (NdsMachineMode)(V("Mode") + 1), MachinePercent = V("Percent", 50), KeepHms = V("KeepHms", 1) == 1, Scope = chosen },
         };
         return _project.PreviewData("Randomizar " + Title, _section, config);

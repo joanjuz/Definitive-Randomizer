@@ -1,4 +1,5 @@
 using System.IO;
+using System.Text.Json.Nodes;
 using System.Windows;
 using System.Windows.Automation;
 using System.Windows.Controls;
@@ -8,6 +9,7 @@ using Button=System.Windows.Controls.Button;
 using CheckBox=System.Windows.Controls.CheckBox;
 using HorizontalAlignment=System.Windows.HorizontalAlignment;
 using ListBox=System.Windows.Controls.ListBox;
+using TextBox=System.Windows.Controls.TextBox;
 using Panel=System.Windows.Controls.Panel;
 using UserControl=System.Windows.Controls.UserControl;
 
@@ -20,7 +22,7 @@ namespace ThreeDS.Progressive;
 internal sealed class NdsWorkspaceView:UserControl
 {
     private static readonly (NdsSection Section,string Route)[] Sections=
-        [(NdsSection.Pokemon,"Pokemon"),(NdsSection.Moves,"Moves"),(NdsSection.Learnsets,"Learnsets"),(NdsSection.Evolutions,"Evolutions"),(NdsSection.Machines,"Machines"),(NdsSection.Trainers,"Trainers"),(NdsSection.Encounters,"Encounters"),(NdsSection.Starters,"Starters"),(NdsSection.FieldItems,"FieldItems"),(NdsSection.Shops,"Shops")];
+        [(NdsSection.Pokemon,"Pokemon"),(NdsSection.Moves,"Moves"),(NdsSection.Learnsets,"Learnsets"),(NdsSection.Evolutions,"Evolutions"),(NdsSection.Machines,"Machines"),(NdsSection.Trainers,"Trainers"),(NdsSection.Encounters,"Encounters"),(NdsSection.Starters,"Starters"),(NdsSection.Statics,"Statics"),(NdsSection.Trades,"Trades"),(NdsSection.FieldItems,"FieldItems"),(NdsSection.Shops,"Shops")];
     private readonly Window _owner;
     private readonly ContentControl _page=new(){HorizontalContentAlignment=HorizontalAlignment.Stretch,VerticalContentAlignment=VerticalAlignment.Stretch};
     private readonly Dictionary<string,Button> _navigation=new();
@@ -52,7 +54,7 @@ internal sealed class NdsWorkspaceView:UserControl
         }
         void Group(string text){var heading=new TextBlock{Text=text,Margin=new Thickness(10,18,0,6),FontSize=11,FontWeight=FontWeights.SemiBold};heading.SetResourceReference(TextBlock.ForegroundProperty,"TextSoft");nav.Children.Add(heading);}
         Add("Home","Inicio");Group("EDICIÓN");foreach(var (section,route) in Sections)Add(route,NdsProject.SectionName(section));
-        Group("SISTEMAS");Add("History","Historial de cambios");
+        Group("SISTEMAS");Add("Tweaks","Ajustes del juego");Add("Template","Global Template y Batch");Add("History","Historial de cambios");
         _status.Margin=new Thickness(4,15,0,0);_status.SetResourceReference(TextBlock.ForegroundProperty,"TextSoft");nav.Children.Add(_status);
         Grid.SetColumn(_page,1);root.Children.Add(_page);
         AutomationProperties.SetName(_romhacks,"Admitir romhacks");AutomationProperties.SetName(_history,"Cambios pendientes");AutomationProperties.SetName(_discard,"Descartar cambios pendientes");
@@ -125,18 +127,20 @@ internal sealed class NdsWorkspaceView:UserControl
     {
         if(_busy||!force&&route==CurrentRoute&&route!="Home"&&route!="History")return;
         if(_page.Content is RecordEditorView previous&&!previous.PrepareToLeave())return;
-        if(route is not ("Home" or "History")&&Project is null){_status.Text="Abre una ROM de DS para editar.";route="Home";}
+        if(route is not ("Home" or "History" or "Tweaks" or "Template")&&Project is null){_status.Text="Abre una ROM de DS para editar.";route="Home";}
         try
         {
             FrameworkElement content;
             if(route=="Home")content=HomePage();
+            else if(route=="Tweaks")content=TweaksPage();
+            else if(route=="Template")content=TemplatePage();
             else if(route=="History")content=HistoryPage();
             else if(_pages.TryGetValue(route,out var cached)){if(cached is RecordEditorView record)record.RefreshSession();content=cached;}
             else
             {
                 var section=Sections.First(s=>s.Route==route).Section;
                 string? feature=section switch{NdsSection.Shops=>Gen5Feature.Shops,NdsSection.Starters=>Gen5Feature.Starters,NdsSection.Moves=>Gen5Feature.Moves,
-                    NdsSection.Learnsets=>Gen5Feature.Learnsets,NdsSection.Evolutions=>Gen5Feature.Evolutions,_=>null};
+                    NdsSection.Learnsets=>Gen5Feature.Learnsets,NdsSection.Evolutions=>Gen5Feature.Evolutions,NdsSection.Trades=>Gen5Feature.Trades,_=>null};
                 if(feature is not null&&!Project!.Allows(feature))
                 {
                     content=Notice(NdsProject.SectionName(section),"No disponible en esta ROM: "+Project.Unavailable[feature]+".");
@@ -182,6 +186,97 @@ internal sealed class NdsWorkspaceView:UserControl
             $"\n{(Project.HasChanges?Project.History.Count+" operaciones pendientes de exportar.":"Sin cambios pendientes.")}";
         panel.Children.Add(_summary.Parent is Panel s?Detach(s,_summary):_summary);
         _discard.IsEnabled=Project?.HasChanges==true;panel.Children.Add(_discard.Parent is Panel d?Detach(d,_discard):_discard);
+        return new ScrollViewer{Content=panel,VerticalScrollBarVisibility=ScrollBarVisibility.Auto};
+    }
+
+    // Gen4 tweaks from Universal Pokémon Randomizer ZX, applied as one more stacked operation.
+    private FrameworkElement TweaksPage()
+    {
+        var panel=new StackPanel{Margin=new Thickness(24)};
+        panel.Children.Add(new TextBlock{Text="Ajustes del juego",FontSize=23,FontWeight=FontWeights.SemiBold});
+        var intro=new TextBlock{TextWrapping=TextWrapping.Wrap,Margin=new Thickness(0,6,0,10),
+            Text="Ajustes de Universal Pokémon Randomizer ZX para Diamante, Platino y HeartGold. Solo se aplican sobre el código original del juego y se exportan con el resto de cambios."};
+        intro.SetResourceReference(TextBlock.ForegroundProperty,"TextSoft");panel.Children.Add(intro);
+        if(Project is null){panel.Children.Add(new TextBlock{Text="Abre una ROM para ver sus ajustes."});return panel;}
+        if(Project.TweaksProblem is {} problem){panel.Children.Add(new TextBlock{Text="No disponible en esta ROM: "+problem+".",TextWrapping=TextWrapping.Wrap});return panel;}
+        CheckBox Box(string text,string name){var box=new CheckBox{Content=text,Margin=new Thickness(0,6,0,0)};AutomationProperties.SetName(box,name);panel.Children.Add(box);return box;}
+        var fast=Box("Texto instantáneo","Texto instantáneo");var dex=Box("Pokédex Nacional desde el inicio","Pokédex Nacional desde el inicio");
+        var shoes=Box("Correr sin las Deportivas","Correr sin las Deportivas");
+        var distortion=Project.IsPlatinum?Box("Mundo Distorsión más rápido","Mundo Distorsión más rápido"):null;
+        var note=new TextBlock{TextWrapping=TextWrapping.Wrap,Margin=new Thickness(0,10,0,0),Text="Los ajustes de script (Pokédex Nacional, Mundo Distorsión) se aplican una sola vez sobre el script original."};
+        note.SetResourceReference(TextBlock.ForegroundProperty,"TextSoft");panel.Children.Add(note);
+        var apply=new Button{Content="Aplicar ajustes",Margin=new Thickness(0,12,0,0),HorizontalAlignment=HorizontalAlignment.Left};AutomationProperties.SetName(apply,"Aplicar ajustes del juego");
+        EditorPresentation.StyleAction(apply,EditorPresentation.ActionRole.Primary);panel.Children.Add(apply);
+        var result=new TextBlock{TextWrapping=TextWrapping.Wrap,Margin=new Thickness(0,8,0,0)};panel.Children.Add(result);
+        apply.Click+=(_,_)=>
+        {
+            var options=new NdsTweakOptions{FastestText=fast.IsChecked==true,NationalDexAtStart=dex.IsChecked==true,RunWithoutRunningShoes=shoes.IsChecked==true,FastDistortionWorld=distortion?.IsChecked==true};
+            if(options==new NdsTweakOptions()){result.Text="Elige al menos un ajuste.";return;}
+            try{Project.Apply(Project.PreviewTweaks(options));result.Text="Ajustes aplicados; se escribirán al exportar.";UpdateStatus();ContextChanged?.Invoke();}
+            catch(Exception ex) when (ex is InvalidDataException or ArgumentException or InvalidOperationException){result.Text="No se pudo aplicar: "+ex.Message;}
+        };
+        return new ScrollViewer{Content=panel,VerticalScrollBarVisibility=ScrollBarVisibility.Auto};
+    }
+
+    private JsonObject? _template;
+
+    // Global Template: the history as a replayable recipe for the same game; Batch: several ROMs from it with new seeds.
+    private FrameworkElement TemplatePage()
+    {
+        var panel=new StackPanel{Margin=new Thickness(24)};
+        panel.Children.Add(new TextBlock{Text="Global Template y Batch",FontSize=23,FontWeight=FontWeights.SemiBold});
+        var intro=new TextBlock{TextWrapping=TextWrapping.Wrap,Margin=new Thickness(0,6,0,10),
+            Text="Un Global Template guarda las operaciones del historial (ediciones, randomizaciones con su semilla y ajustes) para repetirlas sobre otra copia del mismo juego. Batch genera varias ROM nuevas desde la ROM abierta, cada una con semillas nuevas. Los templates de DS son por juego y no se mezclan con los de 3DS o Switch."};
+        intro.SetResourceReference(TextBlock.ForegroundProperty,"TextSoft");panel.Children.Add(intro);
+        if(Project is null){panel.Children.Add(new TextBlock{Text="Abre una ROM para crear o aplicar un template."});return panel;}
+        var summary=new TextBlock{TextWrapping=TextWrapping.Wrap,Margin=new Thickness(0,0,0,8)};panel.Children.Add(summary);
+        var result=new TextBlock{TextWrapping=TextWrapping.Wrap,Margin=new Thickness(0,8,0,0)};
+        void Show()
+        {
+            summary.Text=_template is null?"Ningún template cargado.":
+                $"Template de {_template["Title"]} ({_template["Game"]}) · {((JsonArray)_template["Operations"]!).Count} operaciones:\n"+
+                string.Join("\n",((JsonArray)_template["Operations"]!).Select((o,i)=>$"{i+1}. {o?["Action"]?.GetValue<string>()??(o?["Kind"]?.GetValue<string>()=="Edit"?"Edición manual · "+o["Section"]:o?["Kind"]?.GetValue<string>())}"));
+        }
+        var buttons=new WrapPanel();panel.Children.Add(buttons);
+        void Action(string label,Action action,EditorPresentation.ActionRole role=EditorPresentation.ActionRole.Secondary)
+        {
+            var b=new Button{Content=label,Margin=new Thickness(0,0,8,8)};AutomationProperties.SetName(b,label);EditorPresentation.StyleAction(b,role);buttons.Children.Add(b);
+            b.Click+=(_,_)=>{try{action();}catch(Exception ex) when (ex is IOException or InvalidDataException or InvalidOperationException or ArgumentException or System.Text.Json.JsonException or UnauthorizedAccessException){result.Text=ex.Message;}};
+        }
+        Action("Crear desde historial",()=>{_template=Project.CaptureGlobal();Show();result.Text=_template["Operations"]!.AsArray().Count==0?"El historial está vacío: aplica operaciones primero.":"Template creado desde el historial.";});
+        Action("Cargar template…",()=>{var picker=new Microsoft.Win32.OpenFileDialog{Filter="Global Template de DS (*.json)|*.json"};if(picker.ShowDialog(_owner)!=true)return;_template=NdsProject.ReadGlobal(picker.FileName);Show();result.Text="Template cargado.";});
+        Action("Guardar template…",()=>{if(_template is null)throw new InvalidOperationException("Crea o carga un template.");var picker=new Microsoft.Win32.SaveFileDialog{Filter="Global Template de DS (*.json)|*.json",FileName="global-ds-"+_template["Game"]+".json"};if(picker.ShowDialog(_owner)!=true)return;NdsProject.WriteGlobal(picker.FileName,_template);result.Text="Template guardado.";});
+        Action("Aplicar a esta ROM",()=>
+        {
+            if(_template is null)throw new InvalidOperationException("Crea o carga un template.");
+            int count=Project.ApplyGlobal(_template,newSeeds:false);_pages.Clear();UpdateStatus();ContextChanged?.Invoke();
+            result.Text=$"{count} operaciones aplicadas con sus semillas; se escribirán al exportar.";
+        },EditorPresentation.ActionRole.Primary);
+        panel.Children.Add(new TextBlock{Text="Batch ROM Builder",FontSize=17,FontWeight=FontWeights.SemiBold,Margin=new Thickness(0,16,0,6)});
+        var fields=new WrapPanel();panel.Children.Add(fields);
+        var count=new TextBox{Text="3",Width=70};var name=new TextBox{Text="Definitive-"+Project.Identity.Profile.GameCode,MinWidth=200};
+        AutomationProperties.SetName(count,"Cantidad de ROMs");AutomationProperties.SetName(name,"Nombre base");
+        void Field(string label,FrameworkElement control){var p=new StackPanel{Margin=new Thickness(0,0,12,8)};p.Children.Add(new TextBlock{Text=label,Margin=new Thickness(0,0,0,4)});p.Children.Add(control);fields.Children.Add(p);}
+        Field("ROMs (1-20)",count);Field("Nombre base",name);
+        var build=new Button{Content="Generar lote…",HorizontalAlignment=HorizontalAlignment.Left};AutomationProperties.SetName(build,"Generar lote");EditorPresentation.StyleAction(build,EditorPresentation.ActionRole.Primary);panel.Children.Add(build);
+        build.Click+=async(_,_)=>
+        {
+            if(_busy)return;
+            if(_template is null){result.Text="Crea o carga un template.";return;}
+            if(!int.TryParse(count.Text,out int n)||n is <1 or >20){result.Text="Cantidad entre 1 y 20.";return;}
+            var folder=new Microsoft.Win32.OpenFolderDialog{Title="Carpeta de salida del lote"};if(folder.ShowDialog(_owner)!=true)return;
+            var template=(JsonObject)_template.DeepClone();string source=Project.SourcePath,baseName=name.Text.Trim();bool romhack=Project.IsRomhack;
+            using var interaction=UiProgress.BlockInteraction();SetBusy(true,"Generando lote…");UiProgress.Begin("Nintendo DS · Batch ROM Builder…");
+            try
+            {
+                var progress=new Progress<string>(s=>_status.Text=s);
+                var written=await Task.Run(()=>NdsProject.BuildBatch(source,romhack,template,n,folder.FolderName,baseName,progress,CancellationToken.None));
+                result.Text=$"{written.Count} ROM generadas y verificadas en {folder.FolderName}.";
+            }
+            catch(Exception ex) when (ex is IOException or InvalidDataException or InvalidOperationException or ArgumentException or UnauthorizedAccessException){result.Text="No se pudo generar el lote: "+ex.Message;}
+            finally{UiProgress.End();SetBusy(false,null);UpdateStatus();}
+        };
+        panel.Children.Add(result);Show();
         return new ScrollViewer{Content=panel,VerticalScrollBarVisibility=ScrollBarVisibility.Auto};
     }
 

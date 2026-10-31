@@ -1,11 +1,13 @@
 using System.IO;
 using System.Text;
+using System.Text.Json;
+using System.Text.Json.Nodes;
 using pk3DS.Core.NDS;
 
 namespace ThreeDS.Progressive.Services.Nds;
 
-/// <summary>One applied edit or randomization, kept for the change log.</summary>
-internal sealed record NdsOperation(string Action, uint? Seed, IReadOnlyList<Gen5Change> Changes);
+/// <summary>One applied edit or randomization, kept for the change log; <see cref="Recipe"/> replays it (Global Template, Batch).</summary>
+internal sealed record NdsOperation(string Action, uint? Seed, IReadOnlyList<Gen5Change> Changes, JsonObject Recipe);
 
 /// <summary>A computed change waiting to be applied; it belongs to one project revision and is rejected once that changes.</summary>
 internal sealed class NdsPreview
@@ -15,8 +17,9 @@ internal sealed class NdsPreview
     internal string Action { get; }
     internal uint? Seed { get; }
     internal Gen5RandomizerResult Result { get; }
-    internal NdsPreview(Guid owner, int revision, string action, uint? seed, Gen5RandomizerResult result)
-    { Owner = owner; Revision = revision; Action = action; Seed = seed; Result = result; }
+    internal JsonObject Recipe { get; }
+    internal NdsPreview(Guid owner, int revision, string action, uint? seed, Gen5RandomizerResult result, JsonObject recipe)
+    { Owner = owner; Revision = revision; Action = action; Seed = seed; Result = result; Recipe = recipe; }
 }
 
 /// <summary>
@@ -102,13 +105,122 @@ internal sealed class NdsProject : IDisposable
     internal IReadOnlyList<NdsCell> Read(NdsSection section) => _gen4 is not null ? NdsCells.Read(Gen4View, section) : NdsCells.Read(Gen5View, section);
 
     internal NdsPreview PreviewEdits(NdsSection section, IReadOnlyDictionary<string, int> edits) =>
-        new(_id, Revision, "Edición manual · " + SectionName(section), null, _gen4 is not null ? NdsCells.Write(Gen4View, section, edits) : NdsCells.Write(Gen5View, section, edits));
+        new(_id, Revision, "Edición manual · " + SectionName(section), null, _gen4 is not null ? NdsCells.Write(Gen4View, section, edits) : NdsCells.Write(Gen5View, section, edits),
+            new JsonObject { ["Kind"] = "Edit", ["Section"] = section.ToString(), ["Edits"] = JsonSerializer.SerializeToNode(edits.OrderBy(p => p.Key, StringComparer.Ordinal).ToDictionary(p => p.Key, p => p.Value)) });
 
     internal NdsPreview PreviewRandom(string action, Gen5RandomizerOptions options) =>
-        new(_id, Revision, action, options.Seed, _gen4 is not null ? Gen4Randomizer.Generate(Gen4View, options) : Gen5Randomizer.Generate(Gen5View, options));
+        new(_id, Revision, action, options.Seed, _gen4 is not null ? Gen4Randomizer.Generate(Gen4View, options) : Gen5Randomizer.Generate(Gen5View, options),
+            new JsonObject { ["Kind"] = "Species", ["Action"] = action, ["Options"] = JsonSerializer.SerializeToNode(options, RecipeJson) });
+
+    /// <summary>Why game tweaks cannot be applied to this ROM, or null when they can (Gen4 only).</summary>
+    internal string? TweaksProblem => _gen4 is null
+        ? "Negro, Blanco y Blanco 2 guardan estos ajustes en el ARM9, protegido por las firmas DSi, y el del Pokédex Nacional comparte script con los iniciales"
+        : NdsTweaks.Problem(_gen4);
+    internal bool IsPlatinum => _gen4?.Profile.Kind == Gen4Kind.Platinum;
+
+    internal NdsPreview PreviewTweaks(NdsTweakOptions options) =>
+        new(_id, Revision, "Ajustes del juego", null, NdsTweaks.Apply(Gen4View, options),
+            new JsonObject { ["Kind"] = "Tweaks", ["Options"] = JsonSerializer.SerializeToNode(options, RecipeJson) });
 
     internal NdsPreview PreviewData(string action, NdsSection section, NdsDataOptions options) =>
-        new(_id, Revision, action, options.Seed, _gen4 is not null ? NdsDataRandomizer.Generate(Gen4View, section, options) : NdsDataRandomizer.Generate(Gen5View, section, options));
+        new(_id, Revision, action, options.Seed, _gen4 is not null ? NdsDataRandomizer.Generate(Gen4View, section, options) : NdsDataRandomizer.Generate(Gen5View, section, options),
+            new JsonObject { ["Kind"] = "Data", ["Section"] = section.ToString(), ["Action"] = action, ["Options"] = JsonSerializer.SerializeToNode(options, RecipeJson) });
+
+    // ---- Global Template and Batch ----
+
+    internal const string GlobalFormat = "DefinitiveRandomizer.NdsGlobal";
+    private static readonly JsonSerializerOptions RecipeJson = new() { WriteIndented = true, Converters = { new System.Text.Json.Serialization.JsonStringEnumConverter() } };
+
+    /// <summary>The applied operations of this ROM as a replayable recipe, tied to its game code.</summary>
+    internal JsonObject CaptureGlobal() => new()
+    {
+        ["Format"] = GlobalFormat,
+        ["Version"] = 1,
+        ["Game"] = Identity.Profile.GameCode,
+        ["Title"] = Game,
+        ["Operations"] = new JsonArray(_history.Select(o => (JsonNode)o.Recipe.DeepClone()).ToArray()),
+    };
+
+    internal static JsonObject ReadGlobal(string path)
+    {
+        var document = JsonNode.Parse(File.ReadAllText(path)) as JsonObject ?? throw new InvalidDataException("El archivo no es un Global Template de DS.");
+        if (document["Format"]?.GetValue<string>() != GlobalFormat || document["Operations"] is not JsonArray)
+            throw new InvalidDataException("El archivo no es un Global Template de Nintendo DS (" + GlobalFormat + ").");
+        return document;
+    }
+
+    internal static void WriteGlobal(string path, JsonObject document) => File.WriteAllText(path, document.ToJsonString(RecipeJson), new UTF8Encoding(false));
+
+    /// <summary>
+    /// Replays a template's operations in order on this ROM, each previewed and applied as if done by hand. With
+    /// <paramref name="newSeeds"/>, randomizations draw a new seed (Batch); otherwise they reuse the recorded one.
+    /// </summary>
+    internal int ApplyGlobal(JsonObject document, bool newSeeds)
+    {
+        string game = document["Game"]?.GetValue<string>() ?? "";
+        if (!string.Equals(game, Identity.Profile.GameCode, StringComparison.Ordinal))
+            throw new InvalidOperationException($"El template es de {game} y la ROM abierta es {Identity.Profile.GameCode}: las entradas y claves no coinciden entre juegos.");
+        int applied = 0;
+        foreach (var node in (JsonArray)document["Operations"]!)
+        {
+            var op = node as JsonObject ?? throw new InvalidDataException("Operación inválida en el template.");
+            Apply(PreviewOperation(op, newSeeds));
+            applied++;
+        }
+        return applied;
+    }
+
+    private NdsPreview PreviewOperation(JsonObject op, bool newSeed)
+    {
+        string kind = op["Kind"]?.GetValue<string>() ?? "";
+        NdsSection Section() => Enum.Parse<NdsSection>(op["Section"]!.GetValue<string>());
+        // The scope (a set, which System.Text.Json cannot create as IReadOnlySet) is read apart and set back with "with".
+        HashSet<int>? scope = null;
+        JsonNode Options()
+        {
+            var options = (JsonObject)op["Options"]!.DeepClone();
+            if (newSeed)
+                options["Seed"] = pk3DS.Core.NX.SwitchSeed.New32();
+            scope = options["Scope"]?.Deserialize<HashSet<int>>();
+            options.Remove("Scope");
+            return options;
+        }
+        string action = op["Action"]?.GetValue<string>() ?? kind;
+        return kind switch
+        {
+            "Edit" => PreviewEdits(Section(), op["Edits"]!.Deserialize<Dictionary<string, int>>()!),
+            "Species" => PreviewRandom(action, Options().Deserialize<Gen5RandomizerOptions>(RecipeJson)! with { Scope = scope }),
+            "Data" => PreviewData(action, Section(), Options().Deserialize<NdsDataOptions>(RecipeJson)! with { Scope = scope }),
+            "Tweaks" => PreviewTweaks(op["Options"]!.Deserialize<NdsTweakOptions>(RecipeJson)!),
+            _ => throw new InvalidDataException("Tipo de operación desconocido en el template: " + kind),
+        };
+    }
+
+    /// <summary>
+    /// Batch ROM Builder: <paramref name="count"/> new ROMs from the source ROM, each with the template replayed with new seeds,
+    /// written as name-N.nds with its change log. Files that exist are never overwritten.
+    /// </summary>
+    internal static IReadOnlyList<string> BuildBatch(string source, bool allowRomhack, JsonObject document, int count, string folder, string name, IProgress<string>? progress, CancellationToken cancel)
+    {
+        if (count is < 1 or > 20)
+            throw new ArgumentException("Entre 1 y 20 ROMs por lote.");
+        if (!Directory.Exists(folder))
+            throw new DirectoryNotFoundException("La carpeta de salida no existe: " + folder);
+        var targets = Enumerable.Range(1, count).Select(i => Path.Combine(folder, $"{name}-{i}.nds")).ToArray();
+        if (targets.FirstOrDefault(t => File.Exists(t) || File.Exists(Path.ChangeExtension(t, ".cambios.txt"))) is { } existing)
+            throw new IOException("Ya existe " + existing + "; elige otro nombre o carpeta.");
+        var written = new List<string>();
+        foreach (string target in targets)
+        {
+            cancel.ThrowIfCancellationRequested();
+            progress?.Report($"Generando {Path.GetFileName(target)} ({written.Count + 1} de {count})…");
+            using var project = Open(source, allowRomhack);
+            project.ApplyGlobal(document, newSeeds: true);
+            project.Export(target);
+            written.Add(target);
+        }
+        return written;
+    }
 
     /// <summary>Applies a preview made at the current revision: its tables replace the current ones and it joins the change log.</summary>
     internal void Apply(NdsPreview preview)
@@ -122,7 +234,7 @@ internal sealed class NdsProject : IDisposable
         _recompress.UnionWith(preview.Result.RecompressOverlays);
         if (preview.Result.Arm9 is not null)
             _arm9 = preview.Result.Arm9;
-        _history.Add(new NdsOperation(preview.Action, preview.Seed, preview.Result.Changes));
+        _history.Add(new NdsOperation(preview.Action, preview.Seed, preview.Result.Changes, preview.Recipe));
         Revision++;
         _gen5View = null;
         _gen4View = null;
@@ -192,12 +304,14 @@ internal sealed class NdsProject : IDisposable
     internal string Describe(Gen5Change change) => change.Field switch
     {
         "Especie" => $"{change.Location}: {Name(SpeciesNames, change.Before)} → {Name(SpeciesNames, change.After)}",
+        "Especie entregada" or "Especie pedida" => $"{change.Location} · {change.Field}: {Name(SpeciesNames, change.Before)} → {Name(SpeciesNames, change.After)}",
         "Movimiento" => $"{change.Location} · {change.Field}: {Name(MoveNames, change.Before)} → {Name(MoveNames, change.After)}",
         "Tipo" or "Tipo 1" or "Tipo 2" => $"{change.Location} · {change.Field}: {Name(TypeNames, change.Before)} → {Name(TypeNames, change.After)}",
         "Categoría" => $"{change.Location} · {change.Field}: {Name(Source.Categories, change.Before)} → {Name(Source.Categories, change.After)}",
         "Crecimiento" => $"{change.Location} · {change.Field}: {Name(NdsDataSource.GrowthNames, change.Before)} → {Name(NdsDataSource.GrowthNames, change.After)}",
         "Método" => $"{change.Location} · {change.Field}: {Name(Source.EvolutionMethods, change.Before)} → {Name(Source.EvolutionMethods, change.After)}",
         "Objeto común" or "Objeto raro" or "Objeto (hierba oscura)" => $"{change.Location} · {change.Field}: {Name(ItemNames, change.Before)} → {Name(ItemNames, change.After)}",
+        _ when change.Field.StartsWith("Bytes del", StringComparison.Ordinal) => $"{change.Location}: {change.After} {change.Field.ToLowerInvariant()} cambiados",
         _ when change.Field.StartsWith("Habilidad", StringComparison.Ordinal) => $"{change.Location} · {change.Field}: {Name(AbilityNames, change.Before)} → {Name(AbilityNames, change.After)}",
         _ when change.Field.StartsWith("MT", StringComparison.Ordinal) || change.Field.StartsWith("MO", StringComparison.Ordinal) => $"{change.Location} · {change.Field}: {(change.Before == 1 ? "sí" : "no")} → {(change.After == 1 ? "sí" : "no")}",
         "Objeto" or "Objeto equipado" => $"{change.Location}: {change.Field} {Name(ItemNames, change.Before)} → {Name(ItemNames, change.After)}",
@@ -216,6 +330,8 @@ internal sealed class NdsProject : IDisposable
         NdsSection.Learnsets => "Level Up",
         NdsSection.Evolutions => "Evoluciones",
         NdsSection.Machines => "MT/MO",
+        NdsSection.Statics => "Estáticos y regalos",
+        NdsSection.Trades => "Intercambios",
         NdsSection.Starters => "Iniciales",
         NdsSection.Trainers => "Entrenadores",
         NdsSection.Encounters => "Encuentros",

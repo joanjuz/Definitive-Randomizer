@@ -20,3 +20,6 @@
 3DS.Progressive.App/Assets/Switch/PokeFeur/** -text
 3DS.Progressive.App/Assets/Switch/sword-surprise.nso -text
 3DS.Progressive.App/Assets/Switch/PokeFeur/*.json text eol=lf
+
+# UPR-ZX tweak patches (pk3DS.Core/NDS/Patches)
+*.ips binary

@@ -8,6 +8,7 @@ namespace pk3DS.Core.NDS;
 public enum NdsStatsMode { Keep, Shuffle, Random }
 public enum NdsLearnsetMode { Keep, Random, Metronome }
 public enum NdsMachineMode { Keep, Random, TypeBased, Full }
+public enum NdsStaticMode { Keep, Random, SimilarBst, SwapLegendaries }
 
 /// <summary>Universal-randomizer style options for species, moves, learnsets, evolutions and TM/HM compatibility.</summary>
 public sealed record NdsDataOptions(uint Seed)
@@ -31,10 +32,18 @@ public sealed record NdsDataOptions(uint Seed)
     public bool RemoveTradeEvolutions { get; init; }
     /// <summary>Each evolution leads to a species of similar base stat total.</summary>
     public bool RandomEvolutions { get; init; }
+    /// <summary>Evolutions by time of day become time-free: friendship by day or night → friendship, holding an item by day or night → using it.</summary>
+    public bool RemoveTimeEvolutions { get; init; }
+    /// <summary>Level evolutions above this level happen at it (0 = keep).</summary>
+    public int MaxEvolutionLevel { get; init; }
     public NdsMachineMode Machines { get; init; }
     public int MachinePercent { get; init; } = 50;
     /// <summary>HM compatibility stays as it is with Random and TypeBased, so field moves the story needs stay learnable.</summary>
     public bool KeepHms { get; init; } = true;
+    /// <summary>SwapLegendaries keeps legendaries legendary and the rest not (UPR-ZX "swap legendaries").</summary>
+    public NdsStaticMode Statics { get; init; }
+    public bool TradeGiven { get; init; }
+    public bool TradeRequested { get; init; }
     public IReadOnlySet<int>? Scope { get; init; }
     internal bool InScope(int entry) => Scope is null || Scope.Contains(entry);
 }
@@ -50,6 +59,10 @@ public static class NdsDataRandomizer
     private const int Struggle = 165, Metronome = 118;
     // Abilities that break or do nothing on other species (Wonder Guard, Forecast, Multitype, Flower Gift, Illusion, Zen Mode).
     private static readonly HashSet<int> BannedAbilities = [25, 59, 121, 122, 149, 161];
+    // Legendary and mythical species of Gen1-5, by National Dex number.
+    private static readonly HashSet<int> Legendaries = [144, 145, 146, 150, 151, 243, 244, 245, 249, 250, 251, 377, 378, 379, 380, 381, 382, 383, 384, 385, 386,
+        480, 481, 482, 483, 484, 485, 486, 487, 488, 489, 490, 491, 492, 493, 494, 638, 639, 640, 641, 642, 643, 644, 645, 646, 647, 648, 649];
+    public static bool IsLegendary(int species) => Legendaries.Contains(species);
 
     public static Gen5RandomizerResult Generate(Gen5Data data, NdsSection section, NdsDataOptions options) =>
         NdsCells.Write(data, section, Edits(NdsDataSource.Of(data), section, s => NdsCells.Read(data, s), options));
@@ -189,6 +202,15 @@ public static class NdsDataRandomizer
                         int method = row["E" + i + ".Method"], target = row["E" + i + ".Species"];
                         if (method == 0 || target == 0)
                             continue;
+                        string name = method < source.EvolutionMethods.Count ? source.EvolutionMethods[method] : "";
+                        if (options.RemoveTimeEvolutions && name is "Amistad de día" or "Amistad de noche")
+                            Set(species, "E" + i + ".Method", source.EvolutionMethods.ToList().IndexOf("Amistad"), evolutions);
+                        if (options.RemoveTimeEvolutions && name is "Nivel con objeto de día" or "Nivel con objeto de noche")
+                            Set(species, "E" + i + ".Method", source.EvolutionMethods.ToList().IndexOf("Usar objeto"), evolutions);
+                        // Every "Nivel…" method uses its parameter as the level.
+                        if (options.MaxEvolutionLevel > 0 && name.StartsWith("Nivel", StringComparison.Ordinal) && !name.StartsWith("Nivel con objeto", StringComparison.Ordinal)
+                            && !name.StartsWith("Nivel en", StringComparison.Ordinal) && !name.StartsWith("Nivel junto", StringComparison.Ordinal) && row["E" + i + ".Param"] > options.MaxEvolutionLevel)
+                            Set(species, "E" + i + ".Param", options.MaxEvolutionLevel, evolutions);
                         if (options.RemoveTradeEvolutions && source.IsTradeMethod(method))
                         {
                             Set(species, "E" + i + ".Method", source.LevelMethod, evolutions);
@@ -204,6 +226,43 @@ public static class NdsDataRandomizer
                                 Set(species, "E" + i + ".Species", candidates[Pick($"evo/{species}/{i}", candidates.Length)], evolutions);
                         }
                     }
+                }
+                break;
+            }
+            case NdsSection.Statics when options.Statics != NdsStaticMode.Keep:
+            {
+                var statics = Table(NdsSection.Statics);
+                var pokemon = Table(NdsSection.Pokemon);
+                int Bst(int species) => pokemon.TryGetValue(species, out var row) ? Enumerable.Range(0, 6).Sum(i => row["Stat" + i]) : 0;
+                int[] all = pokemon.Keys.Order().ToArray();
+                foreach (var (entry, row) in statics)
+                {
+                    if (!options.InScope(entry))
+                        continue;
+                    int species = row["Species"];
+                    int[] candidates = options.Statics switch
+                    {
+                        NdsStaticMode.SwapLegendaries => all.Where(s => IsLegendary(s) == IsLegendary(species)).ToArray(),
+                        NdsStaticMode.SimilarBst => all.Where(s => Math.Abs(Bst(s) - Bst(species)) <= Math.Max(30, Bst(species) / 10)).ToArray(),
+                        _ => all,
+                    };
+                    if (candidates.Length > 0)
+                        Set(entry, "Species", candidates[Pick($"static/{entry}", candidates.Length)], statics);
+                }
+                break;
+            }
+            case NdsSection.Trades:
+            {
+                var trades = Table(NdsSection.Trades);
+                int max = source.MaxSpecies;
+                foreach (var (entry, row) in trades)
+                {
+                    if (!options.InScope(entry))
+                        continue;
+                    if (options.TradeGiven)
+                        Set(entry, "Given", 1 + Pick($"trade/{entry}/given", max), trades);
+                    if (options.TradeRequested && row["Requested"] > 0)
+                        Set(entry, "Requested", 1 + Pick($"trade/{entry}/requested", max), trades);
                 }
                 break;
             }

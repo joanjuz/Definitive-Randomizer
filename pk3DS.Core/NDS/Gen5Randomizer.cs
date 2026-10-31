@@ -41,9 +41,23 @@ public sealed record Gen5RandomizerOptions(uint Seed)
     /// </summary>
     public IReadOnlySet<int>? Scope { get; init; }
     internal bool InScope(int entry) => Scope is null || Scope.Contains(entry);
+    /// <summary>Each trainer gets one random type and its new team is drawn from species of that type (UPR-ZX type themed).</summary>
+    public bool TypeThemedTrainers { get; init; }
+    /// <summary>Trainer Pokémon at or above this level become their final evolution (0 = off).</summary>
+    public int ForceFullyEvolvedLevel { get; init; }
+    /// <summary>Trainer levels change by this percentage, between 1 and 100 (0 = off).</summary>
+    public int TrainerLevelPercent { get; init; }
+    /// <summary>The same original wild species becomes the same new species everywhere, not only within one area.</summary>
+    public bool WildGlobalMapping { get; init; }
+    /// <summary>Wild levels change by this percentage, between 1 and 100 (0 = off).</summary>
+    public int WildLevelPercent { get; init; }
+    internal bool AdjustsTrainers => TrainerLevelPercent != 0 || ForceFullyEvolvedLevel > 0;
 }
 
 public sealed record Gen5Change(string Location, string Field, int Before, int After);
+
+/// <summary>Species choice for one slot: mode, slot key, original species, level, and optionally which species are allowed.</summary>
+public delegate int SpeciesPick(Gen5SpeciesMode mode, string key, int original, int level, Func<int, bool>? allow = null);
 
 public sealed record Gen5RandomizerResult(IReadOnlyDictionary<string, byte[]> Files, IReadOnlyList<Gen5Change> Changes,
     IReadOnlyDictionary<int, byte[]> Overlays)
@@ -88,6 +102,15 @@ public static class Gen5Randomizer
             ShuffleShops(data, options, Work, overlays, changes);
         foreach (var (key, narc) in working)
             files[data.PathOf(key)] = narc.Write();
+        // Levels and forced evolutions work on the new tables as cells, the way manual edits do.
+        if (options.AdjustsTrainers || options.WildLevelPercent != 0)
+            foreach (var (section, edits) in Adjustments(options, s => NdsCells.Read(data.WithDraft(files, overlays), s)))
+            {
+                var adjusted = NdsCells.Write(data.WithDraft(files, overlays), section, edits);
+                foreach (var (path, bytes) in adjusted.Files)
+                    files[path] = bytes;
+                changes.AddRange(adjusted.Changes);
+            }
         return new Gen5RandomizerResult(files, changes, overlays)
         {
             RecompressOverlays = overlays.Keys.Where(id => id == data.Profile.ShopOverlay
@@ -120,7 +143,67 @@ public static class Gen5Randomizer
     /// <summary>
     /// Species choice shared by the Gen4 and Gen5 randomizers: (mode, slot key, original species, level) → new species among 1..<paramref name="maxSpecies"/>.
     /// </summary>
-    internal static Func<Gen5SpeciesMode, string, int, int, int> SpeciesPicker(IReadOnlyList<Gen5BaseStats> stats, int maxSpecies, Gen5RandomizerOptions options)
+    /// <summary>
+    /// Level and evolution adjustments as cell edits per section: trainer levels by percent and forced final evolutions from a
+    /// level on, and wild levels by percent. Only entries in the options' scope change.
+    /// </summary>
+    internal static IEnumerable<(NdsSection Section, Dictionary<string, int> Edits)> Adjustments(Gen5RandomizerOptions options,
+        Func<NdsSection, IReadOnlyList<NdsCell>> read)
+    {
+        int Scale(int level, int percent) => Math.Clamp((int)Math.Round(level * (100 + percent) / 100.0), 1, 100);
+        {
+            if (options.AdjustsTrainers)
+            {
+                var cells = read(NdsSection.Trainers).Where(c => options.InScope(c.Entry)).ToArray();
+                var finals = options.ForceFullyEvolvedLevel > 0 ? FinalEvolutions(read(NdsSection.Evolutions), options.Seed) : null;
+                var edits = new Dictionary<string, int>();
+                foreach (var cell in cells.Where(c => c.Local.EndsWith(".Level", StringComparison.Ordinal)))
+                {
+                    int level = options.TrainerLevelPercent != 0 ? Scale(cell.Value, options.TrainerLevelPercent) : cell.Value;
+                    if (level != cell.Value)
+                        edits[cell.Key] = level;
+                    if (finals is not null && level >= options.ForceFullyEvolvedLevel)
+                    {
+                        string speciesKey = cell.Entry + ":" + cell.Local[..^".Level".Length] + ".Species";
+                        var species = cells.FirstOrDefault(c => c.Key == speciesKey);
+                        if (species is not null && finals.TryGetValue(species.Value, out int final) && final != species.Value && final <= species.Max)
+                            edits[speciesKey] = final;
+                    }
+                }
+                if (edits.Count > 0)
+                    yield return (NdsSection.Trainers, edits);
+            }
+        }
+        if (options.WildLevelPercent != 0)
+        {
+            var edits = read(NdsSection.Encounters).Where(c => options.InScope(c.Entry) && c.Field.Contains("nivel", StringComparison.Ordinal))
+                .Select(c => (c.Key, Value: Scale(c.Value, options.WildLevelPercent), c.Value)).Where(e => e.Item2 != e.Item3).ToDictionary(e => e.Key, e => e.Item2);
+            if (edits.Count > 0)
+                yield return (NdsSection.Encounters, edits);
+        }
+    }
+
+    // Species → its last evolution (a random branch where a species evolves in several ways), from the evolution table.
+    internal static Dictionary<int, int> FinalEvolutions(IReadOnlyList<NdsCell> evolutions, uint seed)
+    {
+        var next = evolutions.GroupBy(c => c.Entry).ToDictionary(g => g.Key, g =>
+        {
+            var row = g.ToDictionary(c => c.Local, c => c.Value);
+            return Enumerable.Range(0, 7).Where(i => row.GetValueOrDefault("E" + i + ".Method") != 0 && row.GetValueOrDefault("E" + i + ".Species") > 0)
+                .Select(i => row["E" + i + ".Species"]).Where(s => s != g.Key).Distinct().ToArray();
+        });
+        var finals = new Dictionary<int, int>();
+        foreach (int species in next.Keys)
+        {
+            int current = species;
+            for (int depth = 0; depth < 4 && next.TryGetValue(current, out var targets) && targets.Length > 0; depth++)
+                current = targets[Index(seed, $"final/{current}", targets.Length)];
+            finals[species] = current;
+        }
+        return finals;
+    }
+
+    internal static SpeciesPick SpeciesPicker(IReadOnlyList<Gen5BaseStats> stats, int maxSpecies, Gen5RandomizerOptions options)
     {
         foreach (var range in options.BstRanges)
             if (range.MinLevel < 1 || range.MaxLevel > 100 || range.MinLevel > range.MaxLevel || range.MinBst < 0 || range.MinBst > range.MaxBst)
@@ -129,7 +212,7 @@ public static class Gen5Randomizer
             throw new InvalidDataException($"La tabla de estadísticas no cubre las {maxSpecies} especies.");
         var pool = Enumerable.Range(1, maxSpecies).Select(s => (Species: s, Bst: stats[s].Total)).ToArray();
 
-        return (mode, key, original, level) =>
+        return (mode, key, original, level, allow) =>
         {
             var candidates = pool;
             if (mode == Gen5SpeciesMode.SimilarBst)
@@ -147,17 +230,38 @@ public static class Gen5Randomizer
                 if (candidates.Length == 0)
                     throw new InvalidDataException($"Ninguna especie tiene BST {range.MinBst}–{range.MaxBst} para el nivel {level}.");
             }
+            if (allow is not null)
+            {
+                // The allowed species within the mode's candidates; if none qualify, the allowed ones regardless of strength.
+                var allowed = candidates.Where(p => allow(p.Species)).ToArray();
+                if (allowed.Length == 0)
+                    allowed = pool.Where(p => allow(p.Species)).ToArray();
+                if (allowed.Length > 0)
+                    candidates = allowed;
+            }
             return candidates[Index(options.Seed, key, candidates.Length)].Species;
         };
     }
 
-    private static void RandomizeTrainers(Gen5Data data, Gen5RandomizerOptions options, Func<Gen5SpeciesMode, string, int, int, int> pick,
+    /// <summary>Type themes: a random type per trainer, from the types species actually have.</summary>
+    internal static Func<int, bool>? Theme(Gen5RandomizerOptions options, IReadOnlyList<Gen5BaseStats> stats, int maxSpecies, int trainer)
+    {
+        if (!options.TypeThemedTrainers)
+            return null;
+        int[] types = Enumerable.Range(1, Math.Min(maxSpecies, stats.Count - 1)).SelectMany(s => new[] { (int)stats[s].Type1, stats[s].Type2 }).Distinct().Order().ToArray();
+        int type = types[Index(options.Seed, $"theme/{trainer}", types.Length)];
+        return s => s < stats.Count && (stats[s].Type1 == type || stats[s].Type2 == type);
+    }
+
+    private static void RandomizeTrainers(Gen5Data data, Gen5RandomizerOptions options, SpeciesPick pick,
         Func<string, Narc> work, List<Gen5Change> changes)
     {
         var headers = work(Gen5Profile.TrainerData);
         var teams = work(Gen5Profile.TrainerPokemon);
+        var stats = data.BaseStats();
         foreach (var trainer in data.Trainers().Where(t => options.InScope(t.Id)))
         {
+            var theme = Theme(options, stats, MaxSpecies, trainer.Id);
             string location = $"Entrenador {trainer.Id} · {trainer.ClassName} {trainer.Name}".TrimEnd();
             // New species cannot keep moves picked for the old one: drop custom moves so the game uses level-up moves.
             int flags = trainer.Flags & ~1;
@@ -165,7 +269,7 @@ public static class Gen5Randomizer
             for (int slot = 0; slot < trainer.Team.Count; slot++)
             {
                 var p = trainer.Team[slot];
-                int species = pick(options.Trainers, $"trainer/{trainer.Id}/{slot}", p.Species, p.Level);
+                int species = pick(options.Trainers, $"trainer/{trainer.Id}/{slot}", p.Species, p.Level, theme);
                 if (species != p.Species)
                     changes.Add(new Gen5Change($"{location} · Pokémon {slot + 1} · nivel {p.Level}", "Especie", p.Species, species));
                 byte[] entry = new byte[8 + (trainer.HasItems ? 2 : 0)];
@@ -192,7 +296,7 @@ public static class Gen5Randomizer
         }
     }
 
-    private static void RandomizeWild(Gen5Data data, Gen5RandomizerOptions options, Func<Gen5SpeciesMode, string, int, int, int> pick,
+    private static void RandomizeWild(Gen5Data data, Gen5RandomizerOptions options, SpeciesPick pick,
         Func<string, Narc> work, List<Gen5Change> changes)
     {
         var wild = work(Gen5Profile.WildPokemon);
@@ -215,7 +319,7 @@ public static class Gen5Randomizer
                         if (species is < 1 or > MaxSpecies)
                             continue;
                         // Same original species in one area maps to the same new species, keeping the area's rates.
-                        int replacement = pick(options.Wild, $"wild/{file}/{season}/{type}/{species}", species, table[at + 3]);
+                        int replacement = pick(options.Wild, options.WildGlobalMapping ? $"wild/{species}" : $"wild/{file}/{season}/{type}/{species}", species, table[at + 3]);
                         BinaryPrimitives.WriteUInt16LittleEndian(table.AsSpan(at), (ushort)replacement);
                         if (replacement != species)
                             changes.Add(new Gen5Change($"Encuentros {file} · estación {season + 1} · {Gen5EncounterArea.TypeNames[type]} · hueco {i + 1}", "Especie", species, replacement));
