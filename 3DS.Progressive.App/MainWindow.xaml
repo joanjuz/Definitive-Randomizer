@@ -524,7 +524,7 @@
         <Border Grid.Row="2" Background="{DynamicResource Chrome}" BorderBrush="{DynamicResource Stroke}"
                 BorderThickness="0,1,0,0">
             <DockPanel Margin="18,10" LastChildFill="True">
-                <TextBlock Text="DEFINITIVE RANDOMIZER · V0.9.0 PREVIEW"
+                <TextBlock Text="DEFINITIVE RANDOMIZER · V0.10.0 PREVIEW"
                            DockPanel.Dock="Right" Foreground="{DynamicResource TextSoft}"
                            FontSize="12" VerticalAlignment="Center"/>
                 <TextBlock x:Name="OperationPercent" DockPanel.Dock="Right"
