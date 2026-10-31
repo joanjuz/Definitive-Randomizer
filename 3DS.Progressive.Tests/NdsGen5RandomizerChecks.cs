@@ -31,6 +31,7 @@ internal static class NdsGen5RandomizerChecks
             reject(()=>Gen5Randomizer.Generate(data,new Gen5RandomizerOptions(1){Starters=Gen5StarterMode.Custom,CustomStarters=[1,1,4]}),"Gen5Rand_StartersRejectDuplicates");
             reject(()=>Gen5Randomizer.Generate(data,new Gen5RandomizerOptions(1){Starters=Gen5StarterMode.Custom,CustomStarters=[1,4,700]}),"Gen5Rand_StartersRejectSpeciesOutsideGen5");
             reject(()=>Gen5Randomizer.Generate(data,new Gen5RandomizerOptions(1){Starters=Gen5StarterMode.Custom}),"Gen5Rand_CustomStartersRequireThreeSpecies");
+            check(new[]{17,1,213,327,504,537,577,615}.All(Gen5Randomizer.IsMovableItem)&&!new[]{0,120,133,328,419,420,425,428,503,505,536,574,578,579,616,617,618,620,621,626,700}.Any(Gen5Randomizer.IsMovableItem),"Gen5Rand_TmsHmsKeyAndUnknownItemsNeverMove");
         }
         finally{Directory.Delete(temp,true);}
     }
@@ -106,6 +107,43 @@ internal static class NdsGen5RandomizerChecks
             Check(Hash(source)==before,$"Gen5Starters_Real_{Path.GetFileNameWithoutExtension(source)}_SourceUnchanged");
         }
         Console.WriteLine($"Completed {checks} Gen5 starter real-dump checks; outputs deleted from {output}.");
+    }
+
+    // Field items and shops on real dumps: same multiset of items, fixed items and shops untouched, nothing else changed.
+    internal static void ProbeItems(string output,IEnumerable<string> roms)
+    {
+        int checks=0;void Check(bool ok,string name){if(!ok)throw new Exception("FAIL "+name);checks++;Console.WriteLine("PASS "+name);}
+        output=Path.GetFullPath(output);if(Directory.Exists(output)||File.Exists(output))throw new IOException("El destino debe ser nuevo.");Directory.CreateDirectory(output);
+        static string Bag(IEnumerable<int> items)=>string.Join(",",items.Order());
+        foreach(string source in roms.Select(Path.GetFullPath))
+        {
+            string before=Hash(source);
+            using(var rom=NdsRom.Open(source))
+            {
+                var data=Gen5Data.Open(rom);string game=data.Profile.GameCode;
+                var field=data.FieldItems();var shops=data.Shops();
+                Check(field.Count==483&&field.Count(f=>f.File==864)==306&&shops.Count==26&&shops.Select(s=>s.Count).SequenceEqual(Gen5Profile.ShopItemSizes),$"Gen5Items_Real_{game}_Reads306BallsAnd177HiddenItemsAnd26Shops");
+                var options=new Gen5RandomizerOptions(5){FieldItems=Gen5ItemMode.Shuffle,Shops=Gen5ItemMode.Shuffle,Starters=Gen5StarterMode.Custom,CustomStarters=[25,4,7]};
+                var result=Gen5Randomizer.Generate(data,options);
+                Check(result.Overlays.Keys.Order().SequenceEqual(new[]{21,223})&&result.RecompressOverlays.SetEquals(new[]{21}),$"Gen5Items_Real_{game}_ShopsRecompressOverlay21AndStartersKeep223Uncompressed");
+                string target=Path.Combine(output,game+"-items.nds");data.Export(target,result);
+                using var exported=NdsRom.Open(target);var check=Gen5Data.Open(exported,requireOriginalTables:false);
+                var newField=check.FieldItems();
+                Check(newField.Count==field.Count&&newField.Zip(field).All(p=>p.First.File==p.Second.File&&p.First.Offset==p.Second.Offset)&&Bag(newField.Select(f=>f.Item))==Bag(field.Select(f=>f.Item)),$"Gen5Items_Real_{game}_FieldItemsKeepPositionsAndTheSameItems");
+                Check(newField.Zip(field).Where(p=>!Gen5Randomizer.IsMovableItem(p.Second.Item)).All(p=>p.First.Item==p.Second.Item)&&newField.Zip(field).Count(p=>p.First.Item!=p.Second.Item)>200,$"Gen5Items_Real_{game}_TmsStayAndRegularItemsMove ({newField.Zip(field).Count(p=>p.First.Item!=p.Second.Item)} cambiados)");
+                var newShops=check.Shops();
+                Check(Gen5Profile.FixedShops.All(s=>newShops[s].SequenceEqual(shops[s]))&&Bag(newShops.SelectMany(s=>s))==Bag(shops.SelectMany(s=>s))&&newShops.Select(s=>s.Count).SequenceEqual(Gen5Profile.ShopItemSizes),$"Gen5Items_Real_{game}_ShopsKeepFixedListsAndTheSameItems");
+                byte[] plain=exported.ReadOverlay(21);var ovl=exported.Overlay(21);
+                Check(ovl.Compressed&&plain.Length==rom.ReadOverlay(21).Length&&exported.Files[ovl.FileId].Start==rom.Files[ovl.FileId].Start,$"Gen5Items_Real_{game}_Overlay21StaysCompressedInItsSlot ({ovl.StoredSize} bytes)");
+                Check(check.Starters().SequenceEqual(new[]{25,4,7}),$"Gen5Items_Real_{game}_StartersAndItemsShareTheScriptsTable");
+                var changedIds=result.Files.Keys.Select(p=>rom.File(p).Id).Concat(result.Overlays.Keys.Select(o=>rom.Overlay(o).FileId)).ToHashSet();
+                Check(exported.Files.Where(f=>!changedIds.Contains(f.Id)).All(f=>exported.ReadFile(f).SequenceEqual(rom.ReadFile(rom.Files[f.Id]))),$"Gen5Items_Real_{game}_EveryOtherFileIdentical");
+                var again=Gen5Randomizer.Generate(data,options);Check(again.Changes.SequenceEqual(result.Changes),$"Gen5Items_Real_{game}_SameSeedSameResult");
+            }
+            foreach(string f in Directory.GetFiles(output))File.Delete(f);
+            Check(Hash(source)==before,$"Gen5Items_Real_{Path.GetFileNameWithoutExtension(source)}_SourceUnchanged");
+        }
+        Console.WriteLine($"Completed {checks} Gen5 item real-dump checks; outputs deleted from {output}.");
     }
 
     private static string Hash(string path){using var stream=File.OpenRead(path);return Convert.ToHexString(SHA256.HashData(stream));}

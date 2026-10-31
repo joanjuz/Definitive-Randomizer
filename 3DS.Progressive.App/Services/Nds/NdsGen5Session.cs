@@ -12,6 +12,7 @@ internal sealed class NdsGen5Session : IDisposable
 {
     private readonly NdsRom _rom;
     private readonly IReadOnlyList<string> _names;
+    private readonly IReadOnlyList<string> _items;
 
     internal Gen5Data Data { get; }
     internal string SourcePath => _rom.Path;
@@ -27,6 +28,7 @@ internal sealed class NdsGen5Session : IDisposable
         _rom = rom;
         Data = data;
         _names = data.SpeciesNames();
+        _items = data.Text(Gen5Profile.ItemNamesText);
         TrainerCount = data.Trainers().Count;
         AreaCount = data.Encounters().Count;
         OriginalStarters = data.Starters();
@@ -49,9 +51,12 @@ internal sealed class NdsGen5Session : IDisposable
     internal Task<NdsGen5Preview> PreviewAsync(Gen5RandomizerOptions options) =>
         Task.Run(() => new NdsGen5Preview(options, Gen5Randomizer.Generate(Data, options)));
 
-    internal string Describe(Gen5Change change) => change.Field == "Especie"
-        ? $"{change.Location}: {Species(change.Before)} → {Species(change.After)}"
-        : $"{change.Location}: {change.Field} {change.Before} → {change.After}";
+    internal string Describe(Gen5Change change) => change.Field switch
+    {
+        "Especie" => $"{change.Location}: {Species(change.Before)} → {Species(change.After)}",
+        "Objeto" => $"{change.Location}: {Item(change.Before)} → {Item(change.After)}",
+        _ => $"{change.Location}: {change.Field} {change.Before} → {change.After}",
+    };
 
     /// <summary>Writes the new ROM and its change log, then re-reads the ROM to confirm the tables still parse.</summary>
     internal Task<string> ExportAsync(string output, NdsGen5Preview preview) => Task.Run(() =>
@@ -69,7 +74,7 @@ internal sealed class NdsGen5Session : IDisposable
         var text = new StringBuilder();
         text.AppendLine($"Juego: {Game} ({Data.Profile.GameCode}); volcado original verificado: {(KnownDump ? "sí" : "no")}");
         text.AppendLine($"Origen: {SourcePath}");
-        text.AppendLine($"Semilla: {preview.Options.Seed}. Entrenadores: {ModeName(preview.Options.Trainers)}. Encuentros: {ModeName(preview.Options.Wild)}. Iniciales: {StarterModeName(preview.Options.Starters)}.");
+        text.AppendLine($"Semilla: {preview.Options.Seed}. Entrenadores: {ModeName(preview.Options.Trainers)}. Encuentros: {ModeName(preview.Options.Wild)}. Iniciales: {StarterModeName(preview.Options.Starters)}. Objetos del mapa: {ItemModeName(preview.Options.FieldItems)}. Tiendas: {ItemModeName(preview.Options.Shops)}.");
         text.AppendLine($"Cambios: {preview.Result.Changes.Count}");
         text.AppendLine();
         foreach (var change in preview.Result.Changes)
@@ -92,6 +97,11 @@ internal sealed class NdsGen5Session : IDisposable
         Gen5StarterMode.Custom => "personalizados",
         _ => "sin cambios",
     };
+
+    internal static string ItemModeName(Gen5ItemMode mode) => mode == Gen5ItemMode.Shuffle ? "barajados" : "sin cambios";
+
+    // Item changes are logged with the game's item names.
+    private string Item(int id) => id >= 0 && id < _items.Count ? _items[id] : "#" + id;
 
     private string Species(int id) => id >= 0 && id < _names.Count ? _names[id] : "#" + id;
 

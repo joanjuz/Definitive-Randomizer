@@ -30,6 +30,9 @@ internal sealed class NdsRandomizerWindow : Window
     private readonly ComboBox _wild=ModeCombo(Gen5SpeciesMode.SimilarBst);
     private static readonly (Gen5StarterMode Mode,string Label)[] StarterModes=[(Gen5StarterMode.Keep,"Sin cambios"),(Gen5StarterMode.Random,"Aleatorios"),(Gen5StarterMode.Custom,"Personalizados")];
     private readonly ComboBox _starters=new(){ItemsSource=StarterModes.Select(m=>m.Label).ToArray(),SelectedIndex=0};
+    private static readonly (Gen5ItemMode Mode,string Label)[] ItemModes=[(Gen5ItemMode.Keep,"Sin cambios"),(Gen5ItemMode.Shuffle,"Barajar")];
+    private readonly ComboBox _fieldItems=new(){ItemsSource=ItemModes.Select(m=>m.Label).ToArray(),SelectedIndex=0,MinWidth=260};
+    private readonly ComboBox _shops=new(){ItemsSource=ItemModes.Select(m=>m.Label).ToArray(),SelectedIndex=0,MinWidth=260};
     private readonly ComboBox[] _starterPicks=[new(){MinWidth=150,IsEnabled=false,Margin=new Thickness(0,0,8,4)},new(){MinWidth=150,IsEnabled=false,Margin=new Thickness(0,0,8,4)},new(){MinWidth=150,IsEnabled=false,Margin=new Thickness(0,0,8,4)}];
     private readonly TextBox _seed=new(){Width=140};
     private readonly Button _newSeed=new(){Content="Nueva semilla",Margin=new Thickness(8,0,0,0)};
@@ -71,11 +74,13 @@ internal sealed class NdsRandomizerWindow : Window
         _trainers.MinWidth=_wild.MinWidth=_starters.MinWidth=260;
         Row("Entrenadores",_trainers);Row("Pokémon salvajes",_wild);Row("Iniciales",_starters);
         var picks=new WrapPanel();foreach(var pick in _starterPicks)picks.Children.Add(pick);Row("Planta · Fuego · Agua",picks);
+        Row("Objetos del mapa",_fieldItems);Row("Tiendas",_shops);
         var seedRow=new StackPanel{Orientation=Orientation.Horizontal};seedRow.Children.Add(_seed);seedRow.Children.Add(_newSeed);Row("Semilla",seedRow);
         heading.Children.Add(options);
         heading.Children.Add(new TextBlock{TextWrapping=TextWrapping.Wrap,Foreground=(Brush)FindResource("TextSoft"),Margin=new Thickness(0,2,0,10),
             Text="BST progresivo: cada nivel tiene un rango de BST (nv. 1–10: 180–320 … nv. 51–100: 480–680). Los entrenadores pierden sus movimientos personalizados y usan los de nivel de la nueva especie. En cada área, la misma especie original se cambia por la misma especie nueva. "+
-                 "Los iniciales cambian en la entrega, la pantalla de elección (imagen, grito y tipo) y el Pokédex."});
+                 "Los iniciales cambian en la entrega, la pantalla de elección (imagen, grito y tipo) y el Pokédex. "+
+                 "Barajar objetos y tiendas reparte los mismos objetos en otro orden: las MT, MO y objetos clave no se mueven, y las tiendas de MT y las de progreso no cambian."});
         var previewRow=new WrapPanel();previewRow.Children.Add(_preview);heading.Children.Add(previewRow);heading.Children.Add(_summary);
 
         _changes.Height=280;heading.Children.Add(_changes);
@@ -86,6 +91,7 @@ internal sealed class NdsRandomizerWindow : Window
         AutomationProperties.SetName(_trainers,"Modo de randomización de entrenadores");AutomationProperties.SetName(_wild,"Modo de randomización de Pokémon salvajes");
         AutomationProperties.SetName(_starters,"Modo de iniciales");AutomationProperties.SetName(_starterPicks[0],"Inicial de la posición Planta");
         AutomationProperties.SetName(_starterPicks[1],"Inicial de la posición Fuego");AutomationProperties.SetName(_starterPicks[2],"Inicial de la posición Agua");
+        AutomationProperties.SetName(_fieldItems,"Objetos del mapa");AutomationProperties.SetName(_shops,"Tiendas");
         AutomationProperties.SetName(_seed,"Semilla");AutomationProperties.SetName(_newSeed,"Generar una semilla nueva");AutomationProperties.SetName(_preview,"Generar vista previa de cambios");
         AutomationProperties.SetName(_changes,"Cambios de la vista previa");AutomationProperties.SetName(_export,"Exportar ROM randomizada");AutomationProperties.SetName(_close,"Cerrar randomizer DS");
         EditorPresentation.StyleAction(_choose);EditorPresentation.StyleAction(_newSeed,EditorPresentation.ActionRole.Tertiary);EditorPresentation.StyleAction(_preview);
@@ -98,7 +104,7 @@ internal sealed class NdsRandomizerWindow : Window
         _export.Click+=async(_,_)=>{if(_current is null||_session is null)return;var picker=new Microsoft.Win32.SaveFileDialog{Filter="ROM de Nintendo DS (*.nds)|*.nds",FileName=Path.GetFileNameWithoutExtension(_session.SourcePath)+"-random-"+_current.Options.Seed+".nds",Title="Guardar ROM randomizada"};if(picker.ShowDialog(this)==true)await ExportAsync(picker.FileName);};
         _close.Click+=(_,_)=>Close();
         _trainers.SelectionChanged+=(_,_)=>Invalidate();_wild.SelectionChanged+=(_,_)=>Invalidate();_seed.TextChanged+=(_,_)=>Invalidate();
-        _starters.SelectionChanged+=(_,_)=>{UpdateStarterPicks();Invalidate();};foreach(var pick in _starterPicks)pick.SelectionChanged+=(_,_)=>Invalidate();
+        _starters.SelectionChanged+=(_,_)=>{UpdateStarterPicks();Invalidate();};_fieldItems.SelectionChanged+=(_,_)=>Invalidate();_shops.SelectionChanged+=(_,_)=>Invalidate();foreach(var pick in _starterPicks)pick.SelectionChanged+=(_,_)=>Invalidate();
         Closing+=(_,e)=>{if(_busy)e.Cancel=true;};Closed+=(_,_)=>_session?.Dispose();
     }
 
@@ -128,7 +134,8 @@ internal sealed class NdsRandomizerWindow : Window
         if(!uint.TryParse(_seed.Text.Trim(),out uint seed)){_summary.Text="La semilla debe ser un número entero entre 0 y 4294967295.";return;}
         var starters=StarterModes[_starters.SelectedIndex].Mode;
         var options=new Gen5RandomizerOptions(seed){Trainers=Modes[_trainers.SelectedIndex].Mode,Wild=Modes[_wild.SelectedIndex].Mode,Starters=starters,
-            CustomStarters=starters==Gen5StarterMode.Custom?_starterPicks.Select(p=>p.SelectedIndex+1).ToArray():null};
+            CustomStarters=starters==Gen5StarterMode.Custom?_starterPicks.Select(p=>p.SelectedIndex+1).ToArray():null,
+            FieldItems=ItemModes[_fieldItems.SelectedIndex].Mode,Shops=ItemModes[_shops.SelectedIndex].Mode};
         SetBusy(true);_summary.Text="Generando vista previa…";
         try
         {
@@ -172,7 +179,7 @@ internal sealed class NdsRandomizerWindow : Window
         UpdateButtons();
     }
 
-    private void SetBusy(bool busy){_busy=busy;_choose.IsEnabled=_trainers.IsEnabled=_wild.IsEnabled=_starters.IsEnabled=_seed.IsEnabled=_newSeed.IsEnabled=!busy;_close.IsEnabled=!busy;UpdateStarterPicks();UpdateButtons();}
+    private void SetBusy(bool busy){_busy=busy;_choose.IsEnabled=_trainers.IsEnabled=_wild.IsEnabled=_starters.IsEnabled=_fieldItems.IsEnabled=_shops.IsEnabled=_seed.IsEnabled=_newSeed.IsEnabled=!busy;_close.IsEnabled=!busy;UpdateStarterPicks();UpdateButtons();}
 
     private void UpdateStarterPicks(){bool custom=!_busy&&_session is not null&&StarterModes[_starters.SelectedIndex].Mode==Gen5StarterMode.Custom;foreach(var pick in _starterPicks)pick.IsEnabled=custom;}
 
