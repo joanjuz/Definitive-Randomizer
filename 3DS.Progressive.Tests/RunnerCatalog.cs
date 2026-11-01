@@ -110,6 +110,7 @@ internal static class RunnerCatalog
         new("--read-title-movies","1 o más",RunnerCategory.Real,false),
         new("--read-titles6","1 o más",RunnerCategory.Real,false),
         new("--read-tm6-compatibility","1 o más",RunnerCategory.Real,false),
+        new("--relearner-real","exactamente 3",RunnerCategory.Real,false),
         new("--requested-real","1 o más",RunnerCategory.Real,false),
         new("--review73-real","1 o más",RunnerCategory.Real,false),
         new("--single-purchase-backend","exactamente 1",RunnerCategory.Real,false),

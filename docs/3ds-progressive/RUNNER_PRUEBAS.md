@@ -138,6 +138,7 @@ Necesitan extracciones, ROMs o carpetas de salida. Los argumentos concretos (ent
 | `--read-title-movies` | 1 o más |  |
 | `--read-titles6` | 1 o más |  |
 | `--read-tm6-compatibility` | 1 o más |  |
+| `--relearner-real` | exactamente 3 |  |
 | `--requested-real` | 1 o más |  |
 | `--review73-real` | 1 o más |  |
 | `--single-purchase-backend` | exactamente 1 |  |

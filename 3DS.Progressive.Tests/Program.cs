@@ -87,6 +87,7 @@ if(args.Length==3&&args[0]=="--swsh-probe-mod"){SwordShieldChecks.ProbeReal(args
 if(args.Length==2&&args[0]=="--single-purchase-backend"){SinglePurchaseChecks.Backend(args[1],Check).GetAwaiter().GetResult();Console.WriteLine($"Completed {checks} single-purchase backend checks.");return;}
 if(args.Length==1&&args[0]=="--gen7-adjust-only"){Gen7AdjustmentChecks.Run(Check,Reject);Console.WriteLine($"Completed {checks} Gen7 adjustment checks.");return;}
 if(args.Length==3&&args[0]=="--gen7-adjust-real"){Gen7AdjustmentChecks.Run(Check,Reject);Gen7AdjustmentChecks.RealCopies(args[1],args[2],Check,Reject);Console.WriteLine($"Completed {checks} Gen7 adjustment checks with real copies.");return;}
+if(args.Length==4&&args[0]=="--relearner-real"){RelearnerPatchChecks.Run(args[1],args[2],args[3],Check);Console.WriteLine($"Completed {checks} USUM relearner checks with real copies.");return;}
 if(args.Length==1&&args[0]=="--single-purchase-only"){SinglePurchaseChecks.Schema(Check,Reject);Console.WriteLine($"Completed {checks} single-purchase schema checks.");return;}
 if(args.Length==3&&args[0]=="--single-purchase-copies"){SinglePurchaseChecks.Schema(Check,Reject);SinglePurchaseChecks.RealCopies(args[1],args[2],Check,Reject);Console.WriteLine($"Completed {checks} single-purchase copy/integration checks.");return;}
 if(args.Length==1&&args[0]=="--interaction-lock-only")
