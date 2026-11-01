@@ -87,11 +87,30 @@ dotnet .\3DS.Progressive.Tests\bin\Release\net10.0-windows\3DS.Progressive.Tests
 | `--tm-default-ui-only` | — |  |
 | `--utility-ui-only` | — |  |
 | `--visual-redesign-only` | — | sí |
-| `--visual-audit` | exactamente 1 (carpeta de capturas) |  |
+| `--visual-audit` | 1 o 2 (carpeta de capturas, extracción USUM opcional) |  |
 
 `--global-apply-ui-only` es un alias de `--global-apply-only`.
 
-`--visual-audit <carpeta>` abre la ventana principal real fuera de pantalla con el despachador activo. Recorre todas las secciones a 1280×800 y 1600×900, pone en edición una celda de texto y otra de lista de las tablas, y guarda las capturas y un `issues.txt`. Falla si hay botones solapados o pegados, texto de botón cortado, controles que se salen por la derecha o editores de celda con un contraste menor de 4,5:1.
+`--visual-audit <carpeta> [extracción USUM]` abre la ventana principal real fuera de pantalla, con el despachador activo, para X/Y, ORAS, Sol/Luna y Ultra Sol/Ultra Luna. Usa los tamaños lógicos de pantallas habituales: 1280×800 al 100 %, 1920×1080 al 125 % y al 150 %, y 1366×768 al 125 %.
+
+Recorre:
+- todas las secciones y sus pestañas;
+- las herramientas que se abren desde los hubs («Abrir …»);
+- las tablas que se abren desde una sección;
+- cada ventana o diálogo que aparece: se captura y se cierra.
+
+Pone en edición una celda de texto y otra de lista de las tablas. Guarda una captura de cada estado, `issues.txt` y `warnings.txt`.
+
+Falla si encuentra:
+- controles solapados o botones pegados;
+- texto que no cabe o cortado por abajo;
+- controles recortados por su contenedor o que se salen por la derecha;
+- texto con contraste menor que el de WCAG AA;
+- fondos claros del sistema;
+- editores de celda con el aspecto del sistema;
+- errores al abrir una vista.
+
+El texto acortado con «…» es un aviso y no hace fallar la auditoría. Tiendas y BP de USUM necesita el `Shop.cro` de una extracción real (segundo argumento, que solo se lee); sin él esa sección se omite y queda un aviso.
 
 ## Comprobaciones con datos reales, copias y probes (requieren rutas)
 
@@ -99,6 +118,7 @@ Necesitan extracciones, ROMs o carpetas de salida. Los argumentos concretos (ent
 
 | Opción | Argumentos | En CI |
 |---|---|---|
+| `--arm-audit-export` | exactamente 2 |  |
 | `--audit-catch-templates` | exactamente 2 |  |
 | `--check-catch-batch-real-copies` | 2 o más |  |
 | `--check-catch-real-copies` | 2 o más |  |

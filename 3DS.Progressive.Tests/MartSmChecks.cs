@@ -7,13 +7,24 @@ using ThreeDS.Progressive.Services;
 
 internal static class MartSmChecks
 {
+    /// <summary>Synthetic SM Shop.cro: CRO header, both table signatures and, with <paramref name="fill"/>, the shop rows used here.</summary>
+    internal static byte[] SyntheticShop(bool fill=true)
+    {
+        byte[] source=Enumerable.Repeat((byte)0xA5,0x6200).ToArray();"CRO0"u8.CopyTo(source.AsSpan(0x80));
+        GameMartService.SmRegularSignature.CopyTo(source,0x5100);GameMartService.SmBpSignature.CopyTo(source,0x5800);
+        BitConverter.GetBytes(0x200).CopyTo(source,0xB0);BitConverter.GetBytes(source.Length-0x200).CopyTo(source,0xB4);BitConverter.GetBytes(source.Length).CopyTo(source,0xB8);BitConverter.GetBytes(0).CopyTo(source,0xBC);BitConverter.GetBytes(source.Length).CopyTo(source,0xC0);
+        if(!fill)return source;
+        int cursor=0x5100+GameMartService.SmRegularSignature.Length;
+        for(int shop=0;shop<24;shop++)for(int slot=0;slot<GameMartService.SmRegularCounts[shop];slot++,cursor+=2)BitConverter.GetBytes((ushort)(slot<6?slot+7:slot==6?13:slot==7?14:slot==8?15:40)).CopyTo(source,cursor);
+        cursor=0x5800+GameMartService.SmBpSignature.Length;for(int i=0;i<GameMartService.SmBpCounts.Sum();i++,cursor+=4){BitConverter.GetBytes((ushort)(i==0?645:40)).CopyTo(source,cursor);BitConverter.GetBytes((ushort)48).CopyTo(source,cursor+2);}
+        return source;
+    }
+
     internal static void Run(Action<bool,string> check,Action<Action,string> reject)
     {
         using var f=new Fixture(GameVersion.SM);
-        byte[] source=Enumerable.Repeat((byte)0xA5,0x6200).ToArray();"CRO0"u8.CopyTo(source.AsSpan(0x80));
-        GameMartService.SmRegularSignature.CopyTo(source,0x5100);GameMartService.SmBpSignature.CopyTo(source,0x5800);
+        byte[] source=SyntheticShop(fill:false);
         check(GameMartService.SmRegularSignature.SequenceEqual(Convert.FromHexString("2D0000003B0000002F0000003D0000000000000000000000FFFFFFFF00000000100000000E0000000000000000000100")),"SM signature matches independently recorded vanilla leading table");
-        BitConverter.GetBytes(0x200).CopyTo(source,0xB0);BitConverter.GetBytes(source.Length-0x200).CopyTo(source,0xB4);BitConverter.GetBytes(source.Length).CopyTo(source,0xB8);BitConverter.GetBytes(0).CopyTo(source,0xBC);BitConverter.GetBytes(source.Length).CopyTo(source,0xC0);
         int regular=0x5100+GameMartService.SmRegularSignature.Length,bp=0x5800+GameMartService.SmBpSignature.Length;
         string[] names=f.Game.GetText(TextName.ItemNames);
         string[] aliases=["Health Wing","Muscle Wing","Resist Wing","Genius Wing","Clever Wing","Swift Wing","Potion","Antidote","Paralyze Heal","Awakening","Burn Heal","Ice Heal","Super Potion","Revive","Hyper Potion","Rare Candy","Heart Scale","Mega Ring"];

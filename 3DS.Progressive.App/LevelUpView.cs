@@ -87,8 +87,9 @@ internal sealed class LevelUpView : UserControl
         Grid.SetColumn(_save,1);footer.Children.Add(_save);
         _save.Click+=(_,_)=>Save();
         var columns=new Grid();
-        columns.ColumnDefinitions.Add(new ColumnDefinition {Width=new GridLength(242)});
-        columns.ColumnDefinitions.Add(new ColumnDefinition {Width=new GridLength(1,GridUnitType.Star)});
+        // Proportional columns with limits: at 1366×768 and 125 % (about 1090 px) the fixed widths did not fit.
+        columns.ColumnDefinitions.Add(new ColumnDefinition {Width=new GridLength(1,GridUnitType.Star),MinWidth=170,MaxWidth=242});
+        columns.ColumnDefinitions.Add(new ColumnDefinition {Width=new GridLength(4,GridUnitType.Star)});
         root.Children.Add(columns);
         var left=new DockPanel {Margin=new Thickness(0,0,14,0)};
         Grid.SetColumn(left,0);columns.Children.Add(left);
@@ -100,8 +101,8 @@ internal sealed class LevelUpView : UserControl
         left.Children.Add(_species);
         // One vertical move table in the middle and the randomizer options on the right.
         var body=new Grid();
-        body.ColumnDefinitions.Add(new ColumnDefinition {Width=new GridLength(1,GridUnitType.Star),MinWidth=320});
-        body.ColumnDefinitions.Add(new ColumnDefinition {Width=new GridLength(340)});
+        body.ColumnDefinitions.Add(new ColumnDefinition {Width=new GridLength(1.4,GridUnitType.Star),MinWidth=240});
+        body.ColumnDefinitions.Add(new ColumnDefinition {Width=new GridLength(1,GridUnitType.Star),MinWidth=250,MaxWidth=340});
         Grid.SetColumn(body,1);columns.Children.Add(body);
         var right=new DockPanel {Margin=new Thickness(0,0,14,0)};
         body.Children.Add(right);

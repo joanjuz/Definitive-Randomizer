@@ -503,7 +503,7 @@
                     </Border>
                     <Border Style="{StaticResource Card}">
                         <StackPanel>
-                            <TextBlock Text="Seguridad de guardado" FontWeight="SemiBold"
+                            <TextBlock Text="Seguridad de guardado" FontWeight="SemiBold" TextWrapping="Wrap"
                                        Margin="0,0,0,9"/>
                             <TextBlock Text="Solo se escribe al pulsar Guardar y confirmar. Se valida el GARC antes de reemplazar el archivo. Usa una copia de trabajo del juego."
                                        Foreground="{DynamicResource TextSoft}" FontSize="12"
@@ -513,7 +513,18 @@
                 </StackPanel>
                 </ScrollViewer>
             </Border></Expander>
-            <ContentControl x:Name="SectionHost" Grid.Column="1" Grid.ColumnSpan="3" Visibility="Collapsed"/>
+            <!-- A view with a MinHeight (Game Text, Template Studio…) scrolls as a page when the window is lower than that,
+                 instead of having its lists crushed to nothing; otherwise the view gets exactly the visible height. -->
+            <ContentControl x:Name="SectionHost" Grid.Column="1" Grid.ColumnSpan="3" Visibility="Collapsed" Focusable="False">
+                <ContentControl.Template>
+                    <ControlTemplate TargetType="ContentControl">
+                        <ScrollViewer x:Name="PageScroll" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Focusable="False">
+                            <ContentPresenter Height="{Binding ViewportHeight, ElementName=PageScroll}"
+                                              MinHeight="{Binding Content.MinHeight, RelativeSource={RelativeSource TemplatedParent}}"/>
+                        </ScrollViewer>
+                    </ControlTemplate>
+                </ContentControl.Template>
+            </ContentControl>
             <ContentControl x:Name="MovesHost" Grid.Column="1" Grid.ColumnSpan="3"
                             Visibility="Collapsed" Background="{DynamicResource Bg}"/>
         </Grid>

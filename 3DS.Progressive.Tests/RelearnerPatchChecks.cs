@@ -74,6 +74,25 @@ internal static class RelearnerPatchChecks
 
 
 
+    /// <summary>
+    /// Writes a minimal extraction (exheader, code.bin and every CRO) to a new folder and applies the current relearner to
+    /// the code.bin copy, for tools/research/arm_memory_audit. The source extraction is only read.
+    /// </summary>
+    internal static void Export(string root,string output,Action<bool,string> check)
+    {
+        output=Path.GetFullPath(output);root=Path.GetFullPath(root);
+        if(Directory.Exists(output)||File.Exists(output))throw new IOException("El destino debe ser nuevo.");
+        if(output.StartsWith(root+Path.DirectorySeparatorChar,StringComparison.OrdinalIgnoreCase))throw new IOException("El destino no puede estar dentro de la extracción.");
+        string header=new[]{"exheader.bin","DecryptedExHeader.bin"}.Select(p=>Path.Combine(root,p)).First(File.Exists);
+        string code=Code(root);var hashes=new[]{header,code}.ToDictionary(p=>p,p=>ProjectHistory.Hash(File.ReadAllBytes(p)));
+        Directory.CreateDirectory(Path.Combine(output,"ExeFS"));Directory.CreateDirectory(Path.Combine(output,"RomFS"));
+        File.Copy(header,Path.Combine(output,"exheader.bin"));
+        foreach(string cro in Directory.EnumerateFiles(RomFS(root),"*.cro"))File.Copy(cro,Path.Combine(output,"RomFS",Path.GetFileName(cro)));
+        byte[] patched=Preview(root,File.ReadAllBytes(code),out _);
+        File.WriteAllBytes(Path.Combine(output,"ExeFS",".code.bin"),patched);
+        check(StorageOutsideText(patched)&&LastCafeId(patched)==0x14B8,"Relearner_ExportUsesCurrentPayload");
+        foreach(var (path,hash) in hashes)check(ProjectHistory.Hash(File.ReadAllBytes(path))==hash,"Relearner_ExportSourceUnchanged_"+Path.GetFileName(path));
+    }
     internal static void Run(string ultraSun,string ultraMoon,string legacyPatched,Action<bool,string> check)
 
     {

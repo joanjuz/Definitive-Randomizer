@@ -12,6 +12,7 @@ Punto de entrada a `docs/3ds-progressive/`. Muchos documentos son **registros hi
 | Matriz de familias 3DS | [ESTADO_CANDIDATO_71.md](ESTADO_CANDIDATO_71.md) (histórico; contrastar con el código) |
 | Rediseño visual WPF | [AUDITORIA_VISUAL_WPF.md](AUDITORIA_VISUAL_WPF.md) |
 | Tablas: centrado, edición, secciones de estáticos y tablas verticales | [TABLAS_CENTRADO_EDICION_SECCIONES.md](TABLAS_CENTRADO_EDICION_SECCIONES.md) |
+- Auditoría visual ampliada (4 juegos, 4 tamaños, herramientas, ventanas y diálogos) y arreglos: [AUDITORIA_VISUAL_AMPLIADA.md](AUDITORIA_VISUAL_AMPLIADA.md)
 | Revisión de estabilidad más reciente | [REVISION_ESTABILIDAD_20261019.md](REVISION_ESTABILIDAD_20261019.md) |
 | Motor heredado duplicado (app frente a LegacyBatch) | [AUDITORIA_MOTOR_DUPLICADO.md](AUDITORIA_MOTOR_DUPLICADO.md) |
 | Compilación sin advertencias y advertencias tratadas como error | [COMPILACION_SIN_ADVERTENCIAS.md](COMPILACION_SIN_ADVERTENCIAS.md) |
@@ -31,6 +32,7 @@ Punto de entrada a `docs/3ds-progressive/`. Muchos documentos son **registros hi
 - Compras únicas en tiendas especiales (USUM): [COMPRAS_UNICAS_TIENDAS_ESPECIALES.md](COMPRAS_UNICAS_TIENDAS_ESPECIALES.md), [PENDIENTE_COMPRAS_UNICAS_USUM.md](PENDIENTE_COMPRAS_UNICAS_USUM.md)
 - Gen7: obediencia de intercambios, formas Mega obtenibles, pista del Ultraviaje y lista blanca de compra única: [GEN7_OBEDIENCIA_MEGAS_ULTRAVIAJE_LISTA_BLANCA.md](GEN7_OBEDIENCIA_MEGAS_ULTRAVIAJE_LISTA_BLANCA.md)
 - Cuelgue en las pruebas de los pétalos (USUM): análisis de la ROM y corrección del recordador en consola: [ANALISIS_CRASH_PRUEBAS_PETALOS.md](ANALISIS_CRASH_PRUEBAS_PETALOS.md)
+- Auditoría de permisos de memoria del código ARM inyectado (USUM): [AUDITORIA_MEMORIA_ARM.md](AUDITORIA_MEMORIA_ARM.md)
 - Pickup (LZ11): [CORRECCION_PICKUP_LZ11.md](CORRECCION_PICKUP_LZ11.md)
 - Asistente y vista guiada: [INICIO_MODOS_ASISTENTE.md](INICIO_MODOS_ASISTENTE.md), [AJUSTES_ASISTENTE_VISTA_GUIADA.md](AJUSTES_ASISTENTE_VISTA_GUIADA.md)
 - Sprites remotos: [SPRITES_REMOTOS_OPCIONALES.md](SPRITES_REMOTOS_OPCIONALES.md)

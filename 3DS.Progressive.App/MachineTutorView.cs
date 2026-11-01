@@ -386,12 +386,12 @@ internal sealed class MachineTutorView : UserControl
         tabs.Items.Add(new TabItem {Header="Tutores · movimientos y BP",Content=tutoring});
         Rebind();
     }
-    // Table in the middle, options in a scrollable 340 px column on the right.
+    // Table in the middle, options in a scrollable column on the right (up to 340 px; narrower on small screens).
     private static Grid TableWithOptions(DataGrid table,FrameworkElement options)
     {
         var grid=new Grid();
-        grid.ColumnDefinitions.Add(new ColumnDefinition {Width=new GridLength(1,GridUnitType.Star),MinWidth=320});
-        grid.ColumnDefinitions.Add(new ColumnDefinition {Width=new GridLength(340)});
+        grid.ColumnDefinitions.Add(new ColumnDefinition {Width=new GridLength(1.4,GridUnitType.Star),MinWidth=260});
+        grid.ColumnDefinitions.Add(new ColumnDefinition {Width=new GridLength(1,GridUnitType.Star),MinWidth=250,MaxWidth=340});
         table.Margin=new Thickness(0,0,14,0);grid.Children.Add(table);
         var scroll=new ScrollViewer {Content=options,VerticalScrollBarVisibility=ScrollBarVisibility.Auto,HorizontalScrollBarVisibility=ScrollBarVisibility.Disabled,Padding=new Thickness(0,0,6,0)};
         Grid.SetColumn(scroll,1);grid.Children.Add(scroll);
