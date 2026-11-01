@@ -41,6 +41,7 @@ internal sealed class PlayerLevelCapsView : UserControl
     {
         _service=new GamePlayerLevelCapService(project);
         Background=(Brush)FindResource("Bg");
+        MinHeight=540;   // below this the page scrolls (SectionHost) instead of leaving one row of the table
         var root=new DockPanel{Margin=new Thickness(18)};
         Content=root;
         var header=new StackPanel{Margin=new Thickness(0,0,0,12)};

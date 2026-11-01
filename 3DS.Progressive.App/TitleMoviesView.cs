@@ -87,8 +87,20 @@ internal sealed class TitleResourcesView : UserControl
     {
         _images=new(project);_movies=new(project);var root=new DockPanel{Background=(Brush)FindResource("Bg")};Content=root;
         var navigation=new WrapPanel{Margin=new Thickness(22,12,22,0)};DockPanel.SetDock(navigation,Dock.Top);root.Children.Add(navigation);root.Children.Add(_page);
+        // The two pages work as tabs: the current one uses the primary style.
+        var pages=new List<(Button Button,object Page)>();
+        void Show(object page)
+        {
+            _page.Content=page;
+            foreach(var (button,target) in pages)
+            {
+                bool current=ReferenceEquals(target,page);
+                button.SetResourceReference(StyleProperty,current?"PrimaryButton":"SecondaryButton");
+                System.Windows.Automation.AutomationProperties.SetItemStatus(button,current?"Página actual":"");
+            }
+        }
         foreach(var item in new[]{("Imágenes y logos 2D",(object)_images),("Animaciones y vídeos MOFLEX",(object)_movies)})
-        {var button=new Button{Content=item.Item1,Margin=new Thickness(0,0,10,0),Padding=new Thickness(12,8,12,8)};navigation.Children.Add(button);button.Click+=(_,_)=>{if(!_images.IsBusy&&!_movies.Busy)_page.Content=item.Item2;};}
-        _page.Content=_images;Unloaded+=(_,_)=>_movies.Dispose();
+        {var button=new Button{Content=item.Item1,Margin=new Thickness(0,0,10,0),Padding=new Thickness(12,8,12,8)};navigation.Children.Add(button);pages.Add((button,item.Item2));button.Click+=(_,_)=>{if(!_images.IsBusy&&!_movies.Busy)Show(item.Item2);};}
+        Show(_images);Unloaded+=(_,_)=>_movies.Dispose();
     }
 }

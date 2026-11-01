@@ -74,7 +74,12 @@ internal static class OptionCards
                 Panel target=buttons&&buttonColumns>1?new UniformGrid{Columns=buttonColumns}:new StackPanel();
                 target.Margin=new Thickness(0,0,0,4);
                 foreach(var item in items)target.Children.Add(Normalize(item,buttonColumns));
-                if(target is UniformGrid)foreach(var b in target.Children.OfType<Button>())b.Margin=new Thickness(0,0,8,8);
+                if(target is UniformGrid grid)
+                {
+                    foreach(var b in target.Children.OfType<Button>())b.Margin=new Thickness(0,0,8,8);
+                    // Two columns only while each button keeps about 130 px; a narrow card (small screens) uses one.
+                    grid.SizeChanged+=(_,e)=>{int columns=e.NewSize.Width>=buttonColumns*130?buttonColumns:1;if(grid.Columns!=columns)grid.Columns=columns;};
+                }
                 return target;
             }
             case StackPanel stack when stack.Orientation==Orientation.Vertical:
@@ -92,6 +97,8 @@ internal static class OptionCards
     {
         button.HorizontalAlignment=HorizontalAlignment.Stretch;button.HorizontalContentAlignment=HorizontalAlignment.Center;
         button.Margin=new Thickness(0,0,0,8);button.MinHeight=34;
+        // In a narrow column (small screens) a long label goes on two lines instead of being cut.
+        if(button.Content is string)button.SetResourceReference(ContentControl.ContentTemplateProperty,"WrappedActionContent");
         return button;
     }
 }

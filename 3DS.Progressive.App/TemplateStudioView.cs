@@ -67,6 +67,7 @@ internal sealed class TemplateStudioView : UserControl
     {
         _project=project;_document=AuthoredTemplate.Create(project,"Moves");
         Background=(Brush)FindResource("Bg");var root=new DockPanel{Margin=new Thickness(20)};Content=root;
+        MinHeight=540;   // below this the page scrolls (SectionHost) instead of crushing the table
         var top=new StackPanel();DockPanel.SetDock(top,Dock.Top);root.Children.Add(top);
         top.Children.Add(new TextBlock{Text="Templates · crear y personalizar",Style=(Style)FindResource("PageHeading"),Foreground=(Brush)FindResource("TextMain")});
         _help.Foreground=(Brush)FindResource("TextSoft");_help.TextWrapping=TextWrapping.Wrap;_help.Margin=new Thickness(0,8,0,12);top.Children.Add(_help);

@@ -50,6 +50,8 @@ internal sealed class GameTextView : UserControl
     internal GameTextView(GameProjectSession project,bool story=false)
     {
         _service=new(project,story);Background=(Brush)FindResource("Bg");
+        // Header, search and actions take about 300 px: below this the page scrolls (SectionHost) instead of crushing the lists.
+        MinHeight=560;
         var root=new DockPanel {Margin=new Thickness(20)};
         Content=root;
         var heading=new StackPanel {Margin=new Thickness(0,0,0,12)};
@@ -140,7 +142,8 @@ internal sealed class GameTextView : UserControl
         _files=new ListBox {ItemsSource=_service.Entries};
         var fileStack=new FrameworkElementFactory(typeof(StackPanel));fileStack.SetBinding(ToolTipProperty,new Binding("Display"));
         var fileText=new FrameworkElementFactory(typeof(TextBlock));fileText.SetBinding(TextBlock.TextProperty,new Binding{Converter=new BankEntryCaptionConverter()});fileText.SetValue(TextBlock.FontWeightProperty,FontWeights.SemiBold);fileText.SetValue(TextBlock.TextWrappingProperty,TextWrapping.Wrap);fileText.SetValue(TextBlock.MaxHeightProperty,42d);fileText.SetValue(TextBlock.TextTrimmingProperty,TextTrimming.CharacterEllipsis);fileStack.AppendChild(fileText);
-        var fileDetails=new FrameworkElementFactory(typeof(TextBlock));fileDetails.SetBinding(TextBlock.TextProperty,new Binding{Converter=new BankEntryCaptionConverter(),ConverterParameter="detail"});fileDetails.SetValue(TextBlock.ForegroundProperty,FindResource("TextSoft"));fileDetails.SetValue(TextBlock.FontSizeProperty,12d);fileDetails.SetValue(TextBlock.MarginProperty,new Thickness(0,5,0,0));fileDetails.SetValue(TextBlock.TextWrappingProperty,TextWrapping.Wrap);fileDetails.SetValue(TextBlock.MaxHeightProperty,34d);fileDetails.SetValue(TextBlock.TextTrimmingProperty,TextTrimming.CharacterEllipsis);fileStack.AppendChild(fileDetails);
+        // The detail line inherits the item colour (white when selected) at 78 %: TextSoft on the selected blue was 3.8:1.
+        var fileDetails=new FrameworkElementFactory(typeof(TextBlock));fileDetails.SetBinding(TextBlock.TextProperty,new Binding{Converter=new BankEntryCaptionConverter(),ConverterParameter="detail"});fileDetails.SetValue(UIElement.OpacityProperty,0.78);fileDetails.SetValue(TextBlock.FontSizeProperty,12d);fileDetails.SetValue(TextBlock.MarginProperty,new Thickness(0,5,0,0));fileDetails.SetValue(TextBlock.TextWrappingProperty,TextWrapping.Wrap);fileDetails.SetValue(TextBlock.MaxHeightProperty,34d);fileDetails.SetValue(TextBlock.TextTrimmingProperty,TextTrimming.CharacterEllipsis);fileStack.AppendChild(fileDetails);
         _files.ItemTemplate=new DataTemplate{VisualTree=fileStack};
         _files.SelectionChanged+=(_,_)=>SelectFile();
         left.Children.Add(_files);
