@@ -343,6 +343,8 @@ internal sealed class TrainerLogicHost
         "CB_SmartHeldItemMode"=>"Calidad Smart Items · normales",
         "CB_SmartHeldItemModeImportant"=>"Calidad Smart Items · importantes",
         "CB_SmartHeldItemModeBoss"=>"Calidad Smart Items · jefes",
+        "CB_SmartHeldItemModeNormal"=>"Calidad Smart Items · normales",
+        "CB_Moves"=>"Movimientos",
         _=>System.Text.RegularExpressions.Regex.Replace(name.Replace("CB_", ""), "([a-z])([A-Z])", "$1 $2").Replace('_',' ')
     };
     private static string NumberLabel(string name)=>name switch
@@ -351,11 +353,27 @@ internal sealed class TrainerLogicHost
         "NUD_Shiny"=>"Probabilidad shiny (%)","NUD_Damage"=>"Mínimo de movimientos ofensivos","NUD_STAB"=>"Mínimo de movimientos STAB",
         "NUD_StrongStatTolerance"=>"Tolerancia de atacante mixto","NUD_DoubleBattleChance"=>"Probabilidad de combate doble (%)",
         "NUD_ForceFullyEvolvedLevel"=>"Evolucionar totalmente desde nivel","NUD_LevelPower"=>"Potencia de la curva de niveles",
+        "NUD_ForceFullyEvolved"=>"Nivel para la evolución final","NUD_ForceHighPower"=>"Nivel para los ataques potentes","NUD_GiftPercent"=>"Probabilidad de regalo (%)",
         _=>Translate(name.Replace("NUD_","").Replace('_',' '))
     };
     private static string Translate(string text)
     {
         var words=new Dictionary<string,string>(StringComparer.OrdinalIgnoreCase){["Pokemon"]="Pokémon",["Trainer"]="Entrenadores",["Moves"]="Movimientos",["Rules"]="Reglas",["Level Caps"]="Límites de nivel",["Randomize Pokemon"]="Randomizar especies",["Randomize Class"]="Randomizar clase",["Random Held Items"]="Objetos equipados aleatorios",["Don't Modify"]="Conservar",["Randomize All"]="Randomizar todos",["Level Up Only"]="Solo por nivel",["Metronome"]="Metrónomo",["Normal"]="Normal",["Strong"]="Fuerte",["Competitive"]="Competitivo",["Include TMs"]="Incluir MT",["Max AI"]="IA máxima",["Ban Bad Items"]="Excluir objetos poco útiles",["Item Clause"]="No repetir objetos en el equipo",["Randomize by BST"]="Randomizar por BST",["Progressive BST"]="BST progresivo",["Random Shinies"]="Randomizar shinies",["Random Abilities (1, 2, or Hidden)"]="Randomizar habilidades (1, 2 u oculta)",["Random Trainer Classes"]="Randomizar clases de entrenador",["Double battles"]="Combates dobles",["Multiply PKM Level by"]="Multiplicar nivel (%) · 100 conserva, 120 aumenta 20 %",["Better Movesets"]="Movimientos mejorados",["Strong Stat"]="Priorizar mejor estadística",["Max Trainer AI"]="IA máxima de entrenador"};
+        // Labels of the original WinForms options that were still shown in English.
+        foreach(var (english,spanish) in new[]{("Event Legends","Legendarios de evento"),("Game Legends","Legendarios del juego"),("Random Pokémon","Randomizar especies"),("Random Pokemon","Randomizar especies"),
+            ("Force High-Powered Attacks at Level","Forzar ataques potentes desde el nivel"),("No Fixed Damage Moves (Dragon Rage/Sonic Boom)","Sin movimientos de daño fijo (Furia Dragón, Bomba Sónica)"),
+            ("Ensure at least # Damaging Moves","Asegurar un mínimo de movimientos ofensivos"),("Ensure at least # STAB Moves","Asegurar un mínimo de movimientos STAB"),
+            ("Ensure Post-Game Mega Evolutions","Asegurar Megaevoluciones del postgame"),("Ensure Story Mega Evolutions","Asegurar Megaevoluciones de la historia"),
+            ("6 Pokémon for Important Trainers","6 Pokémon para entrenadores importantes"),("6 Pokemon for Important Trainers","6 Pokémon para entrenadores importantes"),
+            ("Random Mega Forms","Formas Mega aleatorias"),("Type Theme Trainers","Un tipo por entrenador"),("Ignore Special Classes","Ignorar clases especiales"),
+            ("Force Fully Evolved at Level","Forzar evolución final desde el nivel"),("Max IVs","IV al máximo"),("Important Trainers","Entrenadores importantes"),("Normal Trainers","Entrenadores normales"),
+            ("Random double battles","Combates dobles aleatorios"),("Only Single Battles","Solo combates individuales"),("Random After-Battle Gifts","Regalos tras el combate aleatorios"),
+            ("Theme Gym Trainers","Entrenadores de gimnasio con un tipo"),("Theme Gym/E4 Only","Solo gimnasios y Alto Mando con un tipo"),("Use Levelup Only","Solo por nivel"),("Metronome Mode","Modo Metrónomo"),
+            ("Stats/Moves","Estadísticas y movimientos"),("Trainer class, gifts & AI","Clase, regalos e IA"),("Held items & battle stats","Objetos equipados y estadísticas"),
+            ("Movesets","Movimientos"),("Pokémon pool & progression","Especies y progresión"),("Species sources","Origen de las especies")})
+            if(string.Equals(text.Trim(),english,StringComparison.OrdinalIgnoreCase))return spanish;
+        var generation=System.Text.RegularExpressions.Regex.Match(text.Trim(),@"^Gen (\d)$");
+        if(generation.Success)return "Generación "+generation.Groups[1].Value;
         return words.TryGetValue(text.Trim(),out string? value)?value:text.Replace("Normal trainers","Entrenadores normales").Replace("Important trainers","Entrenadores importantes").Replace("Bosses","Jefes");
     }
     private static T OnSta<T>(Func<T> action)

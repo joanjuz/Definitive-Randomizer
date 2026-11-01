@@ -81,10 +81,58 @@ Resultado:
 
 **Pendiente:** la prueba en el juego.
 
+## Segunda parte: las opciones de randomizado de 3DS en DS
+
+Cada sección de DS usa ahora las mismas opciones que su editor de 3DS:
+- las mismas **claves**, así que caen en las mismas pestañas;
+- los mismos **textos**;
+- los mismos **valores por defecto**;
+- los mismos **grupos**.
+
+El núcleo DS se amplió para hacerlas funcionar. Lo que los juegos de DS no tienen (formas Mega, shinies, SOS, movimientos Z, calidad de Smart Items) no aparece. Las opciones propias de DS van en grupos aparte («Más opciones», «Al estilo de Universal Randomizer»).
+
+| Sección | Opciones de 3DS | Cambios en el núcleo DS |
+|---|---|---|
+| Entrenadores | **Main**: multiplicar nivel, BST progresivo, legendarios de evento y del juego, generaciones, randomizar por BST, randomizar especies. **Estadísticas y movimientos**: movimientos (conservar, aleatorios, por nivel, Metrónomo), ataques potentes desde un nivel, sin daño fijo, mínimos ofensivos y STAB, habilidades (solo Gen5). **Entrenadores**: 6 Pokémon para importantes, mínimo y máximo por equipo, un tipo por entrenador, clases, evolución final desde un nivel. **Reglas**: IA máxima, IV al máximo, combates dobles, límites de nivel. **Priorizar mejor estadística** y **Movimientos mejorados**, por normales, importantes y jefes, con «Incluir MT». **Objetos equipados**: aleatorios, Smart Items por grupo, excluir poco útiles, no repetir. **Política global de Level Caps.** | `NdsTrainerTools`: tamaño máximo y 6 para importantes (respetando los filtros de especies), habilidad aleatoria en Gen5, ataques potentes, mínimos ofensivos y STAB, sin daño fijo, movimientos mejorados y mejor estadística por grupo, Smart Items por grupo, objetos poco útiles, cláusula de objetos. `Gen5RandomizerOptions`: generaciones, legendarios del juego y de evento por separado. |
+| Encuentros | **Especies permitidas**: randomizar, generaciones, legendarios, de evento, BST similar con tolerancia, «BST más cercano», especies distintas por fila, BST progresivo. **Niveles**: multiplicador y ajuste plano. Más el mapeo global de UPR. | Tolerancia BST en porcentaje, BST más cercano, especies distintas por tabla, ajuste plano de niveles. |
+| Estáticos | **Especies permitidas**: randomizar, generaciones, legendarios, de evento, BST similar con tolerancia, legendarios por legendarios. | Filtros de estáticos en `NdsDataOptions`. |
+| Movimientos huevo | **Opciones originales**: priorizar STAB y porcentaje, incluir MO. Metrónomo como opción aparte. | MO excluidas del sorteo. |
+| Level Up | **Randomizar todos los Pokémon**: permitir MO, sesgo STAB y porcentaje, comenzar con 4, distribuir niveles hasta un nivel, excluir daño fijo, Metrónomo. | Niveles distribuidos y 4 al nivel 1, como `LearnsetRandomizer`. |
+| Evoluciones | **Ajustes personalizados**: randomizar destinos con tolerancia BST, intercambio a nivel con nivel elegible. Hora del día y nivel máximo en «Más opciones». | Nivel de intercambio y tolerancia configurables. |
+| Pokémon | Variar estadísticas con porcentaje, barajar, tipos con probabilidad de un solo tipo, habilidades con Wonder Guard y Shadow Tag/Arena Trap, objetos equipados, fijar ratio de captura. | Modo `Vary`, probabilidad de un solo tipo, Wonder Guard opcional, excluir habilidades de atrapar, captura fija. |
+| Movimientos | Tipos de movimientos; poder, precisión y PP en «Más opciones». | — |
+
+**Templates.** «Cargar/Exportar template de entrenadores» y «Cargar/Exportar template Wild» aparecen también en DS. Guardan las opciones y, en entrenadores, las filas de las tablas de Level Caps y Move Rules. Las filas solo se restauran en el mismo juego. Con eso el editor común recuerda las opciones al cambiar de sección, como en 3DS.
+
+**Registro de cambios.** Las reglas de equipo (objetos, IA, IV, movimientos) se registran como «Entrenador N · clase nombre», igual que el cambio de especie. Antes solo aparecían con la clase y el nombre.
+
+**Compatibilidad.** Las opciones nuevas del núcleo tienen valores por defecto que reproducen el comportamiento anterior. Los Global Template y lotes de DS ya guardados dan el mismo resultado con su semilla.
+
+## Arreglos en 3DS encontrados por el camino
+
+En el randomizador de entrenadores de 3DS muchas etiquetas salían en inglés o con el nombre interno del control. Por ejemplo: «Event Legends», «Force Fully Evolved at Level», «Ensure at least # Damaging Moves», «Max IVs», «Use Levelup Only», «ForceHighPower» y «Stats/Moves». Ahora se muestran en español, con los mismos textos que DS.
+
+## Validación de la segunda parte
+
+`--nds-ui-probe` en los cinco juegos (44 comprobaciones en cada uno). Las nuevas comprueban sobre el resultado:
+- **Entrenadores:**
+  - el filtro de generación y legendarios;
+  - el máximo de equipo con «6 Pokémon para importantes»;
+  - la cláusula de objetos;
+  - los ataques potentes desde un nivel;
+  - las habilidades en Gen5.
+- **Salvajes:** el filtro de generación y el ajuste plano de nivel.
+- **Estáticos:** legendarios por legendarios.
+- **Level Up:** 4 movimientos al nivel 1, niveles distribuidos y sin daño fijo.
+- **Movimientos huevo:** sin MO del juego.
+- **Evoluciones:** el nivel de intercambio.
+- **Pokémon:** la variación de estadísticas, la captura fija y sin Wonder Guard.
+- **Templates:** la ida y vuelta del template de entrenadores.
+
 ## Diferencias que siguen entre DS y 3DS
 
-Son opciones cuyo backend es distinto y que habría que alinear una por una:
-- **Entrenadores:** 3DS usa las opciones del randomizador Progressive (filtros por generación, Event Legends, tolerancia BST, movimientos mejorados, mejor estadística y Smart Items por categoría). DS usa las de UPR-ZX (modo de especies, un tipo por entrenador, tamaño del equipo, IV, IA, dobles). DS tampoco tiene «Cargar/Exportar template de entrenadores».
-- **Encuentros:** 3DS agrupa «Especies permitidas» por generación; DS tiene modo de especies y mapeo global.
-- **Movimientos huevo:** 3DS ofrece «Ampliar lista», «Movimientos por especie» y «Porcentaje STAB»; DS ofrece «Aleatorios / Solo Metrónomo» y «Del mismo tipo (%)».
-- **Encuentros estáticos:** 3DS tiene muchas opciones (generaciones, legendarios, niveles, objetos, habilidades…); DS tiene un único modo.
+- **Vistas propias de 3DS.** Level Up, MT/tutores y el editor de Pokémon de 3DS son vistas propias: tabla de una columna con tarjetas, y pestañas de MT y tutores. DS los muestra en el editor común. Las opciones ya son las mismas; las vistas no.
+- **Movimientos huevo y Level Up.** «Ampliar lista» y «Expandir cantidad» no existen en DS: cada especie tiene una lista de tamaño fijo, y en Diamante y Platino está dentro de un overlay.
+- **Habilidades de entrenador.** Solo en Gen5; en Gen4 el byte de habilidad no lo leen todos los juegos.
+- **Clases de entrenador.** En DS «Randomizar clases» baraja los nombres de clase, no la clase (sprite y música).
+- **Sin equivalente en DS:** opciones de Megas, shinies, SOS y movimientos Z. La calidad de Smart Items tampoco aparece: DS tiene un único algoritmo.

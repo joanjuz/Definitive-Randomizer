@@ -63,7 +63,8 @@ public partial class RecordEditorView : UserControl
         if(editor is ThreeDS.Progressive.Services.GameEncounterService wild&&state is not null)
             wild.RestoreRangeOptions(state.Options);
         if(editor is IOptionTemplateProjectEditor optionTemplate &&
-           (editor is not ThreeDS.Progressive.Services.GameEncounterService wildOptions || wildOptions.SupportsWildTemplate))
+           (editor is not ThreeDS.Progressive.Services.GameEncounterService wildOptions || wildOptions.SupportsWildTemplate)
+           &&editor is not ThreeDS.Progressive.Services.Nds.NdsRecordEditor {SupportsOptionTemplates:false})
         {ImportOptionsButton.Visibility=ExportOptionsButton.Visibility=Visibility.Visible;
             if(editor is ThreeDS.Progressive.Services.GameEncounterService)
             {

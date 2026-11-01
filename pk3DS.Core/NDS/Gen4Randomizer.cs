@@ -38,7 +38,7 @@ public static class Gen4Randomizer
         if (scripts.IsValueCreated)
             files[data.PathOf(Gen4Profile.Scripts)] = scripts.Value.Write();
         // Levels and forced evolutions work on the new tables as cells, the way manual edits do.
-        if (options.AdjustsTrainers || options.WildLevelPercent != 0)
+        if (options.AdjustsTrainers || options.WildLevelPercent != 0 || options.WildLevelFlat != 0)
             foreach (var (section, edits) in Gen5Randomizer.Adjustments(options, s => NdsCells.Read(data.WithDraft(files, overlays, arm9), s)))
             {
                 var adjusted = NdsCells.Write(data.WithDraft(files, overlays, arm9), section, edits);
@@ -411,12 +411,15 @@ public static class Gen4Randomizer
         Dictionary<string, byte[]> files, List<Gen5Change> changes)
     {
         var wild = data.CopyNarc(Gen4Profile.WildPokemon);
+        var tables = new Dictionary<(int, string), SpeciesPick>();
         foreach (var slot in data.Encounters().Where(s => options.InScope(s.File)))
         {
             if (slot.Species is < 1 or > Gen4Data.MaxSpecies)
                 continue;
+            if (!tables.TryGetValue((slot.File, slot.Group), out var unique))
+                tables[(slot.File, slot.Group)] = unique = Gen5Randomizer.UniquePicker(options, pick);
             // Same original species in one table maps to the same new species, keeping the table's rates.
-            int replacement = pick(options.Wild, options.WildGlobalMapping ? $"wild/{slot.Species}" : $"wild/{slot.File}/{slot.Group}/{slot.Species}", slot.Species, slot.MaxLevel);
+            int replacement = unique(options.Wild, options.WildGlobalMapping ? $"wild/{slot.Species}" : $"wild/{slot.File}/{slot.Group}/{slot.Species}", slot.Species, slot.MaxLevel, null);
             var span = wild.Files[slot.File].AsSpan(slot.Offset);
             if (slot.Width == 4)
                 BinaryPrimitives.WriteUInt32LittleEndian(span, (uint)replacement);
