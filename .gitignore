@@ -80,3 +80,7 @@ $RECYCLE.BIN/
 /custom_balance_templates/_state/
 /personal-release-notes.md
 /.playwright/
+
+# Python
+__pycache__/
+*.pyc
