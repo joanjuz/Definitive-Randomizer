@@ -9,7 +9,7 @@ namespace ThreeDS.Progressive.Services;
 
 /// <summary>XY/ORAS DllField tables from vanilla; starter species stay synchronized
 /// with DllPoke3Select. All writes use frozen proposals and the project history.</summary>
-public sealed class GameStaticEncounter6Service : IProjectEditor
+public sealed class GameStaticEncounter6Service : IProjectEditor, IRecordSections
 {
     private sealed record Slot(int Offset,int Size,int Index,bool Gift);
     private readonly GameProjectSession _project;
@@ -22,6 +22,9 @@ public sealed class GameStaticEncounter6Service : IProjectEditor
     private readonly IReadOnlyList<MoveChoice> _species;
     public string Title=>"Regalos, iniciales y encuentros estáticos · Gen6";
     public IReadOnlyList<RecordEntry> Entries {get;}
+    private readonly Dictionary<int,string> _sections;
+    public IReadOnlyList<string> Sections {get;}=["Iniciales","Regalos","Estáticos"];
+    public string SectionOf(int id)=>_sections[id];
     public GameStaticEncounter6Service(GameProjectSession project)
     {
         _project=project;_game=project.GameConfiguration;
@@ -33,6 +36,7 @@ public sealed class GameStaticEncounter6Service : IProjectEditor
         _starters=_game.ORAS?[0,1,2,28,29,30,31,32,33,34,35,36]:[0,1,2,3,4,5];
         Add(_game.ORAS?0xF1B20:0xEE46C,12,_game.ORAS?59:13,false);
         Add(_game.ORAS?0xF906C:0xF805C,_game.ORAS?36:24,_game.ORAS?37:19,true);
+        _sections=_slots.ToDictionary(p=>p.Key,p=>p.Value.Gift?(_starters.Contains(p.Value.Index)?"Iniciales":"Regalos"):"Estáticos");
         Entries=_slots.Select(p=>new RecordEntry(p.Key,
             $"{(p.Value.Gift?(_starters.Contains(p.Value.Index)?"Inicial":"Regalo"):"Estático")} {p.Value.Index+1:000} · {_species[BitConverter.ToUInt16(source,p.Value.Offset)].Name}")).ToArray();
         void Add(int offset,int size,int count,bool gift)

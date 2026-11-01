@@ -87,8 +87,11 @@ dotnet .\3DS.Progressive.Tests\bin\Release\net10.0-windows\3DS.Progressive.Tests
 | `--tm-default-ui-only` | — |  |
 | `--utility-ui-only` | — |  |
 | `--visual-redesign-only` | — | sí |
+| `--visual-audit` | exactamente 1 (carpeta de capturas) |  |
 
 `--global-apply-ui-only` es un alias de `--global-apply-only`.
+
+`--visual-audit <carpeta>` abre la ventana principal real fuera de pantalla con el despachador activo. Recorre todas las secciones a 1280×800 y 1600×900, pone en edición una celda de texto y otra de lista de las tablas, y guarda las capturas y un `issues.txt`. Falla si hay botones solapados o pegados, texto de botón cortado, controles que se salen por la derecha o editores de celda con un contraste menor de 4,5:1.
 
 ## Comprobaciones con datos reales, copias y probes (requieren rutas)
 

@@ -11,7 +11,7 @@ namespace ThreeDS.Progressive.Services;
 /// Preserves unknown bytes and all unrelated slots in encounterstatic GARC.
 /// Randomization is based on a frozen scoped preview, never a direct ROM write.
 /// </summary>
-public sealed partial class GameStaticEncounterService : ArchiveProjectEditor
+public sealed partial class GameStaticEncounterService : ArchiveProjectEditor, IRecordSections
 {
     private sealed record Slot(int File,int Index,int Size,string Kind);
     private readonly Dictionary<int,Slot> _slots=[];
@@ -90,6 +90,8 @@ public sealed partial class GameStaticEncounterService : ArchiveProjectEditor
     ];
     internal GameProjectSession ProjectSession=>Project;
     public bool SupportsTotemRules=>Config.USUM;
+    public IReadOnlyList<string> Sections {get;}=["Regalos","Estáticos","Intercambios"];
+    public string SectionOf(int id)=>_slots[id].File switch{0=>"Regalos",1=>"Estáticos",_=>"Intercambios"};
     private static readonly int[] TotemEntryIds=[4,9,137,249,24,146,39,45,162,160,229,231];
     // USUM Totem battles (and Ultra Necrozma) cannot be caught, so their forms are not obtainable.
     protected override bool ObtainableRecord(int id)=>!(Config.USUM&&_slots[id].File==1&&TotemEntryIds.Contains(_slots[id].Index));

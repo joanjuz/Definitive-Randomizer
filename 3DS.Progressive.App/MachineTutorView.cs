@@ -65,8 +65,9 @@ internal sealed class MachineTutorView : UserControl
         var tabs=new TabControl();
         root.Children.Add(tabs);
         var machines=new DockPanel {Margin=new Thickness(4)};
+        var machineOptions=new StackPanel();
         var commands=new WrapPanel {Margin=new Thickness(0,0,0,12)};
-        DockPanel.SetDock(commands,Dock.Top);machines.Children.Add(commands);
+        machineOptions.Children.Add(commands);
         var random=new Button {Content="Randomizar MT",Margin=new Thickness(0,0,8,0)};
         random.Click+=(_,_)=>TryAction(()=>
         {
@@ -94,8 +95,7 @@ internal sealed class MachineTutorView : UserControl
         commands.Children.Add(random);commands.Children.Add(_saveMachines);
         // Native Gen7 TM compatibility: independent from tutor Sanity flags.
         var tmCompatibilityControls=new StackPanel {Margin=new Thickness(0,0,0,10)};
-        DockPanel.SetDock(tmCompatibilityControls,Dock.Top);
-        machines.Children.Add(tmCompatibilityControls);
+        machineOptions.Children.Add(tmCompatibilityControls);
         var tmFlags=new WrapPanel {Margin=new Thickness(0,0,0,8)};
         var tmSanity=new CheckBox
         {
@@ -193,34 +193,18 @@ internal sealed class MachineTutorView : UserControl
             Width=new DataGridLength(1,DataGridLengthUnitType.Star),MinWidth=300
         });
         _machineGrid.CellEditEnding+=(_,_)=>{_dirtyMachines=true;UpdateState();};
-        var compact=new UniformGrid {Columns=3};
+        // One vertical table and the options on the right.
         _machineColumns.Add(_machineGrid);
-        compact.Children.Add(_machineGrid);
-        for(int n=1;n<3;n++)
-        {
-            var extra=BuildGrid();
-            extra.Margin=new Thickness(7,0,0,0);
-            extra.Columns.Add(new DataGridTextColumn
-                {Header="MT",Binding=new Binding("Number"),IsReadOnly=true,Width=48});
-            extra.Columns.Add(new DataGridComboBoxColumn
-            {
-                Header="Movimiento",ItemsSource=_service.MoveChoices,DisplayMemberPath="Display",
-                SelectedValuePath="Id",SelectedValueBinding=new Binding("MoveId")
-                {Mode=BindingMode.TwoWay,UpdateSourceTrigger=UpdateSourceTrigger.PropertyChanged},
-                Width=new DataGridLength(1,DataGridLengthUnitType.Star),MinWidth=185
-            });
-            extra.CellEditEnding+=(_,_)=>{_dirtyMachines=true;UpdateState();};
-            _machineColumns.Add(extra);
-            compact.Children.Add(extra);
-        }
-        _machineGrid.Columns[0].Width=48;
-        _machineGrid.Columns[1].MinWidth=185;
-        machines.Children.Add(compact);
+        _machineGrid.Columns[0].Width=60;
+        _machineGrid.Columns[1].MinWidth=220;
+        machines.Children.Add(TableWithOptions(_machineGrid,OptionCards.Column(
+            OptionCards.Card("Asignación de MT","Cambia el movimiento de cada MT. Al guardar se actualizan code.bin y las descripciones de las MT.",commands),
+            OptionCards.Card("Compatibilidad de MT",null,tmCompatibilityControls))));
+        OptionCards.Primary(_saveMachines);
         tabs.Items.Add(new TabItem {Header="MT",Content=machines});
 
         var tutoring=new DockPanel {Margin=new Thickness(4)};
         var tutorHeader=new StackPanel {Margin=new Thickness(0,0,0,12)};
-        DockPanel.SetDock(tutorHeader,Dock.Top);tutoring.Children.Add(tutorHeader);
         tutorHeader.Children.Add(new TextBlock
         {
             Text="Tutores USUM: cambia los 67 movimientos y sus precios. Se verifican Shop.cro y la tabla de compatibilidad nativa de code.bin antes de aplicar los cambios.",
@@ -370,11 +354,9 @@ internal sealed class MachineTutorView : UserControl
             Foreground=soft,TextWrapping=TextWrapping.Wrap,
             Margin=new Thickness(0,0,0,8)
         });
-        var tutorColumns=new UniformGrid {Columns=2};
-        for(int i=0;i<2;i++)
+        for(int i=0;i<1;i++)
         {
             var table=BuildGrid();
-            table.Margin=new Thickness(i==0?0:9,0,0,0);
             table.Columns.Add(new DataGridTextColumn
                 {Header="N.º",Binding=new Binding("Number"),IsReadOnly=true,Width=46});
             table.Columns.Add(new DataGridTextColumn
@@ -393,12 +375,27 @@ internal sealed class MachineTutorView : UserControl
                         ValidatesOnExceptions=true},Width=72
                 });
             table.CellEditEnding+=(_,_)=>{_dirtyPrices=true;_tutorPreview=null;UpdateState();};
-            _tutorColumns.Add(table);tutorColumns.Children.Add(table);
+            _tutorColumns.Add(table);
         }
         _tutorGrid=_tutorColumns[0];
-        tutoring.Children.Add(tutorColumns);
+        var tutorItems=tutorHeader.Children.Cast<UIElement>().ToArray();
+        tutoring.Children.Add(TableWithOptions(_tutorGrid,OptionCards.Column(
+            OptionCards.Card("Movimientos y precios",null,tutorItems.Take(2).ToArray()),
+            OptionCards.Card("Compatibilidad de tutores",null,tutorItems.Skip(2).ToArray()))));
+        OptionCards.Primary(_applyTutorChanges);
         tabs.Items.Add(new TabItem {Header="Tutores · movimientos y BP",Content=tutoring});
         Rebind();
+    }
+    // Table in the middle, options in a scrollable 340 px column on the right.
+    private static Grid TableWithOptions(DataGrid table,FrameworkElement options)
+    {
+        var grid=new Grid();
+        grid.ColumnDefinitions.Add(new ColumnDefinition {Width=new GridLength(1,GridUnitType.Star),MinWidth=320});
+        grid.ColumnDefinitions.Add(new ColumnDefinition {Width=new GridLength(340)});
+        table.Margin=new Thickness(0,0,14,0);grid.Children.Add(table);
+        var scroll=new ScrollViewer {Content=options,VerticalScrollBarVisibility=ScrollBarVisibility.Auto,HorizontalScrollBarVisibility=ScrollBarVisibility.Disabled,Padding=new Thickness(0,0,6,0)};
+        Grid.SetColumn(scroll,1);grid.Children.Add(scroll);
+        return grid;
     }
     private void CommitTutorGrids()
     {
@@ -427,6 +424,7 @@ internal sealed class MachineTutorView : UserControl
         var rowStyle=new Style(typeof(DataGridRow));
         rowStyle.Setters.Add(new Setter(Control.ForegroundProperty,(Brush)FindResource("TextMain")));
         grid.RowStyle=rowStyle;
+        DarkGridTheme.Apply(grid);grid.RowHeight=34;grid.MinRowHeight=34;
         return grid;
     }
     private void Rebind()

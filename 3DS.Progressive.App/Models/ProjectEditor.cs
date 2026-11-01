@@ -71,6 +71,9 @@ public interface IContextualRecordEditor { IReadOnlyList<EditorGroup> ReadContex
 
 public interface ITableEditorPresentation { bool UsesRecordTable {get;} }
 
+/// <summary>Records split into sections (pk3DS tabs, e.g. gifts / static / trades); the list shows one section at a time.</summary>
+public interface IRecordSections { IReadOnlyList<string> Sections {get;} string SectionOf(int id); }
+
 public interface IWildEditorPresentation { bool UsesWildLayout {get;} }
 
 public interface IOptionTemplatePresentation { string ImportOptionsLabel {get;} string ExportOptionsLabel {get;} }

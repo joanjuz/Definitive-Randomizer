@@ -247,6 +247,21 @@ internal static class UiSmoke
                 && ((WrapPanel)staticView.FindName("EncounterSpriteCards")).Children.Count==1,
                 "WPF Static Encounters displays the Pokémon sprite for the selected gift");
             Layout(staticView,1170,720);Capture(staticView,"static-encounters-editor.png");
+            // Sections like pk3DS: the list shows one kind of record at a time; "Todos" shows everything.
+            var sectionSelector=Logical(staticView).OfType<ComboBox>().First(c=>System.Windows.Automation.AutomationProperties.GetName(c)=="Sección de la lista");
+            var records=(ListBox)staticView.FindName("RecordList");
+            int giftsShown=records.Items.Count;string firstLabel=(string)sectionSelector.SelectedItem;
+            sectionSelector.SelectedIndex=2;
+            int staticShown=records.Items.Count;bool onlyStatic=records.Items.Cast<ThreeDS.Progressive.Models.RecordEntry>().All(e=>e.Name.StartsWith("Encuentro estático"));
+            sectionSelector.SelectedIndex=0;
+            check(sectionSelector.Items.Count==4&&firstLabel=="Regalos (1)"&&giftsShown==1&&staticShown==200&&onlyStatic&&records.Items.Count==202,"WPF Static Encounters splits gifts, static encounters and trades into sections");
+            // Every table: content centered vertically, and the dark editor while editing a value.
+            var cell=new DataGridCell{Style=(Style)Application.Current.Resources[typeof(DataGridCell)]};cell.ApplyTemplate();
+            var presenter=Walk(cell).OfType<ContentPresenter>().FirstOrDefault();
+            var editor=new TextBox{Style=DataGridTextColumn.DefaultEditingElementStyle};
+            GridEditing.Restyle(editor,new RoutedEventArgs(FrameworkElement.LoadedEvent));
+            check(presenter?.VerticalAlignment==VerticalAlignment.Center&&ReferenceEquals(editor.Style,Application.Current.FindResource("GridCellEditor")),
+                "WPF tables center cell content vertically and edit values with the dark input style");
             if(fixture.Game.USUM)
             {
                 check(((Button)staticView.FindName("TotemCapsButton")).Visibility==Visibility.Visible
@@ -284,8 +299,7 @@ internal static class UiSmoke
             // MT compatibility is distinct from the Tutor checkboxes.
             var machineTabs=((DockPanel)machineView!.Content).Children.OfType<TabControl>().Single();
             var mtPane=(DockPanel)((TabItem)machineTabs.Items[0]).Content;
-            var tmFlags=mtPane.Children.OfType<StackPanel>().SelectMany(s=>s.Children.OfType<WrapPanel>())
-                .SelectMany(p=>p.Children.OfType<System.Windows.Controls.CheckBox>()).ToArray();
+            var tmFlags=Logical(mtPane).OfType<System.Windows.Controls.CheckBox>().ToArray();
             check(tmFlags.Any(p=>p.Content?.ToString()?.StartsWith("TM Sanity")==true)&&
                   tmFlags.Any(p=>p.Content?.ToString()?.StartsWith("TM Follow Evolutions")==true),
                 "WPF MT panel exposes independent TM Sanity and Follow Evolutions");
@@ -296,9 +310,7 @@ internal static class UiSmoke
                 "WPF MT/Tutors navigation opens a real dual-tab editor");
             var tutorTabs=((DockPanel)machineView.Content).Children.OfType<TabControl>().Single();
             var tutorPane=(DockPanel)((TabItem)tutorTabs.Items[1]).Content;
-            var tutorHeader=tutorPane.Children.OfType<StackPanel>().First();
-            var compatibilityFlags=tutorHeader.Children.OfType<WrapPanel>()
-                .SelectMany(p=>p.Children.OfType<System.Windows.Controls.CheckBox>()).ToArray();
+            var compatibilityFlags=Logical(tutorPane).OfType<System.Windows.Controls.CheckBox>().ToArray();
             check(compatibilityFlags.Any(p=>p.Content?.ToString()?.StartsWith("Tutor Sanity")==true)
                   &&compatibilityFlags.Any(p=>p.Content?.ToString()?.StartsWith("Follow Evolutions")==true),
                 "WPF tutors exposes independent Sanity and Follow Evolutions controls");
@@ -309,9 +321,9 @@ internal static class UiSmoke
             if(levelUp is not null)
             {
                 Layout(levelUp,1170,720);
-                check(levelUp.MoveTables.Count==3&&levelUp.MoveTables.All(g=>
+                check(levelUp.MoveTables.Count==1&&levelUp.MoveTables.All(g=>
                     g.Columns[0].Width.Value>=90&&g.RowHeaderWidth==0),
-                    "WPF Level Up tables have full 90px level columns and no white row-header strips");
+                    "WPF Level Up shows one vertical move table with a full 90px level column and no white row-header strip");
                 var footerButton=Walk(levelUp).OfType<Button>().First(x=>Equals(x.Content,"Guardar movimientos"));
                 check(footerButton.IsEnabled==false,"WPF Save is disabled before editing");
                 Capture(levelUp,"level-up-moves.png");
@@ -468,6 +480,13 @@ internal static class UiSmoke
         yield return root;
         for(int i=0;i<VisualTreeHelper.GetChildrenCount(root);i++)
             foreach(var child in Walk(VisualTreeHelper.GetChild(root,i))) yield return child;
+    }
+    // Logical tree: available before the view is laid out (the visual tree is not).
+    private static IEnumerable<DependencyObject> Logical(DependencyObject root)
+    {
+        yield return root;
+        foreach(var child in LogicalTreeHelper.GetChildren(root).OfType<DependencyObject>())
+            foreach(var nested in Logical(child)) yield return nested;
     }
     private static T As<T>(this object value) => (T)value;
 }

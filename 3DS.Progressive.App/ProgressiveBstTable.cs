@@ -78,7 +78,7 @@ internal sealed class ProgressiveBstTable : UserControl
         headers.Setters.Add(new Setter(Control.ForegroundProperty,(Brush)FindResource("TextMain")));
         headers.Setters.Add(new Setter(Control.PaddingProperty,new Thickness(10,8,10,8)));
         _grid.ColumnHeaderStyle=headers;
-        var cell=new Style(typeof(DataGridCell));
+        var cell=new Style(typeof(DataGridCell),TryFindResource(typeof(DataGridCell)) as Style);
         cell.Setters.Add(new Setter(Control.BackgroundProperty,Brushes.Transparent));
         cell.Setters.Add(new Setter(Control.ForegroundProperty,(Brush)FindResource("TextMain")));
         cell.Setters.Add(new Setter(Control.PaddingProperty,new Thickness(7,2,7,2)));
