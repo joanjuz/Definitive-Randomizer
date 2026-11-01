@@ -13,8 +13,24 @@ public sealed class LevelUpMoveEntry
     public int Level {get;set;}
     public int Move {get;set;}
 }
+/// <summary>Level-up moves behind <c>LevelUpView</c>: the 3DS GARC editor and the Nintendo DS learnsets.</summary>
+public interface ILevelUpSource
+{
+    IReadOnlyList<PokemonListEntry> Entries {get;}
+    IReadOnlyList<MoveChoice> Moves {get;}
+    int Generation {get;}
+    /// <summary>"Expandir cantidad" in the bulk randomizer (the DS randomizer keeps each list's length).</summary>
+    bool SupportsExpand {get;}
+    IReadOnlyList<LevelUpMoveEntry> Read(int species);
+    void Save(int species,IReadOnlyList<LevelUpMoveEntry> rows);
+    LevelUpBatchPreview PrepareRandomization(LevelUpRandomSettings settings,bool metronome=false);
+    IReadOnlyDictionary<int,IReadOnlyList<LevelUpMoveEntry>> PreviewLearnsets(LevelUpBatchPreview preview);
+    void ApplyRandomization(LevelUpBatchPreview preview);
+    string ExportCsv();
+}
+
 /// <summary>Direct Gen6/Gen7 Learnset6 GARC editor with immutable disk fingerprints.</summary>
-public sealed class GameLevelUpService
+public sealed class GameLevelUpService:ILevelUpSource
 {
     private readonly GameProjectSession _project;
     private readonly GameConfig _config;
@@ -22,6 +38,8 @@ public sealed class GameLevelUpService
     private byte[] _sha;
     public IReadOnlyList<PokemonListEntry> Entries {get;}
     public IReadOnlyList<MoveChoice> Moves {get;}
+    public int Generation=>_config.Generation;
+    public bool SupportsExpand=>true;
     public GameLevelUpService(GameProjectSession project)
     {
         _project=project;_config=project.GameConfiguration;
@@ -163,4 +181,8 @@ public sealed class GameLevelUpService
 public sealed record LevelUpRandomSettings(bool AllowHms,bool BiasByType,int StabPercent,
     bool Expand,int ExpandTo,bool StartWithFour,bool Spread,int SpreadTo,bool ExcludeFixedDamage);
 public sealed record LevelUpBatchPreview(byte[] Original,byte[] Output,
-    IReadOnlyList<BatchChange> Changes,string Action,LevelUpRandomSettings? Settings);
+    IReadOnlyList<BatchChange> Changes,string Action,LevelUpRandomSettings? Settings)
+{
+    /// <summary>The source's own proposal (Nintendo DS); the 3DS one is the GARC above.</summary>
+    public object? Token {get;init;}
+}

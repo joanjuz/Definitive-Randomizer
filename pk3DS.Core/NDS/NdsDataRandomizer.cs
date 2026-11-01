@@ -65,6 +65,15 @@ public sealed record NdsDataOptions(uint Seed)
     public int MachinePercent { get; init; } = 50;
     /// <summary>HM compatibility stays as it is with Random and TypeBased, so field moves the story needs stay learnable.</summary>
     public bool KeepHms { get; init; } = true;
+    /// <summary>
+    /// 3DS "TM/Tutor Sanity" and "Follow Evolutions" (only with <see cref="Machines"/> / <see cref="Tutors"/> on Keep): a species becomes
+    /// compatible with the TMs (tutors) whose move it learns by level, and evolutions get every TM (tutor) their pre-evolution has.
+    /// Compatibility is only added, never removed.
+    /// </summary>
+    public bool MachineSanity { get; init; }
+    public bool MachineFollowEvolutions { get; init; }
+    public bool TutorSanity { get; init; }
+    public bool TutorFollowEvolutions { get; init; }
     /// <summary>SwapLegendaries keeps legendaries legendary and the rest not (UPR-ZX "swap legendaries").</summary>
     public NdsStaticMode Statics { get; init; }
     /// <summary>Static filters of the 3DS editor (with <see cref="NdsStaticMode.Random"/>): generations (bit g-1, 0 = all), legendaries
@@ -400,6 +409,12 @@ public static class NdsDataRandomizer
                 }
                 break;
             }
+            case NdsSection.Machines when options.Machines == NdsMachineMode.Keep && (options.MachineSanity || options.MachineFollowEvolutions):
+                AddCompatibility(Table(NdsSection.Machines), source.MachineMoves, "B", options.MachineSanity, options.MachineFollowEvolutions);
+                break;
+            case NdsSection.Tutors when options.Tutors == NdsMachineMode.Keep && (options.TutorSanity || options.TutorFollowEvolutions):
+                AddCompatibility(Table(NdsSection.Tutors), source.TutorMoves(), "T", options.TutorSanity, options.TutorFollowEvolutions);
+                break;
             case NdsSection.Machines when options.Machines != NdsMachineMode.Keep:
             {
                 var machines = Table(NdsSection.Machines);
@@ -431,6 +446,40 @@ public static class NdsDataRandomizer
             }
         }
         return edits;
+
+        // Sanity (moves learned by level) then Follow Evolutions (pre-evolution order, so a whole family inherits), only adding flags.
+        void AddCompatibility(IReadOnlyDictionary<int, Dictionary<string, int>> table, IReadOnlyList<int> moves, string prefix, bool sanity, bool follow)
+        {
+            var current = table.ToDictionary(p => p.Key, p => new Dictionary<string, int>(p.Value));
+            if (sanity)
+            {
+                var learnsets = Table(NdsSection.Learnsets);
+                foreach (var (species, row) in current)
+                {
+                    if (!options.InScope(species) || !learnsets.TryGetValue(species, out var learn))
+                        continue;
+                    var learned = learn.Where(c => c.Key.EndsWith(".Move", StringComparison.Ordinal)).Select(c => c.Value).ToHashSet();
+                    foreach (string local in row.Keys.ToArray())
+                        if (row[local] == 0 && int.Parse(local[prefix.Length..]) is var i && i < moves.Count && learned.Contains(moves[i]))
+                        {
+                            row[local] = 1;
+                            Set(species, local, 1, table);
+                        }
+                }
+            }
+            if (follow)
+            {
+                var parents = Parents(Table(NdsSection.Evolutions));
+                foreach (int species in EvolutionOrder(current.Keys, parents))
+                    if (options.InScope(species) && parents.TryGetValue(species, out int parent) && current.TryGetValue(parent, out var from))
+                        foreach (var (local, value) in from)
+                            if (value == 1 && current[species].TryGetValue(local, out int own) && own == 0)
+                            {
+                                current[species][local] = 1;
+                                Set(species, local, 1, table);
+                            }
+            }
+        }
     }
 
     // Moves for a learnset or egg move list: Metronome only, or random with a chance of sharing the species' type; several tries

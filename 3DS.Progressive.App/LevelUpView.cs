@@ -25,8 +25,7 @@ namespace ThreeDS.Progressive;
 /// <summary>In-app level-up learnsets: add, delete, edit, and export without WinForms.</summary>
 internal sealed class LevelUpView : UserControl
 {
-    private readonly GameProjectSession _project;
-    private readonly GameLevelUpService _service;
+    private readonly ILevelUpSource _service;
     private ObservableCollection<LevelUpMoveEntry> _rows=[];
     private readonly DataGrid _grid;
     private readonly List<DataGrid> _moveColumns=[];
@@ -59,9 +58,10 @@ internal sealed class LevelUpView : UserControl
     internal bool HasPendingChanges=>_dirty;
     internal bool ConfirmLeave()=>!_bulkBusy&&(!_dirty||StudioDialog.Confirm(Window.GetWindow(this),
         "Movimientos pendientes","La especie tiene movimientos sin guardar.","Si continuás, se descartarán estos cambios."));
-    internal LevelUpView(GameProjectSession project)
+    internal LevelUpView(GameProjectSession project):this(new GameLevelUpService(project)){}
+    internal LevelUpView(ILevelUpSource source)
     {
-        _project=project;_service=new(project);Background=(Brush)FindResource("Bg");
+        _service=source;Background=(Brush)FindResource("Bg");
         var root=new DockPanel {Margin=new Thickness(18)};
         Content=root;
         var header=new StackPanel {Margin=new Thickness(0,0,0,12)};
@@ -156,9 +156,10 @@ internal sealed class LevelUpView : UserControl
             choice.Unchecked+=(_,_)=>InvalidateBulk();
             settingsGrid.Children.Add(box);
         }
-        _allowHms.IsChecked=_project.Generation==6;
+        _allowHms.IsChecked=_service.Generation==6;
         AddChoice(_allowHms);AddChoice(_biasByType,_stabPercent,"Porcentaje STAB (0–100)");
-        AddChoice(_expand,_expandTo,"Movimientos por Pokémon (1–100)");
+        // Nintendo DS keeps each list's length when randomizing (lists still grow with «+ Añadir»).
+        if(_service.SupportsExpand)AddChoice(_expand,_expandTo,"Movimientos por Pokémon (1–100)");
         AddChoice(_startFour);AddChoice(_spread,_spreadTo,"Último nivel de aprendizaje (1–100)");
         AddChoice(_excludeFixed);
         var bulkButtons=new WrapPanel {Margin=new Thickness(0,4,0,4)};

@@ -63,7 +63,9 @@ internal sealed class NdsWorkspaceView:UserControl
         _ = NavigateAsync("Home");
     }
 
-    internal bool CanLeave()=>!_busy&&(_page.Content is not RecordEditorView record||record.PrepareToLeave());
+    internal bool CanLeave()=>!_busy&&PageCanLeave();
+    // The shared record editor and the 3DS views used by DS (Level Up) ask before discarding unsaved changes.
+    private bool PageCanLeave()=>_page.Content switch{RecordEditorView record=>record.PrepareToLeave(),LevelUpView levelUp=>levelUp.ConfirmLeave(),_=>true};
 
     /// <summary>Asks for a DS ROM and opens it; pending changes of the open ROM must be exported or discarded first.</summary>
     internal async Task OpenAsync()
@@ -81,7 +83,7 @@ internal sealed class NdsWorkspaceView:UserControl
         {
             bool romhacks=_romhacks.IsChecked==true;
             var project=await Task.Run(()=>NdsProject.Open(path,romhacks));
-            if(_page.Content is RecordEditorView record&&!record.PrepareToLeave()){project.Dispose();return;}
+            if(!PageCanLeave()){project.Dispose();return;}
             Project?.Dispose();Project=project;_pages.Clear();
             _status.Text=project.Game+(project.IsRomhack?" · romhack":"");
         }
@@ -98,7 +100,7 @@ internal sealed class NdsWorkspaceView:UserControl
     internal async Task ExportAsync()
     {
         if(_busy||Project is not {HasChanges:true} project)return;
-        if(_page.Content is RecordEditorView record&&!record.PrepareToLeave())return;
+        if(!PageCanLeave())return;
         var picker=new Microsoft.Win32.SaveFileDialog{Filter="ROM de Nintendo DS (*.nds)|*.nds",FileName=Path.GetFileNameWithoutExtension(project.SourcePath)+"-random.nds",Title="Guardar ROM nueva"};
         if(picker.ShowDialog(_owner)!=true)return;
         await ExportToAsync(picker.FileName);
@@ -126,7 +128,7 @@ internal sealed class NdsWorkspaceView:UserControl
     internal async Task NavigateAsync(string route,bool force=false)
     {
         if(_busy||!force&&route==CurrentRoute&&route!="Home"&&route!="History")return;
-        if(_page.Content is RecordEditorView previous&&!previous.PrepareToLeave())return;
+        if(!PageCanLeave())return;
         if(route is not ("Home" or "History" or "Tweaks" or "Template")&&Project is null){_status.Text="Abre una ROM de DS para editar.";route="Home";}
         try
         {
@@ -139,9 +141,20 @@ internal sealed class NdsWorkspaceView:UserControl
             else
             {
                 var section=Sections.First(s=>s.Route==route).Section;
-                if(Project!.SectionProblem(section) is {} problem)
+                if(section!=NdsSection.MoveLists&&Project!.SectionProblem(section) is {} problem)
                 {
                     content=Notice(NdsProject.SectionName(section),problem);
+                }
+                else if(section==NdsSection.MoveLists)
+                {
+                    // The 3DS «MT y tutores» layout; TM/Tutor Sanity work even where the TM list itself cannot change (Black/White).
+                    var view=new NdsMachineTutorView(Project!);view.Changed+=()=>{UpdateStatus();ContextChanged?.Invoke();};_pages[route]=view;content=view;
+                }
+                else if(section==NdsSection.Learnsets)
+                {
+                    // The 3DS Level Up view: one vertical table per species and the option cards on the right.
+                    var source=new NdsLevelUpSource(Project!);source.Changed+=()=>{UpdateStatus();ContextChanged?.Invoke();};
+                    var view=new LevelUpView(source);_pages[route]=view;content=view;
                 }
                 else
                 {

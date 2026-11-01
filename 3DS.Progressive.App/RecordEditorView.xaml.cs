@@ -694,7 +694,7 @@ public partial class RecordEditorView : UserControl
     });
     private void Input_Changed(object sender,RoutedEventArgs e)
     {
-        if(_loading)return;Invalidate();if(sender is FrameworkElement {Tag:true}){_dirty=true;SaveButton.IsEnabled=true;StatusText.Text="Cambios sin guardar.";}
+        if(_loading)return;Invalidate();if(sender is FrameworkElement {Tag:true}){_dirty=true;SaveButton.IsEnabled=true;StatusText.Text="Cambios sin guardar.";UpdateSummary(reload:false);}
     }
     private void Invalidate(){_proposal=null;if(ApplyButton is not null)ApplyButton.IsEnabled=false;}
     private void Scope_Changed(object sender,SelectionChangedEventArgs e)=>Invalidate();
@@ -711,6 +711,7 @@ public partial class RecordEditorView : UserControl
                 BuildGroups(OptionsPanel,groups,_options,false);
             }
             _id=id;var record=Editor.Read(id);BuildGroups(FieldsPanel,record,_fields,true);UpdateTrainerTeam(id,record);UpdateEncounterSprites(id,record);SelectionText.Text=Editor.Entries.First(e=>e.Id==id).Display;_dirty=false;SaveButton.IsEnabled=false;StatusText.Text="Editor listo.";Invalidate();
+            UpdateSummary(reload:true);
         }
         finally{_loading=false;}
     }

@@ -60,6 +60,14 @@ public sealed record NdsTrainerOptions(uint Seed)
     /// <summary>Smart held items for the chosen groups; the others follow <see cref="Items"/>.</summary>
     public bool SmartItems { get; init; }
     public NdsTrainerCategories SmartItemsFor { get; init; } = new();
+    /// <summary>
+    /// Smart Items quality per group, as 3DS and Sword/Shield: 0 Normal (useful, not the strongest), 1 Fuerte (any useful item),
+    /// 2 Competitivo (the best ones for the moveset). -1 keeps the original DS choice (by types), so older templates are unchanged.
+    /// </summary>
+    public int SmartQualityNormal { get; init; } = -1;
+    public int SmartQualityImportant { get; init; } = -1;
+    public int SmartQualityBoss { get; init; } = -1;
+    internal int SmartQuality(string kind) => kind == "Normal" ? SmartQualityNormal : kind.StartsWith("Jefes", StringComparison.Ordinal) ? SmartQualityBoss : SmartQualityImportant;
     /// <summary>Random items leave out the weakest ones; no two Pokémon of a team hold the same item.</summary>
     public bool BanBadItems { get; init; }
     public bool ItemClause { get; init; }
@@ -241,12 +249,14 @@ public static class NdsTrainerTools
     }
 
     private sealed record Tables(NdsDataSource Source, IReadOnlyDictionary<int, Dictionary<string, int>> Pokemon, IReadOnlyDictionary<int, Dictionary<string, int>> Learnsets,
-        IReadOnlyDictionary<int, Dictionary<string, int>> Moves, IReadOnlyDictionary<int, Dictionary<string, int>> Machines)
+        IReadOnlyDictionary<int, Dictionary<string, int>> Moves, IReadOnlyDictionary<int, Dictionary<string, int>> Machines, IReadOnlySet<int> Evolves)
     {
         public static Tables Of(NdsDataSource source, Func<NdsSection, IReadOnlyList<NdsCell>> read)
         {
             IReadOnlyDictionary<int, Dictionary<string, int>> T(NdsSection s) => read(s).GroupBy(c => c.Entry).ToDictionary(g => g.Key, g => g.ToDictionary(c => c.Local, c => c.Value));
-            return new(source, T(NdsSection.Pokemon), T(NdsSection.Learnsets), T(NdsSection.Moves), T(NdsSection.Machines));
+            // Species with at least one evolution (Eviolite).
+            var evolves = read(NdsSection.Evolutions).Where(c => c.Local.EndsWith(".Species", StringComparison.Ordinal) && c.Value > 0 && c.Value != c.Entry).Select(c => c.Entry).ToHashSet();
+            return new(source, T(NdsSection.Pokemon), T(NdsSection.Learnsets), T(NdsSection.Moves), T(NdsSection.Machines), evolves);
         }
         public int Bst(int species) => Pokemon.TryGetValue(species, out var p) ? Enumerable.Range(0, 6).Sum(i => p["Stat" + i]) : 0;
         public int[] Types(int species) => Pokemon.TryGetValue(species, out var p) ? [p["Type1"], p["Type2"]] : [];
@@ -432,7 +442,9 @@ public static class NdsTrainerTools
                         string again = attempt == 0 ? "" : "/" + attempt;
                         return itemMode == NdsTrainerItemMode.Random
                             ? pool[Pick($"titem/{trainer.Id}/{i}{again}", pool.Length)]
-                            : SmartItem(tables, team[i].Species, key => Pick($"titem/{trainer.Id}/{i}/{key}{again}", 1000));
+                            : options.SmartQuality(kind) is >= 0 and var quality
+                                ? MovesetItem(tables, team[i].Species, team[i].Moves, quality, layout.Gen5, key => Pick($"titem/{trainer.Id}/{i}/{key}{again}", 1000))
+                                : SmartItem(tables, team[i].Species, key => Pick($"titem/{trainer.Id}/{i}/{key}{again}", 1000));
                     }
                     int item = Choose(0);
                     // Item clause: another item when a teammate already holds it (at most a few tries; smart items may repeat).
@@ -600,6 +612,58 @@ public static class NdsTrainerTools
     }
 
     // 3DS "smart items": what suits the Pokémon (its type booster, Black Sludge for Poison, choice items by its best attacking stat) or a general item.
+    private const int Eviolite = 538, PowerHerb = 271, WhiteHerb = 214, DampRock = 285, HeatRock = 284, SmoothRock = 283, IcyRock = 282;
+    // Two-turn attacks (Power Herb), moves that lower the user's stats (White Herb) and weather moves with their rocks, in Gen4/Gen5.
+    private static readonly HashSet<int> ChargeMoves = [13, 76, 130, 143, 467], SelfDropMoves = [276, 315, 354, 370, 434, 437];
+    private static readonly Dictionary<int, int> WeatherRocks = new() { [240] = DampRock, [241] = HeatRock, [201] = SmoothRock, [258] = IcyRock };
+
+    /// <summary>
+    /// Smart item from the Pokémon's final moves, with the scores of the Sword/Shield policy adapted to the Gen4/Gen5 items:
+    /// Eviolite (Gen5) for Pokémon that still evolve, weather rocks, Power Herb and White Herb for the moves that use them, and
+    /// type boosters for same-type attacks. Normal keeps to scores up to 60, Competitivo to the best ones.
+    /// </summary>
+    private static int MovesetItem(Tables tables, int species, int[] moves, int quality, bool gen5, Func<string, int> roll)
+    {
+        var known = moves.Where(m => m > 0 && tables.Moves.ContainsKey(m)).ToArray();
+        string Category(int m) => tables.Source.Categories[tables.Moves[m]["Category"]];
+        var attacks = known.Where(m => Category(m) != "Estado" && tables.Moves[m]["Power"] > 1).ToArray();
+        bool physical = attacks.Any(m => Category(m) == "Físico"), special = attacks.Any(m => Category(m) == "Especial"), status = known.Any(m => Category(m) == "Estado");
+        var types = tables.Types(species);
+        var scored = new List<(int Item, int Score)> { (Leftovers, 60), (SitrusBerry, 40), (LumBerry, 45) };
+        if (physical) scored.Add((MuscleBand, 55));
+        if (special) scored.Add((WiseGlasses, 55));
+        if (!status && attacks.Length > 0)
+        {
+            scored.Add((ChoiceScarf, 65));
+            if (physical && !special) scored.Add((ChoiceBand, 75));
+            if (special && !physical) scored.Add((ChoiceSpecs, 75));
+        }
+        if (attacks.Length > 0)
+        {
+            scored.Add((ExpertBelt, 70));
+            scored.Add((FocusSash, 60));
+            if (attacks.Select(m => tables.Moves[m]["Type"]).Distinct().Count() >= 3)
+                scored.Add((LifeOrb, 70));
+            // A booster for a same-type attack.
+            int stab = attacks.Select(m => tables.Moves[m]["Type"]).FirstOrDefault(t => types.Contains(t), -1);
+            if (stab >= 0 && tables.Canonical(stab) is var canonical and >= 0 && canonical < TypeBoosters.Length)
+                scored.Add((TypeBoosters[canonical], 50));
+        }
+        if (types.Contains(PoisonType)) scored.Add((BlackSludge, 65));
+        if (gen5 && tables.Evolves.Contains(species)) scored.Add((Eviolite, 80));
+        if (known.Any(ChargeMoves.Contains)) scored.Add((PowerHerb, 75));
+        if (known.Any(SelfDropMoves.Contains)) scored.Add((WhiteHerb, 65));
+        foreach (int move in known)
+            if (WeatherRocks.TryGetValue(move, out int rock)) scored.Add((rock, 70));
+        var eligible = scored.DistinctBy(s => s.Item).Where(s => quality != 0 || s.Score <= 60).ToArray();
+        if (quality == 2)
+        {
+            int best = eligible.Max(s => s.Score);
+            eligible = eligible.Where(s => s.Score >= best - 10).ToArray();
+        }
+        return eligible[roll("moveset") % eligible.Length].Item;
+    }
+
     private static int SmartItem(Tables tables, int species, Func<string, int> roll)
     {
         var types = tables.Types(species);

@@ -69,6 +69,8 @@ public static class SwordShieldBattlePolicy
         internal HashSet<int> Usable=null!;
         internal IReadOnlyList<SwordShieldDataCell> Learn=null!;
         internal HashSet<int> Items=null!;
+        // Personal entries that still evolve (Eviolite).
+        internal HashSet<int> Evolves=new();
         internal byte[] Personal=null!;
         internal Dictionary<(int Species,int Form),SwordShieldPersonalEntry> Entries=null!;
         internal Dictionary<int,(int Move,int Level)[]> LearnByEntry=null!;
@@ -81,7 +83,8 @@ public static class SwordShieldBattlePolicy
         var moves=rows.GroupBy(c=>c.Entry).ToDictionary(g=>g.Key,g=>new Move(g.Key,g.First(c=>c.Field=="Tipo").Value,g.First(c=>c.Field=="Categoría").Value,g.First(c=>c.Field=="Potencia").Value,g.First(c=>c.Field=="Precisión").Value));
         IReadOnlyList<SwordShieldDataCell> learn=rules.NeedsMoves?SwordShieldDataEditor.Read(SwordShieldDataSection.Learnsets,source,personal):Array.Empty<SwordShieldDataCell>();
         var items=rules.SmartItems?SwordShieldDataEditor.Read(SwordShieldDataSection.Items,source,personal).Select(c=>c.Entry).ToHashSet():new HashSet<int>();
-        return new(){Table=table,Moves=moves,Usable=usable,Learn=learn,Items=items,Personal=personal,Entries=table.Entries().GroupBy(e=>(e.Species,e.Form)).ToDictionary(g=>g.Key,g=>g.First()),LearnByEntry=learn.GroupBy(c=>c.Entry).ToDictionary(g=>g.Key,g=>g.GroupBy(c=>c.Slot).Select(slot=>(Move:slot.First(c=>c.Field=="Movimiento").Value,Level:slot.First(c=>c.Field=="Nivel").Value)).ToArray())};
+        var evolves=rules.SmartItems?SwordShieldDataEditor.Read(SwordShieldDataSection.Evolutions,source,personal).Where(c=>c.Field=="Método").Select(c=>c.Entry).ToHashSet():new HashSet<int>();
+        return new(){Table=table,Moves=moves,Usable=usable,Learn=learn,Items=items,Evolves=evolves,Personal=personal,Entries=table.Entries().GroupBy(e=>(e.Species,e.Form)).ToDictionary(g=>g.Key,g=>g.First()),LearnByEntry=learn.GroupBy(c=>c.Entry).ToDictionary(g=>g.Key,g=>g.GroupBy(c=>c.Slot).Select(slot=>(Move:slot.First(c=>c.Field=="Movimiento").Value,Level:slot.First(c=>c.Field=="Nivel").Value)).ToArray())};
     }
     public static void ApplyTrainer(byte[] team,byte[] original,string path,TrainerContext? context,SwordShieldGameplayOptions options,Action<string,int,int,int> change,Action<string>? warn=null)
     {
@@ -135,10 +138,18 @@ public static class SwordShieldBattlePolicy
                 bool status=selected.Any(m=>m.Category==0),physical=selected.Any(m=>m.Category==1),special=selected.Any(m=>m.Category==2);
                 // Stable item IDs shared with CTR. Conservative subset; no species/ability-specific items without their conditions.
                 var scored=new List<(int Id,int Score)>{(234,60),(158,40)}; // Leftovers / Sitrus Berry
-                if(physical)scored.Add((268,55));if(special)scored.Add((269,55)); // Muscle Band / Wise Glasses
+                // Item IDs: 266 Muscle Band, 267 Wise Glasses, 268 Expert Belt (268/269/272 were Expert Belt, Light Clay and Toxic Orb).
+                if(physical)scored.Add((266,55));if(special)scored.Add((267,55)); // Muscle Band / Wise Glasses
                 if(!status&&selected.Length>0){scored.Add((640,60));scored.Add((287,65));if(physical&&!special)scored.Add((220,75));if(special&&!physical)scored.Add((297,75));}
-                if(physical||special){scored.Add((272,70));scored.Add((275,60));if(selected.Where(m=>m.Category!=0).Select(m=>m.Type).Distinct().Count()>=3)scored.Add((270,70));}
+                if(physical||special){scored.Add((268,70));scored.Add((275,60));if(selected.Where(m=>m.Category!=0).Select(m=>m.Type).Distinct().Count()>=3)scored.Add((270,70));}
                 if(entry.Values[6]==3||entry.Values[7]==3)scored.Add((281,65));
+                // Gen8 items that depend on the final team: Eviolite (still evolves), Power Herb (charge moves), White Herb (self-lowering moves),
+                // weather rocks (the weather move it uses) and Heavy-Duty Boots (Fire/Ice/Flying/Bug, hurt by Stealth Rock).
+                if(context.Evolves.Contains(entry.Index))scored.Add((538,80));
+                if(finalMoves.Any(m=>ChargeMoves.Contains(m)))scored.Add((271,75));
+                if(finalMoves.Any(m=>SelfDropMoves.Contains(m)))scored.Add((214,65));
+                foreach(int m in finalMoves)if(WeatherRocks.TryGetValue(m,out int rock))scored.Add((rock,70));
+                if(new[]{entry.Values[6],entry.Values[7]}.Any(t=>t is 2 or 6 or 9 or 14))scored.Add((1120,60));
                 var eligible=scored.Where(i=>items.Contains(i.Id)).Where(i=>rules.SmartItemMode!=0||i.Score<=60).ToArray();
                 if(eligible.Length==0)throw new InvalidDataException("No hay objetos compatibles disponibles para Smart Items.");
                 if(rules.SmartItemMode==2){int best=eligible.Max(i=>i.Score);eligible=eligible.Where(i=>i.Score>=best-10).ToArray();}
@@ -146,5 +157,11 @@ public static class SwordShieldBattlePolicy
             }
         }
     }
+    // Move IDs shared with every generation: Razor Wind, Solar Beam, Skull Bash, Sky Attack, Geomancy, Solar Blade, Meteor Beam.
+    private static readonly HashSet<int> ChargeMoves=[13,76,130,143,601,669,800];
+    // Superpower, Overheat, Psycho Boost, Close Combat, Draco Meteor, Leaf Storm, Fleur Cannon.
+    private static readonly HashSet<int> SelfDropMoves=[276,315,354,370,434,437,705];
+    // Rain Dance → Damp Rock, Sunny Day → Heat Rock, Sandstorm → Smooth Rock, Hail → Icy Rock.
+    private static readonly Dictionary<int,int> WeatherRocks=new(){[240]=285,[241]=284,[201]=283,[258]=282};
     private static int Pick(uint seed,string key,int count)=> (int)((SwitchGfPack.NameHash(key)^seed)%(uint)count);
 }

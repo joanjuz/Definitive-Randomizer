@@ -12,8 +12,20 @@ namespace ThreeDS.Progressive.Services.Nds;
 /// manual saves and randomization proposals. Storage stays in <see cref="NdsProject"/>; this view never writes ROM files.
 /// </summary>
 internal sealed class NdsRecordEditor : IProjectEditor, ITrainerEditorPresentation, IWildEditorPresentation, ITableEditorPresentation, ITrainerRuleTableEditor,
-    IOptionTemplateProjectEditor, IOptionTemplatePresentation
+    IOptionTemplateProjectEditor, IOptionTemplatePresentation, IRecordSummary
 {
+    // The Pokémon section shows the header card of the 3DS Pokémon editor; the other sections have no species header.
+    public RecordSummary? Summary(int id, IReadOnlyDictionary<string, int> values)
+    {
+        if (_section != NdsSection.Pokemon)
+            return null;
+        int V(string key) => values.TryGetValue(key, out int v) ? v : _cells.FirstOrDefault(c => c.Entry == id && c.Local == key)?.Value ?? 0;
+        string Type(int t) => t >= 0 && t < _project.TypeNames.Count ? _project.TypeNames[t] : "?";
+        var types = new[] { Type(V("Type1")), Type(V("Type2")) }.Distinct().ToArray();
+        string name = id < _project.SpeciesNames.Count ? _project.SpeciesNames[id] : $"#{id:000}";
+        return new RecordSummary(id, name, $"Especie #{id:000}", types, Enumerable.Range(0, 6).Sum(i => V("Stat" + i)));
+    }
+
     private static readonly string[] SpeciesModes = ["Aleatorio", "BST similar", "BST progresivo por nivel"];
     private readonly NdsProject _project;
     private readonly NdsSection _section;
@@ -201,6 +213,8 @@ internal sealed class NdsRecordEditor : IProjectEditor, ITrainerEditorPresentati
             new EditorGroup("Política global de Level Caps", [Flag("GlobalCaps.ApplyPrevious", "Escalado progresivo de entrenadores sin cap", 1),
                 new EditorField("GlobalCaps.PreviousGap", "Separación de nivel con entrenadores anteriores", 2, 0, 20)], false),
             new EditorGroup("Objetos equipados", [Flag("CHK_ItemClause", "No repetir objetos en el equipo", 0), Flag("CHK_BanBadItems", "Excluir objetos poco útiles", 1),
+                new EditorField("CB_SmartHeldItemModeBoss", "Calidad Smart Items · jefes", 1, 0, 2, Quality), new EditorField("CB_SmartHeldItemModeImportant", "Calidad Smart Items · importantes", 1, 0, 2, Quality),
+                new EditorField("CB_SmartHeldItemModeNormal", "Calidad Smart Items · normales", 1, 0, 2, Quality),
                 Flag("CHK_SmartItemsBosses", "Jefes", 1), Flag("CHK_SmartItemsImportantTrainers", "Entrenadores importantes", 1), Flag("CHK_SmartItemsNormalTrainers", "Entrenadores normales", 1),
                 Flag("CHK_SmartHeldItems", "Smart Items", 0), Flag("CHK_RandomItems", "Objetos equipados aleatorios", 1)]),
         ],
@@ -275,6 +289,8 @@ internal sealed class NdsRecordEditor : IProjectEditor, ITrainerEditorPresentati
         NdsSection.Machines => [new EditorGroup(Title, [new EditorField("Mode", "Compatibilidad", 0, 0, 2, Choices("Aleatoria", "Por tipo (mismo tipo siempre)", "Completa")), new EditorField("Percent", "Probabilidad (%)", 50, 0, 100), Flag("KeepHms", "Conservar la compatibilidad de las MO", 1)])],
         _ => [new EditorGroup(Title, [new EditorField("Shuffle", "Barajar (solo objetos normales; MT, MO y objetos clave no se mueven)", 1, 1, 1)])],
     };
+
+    private static readonly IReadOnlyList<MoveChoice> Quality = Choices("Normal", "Fuerte", "Competitivo");
 
     // Generation boxes as in 3DS (newest first in the trainer randomizer), up to this game's generation.
     private IEnumerable<EditorField> Generations(string prefix, bool trainerStyle) =>
@@ -365,7 +381,8 @@ internal sealed class NdsRecordEditor : IProjectEditor, ITrainerEditorPresentati
                 BetterMovesets = V("CHK_BetterMovesets") == 1, BetterFor = Categories(options, "CHK_BetterMovesets"), BetterIncludeMachines = V("CHK_BetterMovesetsIncludeTMs") == 1,
                 StrongestStat = V("CHK_StrongStat") == 1, StrongStatFor = Categories(options, "CHK_StrongStat"), StrongStatTolerance = V("NUD_StrongStatTolerance", 15),
                 Items = V("CHK_RandomItems", 1) == 1 ? NdsTrainerItemMode.Random : NdsTrainerItemMode.Keep, SmartItems = V("CHK_SmartHeldItems") == 1,
-                SmartItemsFor = Categories(options, "CHK_SmartItems"), BanBadItems = V("CHK_BanBadItems", 1) == 1, ItemClause = V("CHK_ItemClause") == 1,
+                SmartItemsFor = Categories(options, "CHK_SmartItems"), SmartQualityNormal = V("CB_SmartHeldItemModeNormal", 1), SmartQualityImportant = V("CB_SmartHeldItemModeImportant", 1),
+                SmartQualityBoss = V("CB_SmartHeldItemModeBoss", 1), BanBadItems = V("CHK_BanBadItems", 1) == 1, ItemClause = V("CHK_ItemClause") == 1,
                 MaxIvs = V("CHK_MaxDiffPKM", 1) == 1, MaxAi = V("CHK_MaxAI", 1) == 1, DoubleChance = V("CHK_RandomDoubleBattles") == 1 ? V("NUD_DoubleBattleChance") : 0, Scope = chosen,
                 ShuffleNames = V("Names") == 1, ShuffleClassNames = V("CHK_RandomClass") == 1,
                 LevelCaps = caps ? _rules?.Values.Where(r => r.CapUse).Select(r => new NdsTrainerLevelCap(r.Id, r.Cap, r.Max3)).ToArray() ?? [] : [],

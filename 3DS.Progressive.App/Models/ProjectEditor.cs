@@ -67,6 +67,10 @@ public interface ITrainerEditorPresentation { bool UsesTrainerLayout {get;} }
 public sealed record TrainerRuleIdentity(int Id,string Group,string Name,int Ace);
 public interface ITrainerTableMetadata { TrainerRuleIdentity TrainerIdentity(int id); }
 
+/// <summary>Header of a record that is one species (sprite, name, type badges and stat total), as the 3DS Pokémon editor shows it.</summary>
+public sealed record RecordSummary(int Species,string Title,string Subtitle,IReadOnlyList<string> Badges,int Total);
+public interface IRecordSummary { RecordSummary? Summary(int id,IReadOnlyDictionary<string,int> values); }
+
 /// <summary>Editors with the Level Caps and Trainer Move Rules tables of <c>TrainerRulesWindow</c> (3DS and Nintendo DS).</summary>
 public interface ITrainerRuleTableEditor
 {
