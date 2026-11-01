@@ -58,6 +58,9 @@ internal sealed class GameUsumRelearnerService(GameProjectSession project)
                 if(relative.StartsWith("..",StringComparison.Ordinal)||
                     Path.IsPathRooted(relative))throw new InvalidDataException("Ruta fuera del proyecto: "+source);
                 string staged=Path.Combine(stage,relative);
+                // The staging copy normalizes code.bin to .code.bin (BatchRomBuilder.NormalizeStageCode).
+                if(!File.Exists(staged)&&Path.GetFileName(staged).Equals("code.bin",StringComparison.OrdinalIgnoreCase))
+                    staged=Path.Combine(Path.GetDirectoryName(staged)!,".code.bin");
                 if(!File.Exists(staged))throw new FileNotFoundException("El parche no generó "+relative,staged);
                 byte[] before=await File.ReadAllBytesAsync(source);
                 byte[] after=await File.ReadAllBytesAsync(staged);

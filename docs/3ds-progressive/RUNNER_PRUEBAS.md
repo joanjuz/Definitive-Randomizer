@@ -26,6 +26,7 @@ dotnet .\3DS.Progressive.Tests\bin\Release\net10.0-windows\3DS.Progressive.Tests
 | `--batch80-only` | — |  |
 | `--catch-batch-only` | — |  |
 | `--editor-modules-only` | — |  |
+| `--gen7-adjust-only` | — |  |
 | `--general-manual-only` | — |  |
 | `--global-apply-only` | — | sí |
 | `--global-options-only` | — | sí |
@@ -117,6 +118,7 @@ Necesitan extracciones, ROMs o carpetas de salida. Los argumentos concretos (ent
 | `--diagnose-text-catalogue` | exactamente 1 |  |
 | `--export-local-english-for-text-research` | 2 o más |  |
 | `--extract-independent-image` | exactamente 2 |  |
+| `--gen7-adjust-real` | exactamente 2 |  |
 | `--interrupt-save-check` | exactamente 1 |  |
 | `--nds-gen5-probe` | 1 o más |  |
 | `--nds-data-probe` | 2 o más |  |
@@ -139,6 +141,7 @@ Necesitan extracciones, ROMs o carpetas de salida. Los argumentos concretos (ent
 | `--read-title-movies` | 1 o más |  |
 | `--read-titles6` | 1 o más |  |
 | `--read-tm6-compatibility` | 1 o más |  |
+| `--relearner-real` | exactamente 3 |  |
 | `--requested-real` | 1 o más |  |
 | `--review73-real` | 1 o más |  |
 | `--single-purchase-backend` | exactamente 1 |  |
