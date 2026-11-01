@@ -17,7 +17,14 @@ public sealed record SwordShieldDataCell(string Resource,int Entry,int Slot,stri
 }
 public sealed record SwordShieldDataEdit(string Key,int Value);
 public sealed record SwordShieldDataChange(string Resource,string Location,string Field,int Before,int After);
-public sealed record SwordShieldDataOptions(uint Seed,bool RemoveTradeEvolutions=false,int CompatibilityPercent=50,bool RandomTypes=true,bool RandomCategories=true,bool SimilarBst=false,bool ThreeStageStarters=false,bool SpecialShopsOnly=false) {public IReadOnlyList<int>? SpecialShopEntries {get;init;}public IReadOnlyList<int>? StarterEntries {get;init;}}
+public sealed record SwordShieldDataOptions(uint Seed,bool RemoveTradeEvolutions=false,int CompatibilityPercent=50,bool RandomTypes=true,bool RandomCategories=true,bool SimilarBst=false,bool ThreeStageStarters=false,bool SpecialShopsOnly=false) {public IReadOnlyList<int>? SpecialShopEntries {get;init;}public IReadOnlyList<int>? StarterEntries {get;init;}
+    // Level Up options of the 3DS view (SwordShieldLearnsets.Randomize). The defaults keep the original randomizer, so old templates replay the same.
+    public int LearnStabPercent {get;init;}=-1;
+    public int LearnExpandTo {get;init;}
+    public bool LearnStartWithFour {get;init;}
+    public int LearnSpreadTo {get;init;}
+    public bool LearnExcludeFixedDamage {get;init;}
+    [System.Text.Json.Serialization.JsonIgnore] public bool LearnExtended=>LearnStabPercent>=0||LearnExpandTo>0||LearnStartWithFour||LearnSpreadTo>0||LearnExcludeFixedDamage;}
 public sealed class SwordShieldDataResult
 {
     private readonly Dictionary<string,byte[]> _files;
@@ -130,6 +137,7 @@ public static class SwordShieldDataEditor
     }
     public static SwordShieldDataResult Randomize(SwordShieldDataSection section,IReadOnlyDictionary<string,byte[]> files,byte[] personal,SwordShieldDataOptions options)
     {
+        if(section==SwordShieldDataSection.Learnsets&&options.LearnExtended)return SwordShieldLearnsets.Randomize(files,personal,options);
         if(options.CompatibilityPercent<0||options.CompatibilityPercent>100)throw new ArgumentOutOfRangeException(nameof(options));var rows=Read(section,files,personal);var edits=new Dictionary<string,int>();var present=new SwordShieldPersonalTable(personal).Entries().Where(e=>e.Form==0&&e.Species>0).Select(e=>e.Species).ToArray();int[] moves=section==SwordShieldDataSection.Learnsets?UsableMoves(files).ToArray():Array.Empty<int>();if(section==SwordShieldDataSection.Learnsets&&moves.Length==0)throw new InvalidDataException("No hay movimientos válidos.");
         int Pick(string key,int n){byte[] h=SHA256.HashData(Encoding.UTF8.GetBytes(options.Seed+"|"+key));return (int)(BinaryPrimitives.ReadUInt64LittleEndian(h)%(ulong)n);}
         var evoSources=rows.Where(c=>c.Field=="Método").Select(c=>c.Entry).ToHashSet();int[] terminals=present.Where(s=>!evoSources.Contains(s)).ToArray();

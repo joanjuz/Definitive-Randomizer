@@ -157,9 +157,11 @@ internal sealed class LevelUpView : UserControl
             settingsGrid.Children.Add(box);
         }
         _allowHms.IsChecked=_service.Generation==6;
-        AddChoice(_allowHms);AddChoice(_biasByType,_stabPercent,"Porcentaje STAB (0–100)");
-        // Nintendo DS keeps each list's length when randomizing (lists still grow with «+ Añadir»).
-        if(_service.SupportsExpand)AddChoice(_expand,_expandTo,"Movimientos por Pokémon (1–100)");
+        // Gen8 has no HMs.
+        if(_service.Generation<8)AddChoice(_allowHms);
+        AddChoice(_biasByType,_stabPercent,"Porcentaje STAB (0–100)");
+        _expandTo.Text=Math.Min(25,_service.MaxMoves).ToString(System.Globalization.CultureInfo.InvariantCulture);
+        AddChoice(_expand,_expandTo,$"Movimientos por Pokémon (1–{_service.MaxMoves})");
         AddChoice(_startFour);AddChoice(_spread,_spreadTo,"Último nivel de aprendizaje (1–100)");
         AddChoice(_excludeFixed);
         var bulkButtons=new WrapPanel {Margin=new Thickness(0,4,0,4)};
@@ -286,7 +288,7 @@ internal sealed class LevelUpView : UserControl
         return new LevelUpRandomSettings(
             _allowHms.IsChecked==true,_biasByType.IsChecked==true,
             Number(_stabPercent,0,100,"STAB"),_expand.IsChecked==true,
-            Number(_expandTo,1,100,"Movimientos"),_startFour.IsChecked==true,
+            Number(_expandTo,1,_service.MaxMoves,"Movimientos"),_startFour.IsChecked==true,
             _spread.IsChecked==true,Number(_spreadTo,1,100,"Nivel final"),
             _excludeFixed.IsChecked==true);
     }
@@ -376,7 +378,7 @@ internal sealed class LevelUpView : UserControl
     private void Dirty(){if(_proposedRows is not null)return;InvalidateBulk();_dirty=true;_save.IsEnabled=true;_status.Text="Cambios pendientes. Guardá antes de cambiar de especie.";}
     private void Add()
     {
-        Commit();if(_rows.Count>=100)return;
+        Commit();if(_rows.Count>=_service.MaxMoves){_status.Text=$"Este juego admite como máximo {_service.MaxMoves} movimientos por nivel por especie.";return;}
         int level=_selectedMove?.Level??1;
         var row=new LevelUpMoveEntry {Level=level,Move=1};_rows.Add(row);_selectedMove=row;RebuildCards();Dirty();
     }
@@ -388,8 +390,7 @@ internal sealed class LevelUpView : UserControl
     {
         Commit();
         if(_rows.Count==0)return;
-        var valid=_service.Moves.Where(m=>m.Id>0&&m.Id<622&&m.Id is not (165 or 621 or 166 or 226))
-            .Select(m=>m.Id).ToArray();
+        var valid=_service.RandomMovePool.ToArray();
         if(valid.Length==0)return;
         var rng=new Random(System.Security.Cryptography.RandomNumberGenerator.GetInt32(int.MaxValue));
         foreach(var row in _rows)row.Move=valid[rng.Next(valid.Length)];

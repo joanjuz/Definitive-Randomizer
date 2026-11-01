@@ -58,6 +58,14 @@ public static class NdsLearnsets
     public static IReadOnlyList<NdsLearnsetMove> Read(Gen5Data data, int species) => Parse(File(data.CopyNarc(Gen5Profile.Learnsets), species), 5);
     public static IReadOnlyList<NdsLearnsetMove> Read(Gen4Data data, int species) => Parse(File(data.CopyNarc(Gen4Profile.Learnsets), species), 4);
 
+    public static IReadOnlyDictionary<int, IReadOnlyList<NdsLearnsetMove>> ReadAll(Gen5Data data, int maxSpecies) => ParseAll(data.CopyNarc(Gen5Profile.Learnsets).Write(), 5, maxSpecies);
+    public static IReadOnlyDictionary<int, IReadOnlyList<NdsLearnsetMove>> ReadAll(Gen4Data data, int maxSpecies) => ParseAll(data.CopyNarc(Gen4Profile.Learnsets).Write(), 4, maxSpecies);
+
+    /// <summary>The longest list the game has: the game loads a list into a fixed buffer, so no list may be longer.</summary>
+    public static int Limit(Gen5Data data) => Limit(data.CopyNarc(Gen5Profile.Learnsets), 5);
+    public static int Limit(Gen4Data data) => Limit(data.CopyNarc(Gen4Profile.Learnsets), 4);
+    private static int Limit(Narc narc, int generation) => narc.Files.Skip(1).Max(f => Parse(f, generation).Count);
+
     /// <summary>Every species of a Learnsets NARC (as written in a randomizer result), for previews.</summary>
     public static IReadOnlyDictionary<int, IReadOnlyList<NdsLearnsetMove>> ParseAll(byte[] narc, int generation, int maxSpecies)
     {
@@ -76,7 +84,7 @@ public static class NdsLearnsets
     {
         var changes = new List<Gen5Change>();
         // The game loads a list into a fixed buffer: no list may be longer than the longest one the game already has.
-        int limit = narc.Files.Skip(1).Max(f => Parse(f, generation).Count);
+        int limit = Limit(narc, generation);
         foreach (var (species, moves) in sets.OrderBy(p => p.Key))
         {
             if (moves.Count > limit)

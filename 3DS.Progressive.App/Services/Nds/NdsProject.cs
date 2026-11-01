@@ -106,6 +106,10 @@ internal sealed class NdsProject : IDisposable
 
     /// <summary>Level-up moves of one species with every applied change, any length.</summary>
     internal IReadOnlyList<NdsLearnsetMove> ReadLearnset(int species) => _gen4 is not null ? NdsLearnsets.Read(Gen4View, species) : NdsLearnsets.Read(Gen5View, species);
+    /// <summary>Every species' level-up moves at once (one NARC copy instead of one per species).</summary>
+    internal IReadOnlyDictionary<int, IReadOnlyList<NdsLearnsetMove>> ReadAllLearnsets() => _gen4 is not null ? NdsLearnsets.ReadAll(Gen4View, MaxSpecies) : NdsLearnsets.ReadAll(Gen5View, MaxSpecies);
+    /// <summary>Most level-up moves a species may have in this game (its longest original list).</summary>
+    internal int LearnsetLimit => _gen4 is not null ? NdsLearnsets.Limit(Gen4View) : NdsLearnsets.Limit(Gen5View);
 
     /// <summary>Whole learnsets replaced (Level Up view: manual saves and "Metrónomo · todos"); the recipe keeps the lists.</summary>
     internal NdsPreview PreviewLearnsets(string action, IReadOnlyDictionary<int, IReadOnlyList<NdsLearnsetMove>> sets) =>
@@ -419,11 +423,12 @@ internal sealed class NdsProject : IDisposable
         NdsSection.Moves => "Movimientos",
         NdsSection.Learnsets => "Level Up",
         NdsSection.Evolutions => "Evoluciones",
-        NdsSection.Machines => "MT/MO",
+        // The species tables are named after what they hold, so they read apart from «MT y tutores» (the move lists) in the sidebar.
+        NdsSection.Machines => "Compatibilidad MT/MO",
         NdsSection.Statics => "Estáticos y regalos",
         NdsSection.Trades => "Intercambios",
         NdsSection.EggMoves => "Movimientos huevo",
-        NdsSection.Tutors => "Tutores",
+        NdsSection.Tutors => "Compatibilidad de tutores",
         NdsSection.MoveLists => "MT y tutores",
         NdsSection.Starters => "Iniciales",
         NdsSection.Trainers => "Entrenadores",

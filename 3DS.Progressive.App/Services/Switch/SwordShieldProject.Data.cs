@@ -2,7 +2,11 @@
 using pk3DS.Core.NX;
 namespace ThreeDS.Progressive.Services.Switch;
 internal sealed record SwordShieldDataOperation(SwordShieldDataSection Section,uint? Seed,IReadOnlyList<SwordShieldDataChange> Changes,string InputRevision,string ResultRevision,SwordShieldDataOptions? Options=null,IReadOnlyList<int>? Scope=null);
-internal sealed record SwordShieldDataPreview(Guid Owner,string Revision,SwordShieldDataSection Section,uint? Seed,SwordShieldDataResult Result,SwordShieldDataOptions? Options=null,IReadOnlyList<int>? Scope=null);
+internal sealed record SwordShieldDataPreview(Guid Owner,string Revision,SwordShieldDataSection Section,uint? Seed,SwordShieldDataResult Result,SwordShieldDataOptions? Options=null,IReadOnlyList<int>? Scope=null)
+{
+    /// <summary>Whole level-up lists saved from the Level Up view (recipe "learnset.manual"); null for cell edits and randomizers.</summary>
+    internal IReadOnlyDictionary<int,IReadOnlyList<SwordShieldLearnMove>>? Learnsets {get;init;}
+}
 internal sealed partial class SwordShieldProject
 {
     private readonly List<SwordShieldDataOperation> _dataHistory=new();
@@ -18,8 +22,20 @@ internal sealed partial class SwordShieldProject
     }
     internal IReadOnlyList<SwordShieldDataCell> ReadData(SwordShieldDataSection section,int? entry=null)
     {var files=LoadData(section);var result=SwordShieldDataEditor.Read(section,files,_draft,entry);VerifySource();return result;}
+    /// <summary>Level-up moves of one personal entry with every applied change, any length (Level Up view).</summary>
+    internal IReadOnlyList<SwordShieldLearnMove> ReadLearnset(int entry)=>SwordShieldLearnsets.Read(LoadData(SwordShieldDataSection.Learnsets)[SwordShieldDataEditor.LearnPath],entry);
+    internal IReadOnlyDictionary<int,IReadOnlyList<SwordShieldLearnMove>> ReadAllLearnsets()=>SwordShieldLearnsets.ReadAll(LoadData(SwordShieldDataSection.Learnsets)[SwordShieldDataEditor.LearnPath]);
+    internal IReadOnlyList<int> UsableMoves()=>SwordShieldDataEditor.UsableMoves(LoadData(SwordShieldDataSection.Moves));
+    internal static IReadOnlyDictionary<int,IReadOnlyList<SwordShieldLearnMove>> LearnsetsOf(SwordShieldDataPreview preview)=>
+        preview.Result.Files().TryGetValue(SwordShieldDataEditor.LearnPath,out var learn)?SwordShieldLearnsets.ReadAll(learn):new Dictionary<int,IReadOnlyList<SwordShieldLearnMove>>();
+    internal SwordShieldDataPreview PreviewLearnsets(IReadOnlyDictionary<int,IReadOnlyList<SwordShieldLearnMove>> sets)
+    {
+        var files=LoadData(SwordShieldDataSection.Learnsets);var result=SwordShieldLearnsets.Replace(files,sets);VerifySource();
+        return new(_id,RevisionHash,SwordShieldDataSection.Learnsets,null,result){Learnsets=sets.ToDictionary(p=>p.Key,p=>(IReadOnlyList<SwordShieldLearnMove>)p.Value.ToArray())};
+    }
     internal SwordShieldDataPreview PreviewData(SwordShieldDataSection section,IReadOnlyList<SwordShieldDataEdit>? edits,SwordShieldDataOptions? options=null,IReadOnlyList<int>? scope=null)
-    {var files=LoadData(section);if(options?.SpecialShopsOnly==true&&section==SwordShieldDataSection.Shops)options=options with{SpecialShopEntries=Array.AsReadOnly(SwordShieldShopClassification.SpecialShopIds(_gameplayOriginal[SwordShieldDataEditor.ShopPath]).ToArray())};if(options?.ThreeStageStarters==true){foreach(var pair in LoadData(SwordShieldDataSection.Evolutions))files[pair.Key]=pair.Value;if(section==SwordShieldDataSection.Gifts){string giftPath=SwordShieldDataEditor.EventPath(section);var original=new Dictionary<string,byte[]>{{giftPath,_gameplayOriginal[giftPath]}};var entries=SwordShieldDataEditor.Read(section,original,_original).Where(c=>c.Field=="Especie"&&c.Value is 810 or 813 or 816).Select(c=>c.Entry).ToArray();if(entries.Length==0)throw new InvalidDataException("No se reconocen los registros de los iniciales en la extracción original. No se aplicará una suposición a regalos distintos.");options=options with{StarterEntries=Array.AsReadOnly(entries)};}}var result=options is null?SwordShieldDataEditor.Edit(section,files,_draft,edits??Array.Empty<SwordShieldDataEdit>()):SwordShieldDataEditor.Randomize(section,files,_draft,options);if(scope is not null)
+    {
+        if(scope is not null&&options?.LearnExtended==true)throw new ArgumentException("Las opciones de Level Up (expandir, STAB, niveles) se aplican a todos los Pokémon, sin alcance.");var files=LoadData(section);if(options?.SpecialShopsOnly==true&&section==SwordShieldDataSection.Shops)options=options with{SpecialShopEntries=Array.AsReadOnly(SwordShieldShopClassification.SpecialShopIds(_gameplayOriginal[SwordShieldDataEditor.ShopPath]).ToArray())};if(options?.ThreeStageStarters==true){foreach(var pair in LoadData(SwordShieldDataSection.Evolutions))files[pair.Key]=pair.Value;if(section==SwordShieldDataSection.Gifts){string giftPath=SwordShieldDataEditor.EventPath(section);var original=new Dictionary<string,byte[]>{{giftPath,_gameplayOriginal[giftPath]}};var entries=SwordShieldDataEditor.Read(section,original,_original).Where(c=>c.Field=="Especie"&&c.Value is 810 or 813 or 816).Select(c=>c.Entry).ToArray();if(entries.Length==0)throw new InvalidDataException("No se reconocen los registros de los iniciales en la extracción original. No se aplicará una suposición a regalos distintos.");options=options with{StarterEntries=Array.AsReadOnly(entries)};}}var result=options is null?SwordShieldDataEditor.Edit(section,files,_draft,edits??Array.Empty<SwordShieldDataEdit>()):SwordShieldDataEditor.Randomize(section,files,_draft,options);if(scope is not null)
         {
             var rows=SwordShieldDataEditor.Read(section,files,_draft);var ids=rows.Select(c=>c.Entry).ToHashSet();if(scope.Count==0||scope.Any(id=>!ids.Contains(id)))throw new ArgumentException("Alcance inválido.");
             var combined=files.ToDictionary(p=>p.Key,p=>p.Value);foreach(var pair in result.Files())combined[pair.Key]=pair.Value;

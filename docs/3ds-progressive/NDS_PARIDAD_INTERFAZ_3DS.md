@@ -180,9 +180,53 @@ En el randomizador de entrenadores de 3DS muchas etiquetas salían en inglés o 
 - **`--visual-audit`** (UltraSol): 600 vistas y 0 problemas. Los 80 avisos son de la extracción de prueba reducida (faltan archivos) y no tienen que ver con estos cambios.
 - **Sin probar en juego.** Falta comprobar en el juego las listas de Level Up más largas, los objetos nuevos de Smart Items (DS y Espada/Escudo) y la compatibilidad añadida.
 
+## Cuarta parte: «Expandir cantidad», Level Up en Espada/Escudo y navegación DS
+
+### DS
+
+- **«Expandir cantidad» en Randomizar todos.** Tras el randomizado normal, cada lista crece hasta N movimientos, con las mismas reglas: sin MO salvo que se permitan, sin daño fijo si se pide y con el porcentaje STAB. Después se vuelven a distribuir los niveles.
+  - El tope es la lista más larga del juego original: 20 en Diamante, Platino y HeartGold; 22 en Negro; 24 en Blanco 2.
+  - La vista muestra ese tope en la etiqueta («Movimientos por Pokémon (1–20)») y en la validación. «+ Añadir» avisa al llegar al tope.
+  - La operación guarda las listas completas, así que el Global Template la repite exactamente.
+- **`ILevelUpSource`.** `SupportsExpand` se sustituye por:
+  - `MaxMoves`: 100 en 3DS, el tope del juego en DS y 64 en Espada/Escudo;
+  - `RandomMovePool`: los movimientos que puede elegir «Randomizar» de cada especie.
+- **Vistas sin caché.** Level Up y MT/tutores ya no se guardan entre visitas: se reconstruyen al entrar y siempre muestran el historial actual, también después de deshacer o aplicar un template. Antes, Level Up podía quedar con «Cambios pendientes» de una visita anterior.
+- **Barra lateral.**
+  - «MT/MO» pasa a llamarse «Compatibilidad MT/MO» y «Tutores», «Compatibilidad de tutores». Así se distinguen de «MT y tutores», que va primero.
+  - Las etiquetas largas pasan a dos líneas, con la misma plantilla que Switch.
+  - Compatibilidad, movimientos huevo, iniciales e intercambios tienen icono propio.
+- **Tarjeta de Pokémon.** Sin sprite (sin conexión o aún sin descargar), el marco muestra el número de especie.
+
+### Espada/Escudo: Level Up con la vista de 3DS
+
+- **Vista.** «Level Up Moves» abre la `LevelUpView` de 3DS a través de `SwordShieldLevelUpSource`.
+  - Las listas pueden tener cualquier longitud hasta 64 movimientos. Cada especie y forma tiene un registro fijo de 65 huecos en `wazaoboe_total.bin` (64 movimientos y el centinela) y el juego lo lee por desplazamiento, así que no hay búfer que desbordar. El romhack Divine Sword usa hasta 41.
+  - El nivel 0 (movimiento al evolucionar) se conserva y se ordena primero.
+  - No aparece «Permitir MO / HM», porque Gen8 no tiene MO.
+  - «Randomizar» de cada especie solo elige movimientos que Espada/Escudo puede usar.
+- **Núcleo.** `SwordShieldLearnsets` lee y reemplaza las listas completas; el resto del registro se rellena con `FF`, como el original.
+  - El randomizador acepta las opciones de 3DS como propiedades nuevas de `SwordShieldDataOptions`: `LearnStabPercent`, `LearnExpandTo`, `LearnStartWithFour`, `LearnSpreadTo` y `LearnExcludeFixedDamage`.
+  - Con los valores por defecto se usa el randomizador anterior, así que los templates antiguos se repiten igual.
+- **Historial y Global Template.**
+  - Guardar desde la vista crea la acción `learnset.manual` (listas completas). Se añadió a la lista blanca del Global Template de Switch y se repite después de las randomizaciones, como las demás acciones manuales.
+  - «Randomizar todos» es `data.random`, con las opciones nuevas, y el Global Template la vuelve a randomizar con semilla nueva, como todo randomizador de Switch.
+  - Un template con estas acciones no se puede abrir en versiones anteriores de la app.
+
+### Validación de la cuarta parte
+
+- **Compilación:** 0 advertencias y 0 errores.
+- **Suites de CI:** las 23 pasan, y además `--all-ui-only` (408). Cambian estas cifras:
+  - `--swsh-ui-only`: 117 comprobaciones; las 5 nuevas de Level Up cubren la vista con los límites de Gen8, una lista más larga con movimiento de evolución, el rechazo de 65 movimientos, «Expandir» con STAB, 4 al nivel 1, distribución y sin daño fijo, y la repetición por Global Template.
+  - `--nds-ui-probe`: 51 comprobaciones por juego en Diamante, Platino, HeartGold, Negro y Blanco 2.
+- **`--swsh-visual-preview`** con la extracción real de Espada 1.3.2: la vista se muestra sin errores de binding, y el SHA-256 de `wazaoboe_total.bin` no cambia.
+- **`--visual-audit-ds`:** 484 vistas, 0 problemas y 0 avisos.
+- **`--visual-audit` (UltraSol):** 600 vistas y 0 problemas. Los avisos son de la extracción reducida.
+- **Sin probar en juego:** las listas de Level Up más largas en DS y en Espada/Escudo, sobre todo por encima de 41 movimientos en Gen8. Escudo usa el mismo código, pero no se probó con una extracción real de Escudo.
+
 ## Diferencias que siguen entre DS y 3DS
 
-- **«Expandir cantidad» en Randomizar todos (Level Up).** DS conserva el tamaño de cada lista. A mano sí se pueden añadir movimientos, hasta el límite del juego.
+- **Tope de Level Up.** En DS una lista no puede superar la más larga del juego original, porque el juego carga la lista en un búfer fijo. En 3DS el tope es 100.
 - **Movimientos huevo.** «Ampliar lista» no existe: en Diamante y Platino la tabla está dentro de un overlay de tamaño fijo.
 - **Habilidades de entrenador.** Solo en Gen5; en Gen4 el byte de habilidad no lo leen todos los juegos.
 - **Clases de entrenador.** En DS «Randomizar clases» baraja los nombres de clase, no la clase (sprite y música).

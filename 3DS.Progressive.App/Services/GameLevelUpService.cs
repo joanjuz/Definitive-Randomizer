@@ -19,8 +19,10 @@ public interface ILevelUpSource
     IReadOnlyList<PokemonListEntry> Entries {get;}
     IReadOnlyList<MoveChoice> Moves {get;}
     int Generation {get;}
-    /// <summary>"Expandir cantidad" in the bulk randomizer (the DS randomizer keeps each list's length).</summary>
-    bool SupportsExpand {get;}
+    /// <summary>Most moves one species may have: 100 on 3DS; on DS the longest list of the game, which loads them into a fixed buffer.</summary>
+    int MaxMoves {get;}
+    /// <summary>Moves the per-species «Randomizar» may pick (moves the game can use).</summary>
+    IReadOnlyList<int> RandomMovePool {get;}
     IReadOnlyList<LevelUpMoveEntry> Read(int species);
     void Save(int species,IReadOnlyList<LevelUpMoveEntry> rows);
     LevelUpBatchPreview PrepareRandomization(LevelUpRandomSettings settings,bool metronome=false);
@@ -39,7 +41,8 @@ public sealed class GameLevelUpService:ILevelUpSource
     public IReadOnlyList<PokemonListEntry> Entries {get;}
     public IReadOnlyList<MoveChoice> Moves {get;}
     public int Generation=>_config.Generation;
-    public bool SupportsExpand=>true;
+    public int MaxMoves=>100;
+    public IReadOnlyList<int> RandomMovePool=>Moves.Where(m=>m.Id>0&&m.Id<622&&m.Id is not (165 or 621 or 166 or 226)).Select(m=>m.Id).ToArray();
     public GameLevelUpService(GameProjectSession project)
     {
         _project=project;_config=project.GameConfiguration;

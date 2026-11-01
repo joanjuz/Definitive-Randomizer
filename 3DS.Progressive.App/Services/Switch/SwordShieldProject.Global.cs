@@ -7,6 +7,8 @@ internal sealed record SwitchRecipeAction(string Kind,JsonElement Parameters);
 internal sealed record SwitchPersonalEdit(int Entry,string Field,int Value);
 internal sealed record SwitchDataReplay(SwordShieldDataSection Section,SwordShieldDataOptions? Options,IReadOnlyList<SwordShieldDataEdit>? Edits,IReadOnlyList<int>? Scope);
 internal sealed record SwitchWorldEdit(string Region,string Group,string Field,int Value);
+/// <summary>Level Up view saves: personal entry → [move, level] pairs, the whole list.</summary>
+internal sealed record SwitchLearnsetReplay(IReadOnlyDictionary<int,int[][]> Sets);
 internal sealed record SwitchWorldReplay(bool Items,IReadOnlyList<SwitchWorldEdit> Edits);
 internal sealed record SwitchGlobalPreview(Guid Owner,string InputRevision,string ResultRevision,SwordShieldProject Staged,int Actions,int Changes,long InputEpoch,JsonObject AppliedRecipe);
 internal sealed partial class SwordShieldProject
@@ -18,6 +20,7 @@ internal sealed partial class SwordShieldProject
     private void RecordPersonal(SwordShieldEditPreview preview)=>AppendRecipe(preview.RandomOptions is {} random?RecipeAction("personal.random",random):RecipeAction("personal.manual",preview.Changes.Select(c=>new SwitchPersonalEdit(c.Entry,c.Field,c.After)).ToArray()));
     private SwitchRecipeAction CaptureDataAction(SwordShieldDataPreview preview)
     {
+        if(preview.Learnsets is {} sets)return RecipeAction("learnset.manual",new SwitchLearnsetReplay(sets.ToDictionary(p=>p.Key,p=>p.Value.Select(m=>new[]{m.Move,m.Level}).ToArray())));
         var map=preview.Options is null?ReadData(preview.Section).ToDictionary(c=>(c.Resource,c.Location,c.Field),c=>c.Key):null;var edits=map is null?null:preview.Result.Changes.Select(c=>new SwordShieldDataEdit(map[(c.Resource,c.Location,c.Field)],c.After)).ToArray();
         return RecipeAction(preview.Options is null?"data.manual":"data.random",new SwitchDataReplay(preview.Section,preview.Options,edits,preview.Scope));
     }
@@ -47,7 +50,7 @@ internal sealed partial class SwordShieldProject
         if(document["Format"]?.GetValue<string>()!="DefinitiveRandomizer.SwitchGlobal"||document["Version"]?.GetValue<int>()!=1)throw new InvalidDataException("Se requiere un Global Template de Switch v1. Las recetas de 3DS no se convierten automáticamente.");
         if(document["TitleId"]?.GetValue<string>()!=Identity.TitleId||document["BuildId"]?.GetValue<string>()!=Identity.BuildId)throw new InvalidDataException("El juego o Build ID del template no coincide.");
         if(document["Actions"] is not JsonArray array||array.Count is <1 or >10000)throw new InvalidDataException("Lista de acciones inválida.");var result=new List<SwitchRecipeAction>();int phase=0;
-        foreach(var node in array){var action=node?.Deserialize<SwitchRecipeAction>()??throw new InvalidDataException("Acción vacía.");if(action.Kind is not ("personal.random" or "personal.manual" or "data.random" or "data.manual" or "gameplay.random" or "world.manual" or "runtime.options" or "runtime.remove"))throw new NotSupportedException("Acción no soportada: "+action.Kind);int next=action.Kind.StartsWith("runtime.")?2:action.Kind.EndsWith(".manual")?1:0;if(next<phase)throw new InvalidDataException("Orden inválido: randomización, cambios manuales y finalmente runtime.");if(action.Kind=="runtime.options"){var options=action.Parameters.Deserialize<PokeFeurOptions>()??throw new InvalidDataException("Faltan opciones del runtime.");options.ValidateFeatureAvailability();}phase=next;result.Add(action);}if(result.Any(a=>a.Kind=="runtime.options")&&document["RuntimeProvider"]?.GetValue<string>()!=PokeFeurPackage.Commit)throw new InvalidDataException("La versión del runtime del template no coincide con el módulo integrado.");return result;
+        foreach(var node in array){var action=node?.Deserialize<SwitchRecipeAction>()??throw new InvalidDataException("Acción vacía.");if(action.Kind is not ("personal.random" or "personal.manual" or "data.random" or "data.manual" or "learnset.manual" or "gameplay.random" or "world.manual" or "runtime.options" or "runtime.remove"))throw new NotSupportedException("Acción no soportada: "+action.Kind);int next=action.Kind.StartsWith("runtime.")?2:action.Kind.EndsWith(".manual")?1:0;if(next<phase)throw new InvalidDataException("Orden inválido: randomización, cambios manuales y finalmente runtime.");if(action.Kind=="runtime.options"){var options=action.Parameters.Deserialize<PokeFeurOptions>()??throw new InvalidDataException("Faltan opciones del runtime.");options.ValidateFeatureAvailability();}phase=next;result.Add(action);}if(result.Any(a=>a.Kind=="runtime.options")&&document["RuntimeProvider"]?.GetValue<string>()!=PokeFeurPackage.Commit)throw new InvalidDataException("La versión del runtime del template no coincide con el módulo integrado.");return result;
     }
     private int ChangeCount=>_history.Count+_dataHistory.Sum(h=>h.Changes.Count)+_gameplayHistory.Sum(h=>h.Changes.Count)+_pokeHistory.Sum(h=>h.Changes.Count);
     private void CopyStateTo(SwordShieldProject target)
@@ -76,6 +79,8 @@ internal sealed partial class SwordShieldProject
             case "personal.random":var personal=PreviewRandom(Read<SwordShieldRandomOptions>());Apply(personal);action=RecipeAction(action.Kind,personal.RandomOptions!);break;
             case "personal.manual":foreach(var group in Read<SwitchPersonalEdit[]>().GroupBy(e=>e.Entry)){token.ThrowIfCancellationRequested();var values=this.Read(group.Key).Values.ToArray();foreach(var edit in group)values[(int)Enum.Parse<SwordShieldField>(edit.Field)]=edit.Value;Apply(PreviewPersonal(group.Key,values));}break;
             case "data.random":case "data.manual":var data=Read<SwitchDataReplay>();var dataPreview=PreviewData(data.Section,data.Edits,data.Options,data.Scope);ApplyData(dataPreview);action=RecipeAction(action.Kind,data with{Options=dataPreview.Options,Scope=dataPreview.Scope});break;
+            case "learnset.manual":var learnsets=Read<SwitchLearnsetReplay>();if(learnsets.Sets.Values.Any(list=>list.Any(m=>m.Length!=2)))throw new InvalidDataException("Lista de Level Up inválida.");
+                ApplyData(PreviewLearnsets(learnsets.Sets.ToDictionary(p=>p.Key,p=>(IReadOnlyList<SwordShieldLearnMove>)p.Value.Select(m=>new SwordShieldLearnMove(m[0],m[1])).ToArray())));break;
             case "gameplay.random":ApplyGameplay(PreviewGameplay(Read<SwordShieldGameplayOptions>()));break;
             case "world.manual":var world=Read<SwitchWorldReplay>();var worldRows=ReadWorld(world.Items).ToDictionary(c=>(c.Region,c.Group,c.Field));ApplyGameplay(PreviewWorld(world.Items,world.Edits.Select(e=>new SwordShieldDataEdit(worldRows[(e.Region,e.Group,e.Field)].Key,e.Value)).ToArray()));break;
             case "runtime.options":var runtime=PreviewPokeFeur(PokeFeurPackage.BuiltIn(Identity.TitleId),Read<PokeFeurOptions>());ApplyPokeFeur(runtime);action=RecipeAction(action.Kind,runtime.Options);break;

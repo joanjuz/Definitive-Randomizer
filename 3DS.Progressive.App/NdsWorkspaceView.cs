@@ -22,7 +22,7 @@ namespace ThreeDS.Progressive;
 internal sealed class NdsWorkspaceView:UserControl
 {
     private static readonly (NdsSection Section,string Route)[] Sections=
-        [(NdsSection.Pokemon,"Pokemon"),(NdsSection.Moves,"Moves"),(NdsSection.Learnsets,"Learnsets"),(NdsSection.Evolutions,"Evolutions"),(NdsSection.Machines,"Machines"),(NdsSection.MoveLists,"MoveLists"),(NdsSection.Tutors,"Tutors"),(NdsSection.EggMoves,"EggMoves"),(NdsSection.Trainers,"Trainers"),(NdsSection.Encounters,"Encounters"),(NdsSection.Starters,"Starters"),(NdsSection.Statics,"Statics"),(NdsSection.Trades,"Trades"),(NdsSection.FieldItems,"FieldItems"),(NdsSection.Shops,"Shops")];
+        [(NdsSection.Pokemon,"Pokemon"),(NdsSection.Moves,"Moves"),(NdsSection.Learnsets,"Learnsets"),(NdsSection.Evolutions,"Evolutions"),(NdsSection.MoveLists,"MoveLists"),(NdsSection.Machines,"Machines"),(NdsSection.Tutors,"Tutors"),(NdsSection.EggMoves,"EggMoves"),(NdsSection.Trainers,"Trainers"),(NdsSection.Encounters,"Encounters"),(NdsSection.Starters,"Starters"),(NdsSection.Statics,"Statics"),(NdsSection.Trades,"Trades"),(NdsSection.FieldItems,"FieldItems"),(NdsSection.Shops,"Shops")];
     private readonly Window _owner;
     private readonly ContentControl _page=new(){HorizontalContentAlignment=HorizontalAlignment.Stretch,VerticalContentAlignment=VerticalAlignment.Stretch};
     private readonly Dictionary<string,Button> _navigation=new();
@@ -50,6 +50,8 @@ internal sealed class NdsWorkspaceView:UserControl
         void Add(string route,string label)
         {
             var b=new Button{Content=label,HorizontalContentAlignment=HorizontalAlignment.Left,Margin=new Thickness(0,2,0,2)};b.SetResourceReference(StyleProperty,"SidebarButton");
+            // As the Switch sidebar: long names wrap to a second line instead of being cut.
+            b.SetResourceReference(ContentTemplateProperty,"SwitchNavigationContent");b.Padding=new Thickness(10,8,10,8);
             AutomationProperties.SetName(b,"Sección DS · "+label);b.Click+=async(_,_)=>await NavigateAsync(route);_navigation[route]=b;nav.Children.Add(b);
         }
         void Group(string text){var heading=new TextBlock{Text=text,Margin=new Thickness(10,18,0,6),FontSize=11,FontWeight=FontWeights.SemiBold};heading.SetResourceReference(TextBlock.ForegroundProperty,"TextSoft");nav.Children.Add(heading);}
@@ -148,13 +150,14 @@ internal sealed class NdsWorkspaceView:UserControl
                 else if(section==NdsSection.MoveLists)
                 {
                     // The 3DS «MT y tutores» layout; TM/Tutor Sanity work even where the TM list itself cannot change (Black/White).
-                    var view=new NdsMachineTutorView(Project!);view.Changed+=()=>{UpdateStatus();ContextChanged?.Invoke();};_pages[route]=view;content=view;
+                    // Not cached: it is rebuilt on each visit, so it always shows the history as it is now (undo, templates).
+                    var view=new NdsMachineTutorView(Project!);view.Changed+=()=>{UpdateStatus();ContextChanged?.Invoke();};content=view;
                 }
                 else if(section==NdsSection.Learnsets)
                 {
                     // The 3DS Level Up view: one vertical table per species and the option cards on the right.
                     var source=new NdsLevelUpSource(Project!);source.Changed+=()=>{UpdateStatus();ContextChanged?.Invoke();};
-                    var view=new LevelUpView(source);_pages[route]=view;content=view;
+                    var view=new LevelUpView(source);content=view;
                 }
                 else
                 {

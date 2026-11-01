@@ -19,7 +19,7 @@ internal static class NdsUiChecks
         entry!.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));check(opened,"NdsUi_HomeEntryOpensDsWorkspace");
 
         var owner=new Window();var workspace=new NdsWorkspaceView(owner);
-        string[] sections=["Inicio","Pokémon","Movimientos","Level Up","Evoluciones","MT/MO","Entrenadores","Encuentros","Iniciales","Estáticos y regalos","Intercambios","Objetos del mapa","Tiendas","Ajustes del juego","Global Template y Batch","Historial de cambios"];
+        string[] sections=["Inicio","Pokémon","Movimientos","Level Up","Evoluciones","MT y tutores","Compatibilidad MT/MO","Compatibilidad de tutores","Entrenadores","Encuentros","Iniciales","Estáticos y regalos","Intercambios","Objetos del mapa","Tiendas","Ajustes del juego","Global Template y Batch","Historial de cambios"];
         check(sections.All(s=>Buttons(workspace).Any(b=>AutomationProperties.GetName(b)=="Sección DS · "+s))&&workspace.Project is null&&workspace.CurrentRoute=="Home","NdsUi_WorkspaceShowsTheSidebarSectionsWithoutARom");
         Pump(workspace.NavigateAsync("Trainers"));
         check(workspace.CurrentRoute=="Home","NdsUi_SectionsNeedAnOpenRom");
@@ -192,6 +192,11 @@ internal static class NdsUiChecks
                 Check(proposed.Values.All(s=>s.Count==1&&s[0] is {Move:118,Level:1})&&levelUp.Read(4).Count>1,"NdsUi_Real_LevelUpMetronomePreviewWritesNothing");
                 var random=levelUp.PrepareRandomization(new(false,true,30,false,25,true,false,79,true));levelUp.ApplyRandomization(random);
                 Check(levelUp.Entries.Where(e=>levelUp.Read(e.Index).Count>=4).All(e=>levelUp.Read(e.Index).Take(4).All(r=>r.Level==1)),"NdsUi_Real_LevelUpBulkStartsWithFour");
+                // «Expandir cantidad»: every list reaches the game's limit, without repeats, Struggle or HMs, levels in order.
+                var hms=project.Source.MachineMoves.Skip(project.Source.TmCount).ToHashSet();
+                var expanded=levelUp.PreviewLearnsets(levelUp.PrepareRandomization(new(false,true,40,true,levelUp.MaxMoves,true,true,60,true)));
+                Check(levelUp.MaxMoves>=15&&expanded.Values.All(s=>s.Count==levelUp.MaxMoves&&s.Select(r=>r.Move).Distinct().Count()==s.Count&&s.All(r=>r.Move!=165&&!hms.Contains(r.Move)&&r.Level is >=1 and <=60)
+                    &&s.Select(r=>r.Level).SequenceEqual(s.Select(r=>r.Level).Order())),$"NdsUi_Real_LevelUpExpandReachesTheGameLimit ({levelUp.MaxMoves})");
             }
             // Parity with 3DS: the Level Caps and Trainer Move Rules tables, three-stage starters and egg moves as a form.
             {
