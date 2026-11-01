@@ -106,7 +106,7 @@ public static class Gen4Randomizer
         var profile = data.Profile;
         int[] chosen = options.Starters == Gen5StarterMode.Custom
             ? (options.CustomStarters ?? throw new ArgumentException("Faltan los iniciales personalizados.", nameof(options))).ToArray()
-            : PickStarters(options.Seed);
+            : Gen5Randomizer.PickStarters(options.Seed, Gen4Data.MaxSpecies, Gen5Randomizer.StarterPool(options, () => NdsCells.Read(data, NdsSection.Evolutions), Gen4Data.MaxSpecies));
         if (chosen.Length != 3 || chosen.Distinct().Count() != 3 || chosen.Any(s => s is < 1 or > Gen4Data.MaxSpecies))
             throw new ArgumentException("Se necesitan tres iniciales distintos entre 1 y 493.", nameof(options));
         var original = data.Starters();
@@ -309,18 +309,6 @@ public static class Gen4Randomizer
             if (j != wildcard && j != wildcard + 1 && data[at + j] != pattern[j])
                 return false;
         return true;
-    }
-
-    private static int[] PickStarters(uint seed)
-    {
-        var picked = new List<int>();
-        for (int attempt = 0; picked.Count < 3; attempt++)
-        {
-            int species = Gen5Randomizer.Index(seed, $"starter/{attempt}", Gen4Data.MaxSpecies) + 1;
-            if (!picked.Contains(species))
-                picked.Add(species);
-        }
-        return [.. picked];
     }
 
     /// <summary>Dry run of the starter changes with the original starters, to know before randomizing whether a romhack supports them.</summary>

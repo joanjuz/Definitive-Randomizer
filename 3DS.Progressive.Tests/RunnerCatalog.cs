@@ -68,6 +68,7 @@ internal static class RunnerCatalog
         new("--tm-default-ui-only","",RunnerCategory.Ui,false),
         new("--utility-ui-only","",RunnerCategory.Ui,false),
         new("--visual-audit","1 o 2",RunnerCategory.Ui,false),
+        new("--visual-audit-ds","2 o más",RunnerCategory.Ui,false),
         new("--visual-redesign-only","",RunnerCategory.Ui,true),
         new("--arm-audit-export","exactamente 2",RunnerCategory.Real,false),
         new("--audit-catch-templates","exactamente 2",RunnerCategory.Real,false),

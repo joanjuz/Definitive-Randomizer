@@ -157,6 +157,7 @@ internal static class VisualAudit
         // The home and the Pokémon editor are not hosted in SectionHost: inspect the whole content then.
         var view=Host(run.Main) is {IsVisible:true,Content:FrameworkElement hosted}?hosted:(FrameworkElement)run.Main.Content;
         Check(run,view,label);
+        RandomizerOptions(run,view,label);
         // Other tabs of the section (MT / tutors, trainer option tabs, template tabs...).
         foreach(var tabs in Visual(view).OfType<TabControl>().Where(t=>t.IsVisible).ToArray())
             for(int tab=1;tab<tabs.Items.Count;tab++)
@@ -185,6 +186,7 @@ internal static class VisualAudit
             if(Host(run.Main).Content is FrameworkElement view&&!ReferenceEquals(view,current))
             {
                 Check(run,view,label);
+                RandomizerOptions(run,view,label);
                 foreach(var tabs in Visual(view).OfType<TabControl>().Where(t=>t.IsVisible).ToArray())
                     for(int tab=1;tab<tabs.Items.Count;tab++){tabs.SelectedIndex=tab;Pump(run.Main);Check(run,view,$"{label}-tab{tab}");}
             }
@@ -236,6 +238,106 @@ internal static class VisualAudit
             run.Views++;
             try{window.Close();}catch(InvalidOperationException){}
         }
+    }
+
+    /// <summary>
+    /// The randomizer options of every record editor in the view: «Randomizar» shows them in place of the fields; each
+    /// tab of the options is checked, then «← Volver al editor».
+    /// </summary>
+    private static void RandomizerOptions(AuditRun run,FrameworkElement view,string label)
+    {
+        ExpandInspector(run,view);
+        foreach(var editor in Visual(view).OfType<RecordEditorView>().Where(e=>e.IsVisible).ToArray())
+        {
+            if(editor.FindName("RandomizerButton") is not Button open||!open.IsVisible||!open.IsEnabled)continue;
+            if(!Click(run,open,label+"-opciones"))continue;
+            Check(run,view,label+"-opciones");
+            if(editor.FindName("OptionsPanel") is FrameworkElement options)
+                foreach(var tabs in Visual(options).OfType<TabControl>().Where(t=>t.IsVisible).ToArray())
+                    for(int tab=1;tab<tabs.Items.Count;tab++){tabs.SelectedIndex=tab;Pump(run.Main);Check(run,view,$"{label}-opciones-tab{tab}");}
+            if(Visual(editor).OfType<Button>().FirstOrDefault(b=>b.IsVisible&&b.Content is "← Volver al editor") is Button back)Click(run,back,label);
+        }
+    }
+
+    // On narrow windows the Inspector folds under the editor; the user opens it to reach its buttons.
+    private static void ExpandInspector(AuditRun run,FrameworkElement view)
+    {
+        bool changed=false;
+        foreach(var expander in Visual(view).OfType<Expander>().Where(e=>e.IsVisible&&!e.IsExpanded&&Equals(e.Header,"Inspector")).ToArray()){expander.IsExpanded=true;changed=true;}
+        if(changed)Pump(run.Main);
+    }
+
+    // Nintendo DS workspace: the same sizes, every section, its randomizer options, adjustments, template and history.
+    private static readonly string[] DsRoutes=["Home","Pokemon","Moves","Learnsets","Evolutions","Machines","MoveLists","Tutors","EggMoves","Trainers","Encounters","Starters","Statics","Trades","FieldItems","Shops","Tweaks","Template","History"];
+
+    /// <param name="roms">DS dumps; they are only read (nothing is exported here).</param>
+    internal static void RunDs(string output,IReadOnlyList<string> roms,Action<bool,string> check)
+    {
+        Directory.CreateDirectory(output);
+        StudioDialog.AutomatedChecks=true;
+        var app=new ThreeDS.Progressive.App();app.InitializeComponent();app.ShutdownMode=ShutdownMode.OnExplicitShutdown;
+        SynchronizationContext.SetSynchronizationContext(new DispatcherSynchronizationContext(Dispatcher.CurrentDispatcher));
+        Dispatcher.CurrentDispatcher.UnhandledException+=(_,e)=>{if(_current is null)return;_current.Issues.Add($"{_current.Context}: error ({e.Exception.GetBaseException().Message})");e.Handled=true;};
+        var issues=new List<string>();var warnings=new List<string>();int views=0;
+        var hashes=roms.ToDictionary(r=>r,r=>Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(File.ReadAllBytes(r))));
+        foreach(string rom in roms)
+        {
+            var main=new MainWindow{WindowStartupLocation=WindowStartupLocation.Manual,Left=-32000,Top=-32000,ShowActivated=false,ShowInTaskbar=false};
+            main.Show();main.ChooseExperience(false);main.OpenNdsRandomizer();
+            var workspace=main.NdsWorkspace!;Wait(main,workspace.LoadAsync(rom));
+            string game=workspace.Project?.Identity.Profile.GameCode??Path.GetFileNameWithoutExtension(rom);
+            var run=new AuditRun(output,main);_current=run;
+            if(workspace.Project is null)run.Issues.Add($"{game}: la ROM no se abrió");
+            var watcher=new DispatcherTimer(TimeSpan.FromMilliseconds(120),DispatcherPriority.Background,(_,_)=>Windows(run),main.Dispatcher);watcher.Start();
+            try
+            {
+                foreach(var (width,height) in Games[0].Sizes)
+                {
+                    main.Width=width;main.Height=height;Pump(main);
+                    foreach(string route in DsRoutes)
+                    {
+                        string label=$"DS-{game}-{width}x{height} {route}";run.Context=label;
+                        Wait(main,workspace.NavigateAsync(route,force:true));Windows(run);
+                        Check(run,workspace,label);
+                        foreach(var tabs in Visual(workspace).OfType<TabControl>().Where(t=>t.IsVisible).ToArray())
+                            for(int tab=1;tab<tabs.Items.Count;tab++){tabs.SelectedIndex=tab;Pump(main);Check(run,workspace,$"{label}-tab{tab}");}
+                        RandomizerOptions(run,workspace,label);
+                        // The trainer rule tables open over the record editor, as in 3DS.
+                        if(route=="Trainers")
+                            foreach(string text in new[]{"Tabla de Level Caps","Tabla de Trainer Move Rules"})
+                            {
+                                ExpandInspector(run,workspace);
+                                var editor=Visual(workspace).OfType<RecordEditorView>().FirstOrDefault();
+                                var opener=editor is null?null:Visual(editor).OfType<Button>().FirstOrDefault(b=>b.IsVisible&&b.IsEnabled&&Equals(b.Content,text));
+                                if(opener is null){run.Issues.Add($"{label}: falta el botón «{text}»");continue;}
+                                string tableLabel=$"{label}-{Slug(text)}";
+                                if(!Click(run,opener,tableLabel))continue;
+                                if(editor!.FindName("TrainerRulesHost") is ContentControl{IsVisible:true,Content:FrameworkElement table})
+                                {
+                                    Check(run,table,tableLabel);
+                                    if(Visual(table).OfType<Button>().FirstOrDefault(b=>b.IsVisible&&b.Content is "Volver al randomizador") is Button back)Click(run,back,tableLabel);
+                                }
+                                else run.Issues.Add($"{tableLabel}: la tabla no se abrió");
+                            }
+                    }
+                }
+            }
+            finally{watcher.Stop();Windows(run);workspace.Project?.Dispose();main.Close();_current=null;}
+            issues.AddRange(run.Issues);warnings.AddRange(run.Warnings);views+=run.Views;
+        }
+        foreach(var (rom,hash) in hashes)if(Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(File.ReadAllBytes(rom)))!=hash)issues.Add($"{rom}: la ROM cambió");
+        issues=issues.Distinct().ToList();warnings=warnings.Distinct().ToList();
+        File.WriteAllLines(Path.Combine(output,"issues.txt"),issues);File.WriteAllLines(Path.Combine(output,"warnings.txt"),warnings);
+        foreach(var issue in issues)Console.WriteLine("VISUAL: "+issue);
+        Console.WriteLine($"DS visual audit: {views} views, {issues.Count} problem(s), {warnings.Count} warning(s); captures in {output}");
+        check(issues.Count==0,$"DS visual audit: no overlapping or clipped controls, cut or unreadable text, light system backgrounds or system-look cell editors ({issues.Count} problem(s))");
+    }
+
+    private static void Wait(Window window,Task task)
+    {
+        for(int i=0;i<6000&&!task.IsCompleted;i++){window.Dispatcher.Invoke(()=>{},DispatcherPriority.Background);Thread.Sleep(10);}
+        Pump(window);
+        if(task.IsFaulted)throw task.Exception!.GetBaseException();
     }
 
     private static string Slug(string text)=>new string(text.Select(c=>char.IsLetterOrDigit(c)||c is '-' or '_'?c:'_').ToArray()).Trim('_');

@@ -12,6 +12,10 @@ public sealed class TrainerRuleTableRow
     public bool Max3 {get;set;}
     public bool Mega {get;set;}
     public bool SupportsZMoves {get;set;}=true;
+    /// <summary>False where the game has no Mega Evolution (Nintendo DS): the table hides the column.</summary>
+    public bool SupportsMega {get;set;}=true;
+    /// <summary>False where trainer Pokémon have no EVs (Nintendo DS): the table hides the column.</summary>
+    public bool SupportsEVs {get;set;}=true;
     public bool ZMove {get;set;}
     public bool MoveUse {get;set;}=true;
     public int MinPower {get;set;}

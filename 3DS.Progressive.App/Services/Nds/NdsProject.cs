@@ -104,6 +104,9 @@ internal sealed class NdsProject : IDisposable
 
     internal IReadOnlyList<NdsCell> Read(NdsSection section) => _gen4 is not null ? NdsCells.Read(Gen4View, section) : NdsCells.Read(Gen5View, section);
 
+    /// <summary>Trainers with every applied change (class, name and team), for the Level Caps and Move Rules tables.</summary>
+    internal IReadOnlyList<Gen5Trainer> Trainers() => _gen4 is not null ? Gen4View.Trainers() : Gen5View.Trainers();
+
     internal NdsPreview PreviewEdits(NdsSection section, IReadOnlyDictionary<string, int> edits) =>
         new(_id, Revision, "Edición manual · " + SectionName(section), null, _gen4 is not null ? NdsCells.Write(Gen4View, section, edits) : NdsCells.Write(Gen5View, section, edits),
             new JsonObject { ["Kind"] = "Edit", ["Section"] = section.ToString(), ["Edits"] = JsonSerializer.SerializeToNode(edits.OrderBy(p => p.Key, StringComparer.Ordinal).ToDictionary(p => p.Key, p => p.Value)) });

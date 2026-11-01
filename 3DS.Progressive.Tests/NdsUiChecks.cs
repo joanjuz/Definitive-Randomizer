@@ -151,6 +151,38 @@ internal static class NdsUiChecks
                 }
                 Check(finalStarters.SequenceEqual(new[]{1,4,258})&&species==133&&dexOnce,"NdsUi_Real_StartersPatchedOnceAndEditsSurviveLaterRandomizations");
             }
+            // Parity with 3DS: the Level Caps and Trainer Move Rules tables, three-stage starters and egg moves as a form.
+            {
+                var capsEditor=new NdsRecordEditor(project,NdsSection.Trainers);var rows=capsEditor.GetRuleRows();
+                Check(rows.Any(r=>r.Group.StartsWith("Jefes · Líderes",StringComparison.Ordinal))&&rows.Any(r=>r.Group.StartsWith("Jefes · Alto Mando",StringComparison.Ordinal))&&rows.Any(r=>r.Group.StartsWith("Importantes",StringComparison.Ordinal))
+                    &&rows.All(r=>!r.CapUse&&!r.MoveUse&&!r.SupportsMega&&!r.SupportsEVs),$"NdsUi_Real_RuleTableHasLeadersEliteFourAndImportantTrainers ({rows.Count} filas)");
+                var teamsBefore=project.Trainers().ToDictionary(t=>t.Id);
+                // The strongest boss with more than three Pokémon gets cap 50 and «Máx. 3»; a leader gets a move rule without status moves.
+                var capRow=rows.Where(r=>r.Group.StartsWith("Jefes",StringComparison.Ordinal)&&teamsBefore[r.Id].Team.Count>3).OrderByDescending(r=>r.Ace).First();
+                var moveRow=rows.First(r=>r.Group.StartsWith("Jefes · Líderes",StringComparison.Ordinal)&&r.Id!=capRow.Id);
+                capRow.CapUse=true;capRow.Cap=50;capRow.Max3=true;capsEditor.UpdateRuleRows([capRow],true);
+                moveRow.MoveUse=true;moveRow.AllowStatus=false;capsEditor.UpdateRuleRows([moveRow],false);
+                capsEditor.Apply(capsEditor.Preview(Defaults(capsEditor,("Mode",2),("GlobalCaps.ApplyPrevious",1),("GlobalCaps.PreviousGap",2)),capsEditor.Entries.Select(e=>e.Id).ToArray()));
+                var after=project.Trainers().ToDictionary(t=>t.Id);
+                Check(after[capRow.Id].Team.Count==3&&after[capRow.Id].Team.All(p=>p.Level==50),$"NdsUi_Real_LevelCapSetsTheTeamAndKeepsThree (#{capRow.Id} {capRow.Trainer})");
+                // Trainers below the capped one move up to at most cap - gap, keeping the spread within each team.
+                int capAce=teamsBefore[capRow.Id].Team.Max(p=>p.Level);
+                var scaled=teamsBefore.Values.Where(t=>t.Team.Count>0&&t.Id!=capRow.Id&&t.Team.Max(p=>p.Level)<=capAce&&after[t.Id].Team.Count==t.Team.Count).ToArray();
+                Check(scaled.Any(t=>after[t.Id].Team[0].Level!=t.Team[0].Level)&&scaled.All(t=>after[t.Id].Team.Max(p=>p.Level)<=48
+                    &&after[t.Id].Team.Zip(t.Team).Select(p=>p.First.Level-p.Second.Level).Distinct().Count()==1||after[t.Id].Team.Any(p=>p.Level is 1 or 100)),$"NdsUi_Real_TrainersWithoutCapMoveBetweenCaps ({scaled.Length})");
+                // Category by its name: Gen4 and Gen5 number the categories differently.
+                var statusMoves=project.Read(NdsSection.Moves).Where(c=>c.Local=="Category"&&c.Options is {} names&&names[c.Value]=="Estado").Select(c=>c.Entry).ToHashSet();
+                Check(statusMoves.Count>0&&after[moveRow.Id].Team.All(p=>p.Moves.Any(m=>m>0)&&p.Moves.All(m=>m==0||!statusMoves.Contains(m))),$"NdsUi_Real_MoveRuleGivesBetterMovesWithoutStatus (#{moveRow.Id} {moveRow.Trainer})");
+                // Three-stage starters: each one is not an evolution and evolves into something that evolves again, in this ROM's table.
+                var startersEditor=new NdsRecordEditor(project,NdsSection.Starters);
+                startersEditor.Apply(startersEditor.Preview(Defaults(startersEditor,("BasicStarter",1),("Legends",0)),[0]));
+                var chosen=startersEditor.Read(0).SelectMany(g=>g.Fields).Where(f=>f.Key.StartsWith("Starter",StringComparison.Ordinal)).Select(f=>f.Value).ToArray();
+                var next=project.Read(NdsSection.Evolutions).Where(c=>c.Local.EndsWith(".Species",StringComparison.Ordinal)&&c.Value>0).GroupBy(c=>c.Entry).ToDictionary(g=>g.Key,g=>g.Select(c=>c.Value).Where(v=>v!=g.Key).ToArray());
+                var evolved=next.Values.SelectMany(v=>v).ToHashSet();
+                Check(chosen.Length==3&&chosen.Distinct().Count()==3&&chosen.All(s=>!evolved.Contains(s)&&next.TryGetValue(s,out var t)&&t.Any(x=>next.TryGetValue(x,out var u)&&u.Length>0)),
+                    $"NdsUi_Real_StartersStartThreeStageLines ({string.Join(", ",chosen.Select(s=>project.SpeciesNames[s]))})");
+                Check(project.SectionProblem(NdsSection.EggMoves) is not null||!new NdsRecordEditor(project,NdsSection.EggMoves).UsesRecordTable,"NdsUi_Real_EggMovesShowAsAForm");
+            }
             // Every recipe kind in the template: manual edits, species, data randomizations and (Gen4) game tweaks.
             project.Apply(project.PreviewData("Randomizar Pokémon",NdsSection.Pokemon,new NdsDataOptions(5){Stats=NdsStatsMode.Shuffle,Types=true,Scope=new HashSet<int>{1,4,7}}));
             var ruled=new NdsRecordEditor(project,NdsSection.Trainers);

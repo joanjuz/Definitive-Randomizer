@@ -9,7 +9,7 @@ namespace ThreeDS.Progressive.Services.Nds;
 /// Adapts one DS section to the editor contract shared with 3DS and Sword/Shield: entries, fields with their ranges and names,
 /// manual saves and randomization proposals. Storage stays in <see cref="NdsProject"/>; this view never writes ROM files.
 /// </summary>
-internal sealed class NdsRecordEditor : IProjectEditor, ITrainerEditorPresentation, IWildEditorPresentation, ITableEditorPresentation
+internal sealed class NdsRecordEditor : IProjectEditor, ITrainerEditorPresentation, IWildEditorPresentation, ITableEditorPresentation, ITrainerRuleTableEditor
 {
     private static readonly string[] SpeciesModes = ["Aleatorio", "BST similar", "BST progresivo por nivel"];
     private readonly NdsProject _project;
@@ -25,10 +25,42 @@ internal sealed class NdsRecordEditor : IProjectEditor, ITrainerEditorPresentati
     public string Title => NdsProject.SectionName(_section);
     public bool UsesTrainerLayout => _section == NdsSection.Trainers;
     public bool UsesWildLayout => _section == NdsSection.Encounters;
-    // Long lists of similar values read best as a table, as in Sword/Shield.
-    public bool UsesRecordTable => _section is NdsSection.Learnsets or NdsSection.Evolutions or NdsSection.Machines or NdsSection.Shops or NdsSection.EggMoves or NdsSection.Tutors;
+    // Long lists of similar values read best as a table, as in Sword/Shield. Egg moves are a form, as the 3DS Egg Moves editor:
+    // in one table row their move lists were too narrow to read.
+    public bool UsesRecordTable => _section is NdsSection.Learnsets or NdsSection.Evolutions or NdsSection.Machines or NdsSection.Shops or NdsSection.Tutors;
     private static bool IsData(NdsSection section) => section >= NdsSection.Pokemon;
     public IReadOnlyList<RecordEntry> Entries { get; private set; } = [];
+
+    // Level Caps and Trainer Move Rules rows (as the 3DS tables), kept while the editor lives and used by every preview.
+    private Dictionary<int, TrainerRuleTableRow>? _rules;
+
+    public IReadOnlyList<TrainerRuleTableRow> GetRuleRows()
+    {
+        if (_section != NdsSection.Trainers)
+            return [];
+        var kept = _rules ?? [];
+        _rules = _project.Trainers().Where(t => t.Team.Count > 0 && NdsTrainerTools.Kind(t.ClassName, t.Name) != "Normal").ToDictionary(t => t.Id, t => kept.GetValueOrDefault(t.Id) ?? new TrainerRuleTableRow
+        {
+            // Gen4 writes the PK/MN glyphs of "PKMN Trainer" as [PK][MN].
+            Id = t.Id, Group = NdsTrainerTools.Kind(t.ClassName, t.Name), Trainer = $"{t.ClassName.Replace("[PK][MN]", "PKMN", StringComparison.Ordinal)} {t.Name}".Trim(), Ace = t.Team.Max(p => p.Level),
+            CapUse = false, Cap = 0, MoveUse = false, AllowStatus = true, SupportsMega = false, SupportsZMoves = false, SupportsEVs = false,
+        });
+        return [.. _rules.Values.OrderBy(r => r.Id)];
+    }
+
+    public void UpdateRuleRows(IReadOnlyList<TrainerRuleTableRow> rows, bool levelCaps)
+    {
+        GetRuleRows();
+        foreach (var row in rows)
+        {
+            if (!_rules!.TryGetValue(row.Id, out var rule))
+                continue;
+            if (row.Cap is < 0 or > 100)
+                throw new ArgumentException($"El cap del entrenador #{row.Id} debe estar entre 0 y 100.");
+            if (levelCaps) { rule.CapUse = row.CapUse; rule.Cap = row.Cap; rule.Max3 = row.Max3; }
+            else { rule.MoveUse = row.MoveUse; rule.AllowStatus = row.AllowStatus; }
+        }
+    }
 
     internal NdsRecordEditor(NdsProject project, NdsSection section)
     {
@@ -105,6 +137,9 @@ internal sealed class NdsRecordEditor : IProjectEditor, ITrainerEditorPresentati
                     ? "Combates dobles (%) · experimental en Gen5" : "Combates dobles (%)", 0, 0, _project.DoublesProblem is null ? 100 : 0)]),
             new EditorGroup("BST progresivo", [Flag("CHK_ProgressiveBST", "Usar rangos BST por nivel", 1)]),
             .. BstRanges(),
+            // Same group and keys as the 3DS trainer randomizer; the per-trainer caps are in «Tabla de Level Caps».
+            new EditorGroup("Política global de Level Caps", [Flag("GlobalCaps.ApplyPrevious", "Escalado progresivo de entrenadores sin cap", 0),
+                new EditorField("GlobalCaps.PreviousGap", "Separación de nivel con entrenadores anteriores", 2, 0, 20)], false),
         ],
         NdsSection.Encounters =>
         [
@@ -114,7 +149,9 @@ internal sealed class NdsRecordEditor : IProjectEditor, ITrainerEditorPresentati
         ],
         NdsSection.Statics => [new EditorGroup(Title, [new EditorField("Mode", "Especies", 2, 0, 2, Choices("Aleatorias", "BST similar", "Legendarios por legendarios"))])],
         NdsSection.Trades => [new EditorGroup(Title, [Flag("Given", "Randomizar el Pokémon que entregan", 1), Flag("Requested", "Randomizar el Pokémon que piden", 1)])],
-        NdsSection.Starters => [new EditorGroup(Title, [new EditorField("Random", "Iniciales aleatorios (tres especies distintas)", 1, 1, 1),
+        // Three distinct random starters; the options and their keys follow the 3DS starters (BasicStarter, Legends).
+        NdsSection.Starters => [new EditorGroup(Title, [Flag("BasicStarter", "Iniciales básicos con dos evoluciones (línea de 3 etapas)", 0),
+            Flag("Legends", "Permitir Pokémon legendarios", 1),
             // Diamond and Platinum give the starter with an item; the section then has an "Item" cell.
             .. _cells.Any(c => c.Local == "Item") ? [Flag("Item", "Objeto aleatorio para el inicial", 0)] : Array.Empty<EditorField>()])],
         NdsSection.EggMoves => [new EditorGroup(Title, [new EditorField("Mode", "Movimientos huevo", 0, 0, 1, Choices("Aleatorios", "Solo Metrónomo")),
@@ -185,7 +222,8 @@ internal sealed class NdsRecordEditor : IProjectEditor, ITrainerEditorPresentati
                 ForceFullyEvolvedLevel = options.GetValueOrDefault("EvolvedLevel"), TrainerLevelPercent = options.GetValueOrDefault("Levels"), BstRanges = ranges, BanLegendaries = options.GetValueOrDefault("NoLegend") == 1 },
             NdsSection.Encounters => new Gen5RandomizerOptions(seed) { Wild = species, Scope = chosen, WildGlobalMapping = options.GetValueOrDefault("Global") == 1,
                 WildLevelPercent = options.GetValueOrDefault("Levels"), BstRanges = ranges, BanLegendaries = options.GetValueOrDefault("NoLegend") == 1 },
-            NdsSection.Starters => new Gen5RandomizerOptions(seed) { Starters = Gen5StarterMode.Random, RandomStarterItem = options.GetValueOrDefault("Item") == 1 },
+            NdsSection.Starters => new Gen5RandomizerOptions(seed) { Starters = Gen5StarterMode.Random, RandomStarterItem = options.GetValueOrDefault("Item") == 1,
+                ThreeStageStarters = options.GetValueOrDefault("BasicStarter") == 1, BanLegendaries = options.GetValueOrDefault("Legends", 1) == 0 },
             NdsSection.FieldItems => new Gen5RandomizerOptions(seed) { FieldItems = Gen5ItemMode.Shuffle, Scope = chosen },
             _ => new Gen5RandomizerOptions(seed) { Shops = Gen5ItemMode.Shuffle, Scope = chosen },
         };
@@ -197,6 +235,9 @@ internal sealed class NdsRecordEditor : IProjectEditor, ITrainerEditorPresentati
                 MinTeamSize = options.GetValueOrDefault("TeamSize"), Moves = (NdsTrainerMoveMode)options.GetValueOrDefault("CB_Moves"), Items = (NdsTrainerItemMode)options.GetValueOrDefault("HeldItems"),
                 MaxIvs = options.GetValueOrDefault("MaxIVs") == 1, MaxAi = options.GetValueOrDefault("MaxAI") == 1, DoubleChance = options.GetValueOrDefault("DoubleChance"), Scope = chosen,
                 ShuffleNames = options.GetValueOrDefault("Names") == 1, ShuffleClassNames = options.GetValueOrDefault("Titles") == 1,
+                LevelCaps = _rules?.Values.Where(r => r.CapUse).Select(r => new NdsTrainerLevelCap(r.Id, r.Cap, r.Max3)).ToArray() ?? [],
+                MoveRules = _rules?.Values.Where(r => r.MoveUse).Select(r => new NdsTrainerMoveRule(r.Id, r.AllowStatus)).ToArray() ?? [],
+                ScaleBetweenCaps = options.GetValueOrDefault("GlobalCaps.ApplyPrevious") == 1, CapGap = options.GetValueOrDefault("GlobalCaps.PreviousGap", 2),
             };
             return Propose(_project.PreviewTrainers(action, (Gen5RandomizerOptions)config, tools), seed);
         }

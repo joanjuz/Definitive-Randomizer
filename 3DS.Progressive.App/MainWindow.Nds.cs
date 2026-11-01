@@ -7,7 +7,7 @@ public partial class MainWindow
     // The DS workspace shares the platform host and header with Sword/Shield; the open 3DS project is never touched.
     private bool NdsVisible=>SwitchHost.Visibility==Visibility.Visible&&SwitchHost.Content is NdsWorkspaceView;
     internal NdsWorkspaceView? NdsWorkspace=>_ndsWorkspace;
-    private void OpenNdsRandomizer()
+    internal void OpenNdsRandomizer()
     {
         if(_closed||UiProgress.IsInteractionBlocked||_switchWorkspace?.Busy==true||_ndsWorkspace?.Busy==true)return;
         if(SwitchHost.Visibility==Visibility.Visible&&SwitchHost.Content is SwitchWorkspaceView current&&!current.CanLeave())return;

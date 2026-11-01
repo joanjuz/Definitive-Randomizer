@@ -36,6 +36,11 @@ public sealed record Gen5RandomizerOptions(uint Seed)
     /// <summary>Item the Diamond/Platinum starter comes with (null keeps it); <see cref="RandomStarterItem"/> picks a random held item instead.</summary>
     public int? StarterItem { get; init; }
     public bool RandomStarterItem { get; init; }
+    /// <summary>
+    /// Random starters start a three-stage line (they evolve twice), as the 3DS "Iniciales básicos" option. The lines come
+    /// from this game's evolution table, so randomized evolutions and romhacks are followed.
+    /// </summary>
+    public bool ThreeStageStarters { get; init; }
     public Gen5ItemMode FieldItems { get; init; }
     public Gen5ItemMode Shops { get; init; }
     public IReadOnlyList<Gen5BstRange> BstRanges { get; init; } = Gen5BstRange.Defaults;
@@ -55,7 +60,7 @@ public sealed record Gen5RandomizerOptions(uint Seed)
     public bool WildGlobalMapping { get; init; }
     /// <summary>Wild levels change by this percentage, between 1 and 100 (0 = off).</summary>
     public int WildLevelPercent { get; init; }
-    /// <summary>Legendary and mythical species are never chosen for trainers or wild slots.</summary>
+    /// <summary>Legendary and mythical species are never chosen for trainers, wild slots or random starters.</summary>
     public bool BanLegendaries { get; init; }
     internal bool AdjustsTrainers => TrainerLevelPercent != 0 || ForceFullyEvolvedLevel > 0;
 }
@@ -191,15 +196,52 @@ public static class Gen5Randomizer
         }
     }
 
+    // Species → the species it evolves into, from the evolution table.
+    private static Dictionary<int, int[]> EvolutionTargets(IReadOnlyList<NdsCell> evolutions) => evolutions.GroupBy(c => c.Entry).ToDictionary(g => g.Key, g =>
+    {
+        var row = g.ToDictionary(c => c.Local, c => c.Value);
+        return Enumerable.Range(0, 7).Where(i => row.GetValueOrDefault("E" + i + ".Method") != 0 && row.GetValueOrDefault("E" + i + ".Species") > 0)
+            .Select(i => row["E" + i + ".Species"]).Where(s => s != g.Key).Distinct().ToArray();
+    });
+
+    /// <summary>Species that start a three-stage line: nothing evolves into them and one of their evolutions evolves again.</summary>
+    internal static int[] ThreeStageBasics(IReadOnlyList<NdsCell> evolutions, int maxSpecies, bool banLegendaries)
+    {
+        var next = EvolutionTargets(evolutions);
+        var evolved = next.Values.SelectMany(t => t).ToHashSet();
+        return next.Keys.Where(s => s >= 1 && s <= maxSpecies && !evolved.Contains(s) && !(banLegendaries && NdsDataRandomizer.IsLegendary(s))
+            && next[s].Any(t => next.TryGetValue(t, out var then) && then.Length > 0)).Order().ToArray();
+    }
+
+    /// <summary>
+    /// Species allowed as random starters, or null for any species (the original behaviour, so old templates keep their result).
+    /// </summary>
+    internal static int[]? StarterPool(Gen5RandomizerOptions options, Func<IReadOnlyList<NdsCell>> evolutions, int maxSpecies)
+    {
+        if (options.ThreeStageStarters)
+            return ThreeStageBasics(evolutions(), maxSpecies, options.BanLegendaries);
+        return options.BanLegendaries ? Enumerable.Range(1, maxSpecies).Where(s => !NdsDataRandomizer.IsLegendary(s)).ToArray() : null;
+    }
+
+    /// <summary>Three distinct starters: from <paramref name="pool"/>, or from every species when it is null.</summary>
+    internal static int[] PickStarters(uint seed, int maxSpecies, IReadOnlyList<int>? pool)
+    {
+        if (pool is not null && pool.Distinct().Count() < 3)
+            throw new ArgumentException("No hay tres especies que cumplan las condiciones de los iniciales.");
+        var picked = new List<int>();
+        for (int attempt = 0; picked.Count < 3; attempt++)
+        {
+            int species = pool is null ? Index(seed, $"starter/{attempt}", maxSpecies) + 1 : pool[Index(seed, $"starter/{attempt}", pool.Count)];
+            if (!picked.Contains(species))
+                picked.Add(species);
+        }
+        return [.. picked];
+    }
+
     // Species → its last evolution (a random branch where a species evolves in several ways), from the evolution table.
     internal static Dictionary<int, int> FinalEvolutions(IReadOnlyList<NdsCell> evolutions, uint seed)
     {
-        var next = evolutions.GroupBy(c => c.Entry).ToDictionary(g => g.Key, g =>
-        {
-            var row = g.ToDictionary(c => c.Local, c => c.Value);
-            return Enumerable.Range(0, 7).Where(i => row.GetValueOrDefault("E" + i + ".Method") != 0 && row.GetValueOrDefault("E" + i + ".Species") > 0)
-                .Select(i => row["E" + i + ".Species"]).Where(s => s != g.Key).Distinct().ToArray();
-        });
+        var next = EvolutionTargets(evolutions);
         var finals = new Dictionary<int, int>();
         foreach (int species in next.Keys)
         {
@@ -349,7 +391,7 @@ public static class Gen5Randomizer
     {
         int[] chosen = options.Starters == Gen5StarterMode.Custom
             ? (options.CustomStarters ?? throw new ArgumentException("Faltan los iniciales personalizados.", nameof(options))).ToArray()
-            : PickStarters(options.Seed);
+            : PickStarters(options.Seed, MaxSpecies, StarterPool(options, () => NdsCells.Read(data, NdsSection.Evolutions), MaxSpecies));
         if (chosen.Length != 3 || chosen.Distinct().Count() != 3 || chosen.Any(s => s is < 1 or > MaxSpecies))
             throw new ArgumentException("Se necesitan tres iniciales distintos entre 1 y 649.", nameof(options));
         var original = data.Starters();
@@ -478,18 +520,6 @@ public static class Gen5Randomizer
             (result[i], result[j]) = (result[j], result[i]);
         }
         return result;
-    }
-
-    private static int[] PickStarters(uint seed)
-    {
-        var picked = new List<int>();
-        for (int attempt = 0; picked.Count < 3; attempt++)
-        {
-            int species = Index(seed, $"starter/{attempt}", MaxSpecies) + 1;
-            if (!picked.Contains(species))
-                picked.Add(species);
-        }
-        return [.. picked];
     }
 
     private static int Find(byte[] data, byte[] pattern, string what)

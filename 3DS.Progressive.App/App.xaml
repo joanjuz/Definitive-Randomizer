@@ -445,6 +445,7 @@
             <Setter Property="FontWeight" Value="SemiBold"/>
             <Setter Property="Padding" Value="16,10"/>
         </Style>
+        <DataTemplate x:Key="WrappedOptionContent"><TextBlock Text="{Binding}" TextWrapping="Wrap"/></DataTemplate>
         <DataTemplate x:Key="WrappedActionContent"><TextBlock Text="{Binding}" TextWrapping="Wrap" TextAlignment="Center"/></DataTemplate>
         <DataTemplate x:Key="WrappedRecordContent"><TextBlock Text="{Binding Display}" TextWrapping="Wrap"/></DataTemplate>
         <DataTemplate x:Key="SwitchNavigationContent">

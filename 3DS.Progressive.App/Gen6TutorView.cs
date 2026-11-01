@@ -16,6 +16,9 @@ internal sealed class Gen6TutorView : UserControl
     internal Gen6TutorView(GameProjectSession project,RecordEditorView editor,TutorCompatibilityState? state=null)
     {
         Editor=editor;
+        // The compatibility bar sits above the record editor: below this height the page scrolls (SectionHost) instead of
+        // leaving the editor so little room that its folded Inspector covers the options.
+        MinHeight=640;
         var layout=new DockPanel();var bar=new StackPanel{Margin=new Thickness(8)};
         var flags=new StackPanel{Orientation=Orientation.Horizontal};
         var sanity=new CheckBox{Content="Tutor Sanity ORAS · movimientos aprendidos por nivel",Margin=new Thickness(0,0,18,0)};

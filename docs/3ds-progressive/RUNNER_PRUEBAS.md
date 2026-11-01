@@ -88,6 +88,7 @@ dotnet .\3DS.Progressive.Tests\bin\Release\net10.0-windows\3DS.Progressive.Tests
 | `--utility-ui-only` | — |  |
 | `--visual-redesign-only` | — | sí |
 | `--visual-audit` | 1 o 2 (carpeta de capturas, extracción USUM opcional) |  |
+| `--visual-audit-ds` | 2 o más (carpeta de capturas y ROM de DS) |  |
 
 `--global-apply-ui-only` es un alias de `--global-apply-only`.
 
@@ -111,6 +112,10 @@ Falla si encuentra:
 - errores al abrir una vista.
 
 El texto acortado con «…» es un aviso y no hace fallar la auditoría. Tiendas y BP de USUM necesita el `Shop.cro` de una extracción real (segundo argumento, que solo se lee); sin él esa sección se omite y queda un aviso.
+
+También abre el panel de opciones de randomizado de cada editor de registros, con todas sus pestañas, y despliega el Inspector cuando una ventana estrecha lo pliega.
+
+`--visual-audit-ds <carpeta> <rom> [rom…]` hace lo mismo con el espacio de Nintendo DS y volcados reales, que solo se leen (se comprueba su SHA-256). Recorre cada sección, sus opciones, Ajustes del juego, Global Template, Historial y las tablas de Level Caps y Trainer Move Rules.
 
 ## Comprobaciones con datos reales, copias y probes (requieren rutas)
 

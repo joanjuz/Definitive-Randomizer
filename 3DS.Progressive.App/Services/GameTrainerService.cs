@@ -5,7 +5,7 @@ using ThreeDS.Progressive.Models;
 
 namespace ThreeDS.Progressive.Services;
 
-public sealed class GameTrainerService : ArchiveProjectEditor,IOptionTemplateProjectEditor
+public sealed class GameTrainerService : ArchiveProjectEditor,IOptionTemplateProjectEditor,ITrainerRuleTableEditor
 {
     private ProgressiveLegacy.TrainerLogicHost? _original;
     public GameTrainerService(GameProjectSession project):base(project,"trdata","trpoke")
