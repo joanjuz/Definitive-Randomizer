@@ -18,6 +18,7 @@ internal static class RequestedIntegrationChecks
         foreach(int previous in new[]{5,40,90})foreach(int next in new[]{10,50,80})foreach(int gap in new[]{0,1,5,20})
         {var curve=Enumerable.Range(1,100).Select(ace=>TrainerLevelProgression.Target(ace,20,previous,70,next,gap)).ToArray();check(curve.All(v=>v>=1&&v<next)&&curve.SequenceEqual(curve.Order()),$"Trainer curve {previous}->{next}, gap {gap}: monotone and below next cap");}
         check(TrainerLevelProgression.Target(30,20,90,40,1,0)==1,"Trainer minimum level remains legal when next cap is one");
+        TrainerStoryChecks.Run(check);
         foreach(var version in new[]{GameVersion.XY,GameVersion.ORAS,GameVersion.SM})
         {
             using var f=new Fixture(version);ModuleChecks.CreateArchives(f);var initialHeaders=ModuleChecks.Read(f,"trdata");var initialTeams=ModuleChecks.Read(f,"trpoke");var headers=Enumerable.Range(0,1000).Select(i=>(byte[])initialHeaders[i==0?0:1].Clone()).ToArray();var teams=Enumerable.Range(0,1000).Select(i=>(byte[])initialTeams[i==0?0:1].Clone()).ToArray();f.WriteGarc(ModuleChecks.PathFor(f,"trdata"),headers,f.Game.GetGARCReference("trdata"));f.WriteGarc(ModuleChecks.PathFor(f,"trpoke"),teams,f.Game.GetGARCReference("trpoke"));int capId=new GameTrainerService(f.Session).GetRuleRows().First(r=>r.Id!=1&&r.Id!=3).Id;

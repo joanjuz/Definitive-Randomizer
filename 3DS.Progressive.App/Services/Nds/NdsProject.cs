@@ -104,6 +104,27 @@ internal sealed class NdsProject : IDisposable
 
     internal IReadOnlyList<NdsCell> Read(NdsSection section) => _gen4 is not null ? NdsCells.Read(Gen4View, section) : NdsCells.Read(Gen5View, section);
 
+    /// <summary>Level-up moves of one species with every applied change, any length.</summary>
+    internal IReadOnlyList<NdsLearnsetMove> ReadLearnset(int species) => _gen4 is not null ? NdsLearnsets.Read(Gen4View, species) : NdsLearnsets.Read(Gen5View, species);
+    /// <summary>Every species' level-up moves at once (one NARC copy instead of one per species).</summary>
+    internal IReadOnlyDictionary<int, IReadOnlyList<NdsLearnsetMove>> ReadAllLearnsets() => _gen4 is not null ? NdsLearnsets.ReadAll(Gen4View, MaxSpecies) : NdsLearnsets.ReadAll(Gen5View, MaxSpecies);
+    /// <summary>Most level-up moves a species may have in this game (its longest original list).</summary>
+    internal int LearnsetLimit => _gen4 is not null ? NdsLearnsets.Limit(Gen4View) : NdsLearnsets.Limit(Gen5View);
+
+    /// <summary>Whole learnsets replaced (Level Up view: manual saves and "Metrónomo · todos"); the recipe keeps the lists.</summary>
+    internal NdsPreview PreviewLearnsets(string action, IReadOnlyDictionary<int, IReadOnlyList<NdsLearnsetMove>> sets) =>
+        new(_id, Revision, action, null, _gen4 is not null ? NdsLearnsets.Replace(Gen4View, sets) : NdsLearnsets.Replace(Gen5View, sets),
+            new JsonObject { ["Kind"] = "Learnset", ["Action"] = action,
+                ["Sets"] = new JsonObject(sets.OrderBy(p => p.Key).Select(p => KeyValuePair.Create(p.Key.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                    (JsonNode?)new JsonArray(p.Value.Select(m => (JsonNode?)new JsonArray(m.Move, m.Level)).ToArray())))) });
+
+    /// <summary>Learnsets as a preview would leave them (null when the preview does not change them).</summary>
+    internal IReadOnlyDictionary<int, IReadOnlyList<NdsLearnsetMove>>? LearnsetsOf(NdsPreview preview)
+    {
+        string path = _gen4 is not null ? _gen4.PathOf(Gen4Profile.Learnsets) : _gen5!.PathOf(Gen5Profile.Learnsets);
+        return preview.Result.Files.TryGetValue(path, out var narc) ? NdsLearnsets.ParseAll(narc, Generation, MaxSpecies) : null;
+    }
+
     /// <summary>Trainers with every applied change (class, name and team), for the Level Caps and Move Rules tables.</summary>
     internal IReadOnlyList<Gen5Trainer> Trainers() => _gen4 is not null ? Gen4View.Trainers() : Gen5View.Trainers();
 
@@ -253,6 +274,8 @@ internal sealed class NdsProject : IDisposable
             "Trainers" => PreviewTrainers(action, Options().Deserialize<Gen5RandomizerOptions>(RecipeJson)! with { Scope = scope },
                 Options("Tools").Deserialize<NdsTrainerOptions>(RecipeJson)! with { Scope = scope }),
             "Data" => PreviewData(action, Section(), Options().Deserialize<NdsDataOptions>(RecipeJson)! with { Scope = scope }),
+            "Learnset" => PreviewLearnsets(action, ((JsonObject)op["Sets"]!).ToDictionary(p => int.Parse(p.Key, System.Globalization.CultureInfo.InvariantCulture),
+                p => (IReadOnlyList<NdsLearnsetMove>)((JsonArray)p.Value!).Select(m => new NdsLearnsetMove(m![0]!.GetValue<int>(), m[1]!.GetValue<int>())).ToArray())),
             // Batch draws a new seed for the random Pickup items too.
             "Tweaks" => PreviewTweaks(Options().Deserialize<NdsTweakOptions>(RecipeJson)!),
             _ => throw new InvalidDataException("Tipo de operación desconocido en el template: " + kind),
@@ -400,12 +423,13 @@ internal sealed class NdsProject : IDisposable
         NdsSection.Moves => "Movimientos",
         NdsSection.Learnsets => "Level Up",
         NdsSection.Evolutions => "Evoluciones",
-        NdsSection.Machines => "MT/MO",
+        // The species tables are named after what they hold, so they read apart from «MT y tutores» (the move lists) in the sidebar.
+        NdsSection.Machines => "Compatibilidad MT/MO",
         NdsSection.Statics => "Estáticos y regalos",
         NdsSection.Trades => "Intercambios",
         NdsSection.EggMoves => "Movimientos huevo",
-        NdsSection.Tutors => "Tutores",
-        NdsSection.MoveLists => "Listas de MT y tutores",
+        NdsSection.Tutors => "Compatibilidad de tutores",
+        NdsSection.MoveLists => "MT y tutores",
         NdsSection.Starters => "Iniciales",
         NdsSection.Trainers => "Entrenadores",
         NdsSection.Encounters => "Encuentros",

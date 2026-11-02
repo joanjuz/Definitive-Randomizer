@@ -1,4 +1,4 @@
-using System.IO;
+﻿using System.IO;
 using System.Security.Cryptography;
 using System.Windows;
 using System.Windows.Automation;
@@ -19,7 +19,7 @@ internal static class NdsUiChecks
         entry!.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));check(opened,"NdsUi_HomeEntryOpensDsWorkspace");
 
         var owner=new Window();var workspace=new NdsWorkspaceView(owner);
-        string[] sections=["Inicio","Pokémon","Movimientos","Level Up","Evoluciones","MT/MO","Entrenadores","Encuentros","Iniciales","Estáticos y regalos","Intercambios","Objetos del mapa","Tiendas","Ajustes del juego","Global Template y Batch","Historial de cambios"];
+        string[] sections=["Inicio","Pokémon","Movimientos","Level Up","Evoluciones","MT y tutores","Compatibilidad MT/MO","Compatibilidad de tutores","Entrenadores","Encuentros","Iniciales","Estáticos y regalos","Intercambios","Objetos del mapa","Tiendas","Ajustes del juego","Global Template y Batch","Historial de cambios"];
         check(sections.All(s=>Buttons(workspace).Any(b=>AutomationProperties.GetName(b)=="Sección DS · "+s))&&workspace.Project is null&&workspace.CurrentRoute=="Home","NdsUi_WorkspaceShowsTheSidebarSectionsWithoutARom");
         Pump(workspace.NavigateAsync("Trainers"));
         check(workspace.CurrentRoute=="Home","NdsUi_SectionsNeedAnOpenRom");
@@ -89,13 +89,32 @@ internal static class NdsUiChecks
             Pump(workspace.LoadAsync(rom));var project=workspace.Project;
             Check(project is {IsRomhack:false}&&project.Identity.KnownDump,$"NdsUi_Real_LoadsVerifiedOriginal ({project?.Game})");
             // Phase 14 sections: the shared editor where the game has them, a notice that says why where it does not.
-            foreach(var (route,section) in new[]{("MoveLists",NdsSection.MoveLists),("Tutors",NdsSection.Tutors),("EggMoves",NdsSection.EggMoves)})
+            // «MT y tutores» is the 3DS layout in every game (Black/White show the TM list read-only).
+            Pump(workspace.NavigateAsync("MoveLists"));
+            var machineView=Descendants<NdsMachineTutorView>(workspace).SingleOrDefault();
+            Check(machineView is not null&&machineView.MachineGrid.Items.Count==project!.Source.TmCount&&(project.Source.Tables.TutorCount>0)==(machineView.TutorGrid is not null)
+                &&machineView.MachineGrid.IsReadOnly==(project.Source.MachineTable<0),$"NdsUi_Real_MachineTutorViewAsIn3ds ({machineView?.MachineGrid.Items.Count} MT, {machineView?.TutorGrid?.Items.Count??0} tutores)");
+            Capture(workspace,"nds-workspace-movelists");
+            foreach(var (route,section) in new[]{("Tutors",NdsSection.Tutors),("EggMoves",NdsSection.EggMoves)})
             {
                 Pump(workspace.NavigateAsync(route));bool available=project!.SectionProblem(section) is null;
                 Check(workspace.CurrentRoute==route&&Descendants<RecordEditorView>(workspace).Count()==(available?1:0),$"NdsUi_Real_{route}{(available?"OpensInTheSharedEditor":"ShowsWhyItIsMissing")}");
                 Capture(workspace,"nds-workspace-"+route.ToLowerInvariant());
             }
-            foreach(string route in new[]{"Pokemon","Moves","Learnsets","Evolutions","Machines","Trainers","Encounters","Starters","Statics","Trades","FieldItems","Shops"})
+            // Pokémon: the 3DS header card (name, types, BST) above the fields and the total in the Inspector.
+            Pump(workspace.NavigateAsync("Pokemon"));
+            {
+                var card=Descendants<System.Windows.Controls.Border>(workspace).FirstOrDefault(b=>System.Windows.Automation.AutomationProperties.GetName(b)=="Resumen de la especie");
+                var bst=project!.Read(NdsSection.Pokemon).Where(c=>c.Entry==1&&c.Local.StartsWith("Stat",StringComparison.Ordinal)).Sum(c=>c.Value);
+                var texts=card is null?[]:Descendants<System.Windows.Controls.TextBlock>(card).Select(t=>t.Text).ToArray();
+                Check(card is not null&&texts.Contains(project.SpeciesNames[1])&&texts.Contains(bst.ToString(System.Globalization.CultureInfo.InvariantCulture)),$"NdsUi_Real_PokemonHeaderCardAsIn3ds (BST {bst})");
+                Capture(workspace,"nds-workspace-pokemon-card");
+            }
+            // Level Up opens the 3DS view, as in 3DS.
+            Pump(workspace.NavigateAsync("Learnsets"));
+            Check(workspace.CurrentRoute=="Learnsets"&&Descendants<LevelUpView>(workspace).Count()==1,"NdsUi_Real_LevelUpOpensThe3dsView");
+            Capture(workspace,"nds-workspace-learnsets");
+            foreach(string route in new[]{"Pokemon","Moves","Evolutions","Machines","Trainers","Encounters","Starters","Statics","Trades","FieldItems","Shops"})
             {
                 Pump(workspace.NavigateAsync(route));
                 Check(workspace.CurrentRoute==route&&Descendants<RecordEditorView>(workspace).Count()==1,$"NdsUi_Real_{route}OpensInTheSharedEditor");
@@ -151,6 +170,50 @@ internal static class NdsUiChecks
                 }
                 Check(finalStarters.SequenceEqual(new[]{1,4,258})&&species==133&&dexOnce,"NdsUi_Real_StartersPatchedOnceAndEditsSurviveLaterRandomizations");
             }
+            // TM Sanity and Follow Evolutions: compatibility is only added; every species becomes compatible with the TMs it learns by level.
+            {
+                var compatBefore=project!.Read(NdsSection.Machines).ToDictionary(c=>c.Key,c=>c.Value);
+                project.Apply(project.PreviewData("TM Sanity y TM Follow Evolutions",NdsSection.Machines,new pk3DS.Core.NDS.NdsDataOptions(0){MachineSanity=true,MachineFollowEvolutions=true}));
+                var compatAfter=project.Read(NdsSection.Machines).ToDictionary(c=>c.Key,c=>c.Value);
+                var learned=project.Read(NdsSection.Learnsets).Where(c=>c.Local.EndsWith(".Move",StringComparison.Ordinal)).GroupBy(c=>c.Entry).ToDictionary(g=>g.Key,g=>g.Select(c=>c.Value).ToHashSet());
+                var tms=project.Source.MachineMoves;
+                bool sane=compatAfter.Where(p=>int.Parse(p.Key.Split(':')[1][1..]) is var bit&&bit<tms.Count&&learned.TryGetValue(int.Parse(p.Key.Split(':')[0]),out var l)&&l.Contains(tms[bit])).All(p=>p.Value==1);
+                Check(compatAfter.Count(p=>p.Value==1)>compatBefore.Count(p=>p.Value==1)&&compatBefore.All(p=>p.Value==0||compatAfter[p.Key]==1)&&sane,$"NdsUi_Real_TmSanityAndFollowOnlyAdd (+{compatAfter.Count(p=>p.Value==1)-compatBefore.Count(p=>p.Value==1)})");
+            }
+            // Level Up view on DS: a longer list saved, Metronome for every species and the bulk randomizer, all in the history (and the template below).
+            {
+                var levelUp=new NdsLevelUpSource(project!);var rows=levelUp.Read(1).ToList();int count=rows.Count;
+                rows.Add(new ThreeDS.Progressive.Services.LevelUpMoveEntry{Move=33,Level=99});rows.Add(new ThreeDS.Progressive.Services.LevelUpMoveEntry{Move=45,Level=2});
+                levelUp.Save(1,rows);
+                var saved=levelUp.Read(1);
+                Check(saved.Count==count+2&&saved.Select(r=>r.Level).SequenceEqual(saved.Select(r=>r.Level).Order())&&saved[^1] is {Move:33,Level:99},"NdsUi_Real_LevelUpSavesALongerListInLevelOrder");
+                var metronome=levelUp.PrepareRandomization(new(false,false,15,false,25,false,false,79,true),metronome:true);
+                var proposed=levelUp.PreviewLearnsets(metronome);
+                Check(proposed.Values.All(s=>s.Count==1&&s[0] is {Move:118,Level:1})&&levelUp.Read(4).Count>1,"NdsUi_Real_LevelUpMetronomePreviewWritesNothing");
+                var random=levelUp.PrepareRandomization(new(false,true,30,false,25,true,false,79,true));levelUp.ApplyRandomization(random);
+                Check(levelUp.Entries.Where(e=>levelUp.Read(e.Index).Count>=4).All(e=>levelUp.Read(e.Index).Take(4).All(r=>r.Level==1)),"NdsUi_Real_LevelUpBulkStartsWithFour");
+                // «Expandir cantidad»: every list reaches the game's limit, without repeats, Struggle or HMs, levels in order.
+                var hms=project.Source.MachineMoves.Skip(project.Source.TmCount).ToHashSet();
+                var expanded=levelUp.PreviewLearnsets(levelUp.PrepareRandomization(new(false,true,40,true,levelUp.MaxMoves,true,true,60,true)));
+                Check(levelUp.MaxMoves>=15&&expanded.Values.All(s=>s.Count==levelUp.MaxMoves&&s.Select(r=>r.Move).Distinct().Count()==s.Count&&s.All(r=>r.Move!=165&&!hms.Contains(r.Move)&&r.Level is >=1 and <=60)
+                    &&s.Select(r=>r.Level).SequenceEqual(s.Select(r=>r.Level).Order())),$"NdsUi_Real_LevelUpExpandReachesTheGameLimit ({levelUp.MaxMoves})");
+            }
+            // Story chronology (WikiDex) on the original game: every placed trainer ends below its next boss, in walkthrough order.
+            {
+                using var fresh=NdsProject.Open(rom,false);
+                string key=fresh.Generation==5?(fresh.Game.Contains('2')?"B2W2":"BW"):fresh.Game.Contains("Platino")?"Pt":fresh.Game.Contains("HeartGold")||fresh.Game.Contains("SoulSilver")?"HGSS":"DP";
+                var story=pk3DS.Core.Randomizers.TrainerStoryProfile.Load(key)!;
+                var original=fresh.Trainers().Where(t=>t.Team.Count>0).ToDictionary(t=>t.Id,t=>t.Team.Max(p=>p.Level));
+                fresh.Apply(fresh.PreviewTrainers("Escalado según la historia",new pk3DS.Core.NDS.Gen5RandomizerOptions(7),new pk3DS.Core.NDS.NdsTrainerOptions(7){ScaleBetweenCaps=true,StoryScaling=true,CapGap=2}));
+                var scaled=fresh.Trainers().Where(t=>t.Team.Count>0).ToDictionary(t=>t.Id,t=>t.Team.Max(p=>p.Level));
+                var regular=story.Points.Where(p=>p.Value.Stage<story.Stages.Count&&!story.IsMilestone(p.Key)&&scaled.ContainsKey(p.Key)).ToArray();
+                bool below=regular.All(p=>scaled[p.Key]<story.Stages[p.Value.Stage].BaseCap);
+                bool ordered=regular.GroupBy(p=>p.Value.Stage).All(g=>g.OrderBy(p=>p.Value.Order).Select(p=>scaled[p.Key]).Zip(g.OrderBy(p=>p.Value.Order).Select(p=>scaled[p.Key]).Skip(1)).All(z=>z.First<=z.Second));
+                bool postgame=story.Points.Where(p=>p.Value.Stage==story.Stages.Count&&original.ContainsKey(p.Key)).All(p=>scaled[p.Key]==original[p.Key]);
+                bool bosses=story.Stages.SelectMany(s=>s.Milestones).All(id=>scaled[id]==original[id]);
+                Check(story.Matches(id=>original.TryGetValue(id,out int a)?a:null)&&below&&ordered&&postgame&&bosses&&regular.Count(p=>scaled[p.Key]!=original[p.Key])>regular.Length/3,
+                    $"NdsUi_Real_StoryScalingFollowsTheWalkthrough ({key}: {regular.Length} entrenadores, {regular.Count(p=>scaled[p.Key]!=original[p.Key])} cambian)");
+            }
             // Parity with 3DS: the Level Caps and Trainer Move Rules tables, three-stage starters and egg moves as a form.
             {
                 var capsEditor=new NdsRecordEditor(project,NdsSection.Trainers);var rows=capsEditor.GetRuleRows();
@@ -162,7 +225,7 @@ internal static class NdsUiChecks
                 var moveRow=rows.First(r=>r.Group.StartsWith("Jefes · Líderes",StringComparison.Ordinal)&&r.Id!=capRow.Id);
                 capRow.CapUse=true;capRow.Cap=50;capRow.Max3=true;capsEditor.UpdateRuleRows([capRow],true);
                 moveRow.MoveUse=true;moveRow.AllowStatus=false;capsEditor.UpdateRuleRows([moveRow],false);
-                capsEditor.Apply(capsEditor.Preview(Defaults(capsEditor,("CHK_RandomPKM",0),("CHK_LevelCaps",1),("GlobalCaps.ApplyPrevious",1),("GlobalCaps.PreviousGap",2)),capsEditor.Entries.Select(e=>e.Id).ToArray()));
+                capsEditor.Apply(capsEditor.Preview(Defaults(capsEditor,("CHK_RandomPKM",0),("CHK_LevelCaps",1),("GlobalCaps.ApplyPrevious",1),("GlobalCaps.Story",0),("GlobalCaps.PreviousGap",2)),capsEditor.Entries.Select(e=>e.Id).ToArray()));
                 var after=project.Trainers().ToDictionary(t=>t.Id);
                 Check(after[capRow.Id].Team.Count==3&&after[capRow.Id].Team.All(p=>p.Level==50),$"NdsUi_Real_LevelCapSetsTheTeamAndKeepsThree (#{capRow.Id} {capRow.Trainer})");
                 // Trainers below the capped one move up to at most cap - gap, keeping the spread within each team.
@@ -211,6 +274,14 @@ internal static class NdsUiChecks
                 var power=Table(NdsSection.Moves);
                 Check(changedTeams.SelectMany(t=>t.Team).Where(m=>m.Level>=30).All(m=>m.Moves.Where(x=>x>0).All(x=>power[x]["Power"]>1)),"NdsUi_Real_HighPowerAttacksFromTheLevel");
                 Check(gen==4||changedTeams.SelectMany(t=>t.Team).All(m=>m.AbilitySlot is 1 or 2),"NdsUi_Real_Gen5RandomAbilitySlots");
+                // Smart Items, competitive quality for every group: items from the smart list only; Eviolite only in Gen5 on species that evolve.
+                {
+                    Run(NdsSection.Trainers,("CHK_RandomPKM",0),("CHK_SmartHeldItems",1),("CB_SmartHeldItemModeNormal",2),("CB_SmartHeldItemModeImportant",2),("CB_SmartHeldItemModeBoss",2));
+                    var smart=new HashSet<int>{234,158,157,266,267,287,220,297,268,275,270,281,538,271,214,285,284,283,282,251,241,244,245,237,238,222,247,233,249,243,239,242,248,246,250,240};
+                    var evolves=p.Read(NdsSection.Evolutions).Where(c=>c.Local.EndsWith(".Species",StringComparison.Ordinal)&&c.Value>0&&c.Value!=c.Entry).Select(c=>c.Entry).ToHashSet();
+                    var held=p.Trainers().SelectMany(t=>t.Team).Where(m=>m.HeldItem>0).ToArray();
+                    Check(held.Length>0&&held.All(m=>smart.Contains(m.HeldItem)&&m.HeldItem!=272&&(m.HeldItem!=538||gen==5&&evolves.Contains(m.Species))),$"NdsUi_Real_SmartItemsCompetitiveFromTheMoveset ({held.Select(m=>m.HeldItem).Distinct().Count()} objetos)");
+                }
                 // Wild: only the newest generation, distinct species per table, +5 levels.
                 var wildBefore=Table(NdsSection.Encounters);
                 Run(NdsSection.Encounters,[..Enumerable.Range(1,gen-1).Select(g=>("G"+g,0)),("UniquePerTable",1),("LevelFlat",5)]);

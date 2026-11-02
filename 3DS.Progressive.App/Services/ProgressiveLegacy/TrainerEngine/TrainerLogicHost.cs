@@ -88,6 +88,8 @@ internal sealed class TrainerLogicHost
             if(template.LevelCaps is { } caps)
                 result.Add(new("Política global de Level Caps",[
                     F("GlobalCaps.ApplyPrevious","Escalado progresivo de entrenadores sin cap",caps.ApplyToPreviousTrainers?1:0,0,1),
+                    // XY, ORAS and SM: the scaling follows the WikiDex story chronology (USUM always uses its own audited table).
+                    ..(_config.Version==GameVersion.USUM?Array.Empty<EditorField>():[F("GlobalCaps.Story","Escalado según la cronología de la historia (WikiDex)",caps.StoryScaling??true?1:0,0,1)]),
                     F("GlobalCaps.PreviousGap","Separación de nivel con entrenadores anteriores",caps.PreviousTrainerGap,0,20),
                     F("GlobalCaps.ResetUnlisted","Restablecer entrenadores sin reglas",caps.ResetUnlistedTrainers?1:0,0,1)
                 ],false));
@@ -284,6 +286,7 @@ internal sealed class TrainerLogicHost
         if(template.LevelCaps is { } caps)
         {
             if(values.TryGetValue("GlobalCaps.ApplyPrevious",out int previous))caps.ApplyToPreviousTrainers=previous==1;
+            if(values.TryGetValue("GlobalCaps.Story",out int story))caps.StoryScaling=story==1;
             if(values.TryGetValue("GlobalCaps.PreviousGap",out int gap))caps.PreviousTrainerGap=gap;
             if(values.TryGetValue("GlobalCaps.ResetUnlisted",out int reset))caps.ResetUnlistedTrainers=reset==1;
         }

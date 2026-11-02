@@ -122,6 +122,9 @@ public sealed class TrainerLevelCapsTemplate
 {
     public bool Enabled { get; set; } = true;
     public bool ApplyToPreviousTrainers { get; set; } = true;
+    // Regular trainers follow the game's story chronology (WikiDex) instead of the caps by level (XY, ORAS, SM).
+    // Null in templates captured before it existed: they replay with the caps by level.
+    public bool? StoryScaling { get; set; }
     public int PreviousTrainerGap { get; set; } = 2;
     public bool ResetUnlistedTrainers { get; set; } = true;
     public List<TrainerLevelCapTemplateEntry> Trainers { get; set; } = [];

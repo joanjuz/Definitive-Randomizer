@@ -520,6 +520,10 @@ public partial class RSTE : Form
     public static TrainerBetterMovesetTemplate rTrainerBetterMovesetTemplate;
     public static TrainerMoveSettingsTemplate rGlobalMoveSettings;
     public static bool rUseLevelCaps, rLevelCapsApplyPrevious, rLevelCapsGuaranteeMega;
+    // "Escalado según la cronología de la historia": regular trainers follow the WikiDex chronology (TrainerStoryProfile XY/ORAS).
+    public static bool rLevelCapsStory;
+    private static pk3DS.Core.Randomizers.TrainerStoryProfile _story;
+    private static Dictionary<int, int> _originalAces = [];
     public static bool rRandomDoubleBattles;
     public static int rRandomDoubleBattleChance;
     public static int rLevelCapPreviousGap;
@@ -659,6 +663,7 @@ public partial class RSTE : Form
         rPKM = rMove = rMetronome = rAbility = rDiffAI = rDiffIV = rClass = rGift = rItem = rDoRand = false;
         rSmart = rProgressiveBST = false;
         rUseLevelCaps = rLevelCapsApplyPrevious = rLevelCapsGuaranteeMega = false;
+        rLevelCapsStory = false;
         rBanBadTrainerItems = false;
         rItemClause = false;
         rBetterMovesets = false;
@@ -801,6 +806,12 @@ public partial class RSTE : Form
         }
 
         var levelCapStages = BuildLevelCapStages();
+        // Original aces before any trainer changes: the chronology starts its first window at the lowest of them.
+        _originalAces = Enumerable.Range(1, Math.Max(0, trdata.Length - 1)).Where(id => trpoke[id].Length > 0)
+            .ToDictionary(id => id, id => GetAceLevel(new TrainerData6(trdata[id], trpoke[id], Main.Config.ORAS)));
+        _story = rUseLevelCaps && rLevelCapsApplyPrevious && rLevelCapsStory ? pk3DS.Core.Randomizers.TrainerStoryProfile.Load(Main.Config.ORAS ? "ORAS" : "XY") : null;
+        if (_story is not null && !_story.Matches(id => _originalAces.TryGetValue(id, out int a) && a > 0 ? a : null))
+            _story = null;
 
         int progressTotal = Math.Max(1, CB_TrainerID.Items.Count - 1);
         using var progress = TrainerRandomizeProgress.Show(this, "Randomizing Trainers", progressTotal);
@@ -963,7 +974,8 @@ public partial class RSTE : Form
 
             var trainer = new TrainerData6(trdata[rule.TrainerID], trpoke[rule.TrainerID], Main.Config.ORAS);
             int ace = GetAceLevel(trainer);
-            int cap = rule.LevelCap == 0 ? Randomizer.GetModifiedLevel(ace,rLevel?rLevelMultiplier:0) : rule.LevelCap;
+            // "Ace" (0) keeps the trainer's own ace, scaled only when the level boost is on (a factor of 0 made every cap level 1).
+            int cap = rule.LevelCap == 0 ? Randomizer.GetModifiedLevel(ace,rLevel?rLevelMultiplier:1) : rule.LevelCap;
 
             stages.Add(new TrainerLevelCapStage
             {
@@ -997,11 +1009,22 @@ public partial class RSTE : Form
         if (exact is not null)
         {
             forceExactLevel = rLevelCapRules.First(r=>r.Enabled&&r.TrainerID==trainerID).LevelCap>0;
+            // As USUM: an "Ace" (0) rule follows the story chronology; postgame or unplaced trainers keep the rule's level.
+            if (!forceExactLevel && rLevelCapsApplyPrevious && _story is not null)
+                return _story.Target(trainerID, m => stages.Where(s => m.Contains(s.TrainerID)).Select(s => (int?)s.LevelCap).Min(),
+                    id => _originalAces.TryGetValue(id, out int a) && a > 0 ? a : null, rLevelCapPreviousGap, 1, (double)rLevelCapCurvePower) ?? exact.LevelCap;
             return exact.LevelCap;
         }
 
         if (!rLevelCapsApplyPrevious)
             return null;
+
+        if (_story is not null)
+        {
+            // A window's cap: the lowest cap of its milestone trainers' rules; postgame and unplaced trainers keep their level.
+            int? Configured(IReadOnlyList<int> milestones) => stages.Where(s => milestones.Contains(s.TrainerID)).Select(s => (int?)s.LevelCap).Min();
+            return _story.Target(trainerID, Configured, id => _originalAces.TryGetValue(id, out int a) && a > 0 ? a : null, rLevelCapPreviousGap, 1, (double)rLevelCapCurvePower);
+        }
 
         var next = stages.Where(s=>trainerAce<=s.OriginalAceLevel).OrderBy(s=>s.OriginalAceLevel).ThenBy(s=>s.LevelCap).FirstOrDefault();
         if(next is null)return null;

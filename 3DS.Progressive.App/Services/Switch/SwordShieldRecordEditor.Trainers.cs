@@ -7,12 +7,17 @@ internal sealed partial class SwordShieldRecordEditor
     public TrainerRuleIdentity TrainerIdentity(int id)=>new(id,_project.TrainerKind(id),_project.TrainerName(id),_cells.Where(c=>c.Entry==id&&c.Field=="Nivel").Max(c=>c.Value));
     internal IReadOnlyDictionary<int,int> CapPreset => DivineSwordCaps.ForTitle(_project.Identity.TitleId);
     private EditorField[] CategoryFields(string prefix)=>new[]{Flag(prefix+"Normal","Normales",true),Flag(prefix+"Important","Importantes",true),Flag(prefix+"Boss","Líderes de gimnasio",true)};
+    private bool IsSword=>_project.Identity.TitleId==SwordTitleId;
+    private const string SwordTitleId="0100ABF008968000";
     private IReadOnlyList<EditorGroup> TrainerOptions()
     {
         var groups=new List<EditorGroup>
         {
             new("Pokémon y equipos",new[]{Flag("Species","Randomizar especies",true)}),
-            new("Niveles de entrenadores",new[]{new EditorField("LevelPercent","Nivel de entrenadores (%)",100,1,1000)}),
+            // Sword: the story chronology (WikiDex) for trainers without an exact level; Shield keeps the percentage only.
+            new("Niveles de entrenadores",new[]{new EditorField("LevelPercent","Nivel de entrenadores (%)",100,1,1000)}.Concat(IsSword
+                ?new[]{Flag("StoryScaling","Escalado según la cronología de la historia (WikiDex)",true),new EditorField("StoryGap","Separación de nivel con el siguiente jefe",2,0,20)}
+                :Array.Empty<EditorField>()).ToArray()),
             new("Combates dobles",new[]{new EditorField("DoubleBattleChance","Probabilidad de combate doble (%)",0,0,100)}),
             new("Better Movesets",new[]{Flag("GlobalMoves.Better","Better Movesets",false),Flag("GlobalMoves.IncludeTMs","Incluir MT y TR compatibles",false)}.Concat(CategoryFields("GlobalMoves.Better")).ToArray()),
             new("Ataque más fuerte",new[]{Flag("GlobalMoves.StrongStat","Usar el ataque más fuerte",false),new EditorField("GlobalMoves.Tolerance","Tolerancia mixto",15,0,255)}.Concat(CategoryFields("GlobalMoves.Strong")).ToArray()),
@@ -42,7 +47,8 @@ internal sealed partial class SwordShieldRecordEditor
         var levels=values.Where(p=>p.Key.StartsWith("Rule.",StringComparison.Ordinal)&&p.Key.EndsWith(".CapUse",StringComparison.Ordinal)&&p.Value==1).Select(p=>{int id=int.Parse(p.Key.Split('.')[1],CultureInfo.InvariantCulture);return new SwordShieldTrainerLevel(id,V("Rule."+id+".LevelCap"));}).ToArray();
         int[] CategoryScope(string prefix)=>Entries.Select(e=>e.Id).Where(id=>V(prefix+(_project.TrainerKind(id)=="Normal"?"Normal":_project.TrainerKind(id).StartsWith("Jefes",StringComparison.Ordinal)?"Boss":"Important"),1)==1).ToArray();
         uint seed=SwitchSeed.New32()&int.MaxValue;var rules=new SwordShieldTrainerOptions{DoubleBattleChance=V("DoubleBattleChance"),BetterMovesets=V("GlobalMoves.Better")==1,IncludeMachines=V("GlobalMoves.IncludeTMs")==1,StrongestAttackStat=V("GlobalMoves.StrongStat")==1,MixedTolerance=V("GlobalMoves.Tolerance"),AllowStatus=V("GlobalMoves.Status")==1,PreferStab=V("GlobalMoves.STAB")==1,MinMovePower=V("GlobalMoves.Power"),SmartItems=V("GlobalItems.Smart")==1,SmartItemMode=V("GlobalItems.Quality",2),ItemModes=Entries.Select(e=>new SwordShieldTrainerItemMode(e.Id,V("GlobalItems.Quality"+(_project.TrainerKind(e.Id)=="Normal"?"Normal":_project.TrainerKind(e.Id).StartsWith("Jefes",StringComparison.Ordinal)?"Boss":"Important"),V("GlobalItems.Quality",2)))).ToArray(),LevelPercent=V("LevelPercent",100),BannedMoves=V("GlobalMoves.Ban")>0?new[]{V("GlobalMoves.Ban")}:Array.Empty<int>(),Levels=levels,BetterScope=CategoryScope("GlobalMoves.Better"),StrongScope=CategoryScope("GlobalMoves.Strong"),PowerScope=CategoryScope("GlobalMoves.Power"),SmartItemScope=CategoryScope("GlobalItems.")};
-        var config=new SwordShieldGameplayOptions(seed,Trainers:V("Species")==1||rules.NeedsMoves||rules.SmartItems||rules.LevelPercent!=100||rules.Levels.Count>0||rules.DoubleBattleChance>0,SimilarBst:V("CHK_BST")==1){ProgressiveBst=V("CHK_ProgressiveBST")==1,BstRanges=ranges,RandomizeTrainerSpecies=V("Species")==1,TrainerRules=rules,TrainerScope=scope.ToArray()};
+        rules=rules with{StoryScaling=IsSword&&V("StoryScaling")==1,StoryGap=IsSword?V("StoryGap",2):2};
+        var config=new SwordShieldGameplayOptions(seed,Trainers:V("Species")==1||rules.NeedsMoves||rules.SmartItems||rules.LevelPercent!=100||rules.Levels.Count>0||rules.DoubleBattleChance>0||rules.StoryScaling,SimilarBst:V("CHK_BST")==1){ProgressiveBst=V("CHK_ProgressiveBST")==1,BstRanges=ranges,RandomizeTrainerSpecies=V("Species")==1,TrainerRules=rules,TrainerScope=scope.ToArray()};
         var data=_project.PreviewGameplay(config);var changes=data.Result.Changes.Select(c=>new BatchChange(0,c.Location,c.Field,c.Before.ToString(CultureInfo.InvariantCulture),c.After.ToString(CultureInfo.InvariantCulture))).ToArray();
         var proposal=new EditorProposal(_owner,"Randomizar entrenadores",(int)seed,Array.Empty<FileChange>(),changes,new Dictionary<string,string>{{"Platform","SWSH"},{"Seed",seed.ToString(CultureInfo.InvariantCulture)},{"Warnings",string.Join("\n",data.Result.Warnings)},{"WarningCount",data.Result.Warnings.Count.ToString(CultureInfo.InvariantCulture)}});_trainerProposals.Add(proposal,data);return proposal;
     }

@@ -35,7 +35,30 @@ internal sealed class GlobalTemplateDocument
         var info=new FileInfo(path);
         if(info.Length>15_000_000)throw new InvalidDataException("Template supera el límite seguro de 15 MB.");
         var json=File.ReadAllText(path,Encoding.UTF8);
+        // A project history exported from «Historial» is also accepted: it becomes the template that «Crear desde historial» would build.
+        if(ProjectHistory.TryParseExport(json) is { } history)return FromHistory(history,expectedGame,expectedGeneration,null,path);
         return Parse(json,expectedGame,expectedGeneration,path);
+    }
+    /// <summary>
+    /// The template of a project history: the loaded template (or else the last applied Global Template snapshot, or else a partial
+    /// empty one) plus the editor actions and manual edits recorded afterwards.
+    /// </summary>
+    internal static GlobalTemplateDocument FromHistory(HistoryDocument history,string expectedGame,int expectedGeneration,GlobalTemplateDocument? loaded,string? source=null)
+    {
+        if(!string.Equals(history.Game,expectedGame,StringComparison.OrdinalIgnoreCase))
+            throw new InvalidDataException($"El historial es de {history.Game} y el proyecto abierto es {expectedGame}.");
+        var applied=history.Entries.LastOrDefault(entry=>entry.Parameters.ContainsKey("GlobalTemplateSnapshot"));
+        var template=loaded?.Clone()??(applied is null?Empty(expectedGame,expectedGeneration):
+            Parse(applied.Parameters["GlobalTemplateSnapshot"],expectedGame,expectedGeneration,
+                string.IsNullOrEmpty(applied.Parameters.GetValueOrDefault("GlobalTemplateSource"))?null:applied.Parameters["GlobalTemplateSource"]));
+        if(loaded is null&&applied is null)
+        {
+            var extension=template.Section("ProgressiveApp") as JsonObject??new();
+            extension["PartialSnapshot"]=true;template.SetSection("ProgressiveApp",extension);
+        }
+        template.MergeHistoryActions(history);
+        if(source is not null)template.SourcePath=source;
+        return template;
     }
     internal static GlobalTemplateDocument Parse(string json,string expectedGame,int expectedGeneration,
         string? source=null)
@@ -102,12 +125,13 @@ internal sealed class GlobalTemplateDocument
             obj["Id"]?.GetValue<string>()??"")).Select(a=>a!.DeepClone()).ToArray();
         _root["Actions"]=new JsonArray(filtered);
     }
-    internal void MergeHistoryActions(ProjectHistory history)
+    internal void MergeHistoryActions(ProjectHistory history)=>MergeHistoryActions(history.Read());
+    internal void MergeHistoryActions(HistoryDocument history)
     {
-        ManualEditTemplate.Capture(this, history.Read());
+        ManualEditTemplate.Capture(this, history);
         var actions=(JsonArray)_root["Actions"]!;
         var current=Actions.ToHashSet(StringComparer.OrdinalIgnoreCase);
-        foreach(var entry in history.Read().Entries)
+        foreach(var entry in history.Entries)
         {
             if(entry.Parameters.ContainsKey("ManualOperation")||entry.Parameters.ContainsKey("ManualEdits"))continue;
             if(!entry.Parameters.TryGetValue("ActionId",out string? id)||

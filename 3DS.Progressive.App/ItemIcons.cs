@@ -54,6 +54,11 @@ internal static class ItemIcons
         if(label.Contains("encuentros"))return "Research";
         if(label.Contains("entrenadores"))return "Trainers";
         if(label.Contains("level up"))return "Candy";
+        // DS sections: species compatibility tables, egg moves, starters and trades.
+        if(label.Contains("compatibilidad"))return "Pass";
+        if(label.Contains("huevo"))return "Incubator";
+        if(label.Contains("iniciales"))return "Charmander";
+        if(label.Contains("intercambios"))return "Trade";
         if(label.Contains("movimientos"))return "Raid";
         if(label.Contains("mt y"))return "Scroll";
         if(label.Contains("mecánicas"))return "Atom";

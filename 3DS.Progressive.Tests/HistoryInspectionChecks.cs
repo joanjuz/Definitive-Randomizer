@@ -77,6 +77,19 @@ internal static class HistoryInspectionChecks
             var reopened=new ProjectHistory(root,"USUM",storage);inspection=reopened.InspectCurrentState();
             check(inspection.Files.Single().State==HistoryFileState.Changed&&inspection.Entries.Values.All(value=>value==HistoryEntryState.OutOfDate),"HistoryInspection_ReopenedCleanRomWithSameSizeAndDateIsOutOfDate");
             check(File.ReadAllBytes(log).SequenceEqual(logBefore)&&File.ReadAllBytes(data).SequenceEqual(new byte[]{0}),"HistoryInspection_NeverClearsHistoryOrChangesRom");
+            // «Exportar historial (JSON)» can be loaded as a Global Template: the last applied recipe plus the actions recorded after it.
+            {
+                // Same shape as the export: an applied recipe, then an editor action recorded afterwards.
+                var applied=GlobalTemplateDocument.Empty("USUM",7);applied.Rename("Receta aplicada");
+                var exportedHistory=new HistoryDocument(2,"USUM","export-project",[
+                    new(Guid.NewGuid(),DateTimeOffset.UtcNow,"Global Template","Aplicar Global Template",[],new Dictionary<string,string>{{"GlobalTemplateSnapshot",applied.ToJson()},{"GlobalTemplateSource",""}},[],"Action"),
+                    new(Guid.NewGuid(),DateTimeOffset.UtcNow,"Entrenadores","Randomizar entrenadores",[],new Dictionary<string,string>{{"ActionId","history.export-check"},{"ActionParameters","{\"Seed\":1}"}},[],"Action")]);
+                string exported=Path.Combine(root,"historial-progressive.json");File.WriteAllBytes(exported,JsonSerializer.SerializeToUtf8Bytes(exportedHistory,new JsonSerializerOptions{WriteIndented=true}));
+                var template=GlobalTemplateDocument.Load(exported,"USUM",7);
+                check(template.Name=="Receta aplicada"&&template.Actions.Contains("history.export-check")&&template.SourcePath==exported,"HistoryInspection_ExportedHistoryLoadsAsGlobalTemplate");
+                bool otherGame;try{GlobalTemplateDocument.Load(exported,"SM",7);otherGame=false;}catch(InvalidDataException){otherGame=true;}
+                check(otherGame&&ProjectHistory.TryParseExport(applied.ToJson()) is null,"HistoryInspection_ExportedHistoryOfAnotherGameIsRejectedAndTemplatesStayTemplates");
+            }
             Commit(0,3,"Randomizar tras limpiar");inspection=history.InspectCurrentState();
             check(inspection.Entries.Values.Count(value=>value==HistoryEntryState.OutOfDate)==2&&inspection.Entries.Values.Count(value=>value==HistoryEntryState.Verified)==1,"HistoryInspection_NewEditAfterResetDoesNotValidateOldSegment");
             File.Delete(data);inspection=history.InspectCurrentState();

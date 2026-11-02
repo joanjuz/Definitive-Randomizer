@@ -44,7 +44,7 @@ internal sealed class SwitchWorkspaceView:UserControl
     internal async Task NavigateAsync(string route)
     {
         if(route=="Gameplay")route="Trainers";
-        if(Busy)return;if(route is not ("Runtime" or "Caps" or "Tools" or "TrainerCaps")&&_pages.TryGetValue(route,out var current)&&ReferenceEquals(_page.Content,current))return;if(_page.Content is RecordEditorView previous&&!previous.PrepareToLeave())return;if(route=="Pokemon"&&ReferenceEquals(_page.Content,_personalPage))return;if(ReferenceEquals(_page.Content,_personalPage)&&route!="Pokemon"&&!_personal.CanChangeSection())return;if(route=="Home"){_home();return;}var project=_personal.Project;if(project is null&&route!="Pokemon"){_status.Text="Abre una extracción desde Pokémon.";return;}
+        if(Busy)return;if(route is not ("Runtime" or "Caps" or "Tools" or "TrainerCaps")&&_pages.TryGetValue(route,out var current)&&ReferenceEquals(_page.Content,current))return;if(_page.Content is RecordEditorView previous&&!previous.PrepareToLeave()||_page.Content is LevelUpView levelUp&&!levelUp.ConfirmLeave())return;if(route=="Pokemon"&&ReferenceEquals(_page.Content,_personalPage))return;if(ReferenceEquals(_page.Content,_personalPage)&&route!="Pokemon"&&!_personal.CanChangeSection())return;if(route=="Home"){_home();return;}var project=_personal.Project;if(project is null&&route!="Pokemon"){_status.Text="Abre una extracción desde Pokémon.";return;}
         if(project is not null&&!project.Identity.CanEdit&&route is not "Pokemon" and not "History"){_status.Text="Build ID desconocido: solo lectura.";return;}
         _loadingPage=true;_status.Text="Cargando "+route+"…";
         try
@@ -60,6 +60,11 @@ internal sealed class SwitchWorkspaceView:UserControl
             }
             else if(route is "GlobalTemplate" or "BatchRomBuilder"){if(!_pages.TryGetValue(route,out var automation)){automation=new SwitchAutomationView(project!,route=="BatchRomBuilder",()=>ContextChanged?.Invoke());_pages.Add(route,automation);}content=automation;}
             else if(_pages.TryGetValue(route,out var cached)){if(cached is RecordEditorView record)record.RefreshSession();content=cached;}
+            else if(route=="Learnsets")
+            {
+                // The 3DS Level Up view (not cached, so it always shows the current history).
+                var source=await Task.Run(()=>new SwordShieldLevelUpSource(project!));source.Changed+=()=>ContextChanged?.Invoke();content=new LevelUpView(source);
+            }
             else if(route is "Encounters" or "FieldItems")
             {
                 var adapter=await Task.Run(()=>new SwordShieldWorldEditor(project!,route=="FieldItems"));adapter.Changed+=()=>ContextChanged?.Invoke();var view=new RecordEditorView(adapter);_pages.Add(route,view);content=view;

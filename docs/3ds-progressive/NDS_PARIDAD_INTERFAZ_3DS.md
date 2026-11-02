@@ -129,10 +129,106 @@ En el randomizador de entrenadores de 3DS muchas etiquetas salían en inglés o 
 - **Pokémon:** la variación de estadísticas, la captura fija y sin Wonder Guard.
 - **Templates:** la ida y vuelta del template de entrenadores.
 
+## Tercera parte: vistas de 3DS en DS, Smart Items por generación y Espada/Escudo
+
+### Vistas
+
+- **Level Up.** DS abre la misma `LevelUpView` de 3DS:
+  - una tabla vertical por especie, con las tarjetas de opciones a la derecha;
+  - «Metrónomo · todos», «Randomizar todos» con sus opciones y la exportación CSV.
+  - Detrás está la interfaz `ILevelUpSource`, con dos implementaciones: `GameLevelUpService` (3DS) y `NdsLevelUpSource` (DS).
+  - Las listas de DS ya pueden crecer o acortarse (`NdsLearnsets`: cada especie es un archivo del NARC). El límite es la lista más larga del juego original, porque el juego carga la lista en un búfer fijo.
+  - Cada guardado es una operación `Learnset` del historial. Contiene las listas completas, así que el Global Template la repite igual.
+- **MT y tutores.** La nueva vista `NdsMachineTutorView` tiene la disposición de 3DS:
+  - pestaña MT: tabla vertical, «Asignación de MT» (Randomizar y Guardar) y «Compatibilidad de MT»;
+  - pestaña de tutores, solo en los juegos que tienen tutores (Platino, HeartGold/SoulSilver y Blanco 2/Negro 2).
+  - Negro y Blanco muestran la lista de MT sin poder editarla, porque está en el ARM9 DSi, que no se modifica. «TM Sanity» y «Follow Evolutions» sí funcionan en esos juegos, porque solo tocan la compatibilidad.
+- **TM/Tutor Sanity y Follow Evolutions.** Son nuevas opciones de `NdsDataOptions` (`MachineSanity`, `MachineFollowEvolutions`, `TutorSanity`, `TutorFollowEvolutions`):
+  - Sanity: la especie pasa a ser compatible con las MT y tutores cuyo movimiento aprende por nivel.
+  - Follow Evolutions: la evolución hereda la compatibilidad de la preevolución.
+  - Solo se añade compatibilidad, nunca se quita. Los templates antiguos no cambian, porque las opciones valen `false` por defecto.
+- **Pokémon.** El editor DS muestra la tarjeta de cabecera de 3DS (sprite, nombre, tipos, BST y estado guardado) y el total de estadísticas en el Inspector. Usa la interfaz `IRecordSummary` del editor común. El total se actualiza mientras se editan las estadísticas.
+
+### Smart Items adaptado a cada generación
+
+- **DS: «Calidad Smart Items · jefes, importantes y normales».** Las tres opciones aceptan Normal, Fuerte o Competitivo, como en 3DS.
+- **El objeto se elige con el moveset final.** Los objetos disponibles en cada generación son:
+  - Restos, Baya Zidra y Baya Ziuela;
+  - Cinta Fuerte y Gafas Especiales;
+  - objetos Elegidos, solo para atacantes puros sin movimientos de estado;
+  - Cinta Experto, Banda Focus y Vidasfera, esta solo con 3 o más tipos de ataque;
+  - el potenciador del tipo STAB y Lodo Negro para los de tipo Veneno;
+  - Hierba Única para los movimientos de carga, Hierba Blanca para los que bajan las propias estadísticas, y la roca del clima que usa;
+  - Mineral Evolutivo, solo en Gen5 y solo para especies que todavía evolucionan.
+- **Cómo filtra la calidad.** Normal usa los objetos de 60 puntos o menos, Fuerte usa todos y Competitivo solo los mejores.
+- **Templates antiguos.** Repiten el algoritmo anterior: la calidad vale -1 por defecto.
+- **Espada/Escudo: corrección de IDs.** Smart Items daba Cinta Experto, Refleluz y Toxiesfera donde debía dar Cinta Fuerte, Gafas Especiales y Cinta Experto. Los IDs correctos son 266, 267 y 268.
+- **Espada/Escudo: objetos de Gen8.** Se añaden Mineral Evolutivo (con los datos de evolución), Hierba Única, Hierba Blanca, las rocas de clima y Botas Gruesas (tipos Fuego, Hielo, Volador y Bicho).
+- **Espada/Escudo: lo demás.** El resto de opciones de entrenador ya tenía paridad: calidad por entrenador, alcance por regla y Move Rules.
+
+### Validación de la tercera parte
+
+- **Compilación:** 0 advertencias y 0 errores.
+- **Suites de CI:** las 23 pasan, incluidas `--swsh-only` (316), `--swsh-ui-only` (112), `--swsh-parity-only` (239), `--nds-only` (161), `--nds-ui-only` (15) y `--synthetic-only` (4081).
+- **`--nds-ui-probe`:** 50 comprobaciones por juego en Diamante, Platino, HeartGold, Negro y Blanco 2, con copias reales. Cubren:
+  - la vista Level Up, el guardado de una lista más larga, Metrónomo sin escribir nada y Randomizar todos con 4 movimientos al nivel 1;
+  - la vista MT/tutores y TM Sanity con Follow Evolutions;
+  - la tarjeta de Pokémon;
+  - Smart Items Competitivo;
+  - la repetición del Global Template.
+- **`--visual-audit-ds`** (Platino, Negro y Blanco 2): 484 vistas, 0 problemas y 0 avisos.
+- **`--visual-audit`** (UltraSol): 600 vistas y 0 problemas. Los 80 avisos son de la extracción de prueba reducida (faltan archivos) y no tienen que ver con estos cambios.
+- **Sin probar en juego.** Falta comprobar en el juego las listas de Level Up más largas, los objetos nuevos de Smart Items (DS y Espada/Escudo) y la compatibilidad añadida.
+
+## Cuarta parte: «Expandir cantidad», Level Up en Espada/Escudo y navegación DS
+
+### DS
+
+- **«Expandir cantidad» en Randomizar todos.** Tras el randomizado normal, cada lista crece hasta N movimientos, con las mismas reglas: sin MO salvo que se permitan, sin daño fijo si se pide y con el porcentaje STAB. Después se vuelven a distribuir los niveles.
+  - El tope es la lista más larga del juego original: 20 en Diamante, Platino y HeartGold; 22 en Negro; 24 en Blanco 2.
+  - La vista muestra ese tope en la etiqueta («Movimientos por Pokémon (1–20)») y en la validación. «+ Añadir» avisa al llegar al tope.
+  - La operación guarda las listas completas, así que el Global Template la repite exactamente.
+- **`ILevelUpSource`.** `SupportsExpand` se sustituye por:
+  - `MaxMoves`: 100 en 3DS, el tope del juego en DS y 64 en Espada/Escudo;
+  - `RandomMovePool`: los movimientos que puede elegir «Randomizar» de cada especie.
+- **Vistas sin caché.** Level Up y MT/tutores ya no se guardan entre visitas: se reconstruyen al entrar y siempre muestran el historial actual, también después de deshacer o aplicar un template. Antes, Level Up podía quedar con «Cambios pendientes» de una visita anterior.
+- **Barra lateral.**
+  - «MT/MO» pasa a llamarse «Compatibilidad MT/MO» y «Tutores», «Compatibilidad de tutores». Así se distinguen de «MT y tutores», que va primero.
+  - Las etiquetas largas pasan a dos líneas, con la misma plantilla que Switch.
+  - Compatibilidad, movimientos huevo, iniciales e intercambios tienen icono propio.
+- **Tarjeta de Pokémon.** Sin sprite (sin conexión o aún sin descargar), el marco muestra el número de especie.
+
+### Espada/Escudo: Level Up con la vista de 3DS
+
+- **Vista.** «Level Up Moves» abre la `LevelUpView` de 3DS a través de `SwordShieldLevelUpSource`.
+  - Las listas pueden tener cualquier longitud hasta 64 movimientos. Cada especie y forma tiene un registro fijo de 65 huecos en `wazaoboe_total.bin` (64 movimientos y el centinela) y el juego lo lee por desplazamiento, así que no hay búfer que desbordar. El romhack Divine Sword usa hasta 41.
+  - El nivel 0 (movimiento al evolucionar) se conserva y se ordena primero.
+  - No aparece «Permitir MO / HM», porque Gen8 no tiene MO.
+  - «Randomizar» de cada especie solo elige movimientos que Espada/Escudo puede usar.
+- **Núcleo.** `SwordShieldLearnsets` lee y reemplaza las listas completas; el resto del registro se rellena con `FF`, como el original.
+  - El randomizador acepta las opciones de 3DS como propiedades nuevas de `SwordShieldDataOptions`: `LearnStabPercent`, `LearnExpandTo`, `LearnStartWithFour`, `LearnSpreadTo` y `LearnExcludeFixedDamage`.
+  - Con los valores por defecto se usa el randomizador anterior, así que los templates antiguos se repiten igual.
+- **Historial y Global Template.**
+  - Guardar desde la vista crea la acción `learnset.manual` (listas completas). Se añadió a la lista blanca del Global Template de Switch y se repite después de las randomizaciones, como las demás acciones manuales.
+  - «Randomizar todos» es `data.random`, con las opciones nuevas, y el Global Template la vuelve a randomizar con semilla nueva, como todo randomizador de Switch.
+  - Un template con estas acciones no se puede abrir en versiones anteriores de la app.
+
+### Validación de la cuarta parte
+
+- **Compilación:** 0 advertencias y 0 errores.
+- **Suites de CI:** las 23 pasan, y además `--all-ui-only` (408). Cambian estas cifras:
+  - `--swsh-ui-only`: 117 comprobaciones; las 5 nuevas de Level Up cubren la vista con los límites de Gen8, una lista más larga con movimiento de evolución, el rechazo de 65 movimientos, «Expandir» con STAB, 4 al nivel 1, distribución y sin daño fijo, y la repetición por Global Template.
+  - `--nds-ui-probe`: 51 comprobaciones por juego en Diamante, Platino, HeartGold, Negro y Blanco 2.
+- **`--swsh-visual-preview`** con la extracción real de Espada 1.3.2: la vista se muestra sin errores de binding, y el SHA-256 de `wazaoboe_total.bin` no cambia.
+- **`--visual-audit-ds`:** 484 vistas, 0 problemas y 0 avisos.
+- **`--visual-audit` (UltraSol):** 600 vistas y 0 problemas. Los avisos son de la extracción reducida.
+- **Sin probar en juego:** las listas de Level Up más largas en DS y en Espada/Escudo, sobre todo por encima de 41 movimientos en Gen8. Escudo usa el mismo código, pero no se probó con una extracción real de Escudo.
+
 ## Diferencias que siguen entre DS y 3DS
 
-- **Vistas propias de 3DS.** Level Up, MT/tutores y el editor de Pokémon de 3DS son vistas propias: tabla de una columna con tarjetas, y pestañas de MT y tutores. DS los muestra en el editor común. Las opciones ya son las mismas; las vistas no.
-- **Movimientos huevo y Level Up.** «Ampliar lista» y «Expandir cantidad» no existen en DS: cada especie tiene una lista de tamaño fijo, y en Diamante y Platino está dentro de un overlay.
+- **Tope de Level Up.** En DS una lista no puede superar la más larga del juego original, porque el juego carga la lista en un búfer fijo. En 3DS el tope es 100.
+- **Movimientos huevo.** «Ampliar lista» no existe: en Diamante y Platino la tabla está dentro de un overlay de tamaño fijo.
 - **Habilidades de entrenador.** Solo en Gen5; en Gen4 el byte de habilidad no lo leen todos los juegos.
 - **Clases de entrenador.** En DS «Randomizar clases» baraja los nombres de clase, no la clase (sprite y música).
-- **Sin equivalente en DS:** opciones de Megas, shinies, SOS y movimientos Z. La calidad de Smart Items tampoco aparece: DS tiene un único algoritmo.
+- **Lista de MT de Negro y Blanco.** Solo lectura (ARM9 DSi).
+- **Sin equivalente en DS:** opciones de Megas, shinies, SOS y movimientos Z.

@@ -25,8 +25,7 @@ namespace ThreeDS.Progressive;
 /// <summary>In-app level-up learnsets: add, delete, edit, and export without WinForms.</summary>
 internal sealed class LevelUpView : UserControl
 {
-    private readonly GameProjectSession _project;
-    private readonly GameLevelUpService _service;
+    private readonly ILevelUpSource _service;
     private ObservableCollection<LevelUpMoveEntry> _rows=[];
     private readonly DataGrid _grid;
     private readonly List<DataGrid> _moveColumns=[];
@@ -59,9 +58,10 @@ internal sealed class LevelUpView : UserControl
     internal bool HasPendingChanges=>_dirty;
     internal bool ConfirmLeave()=>!_bulkBusy&&(!_dirty||StudioDialog.Confirm(Window.GetWindow(this),
         "Movimientos pendientes","La especie tiene movimientos sin guardar.","Si continuás, se descartarán estos cambios."));
-    internal LevelUpView(GameProjectSession project)
+    internal LevelUpView(GameProjectSession project):this(new GameLevelUpService(project)){}
+    internal LevelUpView(ILevelUpSource source)
     {
-        _project=project;_service=new(project);Background=(Brush)FindResource("Bg");
+        _service=source;Background=(Brush)FindResource("Bg");
         var root=new DockPanel {Margin=new Thickness(18)};
         Content=root;
         var header=new StackPanel {Margin=new Thickness(0,0,0,12)};
@@ -156,9 +156,12 @@ internal sealed class LevelUpView : UserControl
             choice.Unchecked+=(_,_)=>InvalidateBulk();
             settingsGrid.Children.Add(box);
         }
-        _allowHms.IsChecked=_project.Generation==6;
-        AddChoice(_allowHms);AddChoice(_biasByType,_stabPercent,"Porcentaje STAB (0–100)");
-        AddChoice(_expand,_expandTo,"Movimientos por Pokémon (1–100)");
+        _allowHms.IsChecked=_service.Generation==6;
+        // Gen8 has no HMs.
+        if(_service.Generation<8)AddChoice(_allowHms);
+        AddChoice(_biasByType,_stabPercent,"Porcentaje STAB (0–100)");
+        _expandTo.Text=Math.Min(25,_service.MaxMoves).ToString(System.Globalization.CultureInfo.InvariantCulture);
+        AddChoice(_expand,_expandTo,$"Movimientos por Pokémon (1–{_service.MaxMoves})");
         AddChoice(_startFour);AddChoice(_spread,_spreadTo,"Último nivel de aprendizaje (1–100)");
         AddChoice(_excludeFixed);
         var bulkButtons=new WrapPanel {Margin=new Thickness(0,4,0,4)};
@@ -285,7 +288,7 @@ internal sealed class LevelUpView : UserControl
         return new LevelUpRandomSettings(
             _allowHms.IsChecked==true,_biasByType.IsChecked==true,
             Number(_stabPercent,0,100,"STAB"),_expand.IsChecked==true,
-            Number(_expandTo,1,100,"Movimientos"),_startFour.IsChecked==true,
+            Number(_expandTo,1,_service.MaxMoves,"Movimientos"),_startFour.IsChecked==true,
             _spread.IsChecked==true,Number(_spreadTo,1,100,"Nivel final"),
             _excludeFixed.IsChecked==true);
     }
@@ -375,7 +378,7 @@ internal sealed class LevelUpView : UserControl
     private void Dirty(){if(_proposedRows is not null)return;InvalidateBulk();_dirty=true;_save.IsEnabled=true;_status.Text="Cambios pendientes. Guardá antes de cambiar de especie.";}
     private void Add()
     {
-        Commit();if(_rows.Count>=100)return;
+        Commit();if(_rows.Count>=_service.MaxMoves){_status.Text=$"Este juego admite como máximo {_service.MaxMoves} movimientos por nivel por especie.";return;}
         int level=_selectedMove?.Level??1;
         var row=new LevelUpMoveEntry {Level=level,Move=1};_rows.Add(row);_selectedMove=row;RebuildCards();Dirty();
     }
@@ -387,8 +390,7 @@ internal sealed class LevelUpView : UserControl
     {
         Commit();
         if(_rows.Count==0)return;
-        var valid=_service.Moves.Where(m=>m.Id>0&&m.Id<622&&m.Id is not (165 or 621 or 166 or 226))
-            .Select(m=>m.Id).ToArray();
+        var valid=_service.RandomMovePool.ToArray();
         if(valid.Length==0)return;
         var rng=new Random(System.Security.Cryptography.RandomNumberGenerator.GetInt32(int.MaxValue));
         foreach(var row in _rows)row.Move=valid[rng.Next(valid.Length)];

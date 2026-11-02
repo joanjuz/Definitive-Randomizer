@@ -40,7 +40,8 @@ public static class NativeMasterBatchBridge
         {
             if(node["TemplateSha256"]?.GetValue<string>() is not {} expected)throw new InvalidDataException("Falta el CSV o su SHA-256.");
             string path=Path.GetFullPath(value.TemplatePath??Path.Combine(AppContext.BaseDirectory,"custom_balance_templates",action==BatchAction.MoveBalance?$"moves_gen{document.Generation}.csv":$"pokemon_stats_gen{document.Generation}.csv"));
-            using var stream=File.OpenRead(path);if(!Convert.ToHexString(SHA256.HashData(stream)).Equals(expected,StringComparison.OrdinalIgnoreCase))throw new InvalidDataException("El CSV cambió desde la captura nativa.");
+            // A CSV changed since the capture is only a warning (CheckAssets); the current file is used.
+            if(!File.Exists(path))throw new FileNotFoundException("Falta el CSV del template.",path);
         }
         int scope=node["Scope"]?.GetValue<int>()??-1;if(scope is <0 or >2)throw new InvalidDataException("Alcance nativo inválido.");return new(action,value,scope);
     }

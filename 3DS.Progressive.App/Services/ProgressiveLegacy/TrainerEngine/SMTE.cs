@@ -127,6 +127,10 @@ public partial class SMTE : Form
     private List<TrainerLevelCapRule> LevelCapRules = [];
     private List<TrainerMoveRule> MoveRules = [];
     private bool ApplyCapsToPreviousTrainers = true;
+    // SM: regular trainers follow the WikiDex story chronology (TrainerStoryProfile "SM"); false in older templates.
+    private bool StoryScaling;
+    private pk3DS.Core.Randomizers.TrainerStoryProfile _story;
+    private Dictionary<int, int> _originalAces = [];
     private int PreviousTrainerGap = 2;
     private decimal RegularTrainerCurvePower = 1.6m;
     private const int MinimumTrainerLevel = 1;
@@ -1536,6 +1540,7 @@ public partial class SMTE : Form
             {
                 Enabled = CHK_LevelCaps.Checked,
                 ApplyToPreviousTrainers = ApplyCapsToPreviousTrainers,
+                StoryScaling = StoryScaling,
                 PreviousTrainerGap = PreviousTrainerGap,
                 ResetUnlistedTrainers = true,
                 Trainers = LevelCapRules.Where(r => r.Enabled).Select(r => new TrainerLevelCapTemplateEntry
@@ -1677,6 +1682,7 @@ public partial class SMTE : Form
         if (template.LevelCaps is not null)
         {
             ApplyCapsToPreviousTrainers = template.LevelCaps.ApplyToPreviousTrainers;
+            StoryScaling = template.LevelCaps.StoryScaling == true;
             PreviousTrainerGap = template.LevelCaps.PreviousTrainerGap;
             CHK_LevelCaps.Checked = template.LevelCaps.Enabled && LevelCapRules.Count > 0;
         }
@@ -3743,6 +3749,12 @@ public partial class SMTE : Form
                 exactRule is not null &&
                 exactRule.LevelCap > 0;
 
+            // As USUM: an "Ace" (0) rule follows the story chronology; postgame or unplaced trainers keep the rule's level.
+            if (!forceExactLevel && ApplyCapsToPreviousTrainers && _story is not null &&
+                _story.Target(trainerID, m => stages.Where(s => m.Contains(s.TrainerID)).Select(s => (int?)s.LevelCap).Min(),
+                    id => _originalAces.TryGetValue(id, out int a) && a > 0 ? a : null, PreviousTrainerGap, MinimumTrainerLevel, (double)RegularTrainerCurvePower) is int storyTarget)
+                return storyTarget;
+
             return Math.Max(
                 MinimumTrainerLevel,
                 exactStage.LevelCap);
@@ -3750,6 +3762,12 @@ public partial class SMTE : Form
 
         if (!ApplyCapsToPreviousTrainers)
             return null;
+
+        if (_story is not null)
+        {
+            int? Configured(IReadOnlyList<int> milestones) => stages.Where(s => milestones.Contains(s.TrainerID)).Select(s => (int?)s.LevelCap).Min();
+            return _story.Target(trainerID, Configured, id => _originalAces.TryGetValue(id, out int a) && a > 0 ? a : null, PreviousTrainerGap, MinimumTrainerLevel, (double)RegularTrainerCurvePower);
+        }
 
         var nextLegacy=stages.Where(s=>trainerAce<=s.OriginalAceLevel).OrderBy(s=>s.OriginalAceLevel).ThenBy(s=>s.LevelCap).FirstOrDefault();
         if(nextLegacy is null)return null;
@@ -3987,6 +4005,11 @@ public partial class SMTE : Form
             ? SmartTrainerItemPicker.AddSmartTrainerItemPoolExtras(normalItems)
             : normalItems;
         var levelCapStages = BuildLevelCapStages();
+        // SM chronology: original aces before any change (the first window starts at the lowest), only when the bosses match.
+        _originalAces = Enumerable.Range(1, Math.Max(0, Trainers.Length - 1)).Where(id => Trainers[id].Pokemon.Count > 0).ToDictionary(id => id, id => GetAceLevel(Trainers[id]));
+        _story = !Main.Config.USUM && StoryScaling && ApplyCapsToPreviousTrainers ? pk3DS.Core.Randomizers.TrainerStoryProfile.Load("SM") : null;
+        if (_story is not null && !_story.Matches(id => _originalAces.TryGetValue(id, out int a) && a > 0 ? a : null))
+            _story = null;
 
         int progressTotal = Math.Max(1, Trainers.Length);
         using var progress = TrainerRandomizeProgress.Show(this, "Randomizing Trainers", progressTotal);
