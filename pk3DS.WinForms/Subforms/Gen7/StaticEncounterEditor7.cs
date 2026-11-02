@@ -1591,8 +1591,9 @@ private void EnsureStarterHasDamagingMove(EncounterGift7 starter)
             if (CHK_ReplaceLegend.Checked && ReplaceLegend.Contains(t.Species))
                 t.Species = ReplaceLegend[randLegend()];
 
-            // fully evolved Totems
-            else if (CHK_ForceTotem.Checked && Totem.Contains(t.Species))
+            // fully evolved Totems: only the encounters with a Totem aura. The trial battles before each Totem share its
+            // species (Gumshoos/Raticate in the dens, Wishiwashi, Marowak...) but have no aura, so they keep the BST rule.
+            else if (CHK_ForceTotem.Checked && Totem.Contains(t.Species) && t.Aura != 0)
                 t.Species = FinalEvo[randFinalEvo()];
 
             // every other entry

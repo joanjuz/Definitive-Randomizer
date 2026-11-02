@@ -160,23 +160,14 @@ internal sealed class GlobalTemplateView : UserControl
     }
     private async void Load()
     {
-        var dialog=new Microsoft.Win32.OpenFileDialog{Filter="Global ROM Template JSON|*.json"};
+        var dialog=new Microsoft.Win32.OpenFileDialog{Filter="Global ROM Template o historial exportado (JSON)|*.json"};
         if(dialog.ShowDialog(Window.GetWindow(this))!=true)return;
         try{await OpenPathAsync(dialog.FileName);}catch(Exception ex){StudioDialog.Error(Window.GetWindow(this),"Global Template",ex.Message);}
     }
     private void FromHistory()
     {
         // Capture only visited editors; do not invent the other legacy modules.
-        var applied=_project.History.Read().Entries.LastOrDefault(entry=>entry.Parameters.ContainsKey("GlobalTemplateSnapshot"));
-        var template=_loaded?.Clone()??(applied is null?GlobalTemplateDocument.Empty(Game,_project.Generation):
-            GlobalTemplateDocument.Parse(applied.Parameters["GlobalTemplateSnapshot"],Game,_project.Generation,
-                string.IsNullOrEmpty(applied.Parameters.GetValueOrDefault("GlobalTemplateSource"))?null:applied.Parameters["GlobalTemplateSource"]));
-        if(_loaded is null&&applied is null)
-        {
-            var extension=template.Section("ProgressiveApp") as System.Text.Json.Nodes.JsonObject??new();
-            extension["PartialSnapshot"]=true;template.SetSection("ProgressiveApp",extension);
-        }
-        template.MergeHistoryActions(_project.History);
+        var template=GlobalTemplateDocument.FromHistory(_project.History.Read(),Game,_project.Generation,_loaded);
         _captureOptions?.Invoke(template);
         int missing=template.Section("ProgressiveApp")?["ManualEdits"]?["MissingHistoryPayloads"]?.AsArray().Count??0;
         Use(template,missing>0?$"Se detectaron {missing} modificaciones antiguas sin datos suficientes. Al guardar se indicarán las entradas que necesitás editar y guardar de nuevo.":"Se incorporaron las opciones disponibles y las modificaciones manuales. Estas se aplicarán al final de la randomización. Los módulos sin configuración no se inventan.");
@@ -229,7 +220,12 @@ internal sealed class GlobalTemplateView : UserControl
             _previewPanel.Children.Add(new TextBlock{Text=$"Vista previa: {_preview.Template.Actions.Count} acciones · {_preview.Files.Count} archivos modificados · Semilla {_preview.Seed}",TextWrapping=TextWrapping.Wrap,Margin=new Thickness(0,12,0,8)});
             var text=string.Join(Environment.NewLine,_preview.Files.Select(file=>$"{file.RelativePath} · {file.Bytes:N0} bytes · SHA {file.AfterSha256[..12]}…"));
             _previewPanel.Children.Add(new ScrollViewer{Content=new TextBlock{Text=text.Length==0?"Las acciones no producen diferencias binarias en el proyecto actual.":text,TextWrapping=TextWrapping.Wrap},MaxHeight=180,VerticalScrollBarVisibility=ScrollBarVisibility.Auto});
-            _applyButton.IsEnabled=true;_status.Text="Vista previa lista. El proyecto sigue intacto. Aplicar guardará exactamente este resultado, sin reconstruir la ROM.";
+            if(_preview.Warnings.Count>0)
+            {
+                var warning=new TextBlock{Text="Aviso: algunos archivos del template cambiaron desde que se guardó y se usó la versión actual:\n"+string.Join("\n",_preview.Warnings.Select(w=>"• "+w)),TextWrapping=TextWrapping.Wrap,FontWeight=FontWeights.SemiBold,Margin=new Thickness(0,8,0,0)};
+                warning.SetResourceReference(TextBlock.ForegroundProperty,"TextMain");_previewPanel.Children.Add(warning);
+            }
+            _applyButton.IsEnabled=true;_status.Text=(_preview.Warnings.Count>0?$"Vista previa lista con {_preview.Warnings.Count} aviso(s) de SHA-256. ":"Vista previa lista. ")+"El proyecto sigue intacto. Aplicar guardará exactamente este resultado, sin reconstruir la ROM.";
         }
         catch(Exception ex){_status.Text="No se preparó la vista previa: "+ex.Message;}
         finally{_busy=false;IsEnabled=true;UiProgress.End();}

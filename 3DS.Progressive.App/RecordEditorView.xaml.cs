@@ -135,7 +135,7 @@ public partial class RecordEditorView : UserControl
     {
         panel.Children.Clear();controls.Clear();
         if(!editor)_bstTable=null;
-        if(editor){_editorSections.Clear();_pokemonTabs.Clear();}
+        if(editor){_editorSections.Clear();_pokemonTabs.Clear();_pastePokemonButtons.Clear();}
         var entries=groups.ToArray();
         if(!editor&&Editor is ThreeDS.Progressive.Services.GameEncounterService {SupportsWildTemplate:false})
         {
@@ -312,10 +312,62 @@ public partial class RecordEditorView : UserControl
         int slot=group.Fields.FirstOrDefault()?.Key is { } key&&key.StartsWith("P",StringComparison.Ordinal)
             &&key.IndexOf('.')>1&&int.TryParse(key[1..key.IndexOf('.')],out int index)?index:-1;
         if(slot>=0)_pokemonTabs[slot]=tabs;
+        FrameworkElement content=tabs;
+        if(slot>=0)
+        {
+            // Copy this Pokémon and paste it on any slot of any trainer of the same editor: every field the slot has is replaced.
+            string prefix=$"P{slot}.";
+            var copy=new Button {Content="Copiar Pokémon",Margin=new Thickness(0,0,8,0),ToolTip="Copia especie, nivel, objeto, movimientos y el resto de campos de este Pokémon."};
+            var paste=new Button {Content="Pegar Pokémon",ToolTip="Sustituye este Pokémon por el copiado. Los cambios se guardan con «Guardar», como cualquier edición."};
+            EditorPresentation.StyleAction(copy,EditorPresentation.ActionRole.Tertiary);EditorPresentation.StyleAction(paste,EditorPresentation.ActionRole.Tertiary);
+            System.Windows.Automation.AutomationProperties.SetName(copy,"Copiar "+group.Name);System.Windows.Automation.AutomationProperties.SetName(paste,"Pegar en "+group.Name);
+            copy.Click+=(_,_)=>CopyTrainerPokemon(controls,prefix,group.Name);
+            paste.Click+=(_,_)=>PasteTrainerPokemon(controls,prefix,slot,group.Name);
+            paste.IsEnabled=_copiedPokemon?.Owner==PokemonClipboardOwner;_pastePokemonButtons.Add(paste);
+            var bar=new WrapPanel {Margin=new Thickness(0,10,0,0)};bar.Children.Add(copy);bar.Children.Add(paste);
+            var stack=new StackPanel();stack.Children.Add(bar);stack.Children.Add(tabs);content=stack;
+        }
         var expand=new Expander {Header=group.Name,IsExpanded=group.Expanded,
-            Foreground=(Brush)FindResource("TextMain"),Content=tabs};
+            Foreground=(Brush)FindResource("TextMain"),Content=content};
         foreach(var field in group.Fields)_editorSections[field.Key]=expand;
         return GroupBorder(expand);
+    }
+    private static (string Owner,string Label,Dictionary<string,int> Values)? _copiedPokemon;
+    private readonly List<Button> _pastePokemonButtons=[];
+    // Values are game IDs, so they are pasted only within the same editor of a game with the same records.
+    private string PokemonClipboardOwner=>$"{Editor.GetType().FullName}|{Editor.Title}|{Editor.Entries.Count}";
+    internal void CopyTrainerPokemon(Dictionary<string,FrameworkElement> controls,string prefix,string label)
+    {
+        try
+        {
+            var values=Values(controls.Where(p=>p.Key.StartsWith(prefix,StringComparison.Ordinal)).ToDictionary(p=>p.Key,p=>p.Value));
+            _copiedPokemon=(PokemonClipboardOwner,$"{(RecordList.SelectedItem is RecordEntry entry?entry.Name+" · ":"")}{label}",values.ToDictionary(p=>p.Key[prefix.Length..],p=>p.Value));
+            foreach(var button in _pastePokemonButtons)button.IsEnabled=true;
+            StatusText.Text=$"Copiado: {_copiedPokemon.Value.Label}. Pulsa «Pegar Pokémon» en el entrenador y la posición que quieras.";
+        }
+        catch(Exception ex){StatusText.Text="No se pudo copiar: "+ex.Message;}
+    }
+    internal void PasteTrainerPokemon(Dictionary<string,FrameworkElement> controls,string prefix,int slot,string label)
+    {
+        if(_copiedPokemon is not { } copied||copied.Owner!=PokemonClipboardOwner){StatusText.Text="Primero copia un Pokémon de este editor.";return;}
+        int pasted=0;
+        foreach(var (field,value) in copied.Values)
+            if(controls.TryGetValue(prefix+field,out var control)){SetControlValue(control,value);pasted++;}
+        // A slot outside the team joins it, like raising «Pokémon en el equipo».
+        if(controls.TryGetValue("Count",out var count)&&Values(new(){["Count"]=count})["Count"]<=slot)SetControlValue(count,slot+1);
+        StatusText.Text=$"Pegado en {label}: {copied.Label} ({pasted} campos). Cambios sin guardar.";
+    }
+    private static void SetControlValue(FrameworkElement control,int value)
+    {
+        switch(control)
+        {
+            case ComboBox combo:
+                if(combo.ItemsSource is IEnumerable<MoveChoice> choices&&!choices.Any(c=>c.Id==value))
+                    combo.ItemsSource=choices.Append(new MoveChoice(value,$"ID {value} (personalizado)")).ToArray();
+                combo.SelectedValue=value;break;
+            case CheckBox check:check.IsChecked=value==1;break;
+            case TextBox text:text.Text=(value/(decimal)int.Parse(text.Uid,CultureInfo.InvariantCulture)).ToString(CultureInfo.InvariantCulture);break;
+        }
     }
     internal static int TrainerPokemonSection(string key)
     {

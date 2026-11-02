@@ -15,6 +15,8 @@ internal sealed class GlobalTemplatePreview:IDisposable
     internal IReadOnlyList<GlobalPreviewFile> Files{get;}
     internal int Seed{get;}
     internal bool Applied{get;set;}
+    /// <summary>Files used by the recipe whose SHA-256 differs from the one saved in it: the current file was used.</summary>
+    internal IReadOnlyList<string> Warnings{get;set;}=[];
     internal GlobalTemplatePreview(string workspace,GlobalTemplateDocument template,IReadOnlyDictionary<string,string> sourceHashes,string historyHash,IReadOnlyList<GlobalPreviewFile> files,int seed)
         {Workspace=workspace;Template=template.Clone();SourceHashes=sourceHashes;HistoryHash=historyHash;Files=files;Seed=seed;}
     public void Dispose()
@@ -95,13 +97,16 @@ internal sealed class GlobalTemplateApplication(GameProjectSession project)
                 }
             var preflight=await new BatchRomExecution(project).PreflightAsync(new(recipe,workspace,"preview",1,false,false,true));
             var localWarnings=frozen.CheckAssets([workspace]);
-            if(localWarnings.Count>0)throw new InvalidDataException(string.Join(" | ",localWarnings));
+            // A missing file stops the preview; a file with another SHA-256 only warns, and the current one is used.
+            var missing=localWarnings.Where(warning=>!BatchRomExecution.IsHashMismatch(warning)).ToArray();
+            if(missing.Length>0)throw new InvalidDataException(string.Join(" | ",missing));
+            var changedAssets=localWarnings.Where(BatchRomExecution.IsHashMismatch).Select(warning=>warning.Replace(": no aplicar automáticamente.",": se usa el archivo actual.",StringComparison.Ordinal)).ToArray();
             // The generic Batch preflight prefers installed CSVs. This execution has a
             // dedicated frozen dependency root, verified above, so only those hash warnings differ.
             var blocking=preflight.Warnings.Where(warning=>!BatchRomExecution.IsHashMismatch(warning)).ToArray();
             if(blocking.Length>0)throw new InvalidDataException(string.Join(" | ",blocking));
             var hashes=await Task.Run(()=>Snapshot(project));string history=HistoryHash();
-            await File.WriteAllTextAsync(Path.Combine(workspace,"request.json"),JsonSerializer.Serialize(new{ProjectRoot=project.ProjectRoot,TemplatePath=recipe,OutputDirectory=workspace,BaseName="preview",Count=1,RestoreBackups=false,KeepEditableProjects=true,PreviewOnly=true,Language=project.GameConfiguration.Language}));
+            await File.WriteAllTextAsync(Path.Combine(workspace,"request.json"),JsonSerializer.Serialize(new{ProjectRoot=project.ProjectRoot,TemplatePath=recipe,OutputDirectory=workspace,BaseName="preview",Count=1,RestoreBackups=false,KeepEditableProjects=true,PreviewOnly=true,AllowAssetMismatch=changedAssets.Length>0,Language=project.GameConfiguration.Language}));
             report?.Invoke("Ejecutando la receta sobre una copia temporal…");
             using var process=new Process{StartInfo=new ProcessStartInfo(BatchRomExecution.RunnerPath){UseShellExecute=false,CreateNoWindow=true,WindowStyle=ProcessWindowStyle.Hidden,WorkingDirectory=workspace}};
             process.StartInfo.ArgumentList.Add("--batch-bridge");process.StartInfo.ArgumentList.Add(Path.Combine(workspace,"request.json"));
@@ -114,7 +119,7 @@ internal sealed class GlobalTemplateApplication(GameProjectSession project)
             using var data=JsonDocument.Parse(await File.ReadAllTextAsync(result));
             var actions=data.RootElement.GetProperty("Actions").EnumerateArray().Select(node=>node.GetString()!).ToArray();
             if(!actions.SequenceEqual(frozen.Actions))throw new InvalidDataException("Las acciones ejecutadas difieren de la receta.");
-            return await Task.Run(()=>InspectStage(workspace,document,hashes,history,data.RootElement.GetProperty("Seed").GetInt32()));
+            var preview=await Task.Run(()=>InspectStage(workspace,document,hashes,history,data.RootElement.GetProperty("Seed").GetInt32()));preview.Warnings=changedAssets;return preview;
         }
         catch{new GlobalTemplatePreview(workspace,document,new Dictionary<string,string>(),"",[],0).Dispose();throw;}
     }

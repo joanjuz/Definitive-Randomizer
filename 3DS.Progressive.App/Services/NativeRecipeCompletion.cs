@@ -29,8 +29,9 @@ internal static class NativeRecipeCompletion
         ManualEditTemplate.ValidateSession(project,document);
         NativeGen7WildBridge.ValidateSession(project,document);ValidateGen7Parameters(project,document);NativeMasterBatchBridge.ValidateSession(project,document);
         if(project.Generation==6)NativeBatchGen6Bridge.ValidateSession(project,document);else {NativeBatchGen7StaticBridge.ValidateSession(project,document);NativeGen7FieldBridge.ValidateSession(project,document);NativeGen7MachineBridge.ValidateSession(project,document);_=NativeGen7MartBridge.ValidateSession(project,document);}
-        if(document.CheckAssets(new[]{AppContext.BaseDirectory,project.ProjectRoot,Path.GetDirectoryName(document.SourcePath)??""}).Count!=0)
-            throw new InvalidDataException("La receta contiene assets ausentes o distintos; no se marcó completa.");
+        // Only a missing asset prevents it; a different SHA-256 is a warning and the current file is used.
+        if(document.CheckAssets(new[]{AppContext.BaseDirectory,project.ProjectRoot,Path.GetDirectoryName(document.SourcePath)??""}).Any(warning=>!BatchRomExecution.IsHashMismatch(warning)))
+            throw new InvalidDataException("La receta contiene assets ausentes; no se marcó completa.");
         var native=(JsonObject)document.Section("ProgressiveApp")!;
         native["PartialSnapshot"]=false;native["NativeOnly"]=true;document.SetSection("ProgressiveApp",native);return true;
     }

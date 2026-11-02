@@ -10,5 +10,6 @@ public partial class App : System.Windows.Application
         AccessiblePalette.Install(this);
         PresentationAccessibility.Install();
         GridEditing.Install();
+        ComboSearch.Install();
     }
 }

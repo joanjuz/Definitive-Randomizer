@@ -33,7 +33,7 @@ public sealed partial class GameStaticEncounterService : ArchiveProjectEditor, I
                 int species=BitConverter.ToUInt16(bytes,0);
                 int id=_slots.Count+1;
                 _slots.Add(id,new(file,i,size,kind));
-                Entries=Entries.Append(new RecordEntry(id,$"{kind} {i+1:000} · {SpeciesLabel(species)}")).ToArray();
+                Entries=Entries.Append(new RecordEntry(id,$"{kind} · {SpeciesLabel(species)}"){Number=i}).ToArray();
             }
         }
         if(_slots.Count==0)throw new InvalidDataException("No se encontraron encuentros estáticos editables.");
@@ -467,7 +467,9 @@ public sealed partial class GameStaticEncounterService : ArchiveProjectEditor, I
         {
             int original=values["Species"];
             bool basic=slot.File==0&&slot.Index<3&&options.GetValueOrDefault("BasicStarter")==1;
-            bool forceTotem=slot.File==1&&TotemSpecies.Contains(original)&&options.GetValueOrDefault("ForceTotem")==1;
+            // A Totem is the encounter with a Totem aura, not every encounter of a Totem species: the trial battles before each
+            // Totem (Gumshoos/Raticate in the dens, Wishiwashi, Marowak…) have no aura and keep the normal (BST) randomization.
+            bool forceTotem=slot.File==1&&TotemSpecies.Contains(original)&&values["Aura"]!=0&&options.GetValueOrDefault("ForceTotem")==1;
             // Original explicit starter/Totem pools override generation and BST
             // filters. Legend-to-legend has precedence over Force Totem.
             bool legendOverride=options["LegendToLegend"]==1&&

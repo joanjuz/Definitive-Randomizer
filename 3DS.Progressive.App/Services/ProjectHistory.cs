@@ -93,6 +93,17 @@ public sealed partial class ProjectHistory
         Commit([],"Templates","Usar template · "+(payload["TemplateKind"]!.GetValue<string>() switch{"Moves"=>"Movimientos","Evolutions"=>"Evoluciones","Stats"=>"Estadísticas Pokémon","FieldItems"=>"Objetos de campo","Shops"=>"Tiendas",_=>"Personalizado"}),[],new Dictionary<string,string>{{"ManualOperation",operation.ToJsonString()},{"RecordTemplateUse","true"}});
     }
     public void Export(string path) => File.WriteAllBytes(path,JsonSerializer.SerializeToUtf8Bytes(Read(),Json));
+    /// <summary>The history in <paramref name="json"/> when it is a history export (Entries without RandSettings or Actions); otherwise null.</summary>
+    internal static HistoryDocument? TryParseExport(string json)
+    {
+        try
+        {
+            if(System.Text.Json.Nodes.JsonNode.Parse(json) is not System.Text.Json.Nodes.JsonObject root||root["Entries"] is not System.Text.Json.Nodes.JsonArray
+                ||root.ContainsKey("RandSettings")||root.ContainsKey("Actions"))return null;
+        }
+        catch(JsonException){return null;}
+        return Normalize(JsonSerializer.Deserialize<HistoryDocument>(json,Json)??throw new InvalidDataException("El historial no tiene un formato válido."));
+    }
     private static HistoryDocument Normalize(HistoryDocument document)=>document with
     {
         Version=2,Entries=document.Entries.Select(entry=>

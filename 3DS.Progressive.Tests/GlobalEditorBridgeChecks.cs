@@ -184,10 +184,14 @@ internal static class GlobalEditorBridgeChecks
             for(int gen=1;gen<=7;gen++)options[$"G{gen}"]=0;
             editor.Apply(editor.Preview(options,[1]));
             check(Legal.BasicStarters_7.Contains(EditorValues.Flatten(editor.Read(1))["Species"]),version+" explicit basic starter pool overrides disabled generation filters");
-            var staticValues=EditorValues.Flatten(editor.Read(5));staticValues["Species"]=20;
+            var staticValues=EditorValues.Flatten(editor.Read(5));staticValues["Species"]=20;staticValues["Aura"]=4;
             editor.Save(5,staticValues);
             editor.Apply(editor.Preview(options,[5]));
             check(Legal.FinalEvolutions_7.Concat(Legal.Legendary_USUM).Concat(Legal.Mythical_USUM).Contains(EditorValues.Flatten(editor.Read(5))["Species"]),version+" Force Totem uses original final evolution pool including permitted special species");
+            // A trial battle with a Totem species but no aura (the dens before Gumshoos/Raticate) is not a Totem: it keeps the normal randomization.
+            staticValues=EditorValues.Flatten(editor.Read(5));staticValues["Species"]=20;staticValues["Aura"]=0;editor.Save(5,staticValues);
+            var picks=Enumerable.Range(0,24).Select(_=>{editor.Apply(editor.Preview(options,[5]));int picked=EditorValues.Flatten(editor.Read(5))["Species"];staticValues["Species"]=20;editor.Save(5,staticValues);return picked;}).ToArray();
+            check(picks.Any(s=>!Legal.FinalEvolutions_7.Concat(Legal.Legendary_USUM).Concat(Legal.Mythical_USUM).Contains(s)),version+" Force Totem skips trial battles of a Totem species without aura");
             GlobalEditorTemplateBridge.Capture(doc,editor,new(options,0),7);
             var restoredOptions=GlobalEditorTemplateBridge.Restore(doc,new GameStaticEncounterService(f.Session),7)!.Options;
             check(new[]{"AllowMega","BasicStarter","ForceTotem"}.All(k=>restoredOptions[k]==1),version+" Mega starter and Totem options round-trip through Global");

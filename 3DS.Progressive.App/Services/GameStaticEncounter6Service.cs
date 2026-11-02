@@ -38,7 +38,7 @@ public sealed class GameStaticEncounter6Service : IProjectEditor, IRecordSection
         Add(_game.ORAS?0xF906C:0xF805C,_game.ORAS?36:24,_game.ORAS?37:19,true);
         _sections=_slots.ToDictionary(p=>p.Key,p=>p.Value.Gift?(_starters.Contains(p.Value.Index)?"Iniciales":"Regalos"):"Estáticos");
         Entries=_slots.Select(p=>new RecordEntry(p.Key,
-            $"{(p.Value.Gift?(_starters.Contains(p.Value.Index)?"Inicial":"Regalo"):"Estático")} {p.Value.Index+1:000} · {_species[BitConverter.ToUInt16(source,p.Value.Offset)].Name}")).ToArray();
+            $"{(p.Value.Gift?(_starters.Contains(p.Value.Index)?"Inicial":"Regalo"):"Estático")} · {_species[BitConverter.ToUInt16(source,p.Value.Offset)].Name}"){Number=p.Value.Index}).ToArray();
         void Add(int offset,int size,int count,bool gift)
         {
             if(offset<0||(long)offset+size*count>source.Length)

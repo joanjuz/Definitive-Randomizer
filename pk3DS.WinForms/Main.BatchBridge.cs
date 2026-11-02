@@ -102,7 +102,7 @@ public partial class Main
             Util.ReseedRand(seed);
             string previous=Environment.GetEnvironmentVariable("DEFINITIVE_BATCH_REPLAY"),previousTemplate=Environment.GetEnvironmentVariable("DEFINITIVE_TEMPLATE_PATH");
             Environment.SetEnvironmentVariable("DEFINITIVE_BATCH_REPLAY","1");Environment.SetEnvironmentVariable("DEFINITIVE_TEMPLATE_PATH",job.TemplatePath);
-            try{var warnings=GlobalRandomizationTemplateFile.Apply(template,game);if(warnings.Count>0)throw new InvalidDataException(string.Join(" | ",warnings));if(generation==6)BatchGen6ActionExecutor.Execute(template);else BatchGen7ActionExecutor.Execute(template);}
+            try{var warnings=GlobalRandomizationTemplateFile.Apply(template,game);if(job.AllowAssetMismatch)warnings=warnings.Where(w=>!w.StartsWith("Template dependency changed since this global template was saved:",StringComparison.OrdinalIgnoreCase)).ToList();if(warnings.Count>0)throw new InvalidDataException(string.Join(" | ",warnings));if(generation==6)BatchGen6ActionExecutor.Execute(template);else BatchGen7ActionExecutor.Execute(template);}
             finally{Environment.SetEnvironmentVariable("DEFINITIVE_BATCH_REPLAY",previous);Environment.SetEnvironmentVariable("DEFINITIVE_TEMPLATE_PATH",previousTemplate);}
             // This bridge deliberately stops before ROM assembly. The exact staged bytes are the proposal.
             File.WriteAllText(Path.Combine(output,"preview-result.json"),JsonSerializer.Serialize(new{Seed=seed,Actions=template.Actions.Select(a=>a.Id).ToArray()}));

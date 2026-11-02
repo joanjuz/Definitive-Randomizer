@@ -83,7 +83,15 @@ internal static class GlobalApplicationChecks
                 var local=doc.Clone();local.SetSection("Assets",new JsonArray(new JsonObject{["Role"]="move-balance",["FileName"]="moves_gen7.csv",["Sha256"]=ProjectHistory.Hash(File.ReadAllBytes(dependency))}));
                 string path=Path.Combine(f.Root,"local.json");local.Save(path);local=GlobalTemplateDocument.Load(path,"USUM",7);
                 using var proposal=await application.PreviewAsync(local);
-                check(File.ReadAllText(Path.Combine(proposal.Workspace,"custom_balance_templates","moves_gen7.csv"))=="local dependency fixture","GlobalApply_LocalVerifiedDependenciesOverrideBundledCopies");
+                check(File.ReadAllText(Path.Combine(proposal.Workspace,"custom_balance_templates","moves_gen7.csv"))=="local dependency fixture"&&proposal.Warnings.Count==0,"GlobalApply_LocalVerifiedDependenciesOverrideBundledCopies");
+                // A dependency edited after the template was saved only warns: the preview uses the current file.
+                File.WriteAllText(dependency,"edited after saving");
+                using var changed=await application.PreviewAsync(local);
+                check(File.ReadAllText(Path.Combine(changed.Workspace,"custom_balance_templates","moves_gen7.csv"))=="edited after saving"
+                    &&changed.Warnings.Count==1&&changed.Warnings[0].Contains("moves_gen7.csv",StringComparison.Ordinal),"GlobalApply_ChangedDependencyWarnsAndUsesTheCurrentFile");
+                var absent=local.Clone();absent.SetSection("Assets",new JsonArray(new JsonObject{["Role"]="move-balance",["FileName"]="dependencia-inexistente.csv",["Sha256"]=new string('0',64)}));
+                bool missing;try{using var _=await application.PreviewAsync(absent);missing=false;}catch(Exception ex)when(ex is FileNotFoundException or InvalidDataException){missing=true;}
+                check(missing,"GlobalApply_MissingDependencyStillStopsThePreview");
             }
             using(var damaged=await application.PreviewAsync(doc))
             {

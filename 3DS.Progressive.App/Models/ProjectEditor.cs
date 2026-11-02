@@ -3,7 +3,8 @@ using ThreeDS.Progressive.Services;
 
 namespace ThreeDS.Progressive.Models;
 
-public sealed record RecordEntry(int Id,string Name) {public string Display=>$"#{Id:000} · {Name}";}
+/// <summary>An editable record. <see cref="Number"/> is the number shown when it differs from the internal ID (static encounters: index within their section, from 0 as in pk3DS).</summary>
+public sealed record RecordEntry(int Id,string Name) {public int? Number {get;init;} public string Display=>$"#{Number??Id:000} · {Name}";}
 public sealed record EditorField(string Key,string Label,int Value,int Min,int Max,IReadOnlyList<MoveChoice>? Choices=null,int Scale=1);
 public sealed record EditorGroup(string Name,IReadOnlyList<EditorField> Fields,bool Expanded=true);
 public sealed class EditorProposal

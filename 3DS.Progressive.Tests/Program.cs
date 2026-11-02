@@ -99,7 +99,7 @@ if(args.Length==1&&args[0]=="--remote-sprites-only"){RemoteSpriteChecks.Run(Chec
 if(args.Length==1&&args[0]=="--global-options-only"){GlobalEditorBridgeChecks.Run(Check,Reject);Console.WriteLine($"Completed {checks} global checks.");return;}
 if(args.Length==1&&args[0]=="--requested-ui-only")
 {
-    Exception? failure=null;var thread=new Thread(()=>{try{ThreeDS.Progressive.StudioDialog.AutomatedChecks=true;var app=new ThreeDS.Progressive.App();app.InitializeComponent();RequestedIntegrationChecks.RunUi(Check);Review73Checks.RunUi(Check);}catch(Exception ex){failure=ex;}});
+    Exception? failure=null;var thread=new Thread(()=>{try{ThreeDS.Progressive.StudioDialog.AutomatedChecks=true;var app=new ThreeDS.Progressive.App();app.InitializeComponent();RequestedIntegrationChecks.RunUi(Check);Review73Checks.RunUi(Check);EditorConvenienceChecks.RunUi(Check);}catch(Exception ex){failure=ex;}});
     thread.SetApartmentState(ApartmentState.STA);thread.Start();thread.Join();if(failure is not null)throw failure;
     Console.WriteLine($"Completed {checks} requested UI checks.");return;
 }
@@ -155,6 +155,14 @@ if(args.Length==1&&args[0]=="--utility-ui-only")
 }
 if(args.Length==1&&args[0]=="--nds-ui-only"){Exception? failure=null;var thread=new Thread(()=>{try{var app=new ThreeDS.Progressive.App();app.InitializeComponent();WpfTestHost.SuppressStartup();ThreeDS.Progressive.StudioDialog.AutomatedChecks=true;NdsUiChecks.RunUi(Check);}catch(Exception ex){failure=ex;}});thread.SetApartmentState(ApartmentState.STA);thread.Start();thread.Join();if(failure is not null)throw failure;Console.WriteLine($"Completed {checks} DS randomizer UI checks (off-screen; not interactive).");return;}
 if(args.Length==3&&args[0]=="--trainer-dump"){TrainerDump.Run(args[1],args[2]);return;}
+if(args.Length==4&&args[0]=="--template-load-probe")
+{
+    // Read only: loads a Global Template, or a history exported from «Historial», as the app does, and prints what it holds.
+    var loaded=ThreeDS.Progressive.Services.GlobalTemplateDocument.Load(args[1],args[2],int.Parse(args[3],System.Globalization.CultureInfo.InvariantCulture));
+    Console.WriteLine($"{loaded.Name} · {loaded.Game} · {loaded.Actions.Count} acciones · {loaded.SettingsCount} líneas RandSettings · {ThreeDS.Progressive.Services.ManualOperations.Read(loaded).Length} modificaciones exactas");
+    foreach(string action in loaded.Actions)Console.WriteLine("  "+action);
+    return;
+}
 if(args.Length>=2&&args[0]=="--story-probe"){Exception? failure=null;var thread=new Thread(()=>{try{var app=new ThreeDS.Progressive.App();app.InitializeComponent();WpfTestHost.SuppressStartup();ThreeDS.Progressive.StudioDialog.AutomatedChecks=true;TrainerStoryChecks.Probe(args[1..],Check);}catch(Exception ex){failure=ex;}});thread.SetApartmentState(ApartmentState.STA);thread.Start();thread.Join();if(failure is not null)throw failure;Console.WriteLine($"Completed {checks} story chronology checks (real data in memory; nothing written).");return;}
 if(args.Length==3&&args[0]=="--nds-ui-probe"){Exception? failure=null;var thread=new Thread(()=>{try{var app=new ThreeDS.Progressive.App();app.InitializeComponent();WpfTestHost.SuppressStartup();ThreeDS.Progressive.StudioDialog.AutomatedChecks=true;NdsUiChecks.Probe(args[1],args[2]);}catch(Exception ex){failure=ex;}});thread.SetApartmentState(ApartmentState.STA);thread.Start();thread.Join();if(failure is not null)throw failure;return;}
 if(args.Length==1&&args[0]=="--nds-only"){NdsChecks.Run(Check,Reject);NdsGen5RandomizerChecks.Run(Check,Reject);NdsGen4Checks.Run(Check,Reject);NdsDataChecks.Run(Check,Reject);Console.WriteLine($"Completed {checks} NDS container checks (synthetic).");return;}

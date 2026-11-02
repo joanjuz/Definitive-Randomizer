@@ -106,6 +106,7 @@ internal static class RunnerCatalog
         new("--read-facilities","1 o más",RunnerCategory.Real,false),
         new("--story-probe","1 o más",RunnerCategory.Real,false),
         new("--trainer-dump","exactamente 2",RunnerCategory.Real,false),
+        new("--template-load-probe","exactamente 3",RunnerCategory.Real,false),
         new("--read-field6","1 o más",RunnerCategory.Real,false),
         new("--read-hm6","1 o más",RunnerCategory.Real,false),
         new("--read-machine7-recipes","1 o más",RunnerCategory.Real,false),
