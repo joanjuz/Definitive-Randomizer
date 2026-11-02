@@ -106,15 +106,16 @@ internal sealed class TrainerRulesWindow : UserControl
         AddCheck(_caps?"Aplicar cap":"Usar regla",_caps?"CapUse":"MoveUse");
         if(_caps)
         {
-            AddCheck("Máx. 3","Max3");AddCheck("Mega","Mega");if(_rows.Any(row=>row.SupportsZMoves))AddCheck("Z-Move","ZMove");
+            AddCheck("Máx. 3","Max3");if(_rows.Any(row=>row.SupportsMega))AddCheck("Mega","Mega");if(_rows.Any(row=>row.SupportsZMoves))AddCheck("Z-Move","ZMove");
         }
         else
         {
             AddCheck("Mov. estado","AllowStatus");
-            AddNumber("EVs","EVs");
+            if(_rows.Any(row=>row.SupportsEVs))AddNumber("EVs","EVs");
         }
         AddNumber("ID","Id",true);
-        AddText("Grupo","Group");AddText("Entrenador","Trainer",true);
+        // DS and Switch groups are descriptive ("Jefes · Líderes de gimnasio"): the column is wide enough for them.
+        AddText("Grupo","Group",_rows.Any(row=>row.Group.Length>12));AddText("Entrenador","Trainer",true);
         AddNumber("Ace actual","Ace",true);
         if(_caps)AddNumber("Cap (0 = Ace)","Cap");
         _grid.Columns.Single(c=>c.Header?.ToString()=="ID").DisplayIndex=0;
@@ -150,8 +151,9 @@ internal sealed class TrainerRulesWindow : UserControl
         {Header=header,Binding=new Binding(property){Mode=BindingMode.OneWay},
             IsReadOnly=true,Width=new DataGridLength(wide?280:105)});
     }
+    // 3DS rows use "Boss"/"Important"; DS and Switch rows use "Jefes · …"/"Importantes · …".
     private bool MatchesFilters(object item)=>item is TrainerRuleTableRow row &&
-        (string.Equals(row.Group,"Boss",StringComparison.OrdinalIgnoreCase)
+        (string.Equals(row.Group,"Boss",StringComparison.OrdinalIgnoreCase)||row.Group.StartsWith("Jefes",StringComparison.Ordinal)
             ? _bosses.IsChecked==true:_important.IsChecked==true);
     private void FilterChanged(object sender,RoutedEventArgs e)=>RefreshFilter();
     private void RefreshFilter()

@@ -67,6 +67,13 @@ public interface ITrainerEditorPresentation { bool UsesTrainerLayout {get;} }
 public sealed record TrainerRuleIdentity(int Id,string Group,string Name,int Ace);
 public interface ITrainerTableMetadata { TrainerRuleIdentity TrainerIdentity(int id); }
 
+/// <summary>Editors with the Level Caps and Trainer Move Rules tables of <c>TrainerRulesWindow</c> (3DS and Nintendo DS).</summary>
+public interface ITrainerRuleTableEditor
+{
+    IReadOnlyList<TrainerRuleTableRow> GetRuleRows();
+    void UpdateRuleRows(IReadOnlyList<TrainerRuleTableRow> rows,bool levelCaps);
+}
+
 public interface IContextualRecordEditor { IReadOnlyList<EditorGroup> ReadContext(int id,IReadOnlyDictionary<string,int> values); }
 
 public interface ITableEditorPresentation { bool UsesRecordTable {get;} }

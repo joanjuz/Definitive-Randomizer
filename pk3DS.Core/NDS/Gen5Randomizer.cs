@@ -36,6 +36,11 @@ public sealed record Gen5RandomizerOptions(uint Seed)
     /// <summary>Item the Diamond/Platinum starter comes with (null keeps it); <see cref="RandomStarterItem"/> picks a random held item instead.</summary>
     public int? StarterItem { get; init; }
     public bool RandomStarterItem { get; init; }
+    /// <summary>
+    /// Random starters start a three-stage line (they evolve twice), as the 3DS "Iniciales básicos" option. The lines come
+    /// from this game's evolution table, so randomized evolutions and romhacks are followed.
+    /// </summary>
+    public bool ThreeStageStarters { get; init; }
     public Gen5ItemMode FieldItems { get; init; }
     public Gen5ItemMode Shops { get; init; }
     public IReadOnlyList<Gen5BstRange> BstRanges { get; init; } = Gen5BstRange.Defaults;
@@ -55,8 +60,27 @@ public sealed record Gen5RandomizerOptions(uint Seed)
     public bool WildGlobalMapping { get; init; }
     /// <summary>Wild levels change by this percentage, between 1 and 100 (0 = off).</summary>
     public int WildLevelPercent { get; init; }
-    /// <summary>Legendary and mythical species are never chosen for trainers or wild slots.</summary>
+    /// <summary>Legendary and mythical species are never chosen for trainers, wild slots or random starters.</summary>
     public bool BanLegendaries { get; init; }
+    /// <summary>Legendaries that are not mythical (3DS "Game Legends" / "Incluir legendarios" off).</summary>
+    public bool BanGameLegends { get; init; }
+    /// <summary>Mythical species (3DS "Event Legends" / "Incluir legendarios de evento" off).</summary>
+    public bool BanMythicals { get; init; }
+    /// <summary>Generations new species may come from: bit g-1 for generation g (0 = every generation).</summary>
+    public int Generations { get; init; }
+    /// <summary>
+    /// "BST similar" tolerance in percent of the original BST (0 = the automatic one: 10 %, widened until five species qualify).
+    /// </summary>
+    public int BstTolerance { get; init; }
+    /// <summary>When no species is within <see cref="BstTolerance"/>: the closest BST instead of widening the range.</summary>
+    public bool ClosestBst { get; init; }
+    /// <summary>Different original species of one wild table get different new species where possible (not with the global mapping).</summary>
+    public bool UniqueWildPerTable { get; init; }
+    /// <summary>Wild levels change by this many levels, after <see cref="WildLevelPercent"/>.</summary>
+    public int WildLevelFlat { get; init; }
+    internal bool Allowed(int species) => !(BanLegendaries && NdsDataRandomizer.IsLegendary(species))
+        && !(BanMythicals && NdsDataRandomizer.IsMythical(species)) && !(BanGameLegends && NdsDataRandomizer.IsLegendary(species) && !NdsDataRandomizer.IsMythical(species))
+        && (Generations == 0 || (Generations >> (NdsDataRandomizer.GenerationOf(species) - 1) & 1) == 1);
     internal bool AdjustsTrainers => TrainerLevelPercent != 0 || ForceFullyEvolvedLevel > 0;
 }
 
@@ -111,7 +135,7 @@ public static class Gen5Randomizer
         foreach (var (key, narc) in working)
             files[data.PathOf(key)] = narc.Write();
         // Levels and forced evolutions work on the new tables as cells, the way manual edits do.
-        if (options.AdjustsTrainers || options.WildLevelPercent != 0)
+        if (options.AdjustsTrainers || options.WildLevelPercent != 0 || options.WildLevelFlat != 0)
             foreach (var (section, edits) in Adjustments(options, s => NdsCells.Read(data.WithDraft(files, overlays), s)))
             {
                 var adjusted = NdsCells.Write(data.WithDraft(files, overlays), section, edits);
@@ -182,24 +206,62 @@ public static class Gen5Randomizer
                     yield return (NdsSection.Trainers, edits);
             }
         }
-        if (options.WildLevelPercent != 0)
+        if (options.WildLevelPercent != 0 || options.WildLevelFlat != 0)
         {
             var edits = read(NdsSection.Encounters).Where(c => options.InScope(c.Entry) && c.Field.Contains("nivel", StringComparison.Ordinal))
-                .Select(c => (c.Key, Value: Scale(c.Value, options.WildLevelPercent), c.Value)).Where(e => e.Item2 != e.Item3).ToDictionary(e => e.Key, e => e.Item2);
+                .Select(c => (c.Key, Value: Math.Clamp(Scale(c.Value, options.WildLevelPercent) + options.WildLevelFlat, 1, 100), c.Value)).Where(e => e.Item2 != e.Item3).ToDictionary(e => e.Key, e => e.Item2);
             if (edits.Count > 0)
                 yield return (NdsSection.Encounters, edits);
         }
     }
 
+    // Species → the species it evolves into, from the evolution table.
+    private static Dictionary<int, int[]> EvolutionTargets(IReadOnlyList<NdsCell> evolutions) => evolutions.GroupBy(c => c.Entry).ToDictionary(g => g.Key, g =>
+    {
+        var row = g.ToDictionary(c => c.Local, c => c.Value);
+        return Enumerable.Range(0, 7).Where(i => row.GetValueOrDefault("E" + i + ".Method") != 0 && row.GetValueOrDefault("E" + i + ".Species") > 0)
+            .Select(i => row["E" + i + ".Species"]).Where(s => s != g.Key).Distinct().ToArray();
+    });
+
+    /// <summary>Species that start a three-stage line: nothing evolves into them and one of their evolutions evolves again.</summary>
+    internal static int[] ThreeStageBasics(IReadOnlyList<NdsCell> evolutions, int maxSpecies, bool banLegendaries)
+    {
+        var next = EvolutionTargets(evolutions);
+        var evolved = next.Values.SelectMany(t => t).ToHashSet();
+        return next.Keys.Where(s => s >= 1 && s <= maxSpecies && !evolved.Contains(s) && !(banLegendaries && NdsDataRandomizer.IsLegendary(s))
+            && next[s].Any(t => next.TryGetValue(t, out var then) && then.Length > 0)).Order().ToArray();
+    }
+
+    /// <summary>
+    /// Species allowed as random starters, or null for any species (the original behaviour, so old templates keep their result).
+    /// </summary>
+    internal static int[]? StarterPool(Gen5RandomizerOptions options, Func<IReadOnlyList<NdsCell>> evolutions, int maxSpecies)
+    {
+        if (options.ThreeStageStarters)
+            return ThreeStageBasics(evolutions(), maxSpecies, options.BanLegendaries).Where(options.Allowed).ToArray();
+        bool filtered = options.BanLegendaries || options.BanGameLegends || options.BanMythicals || options.Generations != 0;
+        return filtered ? Enumerable.Range(1, maxSpecies).Where(options.Allowed).ToArray() : null;
+    }
+
+    /// <summary>Three distinct starters: from <paramref name="pool"/>, or from every species when it is null.</summary>
+    internal static int[] PickStarters(uint seed, int maxSpecies, IReadOnlyList<int>? pool)
+    {
+        if (pool is not null && pool.Distinct().Count() < 3)
+            throw new ArgumentException("No hay tres especies que cumplan las condiciones de los iniciales.");
+        var picked = new List<int>();
+        for (int attempt = 0; picked.Count < 3; attempt++)
+        {
+            int species = pool is null ? Index(seed, $"starter/{attempt}", maxSpecies) + 1 : pool[Index(seed, $"starter/{attempt}", pool.Count)];
+            if (!picked.Contains(species))
+                picked.Add(species);
+        }
+        return [.. picked];
+    }
+
     // Species → its last evolution (a random branch where a species evolves in several ways), from the evolution table.
     internal static Dictionary<int, int> FinalEvolutions(IReadOnlyList<NdsCell> evolutions, uint seed)
     {
-        var next = evolutions.GroupBy(c => c.Entry).ToDictionary(g => g.Key, g =>
-        {
-            var row = g.ToDictionary(c => c.Local, c => c.Value);
-            return Enumerable.Range(0, 7).Where(i => row.GetValueOrDefault("E" + i + ".Method") != 0 && row.GetValueOrDefault("E" + i + ".Species") > 0)
-                .Select(i => row["E" + i + ".Species"]).Where(s => s != g.Key).Distinct().ToArray();
-        });
+        var next = EvolutionTargets(evolutions);
         var finals = new Dictionary<int, int>();
         foreach (int species in next.Keys)
         {
@@ -218,12 +280,31 @@ public static class Gen5Randomizer
                 throw new ArgumentException("Rango de BST inválido.", nameof(options));
         if (stats.Count <= maxSpecies)
             throw new InvalidDataException($"La tabla de estadísticas no cubre las {maxSpecies} especies.");
-        var pool = Enumerable.Range(1, maxSpecies).Where(s => !options.BanLegendaries || !NdsDataRandomizer.IsLegendary(s)).Select(s => (Species: s, Bst: stats[s].Total)).ToArray();
+        var pool = Enumerable.Range(1, maxSpecies).Where(options.Allowed).Select(s => (Species: s, Bst: stats[s].Total)).ToArray();
+        if (pool.Length == 0)
+            throw new ArgumentException("Ninguna especie cumple los filtros de generación y legendarios.", nameof(options));
 
         return (mode, key, original, level, allow) =>
         {
             var candidates = pool;
-            if (mode == Gen5SpeciesMode.SimilarBst)
+            if (mode == Gen5SpeciesMode.SimilarBst && options.BstTolerance > 0)
+            {
+                // The 3DS tolerance: a fixed percentage; with nobody inside, the closest BST or the automatic widening.
+                int bst = stats[original].Total, tolerance = Math.Max(1, bst * options.BstTolerance / 100);
+                candidates = pool.Where(p => Math.Abs(p.Bst - bst) <= tolerance).ToArray();
+                if (candidates.Length == 0 && options.ClosestBst)
+                {
+                    int closest = pool.Min(p => Math.Abs(p.Bst - bst));
+                    candidates = pool.Where(p => Math.Abs(p.Bst - bst) == closest).ToArray();
+                }
+                while (candidates.Length == 0)
+                {
+                    tolerance += Math.Max(1, bst / 20);
+                    int limit = tolerance;
+                    candidates = pool.Where(p => Math.Abs(p.Bst - bst) <= limit).ToArray();
+                }
+            }
+            else if (mode == Gen5SpeciesMode.SimilarBst)
             {
                 int bst = stats[original].Total, tolerance = Math.Max(1, bst / 10);
                 // Widen until at least a few species qualify, so rare BSTs do not always map to themselves.
@@ -315,6 +396,7 @@ public static class Gen5Randomizer
             {
                 if (!options.InScope(file * 4 + season))
                     continue;
+                var unique = UniquePicker(options, pick);
                 int start = season * SeasonLength, slot = start + 8;
                 for (int type = 0; type < SlotsPerType.Length; type++)
                 {
@@ -327,7 +409,7 @@ public static class Gen5Randomizer
                         if (species is < 1 or > MaxSpecies)
                             continue;
                         // Same original species in one area maps to the same new species, keeping the area's rates.
-                        int replacement = pick(options.Wild, options.WildGlobalMapping ? $"wild/{species}" : $"wild/{file}/{season}/{type}/{species}", species, table[at + 3]);
+                        int replacement = unique(options.Wild, options.WildGlobalMapping ? $"wild/{species}" : $"wild/{file}/{season}/{type}/{species}", species, table[at + 3], null);
                         BinaryPrimitives.WriteUInt16LittleEndian(table.AsSpan(at), (ushort)replacement);
                         if (replacement != species)
                             changes.Add(new Gen5Change($"Encuentros {file} · estación {season + 1} · {Gen5EncounterArea.TypeNames[type]} · hueco {i + 1}", "Especie", species, replacement));
@@ -340,6 +422,26 @@ public static class Gen5Randomizer
     }
 
     /// <summary>
+    /// Picker for one wild table: with <see cref="Gen5RandomizerOptions.UniqueWildPerTable"/>, each original species keeps its
+    /// replacement and new original species avoid the replacements already used in the table (when other species qualify).
+    /// </summary>
+    internal static SpeciesPick UniquePicker(Gen5RandomizerOptions options, SpeciesPick pick)
+    {
+        if (!options.UniqueWildPerTable || options.WildGlobalMapping)
+            return pick;
+        var chosen = new Dictionary<int, int>();
+        return (mode, key, original, level, allow) =>
+        {
+            if (chosen.TryGetValue(original, out int known))
+                return known;
+            var used = chosen.Values.ToHashSet();
+            int species = pick(mode, key, original, level, s => !used.Contains(s) && (allow is null || allow(s)));
+            chosen[original] = species;
+            return species;
+        };
+    }
+
+    /// <summary>
     /// Starters across every place the game uses them: script positions, the Pokédex script fix, the selection-screen
     /// sprites and palettes, the cry table in overlay 223 and the type named in the selection text. Every guard runs before
     /// anything is returned, so an unexpected layout rejects the whole operation.
@@ -349,7 +451,7 @@ public static class Gen5Randomizer
     {
         int[] chosen = options.Starters == Gen5StarterMode.Custom
             ? (options.CustomStarters ?? throw new ArgumentException("Faltan los iniciales personalizados.", nameof(options))).ToArray()
-            : PickStarters(options.Seed);
+            : PickStarters(options.Seed, MaxSpecies, StarterPool(options, () => NdsCells.Read(data, NdsSection.Evolutions), MaxSpecies));
         if (chosen.Length != 3 || chosen.Distinct().Count() != 3 || chosen.Any(s => s is < 1 or > MaxSpecies))
             throw new ArgumentException("Se necesitan tres iniciales distintos entre 1 y 649.", nameof(options));
         var original = data.Starters();
@@ -478,18 +580,6 @@ public static class Gen5Randomizer
             (result[i], result[j]) = (result[j], result[i]);
         }
         return result;
-    }
-
-    private static int[] PickStarters(uint seed)
-    {
-        var picked = new List<int>();
-        for (int attempt = 0; picked.Count < 3; attempt++)
-        {
-            int species = Index(seed, $"starter/{attempt}", MaxSpecies) + 1;
-            if (!picked.Contains(species))
-                picked.Add(species);
-        }
-        return [.. picked];
     }
 
     private static int Find(byte[] data, byte[] pattern, string what)

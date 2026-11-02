@@ -59,7 +59,7 @@ internal sealed class ProgressiveBstTable : UserControl
         buttons.Children.Add(add);buttons.Children.Add(remove);
         heading.Children.Add(new TextBlock
         {
-            Text="Rangos BST progresivo · tabla editable",FontSize=15,FontWeight=FontWeights.SemiBold,
+            Text="Rangos BST progresivo · tabla editable",FontSize=15,FontWeight=FontWeights.SemiBold,TextWrapping=TextWrapping.Wrap,
             Foreground=(Brush)FindResource("TextMain"),VerticalAlignment=VerticalAlignment.Center
         });
         _grid=new DataGrid

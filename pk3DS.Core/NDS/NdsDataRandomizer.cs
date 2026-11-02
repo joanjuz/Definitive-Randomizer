@@ -5,7 +5,7 @@ using System.Linq;
 
 namespace pk3DS.Core.NDS;
 
-public enum NdsStatsMode { Keep, Shuffle, Random }
+public enum NdsStatsMode { Keep, Shuffle, Random, Vary }
 public enum NdsLearnsetMode { Keep, Random, Metronome }
 public enum NdsMachineMode { Keep, Random, TypeBased, Full }
 public enum NdsStaticMode { Keep, Random, SimilarBst, SwapLegendaries }
@@ -13,10 +13,21 @@ public enum NdsStaticMode { Keep, Random, SimilarBst, SwapLegendaries }
 /// <summary>Universal-randomizer style options for species, moves, learnsets, evolutions and TM/HM compatibility.</summary>
 public sealed record NdsDataOptions(uint Seed)
 {
-    /// <summary>Shuffle keeps each species' six values in another order; Random spreads the same total in new proportions.</summary>
+    /// <summary>
+    /// Shuffle keeps each species' six values in another order; Random spreads the same total in new proportions; Vary moves each
+    /// value up or down by up to <see cref="StatDeviation"/> percent (3DS "Variar estadísticas base").
+    /// </summary>
     public NdsStatsMode Stats { get; init; }
+    public int StatDeviation { get; init; } = 25;
     public bool Types { get; init; }
+    /// <summary>Chance (%) that a species with random types gets a single type (-1 = one in two, the original behaviour).</summary>
+    public int SingleTypePercent { get; init; } = -1;
     public bool Abilities { get; init; }
+    /// <summary>Wonder Guard may be given (3DS "Permitir Wonder Guard"); Shadow Tag and Arena Trap are left out (3DS "Excluir Shadow Tag y Arena Trap").</summary>
+    public bool AllowWonderGuard { get; init; }
+    public bool BanTrapAbilities { get; init; }
+    /// <summary>Every catch rate becomes this value (0 = off; 3DS "Fijar ratio de captura").</summary>
+    public int SetCatchRate { get; init; }
     /// <summary>Evolved species take their types and abilities from the species they evolve from.</summary>
     public bool FollowEvolutions { get; init; } = true;
     /// <summary>Raises every catch rate below this value to it (0 keeps them).</summary>
@@ -32,10 +43,20 @@ public sealed record NdsDataOptions(uint Seed)
     public NdsLearnsetMode Learnsets { get; init; }
     /// <summary>Chance (%) that a random level-up move shares a type with the species.</summary>
     public int SameTypePercent { get; init; } = 50;
+    /// <summary>Level-up and egg moves as the 3DS editors: HM moves allowed, Dragon Rage and Sonic Boom left out.</summary>
+    public bool AllowHmMoves { get; init; } = true;
+    public bool ExcludeFixedDamage { get; init; }
+    /// <summary>Level-up moves: the first four at level 1; levels spread evenly from 1 up to this level (0 keeps the levels).</summary>
+    public bool StartWithFour { get; init; }
+    public int SpreadLevelsTo { get; init; }
     /// <summary>Trade evolutions (with or without item, and Karrablast/Shelmet) become level 37.</summary>
     public bool RemoveTradeEvolutions { get; init; }
     /// <summary>Each evolution leads to a species of similar base stat total.</summary>
     public bool RandomEvolutions { get; init; }
+    /// <summary>Level the trade evolutions take (3DS "Nivel para evoluciones por intercambio").</summary>
+    public int TradeEvolutionLevel { get; init; } = 37;
+    /// <summary>Random evolution targets within this BST difference in percent (0 = the automatic one, widened until five qualify; 3DS "0 = libre" is 100).</summary>
+    public int EvolutionBstTolerance { get; init; }
     /// <summary>Evolutions by time of day become time-free: friendship by day or night → friendship, holding an item by day or night → using it.</summary>
     public bool RemoveTimeEvolutions { get; init; }
     /// <summary>Level evolutions above this level happen at it (0 = keep).</summary>
@@ -46,6 +67,14 @@ public sealed record NdsDataOptions(uint Seed)
     public bool KeepHms { get; init; } = true;
     /// <summary>SwapLegendaries keeps legendaries legendary and the rest not (UPR-ZX "swap legendaries").</summary>
     public NdsStaticMode Statics { get; init; }
+    /// <summary>Static filters of the 3DS editor (with <see cref="NdsStaticMode.Random"/>): generations (bit g-1, 0 = all), legendaries
+    /// that are not mythical, mythicals, similar BST within a tolerance (%) and legendaries replaced only by legendaries.</summary>
+    public int StaticGenerations { get; init; }
+    public bool StaticBanGameLegends { get; init; }
+    public bool StaticBanMythicals { get; init; }
+    public bool StaticSimilarBst { get; init; }
+    public int StaticBstTolerance { get; init; } = 30;
+    public bool StaticLegendToLegend { get; init; }
     public bool TradeGiven { get; init; }
     public bool TradeRequested { get; init; }
     /// <summary>Egg moves: random (with <see cref="SameTypePercent"/>) or Metronome only.</summary>
@@ -76,10 +105,16 @@ public static class NdsDataRandomizer
     private static readonly HashSet<int> FieldMoves = [15, 19, 57, 70, 91, 100, 127, 135, 148, 208, 230, 249, 290, 291, 29, 432, 431];
     // Abilities that break or do nothing on other species (Wonder Guard, Forecast, Multitype, Flower Gift, Illusion, Zen Mode).
     private static readonly HashSet<int> BannedAbilities = [25, 59, 121, 122, 149, 161];
+    private const int WonderGuard = 25, ShadowTag = 23, ArenaTrap = 71;
     // Legendary and mythical species of Gen1-5, by National Dex number.
     private static readonly HashSet<int> Legendaries = [144, 145, 146, 150, 151, 243, 244, 245, 249, 250, 251, 377, 378, 379, 380, 381, 382, 383, 384, 385, 386,
         480, 481, 482, 483, 484, 485, 486, 487, 488, 489, 490, 491, 492, 493, 494, 638, 639, 640, 641, 642, 643, 644, 645, 646, 647, 648, 649];
     public static bool IsLegendary(int species) => Legendaries.Contains(species);
+    // Event-only species (3DS "Event Legends").
+    private static readonly HashSet<int> Mythicals = [151, 251, 385, 386, 489, 490, 491, 492, 493, 494, 647, 648, 649];
+    public static bool IsMythical(int species) => Mythicals.Contains(species);
+    /// <summary>Generation that introduced the species (1–5).</summary>
+    public static int GenerationOf(int species) => species switch { <= 151 => 1, <= 251 => 2, <= 386 => 3, <= 493 => 4, _ => 5 };
 
     public static Gen5RandomizerResult Generate(Gen5Data data, NdsSection section, NdsDataOptions options) =>
         NdsCells.Write(data, section, Edits(NdsDataSource.Of(data), section, s => NdsCells.Read(data, s), options));
@@ -106,7 +141,8 @@ public static class NdsDataRandomizer
                 var pokemon = Table(NdsSection.Pokemon);
                 var parents = Parents(Table(NdsSection.Evolutions));
                 int abilityMax = source.AbilityNames.Count - 1;
-                int[] abilities = Enumerable.Range(1, Math.Max(0, abilityMax)).Where(a => !BannedAbilities.Contains(a)).ToArray();
+                int[] abilities = Enumerable.Range(1, Math.Max(0, abilityMax)).Where(a => !BannedAbilities.Contains(a) || a == WonderGuard && options.AllowWonderGuard)
+                    .Where(a => !(options.BanTrapAbilities && a is ShadowTag or ArenaTrap)).ToArray();
                 var newTypes = new Dictionary<int, (int, int)>();
                 var newAbilities = new Dictionary<int, int[]>();
                 // Families in evolution order, so evolved species can copy what their pre-evolution got.
@@ -118,7 +154,12 @@ public static class NdsDataRandomizer
                     if (options.Stats != NdsStatsMode.Keep)
                     {
                         int[] stats = Enumerable.Range(0, 6).Select(i => row["Stat" + i]).ToArray();
-                        int[] result = options.Stats == NdsStatsMode.Shuffle ? ShuffleStats(stats, species, Pick) : RandomStats(stats, species, Pick);
+                        int[] result = options.Stats switch
+                        {
+                            NdsStatsMode.Shuffle => ShuffleStats(stats, species, Pick),
+                            NdsStatsMode.Vary => stats.Select((v, i) => Math.Clamp((int)Math.Round(v * (1 + (Pick($"vary/{species}/{i}", 2 * options.StatDeviation + 1) - options.StatDeviation) / 100.0)), 1, 255)).ToArray(),
+                            _ => RandomStats(stats, species, Pick),
+                        };
                         for (int i = 0; i < 6; i++)
                             Set(species, "Stat" + i, result[i], pokemon);
                     }
@@ -126,7 +167,7 @@ public static class NdsDataRandomizer
                     if (options.Types)
                     {
                         (int t1, int t2) = parent is { } from && newTypes.TryGetValue(from, out var inherited) ? inherited
-                            : parent is { } kept ? (pokemon[kept]["Type1"], pokemon[kept]["Type2"]) : RandomTypes(species, types, Pick);
+                            : parent is { } kept ? (pokemon[kept]["Type1"], pokemon[kept]["Type2"]) : RandomTypes(species, types, Pick, options.SingleTypePercent);
                         newTypes[species] = (t1, t2);
                         Set(species, "Type1", t1, pokemon);
                         Set(species, "Type2", t2, pokemon);
@@ -144,6 +185,8 @@ public static class NdsDataRandomizer
                     }
                     if (options.MinCatchRate > 0 && row["CatchRate"] < options.MinCatchRate)
                         Set(species, "CatchRate", Math.Min(255, options.MinCatchRate), pokemon);
+                    if (options.SetCatchRate > 0)
+                        Set(species, "CatchRate", Math.Min(255, options.SetCatchRate), pokemon);
                     if (options.StandardizeGrowth)
                         Set(species, "Growth", IsLegendary(species) ? 5 : 0, pokemon);
                     // Half of the slots stay empty, as in the games, so wild Pokémon do not all hold something.
@@ -181,9 +224,18 @@ public static class NdsDataRandomizer
                     if (!options.InScope(species))
                         continue;
                     int count = row.Keys.Count(k => k.EndsWith(".Move", StringComparison.Ordinal));
-                    var chosen = RandomMoves(species, count, "learn", options.Learnsets, firstDamaging: true, pokemon, moves, options.SameTypePercent, Pick);
+                    var chosen = RandomMoves(species, count, "learn", options.Learnsets, firstDamaging: true, pokemon, moves, options.SameTypePercent, Pick, Excluded(source, options));
                     for (int i = 0; i < count; i++)
                         Set(species, "M" + i + ".Move", chosen[i], sets);
+                    // 3DS LearnsetRandomizer: levels spread from 1 up to the chosen level, then the first four at level 1.
+                    for (int i = 0; i < count; i++)
+                    {
+                        int level = options.SpreadLevelsTo > 0 ? Math.Max(1, i * options.SpreadLevelsTo / count) : row["M" + i + ".Level"];
+                        if (options.StartWithFour && i < 4)
+                            level = 1;
+                        if (level != row["M" + i + ".Level"])
+                            Set(species, "M" + i + ".Level", level, sets);
+                    }
                 }
                 break;
             }
@@ -196,7 +248,7 @@ public static class NdsDataRandomizer
                 {
                     if (!options.InScope(species))
                         continue;
-                    var chosen = RandomMoves(species, row.Count, "egg", options.EggMoves, firstDamaging: false, pokemon, moves, options.SameTypePercent, Pick);
+                    var chosen = RandomMoves(species, row.Count, "egg", options.EggMoves, firstDamaging: false, pokemon, moves, options.SameTypePercent, Pick, Excluded(source, options));
                     for (int i = 0; i < row.Count; i++)
                         Set(species, "E" + i, chosen[i], eggs);
                 }
@@ -281,13 +333,13 @@ public static class NdsDataRandomizer
                         if (options.RemoveTradeEvolutions && source.IsTradeMethod(method))
                         {
                             Set(species, "E" + i + ".Method", source.LevelMethod, evolutions);
-                            Set(species, "E" + i + ".Param", 37, evolutions);
+                            Set(species, "E" + i + ".Param", Math.Clamp(options.TradeEvolutionLevel, 1, 100), evolutions);
                         }
                         if (options.RandomEvolutions)
                         {
-                            int bst = Bst(target), tolerance = Math.Max(10, bst / 10);
+                            int bst = Bst(target), tolerance = options.EvolutionBstTolerance > 0 ? Math.Max(1, bst * options.EvolutionBstTolerance / 100) : Math.Max(10, bst / 10);
                             int[] candidates;
-                            while ((candidates = all.Where(s => s != species && s != target && Math.Abs(Bst(s) - bst) <= tolerance).ToArray()).Length < 5 && tolerance < 800)
+                            while ((candidates = all.Where(s => s != species && s != target && Math.Abs(Bst(s) - bst) <= tolerance).ToArray()).Length < (options.EvolutionBstTolerance > 0 ? 1 : 5) && tolerance < 800)
                                 tolerance += Math.Max(10, bst / 20);
                             if (candidates.Length > 0)
                                 Set(species, "E" + i + ".Species", candidates[Pick($"evo/{species}/{i}", candidates.Length)], evolutions);
@@ -313,6 +365,21 @@ public static class NdsDataRandomizer
                         NdsStaticMode.SimilarBst => all.Where(s => Math.Abs(Bst(s) - Bst(species)) <= Math.Max(30, Bst(species) / 10)).ToArray(),
                         _ => all,
                     };
+                    if (options.Statics == NdsStaticMode.Random && (options.StaticGenerations != 0 || options.StaticBanGameLegends || options.StaticBanMythicals
+                        || options.StaticSimilarBst || options.StaticLegendToLegend))
+                    {
+                        // 3DS filters: a legendary keeps a legendary when asked; otherwise generations, legendaries and similar BST.
+                        bool Allowed(int s) => s >= 1 && (options.StaticGenerations == 0 || (options.StaticGenerations >> (GenerationOf(s) - 1) & 1) == 1)
+                            && !(options.StaticBanMythicals && IsMythical(s)) && !(options.StaticBanGameLegends && IsLegendary(s) && !IsMythical(s));
+                        var filtered = options.StaticLegendToLegend && IsLegendary(species) ? all.Where(IsLegendary).ToArray() : all.Where(Allowed).ToArray();
+                        if (options.StaticSimilarBst && !(options.StaticLegendToLegend && IsLegendary(species)))
+                        {
+                            int bst = Bst(species), tolerance = Math.Max(1, bst * options.StaticBstTolerance / 100);
+                            var near = filtered.Where(s => Math.Abs(Bst(s) - bst) <= tolerance).ToArray();
+                            filtered = near.Length > 0 ? near : filtered.OrderBy(s => Math.Abs(Bst(s) - bst)).Take(5).ToArray();
+                        }
+                        candidates = filtered;
+                    }
                     if (candidates.Length > 0)
                         Set(entry, "Species", candidates[Pick($"static/{entry}", candidates.Length)], statics);
                 }
@@ -368,12 +435,23 @@ public static class NdsDataRandomizer
 
     // Moves for a learnset or egg move list: Metronome only, or random with a chance of sharing the species' type; several tries
     // avoid repeating a move in one list, and a learnset starts with a damaging move.
+    // Moves left out of random level-up and egg moves: HM moves unless allowed, fixed-damage moves when asked.
+    private static IReadOnlySet<int> Excluded(NdsDataSource source, NdsDataOptions options)
+    {
+        var excluded = new HashSet<int>();
+        if (!options.AllowHmMoves)
+            excluded.UnionWith(source.MachineMoves.Skip(source.TmCount));
+        if (options.ExcludeFixedDamage)
+            excluded.UnionWith([49, 82]);
+        return excluded;
+    }
+
     private static int[] RandomMoves(int species, int count, string tag, NdsLearnsetMode mode, bool firstDamaging, IReadOnlyDictionary<int, Dictionary<string, int>> pokemon,
-        IReadOnlyDictionary<int, Dictionary<string, int>> moves, int sameTypePercent, Func<string, int, int> pick)
+        IReadOnlyDictionary<int, Dictionary<string, int>> moves, int sameTypePercent, Func<string, int, int> pick, IReadOnlySet<int>? excluded = null)
     {
         if (mode == NdsLearnsetMode.Metronome)
             return Enumerable.Repeat(Metronome, count).ToArray();
-        int[] pool = moves.Keys.Where(m => m != Struggle).Order().ToArray();
+        int[] pool = moves.Keys.Where(m => m != Struggle && excluded?.Contains(m) != true).Order().ToArray();
         int[] damaging = pool.Where(m => moves[m]["Power"] > 0).ToArray();
         var own = pokemon.TryGetValue(species, out var p) ? new[] { p["Type1"], p["Type2"] } : [];
         int[] stab = damaging.Where(m => own.Contains(moves[m]["Type"])).ToArray();
@@ -451,11 +529,11 @@ public static class NdsDataRandomizer
         return result;
     }
 
-    private static (int, int) RandomTypes(int species, int[] types, Func<string, int, int> pick)
+    private static (int, int) RandomTypes(int species, int[] types, Func<string, int, int> pick, int singlePercent = -1)
     {
         int first = types[pick($"type/{species}/1", types.Length)];
-        // Half of the species keep a single type, as the originals roughly do.
-        if (pick($"type/{species}/dual", 2) == 0)
+        // Half of the species keep a single type, as the originals roughly do (or the chosen chance).
+        if (singlePercent < 0 ? pick($"type/{species}/dual", 2) == 0 : pick($"type/{species}/single", 100) < singlePercent)
             return (first, first);
         var others = types.Where(t => t != first).ToArray();
         return (first, others[pick($"type/{species}/2", others.Length)]);

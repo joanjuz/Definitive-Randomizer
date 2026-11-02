@@ -13,6 +13,7 @@ Punto de entrada a `docs/3ds-progressive/`. Muchos documentos son **registros hi
 | Rediseño visual WPF | [AUDITORIA_VISUAL_WPF.md](AUDITORIA_VISUAL_WPF.md) |
 | Tablas: centrado, edición, secciones de estáticos y tablas verticales | [TABLAS_CENTRADO_EDICION_SECCIONES.md](TABLAS_CENTRADO_EDICION_SECCIONES.md) |
 - Auditoría visual ampliada (4 juegos, 4 tamaños, herramientas, ventanas y diálogos) y arreglos: [AUDITORIA_VISUAL_AMPLIADA.md](AUDITORIA_VISUAL_AMPLIADA.md)
+- Nintendo DS: paridad de interfaz con 3DS (Level Caps y Move Rules, iniciales de 3 etapas, movimientos huevo) y auditoría visual DS: [NDS_PARIDAD_INTERFAZ_3DS.md](NDS_PARIDAD_INTERFAZ_3DS.md)
 | Revisión de estabilidad más reciente | [REVISION_ESTABILIDAD_20261019.md](REVISION_ESTABILIDAD_20261019.md) |
 | Motor heredado duplicado (app frente a LegacyBatch) | [AUDITORIA_MOTOR_DUPLICADO.md](AUDITORIA_MOTOR_DUPLICADO.md) |
 | Compilación sin advertencias y advertencias tratadas como error | [COMPILACION_SIN_ADVERTENCIAS.md](COMPILACION_SIN_ADVERTENCIAS.md) |

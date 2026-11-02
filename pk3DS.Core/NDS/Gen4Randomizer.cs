@@ -38,7 +38,7 @@ public static class Gen4Randomizer
         if (scripts.IsValueCreated)
             files[data.PathOf(Gen4Profile.Scripts)] = scripts.Value.Write();
         // Levels and forced evolutions work on the new tables as cells, the way manual edits do.
-        if (options.AdjustsTrainers || options.WildLevelPercent != 0)
+        if (options.AdjustsTrainers || options.WildLevelPercent != 0 || options.WildLevelFlat != 0)
             foreach (var (section, edits) in Gen5Randomizer.Adjustments(options, s => NdsCells.Read(data.WithDraft(files, overlays, arm9), s)))
             {
                 var adjusted = NdsCells.Write(data.WithDraft(files, overlays, arm9), section, edits);
@@ -106,7 +106,7 @@ public static class Gen4Randomizer
         var profile = data.Profile;
         int[] chosen = options.Starters == Gen5StarterMode.Custom
             ? (options.CustomStarters ?? throw new ArgumentException("Faltan los iniciales personalizados.", nameof(options))).ToArray()
-            : PickStarters(options.Seed);
+            : Gen5Randomizer.PickStarters(options.Seed, Gen4Data.MaxSpecies, Gen5Randomizer.StarterPool(options, () => NdsCells.Read(data, NdsSection.Evolutions), Gen4Data.MaxSpecies));
         if (chosen.Length != 3 || chosen.Distinct().Count() != 3 || chosen.Any(s => s is < 1 or > Gen4Data.MaxSpecies))
             throw new ArgumentException("Se necesitan tres iniciales distintos entre 1 y 493.", nameof(options));
         var original = data.Starters();
@@ -311,18 +311,6 @@ public static class Gen4Randomizer
         return true;
     }
 
-    private static int[] PickStarters(uint seed)
-    {
-        var picked = new List<int>();
-        for (int attempt = 0; picked.Count < 3; attempt++)
-        {
-            int species = Gen5Randomizer.Index(seed, $"starter/{attempt}", Gen4Data.MaxSpecies) + 1;
-            if (!picked.Contains(species))
-                picked.Add(species);
-        }
-        return [.. picked];
-    }
-
     /// <summary>Dry run of the starter changes with the original starters, to know before randomizing whether a romhack supports them.</summary>
     internal static string? StartersProblem(Gen4Data data)
     {
@@ -423,12 +411,15 @@ public static class Gen4Randomizer
         Dictionary<string, byte[]> files, List<Gen5Change> changes)
     {
         var wild = data.CopyNarc(Gen4Profile.WildPokemon);
+        var tables = new Dictionary<(int, string), SpeciesPick>();
         foreach (var slot in data.Encounters().Where(s => options.InScope(s.File)))
         {
             if (slot.Species is < 1 or > Gen4Data.MaxSpecies)
                 continue;
+            if (!tables.TryGetValue((slot.File, slot.Group), out var unique))
+                tables[(slot.File, slot.Group)] = unique = Gen5Randomizer.UniquePicker(options, pick);
             // Same original species in one table maps to the same new species, keeping the table's rates.
-            int replacement = pick(options.Wild, options.WildGlobalMapping ? $"wild/{slot.Species}" : $"wild/{slot.File}/{slot.Group}/{slot.Species}", slot.Species, slot.MaxLevel);
+            int replacement = unique(options.Wild, options.WildGlobalMapping ? $"wild/{slot.Species}" : $"wild/{slot.File}/{slot.Group}/{slot.Species}", slot.Species, slot.MaxLevel, null);
             var span = wild.Files[slot.File].AsSpan(slot.Offset);
             if (slot.Width == 4)
                 BinaryPrimitives.WriteUInt32LittleEndian(span, (uint)replacement);

@@ -44,8 +44,6 @@ public partial class RecordEditorView : UserControl
         if(editor is ThreeDS.Progressive.Services.GameTrainerService||editor is ITrainerEditorPresentation {UsesTrainerLayout:true})
             TrainerCapsButton.Visibility=TrainerMovesButton.Visibility=Visibility.Visible;
         if(editor is ThreeDS.Progressive.Services.Switch.SwordShieldRecordEditor)TrainerMovesButton.Visibility=Visibility.Collapsed;
-        // DS trainers have no level-cap or trainer-move rule tables yet.
-        if(editor is ThreeDS.Progressive.Services.Nds.NdsRecordEditor)TrainerCapsButton.Visibility=TrainerMovesButton.Visibility=Visibility.Collapsed;
         if(editor is ThreeDS.Progressive.Services.Switch.SwordShieldRecordEditor {HasTradeEvolutionAction:true})AddInspectorAction("Eliminar evoluciones por intercambio · nivel 37",ShowSwitchTradePreview);
         if(editor is ThreeDS.Progressive.Services.GameEncounterService wildClipboard && wildClipboard.SupportsWildTemplate)
             WildCopyButton.Visibility=WildPasteButton.Visibility=WildPasteAreaButton.Visibility=
@@ -65,7 +63,8 @@ public partial class RecordEditorView : UserControl
         if(editor is ThreeDS.Progressive.Services.GameEncounterService wild&&state is not null)
             wild.RestoreRangeOptions(state.Options);
         if(editor is IOptionTemplateProjectEditor optionTemplate &&
-           (editor is not ThreeDS.Progressive.Services.GameEncounterService wildOptions || wildOptions.SupportsWildTemplate))
+           (editor is not ThreeDS.Progressive.Services.GameEncounterService wildOptions || wildOptions.SupportsWildTemplate)
+           &&editor is not ThreeDS.Progressive.Services.Nds.NdsRecordEditor {SupportsOptionTemplates:false})
         {ImportOptionsButton.Visibility=ExportOptionsButton.Visibility=Visibility.Visible;
             if(editor is ThreeDS.Progressive.Services.GameEncounterService)
             {
@@ -431,7 +430,9 @@ public partial class RecordEditorView : UserControl
             }
             else if(isCheck)
             {
+                // Long labels go on several lines in the narrow options column instead of being cut.
                 var check=new CheckBox {IsChecked=field.Value==1,Content=field.Label,Margin=new Thickness(0,7,0,7)};
+                check.SetResourceReference(ContentControl.ContentTemplateProperty,"WrappedOptionContent");
                 check.Checked+=Input_Changed;check.Unchecked+=Input_Changed;input=check;
             }
             else
@@ -946,14 +947,12 @@ public partial class RecordEditorView : UserControl
     }
     private void OpenTrainerRuleTable(bool levelCaps)
     {
-        if(Editor is ITrainerEditorPresentation {UsesTrainerLayout:true}){OpenSwitchTrainerRules(levelCaps);return;}
-
-        if(Editor is not ThreeDS.Progressive.Services.GameTrainerService trainer)return;
+        if(Editor is not ITrainerRuleTableEditor trainer){if(Editor is ITrainerEditorPresentation {UsesTrainerLayout:true})OpenSwitchTrainerRules(levelCaps);return;}
         if(!ConfirmLeave())return;
         try
         {
             var options=OptionValues();
-            trainer.RestoreOptions(trainer.CaptureOptions(options));
+            if(Editor is ThreeDS.Progressive.Services.GameTrainerService original)original.RestoreOptions(original.CaptureOptions(options));
             var rows=trainer.GetRuleRows();
             if(rows.Count==0)
             {

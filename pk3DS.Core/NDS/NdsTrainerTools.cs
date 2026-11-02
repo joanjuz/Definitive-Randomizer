@@ -10,11 +10,59 @@ namespace pk3DS.Core.NDS;
 public enum NdsTrainerMoveMode { Keep, LevelUp, Better, Random, Metronome }
 public enum NdsTrainerItemMode { Keep, Random, Smart, None }
 
+/// <summary>
+/// Level cap of one trainer, as the 3DS "Level Caps" table: <paramref name="Level"/> 0 keeps the team as it is (the Ace sets the
+/// stage), a level sets the whole team to it; <paramref name="MaxThree"/> keeps the strongest Pokémon and the first two others.
+/// </summary>
+public sealed record NdsTrainerLevelCap(int TrainerId, int Level, bool MaxThree);
+
+/// <summary>Trainer move rule of the 3DS "Trainer Move Rules" table: the team gets improved movesets, with or without status moves.</summary>
+public sealed record NdsTrainerMoveRule(int TrainerId, bool AllowStatus);
+
+/// <summary>Trainer groups an option applies to, as the 3DS "normales / importantes / jefes" boxes (groups from <see cref="NdsTrainerTools.Kind"/>).</summary>
+public sealed record NdsTrainerCategories
+{
+    public bool Normal { get; init; } = true;
+    public bool Important { get; init; } = true;
+    public bool Boss { get; init; } = true;
+    internal bool Has(string kind) => kind == "Normal" ? Normal : kind.StartsWith("Jefes", StringComparison.Ordinal) ? Boss : Important;
+}
+
 /// <summary>Trainer team rules of the 3DS randomizer and UPR-ZX, applied on top of the species randomizer.</summary>
 public sealed record NdsTrainerOptions(uint Seed)
 {
     /// <summary>Teams smaller than this get new Pokémon of similar strength (0 = keep).</summary>
     public int MinTeamSize { get; init; }
+    /// <summary>Species filters of the species randomizer, for the Pokémon added to teams (see <see cref="Gen5RandomizerOptions"/>).</summary>
+    public int Generations { get; init; }
+    public bool BanGameLegends { get; init; }
+    public bool BanMythicals { get; init; }
+    /// <summary>Teams larger than this lose their last Pokémon (3DS "Pokémon máximos por equipo").</summary>
+    public int MaxTeamSize { get; init; } = 6;
+    /// <summary>Important trainers and bosses get six Pokémon (3DS "6 Pokémon for Important Trainers").</summary>
+    public bool SixForImportant { get; init; }
+    /// <summary>Gen5: each trainer Pokémon gets its first or second ability at random (the Gen4 byte is not read by every game).</summary>
+    public bool RandomAbilities { get; init; }
+    /// <summary>From this level on, Pokémon use the strongest attacks they learn (3DS "Force High-Powered Attacks at Level"; 0 = off).</summary>
+    public int HighPowerLevel { get; init; }
+    /// <summary>Random movesets: no Dragon Rage or Sonic Boom, at least this many damaging and same-type moves.</summary>
+    public bool NoFixedDamage { get; init; }
+    public int MinDamagingMoves { get; init; }
+    public int MinStabMoves { get; init; }
+    /// <summary>Improved movesets for the chosen groups (3DS "Movimientos mejorados"), with or without TM/HM moves.</summary>
+    public bool BetterMovesets { get; init; }
+    public NdsTrainerCategories BetterFor { get; init; } = new();
+    public bool BetterIncludeMachines { get; init; } = true;
+    /// <summary>Improved movesets keep to the category of the stronger attacking stat unless both are within the tolerance (%).</summary>
+    public bool StrongestStat { get; init; }
+    public NdsTrainerCategories StrongStatFor { get; init; } = new();
+    public int StrongStatTolerance { get; init; } = 15;
+    /// <summary>Smart held items for the chosen groups; the others follow <see cref="Items"/>.</summary>
+    public bool SmartItems { get; init; }
+    public NdsTrainerCategories SmartItemsFor { get; init; } = new();
+    /// <summary>Random items leave out the weakest ones; no two Pokémon of a team hold the same item.</summary>
+    public bool BanBadItems { get; init; }
+    public bool ItemClause { get; init; }
     public NdsTrainerMoveMode Moves { get; init; }
     public NdsTrainerItemMode Items { get; init; }
     /// <summary>Every trainer Pokémon gets the highest difficulty value (all IVs 31).</summary>
@@ -27,10 +75,20 @@ public sealed record NdsTrainerOptions(uint Seed)
     public bool ShuffleNames { get; init; }
     /// <summary>Trainer class names are shuffled among the classes.</summary>
     public bool ShuffleClassNames { get; init; }
+    /// <summary>Level caps of the important trainers and bosses (enabled rows of the table).</summary>
+    public IReadOnlyList<NdsTrainerLevelCap> LevelCaps { get; init; } = [];
+    /// <summary>
+    /// Trainers without a cap move between the caps around them (3DS "Escalado progresivo de entrenadores sin cap"), keeping the
+    /// level differences within each team; <see cref="CapGap"/> levels below the next cap at most.
+    /// </summary>
+    public bool ScaleBetweenCaps { get; init; }
+    public int CapGap { get; init; } = 2;
+    public IReadOnlyList<NdsTrainerMoveRule> MoveRules { get; init; } = [];
     public IReadOnlySet<int>? Scope { get; init; }
     internal bool InScope(int id) => Scope is null || Scope.Contains(id);
     public bool ChangesAnything => MinTeamSize > 0 || Moves != NdsTrainerMoveMode.Keep || Items != NdsTrainerItemMode.Keep || MaxIvs || MaxAi || DoubleChance > 0
-        || ShuffleNames || ShuffleClassNames;
+        || ShuffleNames || ShuffleClassNames || LevelCaps.Count > 0 || MoveRules.Count > 0 || MaxTeamSize < 6 || SixForImportant || RandomAbilities
+        || HighPowerLevel > 0 || BetterMovesets || SmartItems;
 }
 
 /// <summary>
@@ -45,6 +103,8 @@ public static class NdsTrainerTools
     private const int SitrusBerry = 158, LumBerry = 157, Leftovers = 234, LifeOrb = 270, FocusSash = 275, ExpertBelt = 268, ChoiceBand = 220,
         ChoiceScarf = 287, ChoiceSpecs = 297, MuscleBand = 266, WiseGlasses = 267, BlackSludge = 281;
     public static IReadOnlyList<int> HeldItemIds => HeldItems;
+    // Berries that only heal a little or a minor status, King's Rock, BrightPowder and Quick Claw (3DS "Excluir objetos poco útiles").
+    private static readonly HashSet<int> WeakItems = [149, 155, 213, 217, 221];
     private static readonly int[] HeldItems = [149, 155, 157, 158, 213, 217, 220, 221, 222, 232, 233, 234, 237, 238, 239, 240, 241, 242, 243, 244, 245, 246, 247, 248, 249, 250, 251, 253, 266, 267, 268, 270, 275, 281, 287, 297];
     // Type-boosting items in the Gen5 type order (Normal … Dark); Gen4 has "???" at 9, so its later types shift by one.
     private static readonly int[] TypeBoosters = [251, 241, 244, 245, 237, 238, 222, 247, 233, 249, 243, 239, 242, 248, 246, 250, 240];
@@ -87,6 +147,33 @@ public static class NdsTrainerTools
 
     private sealed record Layout(bool Gen5, int BaseSize, int Trailing, int BattleOffset);
 
+    /// <summary>
+    /// Group of a trainer for the Level Caps and Move Rules tables, from its class (works in English and Spanish dumps and in
+    /// romhacks): gym leaders; Elite Four and Champion; rivals and special trainers ("PKMN Trainer"); villain bosses and admins.
+    /// </summary>
+    public static string Kind(string className, string name)
+    {
+        string Normalize(string text) => new string(text.ToLowerInvariant().Normalize(System.Text.NormalizationForm.FormD)
+            .Where(c => char.IsLetter(c) && c < 0x300 || c == ' ').ToArray()).Trim();
+        string c = Normalize(className), n = Normalize(name);
+        if (n.Length == 0)
+            return "Normal";
+        bool Has(params string[] words) => words.Any(w => c == w || c.StartsWith(w + " ", StringComparison.Ordinal) || c.EndsWith(" " + w, StringComparison.Ordinal) || c.Contains(" " + w + " ", StringComparison.Ordinal));
+        if (Has("leader", "gym leader", "lider"))
+            return "Jefes · Líderes de gimnasio";
+        if (Has("elite four", "alto mando", "champion", "campeon", "campeona"))
+            return "Jefes · Alto Mando y Campeón";
+        if (Has("rival"))
+            return "Importantes · Rivales";
+        if (Has("galactic boss", "commander", "executive", "rocket boss", "subway boss", "boss trainer", "jefe galaxia", "comandante", "jefe rocket", "ejecutivo", "ejecutiva", "jefe de metro")
+            || Has("team plasma", "equipo plasma") && !new[] { "grunt", "recluta", "soldado", "soldada" }.Contains(n))
+            return "Importantes · Otros jefes";
+        // "PKMN Trainer": the class is the PK/MN glyphs (dropped above) and the word trainer.
+        if (c is "trainer" or "entrenador" or "entrenadora" or "pkmn trainer" or "pokemon trainer")
+            return "Importantes · Rivales y especiales";
+        return "Normal";
+    }
+
     private sealed class Member
     {
         public required byte[] Base;
@@ -94,7 +181,7 @@ public static class NdsTrainerTools
         public int[] Moves = [0, 0, 0, 0];
         public byte[] Trailing = [];
         public bool Gen5;
-        public int Level { get => BinaryPrimitives.ReadUInt16LittleEndian(Base.AsSpan(2)); }
+        public int Level { get => BinaryPrimitives.ReadUInt16LittleEndian(Base.AsSpan(2)); set => BinaryPrimitives.WriteUInt16LittleEndian(Base.AsSpan(2), (ushort)value); }
         public int Species
         {
             get => Gen5 ? BinaryPrimitives.ReadUInt16LittleEndian(Base.AsSpan(4)) : BinaryPrimitives.ReadUInt16LittleEndian(Base.AsSpan(4)) & 0x3FF;
@@ -172,13 +259,21 @@ public static class NdsTrainerTools
     {
         int Pick(string key, int count) => Gen5Randomizer.Index(options.Seed, key, count);
         int converted = 0;
-        var all = tables.Pokemon.Keys.Where(s => s >= 1 && s <= tables.Source.MaxSpecies).Order().ToArray();
+        var filters = new Gen5RandomizerOptions(0) { Generations = options.Generations, BanGameLegends = options.BanGameLegends, BanMythicals = options.BanMythicals };
+        var all = tables.Pokemon.Keys.Where(s => s >= 1 && s <= tables.Source.MaxSpecies && filters.Allowed(s)).Order().ToArray();
+        int Ace(Gen5Trainer t) => t.Team.Count == 0 ? 0 : t.Team.Max(p => p.Level);
+        var caps = options.LevelCaps.Where(c => trainers.Any(t => t.Id == c.TrainerId)).ToDictionary(c => c.TrainerId);
+        var moveRules = options.MoveRules.ToDictionary(r => r.TrainerId);
+        // Each cap is a stage of the story: the trainer's Ace level before the caps, and the level the stage is capped to.
+        var stages = caps.Values.Select(c => (OriginalAce: Ace(trainers.First(t => t.Id == c.TrainerId)), Cap: c.Level > 0 ? c.Level : Ace(trainers.First(t => t.Id == c.TrainerId))))
+            .Where(s => s.OriginalAce > 0).OrderBy(s => s.OriginalAce).ThenBy(s => s.Cap).ToArray();
         foreach (var trainer in trainers)
         {
             if (!options.InScope(trainer.Id))
                 continue;
             byte[] header = headers.Files[trainer.Id];
-            string name = $"{trainer.ClassName} {trainer.Name}".Trim();
+            // Same location text as the species randomizer, so one trainer's changes read together in the log.
+            string name = $"Entrenador {trainer.Id} · {trainer.ClassName} {trainer.Name}".TrimEnd();
             int flags = header[0], count = header[3];
             if (count == 0)
                 continue;
@@ -197,6 +292,38 @@ public static class NdsTrainerTools
             int newFlags = flags;
             void Note(string field, int before, int after) { if (before != after) changes.Add(new Gen5Change(name, field, before, after)); }
 
+            // Level caps (3DS Trainer Level Caps): a positive cap is the level of the whole team; trainers without a cap move
+            // between the caps around them, keeping the differences within the team.
+            int ace = team.Max(m => m.Level), target = ace;
+            bool exact = false;
+            if (caps.TryGetValue(trainer.Id, out var cap))
+            {
+                if (cap.Level > 0) { target = cap.Level; exact = true; }
+            }
+            else if (options.ScaleBetweenCaps && stages.Length > 0)
+            {
+                var next = stages.Where(s => ace <= s.OriginalAce).Cast<(int OriginalAce, int Cap)?>().FirstOrDefault();
+                if (next is { } n)
+                {
+                    var previous = stages.Where(s => s.OriginalAce < n.OriginalAce).Cast<(int OriginalAce, int Cap)?>().LastOrDefault();
+                    target = pk3DS.Core.Randomizers.TrainerLevelProgression.Target(ace, previous?.OriginalAce ?? 1, previous?.Cap ?? 1, n.OriginalAce, n.Cap, options.CapGap);
+                }
+            }
+            if (exact || target != ace)
+                for (int i = 0; i < team.Count; i++)
+                {
+                    int level = exact ? target : Math.Clamp(team[i].Level + target - ace, 1, 100);
+                    Note($"Pokémon {i + 1} · Nivel", team[i].Level, level);
+                    team[i].Level = level;
+                }
+            // "Máx. 3": the strongest Pokémon (the last one when several share the level) and the first two others.
+            if (cap is { MaxThree: true } && team.Count > 3)
+            {
+                int strongest = team.FindLastIndex(m => m.Level == team.Max(x => x.Level));
+                var keep = Enumerable.Range(0, team.Count).Where(i => i != strongest).Take(2).Append(strongest).Order().ToArray();
+                team = keep.Select(i => team[i]).ToList();
+            }
+
             // Team size: new members copy a random teammate's level with a species of similar strength.
             while (team.Count < Math.Min(6, options.MinTeamSize))
             {
@@ -211,6 +338,29 @@ public static class NdsTrainerTools
                 team.Add(added);
                 changes.Add(new Gen5Change(name + " · Pokémon " + team.Count, "Especie", 0, added.Species));
             }
+
+            string kind = Kind(trainer.ClassName, trainer.Name);
+            if (options.SixForImportant && kind != "Normal")
+                while (team.Count < 6)
+                {
+                    var added = team[Pick($"six/{trainer.Id}/{team.Count}", team.Count)].Copy();
+                    int bst = tables.Bst(added.Species);
+                    var similar = all.Where(s => Math.Abs(tables.Bst(s) - bst) <= Math.Max(40, bst / 10)).ToArray();
+                    added.Species = similar.Length > 0 ? similar[Pick($"six/{trainer.Id}/{team.Count}/species", similar.Length)] : added.Species;
+                    if ((flags & 1) != 0)
+                        added.Moves = LevelUpMoves(tables, added.Species, added.Level);
+                    team.Add(added);
+                    changes.Add(new Gen5Change(name + " · Pokémon " + team.Count, "Especie", 0, added.Species));
+                }
+            if (team.Count > Math.Max(1, options.MaxTeamSize))
+                team = team.Take(Math.Max(1, options.MaxTeamSize)).ToList();
+            if (options.RandomAbilities && layout.Gen5)
+                for (int i = 0; i < team.Count; i++)
+                {
+                    int slot = Pick($"ability/{trainer.Id}/{i}", 2) + 1;
+                    Note($"Pokémon {i + 1} · Habilidad", team[i].Base[1] >> 4, slot);
+                    team[i].Base[1] = (byte)(slot << 4 | team[i].Base[1] & 0xF);
+                }
 
             // Double battles (UPR-ZX doubleBattleMode): single battles only, at least two Pokémon.
             int battle = header[layout.BattleOffset];
@@ -233,39 +383,63 @@ public static class NdsTrainerTools
                 converted++;
             }
 
-            if (options.Moves != NdsTrainerMoveMode.Keep)
+            // A trainer with a move rule gets improved movesets whatever the general mode is (3DS Trainer Move Rules); so do the
+            // groups chosen for "Movimientos mejorados", except in Metronome mode.
+            bool ruled = moveRules.TryGetValue(trainer.Id, out var moveRule);
+            bool better = ruled || options.BetterMovesets && options.BetterFor.Has(kind) && options.Moves != NdsTrainerMoveMode.Metronome;
+            var moveMode = better ? NdsTrainerMoveMode.Better : options.Moves;
+            int? strongTolerance = options.StrongestStat && options.StrongStatFor.Has(kind) ? options.StrongStatTolerance : null;
+            bool highPower = options.HighPowerLevel > 0 && moveMode != NdsTrainerMoveMode.Metronome && team.Any(m => m.Level >= options.HighPowerLevel);
+            if (moveMode != NdsTrainerMoveMode.Keep || highPower)
             {
                 newFlags |= 1;
                 for (int i = 0; i < team.Count; i++)
                 {
                     var m = team[i];
                     int[] before = m.Moves;
-                    m.Moves = options.Moves switch
+                    m.Moves = moveMode switch
                     {
                         NdsTrainerMoveMode.LevelUp => LevelUpMoves(tables, m.Species, m.Level),
-                        NdsTrainerMoveMode.Better => BetterMoves(tables, m.Species, m.Level),
+                        NdsTrainerMoveMode.Better => BetterMoves(tables, m.Species, m.Level, !ruled || moveRule!.AllowStatus, options.BetterIncludeMachines, strongTolerance),
                         NdsTrainerMoveMode.Metronome => [Metronome, 0, 0, 0],
-                        _ => RandomMoves(tables, key => Pick($"tmove/{trainer.Id}/{i}/{key}", tables.Source.MoveNames.Count)),
+                        NdsTrainerMoveMode.Keep => (flags & 1) != 0 && i < count ? m.Moves : LevelUpMoves(tables, m.Species, m.Level),
+                        _ => RandomMoves(tables, m.Species, (attempt, key) => Pick($"tmove/{trainer.Id}/{i}/{(attempt == 0 ? "" : attempt + "/")}{key}", tables.Source.MoveNames.Count), options),
                     };
+                    // From the chosen level on, the strongest attacks the species learns (improved movesets already choose strong moves).
+                    if (highPower && !better && m.Level >= options.HighPowerLevel)
+                        m.Moves = HighPowerMoves(tables, m.Species);
                     for (int k = 0; k < 4; k++)
                         Note($"Pokémon {i + 1} · Movimiento {k + 1}", (flags & 1) != 0 && i < count ? before[k] : 0, m.Moves[k]);
                 }
             }
-            if (options.Items == NdsTrainerItemMode.None)
+            var itemMode = options.SmartItems && options.SmartItemsFor.Has(kind) && options.Items != NdsTrainerItemMode.None ? NdsTrainerItemMode.Smart : options.Items;
+            var pool = options.BanBadItems ? HeldItems.Where(item => !WeakItems.Contains(item)).ToArray() : HeldItems;
+            if (itemMode == NdsTrainerItemMode.None)
             {
                 newFlags &= ~2;
                 for (int i = 0; i < team.Count; i++)
                     Note($"Pokémon {i + 1} · Objeto equipado", team[i].Item, 0);
             }
-            else if (options.Items != NdsTrainerItemMode.Keep)
+            else if (itemMode != NdsTrainerItemMode.Keep)
             {
                 newFlags |= 2;
+                var held = new HashSet<int>();
                 for (int i = 0; i < team.Count; i++)
                 {
                     int before = (flags & 2) != 0 && i < count ? team[i].Item : 0;
-                    team[i].Item = options.Items == NdsTrainerItemMode.Random
-                        ? HeldItems[Pick($"titem/{trainer.Id}/{i}", HeldItems.Length)]
-                        : SmartItem(tables, team[i].Species, key => Pick($"titem/{trainer.Id}/{i}/{key}", 1000));
+                    int Choose(int attempt)
+                    {
+                        string again = attempt == 0 ? "" : "/" + attempt;
+                        return itemMode == NdsTrainerItemMode.Random
+                            ? pool[Pick($"titem/{trainer.Id}/{i}{again}", pool.Length)]
+                            : SmartItem(tables, team[i].Species, key => Pick($"titem/{trainer.Id}/{i}/{key}{again}", 1000));
+                    }
+                    int item = Choose(0);
+                    // Item clause: another item when a teammate already holds it (at most a few tries; smart items may repeat).
+                    for (int attempt = 1; options.ItemClause && held.Contains(item) && attempt < 12; attempt++)
+                        item = itemMode == NdsTrainerItemMode.Random || attempt > 6 ? pool[Pick($"titem/{trainer.Id}/{i}/clause/{attempt}", pool.Length)] : Choose(attempt);
+                    held.Add(item);
+                    team[i].Item = item;
                     Note($"Pokémon {i + 1} · Objeto equipado", before, team[i].Item);
                 }
             }
@@ -323,11 +497,12 @@ public static class NdsTrainerTools
         return [.. last];
     }
 
-    // Strongest damaging moves the Pokémon can know at its level (level-up and TM/HM), at most two of a type, plus a status move to fill.
-    private static int[] BetterMoves(Tables tables, int species, int level)
+    // Strongest damaging moves the Pokémon can know at its level (level-up and TM/HM), at most two of a type, plus a status move to fill
+    // (unless status moves are not allowed).
+    private static int[] BetterMoves(Tables tables, int species, int level, bool allowStatus = true, bool includeMachines = true, int? strongTolerance = null)
     {
         var pool = new HashSet<int>();
-        if (tables.Machines.TryGetValue(species, out var bits))
+        if (includeMachines && tables.Machines.TryGetValue(species, out var bits))
             for (int bit = 0; bit < tables.Source.MachineMoves.Count; bit++)
                 if (bits.TryGetValue("B" + bit, out int on) && on == 1)
                     pool.Add(tables.Source.MachineMoves[bit]);
@@ -342,15 +517,26 @@ public static class NdsTrainerTools
             return m["Power"] * accuracy / 100 * (types.Contains(m["Type"]) ? 1.5 : 1) * (movePhysical == physical ? 1.2 : 1);
         }
         var damaging = pool.Where(m => m != Struggle && tables.Moves.ContainsKey(m) && !tables.IsStatus(m) && tables.Moves[m]["Power"] > 1).OrderByDescending(Score).ThenBy(m => m).ToList();
+        // Strongest stat: a clear physical or special attacker keeps to its category (if it learns enough such moves).
+        if (strongTolerance is int tolerance && p is not null)
+        {
+            int attack = p["Stat1"], special = p["Stat4"];
+            if (Math.Abs(attack - special) * 100 > tolerance * Math.Max(attack, special))
+            {
+                var focused = damaging.Where(m => tables.Source.Categories[tables.Moves[m]["Category"]] == (attack > special ? "Físico" : "Especial")).ToList();
+                if (focused.Count >= 2)
+                    damaging = focused;
+            }
+        }
         var chosen = new List<int>();
         foreach (int move in damaging)
             if (chosen.Count < 3 && chosen.Count(c => tables.Moves[c]["Type"] == tables.Moves[move]["Type"]) < 2)
                 chosen.Add(move);
         // The last slot: the latest status move learned, otherwise the next damaging move.
-        int status = LevelUpMoves(tables, species, level).LastOrDefault(m => m > 0 && tables.IsStatus(m) && !chosen.Contains(m));
+        int status = allowStatus ? LevelUpMoves(tables, species, level).LastOrDefault(m => m > 0 && tables.IsStatus(m) && !chosen.Contains(m)) : 0;
         if (status > 0)
             chosen.Add(status);
-        foreach (int move in damaging.Concat(LevelUpMoves(tables, species, level)).Where(m => m > 0 && !chosen.Contains(m)))
+        foreach (int move in damaging.Concat(LevelUpMoves(tables, species, level)).Where(m => m > 0 && !chosen.Contains(m) && (allowStatus || !tables.IsStatus(m))))
             if (chosen.Count < 4)
                 chosen.Add(move);
         while (chosen.Count < 4)
@@ -367,13 +553,45 @@ public static class NdsTrainerTools
                 pool.Add(move);
     }
 
-    private static int[] RandomMoves(Tables tables, Func<int, int> pick)
+    private static readonly int[] FixedDamageMoves = [49, 82];
+
+    // Random moveset with the 3DS requirements: no fixed-damage moves, at least N damaging and N same-type moves (best of 32 tries).
+    private static int[] RandomMoves(Tables tables, int species, Func<int, int, int> pick, NdsTrainerOptions options)
+    {
+        var types = tables.Types(species).Select(tables.Canonical).ToHashSet();
+        int Damaging(int[] moves) => moves.Count(m => m > 0 && !tables.IsStatus(m) && tables.Moves[m]["Power"] > 1);
+        int Stab(int[] moves) => moves.Count(m => m > 0 && !tables.IsStatus(m) && types.Contains(tables.Canonical(tables.Moves[m]["Type"])));
+        int[] best = [];
+        for (int attempt = 0; attempt < 32; attempt++)
+        {
+            var moves = RandomMoves(tables, key => pick(attempt, key), options.NoFixedDamage ? FixedDamageMoves : []);
+            if (best.Length == 0 || Damaging(moves) + Stab(moves) > Damaging(best) + Stab(best))
+                best = moves;
+            if (Damaging(moves) >= options.MinDamagingMoves && Stab(moves) >= options.MinStabMoves)
+                return moves;
+        }
+        return best;
+    }
+
+    // The four strongest attacks of the species' level-up moves (3DS GetHighPoweredMoves).
+    private static int[] HighPowerMoves(Tables tables, int species)
+    {
+        var pool = new HashSet<int>();
+        AllLearnable(tables, species, 100, pool);
+        var strongest = pool.Where(m => m != Struggle && tables.Moves.ContainsKey(m) && !tables.IsStatus(m) && tables.Moves[m]["Power"] > 1)
+            .OrderByDescending(m => tables.Moves[m]["Power"]).ThenBy(m => m).Take(4).ToList();
+        while (strongest.Count < 4)
+            strongest.Add(0);
+        return [.. strongest];
+    }
+
+    private static int[] RandomMoves(Tables tables, Func<int, int> pick, IReadOnlyCollection<int>? banned = null)
     {
         var chosen = new List<int>();
         for (int tries = 0; chosen.Count < 4 && tries < 64; tries++)
         {
             int move = pick(tries);
-            if (move is > 0 and not Struggle && tables.Moves.ContainsKey(move) && !chosen.Contains(move))
+            if (move is > 0 and not Struggle && tables.Moves.ContainsKey(move) && !chosen.Contains(move) && banned?.Contains(move) != true)
                 chosen.Add(move);
         }
         while (chosen.Count < 4)
