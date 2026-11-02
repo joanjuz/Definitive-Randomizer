@@ -211,6 +211,7 @@ internal sealed class NdsRecordEditor : IProjectEditor, ITrainerEditorPresentati
             .. BstRanges(),
             // The per-trainer caps are in «Tabla de Level Caps»; they apply with «Límites de nivel».
             new EditorGroup("Política global de Level Caps", [Flag("GlobalCaps.ApplyPrevious", "Escalado progresivo de entrenadores sin cap", 1),
+                Flag("GlobalCaps.Story", "Escalado según la cronología de la historia (WikiDex)", 1),
                 new EditorField("GlobalCaps.PreviousGap", "Separación de nivel con entrenadores anteriores", 2, 0, 20)], false),
             new EditorGroup("Objetos equipados", [Flag("CHK_ItemClause", "No repetir objetos en el equipo", 0), Flag("CHK_BanBadItems", "Excluir objetos poco útiles", 1),
                 new EditorField("CB_SmartHeldItemModeBoss", "Calidad Smart Items · jefes", 1, 0, 2, Quality), new EditorField("CB_SmartHeldItemModeImportant", "Calidad Smart Items · importantes", 1, 0, 2, Quality),
@@ -388,6 +389,8 @@ internal sealed class NdsRecordEditor : IProjectEditor, ITrainerEditorPresentati
                 LevelCaps = caps ? _rules?.Values.Where(r => r.CapUse).Select(r => new NdsTrainerLevelCap(r.Id, r.Cap, r.Max3)).ToArray() ?? [] : [],
                 MoveRules = _rules?.Values.Where(r => r.MoveUse).Select(r => new NdsTrainerMoveRule(r.Id, r.AllowStatus)).ToArray() ?? [],
                 ScaleBetweenCaps = caps && V("GlobalCaps.ApplyPrevious", 1) == 1, CapGap = V("GlobalCaps.PreviousGap", 2),
+                // As USUM: the scaling follows the game's story chronology (WikiDex); off, the caps by level as before.
+                StoryScaling = caps && V("GlobalCaps.ApplyPrevious", 1) == 1 && V("GlobalCaps.Story", 1) == 1,
             };
             return Propose(_project.PreviewTrainers(action, (Gen5RandomizerOptions)config, tools), seed);
         }

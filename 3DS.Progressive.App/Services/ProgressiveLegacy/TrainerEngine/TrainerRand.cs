@@ -233,6 +233,8 @@ public partial class TrainerRand : Form
     private List<TrainerLevelCapRule> LevelCapRules = [];
     private List<TrainerMoveRule> MoveRules = [];
     private bool ApplyCapsToPreviousTrainers = true;
+    // Story chronology (WikiDex) for regular trainers; false for templates captured before it existed.
+    private bool StoryScaling;
     private int PreviousTrainerGap = 2;
     private decimal RegularTrainerCurvePower = 1.6m;
     private bool GuaranteeMegaInImportantBattles = false;
@@ -464,6 +466,7 @@ public partial class TrainerRand : Form
         RSTE.rUseLevelCaps = CHK_LevelCaps.Checked;
         RSTE.rLevelCapRules = LevelCapRules.Select(r => r.Clone()).ToList();
         RSTE.rLevelCapsApplyPrevious = ApplyCapsToPreviousTrainers;
+        RSTE.rLevelCapsStory = StoryScaling;
         RSTE.rLevelCapPreviousGap = PreviousTrainerGap;
         RSTE.rLevelCapCurvePower = RegularTrainerCurvePower;
         RSTE.rLevelCapsGuaranteeMega = GuaranteeMegaInImportantBattles;
@@ -675,6 +678,7 @@ public partial class TrainerRand : Form
             {
                 Enabled = CHK_LevelCaps.Checked,
                 ApplyToPreviousTrainers = ApplyCapsToPreviousTrainers,
+                StoryScaling = StoryScaling,
                 PreviousTrainerGap = PreviousTrainerGap,
                 ResetUnlistedTrainers = true,
                 Trainers = LevelCapRules.Where(r => r.Enabled).Select(r => new TrainerLevelCapTemplateEntry
@@ -746,6 +750,7 @@ public partial class TrainerRand : Form
         if (template.LevelCaps is not null)
         {
             ApplyCapsToPreviousTrainers = template.LevelCaps.ApplyToPreviousTrainers;
+            StoryScaling = template.LevelCaps.StoryScaling == true;
             PreviousTrainerGap = template.LevelCaps.PreviousTrainerGap;
             CHK_LevelCaps.Checked = template.LevelCaps.Enabled && LevelCapRules.Count > 0;
         }

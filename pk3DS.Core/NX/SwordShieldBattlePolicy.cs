@@ -28,6 +28,12 @@ public sealed record SwordShieldTrainerOptions
     public bool SmartItems { get; init; }
     public int SmartItemMode { get; init; } = 2;
     public int LevelPercent { get; init; } = 100;
+    /// <summary>
+    /// Sword only: trainers without an exact level follow the story chronology (WikiDex walkthrough, TrainerStoryProfile "SWSH"),
+    /// moving towards <see cref="StoryGap"/> levels below the next gym leader or Leon, as USUM does. Off in older templates.
+    /// </summary>
+    public bool StoryScaling { get; init; }
+    public int StoryGap { get; init; } = 2;
     public IReadOnlyList<int> BannedMoves { get; init; } = Array.Empty<int>();
     public IReadOnlyList<SwordShieldTrainerLevel> Levels { get; init; } = Array.Empty<SwordShieldTrainerLevel>();
     public IReadOnlyList<SwordShieldTrainerMoveRule> MoveRules {get;init;}=Array.Empty<SwordShieldTrainerMoveRule>();
@@ -48,7 +54,7 @@ public static class SwordShieldBattlePolicy
     {
         var r=options.TrainerRules??throw new InvalidDataException("Faltan reglas de entrenadores.");
         if(options.EmptyMinLevel is <1 or >100||options.EmptyMaxLevel<options.EmptyMinLevel||options.EmptyMaxLevel>100)throw new InvalidDataException("Niveles para encuentros vacíos inválidos.");
-        if(r.DoubleBattleChance is <0 or >100 || r.MixedTolerance is <0 or >255 || r.MinMovePower is <0 or >255 || r.SmartItemMode is <0 or >2 || r.LevelPercent is <1 or >1000)throw new InvalidDataException("Reglas de entrenadores fuera de rango.");
+        if(r.DoubleBattleChance is <0 or >100 || r.MixedTolerance is <0 or >255 || r.MinMovePower is <0 or >255 || r.SmartItemMode is <0 or >2 || r.LevelPercent is <1 or >1000 || r.StoryGap is <0 or >20)throw new InvalidDataException("Reglas de entrenadores fuera de rango.");
         if(r.Levels is null||r.BannedMoves is null||r.Levels.Any(t=>t.TrainerId<0||t.Level is <1 or >100)||r.Levels.Select(t=>t.TrainerId).Distinct().Count()!=r.Levels.Count||r.BannedMoves.Any(m=>m is <1 or >826))throw new InvalidDataException("Lista de reglas de entrenador inválida.");
         if(r.ItemModes is null||r.ItemModes.Any(m=>m.TrainerId<0||m.Mode is <0 or >2)||r.ItemModes.Select(m=>m.TrainerId).Distinct().Count()!=r.ItemModes.Count)throw new InvalidDataException("Calidad por entrenador inválida.");
         if(r.MoveRules is null||r.MoveRules.Any(t=>t.TrainerId<0||t.Power is <0 or >255||t.Tolerance is <0 or >255)||r.MoveRules.Select(t=>t.TrainerId).Distinct().Count()!=r.MoveRules.Count)throw new InvalidDataException("Reglas individuales inválidas.");

@@ -1,4 +1,4 @@
-using System.IO;
+﻿using System.IO;
 using System.Security.Cryptography;
 using System.Windows;
 using System.Windows.Automation;
@@ -198,6 +198,22 @@ internal static class NdsUiChecks
                 Check(levelUp.MaxMoves>=15&&expanded.Values.All(s=>s.Count==levelUp.MaxMoves&&s.Select(r=>r.Move).Distinct().Count()==s.Count&&s.All(r=>r.Move!=165&&!hms.Contains(r.Move)&&r.Level is >=1 and <=60)
                     &&s.Select(r=>r.Level).SequenceEqual(s.Select(r=>r.Level).Order())),$"NdsUi_Real_LevelUpExpandReachesTheGameLimit ({levelUp.MaxMoves})");
             }
+            // Story chronology (WikiDex) on the original game: every placed trainer ends below its next boss, in walkthrough order.
+            {
+                using var fresh=NdsProject.Open(rom,false);
+                string key=fresh.Generation==5?(fresh.Game.Contains('2')?"B2W2":"BW"):fresh.Game.Contains("Platino")?"Pt":fresh.Game.Contains("HeartGold")||fresh.Game.Contains("SoulSilver")?"HGSS":"DP";
+                var story=pk3DS.Core.Randomizers.TrainerStoryProfile.Load(key)!;
+                var original=fresh.Trainers().Where(t=>t.Team.Count>0).ToDictionary(t=>t.Id,t=>t.Team.Max(p=>p.Level));
+                fresh.Apply(fresh.PreviewTrainers("Escalado según la historia",new pk3DS.Core.NDS.Gen5RandomizerOptions(7),new pk3DS.Core.NDS.NdsTrainerOptions(7){ScaleBetweenCaps=true,StoryScaling=true,CapGap=2}));
+                var scaled=fresh.Trainers().Where(t=>t.Team.Count>0).ToDictionary(t=>t.Id,t=>t.Team.Max(p=>p.Level));
+                var regular=story.Points.Where(p=>p.Value.Stage<story.Stages.Count&&!story.IsMilestone(p.Key)&&scaled.ContainsKey(p.Key)).ToArray();
+                bool below=regular.All(p=>scaled[p.Key]<story.Stages[p.Value.Stage].BaseCap);
+                bool ordered=regular.GroupBy(p=>p.Value.Stage).All(g=>g.OrderBy(p=>p.Value.Order).Select(p=>scaled[p.Key]).Zip(g.OrderBy(p=>p.Value.Order).Select(p=>scaled[p.Key]).Skip(1)).All(z=>z.First<=z.Second));
+                bool postgame=story.Points.Where(p=>p.Value.Stage==story.Stages.Count&&original.ContainsKey(p.Key)).All(p=>scaled[p.Key]==original[p.Key]);
+                bool bosses=story.Stages.SelectMany(s=>s.Milestones).All(id=>scaled[id]==original[id]);
+                Check(story.Matches(id=>original.TryGetValue(id,out int a)?a:null)&&below&&ordered&&postgame&&bosses&&regular.Count(p=>scaled[p.Key]!=original[p.Key])>regular.Length/3,
+                    $"NdsUi_Real_StoryScalingFollowsTheWalkthrough ({key}: {regular.Length} entrenadores, {regular.Count(p=>scaled[p.Key]!=original[p.Key])} cambian)");
+            }
             // Parity with 3DS: the Level Caps and Trainer Move Rules tables, three-stage starters and egg moves as a form.
             {
                 var capsEditor=new NdsRecordEditor(project,NdsSection.Trainers);var rows=capsEditor.GetRuleRows();
@@ -209,7 +225,7 @@ internal static class NdsUiChecks
                 var moveRow=rows.First(r=>r.Group.StartsWith("Jefes · Líderes",StringComparison.Ordinal)&&r.Id!=capRow.Id);
                 capRow.CapUse=true;capRow.Cap=50;capRow.Max3=true;capsEditor.UpdateRuleRows([capRow],true);
                 moveRow.MoveUse=true;moveRow.AllowStatus=false;capsEditor.UpdateRuleRows([moveRow],false);
-                capsEditor.Apply(capsEditor.Preview(Defaults(capsEditor,("CHK_RandomPKM",0),("CHK_LevelCaps",1),("GlobalCaps.ApplyPrevious",1),("GlobalCaps.PreviousGap",2)),capsEditor.Entries.Select(e=>e.Id).ToArray()));
+                capsEditor.Apply(capsEditor.Preview(Defaults(capsEditor,("CHK_RandomPKM",0),("CHK_LevelCaps",1),("GlobalCaps.ApplyPrevious",1),("GlobalCaps.Story",0),("GlobalCaps.PreviousGap",2)),capsEditor.Entries.Select(e=>e.Id).ToArray()));
                 var after=project.Trainers().ToDictionary(t=>t.Id);
                 Check(after[capRow.Id].Team.Count==3&&after[capRow.Id].Team.All(p=>p.Level==50),$"NdsUi_Real_LevelCapSetsTheTeamAndKeepsThree (#{capRow.Id} {capRow.Trainer})");
                 // Trainers below the capped one move up to at most cap - gap, keeping the spread within each team.

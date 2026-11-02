@@ -74,6 +74,12 @@ public static class SwordShieldGameplay
             var paths=source.Keys.Where(p=>p.StartsWith("bin/trainer/trainer_poke/",StringComparison.Ordinal)&&p.EndsWith(".bin",StringComparison.Ordinal)).OrderBy(p=>p,StringComparer.Ordinal).ToArray();
             if(paths.Length==0)throw new InvalidDataException("No se encontraron equipos de entrenadores.");
             int firstGymLevel=options.TrainerRules.DoubleBattleChance>0?FirstGymLevel(Get):0;
+            // Story chronology: original aces of every trainer; used only when the bosses are the ones it was built from.
+            var originalAces=paths.ToDictionary(p=>int.Parse(Path.GetFileNameWithoutExtension(p).Split('_').Last()),p=>{var d=Get(p);return Enumerable.Range(0,d.Length/32).Select(s=>(int)BinaryPrimitives.ReadUInt16LittleEndian(d.AsSpan(s*32+10))).DefaultIfEmpty(0).Max();});
+            int? OriginalAce(int trainer)=>originalAces.TryGetValue(trainer,out int a)&&a>0?a:null;
+            var story=options.TrainerRules.StoryScaling?pk3DS.Core.Randomizers.TrainerStoryProfile.Load("SWSH"):null;
+            if(story is not null&&!story.Matches(OriginalAce))story=null;
+            int? ConfiguredCap(IReadOnlyList<int> milestones)=>milestones.Select(m=>options.TrainerRules.Levels.FirstOrDefault(l=>l.TrainerId==m)?.Level).Where(l=>l is not null).Min();
             foreach(string path in paths)
             {
                 int id=int.Parse(Path.GetFileNameWithoutExtension(path).Split('_').Last());if(options.TrainerScope is not null&&!options.TrainerScope.Contains(id))continue;
@@ -88,12 +94,16 @@ public static class SwordShieldGameplay
                     string headerPath=path.Replace("/trainer_poke/","/trainer_data/",StringComparison.Ordinal).Replace("trainer_poke_","trainer_data_",StringComparison.Ordinal);var doubleHeader=(byte[])header.Clone();doubleHeader[2]=1;files.Add(headerPath,doubleHeader);Change(headerPath,"Entrenador #"+id,"Combate doble",0,1);
                 }
                 var output=(byte[])data.Clone();
+                int teamId=int.Parse(Path.GetFileNameWithoutExtension(path).Split('_').Last());
+                // Trainers without an exact level move along the chronology, keeping the level differences inside the team.
+                int? storyShift=story is not null&&!options.TrainerRules.Levels.Any(l=>l.TrainerId==teamId||l.TrainerId==149&&teamId is 189 or 190)
+                    &&story.Target(teamId,ConfiguredCap,OriginalAce,options.TrainerRules.StoryGap) is int storyTarget&&OriginalAce(teamId) is int teamAce?storyTarget-teamAce:null;
                 for(int i=0;i<count;i++)
                 {
                     int at=i*32,before=BinaryPrimitives.ReadUInt16LittleEndian(data.AsSpan(at+12)),form=BinaryPrimitives.ReadUInt16LittleEndian(data.AsSpan(at+14)),level=BinaryPrimitives.ReadUInt16LittleEndian(data.AsSpan(at+10));
                     if(before<1||before>898||level<1||level>100)throw new InvalidDataException("Especie o nivel de entrenador inválido.");
                     int trainerId=int.Parse(Path.GetFileNameWithoutExtension(path).Split('_').Last());
-                    level=SwordShieldBattlePolicy.TrainerLevel(trainerId,level,options.TrainerRules);
+                    level=storyShift is int shift?Math.Clamp(level+shift,1,100):SwordShieldBattlePolicy.TrainerLevel(trainerId,level,options.TrainerRules);
                     BinaryPrimitives.WriteUInt16LittleEndian(output.AsSpan(at+10),(ushort)level);
                     int after=options.RandomizeTrainerSpecies?PickSpecies(before,path+"/"+i,level):before;slots++;string location=$"Equipo {Path.GetFileNameWithoutExtension(path)} · Pokémon {i+1} · nivel {level}";
                     BinaryPrimitives.WriteUInt16LittleEndian(output.AsSpan(at+12),(ushort)after);BinaryPrimitives.WriteUInt16LittleEndian(output.AsSpan(at+14),(ushort)(options.RandomizeTrainerSpecies?0:form));

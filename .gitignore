@@ -84,3 +84,7 @@ $RECYCLE.BIN/
 # Python
 __pycache__/
 *.pyc
+
+# Story chronology tool: WikiDex cache and trainer dumps (game data) stay local
+tools/story-chronology/cache/
+tools/story-chronology/dumps/

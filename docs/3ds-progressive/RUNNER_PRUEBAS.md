@@ -157,6 +157,8 @@ Necesitan extracciones, ROMs o carpetas de salida. Los argumentos concretos (ent
 | `--nds-ui-probe` | exactamente 2 |  |
 | `--pokefeur-probe` | exactamente 3 |  |
 | `--read-facilities` | 1 o más |  |
+| `--story-probe` | 1 o más |  |
+| `--trainer-dump` | exactamente 2 |  |
 | `--read-field6` | 1 o más |  |
 | `--read-hm6` | 1 o más |  |
 | `--read-machine7-recipes` | 1 o más |  |

@@ -91,12 +91,18 @@ public sealed record NdsTrainerOptions(uint Seed)
     /// </summary>
     public bool ScaleBetweenCaps { get; init; }
     public int CapGap { get; init; } = 2;
+    /// <summary>
+    /// With <see cref="ScaleBetweenCaps"/>: trainers follow the game's story chronology (WikiDex walkthrough, TrainerStoryProfile) as in
+    /// USUM, moving towards just below the next gym leader, Elite Four or Champion. Without a chronology for the game (or on a romhack
+    /// whose bosses differ) the caps by level are used, as before. Off in older templates, so they replay the same.
+    /// </summary>
+    public bool StoryScaling { get; init; }
     public IReadOnlyList<NdsTrainerMoveRule> MoveRules { get; init; } = [];
     public IReadOnlySet<int>? Scope { get; init; }
     internal bool InScope(int id) => Scope is null || Scope.Contains(id);
     public bool ChangesAnything => MinTeamSize > 0 || Moves != NdsTrainerMoveMode.Keep || Items != NdsTrainerItemMode.Keep || MaxIvs || MaxAi || DoubleChance > 0
         || ShuffleNames || ShuffleClassNames || LevelCaps.Count > 0 || MoveRules.Count > 0 || MaxTeamSize < 6 || SixForImportant || RandomAbilities
-        || HighPowerLevel > 0 || BetterMovesets || SmartItems;
+        || HighPowerLevel > 0 || BetterMovesets || SmartItems || ScaleBetweenCaps && StoryScaling;
 }
 
 /// <summary>
@@ -210,7 +216,8 @@ public static class NdsTrainerTools
         var headers = data.CopyNarc(Gen5Profile.TrainerData);
         var teams = data.CopyNarc(Gen5Profile.TrainerPokemon);
         var changes = new List<Gen5Change>();
-        var converted = Run(new Layout(true, 8, 0, 2), data.Trainers(), headers, teams, Tables.Of(NdsDataSource.Of(data), s => NdsCells.Read(data, s)), options, gen4Partners: false, changes);
+        var converted = Run(new Layout(true, 8, 0, 2), data.Trainers(), headers, teams, Tables.Of(NdsDataSource.Of(data), s => NdsCells.Read(data, s)), options, gen4Partners: false, changes,
+            data.Profile.Sequel ? "B2W2" : "BW");
         var files = new Dictionary<string, byte[]> { [data.PathOf(Gen5Profile.TrainerData)] = headers.Write(), [data.PathOf(Gen5Profile.TrainerPokemon)] = teams.Write() };
         var overlays = new Dictionary<int, byte[]>();
         if (converted > 0 && PatchGen5Doubles(data, files, overlays))
@@ -234,7 +241,8 @@ public static class NdsTrainerTools
         var changes = new List<Gen5Change>();
         bool dp = data.Profile.Kind == Gen4Kind.DiamondPearl;
         var converted = Run(new Layout(false, 6, dp ? 0 : 2, 16), data.Trainers(), headers, teams, Tables.Of(NdsDataSource.Of(data), s => NdsCells.Read(data, s)), options,
-            gen4Partners: data.Profile.Kind != Gen4Kind.HeartGoldSoulSilver, changes);
+            gen4Partners: data.Profile.Kind != Gen4Kind.HeartGoldSoulSilver, changes,
+            data.Profile.Kind switch { Gen4Kind.DiamondPearl => "DP", Gen4Kind.Platinum => "Pt", _ => "HGSS" });
         var files = new Dictionary<string, byte[]> { [data.PathOf(Gen4Profile.TrainerData)] = headers.Write(), [data.PathOf(Gen4Profile.TrainerPokemon)] = teams.Write() };
         byte[]? arm9 = null;
         if (converted > 0 && PatchGen4Doubles(data, files, out arm9))
@@ -265,7 +273,8 @@ public static class NdsTrainerTools
         public bool IsStatus(int move) => Moves.TryGetValue(move, out var m) && Source.Categories[m["Category"]] == "Estado";
     }
 
-    private static int Run(Layout layout, IReadOnlyList<Gen5Trainer> trainers, Narc headers, Narc teams, Tables tables, NdsTrainerOptions options, bool gen4Partners, List<Gen5Change> changes)
+    private static int Run(Layout layout, IReadOnlyList<Gen5Trainer> trainers, Narc headers, Narc teams, Tables tables, NdsTrainerOptions options, bool gen4Partners, List<Gen5Change> changes,
+        string storyKey)
     {
         int Pick(string key, int count) => Gen5Randomizer.Index(options.Seed, key, count);
         int converted = 0;
@@ -277,6 +286,17 @@ public static class NdsTrainerTools
         // Each cap is a stage of the story: the trainer's Ace level before the caps, and the level the stage is capped to.
         var stages = caps.Values.Select(c => (OriginalAce: Ace(trainers.First(t => t.Id == c.TrainerId)), Cap: c.Level > 0 ? c.Level : Ace(trainers.First(t => t.Id == c.TrainerId))))
             .Where(s => s.OriginalAce > 0).OrderBy(s => s.OriginalAce).ThenBy(s => s.Cap).ToArray();
+        // Story chronology: only when the game's bosses are the ones the chronology was built from (not on a romhack that changed them).
+        var originalAce = trainers.ToDictionary(t => t.Id, Ace);
+        var story = options.ScaleBetweenCaps && options.StoryScaling ? pk3DS.Core.Randomizers.TrainerStoryProfile.Load(storyKey) : null;
+        if (story is not null && !story.Matches(id => originalAce.TryGetValue(id, out int a) && a > 0 ? a : null))
+            story = null;
+        // A window's cap: the lowest cap the table gives its milestone trainers (positive = that level, 0 = their own level).
+        int? ConfiguredCap(IReadOnlyList<int> milestones)
+        {
+            var set = milestones.Where(caps.ContainsKey).Select(id => caps[id].Level > 0 ? caps[id].Level : originalAce[id]).ToArray();
+            return set.Length > 0 ? set.Min() : null;
+        }
         foreach (var trainer in trainers)
         {
             if (!options.InScope(trainer.Id))
@@ -309,6 +329,15 @@ public static class NdsTrainerTools
             if (caps.TryGetValue(trainer.Id, out var cap))
             {
                 if (cap.Level > 0) { target = cap.Level; exact = true; }
+                // As USUM: an "Ace" (0) row follows the story chronology when it is on.
+                else if (story?.Target(trainer.Id, ConfiguredCap, id => originalAce.TryGetValue(id, out int a) && a > 0 ? a : null, options.CapGap) is int storyAce)
+                    target = storyAce;
+            }
+            else if (story is not null)
+            {
+                // Postgame and trainers the chronology does not place keep their level.
+                if (story.Target(trainer.Id, ConfiguredCap, id => originalAce.TryGetValue(id, out int a) && a > 0 ? a : null, options.CapGap) is int storyTarget)
+                    target = storyTarget;
             }
             else if (options.ScaleBetweenCaps && stages.Length > 0)
             {
