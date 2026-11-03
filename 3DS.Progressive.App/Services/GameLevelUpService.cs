@@ -98,7 +98,7 @@ public sealed class GameLevelUpService:ILevelUpSource
     {
         if(settings.ExpandTo is <1 or >100||settings.SpreadTo is <1 or >100||
            settings.StabPercent is <0 or >100)
-            throw new ArgumentException("Revisá la cantidad de movimientos, nivel final y porcentaje STAB.");
+            throw new ArgumentException("Revisa la cantidad de movimientos, nivel final y porcentaje STAB.");
         byte[] before=GarcTransaction.ReadUnchanged(_path,_sha);
         byte[][] files=new GARC.MemGARC(before).Files;
         var sets=files.Select(data=>new Learnset6(data)).ToArray();
@@ -161,7 +161,7 @@ public sealed class GameLevelUpService:ILevelUpSource
     {
         byte[] before=GarcTransaction.ReadUnchanged(_path,_sha);
         if(!before.AsSpan().SequenceEqual(preview.Original))
-            throw new IOException("El GARC cambió desde la vista previa. Volvé a generar la randomización.");
+            throw new IOException("El GARC cambió desde la vista previa. Vuelve a generar la randomización.");
         _project.History.Commit([new FileChange(_path,before,preview.Output)],
             "Level Up Moves",preview.Action,preview.Changes);
         _sha=SHA256.HashData(preview.Output);

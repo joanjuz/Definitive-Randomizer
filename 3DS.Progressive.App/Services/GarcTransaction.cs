@@ -12,7 +12,7 @@ internal static class GarcTransaction
     {
         byte[] source = File.ReadAllBytes(path);
         if (!SHA256.HashData(source).AsSpan().SequenceEqual(fingerprint))
-            throw new IOException("El archivo cambió desde que abriste el proyecto o generaste la vista previa. Reabrí el proyecto.");
+            throw new IOException("El archivo cambió desde que abriste el proyecto o generaste la vista previa. Vuelve a abrir el proyecto.");
         return source;
     }
 

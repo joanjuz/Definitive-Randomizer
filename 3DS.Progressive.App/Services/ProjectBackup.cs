@@ -17,7 +17,7 @@ public static class ProjectBackup
         string destination=Path.TrimEndingDirectorySeparator(Path.GetFullPath(folder));
         StringComparison comparison=OperatingSystem.IsWindows()?StringComparison.OrdinalIgnoreCase:StringComparison.Ordinal;
         if(destination.Equals(root,comparison)||destination.StartsWith(root+Path.DirectorySeparatorChar,comparison))
-            throw new ArgumentException("Elegí una carpeta fuera del proyecto para guardar el backup.");
+            throw new ArgumentException("Elige una carpeta fuera del proyecto para guardar el backup.");
         if(!Directory.Exists(root))throw new DirectoryNotFoundException(root);
         Directory.CreateDirectory(destination);
         return await Task.Run(()=>

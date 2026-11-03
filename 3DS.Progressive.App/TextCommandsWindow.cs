@@ -55,13 +55,13 @@ internal sealed class TextCommandsWindow : Window
         {
             copy.Content="Copiar código";
             var entry=list.SelectedItem as TextCommandEntry;copy.IsEnabled=entry?.CanCopy==true;
-            details.Text=entry is null?"No hay coincidencias.":$"{entry.Name}\n\nFunción\n{entry.Function}\n\nSintaxis\n{entry.Syntax}\n\nUso\n{entry.Notes}\n\n{(entry.Observed?"Ejemplo del archivo":"Ejemplo de sintaxis")}\n{(entry.CanCopy?entry.Example:"Sin ejemplo copiable; consultá un uso original.")}\n\nLos parámetros dependen del evento. No añadas variables que su script no prepara. No cambies la cantidad ni el orden de las líneas del banco.";
+            details.Text=entry is null?"No hay coincidencias.":$"{entry.Name}\n\nFunción\n{entry.Function}\n\nSintaxis\n{entry.Syntax}\n\nUso\n{entry.Notes}\n\n{(entry.Observed?"Ejemplo del archivo":"Ejemplo de sintaxis")}\n{(entry.CanCopy?entry.Example:"Sin ejemplo copiable; consulta un uso original.")}\n\nLos parámetros dependen del evento. No añadas variables que su script no prepara. No cambies la cantidad ni el orden de las líneas del banco.";
         };
         copy.Click+=(_,_)=>
         {
             if(list.SelectedItem is not TextCommandEntry{CanCopy:true} entry)return;
             try{System.Windows.Clipboard.SetText(entry.Example);copy.Content="Copiado";}
-            catch(System.Runtime.InteropServices.COMException){details.AppendText("\n\nNo se pudo acceder al portapapeles. Podés seleccionar el código y copiarlo manualmente.");}
+            catch(System.Runtime.InteropServices.COMException){details.AppendText("\n\nNo se pudo acceder al portapapeles. Puedes seleccionar el código y copiarlo manualmente.");}
         };
         search.TextChanged+=(_,_)=>Filter();onlyObserved.Checked+=(_,_)=>Filter();onlyObserved.Unchecked+=(_,_)=>Filter();Filter();
     }

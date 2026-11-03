@@ -66,7 +66,7 @@ internal sealed class CroRecipesView : UserControl
             .Distinct(StringComparer.OrdinalIgnoreCase).OrderBy(x=>x,StringComparer.OrdinalIgnoreCase).ToArray();
         _files.Items.Clear();foreach(var p in paths)_files.Items.Add(p);
         Clear();
-        _summary.Text=$"{paths.Length} recetas seleccionadas. Generá una vista previa.";
+        _summary.Text=$"{paths.Length} recetas seleccionadas. Genera una vista previa.";
     }
     private void Preview()
     {
@@ -76,14 +76,14 @@ internal sealed class CroRecipesView : UserControl
             _preview=_service.Prepare(_files.Items.Cast<string>());
             _apply.IsEnabled=!_preview.Original.AsSpan().SequenceEqual(_preview.Proposed);
             _summary.Text=_preview.Summary+Environment.NewLine+
-                (_apply.IsEnabled?"Propuesta sin escribir. Confirmá para guardarla con historial.":
+                (_apply.IsEnabled?"Propuesta sin escribir. Confirma para guardarla con historial.":
                     "Las recetas no producen diferencias; no hay nada que guardar.");
         }
         finally{UiProgress.End();}
     }
     private void Apply()
     {
-        if(_preview is null)throw new InvalidOperationException("Generá primero una vista previa.");
+        if(_preview is null)throw new InvalidOperationException("Genera primero una vista previa.");
         if(!StudioDialog.Confirm(Window.GetWindow(this),"Aplicar recetas CRO",
             _preview.Summary+Environment.NewLine+"¿Guardar una sola transacción en Battle.cro?"))return;
         UiProgress.Begin("Aplicando recetas CRO y verificando historial…");

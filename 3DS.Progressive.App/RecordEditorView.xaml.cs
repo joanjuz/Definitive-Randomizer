@@ -80,10 +80,11 @@ public partial class RecordEditorView : UserControl
         WrapInspectorActions(InspectorBody);
         // Same for the record list: long names ("#002 · Área 000 · tabla 1 · Noche") wrap instead of a horizontal scroll bar.
         RecordList.DisplayMemberPath="";RecordList.SetResourceReference(ItemsControl.ItemTemplateProperty,"WrappedRecordContent");ScrollViewer.SetHorizontalScrollBarVisibility(RecordList,ScrollBarVisibility.Disabled);var style=new Style(typeof(ListBoxItem),(Style)FindResource(typeof(ListBoxItem)));style.Setters.Add(new Setter(System.Windows.Controls.Control.HorizontalContentAlignmentProperty,System.Windows.HorizontalAlignment.Stretch));RecordList.ItemContainerStyle=style;
+        UseTrainerListTemplate();
 
         if(editor is IOptionTemplatePresentation labels)
         {
-            ImportOptionsButton.Content=labels.ImportOptionsLabel;ExportOptionsButton.Content=labels.ExportOptionsLabel;WrapInspectorActions(InspectorBody);
+            ImportOptionsButton.Content=labels.ImportOptionsLabel;ExportOptionsButton.Content=labels.ExportOptionsLabel;WrapInspectorActions(InspectorBody);UpdateInspectorGroups();
         }
         // Cargar las reglas del entrenador que realmente estará seleccionado, no las del ID por defecto del host.
         if(editor is ThreeDS.Progressive.Services.GameTrainerService trainers&&editor.Entries.Count>0)
@@ -97,6 +98,24 @@ public partial class RecordEditorView : UserControl
         if(_options.TryGetValue("SpecialShopsOnly",out var special)){special.ToolTip="Tiendas con inventario fijo de objetos no básicos. Se conservan los inventarios de suministros básicos y los que cambian con el progreso.";System.Windows.Automation.AutomationProperties.SetHelpText(special,special.ToolTip.ToString());}
         _loading=false;
         RecordList.SelectedIndex=0;
+        UpdateInspectorGroups();
+        InputHint.SetText(SearchText,"Nombre o número");
+        // Step 3 «Aplica los cambios» becomes current as soon as a preview leaves something to apply.
+        ApplyButton.IsEnabledChanged+=(_,e)=>{if((bool)e.NewValue)RandomizeSteps.SetStep(2);};
+    }
+    /// <summary>Says that the options shown are the ones applied last to the project, and where they come from.</summary>
+    internal void ShowOptionsSource(string source)
+    {
+        OptionsSourceText.Text=$"Estas son las opciones de la última randomización aplicada ({source}), incluidos sus rangos. Puedes cambiarlas antes de generar la vista previa.";
+        OptionsSourceNote.Visibility=Visibility.Visible;
+    }
+    /// <summary>An inspector group without any visible action is hidden together with its heading.</summary>
+    private void UpdateInspectorGroups()
+    {
+        foreach(var group in new System.Windows.Controls.Panel[]{RulesGroup,TemplatesGroup,TableGroup})
+            group.Visibility=group.Children.OfType<Button>().Any(b=>b.Visibility==Visibility.Visible)?Visibility.Visible:Visibility.Collapsed;
+        MoreToolsGroup.Visibility=((System.Windows.Controls.Panel)MoreToolsGroup.Content).Children.OfType<Button>().Any(b=>b.Visibility==Visibility.Visible)?Visibility.Visible:Visibility.Collapsed;
+        ScopeGroup.Visibility=RandomizerButton.Visibility;
     }
     internal UiState RememberOptions()
     {
@@ -135,7 +154,7 @@ public partial class RecordEditorView : UserControl
     {
         panel.Children.Clear();controls.Clear();
         if(!editor)_bstTable=null;
-        if(editor){_editorSections.Clear();_pokemonTabs.Clear();_pastePokemonButtons.Clear();}
+        if(editor){_editorSections.Clear();_pokemonTabs.Clear();_slotBorders.Clear();}
         var entries=groups.ToArray();
         if(!editor&&Editor is ThreeDS.Progressive.Services.GameEncounterService {SupportsWildTemplate:false})
         {
@@ -150,8 +169,22 @@ public partial class RecordEditorView : UserControl
         var wildRanges=!editor&&(Editor is ThreeDS.Progressive.Services.GameEncounterService||Editor is IWildEditorPresentation {UsesWildLayout:true})
             ?entries.SelectMany(g=>g.Fields).Where(f=>f.Key.StartsWith("BST.",StringComparison.Ordinal)).ToArray()
             :[];
+        // Wild editor: the per-slot rates of the main table go into its slot table, next to each species.
+        var slotTables=editor&&Editor is ThreeDS.Progressive.Services.GameEncounterService;
+        var rates=slotTables?entries.SelectMany(g=>g.Fields).Where(f=>f.Key.StartsWith("Rate",StringComparison.Ordinal)&&!f.Key.Contains('.')).ToArray():[];
+        bool ratesPlaced=false;
         foreach(var group in entries)
         {
+            if(slotTables&&IsEncounterSlotGroup(group))
+            {
+                panel.Children.Add(BuildEncounterSlotTable(group,controls,ratesPlaced?[]:rates));ratesPlaced=true;continue;
+            }
+            if(slotTables&&rates.Length>0&&group.Fields.Any(f=>rates.Contains(f)))
+            {
+                var kept=group with {Fields=group.Fields.Where(f=>!rates.Contains(f)).ToArray()};
+                if(kept.Fields.Count>0)panel.Children.Add(BuildGroupCard(kept,controls,editor));
+                continue;
+            }
             var filtered=wildRanges.Length>0?
                 group with {Fields=group.Fields.Where(f=>!f.Key.StartsWith("BST.",StringComparison.Ordinal)
                     &&f.Key!="Progressive").ToArray()}
@@ -179,6 +212,9 @@ public partial class RecordEditorView : UserControl
                 table.Visibility=check.IsChecked==true?Visibility.Visible:Visibility.Collapsed;
             }
         }
+        // Trainer: the selected Pokémon goes right below the team cards; the trainer data closes the page.
+        if(editor&&Editor is ThreeDS.Progressive.Services.GameTrainerService&&panel.Children.Count>1&&panel.Children[0] is UIElement trainerData)
+        {panel.Children.RemoveAt(0);panel.Children.Add(trainerData);}
         if(editor && Editor is ITableEditorPresentation {UsesRecordTable:true}) BuildRecordTable(panel,entries,controls);
         WireExclusive(controls,"SimilarBST","Progressive");
         if(!editor&&Editor is ThreeDS.Progressive.Services.GameStaticEncounterService)
@@ -306,34 +342,24 @@ public partial class RecordEditorView : UserControl
         {
             int section=i;
             var fields=group.Fields.Where(f=>TrainerPokemonSection(f.Key)==section).ToArray();
-            tabs.Items.Add(new TabItem {Header=labels[i],Content=BuildFieldsGrid(fields,controls,true)});
+            tabs.Items.Add(new TabItem {Header=labels[i],Content=i==1&&fields.Any(f=>f.Key.EndsWith(".IV0",StringComparison.Ordinal))
+                ?BuildStatTable(fields,controls):BuildFieldsGrid(PresentTrainerFields(fields),controls,true)});
         }
         tabs.SelectedIndex=0;
         int slot=group.Fields.FirstOrDefault()?.Key is { } key&&key.StartsWith("P",StringComparison.Ordinal)
             &&key.IndexOf('.')>1&&int.TryParse(key[1..key.IndexOf('.')],out int index)?index:-1;
         if(slot>=0)_pokemonTabs[slot]=tabs;
+        // Copy, cut, paste and delete live in the context menu of the team cards (right click on the sprite).
+        tabs.SetResourceReference(StyleProperty,"UnderlineTabControl");
         FrameworkElement content=tabs;
-        if(slot>=0)
-        {
-            // Copy this Pokémon and paste it on any slot of any trainer of the same editor: every field the slot has is replaced.
-            string prefix=$"P{slot}.";
-            var copy=new Button {Content="Copiar Pokémon",Margin=new Thickness(0,0,8,0),ToolTip="Copia especie, nivel, objeto, movimientos y el resto de campos de este Pokémon."};
-            var paste=new Button {Content="Pegar Pokémon",ToolTip="Sustituye este Pokémon por el copiado. Los cambios se guardan con «Guardar», como cualquier edición."};
-            EditorPresentation.StyleAction(copy,EditorPresentation.ActionRole.Tertiary);EditorPresentation.StyleAction(paste,EditorPresentation.ActionRole.Tertiary);
-            System.Windows.Automation.AutomationProperties.SetName(copy,"Copiar "+group.Name);System.Windows.Automation.AutomationProperties.SetName(paste,"Pegar en "+group.Name);
-            copy.Click+=(_,_)=>CopyTrainerPokemon(controls,prefix,group.Name);
-            paste.Click+=(_,_)=>PasteTrainerPokemon(controls,prefix,slot,group.Name);
-            paste.IsEnabled=_copiedPokemon?.Owner==PokemonClipboardOwner;_pastePokemonButtons.Add(paste);
-            var bar=new WrapPanel {Margin=new Thickness(0,10,0,0)};bar.Children.Add(copy);bar.Children.Add(paste);
-            var stack=new StackPanel();stack.Children.Add(bar);stack.Children.Add(tabs);content=stack;
-        }
         var expand=new Expander {Header=group.Name,IsExpanded=group.Expanded,
             Foreground=(Brush)FindResource("TextMain"),Content=content};
         foreach(var field in group.Fields)_editorSections[field.Key]=expand;
-        return GroupBorder(expand);
+        var slotBorder=GroupBorder(expand);
+        if(slot>=0)_slotBorders[slot]=slotBorder;
+        return slotBorder;
     }
     private static (string Owner,string Label,Dictionary<string,int> Values)? _copiedPokemon;
-    private readonly List<Button> _pastePokemonButtons=[];
     // Values are game IDs, so they are pasted only within the same editor of a game with the same records.
     private string PokemonClipboardOwner=>$"{Editor.GetType().FullName}|{Editor.Title}|{Editor.Entries.Count}";
     internal void CopyTrainerPokemon(Dictionary<string,FrameworkElement> controls,string prefix,string label)
@@ -342,14 +368,13 @@ public partial class RecordEditorView : UserControl
         {
             var values=Values(controls.Where(p=>p.Key.StartsWith(prefix,StringComparison.Ordinal)).ToDictionary(p=>p.Key,p=>p.Value));
             _copiedPokemon=(PokemonClipboardOwner,$"{(RecordList.SelectedItem is RecordEntry entry?entry.Name+" · ":"")}{label}",values.ToDictionary(p=>p.Key[prefix.Length..],p=>p.Value));
-            foreach(var button in _pastePokemonButtons)button.IsEnabled=true;
-            StatusText.Text=$"Copiado: {_copiedPokemon.Value.Label}. Pulsa «Pegar Pokémon» en el entrenador y la posición que quieras.";
+            StatusText.Text=$"Copiado: {_copiedPokemon.Value.Label}. Haz clic derecho en una tarjeta del equipo (de este u otro entrenador) y elige «Pegar».";
         }
         catch(Exception ex){StatusText.Text="No se pudo copiar: "+ex.Message;}
     }
     internal void PasteTrainerPokemon(Dictionary<string,FrameworkElement> controls,string prefix,int slot,string label)
     {
-        if(_copiedPokemon is not { } copied||copied.Owner!=PokemonClipboardOwner){StatusText.Text="Primero copia un Pokémon de este editor.";return;}
+        if(!CanPastePokemon||_copiedPokemon is not { } copied){StatusText.Text="Primero copia un Pokémon de este editor.";return;}
         int pasted=0;
         foreach(var (field,value) in copied.Values)
             if(controls.TryGetValue(prefix+field,out var control)){SetControlValue(control,value);pasted++;}
@@ -463,7 +488,8 @@ public partial class RecordEditorView : UserControl
     private UniformGrid BuildFieldsGrid(IReadOnlyList<EditorField> fields,
         Dictionary<string,FrameworkElement> controls,bool editor)
     {
-        var grid=new UniformGrid {Columns=2,Margin=new Thickness(0,12,0,0)};
+        // FormGrid: each row is as tall as its own fields (a UniformGrid stretched every row to the tallest field).
+        var grid=new FormGrid {Columns=2,Margin=new Thickness(0,12,0,0)};
         foreach(var field in editor?fields:SortedOptions(fields))
         {
             var cell=new StackPanel {Margin=new Thickness(0,0,12,15)};
@@ -471,37 +497,11 @@ public partial class RecordEditorView : UserControl
             if(!isCheck)
                 cell.Children.Add(new TextBlock {Text=field.Label,TextWrapping=TextWrapping.Wrap,
                     Foreground=(Brush)FindResource("TextSoft"),FontSize=12,Margin=new Thickness(0,0,0,6)});
-            FrameworkElement input;
-            if(field.Choices is { } choices)
-            {
-                if(!choices.Any(c=>c.Id==field.Value))
-                    choices=choices.Append(new MoveChoice(field.Value,$"ID {field.Value} (personalizado)")).ToArray();
-                var combo=new ComboBox {ItemsSource=choices,DisplayMemberPath="Display",SelectedValuePath="Id",
-                    SelectedValue=field.Value,MaxDropDownHeight=300};
-                combo.SelectionChanged+=Input_Changed;input=combo;
-            }
-            else if(isCheck)
-            {
-                // Long labels go on several lines in the narrow options column instead of being cut.
-                var check=new CheckBox {IsChecked=field.Value==1,Content=field.Label,Margin=new Thickness(0,7,0,7)};
-                check.SetResourceReference(ContentControl.ContentTemplateProperty,"WrappedOptionContent");
-                check.Checked+=Input_Changed;check.Unchecked+=Input_Changed;input=check;
-            }
-            else
-            {
-                var edit=new TextBox {Text=(field.Value/(decimal)field.Scale).ToString(CultureInfo.InvariantCulture)};
-                edit.TextChanged+=Input_Changed;input=edit;
-            }
-            input.Tag=editor;input.Uid=field.Scale.ToString(CultureInfo.InvariantCulture);
-            controls.Add(field.Key,input);cell.Children.Add(input);
-            System.Windows.Automation.AutomationProperties.SetName(input,field.Label);
+            var input=CreateFieldInput(field,controls,editor,isCheck);
+            cell.Children.Add(input);
             if(!isCheck&&cell.Children[0] is TextBlock caption)System.Windows.Automation.AutomationProperties.SetLabeledBy(input,caption);
             if(!isCheck&&field.Choices is null)
-            {
-                string range=$"{field.Min/(decimal)field.Scale} – {field.Max/(decimal)field.Scale}";
-                System.Windows.Automation.AutomationProperties.SetHelpText(input,range);
-                cell.Children.Add(new TextBlock{Text=range,FontSize=12,Foreground=(Brush)FindResource("TextSoft"),Margin=new Thickness(0,4,0,0)});
-            }
+                cell.Children.Add(new TextBlock{Text=$"{field.Min/(decimal)field.Scale} – {field.Max/(decimal)field.Scale}",FontSize=12,Foreground=(Brush)FindResource("TextSoft"),Margin=new Thickness(0,4,0,0)});
             if(editor&&Editor is ThreeDS.Progressive.Services.GameTrainerService
                 &&field.Key=="AI"&&input is TextBox ai)
                 AddTrainerAiBits(cell,ai);
@@ -569,55 +569,6 @@ public partial class RecordEditorView : UserControl
         }
         catch(System.OperationCanceledException) { }
     }
-    private void UpdateTrainerTeam(int id,IReadOnlyList<EditorGroup> groups)
-    {
-        _trainerSpriteCancel?.Cancel();
-        _trainerSpriteCancel?.Dispose();
-        _trainerSpriteCancel=new System.Threading.CancellationTokenSource();
-        TrainerTeamCards.Children.Clear();
-        if(Editor is not ThreeDS.Progressive.Services.GameTrainerService && Editor is not ITrainerEditorPresentation {UsesTrainerLayout:true})
-        {
-            TrainerTeamPreview.Visibility=Visibility.Collapsed;
-            return;
-        }
-        TrainerTeamPreview.Visibility=Visibility.Visible;
-        int count=groups.FirstOrDefault()?.Fields.FirstOrDefault(f=>f.Key=="Count")?.Value??(Editor is ITrainerEditorPresentation {UsesTrainerLayout:true}?groups.Count(g=>g.Name.StartsWith("Pokémon ",StringComparison.Ordinal)):0);
-        for(int slot=0;slot<Math.Min(6,count);slot++)
-        {
-            string prefix=$"P{slot}.";
-            var fields=groups.SelectMany(g=>g.Fields).Where(f=>f.Key.StartsWith(prefix)).ToDictionary(f=>f.Key);
-            if(!fields.TryGetValue(prefix+"Species",out var species))continue;
-            int form=fields.TryGetValue(prefix+"Form",out var f)?f.Value:0;
-            int level=fields.TryGetValue(prefix+"Level",out var l)?l.Value:1;
-            string speciesName=species.Choices?.FirstOrDefault(c=>c.Id==species.Value)?.Display??$"Pokémon #{species.Value}";
-            var picture=new Image {Width=58,Height=58,Stretch=Stretch.Uniform,HorizontalAlignment=System.Windows.HorizontalAlignment.Center};
-            RenderOptions.SetBitmapScalingMode(picture,BitmapScalingMode.NearestNeighbor);
-            var fallback=new TextBlock {Text="",FontSize=24,HorizontalAlignment=System.Windows.HorizontalAlignment.Center,
-                VerticalAlignment=System.Windows.VerticalAlignment.Center,Foreground=(Brush)FindResource("TextSoft")};
-            var spriteHost=new Grid {Height=65};
-            spriteHost.Children.Add(picture);spriteHost.Children.Add(fallback);
-            var cardContent=new StackPanel {HorizontalAlignment=System.Windows.HorizontalAlignment.Center};
-            cardContent.Children.Add(spriteHost);
-            cardContent.Children.Add(new TextBlock {Text=speciesName,TextTrimming=TextTrimming.CharacterEllipsis,
-                Width=118,TextAlignment=TextAlignment.Center,FontSize=11,FontWeight=FontWeights.SemiBold});
-            cardContent.Children.Add(new TextBlock {Text=$"Nv. {level}"+(form>0?$" · Forma {form}":""),
-                TextAlignment=TextAlignment.Center,FontSize=11,Foreground=(Brush)FindResource("TextSoft")});
-            var card=new Button {Content=cardContent,Width=134,Margin=new Thickness(0,4,8,8),Padding=new Thickness(4)};
-            int current=slot;
-            card.Click+=(_,_)=>
-            {
-                string key=$"P{current}.Species";
-                if(_editorSections.TryGetValue(key,out var section))section.IsExpanded=true;
-                if(_pokemonTabs.TryGetValue(current,out var tabs))tabs.SelectedIndex=0;
-                if(_fields.TryGetValue(key,out var control))control.BringIntoView();
-            };
-            TrainerTeamCards.Children.Add(card);
-            _=LoadTeamSpriteAsync(picture,fallback,id,species.Value,form,_trainerSpriteCancel.Token);
-        }
-        if(count==0)
-            TrainerTeamCards.Children.Add(new TextBlock {Text="Este entrenador no tiene Pokémon en el equipo.",
-                Foreground=(Brush)FindResource("TextSoft"),Margin=new Thickness(6,12,6,12)});
-    }
     private void EncounterGroup_Changed(object sender,SelectionChangedEventArgs e)
     {
         if(_loading||_id<0||Editor is not GameEncounterService wild)return;
@@ -625,119 +576,6 @@ public partial class RecordEditorView : UserControl
         catch(Exception ex) { StatusText.Text="No se pudo mostrar esta fila: "+ex.Message; }
     }
 
-    private void UpdateEncounterSprites(int id,IReadOnlyList<EditorGroup> groups)
-    {
-        EncounterSpriteCards.Children.Clear();
-        EncounterPairCards.Children.Clear();
-        bool wild=Editor is GameEncounterService {SupportsWildTemplate:true};
-        WildPreviewControls.Visibility=wild?Visibility.Visible:Visibility.Collapsed;
-        EncounterPairPreview.Visibility=Visibility.Collapsed;
-        if(Editor is not GameEncounterService && Editor is not GameStaticEncounterService && Editor is not IWildEditorPresentation {UsesWildLayout:true})
-        {
-            EncounterSpritePreview.Visibility=Visibility.Collapsed;
-            return;
-        }
-        EditorGroup? section;
-        if(wild)
-        {
-            if(EncounterGroupPicker.SelectedIndex<0)
-                EncounterGroupPicker.SelectedIndex=0;
-            int selected=Math.Clamp(EncounterGroupPicker.SelectedIndex,0,8);
-            section=groups.Skip(1).ElementAtOrDefault(selected);
-            var main=groups.FirstOrDefault()?.Fields.ToDictionary(f=>f.Key);
-            int min=main?.GetValueOrDefault("Min")?.Value??0;
-            int max=main?.GetValueOrDefault("Max")?.Value??0;
-            int active=section?.Fields.Count(f=>f.Key.EndsWith(".Species",StringComparison.Ordinal)
-                &&f.Value>0)??0;
-            string summary=$"Niveles {min}–{max} · {active} especies en la fila seleccionada";
-            if(selected==0)
-            {
-                int rate=Enumerable.Range(0,10).Sum(slot=>
-                    main?.GetValueOrDefault("Rate"+slot)?.Value??0);
-                summary+=$" · Probabilidades: {rate}%";
-                if(rate is not (0 or 100))summary+=" (debe sumar 0% o 100%)";
-            }
-            EncounterGroupSummary.Text=summary;
-        }
-        else
-            section=groups.FirstOrDefault(g=>g.Fields.Any(f=>f.Key=="Species"||
-                f.Key.EndsWith(".Species",StringComparison.Ordinal)));
-        if(section is null)
-        {
-            EncounterSpritePreview.Visibility=Visibility.Collapsed;return;
-        }
-        EncounterSpritePreview.Visibility=Visibility.Visible;
-        EncounterSpriteTitle.Text=wild&&Editor is GameEncounterService w
-            ?$"{w.TimeOfDay(id).ToUpperInvariant()} · {section.Name.ToUpperInvariant()}"
-            :section.Name.ToUpperInvariant()+" · SPRITES";
-        RenderEncounterRow(EncounterSpriteCards,section,id,null);
-        if(wild&&Editor is GameEncounterService editor&&
-            editor.PairedDayNightId(id) is int paired)
-        {
-            int selected=Math.Clamp(EncounterGroupPicker.SelectedIndex,0,8);
-            var alternate=editor.Read(paired).Skip(1).ElementAtOrDefault(selected);
-            if(alternate is not null)
-            {
-                EncounterPairPreview.Visibility=Visibility.Visible;
-                EncounterPairTitle.Text=$"{editor.TimeOfDay(paired).ToUpperInvariant()} · {alternate.Name} · tabla #{paired}";
-                RenderEncounterRow(EncounterPairCards,alternate,id,paired);
-            }
-        }
-    }
-
-    private void RenderEncounterRow(WrapPanel host,EditorGroup section,int activeId,int? pairedId)
-    {
-        var allFields=section.Fields;
-        var entries=allFields.Where(f=>f.Key=="Species"||
-            f.Key.EndsWith(".Species",StringComparison.Ordinal)).Take(12).ToArray();
-        for(int position=0;position<entries.Length;position++)
-        {
-            var field=entries[position];
-            string prefix=field.Key.EndsWith(".Species",StringComparison.Ordinal)
-                ?field.Key[..^7]:string.Empty;
-            int form=allFields.FirstOrDefault(f=>f.Key==prefix+"Form")?.Value??0;
-            int species=field.Value;
-            var picture=new Image {Width=52,Height=52,Stretch=Stretch.Uniform,
-                HorizontalAlignment=System.Windows.HorizontalAlignment.Center};
-            RenderOptions.SetBitmapScalingMode(picture,BitmapScalingMode.NearestNeighbor);
-            var fallback=new TextBlock {Text=species==0?"—":"",FontSize=17,
-                Foreground=(Brush)FindResource("TextSoft"),
-                VerticalAlignment=System.Windows.VerticalAlignment.Center,
-                HorizontalAlignment=System.Windows.HorizontalAlignment.Center};
-            var art=new Grid {Height=56};
-            art.Children.Add(picture);art.Children.Add(fallback);
-            var content=new StackPanel();
-            content.Children.Add(new TextBlock {Text=$"#{position+1:00}",
-                FontSize=10,Foreground=(Brush)FindResource("TextSoft"),
-                TextAlignment=TextAlignment.Center});
-            content.Children.Add(art);
-            string label=field.Choices?.FirstOrDefault(choice=>choice.Id==species)?.Display??$"#{species}";
-            content.Children.Add(new TextBlock {Text=label,Width=95,
-                TextTrimming=TextTrimming.CharacterEllipsis,
-                TextAlignment=TextAlignment.Center,FontSize=11});
-            if(form>0)
-                content.Children.Add(new TextBlock {Text=$"Forma {form}",FontSize=10,
-                    Foreground=(Brush)FindResource("TextSoft"),TextAlignment=TextAlignment.Center});
-            var card=new Button {Content=content,Width=104,Margin=new Thickness(0,0,8,8),
-                Padding=new Thickness(3),
-                ToolTip=pairedId.HasValue?"Abrir esta ranura en la tabla del otro horario":
-                    "Ir a la especie y forma de esta ranura"};
-            string key=field.Key;
-            card.Click+=(_,_) =>
-            {
-                if(pairedId.HasValue)
-                {
-                    RecordList.SelectedItem=Editor.Entries.FirstOrDefault(x=>x.Id==pairedId.Value);
-                    if(_id!=pairedId.Value)return;
-                }
-                if(_editorSections.TryGetValue(key,out var expand))expand.IsExpanded=true;
-                if(_fields.TryGetValue(key,out var control))control.BringIntoView();
-            };
-            host.Children.Add(card);
-            if(species>0&&_trainerSpriteCancel is not null)
-                _=LoadTeamSpriteAsync(picture,fallback,activeId,species,form,_trainerSpriteCancel.Token);
-        }
-    }
     private static Dictionary<string,int> Values(Dictionary<string,FrameworkElement> controls)=>controls.ToDictionary(p=>p.Key,p=>p.Value switch
     {
         ComboBox {SelectedValue:int v}=>v,CheckBox check=>check.IsChecked==true?1:0,
@@ -746,9 +584,9 @@ public partial class RecordEditorView : UserControl
     });
     private void Input_Changed(object sender,RoutedEventArgs e)
     {
-        if(_loading)return;Invalidate();if(sender is FrameworkElement {Tag:true}){_dirty=true;SaveButton.IsEnabled=true;StatusText.Text="Cambios sin guardar.";UpdateSummary(reload:false);}
+        if(_loading)return;Invalidate();if(sender is FrameworkElement {Tag:true}){_dirty=true;SaveButton.IsEnabled=true;StatusText.Text="Cambios sin guardar.";UpdateSummary(reload:false);ScheduleCardsRefresh();}
     }
-    private void Invalidate(){_proposal=null;if(ApplyButton is not null)ApplyButton.IsEnabled=false;}
+    private void Invalidate(){_proposal=null;if(ApplyButton is not null)ApplyButton.IsEnabled=false;RandomizeSteps?.SetStep(0);}
     private void Scope_Changed(object sender,SelectionChangedEventArgs e)=>Invalidate();
     private void Show(int id)
     {
@@ -762,7 +600,7 @@ public partial class RecordEditorView : UserControl
                 var groups=Editor.RandomOptions.Select(g=>g with {Fields=g.Fields.Select(f=>state is not null&&state.Options.TryGetValue(f.Key,out int value)?f with {Value=value}:f).ToArray()});
                 BuildGroups(OptionsPanel,groups,_options,false);
             }
-            _id=id;var record=Editor.Read(id);BuildGroups(FieldsPanel,record,_fields,true);UpdateTrainerTeam(id,record);UpdateEncounterSprites(id,record);SelectionText.Text=Editor.Entries.First(e=>e.Id==id).Display;_dirty=false;SaveButton.IsEnabled=false;StatusText.Text="Editor listo.";Invalidate();
+            _id=id;var record=Editor.Read(id);_record=record;BuildGroups(FieldsPanel,record,_fields,true);UpdateTrainerTeam(id,record);UpdateEncounterSprites(id,record);UpdateFieldItemOverview(id);SelectionText.Text=Editor.Entries.First(e=>e.Id==id).Display;_dirty=false;SaveButton.IsEnabled=false;StatusText.Text="Editor listo.";Invalidate();
             UpdateSummary(reload:true);
         }
         finally{_loading=false;}
@@ -790,7 +628,8 @@ public partial class RecordEditorView : UserControl
         string text=SearchText.Text.Trim();var sections=Editor as IRecordSections;
         var view=CollectionViewSource.GetDefaultView(RecordList.ItemsSource);
         view.Filter=o=>o is RecordEntry entry&&(_section is null||sections is null||sections.SectionOf(entry.Id)==_section)&&
-            (entry.Name.Contains(text,StringComparison.OrdinalIgnoreCase)||entry.Id.ToString().Contains(text));
+            (entry.Name.Contains(text,StringComparison.OrdinalIgnoreCase)||entry.Id.ToString().Contains(text)
+             ||ListsTrainers&&text.Length>0&&TrainerSubtitle(entry.Id).Contains(text,StringComparison.OrdinalIgnoreCase));
         CountText.Text=view.Cast<object>().Count()+" entradas";
     }
     private void BuildRecordSections(IProjectEditor editor)
@@ -830,7 +669,7 @@ public partial class RecordEditorView : UserControl
         {
             var values=Values(_fields);
             if(!StudioDialog.Confirm(Window.GetWindow(this),"Confirmar guardado","Se guardará la entrada seleccionada y su historial."))return;
-            Editor.Save(_id,values);Show(_id);StatusText.Text="Guardado y verificado.";
+            Editor.Save(_id,values);InvalidateTrainerSubtitles();Show(_id);StatusText.Text="Guardado y verificado.";
         }
         catch(Exception ex){StudioDialog.Error(Window.GetWindow(this),"No se pudo guardar",ex.Message);}
     }
@@ -1025,7 +864,7 @@ public partial class RecordEditorView : UserControl
                     finally{_loading=false;}
                     Invalidate();
                     CloseTrainerRules();
-                    StatusText.Text=$"Tabla de {(levelCaps?"Level Caps":"movimientos")} actualizada. Generá una vista previa antes de guardar.";
+                    StatusText.Text=$"Tabla de {(levelCaps?"Level Caps":"movimientos")} actualizada. Genera una vista previa antes de guardar.";
                 }
                 catch(Exception ex)
                 {StudioDialog.Error(Window.GetWindow(this),"No se pudieron guardar las reglas",ex.Message);}
@@ -1047,7 +886,7 @@ public partial class RecordEditorView : UserControl
         if(!ConfirmLeave())return;if(_dirty&&_id>=0)Show(_id);Invalidate();
         _templateMode=false;ToolTitle.Text="Randomizar";TemplatePanel.Visibility=Visibility.Collapsed;OptionsPanel.Visibility=Visibility.Visible;
         FieldsScroll.Visibility=Visibility.Collapsed;ToolsPanel.Visibility=Visibility.Visible;
-        SaveButton.IsEnabled=false;ProposalText.Text="Configurá las opciones y generá una vista previa.";ChangeList.ItemsSource=null;
+        SaveButton.IsEnabled=false;ProposalText.Text="Configura las opciones y genera una vista previa.";ChangeList.ItemsSource=null;
     }
     private void Back_Click(object sender,RoutedEventArgs e)
     {Invalidate();ToolsPanel.Visibility=Visibility.Collapsed;FieldsScroll.Visibility=Visibility.Visible;if(_id>=0)Show(_id);}
@@ -1060,7 +899,7 @@ public partial class RecordEditorView : UserControl
         {
             int[] scope=ScopeBox.SelectedIndex switch {1=>RecordList.Items.Cast<RecordEntry>().Select(e=>e.Id).ToArray(),2=>_id>=0?[_id]:[],_=>Editor.Entries.Select(e=>e.Id).ToArray()};
             _proposal=_templateMode&&Editor is ITemplateProjectEditor template?template.PreviewTemplate(TemplatePathText.Text,scope):Editor.Preview(OptionValues(),scope);ChangeList.ItemsSource=_proposal.Changes;
-            ProposalText.Text=$"{_proposal.Changes.Count} cambios"+(_proposal.Seed==0?"":$" · semilla {_proposal.Seed}")+". Revisá la propuesta antes de aplicar.";
+            ProposalText.Text=$"{_proposal.Changes.Count} cambios"+(_proposal.Seed==0?"":$" · semilla {_proposal.Seed}")+". Revisa la propuesta antes de aplicar.";
             if(_proposal.Parameters.TryGetValue("Warnings",out string? warnings)&&!string.IsNullOrWhiteSpace(warnings))ProposalText.Text+="\nAvisos: "+_proposal.Parameters.GetValueOrDefault("WarningCount")+". "+string.Join("\n",warnings.Split('\n').Take(3))+"\nEl detalle completo se conserva al aplicar en el historial.";
             ApplyButton.IsEnabled=_proposal.Changes.Count>0;
         }
@@ -1107,8 +946,8 @@ public partial class RecordEditorView : UserControl
             }
             finally {_loading=false;}
             Invalidate();
-            StatusText.Text=add?"Rango BST dividido. Generá vista previa antes de guardar.":
-                "Últimos dos rangos BST unidos. Generá vista previa antes de guardar.";
+            StatusText.Text=add?"Rango BST dividido. Genera vista previa antes de guardar.":
+                "Últimos dos rangos BST unidos. Genera vista previa antes de guardar.";
         }
         catch(Exception ex){_loading=false;StudioDialog.Error(Window.GetWindow(this),
             "Editar rangos BST",ex.Message);}
@@ -1145,14 +984,14 @@ public partial class RecordEditorView : UserControl
         if(_dirty)
         {
             StudioDialog.Error(Window.GetWindow(this),"Copiar tabla",
-                "Guardá o descartá primero los cambios pendientes de esta tabla.");
+                "Guarda o descarta primero los cambios pendientes de esta tabla.");
             return;
         }
         try
         {
             _wildClipboard=wild.CopyWildTable(_id);
             StatusText.Text=$"Tabla #{_id} copiada: {_wildClipboard.OccupiedNormalSlots} ranuras normales ocupadas. " +
-                "Elegí una tabla de destino y generá vista previa para pegar.";
+                "Elige una tabla de destino y genera vista previa para pegar.";
         }
         catch(Exception ex){StudioDialog.Error(Window.GetWindow(this),"Copiar encuentros",ex.Message);}
     }
@@ -1164,13 +1003,13 @@ public partial class RecordEditorView : UserControl
         if(_wildClipboard is null)
         {
             StudioDialog.Notice(Window.GetWindow(this),"Pegar encuentros",
-                "Primero copiá una tabla de encuentros desde este proyecto.");
+                "Primero copia una tabla de encuentros desde este proyecto.");
             return;
         }
         if(_dirty)
         {
             StudioDialog.Error(Window.GetWindow(this),"Pegar encuentros",
-                "Guardá o descartá la edición individual antes de pegar una tabla.");
+                "Guarda o descarta la edición individual antes de pegar una tabla.");
             return;
         }
         try
@@ -1190,7 +1029,7 @@ public partial class RecordEditorView : UserControl
             ProposalText.Text=$"{proposal.Changes.Count} diferencias en {ids.Length} tablas. " +
                 "Las tablas incompatibles y otras áreas permanecen intactas. " +
                 "Ningún archivo ha sido modificado todavía.";
-            StatusText.Text="Vista previa lista · confirmá antes de aplicar el pegado.";
+            StatusText.Text="Vista previa lista · confirma antes de aplicar el pegado.";
         }
         catch(Exception ex)
         {
@@ -1230,7 +1069,7 @@ public partial class RecordEditorView : UserControl
         UiProgress.Begin("Guardando y verificando "+Editor.Title+"…");
         if(!StudioDialog.AutomatedChecks)
             await System.Windows.Threading.Dispatcher.Yield(System.Windows.Threading.DispatcherPriority.Background);
-        try{Editor.Apply(proposal);if(Editor is IOptionTemplatePresentation){_loading=true;try{RecordList.ItemsSource=Editor.Entries;ApplyRecordFilter();RecordList.SelectedItem=Editor.Entries.FirstOrDefault(e=>e.Id==_id);}finally{_loading=false;}}Invalidate();ProposalText.Text="Propuesta guardada y verificada. El historial quedó actualizado.";}
+        try{Editor.Apply(proposal);if(Editor is IOptionTemplatePresentation){_loading=true;try{RecordList.ItemsSource=Editor.Entries;ApplyRecordFilter();RecordList.SelectedItem=Editor.Entries.FirstOrDefault(e=>e.Id==_id);}finally{_loading=false;}}Invalidate();InvalidateTrainerSubtitles();RandomizeSteps.SetStep(3);ProposalText.Text="Propuesta guardada y verificada. El historial quedó actualizado.";}
         catch(Exception ex){Invalidate();ProposalText.Text=ex.Message;}
         finally{UiProgress.End();}
     }

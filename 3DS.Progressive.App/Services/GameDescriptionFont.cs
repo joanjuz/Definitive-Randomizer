@@ -114,7 +114,7 @@ internal sealed class GameDescriptionFont
             }
         }
         max=Math.Max(max,x-10);var bitmap=new RenderTargetBitmap(width,height,96,96,PixelFormats.Pbgra32);bitmap.Render(visual);bitmap.Freeze();
-        string warning=max>300||y+_cellHeight*scale>102?"El texto supera el área de referencia. Revisá los saltos de línea.":"El texto cabe en el área de referencia.";
+        string warning=max>300||y+_cellHeight*scale>102?"El texto supera el área de referencia. Revisa los saltos de línea.":"El texto cabe en el área de referencia.";
         if(truncated)warning+=" La vista previa se limita a los primeros 10.000 caracteres; el texto guardado no se recorta.";
         if(missing.Count>0)warning+=" Caracteres sin representación: "+new string(missing.Order().ToArray());
         return new(bitmap,$"{lines} línea(s). "+warning);

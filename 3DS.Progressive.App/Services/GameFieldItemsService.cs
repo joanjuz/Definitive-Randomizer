@@ -11,7 +11,7 @@ namespace ThreeDS.Progressive.Services;
 /// USUM/SM Field Items based on the original Progressive EI / EB detection.
 /// Only touched area files are serialized; a frozen preview always precedes bulk edits.
 /// </summary>
-public sealed partial class GameFieldItemsService : IProjectEditor,IOptionTemplateProjectEditor
+public sealed partial class GameFieldItemsService : IProjectEditor,IOptionTemplateProjectEditor,IFieldItemPresentation
 {
     private sealed record FieldSlot(int Area,int SubFile,int Offset,string Source,int OriginalItem);
     private readonly GameProjectSession _project;
@@ -79,6 +79,14 @@ public sealed partial class GameFieldItemsService : IProjectEditor,IOptionTempla
         }
         Entries=entries;
         _displayStamp=DisplayFileStamp.Capture(_path);
+    }
+    // The same machine and key-item rules as the shuffle filters, so the overview counts what the options exclude.
+    private bool IsMachine(int item){string name=GetItemName(item).ToLowerInvariant();return item is >=328 and <=434||name.StartsWith("tm")||name.StartsWith("mt")||name.StartsWith("mo")||name.StartsWith("hm");}
+    private bool IsKey(int item){string name=GetItemName(item).ToLowerInvariant();return new[]{"ticket","key","llave","pase","tarjeta","fósil","fosil","bicicleta","scanner","card"}.Any(name.Contains);}
+    public FieldItemInfo Info(int id)
+    {
+        var slot=_locations[id];int item=slot.OriginalItem;
+        return new(id,slot.Area,slot.Source=="EB",item,GetItemName(item),IsMachine(item),IsKey(item));
     }
     private string GetItemName(int item)=>
         item>=0&&item<_project.ItemNames.Count&&!string.IsNullOrWhiteSpace(_project.ItemNames[item])
@@ -154,7 +162,7 @@ public sealed partial class GameFieldItemsService : IProjectEditor,IOptionTempla
         EditorValues.Validate(RandomOptions,options);
         if(scope.Any(id=>!_locations.ContainsKey(id)))throw new ArgumentException("La selección contiene Field Items inválidos.");
         var ids=scope.Distinct().Where(id=>Eligible(id,options)).ToArray();
-        if(ids.Length<2)throw new ArgumentException("Seleccioná al menos dos Field Items seguros para mezclar.");
+        if(ids.Length<2)throw new ArgumentException("Selecciona al menos dos Field Items seguros para mezclar.");
         byte[] source=Original();var lazy=new GARC.LazyGARC(source);
         int[] original=ids.Select(id=>ReadValue(id,lazy)).ToArray();
         int[] shuffled=(int[])original.Clone();

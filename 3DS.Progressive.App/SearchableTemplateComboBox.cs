@@ -24,7 +24,7 @@ internal sealed class SearchableTemplateComboBox : ComboBox
         SetResourceReference(StyleProperty,typeof(ComboBox));
         IsEditable=true;IsTextSearchEnabled=false;StaysOpenOnEdit=true;IsSynchronizedWithCurrentItem=false;
         DisplayMemberPath="Label";SelectedValuePath="Value";
-        ToolTip="Escribí parte del nombre o su número para buscar. Elegí un resultado para confirmar.";
+        ToolTip="Escribe parte del nombre o su número para buscar. Elige un resultado para confirmar.";
     }
     protected override void OnItemsSourceChanged(IEnumerable oldValue,IEnumerable newValue)
     {

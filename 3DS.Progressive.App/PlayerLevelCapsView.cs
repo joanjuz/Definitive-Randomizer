@@ -205,7 +205,7 @@ internal sealed class PlayerLevelCapsView : UserControl
             new LevelCapEntry(e.Label,e.Kind,e.FlagOffset,e.FlagBit,e.Cap)).ToList()};
         if(table.Validate() is {Count:>0} problems)throw new InvalidDataException(problems[0]);
         _preset.SelectedValue=model.PresetShift;_finalCap.Text=model.FinalCap.ToString();
-        Reload(table);_status.Text="Template cargado. Generá una vista previa antes de instalarlo.";
+        Reload(table);_status.Text="Template cargado. Genera una vista previa antes de instalarlo.";
     }
     private void SaveTemplate()
     {
@@ -239,7 +239,7 @@ internal sealed class PlayerLevelCapsView : UserControl
         if(_preview is not { } proposed)return;
         if(!StudioDialog.Confirm(Window.GetWindow(this),"Instalar Player Level Caps",
             "Se escribirán Battle.cro y code.bin de forma transaccional con sus checkpoints, " +
-            "flags y niveles. Revisá la vista previa antes de confirmar."))return;
+            "flags y niveles. Revisa la vista previa antes de confirmar."))return;
         UiProgress.Begin("Instalando Player Level Caps y verificando ambos ejecutables…");
         try
         {

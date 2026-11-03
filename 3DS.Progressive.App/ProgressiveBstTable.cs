@@ -135,7 +135,7 @@ internal sealed class ProgressiveBstTable : UserControl
         {
             if(row.MinLevel>=row.MaxLevel)
             {
-                MessageBox.Show("Elegí un intervalo con dos niveles o más para dividirlo.","Rangos BST",
+                MessageBox.Show("Elige un intervalo con dos niveles o más para dividirlo.","Rangos BST",
                     MessageBoxButton.OK,MessageBoxImage.Information);return;
             }
             int split=(row.MinLevel+row.MaxLevel)/2;

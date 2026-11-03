@@ -68,7 +68,7 @@ internal sealed class LevelUpView : UserControl
         DockPanel.SetDock(header,Dock.Top);root.Children.Add(header);
         header.Children.Add(new TextBlock {Text="Level Up Moves · Aprendizaje por nivel",
             FontSize=21,FontWeight=FontWeights.SemiBold,Foreground=(Brush)FindResource("TextMain")});
-        header.Children.Add(new TextBlock {Text="Editá la lista real de movimientos de cada Pokémon y forma. Las filas se guardan ordenadas por nivel.",
+        header.Children.Add(new TextBlock {Text="Edita la lista real de movimientos de cada Pokémon y forma. Las filas se guardan ordenadas por nivel.",
             Foreground=(Brush)FindResource("TextSoft"),Margin=new Thickness(0,6,0,0)});
         // Explicit columns prevent the Save button from overlapping a long preview status.
         var footer=new Grid {Margin=new Thickness(0,12,0,0)};
@@ -77,7 +77,7 @@ internal sealed class LevelUpView : UserControl
         DockPanel.SetDock(footer,Dock.Bottom);root.Children.Add(footer);
         _status=new TextBlock
         {
-            Text="Seleccioná una especie.",Foreground=(Brush)FindResource("TextSoft"),
+            Text="Selecciona una especie.",Foreground=(Brush)FindResource("TextSoft"),
             TextWrapping=TextWrapping.Wrap,VerticalAlignment=VerticalAlignment.Center,
             Margin=new Thickness(0,0,16,0)
         };
@@ -265,7 +265,7 @@ internal sealed class LevelUpView : UserControl
         _previewBanner.Visibility=Visibility.Visible;
         ShowCurrentLearnset();
         _status.Text=$"VISTA PREVIA SIN GUARDAR · {proposal.Changes.Count} Pokémon afectados. " +
-            "Recorré las especies para inspeccionar sus movimientos; Aplicar propuesta global confirma el conjunto.";
+            "Recorre las especies para inspeccionar sus movimientos; Aplicar propuesta global confirma el conjunto.";
     }
     private void ShowCurrentLearnset()
     {
@@ -375,7 +375,7 @@ internal sealed class LevelUpView : UserControl
             table.CommitEdit(DataGridEditingUnit.Row,true);
         }
     }
-    private void Dirty(){if(_proposedRows is not null)return;InvalidateBulk();_dirty=true;_save.IsEnabled=true;_status.Text="Cambios pendientes. Guardá antes de cambiar de especie.";}
+    private void Dirty(){if(_proposedRows is not null)return;InvalidateBulk();_dirty=true;_save.IsEnabled=true;_status.Text="Cambios pendientes. Guarda antes de cambiar de especie.";}
     private void Add()
     {
         Commit();if(_rows.Count>=_service.MaxMoves){_status.Text=$"Este juego admite como máximo {_service.MaxMoves} movimientos por nivel por especie.";return;}

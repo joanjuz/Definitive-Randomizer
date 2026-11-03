@@ -146,6 +146,6 @@ internal sealed class GameMoveDescription6Scene
             overflow=Text(dc,font,"14",description.Length>10000?description[..10000]:description);
         }
         var result=new RenderTargetBitmap(320,240,96,96,PixelFormats.Pbgra32);result.Render(visual);result.Freeze();
-        return new(result,(description.Length>10000?"Vista limitada a los primeros 10.000 caracteres. ":"")+(overflow?"La descripción supera el cuadro o contiene caracteres sin representación. Revisá los saltos de línea.":"La descripción cabe en el cuadro del diseño."));
+        return new(result,(description.Length>10000?"Vista limitada a los primeros 10.000 caracteres. ":"")+(overflow?"La descripción supera el cuadro o contiene caracteres sin representación. Revisa los saltos de línea.":"La descripción cabe en el cuadro del diseño."));
     }
 }

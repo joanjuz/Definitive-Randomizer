@@ -16,7 +16,7 @@ internal static partial class GameGraphicsCodec
         for(uint i=0;i<indices.Length;i++)
         {
             var at=orienter.Get(i);if(at.X>=bitmap.Width||at.Y>=bitmap.Height)continue;var c=bitmap.GetPixel((int)at.X,(int)at.Y);
-            if(c.A==0)continue;if(c.A!=255)throw new ArgumentException("La paleta Gen6 requiere alfa 0 o 255; usá RGBA8 para transparencias intermedias.");
+            if(c.A==0)continue;if(c.A!=255)throw new ArgumentException("La paleta Gen6 requiere alfa 0 o 255; usa RGBA8 para transparencias intermedias.");
             ushort packed=(ushort)((c.R>>3)<<11|(c.G>>2)<<5|(c.B>>3));
             if(!colors.TryGetValue(packed,out byte index))
             {

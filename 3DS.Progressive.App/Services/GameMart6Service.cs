@@ -97,7 +97,7 @@ public sealed partial class GameMart6Service : IProjectEditor
         if(candy)
         {
             int regular=_project.GameConfiguration.ORAS?10:9;ids=ids.Where(id=>id<=regular).ToArray();
-            if(ids.Length==0)throw new ArgumentException("Seleccioná al menos una tienda regular para Caramelos Raros.");
+            if(ids.Length==0)throw new ArgumentException("Selecciona al menos una tienda regular para Caramelos Raros.");
             int item=_items.FirstOrDefault(i=>string.Equals(i.Name,"Rare Candy",StringComparison.OrdinalIgnoreCase)||string.Equals(i.Name,"Caramelo Raro",StringComparison.OrdinalIgnoreCase))?.Id??50;
             if(item<1||item>=_items.Count||_itemHash is null)throw new InvalidDataException("Falta el objeto Caramelo Raro o su GARC.");
             byte[] original=GarcTransaction.ReadUnchanged(_itemPath,_itemHash);byte[][] records=new GARC.MemGARC(original).Files;

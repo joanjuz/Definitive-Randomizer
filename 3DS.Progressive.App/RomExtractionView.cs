@@ -24,7 +24,7 @@ internal sealed class RomExtractionView : UserControl
         var panel=new StackPanel{Margin=new Thickness(20)};
         Content=new ScrollViewer{Content=panel,VerticalScrollBarVisibility=ScrollBarVisibility.Auto};
         panel.Children.Add(new TextBlock{Text="Extraer ROM · CXI / 3DS",FontSize=23,Foreground=(Brush)FindResource("TextMain")});
-        panel.Children.Add(new TextBlock{Text="Seleccioná una ROM descifrada o reconstruida por pk3DS y una carpeta de destino. "+
+        panel.Children.Add(new TextBlock{Text="Selecciona una ROM descifrada o reconstruida por pk3DS y una carpeta de destino. "+
             "RomFS, ExeFS y las cabeceras se preparan en una carpeta nueva y se verifican antes de publicarla. "+
             "El archivo original se conserva. Code.bin se descomprime cuando corresponde para poder editar el proyecto.",
             Foreground=(Brush)FindResource("TextSoft"),TextWrapping=TextWrapping.Wrap,Margin=new Thickness(0,8,0,15)});
@@ -52,7 +52,7 @@ internal sealed class RomExtractionView : UserControl
         if(_cancellation is not null)return;
         string name=_name.Text.Trim();
         if(name.Length==0||name is "." or ".."||name.IndexOfAny(Path.GetInvalidFileNameChars())>=0)
-        {StudioDialog.Error(Window.GetWindow(this),"Extracción","Escribí un nombre de carpeta válido.");return;}
+        {StudioDialog.Error(Window.GetWindow(this),"Extracción","Escribe un nombre de carpeta válido.");return;}
         var picker=new Microsoft.Win32.OpenFolderDialog{Title="Carpeta donde se creará el proyecto extraído"};
         if(picker.ShowDialog(Window.GetWindow(this))!=true)return;
         _cancellation=new();_select.IsEnabled=_run.IsEnabled=_name.IsEnabled=false;_cancel.IsEnabled=true;
@@ -60,7 +60,7 @@ internal sealed class RomExtractionView : UserControl
         try
         {
             var result=await _service.ExtractAsync(_input.Text,Path.Combine(picker.FolderName,name),_cancellation.Token);
-            _detail.Text=$"Extracción completada y verificada.\n{result.Files:N0} archivos · {result.Folder}\nSHA-256 del original: {result.SourceSha256}\nUsá «Abrir proyecto» y seleccioná esta carpeta para comenzar a editar.";
+            _detail.Text=$"Extracción completada y verificada.\n{result.Files:N0} archivos · {result.Folder}\nSHA-256 del original: {result.SourceSha256}\nUsa «Abrir proyecto» y selecciona esta carpeta para comenzar a editar.";
         }
         catch(OperationCanceledException){_detail.Text="Extracción cancelada. El archivo original se conserva y no se publicó una carpeta de destino.";}
         catch(Exception ex){_detail.Text="La extracción se detuvo: "+ex.Message;StudioDialog.Error(Window.GetWindow(this),"Extracción",ex.Message);}

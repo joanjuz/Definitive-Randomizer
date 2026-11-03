@@ -115,7 +115,7 @@ internal sealed class BatchRomBuilderView : UserControl
         var outputButton=Add(outputRow,"Elegir…",()=>
         {
             using var browser=new System.Windows.Forms.FolderBrowserDialog
-            {Description="Elegí la carpeta destino de los .3ds."};
+            {Description="Elige la carpeta destino de los .3ds."};
             if(browser.ShowDialog()==System.Windows.Forms.DialogResult.OK)
                 _destination!.Text=browser.SelectedPath;
         });
@@ -152,7 +152,7 @@ internal sealed class BatchRomBuilderView : UserControl
             Margin=new Thickness(0,13,0,0)
         };
         fields.Children.Add(warning);
-        _summary.Text="Revisá la ruta del template y generá una vista previa antes de construir.";
+        _summary.Text="Revisa la ruta del template y genera una vista previa antes de construir.";
         if(!_engine.BackendAvailable)_progress.Text=
             "El ejecutor original no está empaquetado. El botón Construir solo se habilitará al incluir LegacyBatch.";
     }
@@ -224,7 +224,7 @@ internal sealed class BatchRomBuilderView : UserControl
         if(warnings.Count>0)
         {
             _progress.Text="Advertencia SHA-256: "+string.Join(" | ",warnings)+
-                " · Para construir, marcá la autorización explícita de usar los archivos actuales.";
+                " · Para construir, marca la autorización explícita de usar los archivos actuales.";
             _allowMismatch.IsChecked=false;
             _allowMismatch.Visibility=Visibility.Visible;
             _ready=cfg with{AllowAssetMismatch=true};
@@ -264,7 +264,7 @@ internal sealed class BatchRomBuilderView : UserControl
         catch(Exception ex)
         {
             StudioDialog.Error(Window.GetWindow(this),"Falló el Batch ROM Builder",ex.Message);
-            _progress.Text="La ejecución se detuvo; revisá el log y el informe de errores de la carpeta de salida.";
+            _progress.Text="La ejecución se detuvo; revisa el log y el informe de errores de la carpeta de salida.";
         }
         finally{_busy=false;IsEnabled=true;Invalidate();UiProgress.End();}
     }

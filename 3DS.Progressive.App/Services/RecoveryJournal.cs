@@ -44,7 +44,7 @@ internal sealed class RecoveryJournal : IDisposable
         var lease=new FileStream(directory+".lock",FileMode.OpenOrCreate,FileAccess.ReadWrite,FileShare.None);
         try
         {
-            if(Directory.Exists(directory))throw new IOException("Hay un guardado pendiente de recuperación. Reabrí el proyecto.");
+            if(Directory.Exists(directory))throw new IOException("Hay un guardado pendiente de recuperación. Vuelve a abrir el proyecto.");
             Directory.CreateDirectory(directory);
             var journal=new RecoveryJournal(directory,lease,manifest);
             journal.Save();

@@ -48,7 +48,7 @@ public sealed partial class GameMartService
     }
     private int RequireItem(params string[] aliases)=>TryItemId(aliases)??
         throw new InvalidDataException("No se encuentra el objeto "+aliases[0]+
-        " en el idioma actual. Cambiá el idioma de datos a inglés o español y recargá el proyecto.");
+        " en el idioma actual. Cambia el idioma de datos a inglés o español y recarga el proyecto.");
 
     public int RandomizeShops(bool bp,bool specialsOnly=false,bool protectX=true,int? seed=null,IReadOnlyList<int>? customPool=null,IReadOnlySet<int>? banned=null)
     {

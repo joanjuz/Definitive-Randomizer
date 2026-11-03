@@ -117,7 +117,7 @@ public static class ManualEditTemplate
         var node=doc.Section("ProgressiveApp")?["ManualEdits"];
         if(node?["Version"]?.GetValue<int>() is not (1 or 2)||node["Game"]?.GetValue<string>()!=doc.Game||doc.Game=="ANY"||node["Generation"]?.GetValue<int>()!=doc.Generation)
             throw new InvalidDataException("Las modificaciones manuales requieren su juego y generación de origen.");
-        if(node["MissingHistoryPayloads"] is JsonArray missing&&missing.Count>0)throw new InvalidDataException("El historial antiguo no conserva los datos completos de estas modificaciones. Volvé a guardar las entradas o recursos afectados para incluirlos: "+string.Join("; ",missing.Take(8).Select(n=>n!.GetValue<string>())));
+        if(node["MissingHistoryPayloads"] is JsonArray missing&&missing.Count>0)throw new InvalidDataException("El historial antiguo no conserva los datos completos de estas modificaciones. Vuelve a guardar las entradas o recursos afectados para incluirlos: "+string.Join("; ",missing.Take(8).Select(n=>n!.GetValue<string>())));
         var edits=Read(doc);
         ManualOperations.Validate(doc);
         if(edits.Length==0&&ManualOperations.Read(doc).Length==0||edits.Length>100000)throw new InvalidDataException("Lista de modificaciones manuales vacía o demasiado grande.");

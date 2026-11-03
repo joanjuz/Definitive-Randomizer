@@ -130,7 +130,7 @@ internal sealed class MartEditorView : UserControl
         bottom.Children.Add(_changes);
         _status = new TextBlock
         {
-            Text = "Seleccioná una tienda para editar. No se escribirá nada hasta aplicar.",
+            Text = "Selecciona una tienda para editar. No se escribirá nada hasta aplicar.",
             Foreground = soft, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 7, 0, 0)
         };
         bottom.Children.Add(_status);
@@ -297,7 +297,7 @@ internal sealed class MartEditorView : UserControl
         _preparedService = null;
         _apply.IsEnabled = false;
         _changes.ItemsSource = null;
-        _status.Text = "Ediciones pendientes. Generá una nueva vista previa antes de guardar.";
+        _status.Text = "Ediciones pendientes. Genera una nueva vista previa antes de guardar.";
     }
     private static void CommitGrid(DataGrid grid)
     {
@@ -356,7 +356,7 @@ internal sealed class MartEditorView : UserControl
             Dirty();
             _regularGrid.Items.Refresh();
             _bpGrid.Items.Refresh();
-            _status.Text = $"{name}: {count} cambios preparados. Revisá las tablas y generá la vista previa antes de guardar.";
+            _status.Text = $"{name}: {count} cambios preparados. Revisa las tablas y genera la vista previa antes de guardar.";
         }
         catch (Exception ex) { StudioDialog.Error(Window.GetWindow(this), name, ex.Message); }
     }

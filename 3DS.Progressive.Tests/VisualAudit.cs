@@ -151,7 +151,7 @@ internal static class VisualAudit
 
     private static void Section(AuditRun run,string size,string name)
     {
-        if(run.Main.FindName(name) is not Button nav||!nav.IsVisible||!nav.IsEnabled)return;
+        if(run.Main.FindName(name) is not Button nav||!Reachable(nav))return;
         string label=$"{size} {name.Replace("Button","")}";run.Context=label;
         if(!Click(run,nav,label))return;
         // The home and the Pokémon editor are not hosted in SectionHost: inspect the whole content then.
@@ -167,9 +167,11 @@ internal static class VisualAudit
             }
     }
 
+    // A sidebar entry that is collapsed but enabled is still a route (Automatización: search palette and tour), so it is audited too.
+    private static bool Reachable(Button nav)=>nav.IsEnabled&&(nav.IsVisible||nav.Visibility==Visibility.Collapsed&&nav.Tag is string);
     private static void HubTools(AuditRun run,string size,string hub)
     {
-        if(run.Main.FindName(hub) is not Button nav||!nav.IsVisible||!nav.IsEnabled)return;
+        if(run.Main.FindName(hub) is not Button nav||!Reachable(nav))return;
         if(!Click(run,nav,$"{size} {hub}"))return;
         if(Host(run.Main).Content is not FrameworkElement hubView)return;
         var labels=Visual(hubView).OfType<Button>().Where(b=>b.IsVisible&&b.IsEnabled&&b.Content is string s&&s.StartsWith("Abrir ",StringComparison.Ordinal)&&!s.EndsWith('…')&&s!="Abrir extracción")

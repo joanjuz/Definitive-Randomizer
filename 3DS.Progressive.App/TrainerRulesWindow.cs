@@ -55,7 +55,7 @@ internal sealed class TrainerRulesWindow : UserControl
             FontSize=22,FontWeight=FontWeights.SemiBold,Foreground=TextMain});
         top.Children.Add(new TextBlock
         {
-            Text="Datos originales de pk3DS Progressive. Filtrá importantes y jefes sin perder las filas ocultas.",
+            Text="Datos originales de pk3DS Progressive. Filtra importantes y jefes sin perder las filas ocultas.",
             FontSize=12,Foreground=TextSoft,Margin=new Thickness(0,5,0,12),TextWrapping=TextWrapping.Wrap
         });
         var filters=new WrapPanel {Orientation=Orientation.Horizontal};
@@ -182,7 +182,7 @@ internal sealed class TrainerRulesWindow : UserControl
             : r.MinPower is <0 or >250 || r.Tolerance is <0 or >255 || r.EVs is <-1 or >252);
         if(invalid is not null)
         {
-            StudioDialog.Error(Window.GetWindow(this),"Regla inválida",$"Entrenador {invalid.Id}: comprobá el límite o los valores de movimientos (potencia 0–250, tolerancia 0–255, EV -1–252).");
+            StudioDialog.Error(Window.GetWindow(this),"Regla inválida",$"Entrenador {invalid.Id}: comprueba el límite o los valores de movimientos (potencia 0–250, tolerancia 0–255, EV -1–252).");
             return;
         }
         Accepted?.Invoke(Rows);

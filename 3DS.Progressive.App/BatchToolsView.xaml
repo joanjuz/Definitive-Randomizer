@@ -21,7 +21,7 @@
   <ScrollViewer x:Name="OptionsScroll" Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Background="Transparent">
   <Border Background="{DynamicResource Panel}" BorderBrush="{DynamicResource Stroke}" BorderThickness="1" CornerRadius="10" Padding="16" Margin="0,0,0,0">
    <StackPanel>
-    <TextBlock Text="Configurá, revisá y aplicá" FontSize="17" FontWeight="SemiBold"/>
+    <TextBlock Text="Configura, revisa y aplica" FontSize="17" FontWeight="SemiBold"/>
     <TextBlock Text="La vista previa muestra los valores antes y después. Aplicar requiere confirmación."
       Foreground="{DynamicResource TextSoft}" TextWrapping="Wrap" Margin="0,6,0,14"/>
     <UniformGrid x:Name="ScopeRow" Columns="2" Margin="0,12,0,12">

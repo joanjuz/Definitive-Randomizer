@@ -94,7 +94,7 @@ internal static partial class GameGraphicsCodec
                 if(bpp==4)raw[i/2]|=(byte)(value<<((int)(i%2)*4));
                 else for(int b=0;b<bpp/8;b++)raw[(int)i*bpp/8+b]=(byte)(value>>(b*8));
             }
-            if(!bflim&&format==XLIMEncoding.RGB5A1&&BitConverter.ToUInt16(raw,0)==2)throw new ArgumentException("El primer píxel coincide con el marcador de paleta Gen6; usá BFLIM o RGBA8.");
+            if(!bflim&&format==XLIMEncoding.RGB5A1&&BitConverter.ToUInt16(raw,0)==2)throw new ArgumentException("El primer píxel coincide con el marcador de paleta Gen6; usa BFLIM o RGBA8.");
             writer.Write(raw);
         }
         int length=(int)stream.Length;

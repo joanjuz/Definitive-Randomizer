@@ -66,6 +66,7 @@ public partial class MoveEditorView : System.Windows.Controls.UserControl
         RefreshTypeBox.ItemsSource = MoveEditorCatalog.IndexedChoices(Enum.GetNames(typeof(RefreshType)));
         CreateFlagCheckBoxes();
         MoveType.ItemsSource = _moves.Types;
+        InitializeTextCard(project);
         MoveList.ItemsSource = _moves.Entries;
         CountText.Text = _moves.Entries.Count + " movimientos";
         MoveList.SelectedIndex = 0;
@@ -170,6 +171,7 @@ public partial class MoveEditorView : System.Windows.Controls.UserControl
         }
         finally { _loading = false; }
         UpdatePreview();
+        LoadMoveText(entry.Id);
     }
 
     private bool TryDraft(out MoveValues? result)
@@ -282,7 +284,7 @@ public partial class MoveEditorView : System.Windows.Controls.UserControl
         void Choice(System.Windows.Controls.ComboBox field, string label)
         {
             if (field.SelectedValue is not int)
-                Error(field, $"{label}: seleccioná una opción de la lista.");
+                Error(field, $"{label}: selecciona una opción de la lista.");
         }
 
         if (_selected is not null)
@@ -320,9 +322,9 @@ public partial class MoveEditorView : System.Windows.Controls.UserControl
             Choice(ZMoveBox, "Movimiento Z asociado");
             Choice(ZEffectBox, "Efecto Z");
             if (MoveType.SelectedIndex < 0)
-                Error(MoveType, "Tipo del movimiento: elegí un tipo.");
+                Error(MoveType, "Tipo del movimiento: elige un tipo.");
             if (MoveCategory.SelectedIndex is < 0 or > 2)
-                Error(MoveCategory, "Categoría del movimiento: elegí un valor.");
+                Error(MoveCategory, "Categoría del movimiento: elige un valor.");
             string flags = (FlagsBox.Text ?? "").Trim();
             if (flags.StartsWith("0x", StringComparison.OrdinalIgnoreCase))
                 flags = flags[2..];
@@ -337,13 +339,14 @@ public partial class MoveEditorView : System.Windows.Controls.UserControl
     {
         if (_saved is null)
             return false;
-        return !TryDraft(out var current) || current != _saved;
+        // The move text (name and description) is part of the move: leaving it unsaved also asks first.
+        return !TryDraft(out var current) || current != _saved || HasTextChanges;
     }
 
     private bool ConfirmDiscard() =>
         !HasChanges() || StudioDialog.Confirm(Window.GetWindow(this), "Cambios pendientes",
             "Hay modificaciones sin guardar.",
-            "Si continuás, los cambios del movimiento actual se perderán.");
+            "Si continúas, los cambios del movimiento actual se perderán.");
 
     private void UpdatePreview()
     {
@@ -357,7 +360,7 @@ public partial class MoveEditorView : System.Windows.Controls.UserControl
         MoveValues? next = null;
         bool valid = errors.Count == 0 && TryDraft(out next);
         if (!valid && errors.Count == 0 && _selected is not null)
-            errors.Add("Un selector no pudo interpretarse. Restablecé el movimiento y volvé a intentarlo.");
+            errors.Add("Un selector no pudo interpretarse. Restablece el movimiento y vuelve a intentarlo.");
         if (ValidationSummary is not null)
         {
             ValidationSummary.Text = errors.Count == 0 ? "" :
@@ -480,7 +483,7 @@ public partial class MoveEditorView : System.Windows.Controls.UserControl
         {
             UpdatePreview();
             _highlightedErrors.FirstOrDefault()?.Focus();
-            StudioDialog.Notice(Window.GetWindow(this), "Revisá los campos marcados",
+            StudioDialog.Notice(Window.GetWindow(this), "Revisa los campos marcados",
                 string.Join(Environment.NewLine, errors.Take(8)),
                 errors.Count > 8 ? $"Hay {errors.Count - 8} errores adicionales resaltados en rojo." :
                                   "Cada campo inválido tiene un borde rojo y una descripción al pasar el cursor.");
@@ -489,7 +492,7 @@ public partial class MoveEditorView : System.Windows.Controls.UserControl
         if (!TryDraft(out var next) || next is null)
         {
             StudioDialog.Error(Window.GetWindow(this), "No se pudo validar",
-                "No fue posible convertir uno de los valores. Restablecé el movimiento y volvé a intentarlo.");
+                "No fue posible convertir uno de los valores. Restablece el movimiento y vuelve a intentarlo.");
             return;
         }
         if (next == _saved)
@@ -499,7 +502,7 @@ public partial class MoveEditorView : System.Windows.Controls.UserControl
         }
         if (!StudioDialog.Confirm(Window.GetWindow(this), "Confirmar guardado",
             "Se actualizará el GARC de movimientos del proyecto extraído.",
-            "Studio no realiza copias de seguridad automáticas. Asegurate de trabajar con una copia del juego."))
+            "Studio no realiza copias de seguridad automáticas. Asegúrate de trabajar con una copia del juego."))
             return;
         try
         {

@@ -51,7 +51,8 @@ internal sealed class SystemsView : UserControl
         DockPanel.SetDock(_status,Dock.Bottom);root.Children.Add(_status);
         var scroll=new ScrollViewer{VerticalScrollBarVisibility=ScrollBarVisibility.Auto};
         root.Children.Add(scroll);
-        var stack=new StackPanel();
+        // Cards flow in as many columns as fit, so a hub shows its tools at a glance instead of one card per row.
+        var stack=new TileGrid{MinTileWidth=340,Gap=12,Margin=new Thickness(0,0,6,0)};
         scroll.Content=stack;
         switch(section)
         {
@@ -61,30 +62,60 @@ internal sealed class SystemsView : UserControl
             case "Automation":BuildAutomation(stack);break;
             default:BuildSettings(stack);break;
         }
+        // «Detalles técnicos» always closes the card, after the actions and fields the hub added to it.
+        foreach(var card in stack.Children.OfType<Border>())
+            if(card.Child is StackPanel body&&body.Children.OfType<Expander>().FirstOrDefault(e=>e.Tag as string==DetailsTag) is { } details)
+            {body.Children.Remove(details);body.Children.Add(details);}
     }
-    private Border Card(string name,string description)
+    /// <summary>
+    /// A hub card: plain-language description first; the technical description of the original tool stays one click away
+    /// («Detalles técnicos»); <paramref name="tag"/> warns about advanced or code-patching tools.
+    /// </summary>
+    private Border Card(string name,string description,string? detail=null,string? tag=null)
     {
-        var panel=new StackPanel{Margin=new Thickness(0,0,0,10)};
-        panel.Children.Add(new TextBlock
+        var panel=new StackPanel();
+        var header=new DockPanel{Margin=new Thickness(0,0,0,6)};
+        if(tag is not null)
         {
-            Text=name,FontSize=17,FontWeight=FontWeights.SemiBold,
-            Foreground=(Brush)FindResource("TextMain"),Margin=new Thickness(0,0,0,7)
+            var label=new TextBlock{Text=tag,FontSize=11,FontWeight=FontWeights.SemiBold};
+            label.SetResourceReference(TextBlock.ForegroundProperty,"TextMain");
+            var chip=new Border{BorderThickness=new Thickness(1),CornerRadius=new CornerRadius(9),Padding=new Thickness(8,1,8,2),
+                Margin=new Thickness(10,1,0,0),VerticalAlignment=VerticalAlignment.Top,Child=label};
+            chip.SetResourceReference(Border.BorderBrushProperty,"Accent");chip.SetResourceReference(Border.BackgroundProperty,"Surface");
+            System.Windows.Automation.AutomationProperties.SetName(chip,tag);
+            DockPanel.SetDock(chip,Dock.Right);header.Children.Add(chip);
+        }
+        header.Children.Add(new TextBlock
+        {
+            Text=name,FontSize=16,FontWeight=FontWeights.SemiBold,TextWrapping=TextWrapping.Wrap,
+            Foreground=(Brush)FindResource("TextMain")
         });
+        panel.Children.Add(header);
         panel.Children.Add(new TextBlock
         {
             Text=description,TextWrapping=TextWrapping.Wrap,
-            Foreground=(Brush)FindResource("TextSoft"),Margin=new Thickness(0,0,0,11)
+            Foreground=(Brush)FindResource("TextSoft"),Margin=new Thickness(0,0,0,12)
         });
+        if(detail is not null)
+        {
+            var text=new TextBlock{Text=detail,TextWrapping=TextWrapping.Wrap,FontSize=12,Margin=new Thickness(24,2,0,4),
+                Foreground=(Brush)FindResource("TextSoft")};
+            panel.Children.Add(new Expander{Header="Detalles técnicos",IsExpanded=false,Content=text,Tag=DetailsTag,
+                Margin=new Thickness(-6,4,0,0),FontSize=12});
+        }
         return new Border {BorderBrush=(Brush)FindResource("Stroke"),
             Background=(Brush)FindResource("Panel"),BorderThickness=new Thickness(1),
-            CornerRadius=new CornerRadius(9),Padding=new Thickness(15),Margin=new Thickness(0,0,0,12),
+            CornerRadius=new CornerRadius(9),Padding=new Thickness(15,14,15,12),
             Child=panel};
     }
+    private const string DetailsTag="card-details";
     private static Button AddButton(Panel panel,string text,Action run)
     {
         var b=new Button {Content=text,Margin=new Thickness(0,0,9,7)};
         b.Click+=(_,_)=>{try{run();}catch(Exception ex)
         {StudioDialog.Error(Window.GetWindow(b),"Herramientas del sistema",ex.Message);}};
+        // Buttons keep their natural width instead of stretching across the card.
+        if(panel is StackPanel)b.HorizontalAlignment=System.Windows.HorizontalAlignment.Left;
         panel.Children.Add(b);return b;
     }
     private void ObeyTrades()
@@ -112,32 +143,36 @@ internal sealed class SystemsView : UserControl
     internal void OpenPlayerCapsForChecks()=>_navigate("PlayerCaps");
     internal void OpenCroRecipesForChecks()=>_navigate("CroRecipes");
     internal void OpenRelearnerForChecks()=>_navigate("UsumRelearner");
-    private void BuildMechanics(StackPanel stack)
+    private void BuildMechanics(Panel stack)
     {
         if(_project.GameConfiguration.ORAS)
         {
-            var tutors=Card("Tutores BP · ORAS","Edita y randomiza los 60 movimientos de tutor y sus precios. Sincroniza las listas de compatibilidad y la tabla de tienda.");
+            var tutors=Card("Tutores BP · ORAS","Qué movimientos enseñan los tutores de ORAS y cuántos BP cuestan, a mano o randomizados.","Edita y randomiza los 60 movimientos de tutor y sus precios. Sincroniza las listas de compatibilidad y la tabla de tienda.");
             AddButton((StackPanel)tutors.Child,"Abrir tutores ORAS",()=>_navigate("Tutor6"));stack.Children.Add(tutors);
         }
 
         var cap=Card("Player Level Caps · USUM",
-            "21 checkpoints de historia con flags y Event Work. Presets, edición de condiciones, Sync Trainer Caps y parche conjunto Battle.cro + code.bin con preview e historial.");
+            "Pone un nivel máximo a tu equipo que sube a medida que avanzas en la historia.",
+            "21 checkpoints de historia con flags y Event Work. Presets, edición de condiciones, Sync Trainer Caps y parche conjunto Battle.cro + code.bin con preview e historial.","Parche de código");
         var box=(StackPanel)cap.Child;
         var open=AddButton(box,"Abrir Player Level Caps",()=>_navigate("PlayerCaps"));
         open.IsEnabled=_project.GameConfiguration.USUM;
         if(!_project.GameConfiguration.USUM)open.ToolTip="Solo validado para Ultra Sun y Ultra Moon.";
         if(ProjectFeatureAvailability.Supports(_project,"PlayerCaps"))stack.Children.Add(cap);
         var patches=Card("USUM Relearner · Cafeterías y aprendizaje",
-            "Parche original CAFE.asm + Learn.asm en Ultra Sun / Ultra Moon. Copia aislada, vista previa de code.bin y StoryText, verificación de firmas e historial conjunto.");
+            "Permite recordar movimientos desde las cafeterías Pokémon de Ultra Sol y Ultra Luna.",
+            "Parche original CAFE.asm + Learn.asm en Ultra Sun / Ultra Moon. Copia aislada, vista previa de code.bin y StoryText, verificación de firmas e historial conjunto.","Parche de código");
         AddButton((StackPanel)patches.Child,"Abrir USUM Relearner",()=>
             _navigate("UsumRelearner")).IsEnabled=_project.GameConfiguration.USUM;
         if(ProjectFeatureAvailability.Supports(_project,"UsumRelearner"))stack.Children.Add(patches);
         var recipes=Card("CRO Recipes · Mecánicas personalizadas",
-            "Importar múltiples recetas JSON; resolver dependencias y relocaciones con el motor original, previsualizar Battle.cro y aplicar una sola transacción con historial.");
+            "Aplica recetas de mecánicas de combate personalizadas (archivos JSON) con vista previa.",
+            "Importar múltiples recetas JSON; resolver dependencias y relocaciones con el motor original, previsualizar Battle.cro y aplicar una sola transacción con historial.","Avanzado");
         AddButton((StackPanel)recipes.Child,"Abrir CRO Recipes",()=>
             _navigate("CroRecipes")).IsEnabled=_project.GameConfiguration.USUM;
         if(ProjectFeatureAvailability.Supports(_project,"CroRecipes"))stack.Children.Add(recipes);
         var staticCard=Card("Parcheos de encuentros e intercambios",
+            "Estas tablas y ajustes están en el Inspector de Encuentros estáticos: regalos, Totem e intercambios.",
             "Gift BST Baseline, Totem BST y Level Caps por ID, Trades Accept Any Pokémon y limpieza de diálogos españoles en encuentros estáticos.");
         AddButton((StackPanel)staticCard.Child,"Abrir Encuentros estáticos",()=>_navigate("StaticEncounters")).IsEnabled=
             _project.Generation==7;
@@ -145,84 +180,96 @@ internal sealed class SystemsView : UserControl
         if(_project.Generation==7)
         {
             var adjustments=Card("Obediencia y formas Mega · Gen7",
-                "Que los Pokémon intercambiados obedezcan siempre, aunque los level caps dejen subir por encima del límite de las grandes pruebas, y que el jugador no pueda conseguir formas Mega en salvajes, estáticos, regalos, intercambios ni evoluciones. Ambos se guardan en el historial y en Global/Batch.");
+                "Dos ajustes de un clic: los Pokémon intercambiados te obedecen siempre, y no se pueden conseguir formas Mega fuera de los combates.",
+                "Que los Pokémon intercambiados obedezcan siempre, aunque los level caps dejen subir por encima del límite de las grandes pruebas, y que el jugador no pueda conseguir formas Mega en salvajes, estáticos, regalos, intercambios ni evoluciones. Ambos se guardan en el historial y en Global/Batch.","Parche de código");
             var panel=(StackPanel)adjustments.Child;
             AddButton(panel,"Los Pokémon intercambiados siempre obedecen",ObeyTrades);
             AddButton(panel,"Quitar formas Mega obtenibles",RemoveObtainableMegas);
             stack.Children.Add(adjustments);
         }
-        var trades6=Card("Intercambios Progressive · Gen6","Aceptar cualquier Pokémon y editar o randomizar las ofertas en XY/ORAS. En ORAS se habilita también el selector PC; todos los cambios se verifican y guardan juntos.");
+        var trades6=Card("Intercambios Progressive · Gen6","Edita o randomiza las ofertas de intercambio y permite entregar cualquier Pokémon.","Aceptar cualquier Pokémon y editar o randomizar las ofertas en XY/ORAS. En ORAS se habilita también el selector PC; todos los cambios se verifican y guardan juntos.");
         AddButton((StackPanel)trades6.Child,"Abrir intercambios Gen6",()=>_navigate("Trade6"));if(ProjectFeatureAvailability.Supports(_project,"Trade6"))stack.Children.Add(trades6);
-        var catchZones=Card("Enable Catch Zones · Gen6","Parches Progressive para encuentros, mapas y archivos adicionales XY/ORAS. Vista previa verificada e historial conjunto; se rechazan archivos previos incompatibles.");
+        var catchZones=Card("Enable Catch Zones · Gen6","Parche de Progressive para las zonas de captura de XY/ORAS: cambia encuentros y mapas a la vez, con vista previa.","Parches Progressive para encuentros, mapas y archivos adicionales XY/ORAS. Vista previa verificada e historial conjunto; se rechazan archivos previos incompatibles.","Avanzado");
         AddButton((StackPanel)catchZones.Child,"Abrir Catch Zones",()=>_navigate("CatchZones"));if(ProjectFeatureAvailability.Supports(_project,"CatchZones"))stack.Children.Add(catchZones);
-        var opower=Card("O-Powers · Gen6","Costes, progresión, eficacia, duración y usabilidad de XY/ORAS. Se conservan las referencias de texto y los campos desconocidos. Otorgar S/MAX sigue requiriendo investigación.");
+        var opower=Card("O-Powers · Gen6","Coste, duración y efecto de cada O-Power de XY/ORAS.","Costes, progresión, eficacia, duración y usabilidad de XY/ORAS. Se conservan las referencias de texto y los campos desconocidos. Otorgar S/MAX sigue requiriendo investigación.");
         AddButton((StackPanel)opower.Child,"Abrir O-Powers",()=>_navigate("OPower"));if(ProjectFeatureAvailability.Supports(_project,"OPower"))stack.Children.Add(opower);
         var item=Card("Objetos y economía",
+            "Precios de los objetos y la tabla Fix Economy."+(_project.GameConfiguration.USUM?" En USUM, Persistent Items devuelve los consumibles al terminar el combate.":""),
             "Fix Economy aplica precios UPR-ZX con vista previa, filtros y guardado verificado. Los parches adicionales de CRO se incorporarán separadamente cuando existan firmas comprobadas.");
         AddButton((StackPanel)item.Child,"Abrir editor de objetos",()=>_navigate("Items"));
         if(_project.GameConfiguration.USUM)AddButton((StackPanel)item.Child,"Persistent Items · restaurar consumibles tras el combate",()=>_navigate("PersistentItems"));
         stack.Children.Add(item);
     }
-    private void BuildPokemonTools(StackPanel stack)
+    private void BuildPokemonTools(Panel stack)
     {
         var facility=Card(_project.Generation==6?"Battle Maison · Instalaciones de combate":"Battle Tree / Royal · Instalaciones de combate",
+            "Entrenadores y equipos de la instalación de combate. Son independientes de los entrenadores de la historia.",
             "Editar entrenadores, sus opciones Pokémon, especies, objetos, naturaleza, movimientos y EV con formatos originales e historial. Exportación de datos a texto.");
         var facilityPanel=(StackPanel)facility.Child;
         AddButton(facilityPanel,_project.Generation==6?"Abrir Battle Maison":"Abrir Battle Tree",()=>_navigate("FacilityNormal"));
         AddButton(facilityPanel,_project.Generation==6?"Abrir Super Maison":"Abrir Battle Royal",()=>_navigate("FacilityAlternate"));
         stack.Children.Add(facility);
         var learn=Card("Egg Moves · Movimientos huevo",
+            "Movimientos que cada especie hereda por crianza, a mano o randomizados.",
             "Editor original Gen6/Gen7, especies y formas, aprendizaje y randomizador con tamaño y STAB configurables. Vista previa y guardado con historial.");
         AddButton((StackPanel)learn.Child,"Abrir Egg Moves",()=>_navigate("EggMoves"));
         stack.Children.Add(learn);
         var mega=Card("Mega Evolutions · Evoluciones Mega",
-            "Editá ambas Mega formas, piedras y habilitación por especie sin perder los bytes originales. Rayquaza conserva su regla especial.");
+            "Qué especies pueden megaevolucionar y con qué piedra.",
+            "Edita ambas Mega formas, piedras y habilitación por especie sin perder los bytes originales. Rayquaza conserva su regla especial.");
         AddButton((StackPanel)mega.Child,"Abrir Mega Evolutions",()=>_navigate("MegaEvolutions"));
         stack.Children.Add(mega);
         var typeChart=Card("Type Chart · Efectividad de tipos",
-            "Matriz editable de 18×18 para Gen6 y Gen7, con inmunidades, resistencias y supereficacia. Vista previa y guardado con historial.");
+            "Qué tipo es eficaz, poco eficaz o no afecta a cada otro tipo.",
+            "Matriz editable de 18×18 para Gen6 y Gen7, con inmunidades, resistencias y supereficacia. Vista previa y guardado con historial.","Parche de código");
         AddButton((StackPanel)typeChart.Child,"Abrir Type Chart",()=>_navigate("TypeChart"))
             .IsEnabled=_project.Generation is 6 or 7;
         stack.Children.Add(typeChart);
         var shiny=Card("Shiny Rate · Frecuencia shiny",
-            "Rerolls PID y Everything Shiny usando el código ARM original. Firma verificada, vista previa, restaurar vanilla e historial.");
+            "Aumenta la probabilidad de encontrar Pokémon shiny, o haz que todos lo sean.",
+            "Rerolls PID y Everything Shiny usando el código ARM original. Firma verificada, vista previa, restaurar vanilla e historial.","Parche de código");
         AddButton((StackPanel)shiny.Child,"Abrir Shiny Rate",()=>_navigate("ShinyRate"))
             .IsEnabled=_project.Generation is 6 or 7;
         stack.Children.Add(shiny);
-        var pickup=Card("Recogida · Pickup","Objetos comunes y raros Gen6; objetos y probabilidades por nivel Gen7. Randomización legal, vista previa e historial.");
+        var pickup=Card("Recogida · Pickup","Objetos que encuentran los Pokémon con la habilidad Recogida.","Objetos comunes y raros Gen6; objetos y probabilidades por nivel Gen7. Randomización legal, vista previa e historial.");
         AddButton((StackPanel)pickup.Child,"Abrir Pickup",()=>_navigate("Pickup"));stack.Children.Add(pickup);
         var owse=Card("OWSE [Dev] · Mapas y scripts",
+            "Explorador de zonas, encuentros y scripts de USUM. Solo lectura.",
             "Explorador experimental de zonas USUM, entradas de encuentros y scripts. " +
-            "El análisis es de solo lectura hasta comprobar la compatibilidad de edición.");
+            "El análisis es de solo lectura hasta comprobar la compatibilidad de edición.","Experimental");
         AddButton((StackPanel)owse.Child,"Abrir OWSE [Dev]",()=>_navigate("OWSE"))
             .IsEnabled=_project.Generation==7;
         if(ProjectFeatureAvailability.Supports(_project,"OWSE"))stack.Children.Add(owse);
     }
-    private void BuildRomTools(StackPanel stack)
+    private void BuildRomTools(Panel stack)
     {
         var extract=Card("Extraer ROM · CXI / 3DS",
+            "Convierte una ROM .3ds o .cxi en una carpeta de proyecto que puedes editar. El archivo original no cambia.",
             "Extracción en una carpeta nueva, con verificación de archivos y sin modificar el contenedor original.");
         AddButton((StackPanel)extract.Child,"Abrir extracción",()=>_navigate("Extraction"));
         stack.Children.Add(extract);
         var rebuild=Card("Rebuild · RomFS, ExeFS y .3DS",
+            "Genera la ROM jugable con todos los cambios guardados. Es el último paso.",
             "Reconstrucción original de pk3DS: RomFS, ExeFS, 3DS completo y Trimmed 3DS. " +
-            "Salida externa, staging temporal, verificación SHA-256 y progreso por etapas reales.");
+            "Salida externa, staging temporal, verificación SHA-256 y progreso por etapas reales.","Paso final");
         AddButton((StackPanel)rebuild.Child,"Abrir Rebuild",()=>_navigate("Rebuild"));
         stack.Children.Add(rebuild);
         var integrity=Card("Reconstruir CRO / CRR",
-            "Verifica y recalcula hashes CRO. La tabla CRR se actualiza opcionalmente, con vista previa e historial conjunto.");
+            "Comprueba y recalcula las firmas de los módulos CRO después de editarlos.",
+            "Verifica y recalcula hashes CRO. La tabla CRR se actualiza opcionalmente, con vista previa e historial conjunto.","Avanzado");
         AddButton((StackPanel)integrity.Child,"Abrir CRO / CRR",()=>_navigate("CroIntegrity"));
         stack.Children.Add(integrity);
-        var restore=Card("Restaurar archivos de un backup","Recupera archivos seleccionados de RomFS/ExeFS con vista previa, fingerprints e historial.");
+        var restore=Card("Restaurar archivos de un backup","Recupera solo los archivos que elijas desde un backup, sin restaurar todo el proyecto.","Recupera archivos seleccionados de RomFS/ExeFS con vista previa, fingerprints e historial.");
         AddButton((StackPanel)restore.Child,"Abrir restauración selectiva",()=>_navigate("RestoreSelected"));stack.Children.Add(restore);
         {var title=Card((_project.Generation==7?"Logos e imágenes de inicio · Gen":"Pantallas de título · Gen")+_project.Generation,_project.GameConfiguration.USUM?"Logos 2D y animaciones de inicio: editor de imágenes y vídeos MOFLEX de acceso a la partida.":"Importa y exporta imágenes del título con verificación e historial.");AddButton((StackPanel)title.Child,"Abrir pantallas de título",()=>_navigate(_project.Generation==6?"TitleScreen6":"TitleScreen7"));stack.Children.Add(title);}
-        if(_project.Generation==6){var shuffle=Card("GARC Shuffler Gen6","Mezcla referencias FATB a archivos simples con lista vanilla de protección y backup obligatorio.");AddButton((StackPanel)shuffle.Child,"Abrir GARC Shuffler",()=>_navigate("GarcShuffle"));stack.Children.Add(shuffle);}
-        var graphics=Card("Imágenes BCLIM / BFLIM","Vista previa y exportación PNG; conversión a BCLIM RGBA8 en un archivo independiente.");
+        if(_project.Generation==6){var shuffle=Card("GARC Shuffler Gen6","Mezcla entre sí archivos del juego. Pide un backup antes de aplicar.","Mezcla referencias FATB a archivos simples con lista vanilla de protección y backup obligatorio.","Avanzado");AddButton((StackPanel)shuffle.Child,"Abrir GARC Shuffler",()=>_navigate("GarcShuffle"));stack.Children.Add(shuffle);}
+        var graphics=Card("Imágenes BCLIM / BFLIM","Ve y convierte imágenes del juego a PNG, o de PNG a BCLIM.","Vista previa y exportación PNG; conversión a BCLIM RGBA8 en un archivo independiente.");
         AddButton((StackPanel)graphics.Child,"Abrir herramientas gráficas",()=>_navigate("Graphics"));stack.Children.Add(graphics);
-        var icon=Card("Icono y metadatos SMDH","Edita los títulos y el publisher en 16 idiomas e importa/exporta imágenes del icono con historial.");
+        var icon=Card("Icono y metadatos SMDH","El nombre y el icono del juego que se ven en el menú de la consola.","Edita los títulos y el publisher en 16 idiomas e importa/exporta imágenes del icono con historial.");
         AddButton((StackPanel)icon.Child,"Abrir editor SMDH",()=>_navigate("SMDH"));stack.Children.Add(icon);
         var audit=Card("Auditoría de archivos de la ROM",
-            "Inventario reproducible con rutas relativas, tamaño y SHA-256 de cada archivo extraído. Exporta un JSON para comparar respaldos o detectar archivos alterados; no modifica el juego.");
+            "Exporta una lista con la huella de cada archivo para comparar copias. No modifica el juego.",
+            "Inventario reproducible con rutas relativas, tamaño y SHA-256 de cada archivo extraído. Exporta un JSON para comparar respaldos o detectar archivos alterados; no modifica el juego.","Avanzado");
         var panel=(StackPanel)audit.Child;
         AddButton(panel,"Exportar inventario SHA-256…",async ()=>
         {
@@ -271,17 +318,20 @@ internal sealed class SystemsView : UserControl
         });
         stack.Children.Add(audit);
         var lz=Card("LZ11 · Compresión y descompresión",
-            "Compatible con pk3DS vanilla. Seleccioná un archivo de hasta 15 MB y un destino nuevo; no reemplaza el archivo original.");
+            "Comprime o descomprime un archivo suelto en formato LZ11. El original no se reemplaza.",
+            "Compatible con pk3DS vanilla. Selecciona un archivo de hasta 15 MB y un destino nuevo; no reemplaza el archivo original.","Avanzado");
         var lzButtons=new WrapPanel();((StackPanel)lz.Child).Children.Add(lzButtons);
         AddButton(lzButtons,"Descomprimir LZ11…",()=>_ = RunLz11Async(true));
         AddButton(lzButtons,"Comprimir LZ11…",()=>_ = RunLz11Async(false));
         stack.Children.Add(lz);
         var backup=Card("Backup completo verificado",
+            "Copia verificada del proyecto y su historial; lo mismo que «Generar backup» en la cabecera.",
             "Copia de trabajo y su historial. Se utiliza el mismo motor ProjectBackup del editor, sin duplicar ni cambiar su política.");
         AddButton((StackPanel)backup.Child,"Crear backup del proyecto…",_backup);
         stack.Children.Add(backup);
         var exports=Card("Exportaciones de datos",
-            "Cada editor ofrece sus propios CSV, JSON o templates. Para evitar exportaciones incompletas, se reutilizan los editores con su validación existente.");
+            "Cada editor exporta sus propios CSV, JSON o templates. Accesos directos:",
+            "Para evitar exportaciones incompletas, se reutilizan los editores con su validación existente.");
         var buttons=new WrapPanel();((StackPanel)exports.Child).Children.Add(buttons);
         AddButton(buttons,"MT y tutores",()=>_navigate("MachineTutor"));
         AddButton(buttons,"Level Up Moves",()=>_navigate("LevelUp"));
@@ -328,10 +378,10 @@ internal sealed class SystemsView : UserControl
         }
         finally{UiProgress.End();}
     }
-    private void BuildAutomation(StackPanel stack)
+    private void BuildAutomation(Panel stack)
     {
-        var summary=Card("Flujos de randomización disponibles",
-            "Entrá directamente a los motores reales con preview y guardado seguro. No hay un Randomize All global implementado aquí todavía; se evita simular una ejecución de módulos no integrados.");
+        var summary=Card("Randomizadores por sección",
+            "Accesos directos al randomizador de cada sección. Para randomizar varias secciones de una vez, usa el Randomizado guiado de Inicio.");
         var commands=new WrapPanel();((StackPanel)summary.Child).Children.Add(commands);
         AddButton(commands,"Pokémon · Randomización masiva",_personalBatch);
         AddButton(commands,"Entrenadores",()=>_navigate("Trainers"));
@@ -340,20 +390,22 @@ internal sealed class SystemsView : UserControl
         AddButton(commands,"Level Up · Randomizar todos",()=>_navigate("LevelUp"));
         stack.Children.Add(summary);
         var templates=Card("Global Template + Batch ROM Builder",
+            "Guarda tus opciones como una receta reutilizable y genera varias ROMs, cada una con su propia semilla.",
             "Recetas originales v1/coverage8 con acciones y assets. Construcción .3ds con copia limpia por ROM, semilla única y manifiesto SHA-256 independiente.");
         var templateCommands=new WrapPanel();((StackPanel)templates.Child).Children.Add(templateCommands);
         AddButton(templateCommands,"Cargar / guardar Global Template",()=>_navigate("GlobalTemplate"));
         AddButton(templateCommands,"Abrir Batch ROM Builder",()=>_navigate("BatchRom"));
         stack.Children.Add(templates);
         var history=Card("Historial de ejecuciones",
-            "Cada guardado confirmado registra el módulo, las opciones y los archivos afectados. Consultá el historial antes de iniciar otra randomización.");
+            "Cada guardado confirmado registra el módulo, las opciones y los archivos afectados. Consulta el historial antes de iniciar otra randomización.");
         AddButton((StackPanel)history.Child,"Abrir historial",()=>_navigate("History"));
         stack.Children.Add(history);
     }
-    private void BuildSettings(StackPanel stack)
+    private void BuildSettings(Panel stack)
     {
         var prefsLanguage=AppPreferences.Load();
         var language=Card("Options → Language · Idioma de datos del juego",
+            "Idioma en que se leen los nombres, movimientos y textos del juego. No traduce la interfaz ni modifica la ROM.",
             "Selección original de pk3DS. Cambia los nombres, movimientos y textos que se LEEN " +
             "de los archivos del juego, no el idioma de los textos fijos de la interfaz WPF. " +
             "No traduce ni modifica los datos guardados en la ROM.");
@@ -378,7 +430,7 @@ internal sealed class SystemsView : UserControl
         });
         stack.Children.Add(language);
         var help=Card("Options → About pk3DS / About GARCs",
-            "Información de la aplicación y la distribución real de GARC del juego activo.");
+            "Información de la aplicación y lista de archivos GARC del juego abierto.");
         var helpButtons=new WrapPanel();
         ((StackPanel)help.Child).Children.Add(helpButtons);
         AddButton(helpButtons,"About pk3DS",()=>StudioDialog.Notice(Window.GetWindow(this),
@@ -414,7 +466,7 @@ internal sealed class SystemsView : UserControl
         stack.Children.Add(paths);
         var info=Card("Proyecto y compatibilidad",
             $"Proyecto actual: {_project.GameName}\nGeneración: {_project.Generation}\nRuta: {_project.ProjectRoot}\n" +
-            "Interfaz oscura WPF. Los parches de código se habilitan solamente donde se ha investigado su compatibilidad.");
+            "Los parches de código solo aparecen en los juegos donde se ha comprobado su compatibilidad.");
         AddButton((StackPanel)info.Child,"Copiar ruta del proyecto",()=>
         {Clipboard.SetText(_project.ProjectRoot);_status.Text="Ruta copiada al portapapeles.";});
         stack.Children.Add(info);

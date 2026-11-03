@@ -74,8 +74,10 @@ internal static class EditorConvenienceChecks
             void Select(int index){list.SelectedIndex=index;Pump();}
             Dictionary<string,FrameworkElement> Fields()=>(Dictionary<string,FrameworkElement>)typeof(RecordEditorView).GetField("_fields",flags)!.GetValue(view)!;
             Select(0);
-            var buttons=Descendants<System.Windows.Controls.Button>(view).Where(b=>b.Content is "Copiar Pokémon" or "Pegar Pokémon").ToArray();
-            check(buttons.Count(b=>b.Content is "Copiar Pokémon")==6&&buttons.Where(b=>b.Content is "Pegar Pokémon").All(b=>!b.IsEnabled),version+" TrainerPokemon_EverySlotHasCopyAndPasteDisabledUntilCopied");
+            // Copy / cut / paste / delete are in the context menu of each team card (right click on the sprite).
+            var cards=((System.Windows.Controls.Panel)view.FindName("TrainerTeamCards")).Children.OfType<System.Windows.Controls.Button>().Where(b=>b.ContextMenu?.Items.Count==5).ToArray();
+            check(cards.Length>0&&cards.All(c=>c.ContextMenu!.Items.OfType<System.Windows.Controls.MenuItem>().Select(i=>i.Header as string).SequenceEqual(["Copiar","Cortar","Pegar","Eliminar del equipo"]))
+                &&!view.CanPastePokemon&&!Descendants<System.Windows.Controls.Button>(view).Any(b=>b.Content is "Copiar Pokémon" or "Pegar Pokémon"),version+" TrainerPokemon_EveryCardHasContextMenuAndPasteWaitsForCopy");
             var fields=Fields();
             ((System.Windows.Controls.ComboBox)fields["P0.Species"]).SelectedValue=25;((System.Windows.Controls.TextBox)fields["P0.Level"]).Text="42";
             ((System.Windows.Controls.ComboBox)fields["P0.Move0"]).SelectedValue=85;((System.Windows.Controls.ComboBox)fields["P0.Item"]).SelectedValue=4;
@@ -84,7 +86,7 @@ internal static class EditorConvenienceChecks
             typeof(RecordEditorView).GetField("_dirty",flags)!.SetValue(view,false);
             Select(1);fields=Fields();
             int count=int.Parse(((System.Windows.Controls.TextBox)fields["Count"]).Text);int slot=Math.Min(count,5);
-            check(Descendants<System.Windows.Controls.Button>(view).Where(b=>b.Content is "Pegar Pokémon").All(b=>b.IsEnabled),version+" TrainerPokemon_PasteEnabledOnOtherTrainers");
+            check(view.CanPastePokemon,version+" TrainerPokemon_PasteEnabledOnOtherTrainers");
             view.PasteTrainerPokemon(fields,$"P{slot}.",slot,$"Pokémon {slot+1}");
             check((int)((System.Windows.Controls.ComboBox)fields[$"P{slot}.Species"]).SelectedValue==25&&((System.Windows.Controls.TextBox)fields[$"P{slot}.Level"]).Text=="42"
                 &&(int)((System.Windows.Controls.ComboBox)fields[$"P{slot}.Move0"]).SelectedValue==85&&(int)((System.Windows.Controls.ComboBox)fields[$"P{slot}.Item"]).SelectedValue==4

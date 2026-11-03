@@ -41,7 +41,7 @@ internal sealed class SelectedRestoreView : UserControl
         var root=new DockPanel{Margin=new Thickness(20)};Content=root;
         var header=new StackPanel();DockPanel.SetDock(header,Dock.Top);root.Children.Add(header);
         header.Children.Add(new TextBlock{Text="Restaurar archivos seleccionados",FontSize=23,Foreground=(Brush)FindResource("TextMain")});
-        header.Children.Add(new TextBlock{Text="Elegí un backup verificado del mismo juego y los archivos existentes de RomFS/ExeFS que querés recuperar. La vista previa admite hasta 128 MiB por operación; la restauración completa permite recuperar todo en una carpeta nueva.",Foreground=(Brush)FindResource("TextSoft"),TextWrapping=TextWrapping.Wrap,Margin=new Thickness(0,8,0,12)});
+        header.Children.Add(new TextBlock{Text="Elige un backup verificado del mismo juego y los archivos existentes de RomFS/ExeFS que quieres recuperar. La vista previa admite hasta 128 MiB por operación; la restauración completa permite recuperar todo en una carpeta nueva.",Foreground=(Brush)FindResource("TextSoft"),TextWrapping=TextWrapping.Wrap,Margin=new Thickness(0,8,0,12)});
         var buttons=new WrapPanel();header.Children.Add(buttons);
         _load=new Button{Content="Abrir backup…",Margin=new Thickness(0,0,8,12)};_load.Click+=async(_,_)=>await LoadBackup();buttons.Children.Add(_load);
         _previewButton=new Button{Content="Generar vista previa",IsEnabled=false,Margin=new Thickness(0,0,8,12)};_previewButton.Click+=async(_,_)=>await Preview();buttons.Children.Add(_previewButton);
@@ -64,7 +64,7 @@ internal sealed class SelectedRestoreView : UserControl
         {
             var plan=await ProjectRestore.InspectAsync(picker.FileName);var files=await ProjectRestore.SelectableAsync(_project,plan);_plan=plan;_rows.Clear();
             foreach(var file in files){var row=new RestoreFileRow(file);row.PropertyChanged+=(_,_)=>Invalidate();_rows.Add(row);}
-            _status.Text=$"{files.Count} archivos disponibles · {_plan.Game}. Seleccioná los que querés recuperar.";
+            _status.Text=$"{files.Count} archivos disponibles · {_plan.Game}. Selecciona los que quieres recuperar.";
         }
         catch(Exception ex){StudioDialog.Error(Window.GetWindow(this),"Backup no compatible",ex.Message);}
         finally{Busy(false);UiProgress.End();}

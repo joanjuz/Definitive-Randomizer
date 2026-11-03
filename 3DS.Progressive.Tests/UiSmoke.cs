@@ -163,7 +163,7 @@ internal static class UiSmoke
                 "WPF Trainer AI mask has eight visual flags without losing the original byte value");
 
             check(((FrameworkElement)trainer.FindName("TrainerTeamPreview")).Visibility==Visibility.Visible
-                && ((StackPanel)trainer.FindName("TrainerTeamCards")).Children.Count>0,
+                && ((System.Windows.Controls.Panel)trainer.FindName("TrainerTeamCards")).Children.Count>0,
                 "WPF trainer editor shows its Pokémon team cards");
             check(!Directory.Exists(Path.Combine(AppContext.BaseDirectory,"Sprites")),
                 "Pokemon sprites are remote and no Sprites directory is bundled");

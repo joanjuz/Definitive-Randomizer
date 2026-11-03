@@ -47,7 +47,7 @@ internal sealed class CatchZonesView : UserControl
     {
         if(_busy)return;Invalidate();Busy(true);UiProgress.Begin("Preparando Catch Zones");
         try{_proposal=await Task.Run(()=>_service.Preview());_changes.ItemsSource=_proposal.Changes;
-            _status.Text=_proposal.Changes.Count==0?"Los parches ya están aplicados. No hay archivos que guardar.":$"{_proposal.Changes.Count} archivos preparados. Revisá la vista previa antes de aplicar.";}
+            _status.Text=_proposal.Changes.Count==0?"Los parches ya están aplicados. No hay archivos que guardar.":$"{_proposal.Changes.Count} archivos preparados. Revisa la vista previa antes de aplicar.";}
         catch(Exception ex){_status.Text="No se pudo preparar: "+ex.Message;StudioDialog.Error(Window.GetWindow(this),"Catch Zones",ex.Message);}
         finally{Busy(false);UiProgress.End();}
     }

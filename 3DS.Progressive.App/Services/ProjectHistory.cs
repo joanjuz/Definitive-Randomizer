@@ -40,7 +40,7 @@ public sealed partial class ProjectHistory
             : new(1,_game,Path.GetFileName(_root),[]);}
     }
     internal void RecoverPending(){lock(_gate)RecoveryJournal.Recover(_path+".pending",_root,_path);}
-    internal void RejectPending(){if(Directory.Exists(_path+".pending"))throw new IOException("El proyecto tiene un guardado interrumpido. La lectura de diagnóstico no lo modifica; abrilo en la aplicación para recuperarlo.");}
+    internal void RejectPending(){if(Directory.Exists(_path+".pending"))throw new IOException("El proyecto tiene un guardado interrumpido. La lectura de diagnóstico no lo modifica; ábrelo en la aplicación para recuperarlo.");}
     internal void Commit(IReadOnlyList<FileChange> files,string module,string action,
         IEnumerable<BatchChange> changes,IReadOnlyDictionary<string,string>? parameters=null)
     {
@@ -86,7 +86,11 @@ public sealed partial class ProjectHistory
             using var recovery=RecoveryJournal.Begin(_path+".pending",_root,_path,commit);
             FileTransaction.Commit(commit,recovery:recovery);
         }
+        // Presentation only (sidebar marks, Inicio summary): raised after the verified commit; a listener can never undo or fail it.
+        try{Committed?.Invoke();}catch(Exception){}
     }
+    /// <summary>Raised after an entry was committed. It may be raised from a worker thread.</summary>
+    internal event Action? Committed;
     internal void RecordTemplateUse(System.Text.Json.Nodes.JsonObject payload)
     {
         var operation=new System.Text.Json.Nodes.JsonObject{["Kind"]="authored-template",["Key"]="template:"+payload["Asset"]!["Sha256"]!.GetValue<string>(),["Payload"]=payload.DeepClone()};

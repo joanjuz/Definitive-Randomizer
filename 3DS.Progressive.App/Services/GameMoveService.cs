@@ -128,11 +128,11 @@ public sealed partial class GameMoveService
             changes.RefreshType is < 0 or > 255 ||
             changes.RefreshRate is < 0 or > 255)
             throw new ArgumentOutOfRangeException(nameof(changes),
-                "Revisá tipo, categoría, potencia, precisión (0–255), PP (0–255) y prioridad (-8 a +8).");
+                "Revisa tipo, categoría, potencia, precisión (0–255), PP (0–255) y prioridad (-8 a +8).");
 
         byte[] source = File.ReadAllBytes(_path);
         if (!_sha.AsSpan().SequenceEqual(SHA256.HashData(source)))
-            throw new IOException("El GARC de movimientos cambió desde que lo abriste. Reabrí el proyecto.");
+            throw new IOException("El GARC de movimientos cambió desde que lo abriste. Vuelve a abrir el proyecto.");
 
         var originalGarc = new GARC.MemGARC(source);
         byte[][] garcFiles = originalGarc.Files;

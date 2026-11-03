@@ -104,6 +104,6 @@ internal sealed class GameMoveDescriptionScene
             overflow=font.DrawText(dc,sample,_panes["Desc_00"].Area,Colors.White);
         }
         var bitmap=new RenderTargetBitmap(320,240,96,96,PixelFormats.Pbgra32);bitmap.Render(visual);bitmap.Freeze();
-        return new(bitmap,(description.Length>10000?"Vista limitada a los primeros 10.000 caracteres. ":"")+(overflow?"La descripción supera el cuadro o contiene caracteres sin representación. Revisá los saltos de línea.":"La descripción cabe en el cuadro del diseño."));
+        return new(bitmap,(description.Length>10000?"Vista limitada a los primeros 10.000 caracteres. ":"")+(overflow?"La descripción supera el cuadro o contiene caracteres sin representación. Revisa los saltos de línea.":"La descripción cabe en el cuadro del diseño."));
     }
 }

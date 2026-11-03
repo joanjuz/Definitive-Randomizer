@@ -58,7 +58,7 @@ public sealed class GameTutorCompatibilityService
     public TutorCompatibilityPreview Preview(bool sanity, bool followEvolutions)
     {
         if(!sanity&&!followEvolutions)
-            throw new ArgumentException("Seleccioná Tutor Sanity, Follow Evolutions o ambas opciones.");
+            throw new ArgumentException("Selecciona Tutor Sanity, Follow Evolutions o ambas opciones.");
         byte[][] records=new GARC.MemGARC(_personalOriginal).Files;
         byte[][] learnBytes=new GARC.MemGARC(_learnsetOriginal).Files;
         byte[][] evoBytes=new GARC.MemGARC(_evolutionOriginal).Files;

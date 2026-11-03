@@ -25,7 +25,7 @@ internal sealed class GameTutor6CompatibilityService
     }
     internal Tutor6CompatibilityPreview Preview(bool sanity,bool follow)
     {
-        if(!sanity&&!follow)throw new ArgumentException("Elegí Sanity y/o Follow Evolutions.");
+        if(!sanity&&!follow)throw new ArgumentException("Elige Sanity y/o Follow Evolutions.");
         var records=new GARC.MemGARC(_personal).Files;if(records.Length<3||records[^1].Length!=(records.Length-1)*PersonalInfoORAS.SIZE)throw new InvalidDataException("Personal ORAS no contiene una tabla maestra coherente.");
         PersonalInfo[] table=records[..^1].Select(data=>data.Length==PersonalInfoORAS.SIZE?(PersonalInfo)new PersonalInfoORAS((byte[])data.Clone()):throw new InvalidDataException("Tamaño Personal ORAS incompatible.")).ToArray();
         var flags=table.ToDictionary(personal=>personal,personal=>Enumerable.Range(0,60).Select(slot=>{var (group,flag)=Gen6TutorLayout.Compatibility(slot);return personal.SpecialTutors[group][flag];}).ToArray());

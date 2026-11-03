@@ -34,7 +34,7 @@ internal sealed class TypeChartView : UserControl
         top.Children.Add(new TextBlock{Text="Type Chart · Efectividad entre tipos",
             FontSize=23,FontWeight=FontWeights.SemiBold,Foreground=(Brush)FindResource("TextMain")});
         top.Children.Add(new TextBlock{Text="Filas: tipo atacante · Columnas: tipo defensor. " +
-            "Pulsá una casilla para alternar inmunidad ×0, resistencia ×½, daño ×1 y supereficaz ×2. " +
+            "Pulsa una casilla para alternar inmunidad ×0, resistencia ×½, daño ×1 y supereficaz ×2. " +
             "Los cambios se guardan después de confirmar la vista previa.",
             TextWrapping=TextWrapping.Wrap,Foreground=(Brush)FindResource("TextSoft"),
             Margin=new Thickness(0,5,0,7)});
@@ -74,7 +74,7 @@ internal sealed class TypeChartView : UserControl
                     _draft[index]=_draft[index] switch {0=>2,2=>4,4=>8,_=>0};
                     _proposal=null;_apply.IsEnabled=false;Refresh();
                     _state.Text=$"{_service.Types[rr]} → {_service.Types[cc]}: {Label(_draft[index])} " +
-                        "· generá vista previa antes de aplicar.";
+                        "· genera vista previa antes de aplicar.";
                 };
                 _buttons[r,c]=btn;
                 grid.Children.Add(btn);
@@ -85,7 +85,7 @@ internal sealed class TypeChartView : UserControl
     internal int ChangedCount=>_draft.Where((v,i)=>v!=_original[i]).Count();
     internal bool ConfirmLeave()=>ChangedCount==0||StudioDialog.Confirm(Window.GetWindow(this),
         "Tabla de tipos con cambios sin guardar","Los cambios de efectividad se descartarán al salir. ¿Continuar?");
-    private void InvalidateInverse(){_proposal=null;_apply.IsEnabled=false;Refresh();_state.Text="Modo de efectividad actualizado en memoria. Generá vista previa antes de aplicar.";}
+    private void InvalidateInverse(){_proposal=null;_apply.IsEnabled=false;Refresh();_state.Text="Modo de efectividad actualizado en memoria. Genera vista previa antes de aplicar.";}
     private static TextBlock Header(string label)=>new()
     {
         Text=label,Foreground=(Brush)WpfApplication.Current.FindResource("TextSoft"),

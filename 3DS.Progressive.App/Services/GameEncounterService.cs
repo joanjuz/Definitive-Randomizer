@@ -257,9 +257,9 @@ public sealed partial class GameEncounterService : ArchiveProjectEditor, IOption
                 return values;
         }
         if(options["SimilarBST"]==1&&options["Progressive"]==1)
-            throw new ArgumentException("Elegí solo un modo BST: similar o progresivo.");
+            throw new ArgumentException("Elige solo un modo BST: similar o progresivo.");
         if(!Enumerable.Range(1,Config.Generation).Any(i=>options[$"G{i}"]==1))
-            throw new ArgumentException("Seleccioná al menos una generación.");
+            throw new ArgumentException("Selecciona al menos una generación.");
         var picker=new SpeciesRandomizer(Config)
         {
             G1=options["G1"]==1,G2=options["G2"]==1,G3=options["G3"]==1,
@@ -330,7 +330,7 @@ public sealed partial class GameEncounterService : ArchiveProjectEditor, IOption
                     options["RelaxBST"]==1);
                 if(slotPool.Length==0)
                     throw new InvalidDataException($"No hay reemplazos dentro de la tolerancia BST del slot {key}. " +
-                        "Aumentá la tolerancia o habilitá el fallback BST.");
+                        "Aumenta la tolerancia o habilita el fallback BST.");
             }
             if(options["UniquePerTable"]==1)
             {

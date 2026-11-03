@@ -84,7 +84,7 @@ internal sealed class UsumRelearnerView : UserControl
     }
     private void Apply()
     {
-        if(_preview is null||_running)throw new InvalidOperationException("Generá la vista previa primero.");
+        if(_preview is null||_running)throw new InvalidOperationException("Genera la vista previa primero.");
         if(!StudioDialog.Confirm(Window.GetWindow(this),"Aplicar USUM Relearner",
             $"Se modificarán {_preview.Files.Count} archivos con transacción y registro histórico. ¿Continuar?"))
             return;

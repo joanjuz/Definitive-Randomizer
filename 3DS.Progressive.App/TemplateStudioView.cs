@@ -29,7 +29,7 @@ internal sealed class TemplateStudioRow : INotifyPropertyChanged
     public IReadOnlyList<TemplateChoice> ArgumentChoices {get;set;}=[];
     public bool HasArgumentChoices=>ArgumentChoices.Count>0;
     public IReadOnlyList<TemplateChoice> BattleChoices {get;set;}=[];
-    public string BattleDescription=>BattleChoices.FirstOrDefault(c=>c.Value==this["BattlePatch"])?.Description??"Parche importado. Revisá su compatibilidad antes de usarlo.";
+    public string BattleDescription=>BattleChoices.FirstOrDefault(c=>c.Value==this["BattlePatch"])?.Description??"Parche importado. Revisa su compatibilidad antes de usarlo.";
     public event PropertyChangedEventHandler? PropertyChanged;
     internal void Changed(string name)=>PropertyChanged?.Invoke(this,new(name));
 }
@@ -82,7 +82,7 @@ internal sealed class TemplateStudioView : UserControl
         var actions=new WrapPanel();bottom.Children.Add(actions);Add(actions,"Comprobar y previsualizar",async ()=>await Execute(false));_use=Add(actions,"Usar template",async ()=>await Execute(true),EditorPresentation.ActionRole.Primary);_use.IsEnabled=false;
         _status.Foreground=(Brush)FindResource("TextSoft");_status.TextWrapping=TextWrapping.Wrap;bottom.Children.Add(_status);
         var tabs=_tabs=new TabControl();root.Children.Add(tabs);
-        ConfigureGrid(_grid);_grid.ItemsSource=_rows;_grid.SelectionMode=DataGridSelectionMode.Single;_tableTab=new TabItem{Header="Tabla del template",Content=EditorPresentation.EmptyState(_grid,"Empezá tu template","Añadí una fila o importá un template para editar sus valores.")};tabs.Items.Add(_tableTab);
+        ConfigureGrid(_grid);_grid.ItemsSource=_rows;_grid.SelectionMode=DataGridSelectionMode.Single;_tableTab=new TabItem{Header="Tabla del template",Content=EditorPresentation.EmptyState(_grid,"Empieza tu template","Añade una fila o importa un template para editar sus valores.")};tabs.Items.Add(_tableTab);
         ConfigureGrid(_catalogue);_catalogue.Columns.Add(new DataGridTextColumn{Header="ID",Binding=new Binding("Id"),IsReadOnly=true,Width=70});_catalogue.Columns.Add(new DataGridTextColumn{Header="Objeto",Binding=new Binding("Name"),IsReadOnly=true,Width=new DataGridLength(1,DataGridLengthUnitType.Star),MinWidth=180});
         _catalogue.Columns.Add(new DataGridTextColumn{Header="Estado actual",Binding=new Binding("EffectiveStatus"),IsReadOnly=true,Width=150});
         _catalogue.Columns.Add(ChoiceColumn("Regla",new Binding("Policy"){Mode=BindingMode.TwoWay,UpdateSourceTrigger=UpdateSourceTrigger.PropertyChanged},new[]{new TemplateChoice("Default","Predeterminado"),new("Allowed","Permitido"),new("Banned","Prohibido")},220));
@@ -90,7 +90,7 @@ internal sealed class TemplateStudioView : UserControl
         _policyFilter.ItemsSource=new[]{new TemplateChoice("All","Todos"),new("Allowed","Permitidos"),new("Banned","Prohibidos")};_policyFilter.DisplayMemberPath="Label";_policyFilter.SelectedValuePath="Value";_policyFilter.SelectedValue="All";_policyFilter.Margin=new Thickness(0,0,0,8);_policyFilter.IsEditable=false;_policyFilter.SelectionChanged+=(_,_)=>RefreshItemFilter();DockPanel.SetDock(_policyFilter,Dock.Top);cataloguePanel.Children.Add(_policyFilter);cataloguePanel.Children.Add(_catalogue);
         _filter.TextChanged+=(_,_)=>RefreshItemFilter();CollectionViewSource.GetDefaultView(_items).Filter=MatchesItemFilter;
         _catalogueTab=new TabItem{Header="Catálogo · permitidos y prohibidos",Content=cataloguePanel};tabs.Items.Add(_catalogueTab);
-        ConfigureGrid(_preview);_preview.IsReadOnly=true;foreach(string field in new[]{"Name","Field","Before","After"})_preview.Columns.Add(new DataGridTextColumn{Header=field switch{"Name"=>"Entrada","Field"=>"Campo","Before"=>"Antes",_=>"Después"},Binding=new Binding(field),Width=new DataGridLength(1,DataGridLengthUnitType.Star)});tabs.Items.Add(new TabItem{Header="Cambios previstos",Content=EditorPresentation.EmptyState(_preview,"Sin cambios previsualizados","Comprobá el template para revisar aquí los valores antes y después.")});
+        ConfigureGrid(_preview);_preview.IsReadOnly=true;foreach(string field in new[]{"Name","Field","Before","After"})_preview.Columns.Add(new DataGridTextColumn{Header=field switch{"Name"=>"Entrada","Field"=>"Campo","Before"=>"Antes",_=>"Después"},Binding=new Binding(field),Width=new DataGridLength(1,DataGridLengthUnitType.Star)});tabs.Items.Add(new TabItem{Header="Cambios previstos",Content=EditorPresentation.EmptyState(_preview,"Sin cambios previsualizados","Comprueba el template para revisar aquí los valores antes y después.")});
         _kind.SelectionChanged+=async (_,_)=>
         {
             if(_loading||_kind.SelectedItem is not TemplateChoice)return;string next=CurrentKind;
@@ -118,7 +118,7 @@ internal sealed class TemplateStudioView : UserControl
     private Button Add(Panel panel,string label,Action action,EditorPresentation.ActionRole role=EditorPresentation.ActionRole.Secondary){var b=new Button{Content=label,Margin=new Thickness(0,0,8,10)};EditorPresentation.StyleAction(b,role);panel.Children.Add(b);b.Click+=(_,_)=>{try{action();}catch(Exception e){Error(e);}};return b;}
     private void Error(Exception e){_status.Text=e.Message;StudioDialog.Error(Window.GetWindow(this),"Templates",e.Message);}
     private void Invalidate(){_validated=null;if(_use is not null)_use.IsEnabled=false;}
-    private void Commit(){if(!_grid.CommitEdit(DataGridEditingUnit.Cell,true)||!_grid.CommitEdit(DataGridEditingUnit.Row,true)||!_catalogue.CommitEdit(DataGridEditingUnit.Cell,true)||!_catalogue.CommitEdit(DataGridEditingUnit.Row,true))throw new InvalidDataException("Terminá de corregir la celda antes de continuar.");}
+    private void Commit(){if(!_grid.CommitEdit(DataGridEditingUnit.Cell,true)||!_grid.CommitEdit(DataGridEditingUnit.Row,true)||!_catalogue.CommitEdit(DataGridEditingUnit.Cell,true)||!_catalogue.CommitEdit(DataGridEditingUnit.Row,true))throw new InvalidDataException("Termina de corregir la celda antes de continuar.");}
     private AuthoredTemplate Capture()
     {
         Commit();_document.Rows=_rows.Select(r=>new Dictionary<string,string>(r.Values)).ToList();foreach(var pair in _checks)_document.Options[pair.Key]=pair.Value.IsChecked==true?1:0;
@@ -141,11 +141,11 @@ internal sealed class TemplateStudioView : UserControl
             _rows.Clear();_items.Clear();_checks.Clear();_options.Children.Clear();_grid.Columns.Clear();
             _help.Text=d.Kind switch
             {
-                "Moves"=>"Añadí movimientos y elegí sus cambios. Las casillas vacías conservan el valor del juego; el tipo y la categoría se completan al elegir el movimiento. BattlePatch empieza en None: pasá el cursor para ver su función. Las descripciones se aplican al banco de español. Usar guarda una copia y registra el template para Global/Batch, después de randomizar.",
-                "Evolutions"=>"Cada fila añade o actualiza una ruta de evolución. Elegí origen, destino, método, nivel y argumento. El argumento puede ser un objeto o un valor del método; las otras rutas se conservan.",
-                "Stats"=>"Elegí una especie o forma y escribí solo las estadísticas que querés modificar (1–255). Las casillas vacías conservan sus valores.",
-                "FieldItems"=>"Configurá las opciones y el catálogo de objetos en la segunda pestaña. Si hay permitidos, forman el catálogo de reemplazo; los prohibidos nunca se eligen. Importar Progressive muestra el catálogo del motor para personalizarlo. Usar randomiza los recogibles; Batch utiliza la semilla de cada ROM.",
-                _=>"Añadí un objeto y elegí desde qué avance de la historia se vende. Se añade una ranura en esa tienda y en las etapas posteriores; se conserva todo el inventario existente, las tiendas especiales y BP. Si el objeto ya está disponible, no se duplica."+(_project.GameConfiguration.SM?" Sol/Luna todavía no admite ampliar estas tablas: se avisará antes de escribir si hace falta una ranura nueva.":"")
+                "Moves"=>"Añade movimientos y elige sus cambios. Las casillas vacías conservan el valor del juego; el tipo y la categoría se completan al elegir el movimiento. BattlePatch empieza en None: pasa el cursor para ver su función. Las descripciones se aplican al banco de español. Usar guarda una copia y registra el template para Global/Batch, después de randomizar.",
+                "Evolutions"=>"Cada fila añade o actualiza una ruta de evolución. Elige origen, destino, método, nivel y argumento. El argumento puede ser un objeto o un valor del método; las otras rutas se conservan.",
+                "Stats"=>"Elige una especie o forma y escribe solo las estadísticas que quieres modificar (1–255). Las casillas vacías conservan sus valores.",
+                "FieldItems"=>"Configura las opciones y el catálogo de objetos en la segunda pestaña. Si hay permitidos, forman el catálogo de reemplazo; los prohibidos nunca se eligen. Importar Progressive muestra el catálogo del motor para personalizarlo. Usar randomiza los recogibles; Batch utiliza la semilla de cada ROM.",
+                _=>"Añade un objeto y elige desde qué avance de la historia se vende. Se añade una ranura en esa tienda y en las etapas posteriores; se conserva todo el inventario existente, las tiendas especiales y BP. Si el objeto ya está disponible, no se duplica."+(_project.GameConfiguration.SM?" Sol/Luna todavía no admite ampliar estas tablas: se avisará antes de escribir si hace falta una ranura nueva.":"")
             };
             foreach(string column in AuthoredTemplate.Columns(d.Kind,d.Generation))if(column!="Price"||d.Generation==7)AddColumn(column);
             foreach(var row in d.Rows)_rows.Add(Row(row));
@@ -260,7 +260,7 @@ internal sealed class TemplateStudioView : UserControl
     private async Task Execute(bool apply)
     {
         if(_busy)return;AuthoredTemplate d;try{d=Capture();}catch(Exception e){Error(e);return;}
-        string snapshot=d.Serialize();if(apply&&_validated!=snapshot){Invalidate();_status.Text="Comprobá otra vez el template: el borrador cambió.";return;}
+        string snapshot=d.Serialize();if(apply&&_validated!=snapshot){Invalidate();_status.Text="Comprueba otra vez el template: el borrador cambió.";return;}
         _busy=true;IsEnabled=false;using var interaction=UiProgress.BlockInteraction();UiProgress.Begin(apply?"Aplicando template y registrando historial…":"Comprobando template…");
         try
         {
@@ -271,7 +271,7 @@ internal sealed class TemplateStudioView : UserControl
                 var payload=AuthoredTemplate.Store(_project,d);payload["Seed"]=_seed;int changes=d.Run(_project,_seed,false,payload);_project.History.RecordTemplateUse(payload);return changes;
             });
             _preview.ItemsSource=d.LastChanges;
-            _status.Text=apply?$"Template aplicado y registrado · {count} cambios. Global Template incluirá el archivo y Batch lo reproducirá al final.":$"Comprobación correcta · {count} cambios. Revisá la pestaña Cambios previstos y pulsá Usar template para aplicarlos.";
+            _status.Text=apply?$"Template aplicado y registrado · {count} cambios. Global Template incluirá el archivo y Batch lo reproducirá al final.":$"Comprobación correcta · {count} cambios. Revisa la pestaña Cambios previstos y pulsa Usar template para aplicarlos.";
             _validated=apply?null:snapshot;_use.IsEnabled=!apply;
         }
         catch(Exception e){Invalidate();Error(e);}

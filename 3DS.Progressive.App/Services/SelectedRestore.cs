@@ -40,11 +40,11 @@ public static partial class ProjectRestore
     },cancellation);
     internal static Task<SelectedRestorePreview> PreviewSelectedAsync(GameProjectSession project,RestorePlan plan,IReadOnlyList<string> selected,CancellationToken cancellation=default)=>Task.Run(()=>
     {
-        if(selected.Count==0||selected.Distinct(StringComparer.OrdinalIgnoreCase).Count()!=selected.Count)throw new ArgumentException("Seleccioná archivos distintos del respaldo.");
+        if(selected.Count==0||selected.Distinct(StringComparer.OrdinalIgnoreCase).Count()!=selected.Count)throw new ArgumentException("Selecciona archivos distintos del respaldo.");
         using var source=OpenSelectedBackup(plan);using var zip=new ZipArchive(source,ZipArchiveMode.Read,true);var manifest=Verify(zip,cancellation);
         if(!string.Equals(manifest.Game,project.GameName,StringComparison.OrdinalIgnoreCase))throw new InvalidDataException("El respaldo pertenece a otra familia de juegos.");
         var rows=selected.Select(path=>manifest.Files.SingleOrDefault(file=>file.Path.Equals(path,StringComparison.OrdinalIgnoreCase))??throw new InvalidDataException("El archivo no está en el inventario del respaldo: "+path)).ToArray();
-        if(rows.Sum(row=>row.Size)>128*1024*1024)throw new InvalidDataException("La vista previa selectiva admite hasta 128 MiB por operación. Para recuperar todo, usá la restauración completa en una carpeta nueva.");
+        if(rows.Sum(row=>row.Size)>128*1024*1024)throw new InvalidDataException("La vista previa selectiva admite hasta 128 MiB por operación. Para recuperar todo, usa la restauración completa en una carpeta nueva.");
         if(rows.Sum(row=>new FileInfo(GameTarget(project,row.Path)??throw new InvalidDataException("Archivo fuera de RomFS/ExeFS.")).Length)>128*1024*1024)throw new InvalidDataException("Los archivos actuales superan 128 MiB por operación.");
         var files=new List<FileChange>();var changes=new List<BatchChange>();
         foreach(var row in rows)

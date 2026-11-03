@@ -51,7 +51,7 @@ internal sealed class CroIntegrityView : UserControl
     {
         if(_busy)return;Invalidate();Busy(true);bool crr=_crr.IsChecked==true;UiProgress.Begin("Verificando CRO / CRR");
         try{_proposal=await Task.Run(()=>_service.Preview(crr));_changes.ItemsSource=_proposal.Changes;
-            _status.Text=_proposal.Changes.Count==0?"Los hashes ya coinciden. No hay archivos que guardar.":$"{_proposal.Changes.Count} archivos preparados. Revisá la vista previa antes de aplicar.";}
+            _status.Text=_proposal.Changes.Count==0?"Los hashes ya coinciden. No hay archivos que guardar.":$"{_proposal.Changes.Count} archivos preparados. Revisa la vista previa antes de aplicar.";}
         catch(Exception ex){_status.Text="No se pudo preparar: "+ex.Message;StudioDialog.Error(Window.GetWindow(this),"CRO / CRR",ex.Message);}
         finally{Busy(false);UiProgress.End();}
     }

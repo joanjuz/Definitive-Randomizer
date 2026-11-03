@@ -88,7 +88,7 @@ internal sealed class GameCroIntegrityService(GameProjectSession project)
         string[] expected=proposal.Files.Where(f=>Path.GetExtension(f.Path).Equals(".cro",StringComparison.OrdinalIgnoreCase))
             .Select(f=>f.Path).Order(StringComparer.OrdinalIgnoreCase).ToArray();
         if(!expected.SequenceEqual(Inventory(),StringComparer.OrdinalIgnoreCase))
-            throw new IOException("Cambió la lista de CROs. Generá otra vista previa.");
+            throw new IOException("Cambió la lista de CROs. Genera otra vista previa.");
         foreach(var dependency in proposal.Dependencies)GarcTransaction.ReadUnchanged(dependency.Path,dependency.Fingerprint);
         project.History.Commit(proposal.Files,"Herramientas ROM",proposal.Action,proposal.Changes,proposal.Parameters);
     }

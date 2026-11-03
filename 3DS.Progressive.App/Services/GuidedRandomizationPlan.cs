@@ -96,7 +96,7 @@ internal sealed class GuidedRandomizationPlan
     internal GlobalTemplateDocument BuildDocument()
     {
         var selected=Choices.Where(choice=>choice.Selected).ToArray();
-        if(selected.Length==0)throw new InvalidDataException("Elegí al menos una sección para randomizar.");
+        if(selected.Length==0)throw new InvalidDataException("Elige al menos una sección para randomizar.");
         var doc=GlobalTemplateDocument.Empty(_project.GameName,_project.Generation);doc.Rename("Randomizado guiado");
         doc.SetSection("ProgressiveApp",new JsonObject{["PartialSnapshot"]=false});
         void Add(string id)
@@ -139,7 +139,7 @@ internal sealed class GuidedRandomizationPlan
             if(_project.Generation==7&&key=="Marts")
             {
                 var state=new Gen7MartState(B(choice,"RandomRegular"),B(choice,"RandomBP"),B(choice,"Candies"),B(choice,"Vitamins"),B(choice,"FreeMega"),B(choice,"BanCapsule"),B(choice,"SpecialsOnly"),B(choice,"ProtectX"),_project.GameConfiguration.USUM&&B(choice,"SinglePurchase"));
-                if(!new[]{state.RandomRegular,state.RandomBP,state.Candies,state.Vitamins,state.FreeMega,state.BanCapsule,state.SinglePurchase}.Any(value=>value))throw new InvalidDataException("Tiendas: elegí al menos una acción.");
+                if(!new[]{state.RandomRegular,state.RandomBP,state.Candies,state.Vitamins,state.FreeMega,state.BanCapsule,state.SinglePurchase}.Any(value=>value))throw new InvalidDataException("Tiendas: elige al menos una acción.");
                 NativeGen7MartBridge.Capture(doc,state);continue;
             }
             if(key=="Pickup"){Add("pickup.randomize");continue;}
@@ -149,7 +149,7 @@ internal sealed class GuidedRandomizationPlan
             if(key=="Marts"&&_project.Generation==6&&choice.Values.GetValueOrDefault("UseChecks")==1)
             {
                 string[] flags=["Randomize","Candies","EVItems","BanCapsule"];string[] ids=["marts.randomize","marts.add-rare-candies","marts.add-ev-items","marts.ban-ability-capsule"];
-                if(!flags.Any(flag=>choice.Values.GetValueOrDefault(flag)==1))throw new InvalidDataException("Tiendas: elegí al menos una acción.");
+                if(!flags.Any(flag=>choice.Values.GetValueOrDefault(flag)==1))throw new InvalidDataException("Tiendas: elige al menos una acción.");
                 for(int i=0;i<flags.Length;i++)if(choice.Values.GetValueOrDefault(flags[i])==1)Add(ids[i]);
                 continue;
             }

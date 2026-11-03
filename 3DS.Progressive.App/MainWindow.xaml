@@ -15,6 +15,56 @@
         <Style x:Key="NavDisabled" BasedOn="{StaticResource SidebarButton}" TargetType="Button">
             <Setter Property="IsEnabled" Value="False"/>
         </Style>
+        <BooleanToVisibilityConverter x:Key="VisibleWhenTrue"/>
+        <ui:HasTextConverter x:Key="HasText"/>
+        <!-- Cabecera de grupo de la barra lateral: pliega o despliega sus secciones. -->
+        <Style x:Key="NavGroupHeader" TargetType="ToggleButton">
+            <Setter Property="Foreground" Value="{DynamicResource TextSoft}"/>
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Margin" Value="0,12,0,2"/>
+            <Setter Property="AutomationProperties.Name" Value="{Binding Content, RelativeSource={RelativeSource Self}, StringFormat=Grupo {0}}"/>
+            <Setter Property="ToolTip" Value="Plegar o desplegar este grupo"/>
+            <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="ToggleButton">
+                <Border x:Name="GroupSurface" Background="Transparent" BorderBrush="Transparent" BorderThickness="1" CornerRadius="5" Padding="10,5,8,5">
+                    <DockPanel>
+                        <Path x:Name="GroupChevron" DockPanel.Dock="Right" Data="M5,3 L10,8 L5,13" Stroke="{TemplateBinding Foreground}" StrokeThickness="1.5" Width="14" Height="16" VerticalAlignment="Center" Stretch="Uniform"/>
+                        <ContentPresenter VerticalAlignment="Center" RecognizesAccessKey="True"/>
+                    </DockPanel>
+                </Border>
+                <ControlTemplate.Triggers>
+                    <Trigger Property="IsChecked" Value="True"><Setter TargetName="GroupChevron" Property="Data" Value="M3,5 L8,10 L13,5"/></Trigger>
+                    <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="GroupSurface" Property="BorderBrush" Value="{DynamicResource Stroke}"/><Setter Property="Foreground" Value="{DynamicResource TextMain}"/></Trigger>
+                    <Trigger Property="IsKeyboardFocused" Value="True"><Setter TargetName="GroupSurface" Property="BorderBrush" Value="{DynamicResource Accent}"/><Setter Property="Foreground" Value="{DynamicResource TextMain}"/></Trigger>
+                </ControlTemplate.Triggers>
+            </ControlTemplate></Setter.Value></Setter>
+        </Style>
+        <!-- «3 cambios guardados ▾»: abre la lista de cambios de la sección. -->
+        <Style x:Key="ChangesToggle" TargetType="ToggleButton">
+            <Setter Property="Foreground" Value="{DynamicResource TextMain}"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="ToggleButton">
+                <Border x:Name="Surface" Background="{DynamicResource Surface}" BorderBrush="{DynamicResource Accent}" BorderThickness="1" CornerRadius="14" Padding="12,3">
+                    <StackPanel Orientation="Horizontal">
+                        <Ellipse Width="7" Height="7" Fill="{DynamicResource Accent}" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                        <ContentPresenter VerticalAlignment="Center"/>
+                        <Path x:Name="Chevron" Data="M3,5 L8,10 L13,5" Stroke="{TemplateBinding Foreground}" StrokeThickness="1.5" Width="12" Height="10" Stretch="Uniform" Margin="8,0,0,0" VerticalAlignment="Center"/>
+                    </StackPanel>
+                </Border>
+                <ControlTemplate.Triggers>
+                    <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Surface" Property="Background" Value="{DynamicResource Hover}"/></Trigger>
+                    <Trigger Property="IsKeyboardFocused" Value="True"><Setter TargetName="Surface" Property="BorderThickness" Value="2"/></Trigger>
+                    <Trigger Property="IsChecked" Value="True"><Setter TargetName="Chevron" Property="Data" Value="M3,10 L8,5 L13,10"/></Trigger>
+                </ControlTemplate.Triggers>
+            </ControlTemplate></Setter.Value></Setter>
+        </Style>
+        <!-- Botón con aspecto de caja de búsqueda: abre el buscador de secciones y herramientas. -->
+        <Style x:Key="NavSearchButton" BasedOn="{StaticResource {x:Type Button}}" TargetType="Button">
+            <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+            <Setter Property="Padding" Value="10,7"/>
+            <Setter Property="MinHeight" Value="34"/>
+        </Style>
     </Window.Resources>
     <Grid>
         <Grid.RowDefinitions>
@@ -49,22 +99,27 @@
                 <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="22,0,12,0">
                     <TextBlock x:Name="ProjectNameText" Text="Sin proyecto cargado"
                                FontSize="14" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"/>
-                    <TextBlock x:Name="GameNameText" Text="Seleccioná una carpeta de juego extraído"
+                    <TextBlock x:Name="GameNameText" Text="Selecciona una carpeta de juego extraído"
                                FontSize="12" Foreground="{DynamicResource TextSoft}" TextTrimming="CharacterEllipsis"/>
                 </StackPanel>
                 <WrapPanel Grid.Column="2" MaxWidth="620" VerticalAlignment="Center">
-                    <Button x:Name="BackupButton" KeyboardNavigation.TabIndex="1" Content="Generar backup" Click="Backup_Click" IsEnabled="False" Margin="0,0,10,0"/>
-                    <Button x:Name="RebuildButton" KeyboardNavigation.TabIndex="2" Content="Rebuild" Click="Rebuild_Click" IsEnabled="False" Margin="0,0,8,0" ToolTip="Reconstruir ROM y revisar los cambios guardados"/>
-                    <Button x:Name="ExtractRomButton" KeyboardNavigation.TabIndex="3" Click="ExtractRom_Click" Content="Extraer ROM..." Margin="0,0,8,0"/>
-                    <Button x:Name="RestoreBackupButton" KeyboardNavigation.TabIndex="4" Click="RestoreBackup_Click" Content="Restaurar backup…" Margin="0,0,8,0"/>
-                    <Button x:Name="OpenProjectButton" KeyboardNavigation.TabIndex="0" Click="OpenProject_Click" Style="{StaticResource PrimaryButton}" Content="Abrir proyecto..."/>
+                    <!-- Sin proyecto, lo principal es abrir o extraer; con un proyecto abierto, generar la ROM (RefreshHeaderEmphasis). -->
+                    <Button x:Name="RestoreBackupButton" KeyboardNavigation.TabIndex="0" Click="RestoreBackup_Click" Content="Restaurar backup…" Margin="0,0,8,0" Style="{StaticResource TertiaryButton}"
+                            ToolTip="Restaura un backup verificado en una carpeta nueva; el proyecto abierto no se modifica"/>
+                    <Button x:Name="OpenProjectButton" KeyboardNavigation.TabIndex="1" Click="OpenProject_Click" Style="{StaticResource PrimaryButton}" Content="Abrir proyecto..." Margin="0,0,8,0"
+                            ToolTip="Abre la carpeta de un juego extraído (RomFS + ExeFS)"/>
+                    <Button x:Name="ExtractRomButton" KeyboardNavigation.TabIndex="2" Click="ExtractRom_Click" Content="Extraer ROM..." Margin="0,0,8,0"
+                            ToolTip="Extrae una ROM de 3DS en una carpeta nueva para poder editarla"/>
+                    <Button x:Name="BackupButton" KeyboardNavigation.TabIndex="3" Content="Generar backup" Click="Backup_Click" IsEnabled="False" Margin="0,0,8,0"
+                            ToolTip="Copia verificada del proyecto y su historial"/>
+                    <Button x:Name="RebuildButton" KeyboardNavigation.TabIndex="4" Content="Rebuild" Click="Rebuild_Click" IsEnabled="False" ToolTip="Reconstruir ROM y revisar los cambios guardados"/>
                 </WrapPanel>
             </Grid>
         </Border>
 
         <Grid x:Name="EditorShell" Grid.Row="1" ui:AdaptiveLayout.Inspector="AdaptiveInspector" ui:AdaptiveLayout.CompactWidth="1120">
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="218"/>
+                <ColumnDefinition Width="236"/>
                 <ColumnDefinition Width="1.1*" MinWidth="165" MaxWidth="235"/>
                 <ColumnDefinition Width="3*" MinWidth="320"/>
                 <ColumnDefinition Width="1*" MinWidth="185" MaxWidth="250"/>
@@ -73,50 +128,78 @@
             <!-- Navegacion -->
             <Border Background="{DynamicResource Navigation}" BorderBrush="{DynamicResource Stroke}"
                     BorderThickness="0,0,1,0">
-                <DockPanel Margin="13,18">
+                <DockPanel Margin="13,14,13,12">
+                    <!-- Buscador de secciones y herramientas: el mismo destino que la barra, también para las herramientas de los hubs. -->
+                    <Button x:Name="CommandSearchButton" DockPanel.Dock="Top" Style="{StaticResource NavSearchButton}" Click="CommandSearch_Click"
+                            Margin="0,0,0,12" AutomationProperties.Name="Buscar una sección o herramienta (Ctrl+K)"
+                            ToolTip="Busca cualquier sección o herramienta por nombre: shiny, caps, tiendas, MT… (Ctrl+K)">
+                        <DockPanel>
+                            <Border DockPanel.Dock="Right" Background="{DynamicResource Surface}" BorderBrush="{DynamicResource Stroke}" BorderThickness="1" CornerRadius="4" Padding="5,1" VerticalAlignment="Center">
+                                <TextBlock Text="Ctrl+K" FontSize="11" Foreground="{DynamicResource TextSoft}"/>
+                            </Border>
+                            <TextBlock Text="⌕" FontSize="15" Margin="0,0,8,0" VerticalAlignment="Center" Foreground="{DynamicResource TextSoft}"/>
+                            <TextBlock Text="Buscar…" VerticalAlignment="Center" Foreground="{DynamicResource TextSoft}" TextTrimming="CharacterEllipsis"/>
+                        </DockPanel>
+                    </Button>
+                    <!-- Opciones queda fija abajo, fuera del desplazamiento, como en la mayoría de aplicaciones. -->
+                    <Border DockPanel.Dock="Bottom" BorderBrush="{DynamicResource Stroke}" BorderThickness="0,1,0,0" Padding="0,8,0,0" Margin="0,8,0,0">
+                        <Button x:Name="ConfigurationButton" Content="⚙  Opciones e idioma"
+                                Style="{StaticResource SidebarButton}" IsEnabled="False" Tag="Configuration" Click="Section_Click"/>
+                    </Border>
                     <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Background="Transparent">
-                    <StackPanel>
+                    <StackPanel x:Name="NavigationGroups">
                         <Button x:Name="HomeButton" Visibility="Collapsed" Content="Inicio" Style="{StaticResource SidebarButton}" Click="Home_Click"/>
                         <Button x:Name="ModeButton" Visibility="Collapsed" Content="Modo completo · Cambiar" Style="{StaticResource SidebarButton}" Click="Home_Click"/>
                         <Button x:Name="GuidedButton" Visibility="Collapsed" Content="Randomizado guiado" Style="{StaticResource SidebarButton}" IsEnabled="False" Click="Guided_Click"/>
                         <Button x:Name="TourButton" Visibility="Collapsed" Content="Vista guiada · F1" Style="{StaticResource SidebarButton}" Click="Tour_Click"/>
-                        <TextBlock Text="Edición" Style="{StaticResource SmallHeading}"
-                                   Margin="12,0,0,12"/>
-                        <Button x:Name="PokemonNavButton" Click="Pokemon_Click" Content="◆  Pokémon" Style="{StaticResource SidebarButton}"
-                                Background="{DynamicResource NavActiveFill}" FontWeight="SemiBold"/>
-                        <Button x:Name="TrainersButton" Content="⚔  Entrenadores" Style="{StaticResource SidebarButton}" IsEnabled="False" Tag="Trainers" Click="Section_Click"/>
-                        <Button x:Name="EncountersButton" Content="◎  Encuentros" Style="{StaticResource SidebarButton}" IsEnabled="False" Tag="Encounters" Click="Section_Click"/>
-                        <Button x:Name="StaticEncountersButton" Content="◉  Encuentros estáticos"
-                                Style="{StaticResource SidebarButton}" IsEnabled="False" Tag="StaticEncounters" Click="Section_Click"/>
-                        <Button x:Name="MovesButton" Content="◇  Movimientos" Style="{StaticResource SidebarButton}" IsEnabled="False" Click="Moves_Click"/>
-                        <Button x:Name="LevelUpButton" Content="↗  Level Up Moves"
-                                Style="{StaticResource SidebarButton}" IsEnabled="False" Tag="LevelUp" Click="Section_Click"/>
-                        <Button x:Name="MachineTutorButton" Content="▣  MT y tutores" Style="{StaticResource SidebarButton}" IsEnabled="False" Tag="MachineTutor" Click="Section_Click"/>
-                        <Button x:Name="ItemsButton" Content="▤  Objetos y economía" Style="{StaticResource SidebarButton}" IsEnabled="False" Tag="Items" Click="Section_Click"/>
-                        <Button x:Name="MartsButton" Content="▦  Tiendas y BP · USUM" Style="{StaticResource SidebarButton}" IsEnabled="False" Tag="Marts" Click="Section_Click"/>
-                        <Button x:Name="FieldItemsButton" Content="♢  Field Items"
-                                Style="{StaticResource SidebarButton}" IsEnabled="False" Tag="FieldItems" Click="Section_Click"/>
-                        <Button x:Name="EvolutionsButton" Content="◆  Evoluciones" Style="{StaticResource SidebarButton}" IsEnabled="False" Tag="Evolutions" Click="Section_Click"/>
-                        <Button x:Name="GameTextButton" Content="≡  Game Text" Style="{StaticResource SidebarButton}" IsEnabled="False" Tag="GameText" Click="Section_Click"/>
-                        <Button x:Name="StoryTextButton" Content="≡  Story Text · diálogos" Style="{StaticResource SidebarButton}" IsEnabled="False" Tag="StoryText" Click="Section_Click"/>
-                        <TextBlock Text="Sistemas" Style="{StaticResource SmallHeading}"
-                                   Margin="12,25,0,12"/>
-                        <Button x:Name="MechanicsButton" Content="◈  Mecánicas y CRO"
-                                Style="{StaticResource SidebarButton}" IsEnabled="False" Tag="Mechanics" Click="Section_Click"/>
-                        <Button x:Name="PokemonToolsButton" Content="◈  Herramientas Pokémon"
-                                Style="{StaticResource SidebarButton}" IsEnabled="False" Tag="PokemonTools" Click="Section_Click"/>
-                        <Button x:Name="RomToolsButton" Content="▧  Herramientas ROM"
-                                Style="{StaticResource SidebarButton}" IsEnabled="False" Tag="RomTools" Click="Section_Click"/>
-                        <Button x:Name="AutomationButton" Content="⇄  Automatización"
-                                Style="{StaticResource SidebarButton}" IsEnabled="False" Tag="Automation" Click="Section_Click"/>
-                        <Button x:Name="ConfigurationButton" Content="⚙  Opciones e idioma"
-                                Style="{StaticResource SidebarButton}" IsEnabled="False" Tag="Configuration" Click="Section_Click"/>
-                        <Separator Margin="8,16,8,10"/><Button x:Name="TemplateStudioButton" Content="▦  Templates" Style="{StaticResource SidebarButton}" IsEnabled="False" Tag="TemplateStudio" Click="Section_Click"/>
-                        <Button x:Name="GlobalTemplateButton" Content="▣  Global Template"
-                                Style="{StaticResource SidebarButton}" IsEnabled="False" Tag="GlobalTemplate" Click="Section_Click"/>
-                        <Button x:Name="BatchRomButton" Content="▣  Batch ROM Builder"
-                                Style="{StaticResource SidebarButton}" IsEnabled="False" Tag="BatchRom" Click="Section_Click"/>
-                        <Button x:Name="HistoryButton" Content="≡  Historial de cambios" Style="{StaticResource SidebarButton}" IsEnabled="False" Tag="History" Click="Section_Click"/>
+                        <!-- Grupos por lo que la persona quiere cambiar. Cada cabecera pliega su grupo; se oculta si el modo no muestra ninguna entrada. -->
+                        <ToggleButton x:Name="NavHeaderSpecies" Style="{StaticResource NavGroupHeader}" Content="Pokémon y movimientos" IsChecked="True" Margin="0,0,0,2"/>
+                        <StackPanel x:Name="NavGroupSpecies" Visibility="{Binding IsChecked, ElementName=NavHeaderSpecies, Converter={StaticResource VisibleWhenTrue}}">
+                            <Button x:Name="PokemonNavButton" Click="Pokemon_Click" Content="◆  Pokémon" Style="{StaticResource SidebarButton}"
+                                    Background="{DynamicResource NavActiveFill}" FontWeight="SemiBold"/>
+                            <Button x:Name="MovesButton" Content="◇  Movimientos" Style="{StaticResource SidebarButton}" IsEnabled="False" Click="Moves_Click"/>
+                            <Button x:Name="LevelUpButton" Content="↗  Level Up Moves"
+                                    Style="{StaticResource SidebarButton}" IsEnabled="False" Tag="LevelUp" Click="Section_Click"/>
+                            <Button x:Name="MachineTutorButton" Content="▣  MT y tutores" Style="{StaticResource SidebarButton}" IsEnabled="False" Tag="MachineTutor" Click="Section_Click"/>
+                            <Button x:Name="EvolutionsButton" Content="◆  Evoluciones" Style="{StaticResource SidebarButton}" IsEnabled="False" Tag="Evolutions" Click="Section_Click"/>
+                            <Button x:Name="PokemonToolsButton" Content="◈  Herramientas Pokémon"
+                                    Style="{StaticResource SidebarButton}" IsEnabled="False" Tag="PokemonTools" Click="Section_Click"/>
+                        </StackPanel>
+                        <ToggleButton x:Name="NavHeaderWorld" Style="{StaticResource NavGroupHeader}" Content="Mundo y combates" IsChecked="True"/>
+                        <StackPanel x:Name="NavGroupWorld" Visibility="{Binding IsChecked, ElementName=NavHeaderWorld, Converter={StaticResource VisibleWhenTrue}}">
+                            <Button x:Name="TrainersButton" Content="⚔  Entrenadores" Style="{StaticResource SidebarButton}" IsEnabled="False" Tag="Trainers" Click="Section_Click"/>
+                            <Button x:Name="EncountersButton" Content="◎  Encuentros" Style="{StaticResource SidebarButton}" IsEnabled="False" Tag="Encounters" Click="Section_Click"/>
+                            <Button x:Name="StaticEncountersButton" Content="◉  Encuentros estáticos"
+                                    Style="{StaticResource SidebarButton}" IsEnabled="False" Tag="StaticEncounters" Click="Section_Click"/>
+                            <Button x:Name="FieldItemsButton" Content="♢  Field Items"
+                                    Style="{StaticResource SidebarButton}" IsEnabled="False" Tag="FieldItems" Click="Section_Click"/>
+                            <Button x:Name="MartsButton" Content="▦  Tiendas y BP · USUM" Style="{StaticResource SidebarButton}" IsEnabled="False" Tag="Marts" Click="Section_Click"/>
+                            <Button x:Name="ItemsButton" Content="▤  Objetos y economía" Style="{StaticResource SidebarButton}" IsEnabled="False" Tag="Items" Click="Section_Click"/>
+                        </StackPanel>
+                        <ToggleButton x:Name="NavHeaderText" Style="{StaticResource NavGroupHeader}" Content="Textos" IsChecked="True"/>
+                        <StackPanel x:Name="NavGroupText" Visibility="{Binding IsChecked, ElementName=NavHeaderText, Converter={StaticResource VisibleWhenTrue}}">
+                            <Button x:Name="GameTextButton" Content="≡  Game Text" Style="{StaticResource SidebarButton}" IsEnabled="False" Tag="GameText" Click="Section_Click"/>
+                            <Button x:Name="StoryTextButton" Content="≡  Story Text · diálogos" Style="{StaticResource SidebarButton}" IsEnabled="False" Tag="StoryText" Click="Section_Click"/>
+                        </StackPanel>
+                        <ToggleButton x:Name="NavHeaderPatches" Style="{StaticResource NavGroupHeader}" Content="Parches y ROM" IsChecked="True"/>
+                        <StackPanel x:Name="NavGroupPatches" Visibility="{Binding IsChecked, ElementName=NavHeaderPatches, Converter={StaticResource VisibleWhenTrue}}">
+                            <Button x:Name="MechanicsButton" Content="◈  Mecánicas y CRO"
+                                    Style="{StaticResource SidebarButton}" IsEnabled="False" Tag="Mechanics" Click="Section_Click"/>
+                            <Button x:Name="RomToolsButton" Content="▧  Herramientas ROM"
+                                    Style="{StaticResource SidebarButton}" IsEnabled="False" Tag="RomTools" Click="Section_Click"/>
+                        </StackPanel>
+                        <ToggleButton x:Name="NavHeaderRecipes" Style="{StaticResource NavGroupHeader}" Content="Recetas y lotes" IsChecked="True"/>
+                        <StackPanel x:Name="NavGroupRecipes" Visibility="{Binding IsChecked, ElementName=NavHeaderRecipes, Converter={StaticResource VisibleWhenTrue}}">
+                            <Button x:Name="TemplateStudioButton" Content="▦  Templates" Style="{StaticResource SidebarButton}" IsEnabled="False" Tag="TemplateStudio" Click="Section_Click"/>
+                            <Button x:Name="GlobalTemplateButton" Content="▣  Global Template"
+                                    Style="{StaticResource SidebarButton}" IsEnabled="False" Tag="GlobalTemplate" Click="Section_Click"/>
+                            <Button x:Name="BatchRomButton" Content="▣  Batch ROM Builder"
+                                    Style="{StaticResource SidebarButton}" IsEnabled="False" Tag="BatchRom" Click="Section_Click"/>
+                            <Button x:Name="HistoryButton" Content="≡  Historial de cambios" Style="{StaticResource SidebarButton}" IsEnabled="False" Tag="History" Click="Section_Click"/>
+                            <!-- Sus accesos (randomizadores, Global Template, Batch e historial) ya están en la barra; se conserva como ruta y en el buscador. -->
+                            <Button x:Name="AutomationButton" Content="⇄  Automatización" Visibility="Collapsed"
+                                    Style="{StaticResource SidebarButton}" IsEnabled="False" Tag="Automation" Click="Section_Click"/>
+                        </StackPanel>
                     </StackPanel>
                     </ScrollViewer>
                     <Border Visibility="Collapsed" DockPanel.Dock="Bottom" Background="{DynamicResource Surface}"
@@ -141,7 +224,7 @@
                     <StackPanel DockPanel.Dock="Top" Margin="0,0,0,13">
                         <TextBlock x:Name="AccessibleCaption1" Text="Especies y formas" Style="{StaticResource SmallHeading}"
                                    Margin="0,0,0,13"/>
-                        <TextBox x:Name="SearchBox" AutomationProperties.Name="Buscar Pokémon por nombre o número" AutomationProperties.LabeledBy="{Binding ElementName=AccessibleCaption1}" TextChanged="SearchBox_TextChanged"
+                        <TextBox x:Name="SearchBox" ui:InputHint.Text="Nombre o número" AutomationProperties.Name="Buscar Pokémon por nombre o número" AutomationProperties.LabeledBy="{Binding ElementName=AccessibleCaption1}" TextChanged="SearchBox_TextChanged"
                                  ToolTip="Buscar por nombre o número de entrada"/>
                         <TextBlock x:Name="EntryCountText" Text="Sin datos" FontSize="12"
                                    Foreground="{DynamicResource TextSoft}" Margin="2,10,0,0"/>
@@ -165,7 +248,7 @@
                             Background="{DynamicResource Bg}">
                     <StackPanel Margin="0,0,0,16">
                         <TextBlock Text="Datos de Pokémon" FontSize="24" FontWeight="SemiBold"/>
-                        <TextBlock x:Name="EntryTitleText" Text="Abrí un proyecto para comenzar."
+                        <TextBlock x:Name="EntryTitleText" Text="Abre un proyecto para comenzar."
                                    Foreground="{DynamicResource TextSoft}" FontSize="12" Margin="0,5,0,0"/>
                     </StackPanel>
 
@@ -196,7 +279,7 @@
                                 <TextBlock x:Name="HeaderNameText" Text="Sin Pokémon"
                                            FontSize="22" FontWeight="SemiBold"
                                            TextTrimming="CharacterEllipsis"/>
-                                <TextBlock x:Name="HeaderNumberText" Text="Seleccioná una especie"
+                                <TextBlock x:Name="HeaderNumberText" Text="Selecciona una especie"
                                            FontSize="12" Foreground="{DynamicResource TextSoft}"
                                            Margin="0,4,0,13"/>
                                 <WrapPanel Margin="0,0,0,10">
@@ -283,7 +366,7 @@
     <Expander Header="HABILIDADES Y OBJETOS" IsExpanded="False" Foreground="{DynamicResource TextMain}"
               Background="{DynamicResource Panel}" Padding="0">
         <StackPanel Margin="0,13,0,0">
-            <TextBlock Text="Compatibilidad Gen 6/7. Seleccioná habilidades y los tres objetos posibles." FontSize="12" Foreground="{DynamicResource TextSoft}"
+            <TextBlock Text="Compatibilidad Gen 6/7. Selecciona habilidades y los tres objetos posibles." FontSize="12" Foreground="{DynamicResource TextSoft}"
                        TextWrapping="Wrap" Margin="0,0,0,14"/>
             <UniformGrid Columns="2">
               <StackPanel Margin="0,0,10,13"><TextBlock x:Name="AccessibleCaption11" Text="Habilidad 1" Style="{StaticResource FieldCaption}"/><ComboBox x:Name="AbilityOne" AutomationProperties.LabeledBy="{Binding ElementName=AccessibleCaption11}" SelectionChanged="Type_SelectionChanged"/></StackPanel>
@@ -473,32 +556,36 @@
                     BorderBrush="{DynamicResource Stroke}" BorderThickness="1,0,0,0">
                 <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Background="Transparent">
                 <StackPanel Margin="17,23">
-                    <TextBlock Text="Inspector" Style="{StaticResource SmallHeading}"
-                               Margin="0,0,0,12"/>
+                    <!-- El encabezado del Expander ya dice «Inspector». Las dos acciones trabajan sobre todas las especies. -->
+                    <TextBlock Text="Todas las especies" Style="{StaticResource InspectorGroupHeading}"/>
                     <StackPanel x:Name="PersonalActions" IsEnabled="False" Margin="0,0,0,18">
-                        <Button x:Name="RandomizePokemonButton" Content="Randomizar Pokémon" Click="PersonalAction_Click" Tag="PersonalRandomize" Margin="0,0,0,8"/>
-                        <Button x:Name="ModifyPokemonButton" Content="Modificar Pokémon" Click="PersonalAction_Click" Tag="PersonalModify"/>
+                        <Button x:Name="RandomizePokemonButton" Content="Randomizar Pokémon" Click="PersonalAction_Click" Tag="PersonalRandomize" Margin="0,0,0,8" Style="{StaticResource PrimaryButton}" Padding="10,10" ContentTemplate="{StaticResource WrappedActionContent}"
+                                ToolTip="Randomiza estadísticas, tipos, habilidades y más con vista previa antes de guardar"/>
+                        <Button x:Name="ModifyPokemonButton" Content="Modificar Pokémon" Click="PersonalAction_Click" Tag="PersonalModify"
+                                ToolTip="Cambios fijos por lote (por ejemplo, subir estadísticas) sin aleatoriedad"/>
                     </StackPanel>
                     <Border Style="{StaticResource Card}">
                         <StackPanel>
-                            <TextBlock Text="Total de estadísticas" Foreground="{DynamicResource TextSoft}"/>
-                            <TextBlock x:Name="BstText" Text="—" FontWeight="Bold" FontSize="36"
-                                       Foreground="{DynamicResource Accent}" Margin="0,6,0,0"/>
-                            <TextBlock Text="BST (Base Stat Total)" FontSize="12"
-                                       Foreground="{DynamicResource TextSoft}"/>
+                            <TextBlock Text="Especie seleccionada" Foreground="{DynamicResource TextSoft}" FontSize="12"/>
+                            <TextBlock x:Name="InspectorEntryText" Text="Sin especie" FontWeight="SemiBold"
+                                       Margin="0,4,0,8" TextWrapping="Wrap"/>
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="BST" Foreground="{DynamicResource TextSoft}" VerticalAlignment="Bottom" Margin="0,0,8,3"/>
+                                <TextBlock x:Name="BstText" Text="—" FontWeight="Bold" FontSize="24"
+                                           Foreground="{DynamicResource Accent}"/>
+                            </StackPanel>
+                            <TextBlock Text="Total de estadísticas base; se actualiza mientras editas." FontSize="12"
+                                       Foreground="{DynamicResource TextSoft}" TextWrapping="Wrap" Margin="0,2,0,0"/>
                         </StackPanel>
                     </Border>
                     <Border Style="{StaticResource Card}">
                         <StackPanel>
-                            <TextBlock Text="Sesión actual" FontWeight="SemiBold" Margin="0,0,0,12"/>
+                            <TextBlock Text="Proyecto" Foreground="{DynamicResource TextSoft}" FontSize="12"/>
+                            <TextBlock x:Name="InspectorGameText" Text="Sin juego" FontWeight="SemiBold"
+                                       TextWrapping="Wrap" Margin="0,4,0,0"/>
                             <TextBlock x:Name="SpriteStatusText" Text=""
                                        Foreground="{DynamicResource TextSoft}" FontSize="12"
-                                       TextWrapping="Wrap" Margin="0,0,0,9"/>
-                            <TextBlock x:Name="InspectorGameText" Text="Sin juego"
-                                       Foreground="{DynamicResource TextSoft}" TextWrapping="Wrap"/>
-                            <TextBlock x:Name="InspectorEntryText" Text="Sin especie"
-                                       Foreground="{DynamicResource TextSoft}" Margin="0,6,0,0"
-                                       TextWrapping="Wrap"/>
+                                       TextWrapping="Wrap" Margin="0,6,0,0" ToolTip="Origen de los sprites que se muestran en el editor"/>
                         </StackPanel>
                     </Border>
                     <Border Style="{StaticResource Card}">
@@ -518,10 +605,69 @@
             <ContentControl x:Name="SectionHost" Grid.Column="1" Grid.ColumnSpan="3" Visibility="Collapsed" Focusable="False">
                 <ContentControl.Template>
                     <ControlTemplate TargetType="ContentControl">
-                        <ScrollViewer x:Name="PageScroll" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Focusable="False">
-                            <ContentPresenter Height="{Binding ViewportHeight, ElementName=PageScroll}"
-                                              MinHeight="{Binding Content.MinHeight, RelativeSource={RelativeSource TemplatedParent}}"/>
-                        </ScrollViewer>
+                        <DockPanel>
+                            <!-- Ruta de la herramienta abierta desde un hub (SectionHost.Tag = nombre del hub): siempre se sabe dónde se está y cómo volver. -->
+                            <Border x:Name="Breadcrumb" DockPanel.Dock="Top" Background="{DynamicResource Navigation}" BorderBrush="{DynamicResource Stroke}" BorderThickness="0,0,0,1" Padding="14,4" Visibility="Collapsed">
+                                <DockPanel>
+                                <!-- Cambios guardados de esta sección: qué se hizo y cuándo, leído del historial. -->
+                                <Grid DockPanel.Dock="Right" x:Name="ChangesArea" Visibility="Collapsed">
+                                    <ToggleButton x:Name="ChangesToggle" Style="{StaticResource ChangesToggle}" MinHeight="28"
+                                                  Content="{Binding (ui:SectionChanges.Summary), RelativeSource={RelativeSource TemplatedParent}}"
+                                                  AutomationProperties.Name="{Binding (ui:SectionChanges.Summary), RelativeSource={RelativeSource TemplatedParent}, StringFormat={}{0}: ver qué se cambió}"
+                                                  ToolTip="Qué se ha guardado en esta sección"/>
+                                    <Popup IsOpen="{Binding IsChecked, ElementName=ChangesToggle, Mode=TwoWay}" PlacementTarget="{Binding ElementName=ChangesToggle}" Placement="Bottom"
+                                           StaysOpen="False" AllowsTransparency="True" HorizontalOffset="-300">
+                                        <Border Width="420" Background="{DynamicResource Panel}" BorderBrush="{DynamicResource Accent}" BorderThickness="1" CornerRadius="10" Padding="14,12" Margin="0,4,0,0">
+                                            <StackPanel>
+                                                <TextBlock Text="Cambios guardados en esta sección" FontWeight="SemiBold" Foreground="{DynamicResource TextMain}" Margin="0,0,0,8"/>
+                                                <ScrollViewer MaxHeight="340" VerticalScrollBarVisibility="Auto" Background="Transparent">
+                                                    <ItemsControl ItemsSource="{Binding (ui:SectionChanges.Items), RelativeSource={RelativeSource TemplatedParent}}">
+                                                        <ItemsControl.ItemTemplate>
+                                                            <DataTemplate>
+                                                                <Border BorderBrush="{DynamicResource Stroke}" BorderThickness="0,0,0,1" Padding="0,6">
+                                                                    <DockPanel>
+                                                                        <TextBlock DockPanel.Dock="Right" Text="{Binding When}" FontSize="11" Foreground="{DynamicResource TextSoft}" Margin="10,1,0,0"/>
+                                                                        <StackPanel>
+                                                                            <TextBlock Text="{Binding Title}" Foreground="{DynamicResource TextMain}" TextWrapping="Wrap"/>
+                                                                            <TextBlock Text="{Binding Detail}" FontSize="12" Foreground="{DynamicResource TextSoft}" TextWrapping="Wrap"/>
+                                                                        </StackPanel>
+                                                                    </DockPanel>
+                                                                </Border>
+                                                            </DataTemplate>
+                                                        </ItemsControl.ItemTemplate>
+                                                    </ItemsControl>
+                                                </ScrollViewer>
+                                                <Button Content="Ver el historial completo" Click="SectionChangesHistory_Click" HorizontalAlignment="Left" Margin="0,10,0,0" MinHeight="30" Padding="10,4"/>
+                                            </StackPanel>
+                                        </Border>
+                                    </Popup>
+                                </Grid>
+                                <StackPanel x:Name="CrumbPath" Orientation="Horizontal" Visibility="Collapsed">
+                                    <Button x:Name="BreadcrumbBack" Style="{StaticResource TertiaryButton}" Click="Breadcrumb_Click" MinHeight="28" Padding="8,3"
+                                            Content="{Binding Tag, RelativeSource={RelativeSource TemplatedParent}}" ContentStringFormat="← {0}"
+                                            AutomationProperties.Name="{Binding Tag, RelativeSource={RelativeSource TemplatedParent}, StringFormat=Volver a {0}}"
+                                            ToolTip="Volver al hub donde se abrió esta herramienta"/>
+                                    <TextBlock Text="›" Margin="2,0,8,0" VerticalAlignment="Center" Foreground="{DynamicResource TextSoft}"/>
+                                    <TextBlock x:Name="BreadcrumbCurrent" Text="{Binding (ui:Breadcrumbs.Current), RelativeSource={RelativeSource TemplatedParent}}" VerticalAlignment="Center"
+                                               FontWeight="SemiBold" Foreground="{DynamicResource TextMain}" TextTrimming="CharacterEllipsis"/>
+                                </StackPanel>
+                                </DockPanel>
+                            </Border>
+                            <ScrollViewer x:Name="PageScroll" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Focusable="False">
+                                <ContentPresenter Height="{Binding ViewportHeight, ElementName=PageScroll}"
+                                                  MinHeight="{Binding Content.MinHeight, RelativeSource={RelativeSource TemplatedParent}}"/>
+                            </ScrollViewer>
+                        </DockPanel>
+                        <ControlTemplate.Triggers>
+                            <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource Self}, Converter={StaticResource HasText}}" Value="True">
+                                <Setter TargetName="Breadcrumb" Property="Visibility" Value="Visible"/>
+                                <Setter TargetName="CrumbPath" Property="Visibility" Value="Visible"/>
+                            </DataTrigger>
+                            <DataTrigger Binding="{Binding (ui:SectionChanges.Summary), RelativeSource={RelativeSource Self}, Converter={StaticResource HasText}}" Value="True">
+                                <Setter TargetName="Breadcrumb" Property="Visibility" Value="Visible"/>
+                                <Setter TargetName="ChangesArea" Property="Visibility" Value="Visible"/>
+                            </DataTrigger>
+                        </ControlTemplate.Triggers>
                     </ControlTemplate>
                 </ContentControl.Template>
             </ContentControl>
@@ -562,5 +708,6 @@
             </DockPanel>
         </Border>
         <Grid x:Name="TourHost" Grid.RowSpan="3" Panel.ZIndex="30" Visibility="Collapsed"/>
+        <Grid x:Name="PaletteHost" Grid.RowSpan="3" Panel.ZIndex="31" Visibility="Collapsed"/>
     </Grid>
 </Window>

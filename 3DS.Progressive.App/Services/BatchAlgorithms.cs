@@ -13,9 +13,9 @@ internal static class BatchAlgorithms
             s.SingleTypeChance is < 0 or > 100 || s.SameEggChance is < 0 or > 100 ||
             s.ExperiencePercent is < 0 or > 10000 || s.CatchValue is < 0 or > 255 ||
             s.CallValue is < 0 or > 255)
-            throw new ArgumentException("Revisá los porcentajes y los valores de captura/SOS.");
+            throw new ArgumentException("Revisa los porcentajes y los valores de captura/SOS.");
         if (s.ClearCompatibility && (s.FullTms || s.FullHms || s.FullTypeTutors || s.FullSpecialTutors))
-            throw new ArgumentException("Elegí quitar compatibilidades o hacerlas completas en una misma acción.");
+            throw new ArgumentException("Elige quitar compatibilidades o hacerlas completas en una misma acción.");
     }
 
     internal static void ModifyPersonal(PersonalInfo p, BatchSettings s, int generation,
@@ -29,7 +29,7 @@ internal static class BatchAlgorithms
         {
             decimal scaled = decimal.Round(p.BaseEXP * s.ExperiencePercent / 100m, 0, MidpointRounding.ToEven);
             if (scaled > ushort.MaxValue)
-                throw new ArgumentException("La experiencia base resultante supera 65535. Reducí el porcentaje.");
+                throw new ArgumentException("La experiencia base resultante supera 65535. Reduce el porcentaje.");
             p.BaseEXP = (int)scaled;
         }
         if (s.ClearCompatibility || s.FullTms || s.FullHms)

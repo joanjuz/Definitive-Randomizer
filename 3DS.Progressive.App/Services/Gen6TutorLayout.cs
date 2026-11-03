@@ -22,7 +22,7 @@ internal sealed record Gen6TutorLayout(int List,int Shop)
         for(int i=0;i<60;i++)
         {
             int move=BitConverter.ToUInt16(code,shop+i*8);
-            if(move<=0||move>=moveCount||move==622||BitConverter.ToUInt16(code,list+2*ListSlots[i])!=move)throw new InvalidDataException("Las tablas de tutores ORAS no están sincronizadas. Recuperá code.bin desde un backup compatible.");
+            if(move<=0||move>=moveCount||move==622||BitConverter.ToUInt16(code,list+2*ListSlots[i])!=move)throw new InvalidDataException("Las tablas de tutores ORAS no están sincronizadas. Recupera code.bin desde un backup compatible.");
             if(BitConverter.ToUInt32(code,shop+i*8+4)>65535)throw new InvalidDataException("Precio de tutor fuera de rango.");
         }
         return new(list,shop);

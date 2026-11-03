@@ -18,9 +18,14 @@
      <StackPanel>
       <Border x:Name="TrainerTeamPreview" Background="{DynamicResource Panel}" BorderBrush="{DynamicResource Stroke}" BorderThickness="1" CornerRadius="10" Margin="0,0,0,16" Padding="14" Visibility="Collapsed">
        <StackPanel>
-        <TextBlock Text="Equipo del entrenador" Foreground="{DynamicResource TextSoft}" FontSize="12" FontWeight="SemiBold"/>
-        <TextBlock Text="Elegí un Pokémon para acceder a sus opciones." Foreground="{DynamicResource TextSoft}" FontSize="12" Margin="0,4,0,8"/>
-        <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled"><StackPanel x:Name="TrainerTeamCards" Orientation="Horizontal"/></ScrollViewer>
+        <!-- Cabecera del entrenador: nombre, clase y tipo de combate. -->
+        <TextBlock x:Name="TrainerHeaderTitle" Foreground="{DynamicResource TextMain}" FontSize="20" FontWeight="SemiBold" TextWrapping="Wrap"/>
+        <TextBlock x:Name="TrainerHeaderSubtitle" Foreground="{DynamicResource TextSoft}" FontSize="12" Margin="0,2,0,0"/>
+        <WrapPanel x:Name="TrainerHeaderChips" Margin="0,10,0,2"/>
+        <Border BorderBrush="{DynamicResource Stroke}" BorderThickness="0,1,0,0" Margin="0,6,0,10"/>
+        <TextBlock Text="Equipo" Foreground="{DynamicResource TextSoft}" FontSize="12" FontWeight="SemiBold"/>
+        <TextBlock Text="Elige un Pokémon para editarlo debajo. Clic derecho sobre uno para copiar, cortar, pegar o eliminar. Las tarjetas muestran los valores actuales, también los que aún no has guardado." Foreground="{DynamicResource TextSoft}" FontSize="12" Margin="0,4,0,8" TextWrapping="Wrap"/>
+        <WrapPanel x:Name="TrainerTeamCards"/>
        </StackPanel>
       </Border>
       <Border x:Name="EncounterSpritePreview" Background="{DynamicResource Panel}"
@@ -29,7 +34,7 @@
        <StackPanel>
         <TextBlock x:Name="EncounterSpriteTitle" Text="SLOTS DEL ENCUENTRO"
                    Foreground="{DynamicResource TextSoft}" FontSize="12" FontWeight="SemiBold"/>
-        <TextBlock Text="Seleccioná un sprite para editar el slot en su sección."
+        <TextBlock Text="Selecciona un sprite para editar el slot en su sección."
                    Foreground="{DynamicResource TextSoft}" FontSize="12" Margin="0,4,0,10"/>
         <StackPanel x:Name="WildPreviewControls" Visibility="Collapsed">
          <ComboBox x:Name="EncounterGroupPicker" Margin="0,0,0,8"
@@ -49,7 +54,7 @@
           <TextBlock x:Name="EncounterPairTitle" Foreground="{DynamicResource TextSoft}"
                      FontWeight="SemiBold" FontSize="12" Margin="0,0,0,8"/>
           <WrapPanel x:Name="EncounterPairCards"/>
-          <TextBlock Text="Los sprites de la otra franja horaria son de solo lectura. Elegí uno para abrir su tabla."
+          <TextBlock Text="Los sprites de la otra franja horaria son de solo lectura. Elige uno para abrir su tabla."
                      TextWrapping="Wrap" FontSize="12" Foreground="{DynamicResource TextSoft}"
                      Margin="0,6,0,0"/>
         </StackPanel>
@@ -61,6 +66,10 @@
     <Grid x:Name="ToolsPanel" Visibility="Collapsed"><Grid.RowDefinitions><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
      <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Background="Transparent"><StackPanel>
       <TextBlock x:Name="ToolTitle" Text="Randomizar" FontSize="22" FontWeight="SemiBold" Margin="0,0,0,15"/>
+      <!-- De dónde salen las opciones mostradas: la última randomización aplicada al proyecto. -->
+      <Border x:Name="OptionsSourceNote" Visibility="Collapsed" Background="{DynamicResource Surface}" BorderBrush="{DynamicResource Accent}" BorderThickness="1" CornerRadius="8" Padding="12,9" Margin="0,0,0,14">
+       <TextBlock x:Name="OptionsSourceText" TextWrapping="Wrap" Foreground="{DynamicResource TextMain}"/>
+      </Border>
       <StackPanel x:Name="TemplatePanel" Visibility="Collapsed" Margin="0,0,0,15">
        <TextBlock x:Name="AccessibleCaption2" Text="Template CSV de pk3DS Progressive" Foreground="{DynamicResource TextSoft}" Margin="0,0,0,8"/>
        <TextBox x:Name="TemplatePathText" AutomationProperties.LabeledBy="{Binding ElementName=AccessibleCaption2}" IsReadOnly="True" TextWrapping="Wrap"/>
@@ -72,64 +81,87 @@
       </ListBox>
      </StackPanel></ScrollViewer>
      <Border Grid.Row="1" Background="{DynamicResource Panel}" BorderBrush="{DynamicResource Stroke}" BorderThickness="1" CornerRadius="9" Padding="12" Margin="0,12,0,0">
-      <StackPanel><WrapPanel><Button x:Name="PreviewButton" Content="Generar vista previa" Click="Preview_Click" Margin="0,0,8,8"/><Button x:Name="ApplyButton" Style="{StaticResource PrimaryButton}" Content="Aplicar cambios" IsEnabled="False" Click="Apply_Click" Margin="0,0,0,8"/></WrapPanel>
+      <StackPanel><ui:StepIndicator x:Name="RandomizeSteps"/><WrapPanel><Button x:Name="PreviewButton" Content="Generar vista previa" Click="Preview_Click" Margin="0,0,8,8"/><Button x:Name="ApplyButton" Style="{StaticResource PrimaryButton}" Content="Aplicar cambios" IsEnabled="False" Click="Apply_Click" Margin="0,0,0,8"/></WrapPanel>
        <Button Content="← Volver al editor" Click="Back_Click" HorizontalAlignment="Left"/></StackPanel>
      </Border>
     </Grid>
    </Grid>
    <Expander x:Name="AdaptiveInspector" Grid.Column="2" Header="Inspector" IsExpanded="True"><Border x:Name="InspectorBody" Background="{DynamicResource Panel}" BorderBrush="{DynamicResource Stroke}" BorderThickness="1,0,0,0" Padding="18,22">
     <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
-    <StackPanel><TextBlock Text="Inspector" Foreground="{DynamicResource TextSoft}" FontSize="12" Margin="0,0,0,12"/>
-     <Button x:Name="RandomizerButton" Content="Randomizar" Click="Randomizer_Click" Margin="0,0,0,10"/>
-     <Button x:Name="MegaUnlockButton" Content="Habilitar Mega desde el inicio (USUM)"
-             Visibility="Collapsed" Click="MegaUnlock_Click" Margin="0,0,0,10"/>
-     <Button x:Name="EconomyTableButton" Content="Tabla de precios · Fix Economy" Visibility="Collapsed"
-             Click="EconomyTable_Click" Margin="0,0,0,10"/>
-     <Button x:Name="FieldExportButton" Content="Exportar Field Items CSV" Visibility="Collapsed"
-             Click="FieldExport_Click" Margin="0,0,0,10"/>
-     <Button x:Name="TradesNamesButton" Content="Trades · Ocultar nombres (ES)" Visibility="Collapsed"
-             Click="TradesNames_Click" Margin="0,0,0,8"/>
-     <Button x:Name="TradesAnyButton" Content="Trades · Accept Any Pokémon" Visibility="Collapsed"
-             Click="TradesAny_Click" Margin="0,0,0,8"/>
-     <Button x:Name="GiftBstButton" Content="Gift BST Baseline" Visibility="Collapsed"
-             Click="GiftBst_Click" Margin="0,0,0,8"/>
-     <Button x:Name="TotemCapsButton" Content="Totem Level Caps" Visibility="Collapsed"
-             Click="TotemCaps_Click" Margin="0,0,0,8"/>
-     <Button x:Name="TotemBstButton" Content="Totem BST" Visibility="Collapsed"
-             Click="TotemBst_Click" Margin="0,0,0,10"/>
-     <Button x:Name="TrainerCapsButton" Content="Tabla de Level Caps" Visibility="Collapsed"
-             Click="TrainerCaps_Click" Margin="0,0,0,8"/>
-     <Button x:Name="TrainerMovesButton" Content="Tabla de Trainer Move Rules" Visibility="Collapsed"
-             Click="TrainerMoves_Click" Margin="0,0,0,10"/>
-     <Button x:Name="WildAddRangeButton" Content="Dividir rango BST más amplio" Visibility="Collapsed"
-             Click="WildAddRange_Click" Margin="0,0,0,8"/>
-     <Button x:Name="WildRemoveRangeButton" Content="Unir últimos rangos BST" Visibility="Collapsed"
-             Click="WildRemoveRange_Click" Margin="0,0,0,8"/>
-     <Button x:Name="WildAuditButton" Content="Diagnóstico de Progressive Wild" Visibility="Collapsed"
-             Click="WildAudit_Click" Margin="0,0,0,8"/>
-     <Button x:Name="WildDumpButton" Content="Exportar reporte de encuentros" Visibility="Collapsed"
-             Click="WildDump_Click" Margin="0,0,0,8"/>
-     <Button x:Name="WildCopyButton" Content="Copiar tabla actual" Visibility="Collapsed"
-             Click="WildCopy_Click" Margin="0,0,0,8"/>
-     <Button x:Name="WildPasteButton" Content="Pegar en tabla seleccionada" Visibility="Collapsed"
-             Click="WildPaste_Click" Margin="0,0,0,8"/>
-     <Button x:Name="WildPasteAreaButton" Content="Pegar en área · mismas ranuras" Visibility="Collapsed"
-             Click="WildPasteArea_Click" Margin="0,0,0,10"/>
-     <Button x:Name="TemplateButton" Content="Template de evoluciones" Visibility="Collapsed" Click="Template_Click" Margin="0,0,0,10"/>
-     <Button x:Name="ImportOptionsButton" Content="Cargar template de entrenadores" Visibility="Collapsed" Click="ImportOptions_Click" Margin="0,0,0,10"/>
-     <Button x:Name="ExportOptionsButton" Content="Exportar template de entrenadores" Visibility="Collapsed" Click="ExportOptions_Click" Margin="0,0,0,10"/>
-     <TextBlock x:Name="SelectionText" TextWrapping="Wrap" FontSize="18" FontWeight="SemiBold" Margin="0,13"/>
-
-     <TextBlock x:Name="AccessibleCaption3" Text="Alcance de randomización" Foreground="{DynamicResource TextSoft}" Margin="0,0,0,8"/>
-     <ComboBox x:Name="ScopeBox" AutomationProperties.LabeledBy="{Binding ElementName=AccessibleCaption3}" SelectedIndex="0" SelectionChanged="Scope_Changed"><ComboBoxItem Content="Todas las entradas"/><ComboBoxItem Content="Lista filtrada"/><ComboBoxItem Content="Entrada seleccionada"/></ComboBox>
-     <TextBlock Text="El historial conserva los valores de una edición individual. Las operaciones masivas guardan la acción y sus opciones, con una semilla nueva para cada futura randomización." Foreground="{DynamicResource TextSoft}" TextWrapping="Wrap" Margin="0,20,0,0"/>
+    <StackPanel>
+     <!-- Acción principal y su alcance, juntos. El encabezado del Expander ya dice «Inspector». -->
+     <StackPanel x:Name="PrimaryActions">
+      <Button x:Name="RandomizerButton" Content="Randomizar" Click="Randomizer_Click" Margin="0,0,0,10" Style="{StaticResource PrimaryButton}" Padding="10,10"/>
+      <Button x:Name="MegaUnlockButton" Content="Habilitar Mega desde el inicio (USUM)"
+              Visibility="Collapsed" Click="MegaUnlock_Click" Margin="0,0,0,10"/>
+     </StackPanel>
+     <StackPanel x:Name="ScopeGroup" Margin="0,0,0,6">
+      <TextBlock x:Name="AccessibleCaption3" Text="Alcance de randomización" Foreground="{DynamicResource TextSoft}" FontSize="12" Margin="0,0,0,6"/>
+      <ComboBox x:Name="ScopeBox" AutomationProperties.LabeledBy="{Binding ElementName=AccessibleCaption3}" SelectedIndex="0" SelectionChanged="Scope_Changed"><ComboBoxItem Content="Todas las entradas"/><ComboBoxItem Content="Lista filtrada"/><ComboBoxItem Content="Entrada seleccionada"/></ComboBox>
+     </StackPanel>
+     <StackPanel x:Name="RulesGroup" Margin="0,14,0,0">
+      <TextBlock Text="Tablas y reglas" Style="{StaticResource InspectorGroupHeading}"/>
+      <Button x:Name="TrainerCapsButton" Content="Tabla de Level Caps" Visibility="Collapsed"
+              Click="TrainerCaps_Click" Margin="0,0,0,8"/>
+      <Button x:Name="TrainerMovesButton" Content="Tabla de Trainer Move Rules" Visibility="Collapsed"
+              Click="TrainerMoves_Click" Margin="0,0,0,8"/>
+      <Button x:Name="EconomyTableButton" Content="Tabla de precios · Fix Economy" Visibility="Collapsed"
+              Click="EconomyTable_Click" Margin="0,0,0,8"/>
+      <Button x:Name="GiftBstButton" Content="Gift BST Baseline" Visibility="Collapsed"
+              Click="GiftBst_Click" Margin="0,0,0,8"/>
+      <Button x:Name="TotemCapsButton" Content="Totem Level Caps" Visibility="Collapsed"
+              Click="TotemCaps_Click" Margin="0,0,0,8"/>
+      <Button x:Name="TotemBstButton" Content="Totem BST" Visibility="Collapsed"
+              Click="TotemBst_Click" Margin="0,0,0,8"/>
+      <Button x:Name="TradesAnyButton" Content="Trades · Accept Any Pokémon" Visibility="Collapsed"
+              Click="TradesAny_Click" Margin="0,0,0,8"/>
+      <Button x:Name="TradesNamesButton" Content="Trades · Ocultar nombres (ES)" Visibility="Collapsed"
+              Click="TradesNames_Click" Margin="0,0,0,8"/>
+     </StackPanel>
+     <StackPanel x:Name="TemplatesGroup" Margin="0,14,0,0">
+      <TextBlock Text="Templates" Style="{StaticResource InspectorGroupHeading}"/>
+      <Button x:Name="TemplateButton" Content="Template de evoluciones" Visibility="Collapsed" Click="Template_Click" Margin="0,0,0,8"/>
+      <Button x:Name="ImportOptionsButton" Content="Cargar template de entrenadores" Visibility="Collapsed" Click="ImportOptions_Click" Margin="0,0,0,8"/>
+      <Button x:Name="ExportOptionsButton" Content="Exportar template de entrenadores" Visibility="Collapsed" Click="ExportOptions_Click" Margin="0,0,0,8"/>
+      <Button x:Name="FieldExportButton" Content="Exportar Field Items CSV" Visibility="Collapsed"
+              Click="FieldExport_Click" Margin="0,0,0,8"/>
+     </StackPanel>
+     <StackPanel x:Name="TableGroup" Margin="0,14,0,0">
+      <TextBlock Text="Copiar y pegar tablas" Style="{StaticResource InspectorGroupHeading}"/>
+      <Button x:Name="WildCopyButton" Content="Copiar tabla actual" Visibility="Collapsed"
+              Click="WildCopy_Click" Margin="0,0,0,8"/>
+      <Button x:Name="WildPasteButton" Content="Pegar en tabla seleccionada" Visibility="Collapsed"
+              Click="WildPaste_Click" Margin="0,0,0,8"/>
+      <Button x:Name="WildPasteAreaButton" Content="Pegar en área · mismas ranuras" Visibility="Collapsed"
+              Click="WildPasteArea_Click" Margin="0,0,0,8"/>
+     </StackPanel>
+     <!-- Herramientas avanzadas plegadas: siguen disponibles, pero no compiten con la acción principal. -->
+     <Expander x:Name="MoreToolsGroup" Header="Más herramientas" IsExpanded="False" Margin="-6,10,0,0">
+      <StackPanel Margin="6,6,0,0">
+       <Button x:Name="WildAddRangeButton" Content="Dividir rango BST más amplio" Visibility="Collapsed"
+               Click="WildAddRange_Click" Margin="0,0,0,8"/>
+       <Button x:Name="WildRemoveRangeButton" Content="Unir últimos rangos BST" Visibility="Collapsed"
+               Click="WildRemoveRange_Click" Margin="0,0,0,8"/>
+       <Button x:Name="WildAuditButton" Content="Diagnóstico de Progressive Wild" Visibility="Collapsed"
+               Click="WildAudit_Click" Margin="0,0,0,8"/>
+       <Button x:Name="WildDumpButton" Content="Exportar reporte de encuentros" Visibility="Collapsed"
+               Click="WildDump_Click" Margin="0,0,0,8"/>
+      </StackPanel>
+     </Expander>
+     <Border BorderBrush="{DynamicResource Stroke}" BorderThickness="0,1,0,0" Margin="0,16,0,0" Padding="0,12,0,0">
+      <StackPanel>
+       <TextBlock Text="Entrada seleccionada" Foreground="{DynamicResource TextSoft}" FontSize="12"/>
+       <TextBlock x:Name="SelectionText" TextWrapping="Wrap" FontSize="16" FontWeight="SemiBold" Margin="0,4,0,10"/>
+       <TextBlock Text="El historial conserva los valores de una edición individual. Las operaciones masivas guardan la acción y sus opciones, con una semilla nueva para cada futura randomización." Foreground="{DynamicResource TextSoft}" FontSize="12" TextWrapping="Wrap"/>
+      </StackPanel>
+     </Border>
     </StackPanel>
     </ScrollViewer>
    </Border></Expander>
    <ContentControl Grid.ColumnSpan="3" x:Name="TrainerRulesHost" Visibility="Collapsed"
                    Background="{DynamicResource Bg}"/>
   </Grid>
-  <Border Grid.Row="2" Background="{DynamicResource Chrome}" Padding="20,12" BorderBrush="{DynamicResource Stroke}" BorderThickness="0,1,0,0"><StackPanel><WrapPanel HorizontalAlignment="Right"><Button x:Name="SaveButton" Style="{StaticResource PrimaryButton}" Content="Guardar cambios" Click="Save_Click" IsEnabled="False" Margin="0,0,10,10" VerticalAlignment="Center"/>
+  <Border Grid.Row="2" Background="{DynamicResource Chrome}" Padding="20,12" BorderBrush="{DynamicResource Stroke}" BorderThickness="0,1,0,0"><StackPanel><WrapPanel x:Name="ManualSaveBar" HorizontalAlignment="Right" Visibility="{Binding Visibility, ElementName=FieldsScroll}"><Button x:Name="SaveButton" Style="{StaticResource PrimaryButton}" Content="Guardar cambios" Click="Save_Click" IsEnabled="False" Margin="0,0,10,10" VerticalAlignment="Center"/>
      <Button Style="{StaticResource TertiaryButton}" Content="Descartar cambios" Click="Discard_Click" Margin="0,0,0,10" VerticalAlignment="Center"/></WrapPanel><TextBlock x:Name="StatusText" Text="Editor listo." FontSize="12" Foreground="{DynamicResource TextSoft}" TextWrapping="Wrap"/></StackPanel></Border>
  </Grid>
 </UserControl>

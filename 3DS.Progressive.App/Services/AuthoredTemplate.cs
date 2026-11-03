@@ -53,7 +53,7 @@ internal sealed partial class AuthoredTemplate
         if(Kind=="Shops")ValidateShopMode(p);
         foreach(var row in Rows)if(row.Keys.Any(k=>!fields.Contains(k))||row.Values.Any(v=>v is null||v.Length>16000))throw new InvalidDataException("Campo desconocido o texto demasiado largo.");
         if(BannedItems.Concat(AllowedItems).Any(id=>id<1||id>=p.ItemNames.Count)||BannedItems.Intersect(AllowedItems).Any()||BannedItems.Distinct().Count()!=BannedItems.Length||AllowedItems.Distinct().Count()!=AllowedItems.Length)throw new InvalidDataException("Catálogo de objetos inválido, repetido o contradictorio.");
-        if(Kind is "Moves" or "Evolutions" or "Stats"&&Rows.Count==0)throw new InvalidDataException("Añadí al menos una fila.");
+        if(Kind is "Moves" or "Evolutions" or "Stats"&&Rows.Count==0)throw new InvalidDataException("Añade al menos una fila.");
         if(Kind=="Evolutions"&&Rows.Any(row=>Number(row,"Method")>(p.Generation==6?33:p.GameConfiguration.USUM?42:39)))throw new InvalidDataException("Método de evolución no disponible en este juego.");
         if(Kind=="FieldItems"&&Rows.Count!=0)throw new InvalidDataException("Field Items usa el catálogo y sus opciones.");
         if(Kind=="Moves")foreach(var row in Rows)
@@ -83,7 +83,7 @@ internal sealed partial class AuthoredTemplate
                 d.BannedItems=node["BannedItems"]?.Deserialize<int[]>()??[];d.AllowedItems=node["AllowedItems"]?.Deserialize<int[]>()??[];
                 foreach(var pair in node["Options"]?.AsObject()??new JsonObject())d.Options[pair.Key]=pair.Value!.GetValue<int>();return d;
             }
-            d=JsonSerializer.Deserialize<AuthoredTemplate>(text)??throw new InvalidDataException("Template vacío.");if(d.Kind!=kind)throw new InvalidDataException("Elegí el mismo tipo que el archivo a importar.");d.CanonicalizeIds(p);d.ValidateShape(p);return d;
+            d=JsonSerializer.Deserialize<AuthoredTemplate>(text)??throw new InvalidDataException("Template vacío.");if(d.Kind!=kind)throw new InvalidDataException("Elige el mismo tipo que el archivo a importar.");d.CanonicalizeIds(p);d.ValidateShape(p);return d;
         }
         if(kind=="Moves")d.SetMoveRows(p,MoveTemplates.LoadMovePatches(path,p.MoveNames.ToArray()));
         else if(kind=="Evolutions")d.Rows=EvolutionTemplates.Load(path,p.GameConfiguration.GetText(pk3DS.Core.TextName.SpeciesNames),p.ItemNames.ToArray(),p.Generation).Select(e=>new Dictionary<string,string>{["Source"]=e.Source.ToString(),["Target"]=e.Target.ToString(),["Method"]=e.Method.ToString(),["Level"]=e.Level.ToString(),["Argument"]=e.Argument.ToString(),["Form"]=e.Form.ToString()}).ToList();
@@ -124,7 +124,7 @@ internal sealed partial class AuthoredTemplate
     private static IEnumerable<int> ProgressivePool(GameProjectSession p,string kind)=>kind=="Shops"&&p.Generation==7?GameMartService.ProgressiveCatalog:ProgressiveLegacy.Randomizer.GetRandomItemList(p.GameConfiguration);
     internal static AuthoredTemplate Progressive(GameProjectSession p,string kind)
     {
-        if(kind=="Moves"&&p.Generation==7&&!p.GameConfiguration.USUM)throw new InvalidDataException("El template de movimientos Progressive corresponde a USUM. En Sol/Luna podés crear tu propio template de datos de movimientos, sin los parches exclusivos de USUM.");
+        if(kind=="Moves"&&p.Generation==7&&!p.GameConfiguration.USUM)throw new InvalidDataException("El template de movimientos Progressive corresponde a USUM. En Sol/Luna puedes crear tu propio template de datos de movimientos, sin los parches exclusivos de USUM.");
         if(kind is "Moves" or "Evolutions" or "Stats")
         {
             string file=(kind=="Moves"?"moves":kind=="Stats"?"pokemon_stats":"evolutions")+$"_gen{p.Generation}.csv";
@@ -191,7 +191,7 @@ internal sealed partial class AuthoredTemplate
         var keys=new HashSet<(int,int)>();foreach(var row in Rows)if(!keys.Add((Number(row,"Shop"),Number(row,"Slot")))||Number(row,"Slot")<1||Number(row,"Item")<0||Number(row,"Item")>=p.ItemNames.Count||Number(row,"Price") is <0 or >65535||BannedItems.Contains(Number(row,"Item")))throw new InvalidDataException("Fila de tienda inválida, duplicada u objeto prohibido.");
         if(p.Generation==6)
         {
-            if(Rows.Any(r=>Number(r,"Price")!=0))throw new InvalidDataException("Gen6 no tiene precios BP por ranura; dejá Precio en 0.");
+            if(Rows.Any(r=>Number(r,"Price")!=0))throw new InvalidDataException("Gen6 no tiene precios BP por ranura; deja Precio en 0.");
             var service=new GameMart6Service(p);var inventory=service.ReadAllItems().Select(a=>a.ToList()).ToArray();
             foreach(var group in Rows.GroupBy(r=>Number(r,"Shop")))
             {
