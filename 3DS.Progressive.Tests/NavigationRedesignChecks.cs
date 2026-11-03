@@ -18,7 +18,7 @@ using TextBox=System.Windows.Controls.TextBox;
 internal static class NavigationRedesignChecks
 {
     private const BindingFlags Private=BindingFlags.Instance|BindingFlags.NonPublic;
-    private static void Pump()=>Dispatcher.CurrentDispatcher.Invoke(()=>{},DispatcherPriority.ContextIdle);
+    private static void Pump()=>UiPump.Idle();
     private static void Layout(FrameworkElement content,double w,double h){content.Measure(new Size(w,h));content.Arrange(new Rect(0,0,w,h));content.UpdateLayout();Pump();content.UpdateLayout();Pump();}
     private static IEnumerable<T> Descendants<T>(DependencyObject root)where T:DependencyObject
     {for(int i=0;i<VisualTreeHelper.GetChildrenCount(root);i++){var child=VisualTreeHelper.GetChild(root,i);if(child is T match)yield return match;foreach(var d in Descendants<T>(child))yield return d;}}

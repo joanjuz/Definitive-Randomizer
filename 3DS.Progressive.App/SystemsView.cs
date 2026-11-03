@@ -241,8 +241,30 @@ internal sealed class SystemsView : UserControl
             .IsEnabled=_project.Generation==7;
         if(ProjectFeatureAvailability.Supports(_project,"OWSE"))stack.Children.Add(owse);
     }
+    /// <summary>«Exportar registro…»: writes the randomization log to a new text file (read-only for the project).</summary>
+    internal static async Task ExportLogAsync(Window? owner,GameProjectSession project,Action<string>? status=null)
+    {
+        var picker=new Microsoft.Win32.SaveFileDialog{Filter="Registro de texto|*.txt",FileName=$"registro-randomizado-{System.IO.Path.GetFileName(project.ProjectRoot)}.txt"};
+        if(picker.ShowDialog(owner)!=true)return;
+        using var interaction=UiProgress.BlockInteraction();
+        UiProgress.Begin("Registro del randomizado · leyendo el proyecto…");
+        try
+        {
+            var progress=new Progress<string>(part=>UiProgress.Stage("Registro del randomizado · "+part));
+            string text=await Task.Run(()=>RandomizationLog.Build(project,progress));
+            await File.WriteAllTextAsync(picker.FileName,text,new System.Text.UTF8Encoding(false));
+            status?.Invoke("Registro exportado: "+picker.FileName);
+            StudioDialog.Notice(owner,"Registro exportado","El archivo describe el estado actual del juego. Contiene spoilers.",picker.FileName);
+        }
+        catch(Exception ex) when(ex is IOException or UnauthorizedAccessException or InvalidOperationException){StudioDialog.Error(owner,"Registro del randomizado",ex.Message);}
+        finally{UiProgress.End();}
+    }
     private void BuildRomTools(Panel stack)
     {
+        var log=Card("Registro del randomizado","Exporta un archivo de texto con lo que tiene ahora el juego: regalos y estáticos, equipos de entrenadores, encuentros salvajes y los cambios guardados.",
+            "Solo lee el proyecto. Cada parte se lee con su editor; si una no está disponible en este juego, el registro lo indica y sigue con las demás.","Spoiler");
+        AddButton((StackPanel)log.Child,"Exportar registro…",()=>_=ExportLogAsync(Window.GetWindow(this),_project,text=>_status.Text=text));
+        stack.Children.Add(log);
         var extract=Card("Extraer ROM · CXI / 3DS",
             "Convierte una ROM .3ds o .cxi en una carpeta de proyecto que puedes editar. El archivo original no cambia.",
             "Extracción en una carpeta nueva, con verificación de archivos y sin modificar el contenedor original.");

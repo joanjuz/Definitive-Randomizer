@@ -11,21 +11,8 @@ public partial class RecordEditorView
 {
     internal Border? FieldOverviewCard {get;private set;}
     internal Border? FieldContextCard {get;private set;}
-    private Border Card(string title,out StackPanel body)
-    {
-        body=new StackPanel();
-        var heading=new TextBlock{Text=title,FontSize=12,FontWeight=FontWeights.SemiBold,Margin=new Thickness(0,0,0,10)};
-        heading.SetResourceReference(TextBlock.ForegroundProperty,"TextSoft");body.Children.Add(heading);
-        var card=new Border{CornerRadius=new CornerRadius(10),BorderThickness=new Thickness(1),Padding=new Thickness(16,14,16,10),Margin=new Thickness(0,0,0,14),Child=body};
-        card.SetResourceReference(Border.BackgroundProperty,"Panel");card.SetResourceReference(Border.BorderBrushProperty,"Stroke");
-        return card;
-    }
-    private Button LinkChip(string text,Action run,bool current=false)
-    {
-        var chip=new Button{Content=text,MinHeight=28,Padding=new Thickness(10,3,10,3),Margin=new Thickness(0,0,6,6)};
-        EditorPresentation.StyleAction(chip,current?EditorPresentation.ActionRole.Primary:EditorPresentation.ActionRole.Secondary);
-        chip.Click+=(_,_)=>run();return chip;
-    }
+    private static Border Card(string title,out StackPanel body)=>UiKit.Card(title,out body);
+    private static Button LinkChip(string text,Action run,bool current=false)=>UiKit.LinkChip(text,run,current);
     private void SelectRecord(int id)
     {
         if(Editor.Entries.FirstOrDefault(e=>e.Id==id) is not RecordEntry entry)return;

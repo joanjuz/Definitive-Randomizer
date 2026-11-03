@@ -7,7 +7,7 @@ using ThreeDS.Progressive.Models;
 
 namespace ThreeDS.Progressive.Services;
 
-public sealed class GameEvolutionService : ArchiveProjectEditor,ITemplateProjectEditor
+public sealed class GameEvolutionService : ArchiveProjectEditor,ITemplateProjectEditor,IEvolutionArgumentCatalog
 {
     public GameEvolutionService(GameProjectSession project):base(project,"evolution")
     {
@@ -108,5 +108,15 @@ public sealed class GameEvolutionService : ArchiveProjectEditor,ITemplateProject
         return values;
     }
     private static readonly string[] MethodNames=["Ninguna","Amistad","Amistad de día","Amistad de noche","Subir de nivel","Intercambio","Intercambio con objeto","Intercambio Shelmet/Karrablast","Usar objeto","Ataque > Defensa","Ataque = Defensa","Ataque < Defensa","Azar < 5","Azar ≥ 5","Ninjask","Shedinja","Belleza","Objeto · macho","Objeto · hembra","Objeto equipado de día","Objeto equipado de noche","Conocer movimiento","Especie en el equipo","Nivel · macho","Nivel · hembra","Zona eléctrica","Bosque","Zona fría","Consola invertida","Afecto y tipo de movimiento","Tipo Siniestro en el equipo","Lluvia","Nivel de día","Nivel de noche","Hembra · forma 1","Sin uso","Versión del juego","De día · versión","De noche · versión","Monte","Atardecer","Ultraespacio · nivel","Ultraespacio · objeto"];
+    // Same method → catalog mapping as the evolution templates (TemplateStudioView.SetArgumentChoices).
+    public IReadOnlyList<MoveChoice>? ArgumentChoices(int method)=>method switch
+    {
+        6 or 8 or 17 or 18 or 19 or 20 or 42=>Choices(TextName.ItemNames),21=>Choices(TextName.MoveNames),22=>SpeciesChoices,29=>Choices(TextName.Types),_=>null
+    };
+    public string? ArgumentLabel(int method)=>method switch
+    {
+        6 or 8 or 17 or 18 or 19 or 20 or 42=>"Objeto",21=>"Movimiento que debe conocer",22=>"Especie en el equipo",29=>"Tipo de movimiento",
+        4 or 23 or 24 or 9 or 10 or 11 or 12 or 13 or 14 or 15 or 26 or 27=>"Nivel",16=>"Belleza",1 or 2 or 3=>"Amistad",_=>null
+    };
     private IReadOnlyList<MoveChoice> Methods=>MethodNames.Take(Config.Generation==6?34:Config.USUM?43:40).Select((n,i)=>new MoveChoice(i,n)).ToArray();
 }

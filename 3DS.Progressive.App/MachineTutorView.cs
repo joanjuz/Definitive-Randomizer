@@ -100,12 +100,14 @@ internal sealed class MachineTutorView : UserControl
         var tmSanity=new CheckBox
         {
             Content="TM Sanity · movimientos aprendidos por nivel",
-            Foreground=text,Margin=new Thickness(0,3,18,3)
+            Foreground=text,Margin=new Thickness(0,3,18,3),
+            ContentTemplate=(DataTemplate)FindResource("WrappedOptionContent")
         };
         var tmFollow=new CheckBox
         {
             Content="TM Follow Evolutions · heredar compatibilidad",
-            Foreground=text,Margin=new Thickness(0,3,18,3)
+            Foreground=text,Margin=new Thickness(0,3,18,3),
+            ContentTemplate=(DataTemplate)FindResource("WrappedOptionContent")
         };
         _tmSanity=tmSanity;_tmFollow=tmFollow;
         tmFlags.Children.Add(tmSanity);

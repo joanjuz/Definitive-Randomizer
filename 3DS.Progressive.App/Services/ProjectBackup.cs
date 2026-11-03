@@ -34,7 +34,8 @@ public static class ProjectBackup
                         throw new IOException("El backup no admite enlaces a otros archivos: "+file);
                     files.Add(file);
                 }
-                foreach(string child in Directory.EnumerateDirectories(dir))Collect(child);
+                // Restore points for «Deshacer» are local working copies, not part of the project.
+                foreach(string child in Directory.EnumerateDirectories(dir))if(!string.Equals(Path.GetFileName(child),RestorePoints.FolderName,StringComparison.OrdinalIgnoreCase))Collect(child);
             }
             Collect(root);files.Sort(StringComparer.Ordinal);
             string name=Path.GetFileName(root)+"-backup-"+DateTime.Now.ToString("yyyyMMdd-HHmmss")+"-"+Guid.NewGuid().ToString("N")[..6]+".zip";

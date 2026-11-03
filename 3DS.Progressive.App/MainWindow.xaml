@@ -406,7 +406,7 @@
               <StackPanel Margin="0,0,10,13"><TextBlock x:Name="AccessibleCaption23" Text="Experiencia base (0–65535)" Style="{StaticResource FieldCaption}"/><TextBox x:Name="BaseExpBox" AutomationProperties.LabeledBy="{Binding ElementName=AccessibleCaption23}" TextChanged="Stat_TextChanged"/></StackPanel>
               <StackPanel Margin="0,0,10,13"><TextBlock x:Name="AccessibleCaption24" Text="Amistad (0–255)" Style="{StaticResource FieldCaption}"/><TextBox x:Name="FriendshipBox" AutomationProperties.LabeledBy="{Binding ElementName=AccessibleCaption24}" TextChanged="Stat_TextChanged"/></StackPanel>
               <StackPanel Margin="0,0,10,13"><TextBlock x:Name="AccessibleCaption25" Text="Ciclos de eclosión" Style="{StaticResource FieldCaption}"/><TextBox x:Name="HatchBox" AutomationProperties.LabeledBy="{Binding ElementName=AccessibleCaption25}" TextChanged="Stat_TextChanged"/></StackPanel>
-              <StackPanel Margin="0,0,10,13"><TextBlock x:Name="AccessibleCaption26" Text="Ratio de género (0–255)" Style="{StaticResource FieldCaption}"/><TextBox x:Name="GenderBox" AutomationProperties.LabeledBy="{Binding ElementName=AccessibleCaption26}" TextChanged="Stat_TextChanged"/></StackPanel>
+              <StackPanel Margin="0,0,10,13"><TextBlock x:Name="AccessibleCaption26" Text="Ratio de género (0–255)" Style="{StaticResource FieldCaption}"/><TextBox x:Name="GenderBox" AutomationProperties.LabeledBy="{Binding ElementName=AccessibleCaption26}" TextChanged="Stat_TextChanged"/><TextBlock x:Name="GenderMeaningText" FontSize="12" Foreground="{DynamicResource TextSoft}" Margin="0,4,0,0" TextWrapping="Wrap"/></StackPanel>
               <StackPanel Margin="0,0,10,13"><TextBlock x:Name="AccessibleCaption27" Text="Grupo huevo 1" Style="{StaticResource FieldCaption}"/><ComboBox x:Name="EggOneBox" AutomationProperties.LabeledBy="{Binding ElementName=AccessibleCaption27}" DisplayMemberPath="Display" SelectedValuePath="Id" SelectionChanged="Type_SelectionChanged" MaxDropDownHeight="300"/></StackPanel>
               <StackPanel Margin="0,0,10,13"><TextBlock x:Name="AccessibleCaption28" Text="Grupo huevo 2" Style="{StaticResource FieldCaption}"/><ComboBox x:Name="EggTwoBox" AutomationProperties.LabeledBy="{Binding ElementName=AccessibleCaption28}" DisplayMemberPath="Display" SelectedValuePath="Id" SelectionChanged="Type_SelectionChanged" MaxDropDownHeight="300"/></StackPanel>
               <StackPanel Margin="0,0,10,13"><TextBlock x:Name="AccessibleCaption29" Text="Curva de experiencia" Style="{StaticResource FieldCaption}"/><ComboBox x:Name="GrowthBox" AutomationProperties.LabeledBy="{Binding ElementName=AccessibleCaption29}" DisplayMemberPath="Display" SelectedValuePath="Id" SelectionChanged="Type_SelectionChanged" MaxDropDownHeight="300"/></StackPanel>
@@ -576,6 +576,8 @@
                             </StackPanel>
                             <TextBlock Text="Total de estadísticas base; se actualiza mientras editas." FontSize="12"
                                        Foreground="{DynamicResource TextSoft}" TextWrapping="Wrap" Margin="0,2,0,0"/>
+                            <!-- Una barra por estadística (sobre 255), para ver el reparto de un vistazo. -->
+                            <StackPanel x:Name="StatBarsPanel" Margin="0,10,0,0"/>
                         </StackPanel>
                     </Border>
                     <Border Style="{StaticResource Card}">

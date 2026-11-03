@@ -45,7 +45,7 @@ public partial class RecordEditorView
     /// <summary>Cards follow the edits (species, level, item, moves, rates…) without waiting for «Guardar».</summary>
     private void ScheduleCardsRefresh()
     {
-        if(_id<0||_record is null||!(UsesTrainerLayout||EncounterSpritePreview.Visibility==Visibility.Visible))return;
+        if(_id<0||_record is null||!(UsesTrainerLayout||EncounterSpritePreview.Visibility==Visibility.Visible||Editor is IEvolutionArgumentCatalog))return;
         if(_cardsTimer is null)
         {
             _cardsTimer=new System.Windows.Threading.DispatcherTimer{Interval=TimeSpan.FromMilliseconds(250)};
@@ -56,23 +56,11 @@ public partial class RecordEditorView
     internal void RefreshCards()
     {
         if(_id<0||_record is null)return;
-        try{UpdateTrainerTeam(_id,_record);UpdateEncounterSprites(_id,_record);}
+        try{UpdateTrainerTeam(_id,_record);UpdateEncounterSprites(_id,_record);UpdateEvolutionOverview();}
         catch(Exception ex) when(ex is ArgumentException or InvalidOperationException or System.IO.InvalidDataException){StatusText.Text="No se pudo actualizar la vista previa: "+ex.Message;}
     }
-    private Border Chip(string text)
-    {
-        var label=new TextBlock{Text=text,FontSize=12,FontWeight=FontWeights.SemiBold};
-        label.SetResourceReference(TextBlock.ForegroundProperty,"TextMain");
-        var chip=new Border{CornerRadius=new CornerRadius(6),Padding=new Thickness(10,3,10,4),Margin=new Thickness(0,0,6,6),BorderThickness=new Thickness(1),Child=label};
-        chip.SetResourceReference(Border.BackgroundProperty,"Surface");chip.SetResourceReference(Border.BorderBrushProperty,"Stroke");
-        return chip;
-    }
-    private TextBlock Small(string text,bool soft=true,double size=11)
-    {
-        var block=new TextBlock{Text=text,FontSize=size,TextTrimming=TextTrimming.CharacterEllipsis};
-        if(soft)block.SetResourceReference(TextBlock.ForegroundProperty,"TextSoft");
-        return block;
-    }
+    private static Border Chip(string text)=>UiKit.Chip(text);
+    private static TextBlock Small(string text,bool soft=true,double size=11)=>UiKit.Small(text,soft,size);
     private int TeamCount(IReadOnlyList<EditorGroup> groups)=>Math.Clamp(LiveValue("Count")
         ??groups.FirstOrDefault()?.Fields.FirstOrDefault(f=>f.Key=="Count")?.Value
         ??groups.Count(g=>g.Name.StartsWith("Pokémon ",StringComparison.Ordinal)),0,6);
@@ -326,7 +314,8 @@ public partial class RecordEditorView
                 FontWeight=species==0?FontWeights.Normal:FontWeights.SemiBold});
             // Rate of the main table (Gen7) or the level range of the slot (Gen6), the two things a player notices in game.
             string? detail=showRates&&value("Rate"+position) is int rate?$"{rate}%"
-                :value(prefix+"Min") is int min&&value(prefix+"Max") is int max?(min==max?$"Nv. {min}":$"Nv. {min}–{max}"):null;
+                :value(prefix+"Min") is int min&&value(prefix+"Max") is int max?(min==max?$"Nv. {min}":$"Nv. {min}–{max}")
+                :value(prefix+"Level") is int level?$"Nv. {level}":null;
             if(form>0)detail=(detail is null?"":detail+" · ")+$"Forma {form}";
             if(detail is not null)
                 content.Children.Add(new TextBlock{Text=detail,FontSize=10,Foreground=(Brush)FindResource("TextSoft"),TextAlignment=TextAlignment.Center});
@@ -358,7 +347,8 @@ public partial class RecordEditorView
         {
             if(!choices.Any(c=>c.Id==field.Value))
                 choices=choices.Append(new MoveChoice(field.Value,$"ID {field.Value} (personalizado)")).ToArray();
-            var combo=new ComboBox{ItemsSource=choices,DisplayMemberPath="Display",SelectedValuePath="Id",SelectedValue=field.Value,MaxDropDownHeight=300};
+            // Short lists (gender, ability, battle mode…) show the name only; long catalogs keep the number, which helps to search.
+            var combo=new ComboBox{ItemsSource=choices,DisplayMemberPath=choices.Count<=12?"Name":"Display",SelectedValuePath="Id",SelectedValue=field.Value,MaxDropDownHeight=300};
             combo.SelectionChanged+=Input_Changed;input=combo;
         }
         else if(isCheck)

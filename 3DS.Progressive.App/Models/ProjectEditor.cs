@@ -83,6 +83,9 @@ public interface IContextualRecordEditor { IReadOnlyList<EditorGroup> ReadContex
 
 public interface ITableEditorPresentation { bool UsesRecordTable {get;} }
 
+/// <summary>Evolution editors: the catalog that the method argument refers to (item, move, species or type), or null when it is a number.</summary>
+public interface IEvolutionArgumentCatalog { IReadOnlyList<MoveChoice>? ArgumentChoices(int method); string? ArgumentLabel(int method); }
+
 /// <summary>One field pickup as the field items view shows it. Read-only: values come from the editor's current data.</summary>
 public sealed record FieldItemInfo(int Id,int Area,bool Hidden,int Item,string ItemName,bool Machine,bool Key);
 /// <summary>Field item editors that can describe every pickup (area, visible or hidden, item) for the overview cards.</summary>

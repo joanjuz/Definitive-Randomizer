@@ -87,7 +87,7 @@ dotnet .\3DS.Progressive.Tests\bin\Release\net10.0-windows\3DS.Progressive.Tests
 | `--tm-default-ui-only` | — |  |
 | `--utility-ui-only` | — |  |
 | `--visual-redesign-only` | — | sí |
-| `--visual-audit` | 1 o 2 (carpeta de capturas, extracción USUM opcional) |  |
+| `--visual-audit` | 1 o 2 (carpeta de capturas, extracción USUM opcional) | sí |
 | `--visual-audit-ds` | 2 o más (carpeta de capturas y ROM de DS) |  |
 
 `--global-apply-ui-only` es un alias de `--global-apply-only`.

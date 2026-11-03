@@ -79,7 +79,9 @@ public partial class MainWindow
                 return (apply,states,label);
             }
             // Automated checks load synchronously, like the other section loads.
+            var restoreTimer=System.Diagnostics.Stopwatch.StartNew();
             var (applyGlobal,overrides,globalLabel)=StudioDialog.AutomatedChecks?Compute():await Task.Run(Compute);
+            TimingLog.Write("Recuperar opciones aplicadas",session.GameName,restoreTimer.Elapsed);
             if(_closed||request!=_appliedOptionsRequest||!ReferenceEquals(_session,session))return;
             var before=new HashSet<string>(_sectionOptions.Keys);
             applyGlobal?.Invoke();

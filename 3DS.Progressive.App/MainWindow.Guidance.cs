@@ -26,7 +26,7 @@ public partial class MainWindow
     }
     private void RefreshStart()=>HomeHost.Content=new StartView(_session,_simplified,ChooseExperience,
         ()=>OpenProject_Click(OpenProjectButton,new RoutedEventArgs()),OpenGuided,()=>OpenTour("Home"),OpenSwitchPrototype,OpenNdsRandomizer,
-        route=>NavigateTo(route),()=>Backup_Click(BackupButton,new RoutedEventArgs()));
+        route=>NavigateTo(route),()=>Backup_Click(BackupButton,new RoutedEventArgs()),()=>ExtractRom_Click(ExtractRomButton,new RoutedEventArgs()));
     private void Home_Click(object sender,RoutedEventArgs e)
     {
         if(_closed||UiProgress.IsInteractionBlocked)return;

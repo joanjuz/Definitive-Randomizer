@@ -268,7 +268,9 @@ public partial class MainWindow : Window
         UiProgress.Begin("Leyendo los archivos del proyecto y construyendo catálogos…");
         try
         {
+            var opening=System.Diagnostics.Stopwatch.StartNew();
             var candidate = await Task.Run(()=>GameProjectSession.Open(dialog.SelectedPath));
+            TimingLog.Write("Abrir proyecto",candidate.GameName,opening.Elapsed);
             if(_closed)return;
             LoadProject(candidate);
             preferences.DefaultProjectFolder=dialog.SelectedPath;
@@ -340,6 +342,7 @@ public partial class MainWindow : Window
         var cancellation=new CancellationTokenSource();_sectionLoadCancellation=cancellation;
         int loadVersion=++_sectionLoadVersion;
         UiProgress.Begin("Cargando "+section+"…");
+        var loadTimer=System.Diagnostics.Stopwatch.StartNew();
         if(!StudioDialog.AutomatedChecks)
             await Dispatcher.InvokeAsync(()=>{},System.Windows.Threading.DispatcherPriority.Background);
         try
@@ -413,13 +416,14 @@ public partial class MainWindow : Window
                     ()=>Backup_Click(BackupButton,new RoutedEventArgs()),OpenAutomatedPokemon),
                 "Configuration"=>new SystemsView(_session,"Configuration",NavigateSystem,
                     ()=>Backup_Click(BackupButton,new RoutedEventArgs()),OpenAutomatedPokemon),
-                "History"=>new HistoryView(_session.History),
+                "History"=>new HistoryView(_session.History,ReloadAfterUndoAsync),
                 _=>throw new ArgumentException("Sección desconocida.")
             };
             _recordView=view is Gen6MachineView gen6Machines?gen6Machines.Editor:view is Gen6TutorView gen6Tutors?gen6Tutors.Editor:view as RecordEditorView;_playerCapsView=null;if(section!="CroRecipes")_croRecipesView=null;if(section!="UsumRelearner")_relearnerView=null;if(section!="TypeChart")_typeChartView=null;if(section!="ShinyRate")_shinyRateView=null;if(section!="Rebuild")_romRebuildView=null;if(section!="Pickup")_pickupView=null;if(section!="CroIntegrity")_croIntegrityView=null;if(section!="CatchZones")_catchZonesView=null;_romExtractionView=null; if(section!="MachineTutor")_machineTutorView=null; if(section!="Marts"||_session.Generation==6)_martView=null;if(section!="Marts"||_session.Generation==7)_mart6View=null; if(section!="LevelUp")_levelUpView=null; if(section!="GameText")_gameTextView=null;if(section!="StoryText")_storyTextView=null;SectionHost.Content=view;
             PokemonListPanel.Visibility=PokemonEditorPanel.Visibility=PersonalToolsPanel.Visibility=PokemonInspectorPanel.Visibility=MovesHost.Visibility=Visibility.Collapsed;
             _personalTools.InvalidatePreview();SectionHost.Visibility=Visibility.Visible;_showingMoves=false;
             HighlightNavigation(section);
+            TimingLog.Write("Abrir sección "+section,_session.GameName,loadTimer.Elapsed);
             SetHomeVisible(false);_activeSection=section;ApplyExperienceNavigation();
             StatusText.Text=section=="History"?"Historial persistente de cambios confirmados.":"Editor integrado · guardar registra los cambios en el historial.";
         }
@@ -828,6 +832,7 @@ public partial class MainWindow : Window
             FriendshipBox.Text = p.BaseFriendship.ToString();
             HatchBox.Text = p.HatchCycles.ToString();
             GenderBox.Text = p.GenderRatio.ToString();
+            GenderMeaningText.Text = GenderRatioMeaning(GenderBox.Text);
             AssignNamedValue(EggOneBox, _eggOptions, p.EggGroup1);
             AssignNamedValue(EggTwoBox, _eggOptions, p.EggGroup2);
             AssignNamedValue(GrowthBox, _growthOptions, p.ExperienceGrowth);
@@ -1163,6 +1168,7 @@ public partial class MainWindow : Window
 
     private void Stat_TextChanged(object sender, TextChangedEventArgs e)
     {
+        if (ReferenceEquals(sender, GenderBox)) GenderMeaningText.Text = GenderRatioMeaning(GenderBox.Text);
         if (!_loadingEntry)
         {
             _personalTools.InvalidatePreview();
@@ -1192,9 +1198,15 @@ public partial class MainWindow : Window
             byte.TryParse(SpaBox.Text, out var spa) &&
             byte.TryParse(SpdBox.Text, out var spd) &&
             byte.TryParse(SpeBox.Text, out var spe))
+        {
             BstText.Text = HeaderBstText.Text = (hp + atk + def + spa + spd + spe).ToString();
+            RenderStatBars([hp, atk, def, spa, spd, spe]);
+        }
         else
+        {
             BstText.Text = HeaderBstText.Text = "—";
+            StatBarsPanel.Children.Clear();
+        }
 
         UpdateBadge(TypeBadgeOne, TypeBadgeOneText, TypeOne.SelectedItem as string);
         UpdateBadge(TypeBadgeTwo, TypeBadgeTwoText, TypeTwo.SelectedItem as string);
