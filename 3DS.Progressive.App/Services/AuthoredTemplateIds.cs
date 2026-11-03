@@ -22,7 +22,7 @@ internal sealed partial class AuthoredTemplate
                 IReadOnlyList<string>? names=field switch{"Move"=>p.MoveNames,"Item" or "Argument"=>p.ItemNames,"Entry"=>Names(p),"Source" or "Target"=>p.GameConfiguration.GetText(pk3DS.Core.TextName.SpeciesNames),_=>null};
                 id=names is null?-1:Enumerable.Range(0,names.Count).FirstOrDefault(i=>string.Equals(names[i],token,StringComparison.OrdinalIgnoreCase),-1);
             }
-            if(id<0)throw new InvalidDataException($"No se pudo resolver {field}: {token}. Importá su ID numérico.");
+            if(id<0)throw new InvalidDataException($"No se pudo resolver {field}: {token}. Importa su ID numérico.");
             row[field]=id.ToString(CultureInfo.InvariantCulture);
         }
         RequireNumericIds();

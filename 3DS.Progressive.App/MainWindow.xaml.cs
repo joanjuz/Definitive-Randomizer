@@ -186,6 +186,8 @@ public partial class MainWindow : Window
         UiProgress.Changed-=_changedProgress;
         UiProgress.Reported-=_reportedProgress;
         UiProgress.Telemetry-=_telemetryProgress;
+        if(_badgeSession is not null)_badgeSession.History.Committed-=OnHistoryCommitted;
+        SessionMilestones.Changed-=OnMilestonesChanged;
     }
 
     private void ConfigurePersonalTools(GameProjectSession project)
@@ -241,7 +243,7 @@ public partial class MainWindow : Window
         PokemonListPanel.Visibility=PokemonEditorPanel.Visibility=PersonalToolsPanel.Visibility=
             PokemonInspectorPanel.Visibility=MovesHost.Visibility=Visibility.Collapsed;
         SectionHost.Visibility=Visibility.Visible;_showingMoves=false;
-        SetHomeVisible(false);_activeSection="Extraction";
+        SetHomeVisible(false);_activeSection="Extraction";HighlightNavigation("Extraction");
         StatusText.Text="Extracción de ROM descifrada en una carpeta nueva.";
     }
     private async void OpenProject_Click(object sender, RoutedEventArgs e)
@@ -329,6 +331,8 @@ public partial class MainWindow : Window
     {
         if(_closed||_session is null||sender is not Button {Tag:string section})return;
         if(!ProjectFeatureAvailability.Supports(_session,section))return;
+        // The applied options of the project are being read: open the randomizer with them, not with the defaults.
+        if(_appliedOptionsTask is {IsCompleted:false} pending){try{await pending;}catch(Exception){}if(_closed||_session is null)return;}
         if(!ConfirmDiscard()||!ConfirmAuxiliaryLeave())return;
         if(HasUnsavedChanges()&&_previous is not null)ShowEntry(_previous);
         using var interaction=section is "Encounters" or "FieldItems"?UiProgress.BlockInteraction():null;
@@ -415,8 +419,7 @@ public partial class MainWindow : Window
             _recordView=view is Gen6MachineView gen6Machines?gen6Machines.Editor:view is Gen6TutorView gen6Tutors?gen6Tutors.Editor:view as RecordEditorView;_playerCapsView=null;if(section!="CroRecipes")_croRecipesView=null;if(section!="UsumRelearner")_relearnerView=null;if(section!="TypeChart")_typeChartView=null;if(section!="ShinyRate")_shinyRateView=null;if(section!="Rebuild")_romRebuildView=null;if(section!="Pickup")_pickupView=null;if(section!="CroIntegrity")_croIntegrityView=null;if(section!="CatchZones")_catchZonesView=null;_romExtractionView=null; if(section!="MachineTutor")_machineTutorView=null; if(section!="Marts"||_session.Generation==6)_martView=null;if(section!="Marts"||_session.Generation==7)_mart6View=null; if(section!="LevelUp")_levelUpView=null; if(section!="GameText")_gameTextView=null;if(section!="StoryText")_storyTextView=null;SectionHost.Content=view;
             PokemonListPanel.Visibility=PokemonEditorPanel.Visibility=PersonalToolsPanel.Visibility=PokemonInspectorPanel.Visibility=MovesHost.Visibility=Visibility.Collapsed;
             _personalTools.InvalidatePreview();SectionHost.Visibility=Visibility.Visible;_showingMoves=false;
-            PokemonNavButton.Background=MovesButton.Background=TrainersButton.Background=EncountersButton.Background=StaticEncountersButton.Background=MachineTutorButton.Background=LevelUpButton.Background=ItemsButton.Background=MartsButton.Background=FieldItemsButton.Background=GameTextButton.Background=StoryTextButton.Background=EvolutionsButton.Background=HistoryButton.Background=TemplateStudioButton.Background=GlobalTemplateButton.Background=BatchRomButton.Background=PokemonToolsButton.Background=MechanicsButton.Background=RomToolsButton.Background=AutomationButton.Background=ConfigurationButton.Background=Brushes.Transparent;
-            ((Button)sender).Background=new SolidColorBrush((Color)ColorConverter.ConvertFromString("#2B4059")!);
+            HighlightNavigation(section);
             SetHomeVisible(false);_activeSection=section;ApplyExperienceNavigation();
             StatusText.Text=section=="History"?"Historial persistente de cambios confirmados.":"Editor integrado · guardar registra los cambios en el historial.";
         }
@@ -454,7 +457,7 @@ public partial class MainWindow : Window
             if(!ConfirmDiscard()||!ConfirmAuxiliaryLeave())return;
             var view=_playerCapsView=new PlayerLevelCapsView(_session);
             _recordView=null;_machineTutorView=null;_martView=null;_mart6View=null;_levelUpView=null;_gameTextView=null;_storyTextView=null;
-            SectionHost.Content=view;SetHomeVisible(false);_activeSection=section;
+            SectionHost.Content=view;SetHomeVisible(false);_activeSection=section;HighlightNavigation(section);
             PokemonListPanel.Visibility=PokemonEditorPanel.Visibility=PersonalToolsPanel.Visibility=
                 PokemonInspectorPanel.Visibility=MovesHost.Visibility=Visibility.Collapsed;
             SectionHost.Visibility=Visibility.Visible;
@@ -503,6 +506,7 @@ public partial class MainWindow : Window
     private RecordEditorView CreateEditor(IProjectEditor editor)
     {
         var view=new RecordEditorView(editor,_sectionOptions.GetValueOrDefault(editor.Title));
+        if(_optionSources.TryGetValue(editor.Title,out var source))view.ShowOptionsSource(source);
         if(editor is GameFieldItems6Service fieldItems)
         {
             var export=(Button)view.FindName("FieldExportButton");export.Visibility=Visibility.Visible;
@@ -614,7 +618,7 @@ public partial class MainWindow : Window
         using var folder=new System.Windows.Forms.FolderBrowserDialog
         {
             SelectedPath=Directory.Exists(prefs.DefaultBackupFolder)?prefs.DefaultBackupFolder:string.Empty,
-            Description="Elegí la carpeta de destino del backup completo del proyecto.",
+            Description="Elige la carpeta de destino del backup completo del proyecto.",
             ShowNewFolderButton=true
         };
         if(folder.ShowDialog()!=System.Windows.Forms.DialogResult.OK)return;
@@ -627,7 +631,7 @@ public partial class MainWindow : Window
             UiProgress.Report($"Backup: {p.Completed}/{p.Total} · {p.File}",
                 p.Total>0?100d*p.Completed/p.Total:0));
             string path=await ProjectBackup.CreateAsync(project.ProjectRoot,folder.SelectedPath,project.GameName,progress,history:project.History.Read());
-            StatusText.Text="Backup completo y verificado: "+path;
+            StatusText.Text="Backup completo y verificado: "+path;SessionMilestones.MarkBackup(project);
             prefs.DefaultBackupFolder=folder.SelectedPath;prefs.Save();
             IsEnabled=true;StudioDialog.Notice(this,"Backup generado","Se guardó y verificó una copia del proyecto y su historial.",path);
         }
@@ -649,7 +653,7 @@ public partial class MainWindow : Window
             string destination=Path.Combine(folder.FolderName,"Definitive_restaurado_"+DateTime.Now.ToString("yyyyMMdd_HHmmss"));
             IsEnabled=false;var restored=await ProjectRestore.RestoreAsync(plan,destination);
             StatusText.Text="Respaldo restaurado y verificado: "+restored;
-            IsEnabled=true;StudioDialog.Notice(this,"Restauración completada","Abrí el proyecto desde la carpeta restaurada.",restored);
+            IsEnabled=true;StudioDialog.Notice(this,"Restauración completada","Abre el proyecto desde la carpeta restaurada.",restored);
         }
         catch(Exception ex){IsEnabled=true;StudioDialog.Error(this,"Restauración de respaldo",ex.Message);}
         finally{_backupRunning=false;IsEnabled=true;UiProgress.End();}
@@ -748,7 +752,8 @@ public partial class MainWindow : Window
         ConfigurePersonalTools(candidate);
         PokemonList.SelectedIndex = 0;
         StatusText.Text = "Proyecto abierto en modo lectura. Guardar requiere confirmación.";
-        GuidedButton.IsEnabled=true;RefreshStart();SetHomeVisible(true);ApplyExperienceNavigation();
+        _optionSources.Clear();_appliedOptionsTask=RestoreAppliedOptionsAsync(candidate);
+        GuidedButton.IsEnabled=true;WatchHistory(candidate);RefreshHeaderEmphasis();RefreshStart();SetHomeVisible(true);ApplyExperienceNavigation();
     }
 
     private void SearchBox_TextChanged(object sender, TextChangedEventArgs e)
@@ -1041,7 +1046,7 @@ public partial class MainWindow : Window
         if (!HasUnsavedChanges())
             return true;
         return StudioDialog.Confirm(this, "Cambios pendientes",
-            "Hay cambios sin guardar. ¿Querés descartarlos?",
+            "Hay cambios sin guardar. ¿Quieres descartarlos?",
             "Si continuás, los cambios de la especie actual no se conservarán.");
     }
 
@@ -1063,7 +1068,7 @@ public partial class MainWindow : Window
 
         if (!StudioDialog.Confirm(this, "Confirmar guardado del GARC",
             "Se modificará la tabla personal del proyecto extraído seleccionado.",
-            "Asegurate de trabajar sobre una COPIA de tus archivos. Studio no crea backups automáticos."))
+            "Asegúrate de trabajar sobre una COPIA de tus archivos. Studio no crea backups automáticos."))
             return;
 
         try
@@ -1111,8 +1116,7 @@ public partial class MainWindow : Window
         _personalTools.InvalidatePreview();
         PokemonInspectorPanel.Visibility = Visibility.Visible;
         MovesHost.Visibility = Visibility.Collapsed;
-        PokemonNavButton.Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#2B4059")!);
-        MovesButton.Background = Brushes.Transparent;
+        HighlightNavigation("Pokemon");
     }
 
     private void Moves_Click(object sender, RoutedEventArgs e)
@@ -1139,8 +1143,7 @@ public partial class MainWindow : Window
             PokemonInspectorPanel.Visibility = Visibility.Collapsed;
             MovesHost.Visibility = Visibility.Visible;
             _showingMoves = true;
-            PokemonNavButton.Background = Brushes.Transparent;
-            MovesButton.Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#2B4059")!);
+            HighlightNavigation("Moves");
             _activeSection="Moves";SetHomeVisible(false);
             StatusText.Text = "Movimientos · edición integrada en Definitive Randomizer.";
         }
@@ -1266,7 +1269,7 @@ public partial class MainWindow : Window
 
             PokemonSprite.Source = result.Image;
             SpriteFallback.Visibility = Visibility.Collapsed;
-            SpriteStatusText.Text = result.Description;
+            SpriteStatusText.Text = string.IsNullOrWhiteSpace(result.Description)?"":"Sprites: "+result.Description;
         }
         catch (OperationCanceledException)
         {

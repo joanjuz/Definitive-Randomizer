@@ -13,6 +13,7 @@ Punto de entrada a `docs/3ds-progressive/`. Muchos documentos son **registros hi
 | Rediseño visual WPF | [AUDITORIA_VISUAL_WPF.md](AUDITORIA_VISUAL_WPF.md) |
 | Tablas: centrado, edición, secciones de estáticos y tablas verticales | [TABLAS_CENTRADO_EDICION_SECCIONES.md](TABLAS_CENTRADO_EDICION_SECCIONES.md) |
 - Auditoría visual ampliada (4 juegos, 4 tamaños, herramientas, ventanas y diálogos) y arreglos: [AUDITORIA_VISUAL_AMPLIADA.md](AUDITORIA_VISUAL_AMPLIADA.md)
+- Navegación y jerarquía: barra por grupos, buscador Ctrl+K, miga de pan, marcas de cambios, estado del proyecto en Inicio, Inspector por grupos, pasos de randomización, hubs en cuadrícula y tuteo: [REDISENO_NAVEGACION_JERARQUIA.md](REDISENO_NAVEGACION_JERARQUIA.md)
 - Nintendo DS: paridad de interfaz con 3DS (Level Caps y Move Rules, iniciales de 3 etapas, movimientos huevo, vistas Level Up, MT/tutores y Pokémon, Smart Items por generación, Level Up de 3DS en Espada/Escudo y corrección de Smart Items) y auditoría visual DS: [NDS_PARIDAD_INTERFAZ_3DS.md](NDS_PARIDAD_INTERFAZ_3DS.md)
 - Escalado de entrenadores según la cronología de la historia (WikiDex) en XY, ORAS, Sol/Luna, DS y Espada; corrección de caps «Ace» en XY/ORAS: [ESCALADO_CRONOLOGIA_HISTORIA.md](ESCALADO_CRONOLOGIA_HISTORIA.md)
 - Búsqueda en desplegables, copiar/pegar Pokémon de entrenador, estáticos desde 000, historial exportado como Global Template, aviso (no bloqueo) por SHA-256 distinto, combates de prueba antes de cada Totem y diagnóstico del movimiento Z: [MEJORAS_EDITOR_20261102.md](MEJORAS_EDITOR_20261102.md)

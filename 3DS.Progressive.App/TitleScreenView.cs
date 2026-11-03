@@ -28,7 +28,7 @@ internal sealed class TitleScreenView : UserControl
         Background = (Brush)FindResource("Bg"); var root = new DockPanel { Margin = new Thickness(22) }; Content = root;
         DockPanel.SetDock(_controls, Dock.Top); root.Children.Add(_controls);
         _controls.Children.Add(new TextBlock { Text = "Pantallas de título · Gen"+project.Generation, FontSize = 24, Foreground = (Brush)FindResource("TextMain") });
-        _controls.Children.Add(new TextBlock { Text = project.GameConfiguration.USUM?"Edita los logos 2D y efectos del inicio de una partida nueva. Para la secuencia animada de acceso a la partida guardada, abrí Animaciones y vídeos MOFLEX. Se conservan formato, orientación y tamaño originales.":project.GameConfiguration.ORAS?"Edita el logo moderno de Pulsa Start y sus efectos 2D, y la presentación Presented by / GAME FREAK del bosque. El catálogo muestra los diseños, animaciones y archivos de cada paquete. Los vídeos MOFLEX son recursos independientes.":"Edita los recursos de título del juego. Conserva las dimensiones y verifica los demás archivos antes de guardar en el historial.", TextWrapping = TextWrapping.Wrap, Foreground = (Brush)FindResource("TextSoft"), Margin = new Thickness(0,8,0,12) });
+        _controls.Children.Add(new TextBlock { Text = project.GameConfiguration.USUM?"Edita los logos 2D y efectos del inicio de una partida nueva. Para la secuencia animada de acceso a la partida guardada, abre Animaciones y vídeos MOFLEX. Se conservan formato, orientación y tamaño originales.":project.GameConfiguration.ORAS?"Edita el logo moderno de Pulsa Start y sus efectos 2D, y la presentación Presented by / GAME FREAK del bosque. El catálogo muestra los diseños, animaciones y archivos de cada paquete. Los vídeos MOFLEX son recursos independientes.":"Edita los recursos de título del juego. Conserva las dimensiones y verifica los demás archivos antes de guardar en el historial.", TextWrapping = TextWrapping.Wrap, Foreground = (Brush)FindResource("TextSoft"), Margin = new Thickness(0,8,0,12) });
         _controls.Children.Add(_archives);
         var resourceDescription=new TextBlock{TextWrapping=TextWrapping.Wrap,Foreground=(Brush)FindResource("TextSoft"),Margin=new Thickness(0,6,0,6),MaxHeight=110};
         _controls.Children.Add(new ScrollViewer{Content=resourceDescription,MaxHeight=110,VerticalScrollBarVisibility=ScrollBarVisibility.Auto});
@@ -50,7 +50,7 @@ internal sealed class TitleScreenView : UserControl
     private void Busy(bool value) { _busy = value; _controls.IsEnabled = !value; }
     private void Try(Action action) { try { action(); } catch (Exception ex) { StudioDialog.Error(Window.GetWindow(this), "Pantallas de título", ex.Message); } }
     private static void Add(WrapPanel panel, string text, Action action) { var button = new Button { Content = text, Margin = new Thickness(0,8,8,8) }; button.Click += (_, _) => action(); panel.Children.Add(button); }
-    private (int Archive, int Image) Selection() => _archives.SelectedItem is TitleArchive archive && _images.SelectedItem is TitleDarcEntry image ? (archive.Id, image.Id) : throw new InvalidOperationException("Seleccioná una imagen de título.");
+    private (int Archive, int Image) Selection() => _archives.SelectedItem is TitleArchive archive && _images.SelectedItem is TitleDarcEntry image ? (archive.Id, image.Id) : throw new InvalidOperationException("Selecciona una imagen de título.");
     private void Show()
     {
         if (_service is null || _images.SelectedItem is null) return; var selected = Selection();
@@ -73,7 +73,7 @@ internal sealed class TitleScreenView : UserControl
     private void Export(bool png) => Try(() =>
     {
         if (_service is null) return; var selected = Selection(); var dialog = new Microsoft.Win32.SaveFileDialog { Filter = png ? "PNG|*.png" : _service.Gen7?"BFLIM|*.bflim":"BCLIM|*.bclim", FileName = png ? "title.png" : _service.Gen7?"title.bflim":"title.bclim" }; if (dialog.ShowDialog(Window.GetWindow(this)) != true) return;
-        if (Path.GetFullPath(dialog.FileName).StartsWith(_projectRoot, StringComparison.OrdinalIgnoreCase)) throw new InvalidDataException("Exportá la imagen fuera del proyecto para conservar sus recursos.");
+        if (Path.GetFullPath(dialog.FileName).StartsWith(_projectRoot, StringComparison.OrdinalIgnoreCase)) throw new InvalidDataException("Exporta la imagen fuera del proyecto para conservar sus recursos.");
         byte[] data = _service.Read(selected.Archive, selected.Image); if (png) { using var bitmap = GameGraphicsCodec.Decode(data); bitmap.Save(dialog.FileName, System.Drawing.Imaging.ImageFormat.Png); } else File.WriteAllBytes(dialog.FileName, data);
     });
     private async void Save()

@@ -227,7 +227,7 @@ public sealed class GameStaticEncounter6Service : IProjectEditor, IRecordSection
                 if(starter)candidates=candidates.Where(s=>s!=292);
                 bool explicitStarter=starter&&(rowOptions.GetValueOrDefault("BasicStarter")==1||rowOptions.GetValueOrDefault("StarterGeneration")==1);
                 if(!explicitStarter&&!Enumerable.Range(1,6).Any(g=>rowOptions["G"+g]==1))
-                    throw new ArgumentException("Seleccioná al menos una generación para regalos o encuentros estáticos.");
+                    throw new ArgumentException("Selecciona al menos una generación para regalos o encuentros estáticos.");
                 if(!explicitStarter&&rowOptions["LegendToLegend"]==1&&(Legal.Legendary_6.Contains(species)||Legal.Mythical_6.Contains(species)))
                     candidates=candidates.Where(s=>Legal.Legendary_6.Contains(s)||Legal.Mythical_6.Contains(s));
                 if(!explicitStarter&&rowOptions["Final"]==1&&v["Level"]>=rowOptions["FinalLevel"])

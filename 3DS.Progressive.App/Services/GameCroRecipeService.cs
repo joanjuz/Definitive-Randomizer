@@ -29,7 +29,7 @@ internal sealed class GameCroRecipeService(GameProjectSession project)
         string battle=BattlePath??throw new FileNotFoundException("Battle.cro no existe en RomFS.");
         string[] selected=paths.Select(Path.GetFullPath)
             .Distinct(StringComparer.OrdinalIgnoreCase).OrderBy(x=>x,StringComparer.OrdinalIgnoreCase).ToArray();
-        if(selected.Length==0)throw new InvalidDataException("Seleccioná uno o más JSON de recetas.");
+        if(selected.Length==0)throw new InvalidDataException("Selecciona uno o más JSON de recetas.");
         string[] docs=selected.Select(File.ReadAllText).ToArray();
         byte[] original=File.ReadAllBytes(battle);
         if(!CroMechanicRecipeApplication.TryApplyJson(original,docs,out byte[] updated,

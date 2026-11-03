@@ -41,8 +41,8 @@ internal static class TextCommandCatalogue
             new(@"\c",@"\c","Espera una pulsación y limpia el cuadro de texto.","La continuación se muestra después de limpiar el cuadro.",@"\c",Seen(lines,@"\c")),
             new(@"\\",@"\\","Muestra una barra invertida literal.","Dos barras representan una barra visible.",@"\\",Seen(lines,@"\\")),
             new(@"\[",@"\[","Muestra un corchete de apertura literal.","Evita interpretarlo como comienzo de un comando.",@"\[",Seen(lines,@"\[")),
-            new("WAIT","[WAIT valor]","Pausa del mensaje.","Valor decimal de 0 a 65535. La unidad de tiempo no está documentada en el lector; copiá un valor existente.","[WAIT 30]",Seen(lines,"[WAIT ")),
-            new("~","[~ número]","Marcador de una entrada de texto reservada.","No es texto visible ni un comando para añadir diálogos. Conservá el marcador original.","",Seen(lines,"[~ "))
+            new("WAIT","[WAIT valor]","Pausa del mensaje.","Valor decimal de 0 a 65535. La unidad de tiempo no está documentada en el lector; copia un valor existente.","[WAIT 30]",Seen(lines,"[WAIT ")),
+            new("~","[~ número]","Marcador de una entrada de texto reservada.","No es texto visible ni un comando para añadir diálogos. Conserva el marcador original.","",Seen(lines,"[~ "))
         };
         foreach(var variable in config.Variables)
         {
@@ -50,13 +50,13 @@ internal static class TextCommandCatalogue
             bool found=observed.TryGetValue(name,out string? example);
             bool number=name.StartsWith("NUM",StringComparison.Ordinal)&&int.TryParse(name.AsSpan(3),out _);
             string function=Functions.GetValueOrDefault(name,number?"Número con formato "+name+"; el evento aporta su valor.":"Identificador reconocido por el lector; función detallada no documentada.");
-            string notes="Los parámetros de VAR son hexadecimales de cuatro dígitos (000A = 10). Los índices suelen señalar valores preparados por el evento: 0000 no significa la especie o el Entrenador nº 0. Conservá cantidad, orden y valores del original.";
+            string notes="Los parámetros de VAR son hexadecimales de cuatro dígitos (000A = 10). Los índices suelen señalar valores preparados por el evento: 0000 no significa la especie o el Entrenador nº 0. Conserva cantidad, orden y valores del original.";
             if(name is "GENDBR" or "NUMBRNCH" or "ITEMPLUR0" or "ITEMPLUR1")notes+=" Usa parámetros y texto de alternativas empaquetados; no se deben reconstruir solo cambiando los números.";
             if(!found && (SimpleTemplates.Contains(name)||number))example=$"[VAR {name}(0000)]";
             rows.Add(new(name,$"[VAR {name}(parámetros)] · código {variable.Code:X4}",function,notes+(found?" Ejemplo real del archivo guardado seleccionado.":" Plantilla de sintaxis; no garantiza que el evento tenga ese valor preparado."),example??"",found));
         }
         foreach(var pair in observed.Where(p=>!config.Variables.Any(v=>v.Name==p.Key)))
-            rows.Add(new(pair.Key,pair.Value,"Código presente en este archivo cuya función no está documentada.","El lector admite identificadores hexadecimales. No supongas que controlan un personaje, una pausa o un efecto: conservá el original.",pair.Value,true));
+            rows.Add(new(pair.Key,pair.Value,"Código presente en este archivo cuya función no está documentada.","El lector admite identificadores hexadecimales. No supongas que controlan un personaje, una pausa o un efecto: conserva el original.",pair.Value,true));
         return rows;
     }
     private static bool IsUnescaped(string line,int index)

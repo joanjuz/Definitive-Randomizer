@@ -30,8 +30,8 @@ internal sealed class PickupView : UserControl
         var top=new StackPanel();DockPanel.SetDock(top,Dock.Top);root.Children.Add(top);
         top.Children.Add(new TextBlock{Text="Recogida · Pickup",FontSize=23,Foreground=(Brush)FindResource("TextMain")});
         top.Children.Add(new TextBlock{Text=_service.Gen7?
-            "Objetos y probabilidades por rango de nivel. Cada columna debe sumar 100 %. Podés añadir o quitar la última fila. La randomización conserva las probabilidades.":
-            "18 objetos comunes y 11 raros en XY/ORAS. Las probabilidades originales se conservan. Revisá los cambios antes de guardar.",
+            "Objetos y probabilidades por rango de nivel. Cada columna debe sumar 100 %. Puedes añadir o quitar la última fila. La randomización conserva las probabilidades.":
+            "18 objetos comunes y 11 raros en XY/ORAS. Las probabilidades originales se conservan. Revisa los cambios antes de guardar.",
             TextWrapping=TextWrapping.Wrap,Foreground=(Brush)FindResource("TextSoft"),Margin=new Thickness(0,8,0,12)});
         var buttons=new WrapPanel();top.Children.Add(buttons);
         Add(buttons,"Randomizar objetos",Randomize);
@@ -68,7 +68,7 @@ internal sealed class PickupView : UserControl
         if(!CommitEdits())return false;
         return !Dirty()||StudioDialog.Confirm(Window.GetWindow(this),"Pickup sin guardar","Los cambios de Pickup se descartarán al salir. ¿Continuar?");
     }
-    private void Randomize(){if(!CommitEdits())return;SetRows(_service.Randomize(_rows));_manualChanged=false;_status.Text="Objetos randomizados en memoria. Generá una vista previa antes de guardar.";}
+    private void Randomize(){if(!CommitEdits())return;SetRows(_service.Randomize(_rows));_manualChanged=false;_status.Text="Objetos randomizados en memoria. Genera una vista previa antes de guardar.";}
     private void Preview()
     {
         if(!CommitEdits())return;_proposal=_service.Preview(_rows);_apply.IsEnabled=_proposal.Changes.Count>0;

@@ -86,7 +86,7 @@ internal sealed class ShinyRateView : UserControl
         try
         {
             if(!int.TryParse(_rerolls.Text,out var rerolls))
-                throw new InvalidDataException("Introducí un número de rerolls válido.");
+                throw new InvalidDataException("Introduce un número de rerolls válido.");
             var proposal=_service.Preview(rerolls,_everything.IsChecked==true,restore);
             _proposal=proposal;_restoring=restore;
             _apply.IsEnabled=proposal.Changes.Count>0;

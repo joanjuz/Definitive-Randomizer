@@ -138,7 +138,7 @@ internal sealed class TotemRulesView : UserControl
     {
         if(_enabled.IsChecked!=true)
         {
-            _status.Text="Marcá la casilla Activar para generar la propuesta.";
+            _status.Text="Marca la casilla Activar para generar la propuesta.";
             return;
         }
         try
@@ -148,7 +148,7 @@ internal sealed class TotemRulesView : UserControl
             UiProgress.Begin("Calculando propuesta de Totem…");
             _preview=_service.PreviewTotemRules(_rows.ToArray(),_bstMode);
             _apply.IsEnabled=_preview.Changes.Count>0;
-            _status.Text=$"{_preview.Changes.Count} campos modificados. Revisá y confirmá.";
+            _status.Text=$"{_preview.Changes.Count} campos modificados. Revisa y confirma.";
         }
         catch(Exception ex){Invalidate();StudioDialog.Error(Window.GetWindow(this),"Totem",ex.Message);}
         finally{UiProgress.End();}
@@ -213,7 +213,7 @@ internal sealed class TotemRulesView : UserControl
                 row.Use=entry.Use;row.LevelCap=entry.LevelCap;
                 row.MinBST=entry.MinBST;row.MaxBST=entry.MaxBST;
             }
-            _enabled.IsChecked=doc.Enabled;Invalidate();_status.Text="Template cargado. Generá vista previa.";
+            _enabled.IsChecked=doc.Enabled;Invalidate();_status.Text="Template cargado. Genera vista previa.";
         }
         catch(Exception ex){StudioDialog.Error(Window.GetWindow(this),"Importar Totem",ex.Message);}
     }

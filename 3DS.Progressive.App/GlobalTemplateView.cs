@@ -51,8 +51,8 @@ internal sealed class GlobalTemplateView : UserControl
             FontSize=23,FontWeight=FontWeights.SemiBold,Foreground=(Brush)FindResource("TextMain")});
         header.Children.Add(new TextBlock
         {
-            Text="Cargá una receta y recuperá las opciones guardadas de los editores compatibles. " +
-                "Previsualizar ejecuta la receta en una copia; Aplicar traslada el mismo resultado al proyecto y registra cada acción. No reconstruye la ROM. Guardar incorpora tus opciones y las modificaciones manuales guardadas en el historial. Batch aplica primero la randomización y después los valores manuales. Cargar no modifica la ROM; conservá junto al JSON su carpeta .assets si contiene recursos adjuntos.",
+            Text="Carga una receta y recupera las opciones guardadas de los editores compatibles. " +
+                "Previsualizar ejecuta la receta en una copia; Aplicar traslada el mismo resultado al proyecto y registra cada acción. No reconstruye la ROM. Guardar incorpora tus opciones y las modificaciones manuales guardadas en el historial. Batch aplica primero la randomización y después los valores manuales. Cargar no modifica la ROM; conserva junto al JSON su carpeta .assets si contiene recursos adjuntos.",
             Foreground=(Brush)FindResource("TextSoft"),TextWrapping=TextWrapping.Wrap,
             Margin=new Thickness(0,5,0,12)
         });
@@ -61,7 +61,7 @@ internal sealed class GlobalTemplateView : UserControl
         Add(controls,"Cargar template global…",Load);
         _save=Add(controls,"Guardar template global…",Save,EditorPresentation.ActionRole.Primary);
         Add(controls,"Crear desde historial",FromHistory);
-        if(project.Generation is 6 or 7)Add(controls,"Nueva receta nativa Gen"+project.Generation,()=>Use(NativeRecipeFactory.Create(_project,_captureOptions),"Receta creada sin aplicar cambios. Revisá las opciones en los editores y desmarcá las acciones que no quieras incluir antes de guardar."));
+        if(project.Generation is 6 or 7)Add(controls,"Nueva receta nativa Gen"+project.Generation,()=>Use(NativeRecipeFactory.Create(_project,_captureOptions),"Receta creada sin aplicar cambios. Revisa las opciones en los editores y desmarca las acciones que no quieras incluir antes de guardar."));
         _previewButton=Add(controls,"Previsualizar cambios",()=>_ = PreviewChangesAsync());
         _applyButton=Add(controls,"Aplicar cambios",()=>_ = ApplyChangesAsync(),EditorPresentation.ActionRole.Primary);
         _previewButton.IsEnabled=_applyButton.IsEnabled=false;
@@ -102,10 +102,10 @@ internal sealed class GlobalTemplateView : UserControl
                 UpdateSourceTrigger=UpdateSourceTrigger.PropertyChanged}});
         grid.Columns.Add(new DataGridTextColumn{Header="Acción original",Width=new DataGridLength(1,DataGridLengthUnitType.Star),
             IsReadOnly=true,Binding=new Binding(nameof(ActionRow.Display))});
-        DarkGridTheme.Apply(grid);content.Children.Add(EditorPresentation.EmptyState(grid,"Sin receta cargada","Cargá un template global o crealo desde el historial."));
+        DarkGridTheme.Apply(grid);content.Children.Add(EditorPresentation.EmptyState(grid,"Sin receta cargada","Carga un template global o créalo desde el historial."));
         Unloaded+=(_,_)=>{if(!_busy)InvalidatePreview();};
         _save.IsEnabled=false;
-        _status.Text="Ninguna receta cargada. Seleccioná DEFINITIVO.json o creá un snapshot parcial desde el historial.";
+        _status.Text="Ninguna receta cargada. Selecciona DEFINITIVO.json o crea un snapshot parcial desde el historial.";
     }
     private static Button Add(Panel panel,string title,Action action,EditorPresentation.ActionRole role=EditorPresentation.ActionRole.Secondary)
     {
@@ -170,11 +170,11 @@ internal sealed class GlobalTemplateView : UserControl
         var template=GlobalTemplateDocument.FromHistory(_project.History.Read(),Game,_project.Generation,_loaded);
         _captureOptions?.Invoke(template);
         int missing=template.Section("ProgressiveApp")?["ManualEdits"]?["MissingHistoryPayloads"]?.AsArray().Count??0;
-        Use(template,missing>0?$"Se detectaron {missing} modificaciones antiguas sin datos suficientes. Al guardar se indicarán las entradas que necesitás editar y guardar de nuevo.":"Se incorporaron las opciones disponibles y las modificaciones manuales. Estas se aplicarán al final de la randomización. Los módulos sin configuración no se inventan.");
+        Use(template,missing>0?$"Se detectaron {missing} modificaciones antiguas sin datos suficientes. Al guardar se indicarán las entradas que necesitas editar y guardar de nuevo.":"Se incorporaron las opciones disponibles y las modificaciones manuales. Estas se aplicarán al final de la randomización. Los módulos sin configuración no se inventan.");
     }
     private void Save()
     {
-        if(_loaded is null)throw new InvalidOperationException("Primero cargá o creá un template.");
+        if(_loaded is null)throw new InvalidOperationException("Primero carga o crea un template.");
         var dialog=new Microsoft.Win32.SaveFileDialog
         {Filter="Global ROM Template JSON|*.json",
             FileName="rom_template_"+Game.ToLowerInvariant()+".json"};
@@ -188,7 +188,7 @@ internal sealed class GlobalTemplateView : UserControl
     }
     internal GlobalTemplateDocument ExportSnapshot()
     {
-        if(_loaded is null)throw new InvalidOperationException("Primero cargá o creá un template.");
+        if(_loaded is null)throw new InvalidOperationException("Primero carga o crea un template.");
         var export=_loaded.Clone();
         ManualEditTemplate.Capture(export,_project.History.Read());
         _captureOptions?.Invoke(export);
@@ -204,7 +204,7 @@ internal sealed class GlobalTemplateView : UserControl
     }
     internal GlobalTemplateDocument ExecutionSnapshot()
     {
-        if(_loaded is null)throw new InvalidOperationException("Cargá primero un Global Template.");
+        if(_loaded is null)throw new InvalidOperationException("Carga primero un Global Template.");
         var snapshot=_loaded.Clone();snapshot.Rename(_name.Text);
         snapshot.SelectActions(_actions.Where(row=>row.Selected).Select(row=>row.Id).ToHashSet(StringComparer.OrdinalIgnoreCase));
         NativeRecipeCompletion.ReconcileSelection(snapshot);return snapshot;

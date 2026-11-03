@@ -12,6 +12,6 @@ internal readonly record struct DisplayFileStamp(long Length,DateTime LastWrite)
     }
     internal void EnsureCurrent(string path)
     {
-        if(this!=Capture(path))throw new IOException("El archivo cambió desde que abriste el proyecto. Reabrí el proyecto.");
+        if(this!=Capture(path))throw new IOException("El archivo cambió desde que abriste el proyecto. Vuelve a abrir el proyecto.");
     }
 }

@@ -290,7 +290,7 @@ public sealed partial class GameMartService
         if (!fresh.Output.AsSpan().SequenceEqual(preview.Output) ||
             !(fresh.ItemOutput??[]).AsSpan().SequenceEqual(preview.ItemOutput??[]) ||
             !(fresh.ExtraFiles??[]).Select(f=>f.Path+":"+Convert.ToHexString(SHA256.HashData(f.Proposed()))).SequenceEqual((preview.ExtraFiles??[]).Select(f=>f.Path+":"+Convert.ToHexString(SHA256.HashData(f.Proposed())))))
-            throw new InvalidOperationException("La propuesta cambió desde la vista previa. Generá otra.");
+            throw new InvalidOperationException("La propuesta cambió desde la vista previa. Genera otra.");
         byte[] onDisk = GarcTransaction.ReadUnchanged(_path, SHA256.HashData(_original));
         var files = new List<FileChange> { new(_path, onDisk, preview.Output) };
         if (preview.ItemOriginal is not null && preview.ItemOutput is not null)

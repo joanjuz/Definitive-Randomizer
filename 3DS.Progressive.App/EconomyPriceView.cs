@@ -61,7 +61,7 @@ internal sealed class EconomyPriceView : UserControl
         var bottom=new DockPanel {Margin=new Thickness(0,12,0,0),LastChildFill=false};
         DockPanel.SetDock(bottom,Dock.Bottom);root.Children.Add(bottom);
         _status=new TextBlock {Foreground=(Brush)FindResource("TextSoft"),
-            Text="Revisá y ajustá las filas incluidas.",VerticalAlignment=VerticalAlignment.Center,
+            Text="Revisa y ajusta las filas incluidas.",VerticalAlignment=VerticalAlignment.Center,
             TextWrapping=TextWrapping.Wrap};
         DockPanel.SetDock(_status,Dock.Left);bottom.Children.Add(_status);
         var close=new Button {Content="Volver",Margin=new Thickness(8,0,0,0)};
@@ -153,7 +153,7 @@ internal sealed class EconomyPriceView : UserControl
             _grid.CommitEdit(DataGridEditingUnit.Row,true);
             _preview=_items.PreviewEconomy(_rows.ToArray());
             _apply.IsEnabled=_preview.Changes.Count>0;
-            _status.Text=$"{_preview.Changes.Count} precios distintos. Revisá antes de aplicar.";
+            _status.Text=$"{_preview.Changes.Count} precios distintos. Revisa antes de aplicar.";
         }
         catch(Exception ex){Invalidate();StudioDialog.Error(Window.GetWindow(this),"Vista previa de economía",ex.Message);}
     }

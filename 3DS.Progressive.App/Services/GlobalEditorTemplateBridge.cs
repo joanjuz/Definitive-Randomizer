@@ -156,11 +156,11 @@ internal static class GlobalEditorTemplateBridge
         {
             var allowed=(document.Generation==6?NativeBatchGen6Bridge.ActionIds:NativeBatchGen7StaticBridge.ActionIds).Concat(NativeMasterBatchBridge.ActionIds).Append(ManualEditTemplate.ActionId).Concat(document.Generation==7?NativeGen7FieldBridge.ActionIds:[]).Concat(document.Generation==7?NativeGen7MachineBridge.ActionIds:[]).Concat(document.Generation==7?NativeGen7MartBridge.ActionIds:[]).Concat(document.Generation==7?NativeRecipeCompletion.Gen7ParameterActions:[]).Concat(document.Generation==7?NativeGen7WildBridge.ActionIds:[]).Concat(document.Generation==7?Gen7Adjustments.ActionIds(document.Game.Equals("USUM",StringComparison.OrdinalIgnoreCase)):[]).ToArray();
             if(!NativeRecipeCompletion.HasAllSelectedSnapshots(document))throw new InvalidDataException("Falta la configuración nativa de una acción seleccionada.");
-            if(document.Actions.Any(id=>id!="rng.seed"&&!allowed.Contains(id,StringComparer.OrdinalIgnoreCase)))throw new InvalidDataException("La receta nativa no contiene la configuración completa de las acciones originales añadidas. Importá una receta original completa para combinarlas.");
+            if(document.Actions.Any(id=>id!="rng.seed"&&!allowed.Contains(id,StringComparer.OrdinalIgnoreCase)))throw new InvalidDataException("La receta nativa no contiene la configuración completa de las acciones originales añadidas. Importa una receta original completa para combinarlas.");
         }
         if(native["MachineCompatibility"] is not null)MachineCompatibilityTemplate.ValidateReplay(document);
         if(native["PartialSnapshot"]?.GetValue<bool>()==true)
-            throw new InvalidDataException("Este snapshot se creó desde el historial y todavía no configura todos los módulos. Cargá un Global Template original completo y guardá sus opciones actualizadas antes de usar Batch.");
+            throw new InvalidDataException("Este snapshot se creó desde el historial y todavía no configura todos los módulos. Carga un Global Template original completo y guarda sus opciones actualizadas antes de usar Batch.");
         if(native["EggMoves"] is JsonObject egg&&document.Actions.Contains("egg-moves.randomize",StringComparer.OrdinalIgnoreCase)&&
             (egg["Scope"]?.GetValue<int>()??0)!=0)
             throw new InvalidDataException("Batch requiere movimientos huevo con alcance Todos.");

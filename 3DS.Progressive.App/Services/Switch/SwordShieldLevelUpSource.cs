@@ -48,7 +48,7 @@ internal sealed class SwordShieldLevelUpSource : ILevelUpSource
     public LevelUpBatchPreview PrepareRandomization(LevelUpRandomSettings settings, bool metronome = false)
     {
         if (settings.SpreadTo is < 1 or > 100 || settings.StabPercent is < 0 or > 100 || settings.Expand && (settings.ExpandTo < 1 || settings.ExpandTo > MaxMoves))
-            throw new ArgumentException("Revisá el nivel final, el porcentaje STAB y la cantidad de movimientos.");
+            throw new ArgumentException("Revisa el nivel final, el porcentaje STAB y la cantidad de movimientos.");
         var current = _project.ReadAllLearnsets();
         var preview = metronome
             ? _project.PreviewLearnsets(Entries.ToDictionary(e => e.Index, e => (IReadOnlyList<SwordShieldLearnMove>)[new SwordShieldLearnMove(Metronome, 1)]))

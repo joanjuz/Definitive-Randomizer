@@ -59,7 +59,7 @@ internal sealed class MachineTutorView : UserControl
             TextWrapping=TextWrapping.Wrap,Margin=new Thickness(0,6,0,0),Foreground=soft});
         var footer=new StackPanel {Margin=new Thickness(0,12,0,0)};
         DockPanel.SetDock(footer,Dock.Bottom);root.Children.Add(footer);
-        _status=new TextBlock {Text="Seleccioná un movimiento o cambiá precios y confirmá el guardado.",
+        _status=new TextBlock {Text="Selecciona un movimiento o cambia precios y confirma el guardado.",
             Foreground=soft,TextWrapping=TextWrapping.Wrap,Margin=new Thickness(0,0,0,8)};
         footer.Children.Add(_status);
         var tabs=new TabControl();
@@ -74,13 +74,13 @@ internal sealed class MachineTutorView : UserControl
             _service.RandomizeMachines();
             foreach(var table in _machineColumns)table.Items.Refresh();
             _dirtyMachines=true;UpdateState();
-            _status.Text="Asignaciones de MT aleatorias preparadas en memoria. Revisá antes de guardar.";
+            _status.Text="Asignaciones de MT aleatorias preparadas en memoria. Revisa antes de guardar.";
         });
         _saveMachines=new Button {Content="Guardar MT",IsEnabled=false};
         _saveMachines.Click+=(_,_)=>TryAction(()=>
         {
             if(_dirtyPrices)
-                throw new InvalidOperationException("Primero guardá o descartá los cambios pendientes de tutores.");
+                throw new InvalidOperationException("Primero guarda o descarta los cambios pendientes de tutores.");
             foreach(var table in _machineColumns)
             {
                 table.CommitEdit(DataGridEditingUnit.Cell,true);
@@ -143,7 +143,7 @@ internal sealed class MachineTutorView : UserControl
             }
             if(_dirtyMachines||_dirtyPrices)
                 throw new InvalidOperationException(
-                    "Guardá o descartá primero las ediciones de MT o tutores para usar sus datos activos.");
+                    "Guarda o descarta primero las ediciones de MT o tutores para usar sus datos activos.");
             tmCompatibilityService=new GameTmCompatibilityService(_project);
             tmCompatibilityPreview=tmCompatibilityService.Preview(
                 tmSanity.IsChecked==true,tmFollow.IsChecked==true);
@@ -220,14 +220,14 @@ internal sealed class MachineTutorView : UserControl
             int changed=_service.RandomizeTutorMoves();
             _dirtyPrices=true;_tutorPreview=null;UpdateState();
             foreach(var t in _tutorColumns)t.Items.Refresh();
-            _status.Text=$"{changed} movimientos de tutores preparados. Generá vista previa antes de aplicar.";
+            _status.Text=$"{changed} movimientos de tutores preparados. Genera vista previa antes de aplicar.";
         });
         _savePrices=new Button {Content="Vista previa tutores",IsEnabled=false};
         _savePrices.Click+=(_,_)=>TryAction(()=>
         {
             CommitTutorGrids();
             if(_dirtyMachines)
-                throw new InvalidOperationException("Primero guardá o descartá los cambios pendientes de MT.");
+                throw new InvalidOperationException("Primero guarda o descarta los cambios pendientes de MT.");
             if(!_service.CanEditTutorMoves)
             {
                 if(!StudioDialog.Confirm(Window.GetWindow(this),"Guardar precios de tutores",
@@ -244,7 +244,7 @@ internal sealed class MachineTutorView : UserControl
                 .Select(d=>$"{d.Name}: {d.Field} {d.Before} → {d.After}"));
             _status.Text=$"{_tutorPreview.Changes.Count} cambios · " +
                 $"{_tutorPreview.CodeSlotsChanged} posiciones nativas en code.bin. " +
-                "Revisá la vista previa antes de aplicar.";
+                "Revisa la vista previa antes de aplicar.";
             StudioDialog.Notice(Window.GetWindow(this),"Vista previa tutores",
                 $"{_tutorPreview.Changes.Count} diferencias y {_tutorPreview.CodeSlotsChanged} sincronizaciones en code.bin.",
                 details+(_tutorPreview.Changes.Count>12?Environment.NewLine+"…":""));
@@ -316,7 +316,7 @@ internal sealed class MachineTutorView : UserControl
             CommitTutorGrids();
             if(_dirtyPrices||_dirtyMachines)
                 throw new InvalidOperationException(
-                    "Guardá o descartá primero los cambios pendientes en MT o movimientos/precios de tutores.");
+                    "Guarda o descarta primero los cambios pendientes en MT o movimientos/precios de tutores.");
             compatibilityService=new GameTutorCompatibilityService(_project);
             compatibilityPreview=compatibilityService.Preview(sanityOption.IsChecked==true,
                 followOption.IsChecked==true);

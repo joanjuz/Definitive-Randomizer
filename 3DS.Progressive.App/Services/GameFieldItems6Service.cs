@@ -154,7 +154,7 @@ public sealed partial class GameFieldItems6Service : IProjectEditor,IOptionTempl
         EditorValues.Validate(RandomOptions,options);var source=ReadSource();
         if(scope.Any(id=>!_slots.ContainsKey(id)))throw new ArgumentException("Selección inválida.");
         var ids=scope.Distinct().Where(id=>Allowed(_slots[id],Value(_slots[id],source.Records,source.Code),options)).ToArray();
-        if(ids.Length<2)throw new ArgumentException("Seleccioná al menos dos objetos elegibles.");
+        if(ids.Length<2)throw new ArgumentException("Selecciona al menos dos objetos elegibles.");
         var random=new Random(seed);
         int[] values=ids.Select(id=>Value(_slots[id],source.Records,source.Code)).ToArray();
         if(_itemTemplate.AllowedItems.Length>0)

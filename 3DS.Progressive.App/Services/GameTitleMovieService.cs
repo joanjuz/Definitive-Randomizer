@@ -42,7 +42,7 @@ internal sealed class GameTitleMovieService : IDisposable
     private string Tool(string name)
     {
         string path=System.IO.Path.Combine(_tools,name+".exe");
-        if(!File.Exists(path))throw new FileNotFoundException("No se encontró el motor de vídeo Mobipeg. Conservá la carpeta Tools/Mobipeg junto a la aplicación.",path);
+        if(!File.Exists(path))throw new FileNotFoundException("No se encontró el motor de vídeo Mobipeg. Conserva la carpeta Tools/Mobipeg junto a la aplicación.",path);
         return path;
     }
     private async Task<string> Run(string tool,IEnumerable<string> arguments,CancellationToken cancellation=default)
@@ -102,7 +102,7 @@ internal sealed class GameTitleMovieService : IDisposable
     private static bool SameRate(string a,string b)=>Rate(a)==Rate(b);
     private static decimal Rate(string rate){var parts=rate.Split('/');return decimal.TryParse(parts[0],CultureInfo.InvariantCulture,out decimal n)&&parts.Length==2&&decimal.TryParse(parts[1],CultureInfo.InvariantCulture,out decimal d)&&d!=0?n/d:0;}
     private static byte[] Hash(string path){using var stream=File.OpenRead(path);return SHA256.HashData(stream);}
-    private void Unchanged(){if(_source is null||_sourceHash is null||!Hash(_source).AsSpan().SequenceEqual(_sourceHash))throw new IOException("El vídeo original cambió; volvé a seleccionarlo.");}
+    private void Unchanged(){if(_source is null||_sourceHash is null||!Hash(_source).AsSpan().SequenceEqual(_sourceHash))throw new IOException("El vídeo original cambió; vuelve a seleccionarlo.");}
     internal async Task Select(TitleMovieFile file,CancellationToken cancellation=default)
     {
         if(!Files.Any(f=>string.Equals(f.Path,file.Path,StringComparison.OrdinalIgnoreCase)))throw new ArgumentException("Vídeo ajeno al proyecto.");
@@ -114,7 +114,7 @@ internal sealed class GameTitleMovieService : IDisposable
     private void SafeExport(string target)
     {
         string root=System.IO.Path.TrimEndingDirectorySeparator(System.IO.Path.GetFullPath(_project.ProjectRoot))+System.IO.Path.DirectorySeparatorChar;
-        if(System.IO.Path.GetFullPath(target).StartsWith(root,StringComparison.OrdinalIgnoreCase)||File.Exists(target))throw new IOException("Exportá fuera del proyecto a un archivo que todavía no exista.");
+        if(System.IO.Path.GetFullPath(target).StartsWith(root,StringComparison.OrdinalIgnoreCase)||File.Exists(target))throw new IOException("Exporta fuera del proyecto a un archivo que todavía no exista.");
         Unchanged();
     }
     internal void ExportMoflex(string target){SafeExport(target);File.Copy(_draft??_source!,target);}
@@ -133,7 +133,7 @@ internal sealed class GameTitleMovieService : IDisposable
     }
     private async Task Validate(string path,CancellationToken cancellation)
     {
-        CheckMoflex(path);CheckProfile(Profile??throw new InvalidOperationException("Elegí un vídeo."),await Probe(path,cancellation));
+        CheckMoflex(path);CheckProfile(Profile??throw new InvalidOperationException("Elige un vídeo."),await Probe(path,cancellation));
         await Run("ffmpeg",["-v","error","-xerror","-i",path,"-map","0:v","-map","0:a?","-f","null","NUL"],cancellation);
         Unchanged();
     }
@@ -144,11 +144,11 @@ internal sealed class GameTitleMovieService : IDisposable
     }
     internal async Task ImportEditedVideo(string input,int video,CancellationToken cancellation=default)
     {
-        Unchanged();var original=Profile??throw new InvalidOperationException("Elegí un vídeo.");
+        Unchanged();var original=Profile??throw new InvalidOperationException("Elige un vídeo.");
         if(video<0||video>=original.Videos.Length)throw new ArgumentException("Pista inválida.");
         var edited=await Probe(input,cancellation);if(edited.Videos.Length!=1)throw new InvalidDataException("El vídeo editado debe contener una sola pista de vídeo, como el MP4 exportado.");
         var a=original.Videos[video];var b=edited.Videos[0];
-        if(a.Width!=b.Width||a.Height!=b.Height||!SameRate(a.Rate,b.Rate)||a.Packets!=b.Packets)throw new InvalidDataException("El vídeo editado debe conservar dimensiones, FPS y número de fotogramas. Exportá el MP4 original para usarlo como base.");
+        if(a.Width!=b.Width||a.Height!=b.Height||!SameRate(a.Rate,b.Rate)||a.Packets!=b.Packets)throw new InvalidDataException("El vídeo editado debe conservar dimensiones, FPS y número de fotogramas. Exporta el MP4 original para usarlo como base.");
         string stage=System.IO.Path.Combine(_work,Guid.NewGuid()+".moflex");
         var args=new List<string>{"-v","error","-xerror","-n","-i",_draft??_source!,"-i",input};
         for(int i=0;i<original.Videos.Length;i++){args.Add("-map");args.Add(i==video?"1:v:0":$"0:v:{i}");}

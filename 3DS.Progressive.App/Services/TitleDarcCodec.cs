@@ -57,7 +57,7 @@ internal sealed class TitleDarcCodec
         var entry = Entry(id); return _source.AsSpan(_prefix + entry.Offset, entry.Length).ToArray();
     }
     private TitleDarcEntry Entry(int id) => id >= 0 && id < Entries.Count && !Entries[id].Folder
-        ? Entries[id] : throw new ArgumentException("Seleccioná un archivo DARC válido.");
+        ? Entries[id] : throw new ArgumentException("Selecciona un archivo DARC válido.");
     internal byte[] Replace(int id, byte[] replacement)
     {
         var entry = Entry(id);

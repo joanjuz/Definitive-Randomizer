@@ -32,7 +32,7 @@ internal sealed class Gen6MartView:UserControl
         _project=project;Editor=new(project);Background=(Brush)FindResource("Bg");
         var root=new DockPanel{Margin=new Thickness(20)};Content=root;var top=new StackPanel();DockPanel.SetDock(top,Dock.Top);root.Children.Add(top);
         top.Children.Add(new TextBlock{Text="Tiendas · XY / ORAS",FontSize=23,Foreground=(Brush)FindResource("TextMain")});
-        top.Children.Add(new TextBlock{Text=Editor.SupportsExpansion?$"Añadí o eliminá objetos: hasta 64 por tienda y {Editor.Capacity} ranuras en total. Las plumas conservan su efecto EV Gen6.":"Inventarios fijos. Ampliar requiere una extracción con ExHeader compatible.",TextWrapping=TextWrapping.Wrap,Foreground=(Brush)FindResource("TextSoft"),Margin=new Thickness(0,4,0,8)});
+        top.Children.Add(new TextBlock{Text=Editor.SupportsExpansion?$"Añade o elimina objetos: hasta 64 por tienda y {Editor.Capacity} ranuras en total. Las plumas conservan su efecto EV Gen6.":"Inventarios fijos. Ampliar requiere una extracción con ExHeader compatible.",TextWrapping=TextWrapping.Wrap,Foreground=(Brush)FindResource("TextSoft"),Margin=new Thickness(0,4,0,8)});
         var options=new WrapPanel();top.Children.Add(options);
         string[] keys=["Randomize","Candies","EVItems","BanCapsule","SpecialOnly","KeepX"];
         string[] labels=["Randomizar tiendas","Caramelos raros","Plumas EV","Prohibir Cápsula Habilidad","Solo tiendas especiales","Conservar objetos X"];
@@ -65,7 +65,7 @@ internal sealed class Gen6MartView:UserControl
         foreach(var shop in _shops){foreach(var row in shop.Rows)row.PropertyChanged+=(_,_)=>Dirty();shop.Rows.CollectionChanged+=(_,e)=>{if(e.NewItems is not null)foreach(MartSlotRow row in e.NewItems)row.PropertyChanged+=(_,_)=>Dirty();Dirty();};}
         _picker.ItemsSource=_shops;_picker.SelectedIndex=0;_loading=false;_dirty=false;_pending=null;_apply.IsEnabled=false;
     }
-    private void Dirty(){if(_loading)return;_dirty=true;_pending=null;_apply.IsEnabled=false;_changes.ItemsSource=null;_status.Text="Cambios pendientes: generá una nueva vista previa.";}
+    private void Dirty(){if(_loading)return;_dirty=true;_pending=null;_apply.IsEnabled=false;_changes.ItemsSource=null;_status.Text="Cambios pendientes: genera una nueva vista previa.";}
     internal RecordEditorView.UiState RememberOptions(){var values=EditorValues.Flatten(Editor.RandomOptions);values["UseChecks"]=1;foreach(var pair in _checks)values[pair.Key]=pair.Value.IsChecked==true?1:0;return new(values,0);}
     internal void Preview()
     {

@@ -117,7 +117,7 @@ internal sealed class RomRebuildView : UserControl
         if(File.Exists(picker.FileName))
         {
             StudioDialog.Error(Window.GetWindow(this),"Rebuild",
-                "Seleccioná otro nombre: no se sobrescriben archivos existentes.");
+                "Selecciona otro nombre: no se sobrescriben archivos existentes.");
             return;
         }
         using var interaction=UiProgress.BlockInteraction();
@@ -135,6 +135,7 @@ internal sealed class RomRebuildView : UserControl
                 $"Archivo: {result.File}\nTamaño: {result.Bytes:N0} bytes\n"+
                 $"SHA-256: {result.Hash}\nLa carpeta fuente no fue modificada.";
             if(_service.LastCleanupWarning is string warning)_detail.Text+="\n"+warning;
+            SessionMilestones.MarkRebuild(_project);
             StudioDialog.Notice(Window.GetWindow(this),"Rebuild completado",
                 "Archivo reconstruido con el empaquetador original y SHA-256 verificado.",
                 result.File+(_service.LastCleanupWarning is null?"":"\n"+_service.LastCleanupWarning));

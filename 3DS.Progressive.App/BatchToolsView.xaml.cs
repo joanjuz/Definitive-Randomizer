@@ -124,7 +124,7 @@ public partial class BatchToolsView : UserControl
         CopyChangesButton.IsEnabled = false;
         ChangesList.ItemsSource = null;
         ChangesList.Visibility = Visibility.Collapsed;
-        SummaryText.Text = "Generá una vista previa para revisar el alcance y los cambios.";
+        SummaryText.Text = "Genera una vista previa para revisar el alcance y los cambios.";
     }
 
     private void BuildOptions()
@@ -150,7 +150,7 @@ public partial class BatchToolsView : UserControl
                 case BatchAction.MoveBalance:
                     Check("BattlePatches", "Aplicar mecánicas de combate del template", _defaultBattlePatches);
                     Check("MoveDescriptions", "Actualizar descripciones en español", _defaultBattlePatches);
-                    ActionHelp.Text = _defaultBattlePatches?"Usa los templates de pk3DS Progressive. Revisá los movimientos y archivos de combate antes de aplicar.":"En Sol/Luna, el balance inicia con datos de movimientos. Las mecánicas de combate de un CSV se verifican contra Battle.cro antes de guardar.";
+                    ActionHelp.Text = _defaultBattlePatches?"Usa los templates de pk3DS Progressive. Revisa los movimientos y archivos de combate antes de aplicar.":"En Sol/Luna, el balance inicia con datos de movimientos. Las mecánicas de combate de un CSV se verifican contra Battle.cro antes de guardar.";
                     break;
                 case BatchAction.PersonalRandomize:
                     Check("Stats", "Variar estadísticas base"); Number("Deviation", "Variación de estadísticas (%)", 25, 0, 100);
@@ -243,7 +243,7 @@ public partial class BatchToolsView : UserControl
         if (Checked("ClearCompatibility") && new[] { "FullTms", "FullHms", "FullTypeTutors", "FullSpecialTutors" }.Any(Checked))
             errors.Add("No combines quitar compatibilidad con compatibilidad completa.");
         if (Checked("Stats") && !new[] { "HP", "ATK", "DEF", "SPE", "SPA", "SPD" }.Any(Checked))
-            errors.Add("Variación de estadísticas: elegí al menos una estadística.");
+            errors.Add("Variación de estadísticas: elige al menos una estadística.");
         if (errors.Count > 0) throw new ArgumentException(string.Join("\n", errors));
         // Disabled numeric options never parse an irrelevant invalid field.
         decimal Active(string check, string number, decimal fallback) => Checked(check) ? Value(number) : fallback;
@@ -334,7 +334,7 @@ public partial class BatchToolsView : UserControl
             ChangesList.Visibility = _preview.Changes.Count == 0 ? Visibility.Collapsed : Visibility.Visible;
             SummaryText.Text = $"{_preview.Action} · {_preview.ScopeCount} entradas revisadas · {_preview.ChangedCount} modificadas · {_preview.Changes.Count} campos · {_preview.AdditionalFileCount} archivos adicionales."
                 + (IsRandom ? $" Semilla: {_preview.Seed}." : "")
-                + (_preview.ChangedCount == 0 ? " No hay cambios para aplicar." : " Revisá la lista antes de aplicar.");
+                + (_preview.ChangedCount == 0 ? " No hay cambios para aplicar." : " Revisa la lista antes de aplicar.");
             CopyChangesButton.IsEnabled = _preview.Changes.Count > 0;
             ApplyButton.IsEnabled = _preview.Changes.Count > 0;
         }
@@ -349,7 +349,7 @@ public partial class BatchToolsView : UserControl
         if (_prepare?.Invoke() != true) return;
         if (_preview != proposal)
         {
-            ValidationText.Text = "El editor cambió. Generá una vista previa nueva.";
+            ValidationText.Text = "El editor cambió. Genera una vista previa nueva.";
             return;
         }
         if (!StudioDialog.Confirm(Window.GetWindow(this), "Aplicar al proyecto", proposal.Action,
@@ -379,7 +379,7 @@ public partial class BatchToolsView : UserControl
         {
             System.Windows.Clipboard.SetText(_export(_scope(ScopeBox.SelectedIndex)));
             ValidationText.Text = "";
-            SummaryText.Text = "Tabla de datos guardados copiada. Podés pegarla en Excel o un editor de texto.";
+            SummaryText.Text = "Tabla de datos guardados copiada. Puedes pegarla en Excel o un editor de texto.";
         }
         catch (Exception ex) { ValidationText.Text = ex.Message; }
     }

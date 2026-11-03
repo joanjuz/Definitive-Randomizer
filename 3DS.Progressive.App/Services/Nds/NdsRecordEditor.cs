@@ -306,7 +306,7 @@ internal sealed class NdsRecordEditor : IProjectEditor, ITrainerEditorPresentati
             if (options.GetValueOrDefault(prefix + g, 1) == 1)
                 mask |= 1 << (g - 1);
         if (mask == 0)
-            throw new ArgumentException("Elegí al menos una generación.");
+            throw new ArgumentException("Elige al menos una generación.");
         return mask == (1 << _project.Generation) - 1 ? 0 : mask;
     }
 

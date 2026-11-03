@@ -58,7 +58,7 @@ public sealed class GameTmCompatibilityService
     public TmCompatibilityPreview Preview(bool sanity,bool follow)
     {
         if(!sanity&&!follow)
-            throw new ArgumentException("Elegí TM Sanity y/o TM Follow Evolutions.");
+            throw new ArgumentException("Elige TM Sanity y/o TM Follow Evolutions.");
         byte[][] records=new GARC.MemGARC(_personalOriginal).Files;
         byte[][] learnBytes=new GARC.MemGARC(_learnsetOriginal).Files;
         byte[][] evolutionBytes=new GARC.MemGARC(_evolutionOriginal).Files;

@@ -54,7 +54,7 @@ internal sealed class GameGarcShuffleService(GameProjectSession project)
     {
         if(project.Generation!=6||preview.Path!=Path.Combine(project.GameConfiguration.RomFS,preview.Relative.Replace('/',Path.DirectorySeparatorChar))||preview.Changes.Count==0)throw new InvalidOperationException("Propuesta no válida para este proyecto.");
         byte[] original=GarcTransaction.ReadUnchanged(preview.Path,preview.File.Fingerprint);backup=Path.GetFullPath(backup);
-        if(backup.StartsWith(Path.TrimEndingDirectorySeparator(Path.GetFullPath(project.ProjectRoot))+Path.DirectorySeparatorChar,StringComparison.OrdinalIgnoreCase))throw new InvalidDataException("Guardá el backup fuera del proyecto.");
+        if(backup.StartsWith(Path.TrimEndingDirectorySeparator(Path.GetFullPath(project.ProjectRoot))+Path.DirectorySeparatorChar,StringComparison.OrdinalIgnoreCase))throw new InvalidDataException("Guarda el backup fuera del proyecto.");
         string relative=Path.GetRelativePath(project.ProjectRoot,preview.Path).Replace('\\','/');
         using(var stream=new FileStream(backup,FileMode.CreateNew,FileAccess.Write,FileShare.None))using(var zip=new ZipArchive(stream,ZipArchiveMode.Create))
         {using(var file=zip.CreateEntry("project/"+relative,CompressionLevel.Fastest).Open())file.Write(original);using var metadata=zip.CreateEntry("backup-manifest.json").Open();JsonSerializer.Serialize(metadata,new BackupManifest(1,project.GameName,DateTimeOffset.UtcNow,[new(relative,original.Length,Convert.ToHexString(preview.File.Fingerprint))]));}

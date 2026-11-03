@@ -371,7 +371,7 @@ public sealed partial class GameStaticEncounterService : ArchiveProjectEditor, I
             var trade=new EncounterTrade7(bytes);
             trade.Species=v["Species"];trade.Form=v["Form"];trade.Level=v["Level"];
             if(v["Request"]==0&&trade.TradeRequestSpecies!=0&&!HasTradePatch())
-                throw new NotSupportedException("Para aceptar cualquier Pokémon, aplicá primero el parche del selector de intercambios USUM.");
+                throw new NotSupportedException("Para aceptar cualquier Pokémon, aplica primero el parche del selector de intercambios USUM.");
             trade.TradeRequestSpecies=v["Request"];
             if(v["Item"]!=trade.HeldItem)trade.HeldItem=v["Item"];
             trade.Ability=v["Ability"];trade.Nature=v["Nature"];trade.Gender=v["Gender"];

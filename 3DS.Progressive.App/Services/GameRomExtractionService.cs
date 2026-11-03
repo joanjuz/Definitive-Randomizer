@@ -21,14 +21,14 @@ internal sealed class GameRomExtractionService(string? protectedProject=null)
     internal async Task<RomExtractionResult> ExtractAsync(string input,string destination,CancellationToken cancellation=default)
     {
         input=Path.GetFullPath(input);destination=Path.GetFullPath(destination);
-        if(File.Exists(destination)||Directory.Exists(destination))throw new IOException("El destino ya existe. Elegí una carpeta nueva.");
+        if(File.Exists(destination)||Directory.Exists(destination))throw new IOException("El destino ya existe. Elige una carpeta nueva.");
         string parent=Path.GetDirectoryName(destination)??throw new ArgumentException("Destino inválido.");
         if(!Directory.Exists(parent))throw new DirectoryNotFoundException("La carpeta de destino no existe.");
         if(protectedProject is not null)
         {
             string root=Path.TrimEndingDirectorySeparator(Path.GetFullPath(protectedProject));
             if(destination.Equals(root,StringComparison.OrdinalIgnoreCase)||destination.StartsWith(root+Path.DirectorySeparatorChar,StringComparison.OrdinalIgnoreCase))
-                throw new IOException("Extraé en una carpeta fuera del proyecto abierto.");
+                throw new IOException("Extrae en una carpeta fuera del proyecto abierto.");
         }
         string stage=Path.Combine(parent,".progressive-extract-"+Guid.NewGuid().ToString("N"));
         try

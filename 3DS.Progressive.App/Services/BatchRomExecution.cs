@@ -97,7 +97,7 @@ internal sealed class BatchRomExecution
         ManualEditTemplate.ValidateSession(_project,template);
         if(template.Actions.Count==0)throw new InvalidDataException("El template no tiene acciones de batch.");
         if(template.SettingsCount==0&&template.Actions.Any(id=>id!="rng.seed"&&id!=ManualEditTemplate.ActionId&&!NativeMasterBatchBridge.ActionIds.Contains(id,StringComparer.OrdinalIgnoreCase)&&!(_project.Generation==7&&NativeGen7FieldBridge.ActionIds.Contains(id,StringComparer.OrdinalIgnoreCase))&&!(_project.Generation==7&&NativeGen7MachineBridge.ActionIds.Contains(id,StringComparer.OrdinalIgnoreCase))&&!(_project.Generation==7&&NativeGen7MartBridge.ActionIds.Contains(id,StringComparer.OrdinalIgnoreCase))&&!(_project.Generation==7&&NativeRecipeCompletion.Gen7ParameterActions.Contains(id,StringComparer.OrdinalIgnoreCase))&&!(_project.Generation==7&&NativeGen7WildBridge.ActionIds.Contains(id,StringComparer.OrdinalIgnoreCase))&&!(_project.Generation==7&&Gen7Adjustments.ActionIds(_project.GameConfiguration.USUM).Contains(id,StringComparer.OrdinalIgnoreCase))&&!(_project.Generation==6?NativeBatchGen6Bridge.ActionIds:NativeBatchGen7StaticBridge.ActionIds).Contains(id,StringComparer.OrdinalIgnoreCase)))
-            throw new InvalidDataException("Este template se creó solo desde historial: no contiene RandSettings. Importá y guardá una receta completa antes de construir.");
+            throw new InvalidDataException("Este template se creó solo desde historial: no contiene RandSettings. Importa y guarda una receta completa antes de construir.");
         var supported=_project.Generation==6?Gen6ActionIds:SupportedActionIds;
         var unsupported=template.Actions.Where(id=>!supported.Contains(id)&&id!=ManualEditTemplate.ActionId).ToArray();
         if(unsupported.Length>0)
@@ -144,7 +144,7 @@ internal sealed class BatchRomExecution
         string requestPath=Path.Combine(Path.GetTempPath(),"progressive-batch-"+
             Guid.NewGuid().ToString("N")+".json");
         string log=Path.Combine(options.OutputDirectory,options.BaseName+"_batch.txt");
-        if(File.Exists(log))throw new IOException("Ya existe el log de este lote. Elegí otro nombre de salida.");
+        if(File.Exists(log))throw new IOException("Ya existe el log de este lote. Elige otro nombre de salida.");
         var request=new
         {
             ProjectRoot=_project.ProjectRoot,
@@ -199,7 +199,7 @@ internal sealed class BatchRomExecution
             {
                 string failure=Path.Combine(options.OutputDirectory,"3ds-progressive-batch-error.txt");
                 throw new IOException("Batch abortado por el motor original. "+
-                    (File.Exists(failure)?File.ReadAllText(failure):"Revisá el log "+log));
+                    (File.Exists(failure)?File.ReadAllText(failure):"Revisa el log "+log));
             }
             if(!File.Exists(log))throw new IOException("No se generó el informe del batch.");
             var lines=File.ReadAllLines(log);

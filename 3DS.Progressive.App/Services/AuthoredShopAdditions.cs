@@ -28,7 +28,7 @@ internal sealed partial class AuthoredTemplate
         if(ShopMode=="Replace")return;
         if(ShopMode!="AppendProgression")throw new InvalidDataException("Modo de template de tiendas desconocido.");
         if(Options.Count>0||AllowedItems.Length>0||BannedItems.Length>0)throw new InvalidDataException("El template de incorporaciones solo contiene objetos y su progreso de desbloqueo.");
-        if(Rows.Count==0)throw new InvalidDataException("Añadí al menos un objeto al template de tiendas.");
+        if(Rows.Count==0)throw new InvalidDataException("Añade al menos un objeto al template de tiendas.");
         var seen=new HashSet<(int,int)>();foreach(var row in Rows)
         {
             int stage=Number(row,"Stage",-1),item=Number(row,"Item",-1);

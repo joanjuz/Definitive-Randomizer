@@ -36,7 +36,7 @@
                     <StackPanel DockPanel.Dock="Top">
                         <TextBlock x:Name="AccessibleCaption1" Text="Lista de movimientos" Foreground="{DynamicResource TextSoft}"
                                    FontSize="12" FontWeight="SemiBold" Margin="1,0,0,12"/>
-                        <TextBox x:Name="SearchInput" AutomationProperties.LabeledBy="{Binding ElementName=AccessibleCaption1}" TextChanged="SearchInput_TextChanged"
+                        <TextBox x:Name="SearchInput" ui:InputHint.Text="Nombre o número" AutomationProperties.LabeledBy="{Binding ElementName=AccessibleCaption1}" TextChanged="SearchInput_TextChanged"
                                  ToolTip="Buscar movimiento por nombre o número"/>
                         <TextBlock x:Name="CountText" FontSize="12" Foreground="{DynamicResource TextSoft}"
                                    Margin="0,11,0,14"/>
@@ -55,7 +55,7 @@
             <Grid x:Name="MoveEditorLayout" Grid.Column="1" Visibility="{Binding Visibility, ElementName=MoveFieldsPanel}"><Grid.RowDefinitions><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions><ScrollViewer x:Name="MoveFieldsPanel" Grid.Row="0" Background="{DynamicResource Bg}"
                           VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
                 <StackPanel Margin="27,26">
-                    <TextBlock x:Name="MoveNameText" Text="Seleccioná un movimiento"
+                    <TextBlock x:Name="MoveNameText" Text="Selecciona un movimiento"
                                FontSize="26" FontWeight="SemiBold"/>
                     <TextBlock x:Name="MoveNumberText" Text="Campos básicos"
                                Margin="0,6,0,19" Foreground="{DynamicResource TextSoft}"/>
@@ -162,7 +162,7 @@
                     <Border Style="{StaticResource MoveCard}">
                         <Expander Header="FLAGS INDIVIDUALES" Foreground="{DynamicResource TextMain}" IsExpanded="False">
                             <StackPanel Margin="0,14,0,0">
-                                <TextBlock Text="Las mismas banderas del pk3DS vanilla; también podés seguir usando el valor hexadecimal."
+                                <TextBlock Text="Las mismas banderas del pk3DS vanilla; también puedes seguir usando el valor hexadecimal."
                                            Foreground="{DynamicResource TextSoft}" TextWrapping="Wrap" Margin="0,0,0,10"/>
                                 <WrapPanel x:Name="FlagsPanel" ItemWidth="175" />
                             </StackPanel>
@@ -212,8 +212,7 @@
             <Expander x:Name="AdaptiveInspector" Grid.Column="2" Header="Inspector" IsExpanded="True"><Border x:Name="InspectorBody" Background="{DynamicResource ListSurface}" BorderBrush="{DynamicResource Stroke}" BorderThickness="1,0,0,0">
                 <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Background="Transparent">
                 <StackPanel Margin="17,24">
-                    <TextBlock Text="Inspector" Foreground="{DynamicResource TextSoft}"
-                               FontSize="12" FontWeight="SemiBold" Margin="0,0,0,12"/>
+                    <!-- El encabezado del Expander ya dice «Inspector». -->
                     <StackPanel Margin="0,0,0,18">
                         <Button x:Name="RandomizeMovesButton" Content="Randomizar movimientos" Click="MoveAction_Click" Tag="MoveRandomize" Margin="0,0,0,8"/>
                         <Button x:Name="MetronomeButton" Content="Modo Metrónomo" Click="MoveAction_Click" Tag="Metronome" Margin="0,0,0,8"/>
@@ -241,7 +240,7 @@
                                 <TextBlock x:Name="ChangeStateText" Text="Guardado" Foreground="{DynamicResource SuccessText}"
                                            FontSize="12" FontWeight="SemiBold"/>
                             </Border>
-                            <TextBlock Text="Trabajá sobre una copia del juego extraído. Los archivos solo se escriben al confirmar."
+                            <TextBlock Text="Trabaja sobre una copia del juego extraído. Los archivos solo se escriben al confirmar."
                                        FontSize="12" Foreground="{DynamicResource TextSoft}" TextWrapping="Wrap"
                                        Margin="0,13,0,0" LineHeight="18"/>
                         </StackPanel>

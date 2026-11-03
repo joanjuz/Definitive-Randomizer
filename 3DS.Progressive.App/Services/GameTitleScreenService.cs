@@ -40,7 +40,7 @@ internal sealed class GameTitleScreenService
                     string language=match.Groups[2].Value.ToLowerInvariant() switch {"es"=>"Español","de"=>"Alemán","fr"=>"Francés","it"=>"Italiano","kr"=>"Coreano","cn"=>"Chino simplificado","tw"=>"Chino tradicional","us"=>"Inglés (US)",""=>"Original sin sufijo de idioma",var code=>"Idioma "+code};
                     identity=game+" · "+language+(project.GameConfiguration.USUM?" · logo 2D (inicio de partida)":" · logo y efectos del título");
                 }
-                string description=$"{identity}. Layout: {layout}. Paquete ALYT/SARC #{i}: {images} texturas BFLIM, {files.Count(e=>e.Name.EndsWith(".bflyt",StringComparison.OrdinalIgnoreCase))} diseños BFLYT y {files.Count(e=>e.Name.EndsWith(".bflan",StringComparison.OrdinalIgnoreCase))} animaciones BFLAN. Archivos: "+string.Join(", ",files.Select(e=>e.Name))+". Se editan las texturas; los diseños, animaciones y demás archivos se conservan."+(project.GameConfiguration.USUM?" En USUM se verificó este logo al iniciar una partida nueva. Para la secuencia de acceso a una partida guardada usá Animaciones y vídeos MOFLEX.":"");
+                string description=$"{identity}. Layout: {layout}. Paquete ALYT/SARC #{i}: {images} texturas BFLIM, {files.Count(e=>e.Name.EndsWith(".bflyt",StringComparison.OrdinalIgnoreCase))} diseños BFLYT y {files.Count(e=>e.Name.EndsWith(".bflan",StringComparison.OrdinalIgnoreCase))} animaciones BFLAN. Archivos: "+string.Join(", ",files.Select(e=>e.Name))+". Se editan las texturas; los diseños, animaciones y demás archivos se conservan."+(project.GameConfiguration.USUM?" En USUM se verificó este logo al iniciar una partida nueva. Para la secuencia de acceso a una partida guardada usa Animaciones y vídeos MOFLEX.":"");
                 return new TitleArchive(i,$"{identity} · #{i} · {images} texturas",description);
             }).ToArray();
             foreach(var archive in Archives)if(!new TitleAlytCodec(_garc[archive.Id]).Entries.Any(e=>e.Name.EndsWith(".bflim",StringComparison.OrdinalIgnoreCase)))throw new InvalidDataException("Recurso de título Gen7 sin imágenes BFLIM.");
@@ -105,7 +105,7 @@ internal sealed class GameTitleScreenService
         if (original.Width != replacement.Width || original.Height != replacement.Height) throw new InvalidDataException("La imagen debe conservar las dimensiones del título.");
         byte[] previous=Read(archive,image);
         if(Gen7&&(previous.Length!=bclim.Length||!previous.AsSpan(previous.Length-40).SequenceEqual(bclim.AsSpan(bclim.Length-40))))
-            throw new InvalidDataException("El BFLIM del título debe conservar formato, tamaño, orientación y encabezado originales. Importá un PNG para convertirlo de forma compatible.");
+            throw new InvalidDataException("El BFLIM del título debe conservar formato, tamaño, orientación y encabezado originales. Importa un PNG para convertirlo de forma compatible.");
         if (previous.SequenceEqual(bclim)) return;
         byte[] record = Gen7?new TitleAlytCodec(Record(archive)).Replace(image,bclim):new TitleDarcCodec(Record(archive)).Replace(image, bclim);
         _edited[archive] = record;

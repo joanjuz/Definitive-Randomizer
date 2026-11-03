@@ -9,11 +9,13 @@ public partial class MainWindow
 {
     private bool _simplified;
     private string _activeSection="Pokemon";
-    private Button[] AdvancedNavigation=>[ItemsButton,GameTextButton,StoryTextButton,MechanicsButton,PokemonToolsButton,RomToolsButton,AutomationButton,TemplateStudioButton,GlobalTemplateButton,BatchRomButton];
+    // Automatización no vuelve a la barra en modo completo: sus accesos ya están en ella (sigue en el buscador y como ruta).
+    private Button[] AdvancedNavigation=>[ItemsButton,GameTextButton,StoryTextButton,MechanicsButton,PokemonToolsButton,RomToolsButton,TemplateStudioButton,GlobalTemplateButton,BatchRomButton];
     private void InitializeGuidance()
     {
-        RefreshStart();SetHomeVisible(true);
-        PreviewKeyDown+=(_,e)=>{if(e.Key==Key.F1&&!UiProgress.IsInteractionBlocked){e.Handled=true;OpenTour();}};
+        RefreshStart();SetHomeVisible(true);SessionMilestones.Changed+=OnMilestonesChanged;
+        PreviewKeyDown+=(_,e)=>{if(e.Key==Key.F1&&!UiProgress.IsInteractionBlocked){e.Handled=true;_palette?.Close();OpenTour();}
+            else if(e.Key==Key.K&&Keyboard.Modifiers==ModifierKeys.Control&&!UiProgress.IsInteractionBlocked){e.Handled=true;OpenCommandPalette();}};
     }
     private void SetHomeVisible(bool visible)
     {
@@ -23,7 +25,8 @@ public partial class MainWindow
         if(changed&&IsActive)Dispatcher.BeginInvoke(()=>{if(!_closed)(visible?(UIElement)HomeHost:EditorShell).MoveFocus(new TraversalRequest(FocusNavigationDirection.First));});
     }
     private void RefreshStart()=>HomeHost.Content=new StartView(_session,_simplified,ChooseExperience,
-        ()=>OpenProject_Click(OpenProjectButton,new RoutedEventArgs()),OpenGuided,()=>OpenTour("Home"),OpenSwitchPrototype,OpenNdsRandomizer);
+        ()=>OpenProject_Click(OpenProjectButton,new RoutedEventArgs()),OpenGuided,()=>OpenTour("Home"),OpenSwitchPrototype,OpenNdsRandomizer,
+        route=>NavigateTo(route),()=>Backup_Click(BackupButton,new RoutedEventArgs()));
     private void Home_Click(object sender,RoutedEventArgs e)
     {
         if(_closed||UiProgress.IsInteractionBlocked)return;
@@ -39,6 +42,7 @@ public partial class MainWindow
     {
         ModeButton.Content=_simplified?"Modo simplificado · Cambiar":"Modo completo · Cambiar";
         foreach(var button in AdvancedNavigation)button.Visibility=_simplified?Visibility.Collapsed:Visibility.Visible;
+        UpdateNavigationGroups();
         if(_simplified&&_recordView?.FindName("OptionsPanel") is Panel options)
             foreach(var extra in options.Children.OfType<Expander>().Skip(1))extra.SetCurrentValue(Expander.IsExpandedProperty,false);
         // Existing per-game enabled states and all editor objects remain untouched.
@@ -98,11 +102,13 @@ public partial class MainWindow
             OpenTour(route);return;
         }
     }
-    private void GuidanceNavigate(string route)
+    private void GuidanceNavigate(string route)=>NavigateTo(route,true);
+    /// <summary>Opens a route through the original handlers. The tour switches to full mode for advanced routes; the search and Inicio keep the mode.</summary>
+    internal void NavigateTo(string route,bool fullModeForAdvanced=false)
     {
         if(route=="Home"){Home_Click(HomeButton,new RoutedEventArgs());return;}
         if(_session is null&&route!="Extraction")return;
-        if(!GuidanceCatalog.SimpleRoutes.Contains(route))ChooseExperience(false);
+        if(fullModeForAdvanced&&!GuidanceCatalog.SimpleRoutes.Contains(route))ChooseExperience(false);
         SetHomeVisible(false);
         if(route=="Pokemon"){Pokemon_Click(PokemonNavButton,new RoutedEventArgs());return;}
         if(route=="Moves"){Moves_Click(MovesButton,new RoutedEventArgs());return;}

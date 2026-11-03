@@ -59,9 +59,9 @@ internal sealed class GameTextView : UserControl
         heading.Children.Add(new TextBlock {Text=story?"Story Text · diálogos e historia":"Game Text · textos generales",FontSize=22,
             FontWeight=FontWeights.SemiBold,Foreground=(Brush)FindResource("TextMain")});
         var helpPanel=new StackPanel();
-        heading.Children.Add(new TextBlock{Text=story?"Encontrá y editá diálogos por frase, categoría o personaje.":"Editá nombres, descripciones y mensajes de interfaz del juego.",Foreground=(Brush)FindResource("TextSoft"),Margin=new Thickness(0,5,0,8),TextWrapping=TextWrapping.Wrap});
+        heading.Children.Add(new TextBlock{Text=story?"Encuentra y edita diálogos por frase, categoría o personaje.":"Edita nombres, descripciones y mensajes de interfaz del juego.",Foreground=(Brush)FindResource("TextSoft"),Margin=new Thickness(0,5,0,8),TextWrapping=TextWrapping.Wrap});
         helpPanel.Children.Add(new TextBlock {Text=story?
-            "Diálogos de personajes y eventos de la historia. Buscá una frase que veas en el juego para encontrar su archivo y línea. Los números no indican el orden de la historia. Conservá los códigos [VAR ...], cambios de línea y el orden de cada mensaje para evitar scripts dañados.":
+            "Diálogos de personajes y eventos de la historia. Busca una frase que veas en el juego para encontrar su archivo y línea. Los números no indican el orden de la historia. Conserva los códigos [VAR ...], cambios de línea y el orden de cada mensaje para evitar scripts dañados.":
             "Nombres y descripciones de Pokémon, movimientos, objetos, entrenadores y mensajes de interfaz. Los archivos conocidos indican su contenido. Se conserva el número y orden de líneas para no romper referencias.",
             Foreground=(Brush)FindResource("TextSoft"),TextWrapping=TextWrapping.Wrap});
         var commandButton=new Button{Style=(Style)FindResource("TertiaryButton"),Content="Variables y comandos",HorizontalAlignment=System.Windows.HorizontalAlignment.Left,Margin=new Thickness(0,8,0,8)};
@@ -91,7 +91,7 @@ internal sealed class GameTextView : UserControl
         _evidence.ItemTemplate=new DataTemplate{VisualTree=evidenceTemplate};
         var footer=new DockPanel {Margin=new Thickness(0,12,0,0)};
         DockPanel.SetDock(footer,Dock.Bottom);root.Children.Add(footer);
-        _status=new TextBlock {Text="Elegí un archivo de texto.",Foreground=(Brush)FindResource("TextSoft"),
+        _status=new TextBlock {Text="Elige un archivo de texto.",Foreground=(Brush)FindResource("TextSoft"),
             VerticalAlignment=VerticalAlignment.Center,TextWrapping=TextWrapping.Wrap};
         _save=new Button {Content="Guardar texto",IsEnabled=false,Margin=new Thickness(10,0,0,0)};
         DockPanel.SetDock(_save,Dock.Right);footer.Children.Add(_save);
@@ -136,7 +136,7 @@ internal sealed class GameTextView : UserControl
         DockPanel.SetDock(filterLabel,Dock.Top);left.Children.Add(filterLabel);
         _tagFilter=new ComboBox{ItemsSource=new[]{"Todas las etiquetas","Sin clasificar"}.Concat(_service.AvailableTags),SelectedIndex=0,Margin=new Thickness(0,0,0,8)};
         DockPanel.SetDock(_tagFilter,Dock.Top);left.Children.Add(_tagFilter);_tagFilter.SelectionChanged+=(_,_)=>Filter();
-        _filter=new TextBox {Margin=new Thickness(0,0,0,8),ToolTip="Ejemplos: movimientos, objetos, Pokémon o 013. Para buscar frases usá Buscar en todo el banco."};
+        _filter=new TextBox {Margin=new Thickness(0,0,0,8),ToolTip="Ejemplos: movimientos, objetos, Pokémon o 013. Para buscar frases usa Buscar en todo el banco."};
         _filter.TextChanged+=(_,_)=>Filter();
         DockPanel.SetDock(_filter,Dock.Top);left.Children.Add(_filter);
         _files=new ListBox {ItemsSource=_service.Entries};
@@ -173,14 +173,14 @@ internal sealed class GameTextView : UserControl
                 UpdateSourceTrigger=UpdateSourceTrigger.LostFocus}
         });
         _grid.CellEditEnding+=(_,_)=>MarkDirty();
-        var tableHost=EditorPresentation.EmptyState(_grid,"Elegí un archivo de texto","Sus mensajes aparecerán aquí para editarlos.");Grid.SetColumn(tableHost,1);content.Children.Add(tableHost);
-        helpPanel.Children.Add(new TextBlock{Text="Clasificación automática por categorías conocidas y coincidencias de contenido. Las menciones se distinguen de las referencias de zona y de las citas contrastadas por personaje. Consultá las evidencias para conocer el origen de cada etiqueta.",Foreground=(Brush)FindResource("TextSoft"),TextWrapping=TextWrapping.Wrap});
+        var tableHost=EditorPresentation.EmptyState(_grid,"Elige un archivo de texto","Sus mensajes aparecerán aquí para editarlos.");Grid.SetColumn(tableHost,1);content.Children.Add(tableHost);
+        helpPanel.Children.Add(new TextBlock{Text="Clasificación automática por categorías conocidas y coincidencias de contenido. Las menciones se distinguen de las referencias de zona y de las citas contrastadas por personaje. Consulta las evidencias para conocer el origen de cada etiqueta.",Foreground=(Brush)FindResource("TextSoft"),TextWrapping=TextWrapping.Wrap});
         helpPanel.Children.Add(new TextBlock{Text=_service.Location,Foreground=(Brush)FindResource("TextSoft"),Margin=new Thickness(0,6,0,0)});
-        helpPanel.Children.Add(new TextBlock{Text="Localizar una frase en todo el banco (idioma activo). Los resultados muestran archivo y línea originales; hacé doble clic para editar. La búsqueda consulta el texto guardado.",TextWrapping=TextWrapping.Wrap,Foreground=(Brush)FindResource("TextSoft"),Margin=new Thickness(0,8,0,4)});
+        helpPanel.Children.Add(new TextBlock{Text="Localizar una frase en todo el banco (idioma activo). Los resultados muestran archivo y línea originales; haz doble clic para editar. La búsqueda consulta el texto guardado.",TextWrapping=TextWrapping.Wrap,Foreground=(Brush)FindResource("TextSoft"),Margin=new Thickness(0,8,0,4)});
         heading.Children.Add(new TextBlock{Text="Buscar una frase en el banco",Style=(Style)FindResource("FieldCaption")});
         var searchBar=new DockPanel();heading.Children.Add(searchBar);
         var searchButton=new Button{Content="Buscar en todo el banco",Margin=new Thickness(8,0,0,0)};DockPanel.SetDock(searchButton,Dock.Right);searchBar.Children.Add(searchButton);
-        var query=new TextBox{ToolTip="Escribí parte del diálogo, nombre o descripción. No distingue mayúsculas."};searchBar.Children.Add(query);
+        var query=new TextBox{ToolTip="Escribe parte del diálogo, nombre o descripción. No distingue mayúsculas."};searchBar.Children.Add(query);
         var results=new ListBox{DisplayMemberPath="Display",MaxHeight=160,Visibility=Visibility.Collapsed,Margin=new Thickness(0,6,0,0)};heading.Children.Add(results);
         async void FindText()
         {
@@ -190,7 +190,7 @@ internal sealed class GameTextView : UserControl
             {
                 string term=query.Text;_status.Text="Buscando en los archivos del banco…";
                 var hits=await Task.Run(()=>_service.Search(term));results.ItemsSource=hits;results.Visibility=Visibility.Visible;
-                _status.Text=hits.Count==500?"Se muestran las primeras 500 coincidencias. Especificá una frase más precisa.":$"{hits.Count} coincidencias. Doble clic en un resultado para abrir su archivo y línea.";
+                _status.Text=hits.Count==500?"Se muestran las primeras 500 coincidencias. Especifica una frase más precisa.":$"{hits.Count} coincidencias. Doble clic en un resultado para abrir su archivo y línea.";
             }
             catch(Exception ex){StudioDialog.Error(Window.GetWindow(this),"Buscar textos",ex.Message);}
             finally{_searching=false;searchButton.IsEnabled=true;_files.IsEnabled=true;_grid.IsReadOnly=false;_save.IsEnabled=_dirty;}
@@ -243,7 +243,7 @@ internal sealed class GameTextView : UserControl
         }
         catch(Exception ex){StudioDialog.Error(Window.GetWindow(this),"Texto no compatible",ex.Message);}
     }
-    private void MarkDirty(){_dirty=true;_save.IsEnabled=true;_status.Text="Texto modificado. Guardá antes de salir.";}
+    private void MarkDirty(){_dirty=true;_save.IsEnabled=true;_status.Text="Texto modificado. Guarda antes de salir.";}
     private void Save()
     {
         if(_searching)return;
@@ -264,7 +264,7 @@ internal sealed class GameTextView : UserControl
         try
         {
             _grid.CommitEdit(DataGridEditingUnit.Cell,true);_grid.CommitEdit(DataGridEditingUnit.Row,true);
-            if(_dirty)throw new InvalidOperationException("Guardá o descartá primero las líneas editadas.");
+            if(_dirty)throw new InvalidOperationException("Guarda o descarta primero las líneas editadas.");
             var (files,changes)=Gen7Adjustments.PreviewUltraWarpHint(project);
             if(changes.Count==0){_status.Text="El texto del Ultraviaje ya menciona GAME FREAK.";return;}
             if(!StudioDialog.Confirm(Window.GetWindow(this),"Pista del Ultraviaje",$"Se añadirá una página a {changes.Count} línea(s) del archivo 366 (español e inglés).",
@@ -281,7 +281,7 @@ internal sealed class GameTextView : UserControl
         try
         {
             _grid.CommitEdit(DataGridEditingUnit.Cell,true);_grid.CommitEdit(DataGridEditingUnit.Row,true);
-            if(_dirty)throw new InvalidOperationException("Guardá o descartá primero las líneas editadas.");
+            if(_dirty)throw new InvalidOperationException("Guarda o descarta primero las líneas editadas.");
             var preview=_service.PreviewRandomize(all?null:_id,System.Security.Cryptography.RandomNumberGenerator.GetInt32(int.MaxValue));
             if(preview.Changes.Count==0){_status.Text="No hay diálogos literales diferentes para mezclar.";return;}
             string examples=string.Join(Environment.NewLine,preview.Changes.Take(12).Select(change=>$"{change.Name}, {change.Field}: {change.Before} → {change.After}"));
@@ -317,7 +317,7 @@ internal sealed class GameTextView : UserControl
             _grid.CommitEdit(DataGridEditingUnit.Row,true);
             if(_dirty)
                 throw new InvalidOperationException(
-                    "Guardá o descartá primero las líneas editadas de este archivo.");
+                    "Guarda o descarta primero las líneas editadas de este archivo.");
             var picker=new Microsoft.Win32.OpenFileDialog
             {
                 Filter="Texto Unicode original|*.txt"

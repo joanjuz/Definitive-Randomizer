@@ -77,7 +77,7 @@ internal sealed class NdsMachineTutorView : UserControl
                 OptionCards.Card("Movimientos de los tutores","Cambia el movimiento que enseña cada tutor.",Action("Randomizar tutores",()=>Shuffle(_tutors,[])),OptionCards.Primary(Action("Guardar tutores",()=>Save(_tutors,"Guardar tutores")))),
                 CompatibilityCard("Compatibilidad de tutores","Tutor",NdsSection.Tutors)))});
         }
-        _status.Text="Seleccioná un movimiento o cambiá la compatibilidad y confirmá el guardado.";
+        _status.Text="Selecciona un movimiento o cambia la compatibilidad y confirma el guardado.";
     }
 
     private int MoveOf(string field)=>field.Split(" · ",2) is [_,var name]?_moves.FirstOrDefault(m=>m.Name==name)?.Id??0:0;
@@ -115,12 +115,12 @@ internal sealed class NdsMachineTutorView : UserControl
         NdsPreview? proposal=null;Button? apply=null;
         var preview=Action($"Vista previa compatibilidad {(prefix=="TM"?"MT":"tutores")}",()=>
         {
-            if(sanity.IsChecked!=true&&follow.IsChecked!=true){_status.Text="Elegí "+prefix+" Sanity y/o "+prefix+" Follow Evolutions.";return;}
+            if(sanity.IsChecked!=true&&follow.IsChecked!=true){_status.Text="Elige "+prefix+" Sanity y/o "+prefix+" Follow Evolutions.";return;}
             var options=new NdsDataOptions(0){MachineSanity=prefix=="TM"&&sanity.IsChecked==true,MachineFollowEvolutions=prefix=="TM"&&follow.IsChecked==true,
                 TutorSanity=prefix=="Tutor"&&sanity.IsChecked==true,TutorFollowEvolutions=prefix=="Tutor"&&follow.IsChecked==true};
             string action=string.Join(" y ",new[]{sanity.IsChecked==true?prefix+" Sanity":null,follow.IsChecked==true?prefix+" Follow Evolutions":null}.OfType<string>());
             proposal=_project.PreviewData(action,section,options);apply!.IsEnabled=proposal.Result.Changes.Count>0;
-            _status.Text=$"{action}: {proposal.Result.Changes.Count} compatibilidades nuevas. Revisá y aplicá.";
+            _status.Text=$"{action}: {proposal.Result.Changes.Count} compatibilidades nuevas. Revisa y aplica.";
         });
         apply=Action($"Aplicar compatibilidad {(prefix=="TM"?"MT":"tutores")}",()=>
         {
@@ -142,7 +142,7 @@ internal sealed class NdsMachineTutorView : UserControl
         for(int i=pool.Length-1;i>0;i--){int j=RandomNumberGenerator.GetInt32(i+1);(pool[i],pool[j])=(pool[j],pool[i]);}
         var copy=rows.ToArray();rows.Clear();
         for(int i=0;i<copy.Length;i++)rows.Add(new MoveRow{Number=copy[i].Number,Key=copy[i].Key,Move=pool[i%pool.Length],Original=copy[i].Original});
-        _status.Text="Movimientos nuevos en la tabla. Guardá para acumular el cambio.";
+        _status.Text="Movimientos nuevos en la tabla. Guarda para acumular el cambio.";
     }
 
     private void Save(ObservableCollection<MoveRow> rows,string action)

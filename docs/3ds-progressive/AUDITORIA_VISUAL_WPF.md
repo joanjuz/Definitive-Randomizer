@@ -179,3 +179,7 @@ No se ejecutó --all-ui-only, porque esa suite muestra ventanas. Tampoco se usar
 Celdas centradas en vertical, editor oscuro al editar, selección con los colores del tema, líneas en el color del tema, selector de secciones en los encuentros estáticos y tablas verticales con las opciones en tarjetas a la derecha en Level Up y MT/tutores. La auditoría `--visual-audit` recorre la ventana real y debe terminar con 0 problemas antes de entregar cambios visuales. Detalle en [TABLAS_CENTRADO_EDICION_SECCIONES.md](TABLAS_CENTRADO_EDICION_SECCIONES.md).
 
 Desde el 01/11/2026 la auditoría cubre X/Y, ORAS, Sol/Luna y USUM a cuatro tamaños lógicos (incluidos 125 % y 150 %), las herramientas de los hubs y las ventanas. También comprueba contraste, recortes, fondos claros y barras de desplazamiento. Detalle y arreglos en [AUDITORIA_VISUAL_AMPLIADA.md](AUDITORIA_VISUAL_AMPLIADA.md).
+
+## Seguimiento 2026-11-02: navegación y jerarquía
+
+Barra lateral por grupos plegables, buscador de secciones y herramientas (Ctrl+K), miga de pan en las herramientas de los hubs, marcas de cambios guardados, estado del proyecto en Inicio, cabecera según haya proyecto o no, Inspector por grupos, indicador de pasos de randomización, formularios sin filas estiradas, pestañas que no cambian de fila, hubs en cuadrícula con detalles técnicos plegados y textos en tuteo. Se conservan nombres de controles, manejadores, rutas y terminología. Detalle, pruebas y límites: [REDISENO_NAVEGACION_JERARQUIA.md](REDISENO_NAVEGACION_JERARQUIA.md).

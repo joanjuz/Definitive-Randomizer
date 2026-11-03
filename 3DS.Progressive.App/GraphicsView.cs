@@ -46,7 +46,7 @@ internal sealed class GraphicsView : UserControl
     {
       try
       {
-        if(_png is null)throw new InvalidOperationException("Abrí una imagen primero.");
+        if(_png is null)throw new InvalidOperationException("Abre una imagen primero.");
         bool indexed=_format.SelectedItem is string;
         if(bclim&&bflim&&indexed)throw new ArgumentException("La paleta Gen6 se exporta en BCLIM.");
         var picker=new Microsoft.Win32.SaveFileDialog{Filter=bclim?(bflim?"BFLIM|*.bflim":"BCLIM|*.bclim"):"PNG|*.png",FileName=Path.GetFileNameWithoutExtension(_source)+(bclim?"-"+_format.SelectedItem+(bflim?".bflim":".bclim"):"-export.png")};if(picker.ShowDialog(Window.GetWindow(this))!=true)return;

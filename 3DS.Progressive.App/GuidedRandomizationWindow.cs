@@ -94,7 +94,7 @@ internal sealed class GuidedRandomizationWindow:Window
             if(_step<0)
             {
                 _steps=Plan.Choices.Where(choice=>choice.Selected).ToArray();
-                if(_steps.Length==0)throw new InvalidDataException("Elegí al menos una sección.");
+                if(_steps.Length==0)throw new InvalidDataException("Elige al menos una sección.");
                 _step=0;
             }
             else
@@ -279,7 +279,7 @@ internal sealed class GuidedRandomizationWindow:Window
     private async Task RunAsync()
     {
         if(_document is null)return;RememberOutput();
-        if(!Directory.Exists(_folder))throw new DirectoryNotFoundException("Elegí una carpeta de salida existente.");
+        if(!Directory.Exists(_folder))throw new DirectoryNotFoundException("Elige una carpeta de salida existente.");
         if(string.IsNullOrWhiteSpace(_baseName)||_baseName.Contains("..")||_baseName.IndexOfAny(Path.GetInvalidFileNameChars())>=0)throw new ArgumentException("Nombre de salida no válido.");
         string folder=Path.GetFullPath(_folder),root=Path.GetFullPath(_project.ProjectRoot);
         if(folder.Equals(root,StringComparison.OrdinalIgnoreCase)||folder.StartsWith(root.TrimEnd(Path.DirectorySeparatorChar)+Path.DirectorySeparatorChar,StringComparison.OrdinalIgnoreCase))throw new InvalidDataException("La salida debe estar fuera del proyecto de origen.");
