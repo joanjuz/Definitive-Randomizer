@@ -15,7 +15,8 @@ internal sealed class TitleScreenView : UserControl
 {
     private readonly ComboBox _archives = new() { DisplayMemberPath = "Label" }, _images = new() { DisplayMemberPath = "Name" };
     private readonly Image _image = new() { Stretch = Stretch.Uniform };
-    private readonly TextBlock _status = new();
+    // Errors can carry long file paths: they wrap instead of being cut.
+    private readonly TextBlock _status = new() { TextWrapping = TextWrapping.Wrap };
     private readonly StackPanel _controls = new();
     private readonly string _projectRoot;
     private GameTitleScreenService? _service;
