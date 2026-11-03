@@ -72,6 +72,15 @@ jobs:
         env:
           PROGRESSIVE_UI_CAPTURE_DIR: ${{ github.workspace }}/ui-captures
         run: dotnet .\3DS.Progressive.Tests\bin\Release\net10.0-windows\3DS.Progressive.Tests.dll --synthetic-only
+      # Every view of the four 3DS families at four logical sizes: overlaps, clipped or unreadable text, light system
+      # surfaces. Its issues.txt and warnings.txt go into the validation-logs artifact (the PNG captures stay local).
+      - name: Auditoria visual de todas las vistas 3DS
+        shell: pwsh
+        run: |
+          dotnet .\3DS.Progressive.Tests\bin\Release\net10.0-windows\3DS.Progressive.Tests.dll --visual-audit validation-logs/visual-audit 2>&1 | Tee-Object -FilePath validation-logs/visual-audit.log
+          $code = $LASTEXITCODE
+          Remove-Item validation-logs/visual-audit/*.png -ErrorAction SilentlyContinue
+          if ($code -ne 0) { throw "Visual audit failed (exit $code)" }
       - name: Capturas de las comprobaciones WPF
         if: always()
         uses: actions/upload-artifact@v4

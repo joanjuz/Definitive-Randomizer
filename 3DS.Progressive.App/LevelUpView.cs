@@ -93,7 +93,7 @@ internal sealed class LevelUpView : UserControl
         root.Children.Add(columns);
         var left=new DockPanel {Margin=new Thickness(0,0,14,0)};
         Grid.SetColumn(left,0);columns.Children.Add(left);
-        _search=new TextBox {MinHeight=36,Margin=new Thickness(0,0,0,8)};
+        _search=new TextBox {MinHeight=36,Margin=new Thickness(0,0,0,8)};InputHint.SetText(_search,"Nombre o número");
         _search.TextChanged+=(_,_)=>Filter();
         DockPanel.SetDock(_search,Dock.Top);left.Children.Add(_search);
         _species=new ListBox {ItemsSource=_service.Entries,DisplayMemberPath="Name"};
@@ -119,7 +119,7 @@ internal sealed class LevelUpView : UserControl
         _editButtons.Add(Action("+ Añadir",Add));
         _editButtons.Add(Action("− Quitar",Remove));
         _editButtons.Add(Action("Metrónomo",()=>{if(_rows.Count==0)return;foreach(var row in _rows)row.Move=118;RebuildCards();Dirty();}));
-        _editButtons.Add(Action("Randomizar",Randomize));
+        _editButtons.Add(Action("Randomizar esta especie",Randomize));
         Action("Exportar CSV",Export);
         var randomSettings=new Border
         {
@@ -220,6 +220,19 @@ internal sealed class LevelUpView : UserControl
                 {Mode=BindingMode.TwoWay,UpdateSourceTrigger=UpdateSourceTrigger.PropertyChanged},
                 Width=new DataGridLength(1,DataGridLengthUnitType.Star),MinWidth=180
             });
+            // 3DS: type, category, power and accuracy of each move, read-only, next to the move (they follow the edit).
+            if(_service is GameLevelUpService moves)
+            {
+                void Detail(string header,Func<LevelUpMoveDetails,string> text,double width)=>table.Columns.Add(new DataGridTextColumn
+                {
+                    Header=header,IsReadOnly=true,Width=width,MinWidth=width,
+                    Binding=new Binding("Move"){Mode=BindingMode.OneWay,Converter=new LambdaConverter(v=>v is int id&&moves.MoveDetails(id) is {} d?text(d):"")}
+                });
+                Detail("Tipo",d=>d.Type,96);Detail("Cat.",d=>d.Category,78);
+                Detail("Pot.",d=>d.Power>0?d.Power.ToString(System.Globalization.CultureInfo.InvariantCulture):"—",58);
+                Detail("Prec.",d=>d.Accuracy is >0 and <=100?d.Accuracy+"%":"—",62);
+                table.HorizontalScrollBarVisibility=ScrollBarVisibility.Auto;
+            }
             DarkGridTheme.Apply(table);table.RowHeight=34;table.MinRowHeight=34;
             table.CellEditEnding+=(_,_)=>Dirty();
             table.SelectionChanged+=(_,_)=>

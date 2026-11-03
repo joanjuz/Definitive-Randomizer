@@ -600,7 +600,7 @@ public partial class RecordEditorView : UserControl
                 var groups=Editor.RandomOptions.Select(g=>g with {Fields=g.Fields.Select(f=>state is not null&&state.Options.TryGetValue(f.Key,out int value)?f with {Value=value}:f).ToArray()});
                 BuildGroups(OptionsPanel,groups,_options,false);
             }
-            _id=id;var record=Editor.Read(id);_record=record;BuildGroups(FieldsPanel,record,_fields,true);UpdateTrainerTeam(id,record);UpdateEncounterSprites(id,record);UpdateFieldItemOverview(id);SelectionText.Text=Editor.Entries.First(e=>e.Id==id).Display;_dirty=false;SaveButton.IsEnabled=false;StatusText.Text="Editor listo.";Invalidate();
+            _id=id;var record=Editor.Read(id);_record=record;BuildGroups(FieldsPanel,record,_fields,true);UpdateTrainerTeam(id,record);UpdateEncounterSprites(id,record);UpdateFieldItemOverview(id);PresentEvolutionArguments();SelectionText.Text=Editor.Entries.First(e=>e.Id==id).Display;_dirty=false;SaveButton.IsEnabled=false;StatusText.Text="Editor listo.";Invalidate();
             UpdateSummary(reload:true);
         }
         finally{_loading=false;}

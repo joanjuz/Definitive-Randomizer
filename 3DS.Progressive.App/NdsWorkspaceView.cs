@@ -34,6 +34,11 @@ internal sealed class NdsWorkspaceView:UserControl
     private readonly Button _discard=new(){Content="Descartar cambios pendientes",IsEnabled=false,Margin=new Thickness(0,10,0,0),HorizontalAlignment=HorizontalAlignment.Left};
     private bool _busy;
 
+    /// <summary>Destinations of this workspace for the search palette (Ctrl+K): its own sidebar entries.</summary>
+    internal IReadOnlyList<PaletteEntry> PaletteEntries(string location)=>_navigation
+        .Select(p=>new PaletteEntry(System.Windows.Automation.AutomationProperties.GetName(p.Value) is string name&&name.Length>0?StripSuffix(name):p.Value.Content as string??p.Key,location,"Sección de "+location+".",p.Key,()=>_=NavigateAsync(p.Key)))
+        .ToArray();
+    private static string StripSuffix(string name)=>name.Replace("Sección DS · ","").Replace(" · Espada/Escudo","");
     internal NdsProject? Project {get;private set;}
     internal bool Busy=>_busy;
     internal event Action? ContextChanged;

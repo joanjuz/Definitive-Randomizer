@@ -273,6 +273,8 @@ internal static class SectionProgress
     }
     internal static string? RouteFor(HistoryEntry entry)
     {
+        // Entries committed since 0.13 keep the section decided when they were saved.
+        if(!string.IsNullOrEmpty(entry.Section))return entry.Section;
         if(ActionIdOf(entry) is string id&&Actions.TryGetValue(id,out var known))return known.Route;
         if(entry.Module==GlobalModule)return "GlobalTemplate";
         return RouteFor(entry.Module,entry.Action);
@@ -333,10 +335,19 @@ internal static class SectionProgress
     }
     /// <summary>Number of saved operations per section, read from the existing history file.</summary>
     internal static IReadOnlyDictionary<string,int> Count(HistoryDocument document)=>Changes(document).ToDictionary(p=>p.Key,p=>p.Value.Count);
+    // The sidebar asks after every save: reading a large history again is skipped while the file did not change.
+    private static readonly Dictionary<string,((long,DateTime) Stamp,IReadOnlyDictionary<string,IReadOnlyList<SavedChange>> Changes)> Cache=new(StringComparer.OrdinalIgnoreCase);
     internal static IReadOnlyDictionary<string,IReadOnlyList<SavedChange>> TryChanges(GameProjectSession? session)
     {
         if(session is null)return new Dictionary<string,IReadOnlyList<SavedChange>>();
-        try{return Changes(session.History.Read());}
+        try
+        {
+            var stamp=session.History.Stamp();
+            lock(Cache)if(Cache.TryGetValue(session.ProjectRoot,out var cached)&&cached.Stamp==stamp&&stamp.Length>0)return cached.Changes;
+            var changes=Changes(session.History.Read());
+            lock(Cache)Cache[session.ProjectRoot]=(stamp,changes);
+            return changes;
+        }
         catch(Exception ex) when(ex is System.IO.IOException or System.Text.Json.JsonException or System.IO.InvalidDataException or UnauthorizedAccessException){return new Dictionary<string,IReadOnlyList<SavedChange>>();}
     }
     internal static IReadOnlyDictionary<string,int> TryCount(GameProjectSession? session)=>TryChanges(session).ToDictionary(p=>p.Key,p=>p.Value.Count);

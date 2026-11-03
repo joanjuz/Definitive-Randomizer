@@ -8,10 +8,13 @@ using ThreeDS.Progressive.Models;
 
 namespace ThreeDS.Progressive.Services;
 
-public sealed class LevelUpMoveEntry
+public sealed class LevelUpMoveEntry : System.ComponentModel.INotifyPropertyChanged
 {
-    public int Level {get;set;}
-    public int Move {get;set;}
+    private int _level,_move;
+    public int Level {get=>_level;set{if(_level==value)return;_level=value;PropertyChanged?.Invoke(this,new(nameof(Level)));}}
+    // Notifies the change so the read-only move details (type, power…) of the level-up table follow the edit.
+    public int Move {get=>_move;set{if(_move==value)return;_move=value;PropertyChanged?.Invoke(this,new(nameof(Move)));}}
+    public event System.ComponentModel.PropertyChangedEventHandler? PropertyChanged;
 }
 /// <summary>Level-up moves behind <c>LevelUpView</c>: the 3DS GARC editor and the Nintendo DS learnsets.</summary>
 public interface ILevelUpSource
@@ -32,8 +35,11 @@ public interface ILevelUpSource
 }
 
 /// <summary>Direct Gen6/Gen7 Learnset6 GARC editor with immutable disk fingerprints.</summary>
+/// <summary>What the level-up table shows next to a move (3DS: read from the move data of the open game).</summary>
+public sealed record LevelUpMoveDetails(string Type,string Category,int Power,int Accuracy,int PP);
 public sealed class GameLevelUpService:ILevelUpSource
 {
+    internal Func<int,LevelUpMoveDetails?> MoveDetails {get;}
     private readonly GameProjectSession _project;
     private readonly GameConfig _config;
     private readonly string _path;
@@ -46,6 +52,8 @@ public sealed class GameLevelUpService:ILevelUpSource
     public GameLevelUpService(GameProjectSession project)
     {
         _project=project;_config=project.GameConfiguration;
+        MoveDetails=id=>id>0&&id<_config.Moves.Length&&_config.Moves[id] is {} move
+            ?new LevelUpMoveDetails(move.Type>=0&&move.Type<project.Types.Count?project.Types[move.Type]:move.Type.ToString(),move.Category switch{0=>"Estado",1=>"Físico",2=>"Especial",_=>"—"},move.Power,move.Accuracy,move.PP):null;
         _path=Path.Combine(_config.RomFS,_config.GetGARCFileName("levelup"));
         if(!File.Exists(_path))throw new FileNotFoundException("Falta el archivo levelup GARC.",_path);
         _sha=SHA256.HashData(File.ReadAllBytes(_path));

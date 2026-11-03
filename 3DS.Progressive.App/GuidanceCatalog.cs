@@ -4,7 +4,7 @@ internal sealed record TourStep(string Title,string Text);
 internal sealed record TourTopic(string Route,string Title,IReadOnlyList<TourStep> Steps);
 internal static class GuidanceCatalog
 {
-    internal static readonly IReadOnlySet<string> SimpleRoutes=new HashSet<string>{"Pokemon","Trainers","Encounters","StaticEncounters","Moves","LevelUp","MachineTutor","FieldItems","Marts","Evolutions","History","Configuration"};
+    internal static IReadOnlySet<string> SimpleRoutes=>SectionCatalog.SimpleRoutes;
     internal static readonly IReadOnlyList<TourTopic> Topics=Build();
     private static IReadOnlyList<TourTopic> Build()
     {

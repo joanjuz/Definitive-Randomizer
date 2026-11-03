@@ -7,9 +7,14 @@ using ThreeDS.Progressive.Models;
 namespace ThreeDS.Progressive.Services;
 
 public sealed record HistoryFile(string Path, string BeforeSha256, string AfterSha256);
+/// <remarks>
+/// <see cref="Section"/> (since 0.13) is the editor section the entry belongs to, decided once when it is committed.
+/// It is omitted when null, so older entries serialize exactly as before (same history hashes) and older versions ignore it.
+/// </remarks>
 public sealed record HistoryEntry(Guid Id, DateTimeOffset Time, string Module, string Action,
     IReadOnlyList<BatchChange> Changes, IReadOnlyDictionary<string,string> Parameters,
-    IReadOnlyList<HistoryFile> Files,string Kind="Edit",int ChangedValueCount=0);
+    IReadOnlyList<HistoryFile> Files,string Kind="Edit",int ChangedValueCount=0,
+    [property: System.Text.Json.Serialization.JsonIgnore(Condition=System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)] string? Section=null);
 public sealed record HistoryDocument(int Version, string Game, string Project, IReadOnlyList<HistoryEntry> Entries);
 
 /// <summary>The journal participates in the same verified commit as the edited game files.</summary>
@@ -32,6 +37,9 @@ public sealed partial class ProjectHistory
         _gate=Locks.GetOrAdd(_path,_=>new object());
     }
     internal string StorageDirectory=>Path.GetDirectoryName(_path)!;
+    internal string ProjectRoot=>_root;
+    /// <summary>Size and write time of the history file, so readers can cache what they derive from it.</summary>
+    internal (long Length,DateTime Written) Stamp(){var file=new FileInfo(_path);return file.Exists?(file.Length,file.LastWriteTimeUtc):(0,DateTime.MinValue);}
     public HistoryDocument Read()
     {
         lock(_gate){RecoveryJournal.Recover(_path+".pending",_root,_path);return File.Exists(_path)
@@ -42,7 +50,7 @@ public sealed partial class ProjectHistory
     internal void RecoverPending(){lock(_gate)RecoveryJournal.Recover(_path+".pending",_root,_path);}
     internal void RejectPending(){if(Directory.Exists(_path+".pending"))throw new IOException("El proyecto tiene un guardado interrumpido. La lectura de diagnóstico no lo modifica; ábrelo en la aplicación para recuperarlo.");}
     internal void Commit(IReadOnlyList<FileChange> files,string module,string action,
-        IEnumerable<BatchChange> changes,IReadOnlyDictionary<string,string>? parameters=null)
+        IEnumerable<BatchChange> changes,IReadOnlyDictionary<string,string>? parameters=null,string? section=null)
     {
         lock(_gate)
         {
@@ -81,10 +89,13 @@ public sealed partial class ProjectHistory
             }
             var entry=new HistoryEntry(Guid.NewGuid(),DateTimeOffset.UtcNow,module,action,bulk?[]:values,options,
                 actual.Select(f=>new HistoryFile(Path.GetRelativePath(_root,f.Path),Hash(f.Original()),Hash(f.Proposed()))).ToArray(),bulk?"Action":"Edit",values.Length);
+            entry=entry with {Section=section??SectionProgress.RouteFor(entry)};
             byte[] proposed=JsonSerializer.SerializeToUtf8Bytes(document with {Version=2,Entries=document.Entries.Append(entry).ToArray()},Json);
             FileChange[] commit=[..actual,new FileChange(_path,source,proposed)];
             using var recovery=RecoveryJournal.Begin(_path+".pending",_root,_path,commit);
             FileTransaction.Commit(commit,recovery:recovery);
+            // «Deshacer»: copy of the files as they were before this entry (best effort, never fails the commit).
+            RestorePoints.Save(StorageDirectory,_root,entry,actual);
         }
         // Presentation only (sidebar marks, Inicio summary): raised after the verified commit; a listener can never undo or fail it.
         try{Committed?.Invoke();}catch(Exception){}

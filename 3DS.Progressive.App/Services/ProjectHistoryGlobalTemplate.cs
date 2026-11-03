@@ -24,12 +24,17 @@ public sealed partial class ProjectHistory
                 // Each row attests to the shared final result; the preceding row owns the actual transaction.
                 var final=resultFiles.Select(file=>file with{BeforeSha256=file.AfterSha256}).ToArray();
                 var parameters=new Dictionary<string,string>{{"ActionId",id},{"ActionParameters",actions[id]["Parameters"]?.ToJsonString()??"{}"},{"GlobalApplication",batch},{"TemplateSha256",template.Sha256},{"ResultScope","Resultado conjunto del Global Template; diferencias no aisladas por acción"}};
-                entries.Add(new(Guid.NewGuid(),DateTimeOffset.UtcNow,"Global Template",id,[],parameters,final,"Action"));
+                var row=new HistoryEntry(Guid.NewGuid(),DateTimeOffset.UtcNow,"Global Template",id,[],parameters,final,"Action");
+                entries.Add(row with {Section=SectionProgress.RouteFor(row)});
             }
             var proposed=JsonSerializer.SerializeToUtf8Bytes(current with {Version=2,Entries=entries},Json);
             FileChange[] transaction=[..changed,new FileChange(_path,original,proposed)];
             using var recovery=RecoveryJournal.Begin(_path+".pending",_root,_path,transaction);
             FileTransaction.Commit(transaction,recovery:recovery);
+            // The whole recipe is undone at once, from the entry that applied it.
+            if(entries.FirstOrDefault(e=>e.Parameters.ContainsKey("GlobalTemplateSnapshot")&&e.Parameters.GetValueOrDefault("GlobalApplication")==batch) is {} applied)
+                RestorePoints.Save(StorageDirectory,_root,applied,changed);
         }
+        try{Committed?.Invoke();}catch(Exception){}
     }
 }

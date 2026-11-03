@@ -21,18 +21,8 @@ public partial class MainWindow
         MechanicsButton,RomToolsButton,TemplateStudioButton,GlobalTemplateButton,BatchRomButton,HistoryButton,AutomationButton,ConfigurationButton];
     private (ToggleButton Header,System.Windows.Controls.Panel Group)[] NavigationGroupPairs=>
         [(NavHeaderSpecies,NavGroupSpecies),(NavHeaderWorld,NavGroupWorld),(NavHeaderText,NavGroupText),(NavHeaderPatches,NavGroupPatches),(NavHeaderRecipes,NavGroupRecipes)];
-    /// <summary>Tools opened from a hub card, and the hub that contains them.</summary>
-    internal static readonly IReadOnlyDictionary<string,string> HubOf=new Dictionary<string,string>
-    {
-        ["FacilityNormal"]="PokemonTools",["FacilityAlternate"]="PokemonTools",["EggMoves"]="PokemonTools",["MegaEvolutions"]="PokemonTools",
-        ["TypeChart"]="PokemonTools",["ShinyRate"]="PokemonTools",["Pickup"]="PokemonTools",["OWSE"]="PokemonTools",
-        ["Tutor6"]="Mechanics",["PlayerCaps"]="Mechanics",["UsumRelearner"]="Mechanics",["CroRecipes"]="Mechanics",["Trade6"]="Mechanics",
-        ["CatchZones"]="Mechanics",["OPower"]="Mechanics",["PersistentItems"]="Mechanics",
-        ["Extraction"]="RomTools",["Rebuild"]="RomTools",["CroIntegrity"]="RomTools",["RestoreSelected"]="RomTools",["TitleScreen6"]="RomTools",
-        ["TitleScreen7"]="RomTools",["GarcShuffle"]="RomTools",["Graphics"]="RomTools",["SMDH"]="RomTools"
-    };
-    private static readonly IReadOnlyDictionary<string,string> HubLabels=new Dictionary<string,string>
-    {["PokemonTools"]="Herramientas Pokémon",["Mechanics"]="Mecánicas y CRO",["RomTools"]="Herramientas ROM"};
+    /// <summary>Tools opened from a hub card, and the hub that contains them (from the single SectionCatalog).</summary>
+    internal static IReadOnlyDictionary<string,string> HubOf=>SectionCatalog.HubOf;
     private string? _breadcrumbHub;
     private Button? SidebarButtonFor(string route)
     {
@@ -51,7 +41,7 @@ public partial class MainWindow
             if(active is not null&&group.Children.Contains(active)&&header.IsChecked!=true)header.IsChecked=true;
         if(_session is not null&&HubOf.TryGetValue(route,out var hub))
         {
-            _breadcrumbHub=hub;SectionHost.Tag=HubLabels[hub];
+            _breadcrumbHub=hub;SectionHost.Tag=SectionCatalog.Label(hub);
             Breadcrumbs.SetCurrent(SectionHost,GuidanceCatalog.Find(route) is {Route:var found} topic&&found==route?ToolTitle(route,topic.Title):route);
         }
         else{_breadcrumbHub=null;SectionHost.Tag=null;Breadcrumbs.SetCurrent(SectionHost,null);}
@@ -132,73 +122,88 @@ public partial class MainWindow
         if(_closed||Dispatcher.HasShutdownStarted)return;
         Dispatcher.BeginInvoke(()=>{if(!_closed&&HomeHost.Visibility==Visibility.Visible&&_session is not null)RefreshStart();});
     }
+    private static readonly string[] StatBarLabels=["PS","Ataque","Defensa","At. Esp.","Def. Esp.","Velocidad"];
+    /// <summary>Six bars on a 255 scale; the longest bar uses the accent colour.</summary>
+    private void RenderStatBars(IReadOnlyList<byte> stats)
+    {
+        StatBarsPanel.Children.Clear();
+        int best=stats.Max(v=>(int)v);
+        for(int i=0;i<stats.Count;i++)
+        {
+            var row=new Grid{Margin=new Thickness(0,0,0,3)};
+            row.ColumnDefinitions.Add(new ColumnDefinition{Width=new GridLength(62)});row.ColumnDefinitions.Add(new ColumnDefinition{Width=new GridLength(30)});row.ColumnDefinitions.Add(new ColumnDefinition());
+            var name=UiKit.Small(StatBarLabels[i],true,11);var value=UiKit.Small(stats[i].ToString(),false,11);Grid.SetColumn(value,1);
+            var track=new Border{Height=6,CornerRadius=new CornerRadius(3),VerticalAlignment=VerticalAlignment.Center};track.SetResourceReference(Border.BackgroundProperty,"Surface");
+            var fill=new Border{Height=6,CornerRadius=new CornerRadius(3),HorizontalAlignment=System.Windows.HorizontalAlignment.Left};
+            fill.SetResourceReference(Border.BackgroundProperty,stats[i]==best?"Accent":"TextSoft");
+            var host=new Grid();host.Children.Add(track);host.Children.Add(fill);Grid.SetColumn(host,2);
+            byte stat=stats[i];// copy: the handler runs after the loop has finished
+            host.SizeChanged+=(_,e)=>fill.Width=Math.Max(2,e.NewSize.Width*stat/255.0);
+            row.Children.Add(name);row.Children.Add(value);row.Children.Add(host);
+            System.Windows.Automation.AutomationProperties.SetName(row,$"{StatBarLabels[i]}: {stats[i]}");
+            StatBarsPanel.Children.Add(row);
+        }
+    }
+    /// <summary>«Ratio de género» in words: 0 always male, 254 always female, 255 genderless, otherwise the share of females.</summary>
+    internal static string GenderRatioMeaning(string text)
+    {
+        if(!int.TryParse(text,out int value)||value is <0 or >255)return "";
+        return value switch
+        {
+            0=>"Siempre macho",254=>"Siempre hembra",255=>"Sin género",
+            _=>$"{100-(value+1)*100.0/256:0.#} % macho · {(value+1)*100.0/256:0.#} % hembra"
+        };
+    }
+    /// <summary>After «Deshacer» the project is read again, so every editor shows the restored files.</summary>
+    private async Task ReloadAfterUndoAsync()
+    {
+        if(_session is null)return;string root=_session.ProjectRoot;
+        var restored=await Task.Run(()=>GameProjectSession.Open(root,recoverInterruptedSave:false));LoadProject(restored);
+        StatusText.Text="Cambio deshecho, verificado y registrado en el historial.";
+    }
+    /// <summary>«Deshacer el último cambio» (search palette): the newest change that still can be undone.</summary>
+    internal async Task UndoLatestAsync()
+    {
+        if(_session is null||UiProgress.IsInteractionBlocked||!ConfirmDiscard()||!ConfirmAuxiliaryLeave())return;
+        var latest=RestorePoints.LatestUndoable(_session.History,_session.History.ProjectRoot);
+        if(latest is null){StudioDialog.Notice(this,"Deshacer","No hay ningún cambio reciente que se pueda deshacer.","Solo se guardan los "+RestorePoints.Keep+" últimos, y se pueden deshacer mientras ningún cambio posterior haya modificado los mismos archivos.");return;}
+        string title=SectionProgress.Describe(latest).Title;
+        if(!StudioDialog.Confirm(this,"Deshacer el último cambio",$"Los archivos volverán a como estaban antes de «{title}».","Queda registrado en el historial como una restauración."))return;
+        try{RestorePoints.Undo(_session.History,_session.History.ProjectRoot,latest.Id);await ReloadAfterUndoAsync();}
+        catch(Exception ex) when(ex is InvalidOperationException or System.IO.IOException or System.IO.InvalidDataException or UnauthorizedAccessException)
+        {StudioDialog.Error(this,"No se pudo deshacer",ex.Message);}
+    }
     private void CommandSearch_Click(object sender,RoutedEventArgs e)=>OpenCommandPalette();
     private CommandPalette? _palette;
     internal CommandPalette? Palette=>_palette;
     internal void OpenCommandPalette()
     {
-        if(_closed||UiProgress.IsInteractionBlocked||_palette is not null||SwitchHost.Visibility==Visibility.Visible)return;
+        if(_closed||UiProgress.IsInteractionBlocked||_palette is not null)return;
+        if(SwitchHost.Visibility==Visibility.Visible&&WorkspacePaletteEntries() is not {Count:>0})return;
         _tour?.Finish();
         var focus=Keyboard.FocusedElement as IInputElement;
-        _palette=new CommandPalette(PaletteEntries(),()=>
+        _palette=new CommandPalette(SwitchHost.Visibility==Visibility.Visible?WorkspacePaletteEntries()!:PaletteEntries(),()=>
         {
             PaletteHost.Children.Clear();PaletteHost.Visibility=Visibility.Collapsed;_palette=null;
             if(focus is UIElement {IsVisible:true} previous)previous.Focus();
         });
         PaletteHost.Children.Add(_palette);PaletteHost.Visibility=Visibility.Visible;
     }
-    private static readonly IReadOnlyDictionary<string,string> SearchKeywords=new Dictionary<string,string>
-    {
-        ["Pokemon"]="estadisticas stats bst tipos habilidades especies personal base captura ev",
-        ["Moves"]="ataques poder precision pp categoria",
-        ["LevelUp"]="aprendizaje learnset movimientos por nivel",
-        ["MachineTutor"]="mt mo tm hm tutores maquinas compatibilidad",
-        ["Evolutions"]="evolucionar evo metodo intercambio",
-        ["PokemonTools"]="hub huevo mega tipos shiny pickup instalaciones",
-        ["Trainers"]="rivales lideres gimnasio alto mando jefes caps niveles equipos ia dobles",
-        ["Encounters"]="salvajes hierba wild sos zonas",
-        ["StaticEncounters"]="regalos iniciales starters legendarios totem gift",
-        ["FieldItems"]="objetos del mapa suelo ocultos recoger",
-        ["Marts"]="tienda comprar bp precios inventario",
-        ["Items"]="precios economia dinero fix economy",
-        ["GameText"]="textos idioma nombres frases",
-        ["StoryText"]="dialogos escenas historia",
-        ["Mechanics"]="parches codigo obediencia megas tutores intercambios",
-        ["RomTools"]="rom archivos extraer rebuild",
-        ["Automation"]="flujos randomizar todo",
-        ["Configuration"]="idioma carpetas preferencias about garc",
-        ["TemplateStudio"]="plantillas csv json crear",
-        ["GlobalTemplate"]="receta definitivo json repetir",
-        ["BatchRom"]="lote varias roms semillas",
-        ["History"]="registro cambios sha",
-        ["Rebuild"]="generar rom exportar reconstruir 3ds romfs exefs",
-        ["Extraction"]="extraer descifrar cxi 3ds",
-        ["ShinyRate"]="variocolor shiny brillante probabilidad",
-        ["TypeChart"]="tipos efectividad tabla debilidades",
-        ["EggMoves"]="huevo crianza",
-        ["MegaEvolutions"]="mega piedras megaevolucion",
-        ["Pickup"]="recogida habilidad",
-        ["PlayerCaps"]="limite nivel jugador level cap",
-        ["UsumRelearner"]="recordar movimientos cafeteria",
-        ["CroRecipes"]="mecanicas recetas battle cro",
-        ["Trade6"]="intercambios ofertas",
-        ["CatchZones"]="zonas captura",
-        ["OPower"]="poderes",
-        ["PersistentItems"]="consumibles objetos tras el combate",
-        ["CroIntegrity"]="hashes crr integridad",
-        ["RestoreSelected"]="restaurar archivos backup",
-        ["TitleScreen6"]="logo titulo portada",["TitleScreen7"]="logo titulo portada animacion",
-        ["SMDH"]="icono nombre del juego metadatos",["Graphics"]="imagenes bclim bflim png",["GarcShuffle"]="mezclar",
-        ["FacilityNormal"]="instalaciones batalla",["FacilityAlternate"]="instalaciones batalla",["OWSE"]="mapas scripts dev"
-    };
     private string LocationOf(string route)
     {
-        if(HubOf.TryGetValue(route,out var hub))return HubLabels[hub];
+        if(HubOf.TryGetValue(route,out var hub))return SectionCatalog.Label(hub);
         if(route=="Configuration")return "Opciones";
         var button=SidebarButtonFor(route);
         var pair=NavigationGroupPairs.FirstOrDefault(p=>button is not null&&p.Group.Children.Contains(button));
         return pair.Header?.Content as string??"Inicio";
     }
+    /// <summary>Nintendo DS and Sword/Shield use their own sidebar, so the palette lists their sections.</summary>
+    private IReadOnlyList<PaletteEntry>? WorkspacePaletteEntries()=>SwitchHost.Content switch
+    {
+        NdsWorkspaceView nds=>nds.PaletteEntries("Nintendo DS"),
+        SwitchWorkspaceView swsh=>swsh.PaletteEntries("Espada/Escudo"),
+        _=>null
+    };
     /// <summary>Destinations for the open game: the same topics the guided tour knows, plus general actions.</summary>
     internal IReadOnlyList<PaletteEntry> PaletteEntries()
     {
@@ -207,7 +212,7 @@ public partial class MainWindow
         if(_session is null)
         {
             Action("Abrir proyecto…","Abre la carpeta de un juego extraído (RomFS + ExeFS).","abrir cargar carpeta",()=>OpenProject_Click(OpenProjectButton,new RoutedEventArgs()));
-            entries.Add(new("Extraer ROM","Herramientas ROM","Extrae una ROM de 3DS en una carpeta nueva para editarla.",SearchKeywords["Extraction"],()=>ExtractRom_Click(ExtractRomButton,new RoutedEventArgs())));
+            entries.Add(new("Extraer ROM","Herramientas ROM","Extrae una ROM de 3DS en una carpeta nueva para editarla.",SectionCatalog.Keywords("Extraction"),()=>ExtractRom_Click(ExtractRomButton,new RoutedEventArgs())));
             Action("Restaurar backup…","Restaura un backup verificado en una carpeta nueva.","respaldo copia",()=>RestoreBackup_Click(RestoreBackupButton,new RoutedEventArgs()));
             Action("Espada/Escudo · editor Switch","Abre el editor de Espada/Escudo para exportar mods.","switch sword shield mod",OpenSwitchPrototype);
             Action("Nintendo DS · Gen4/Gen5 (beta)","Diamante, Platino, HeartGold, Negro, Blanco y Blanco 2.","ds nds negro blanco platino heartgold diamante",OpenNdsRandomizer);
@@ -219,11 +224,13 @@ public partial class MainWindow
             if(topic.Route is "Home")continue;
             string route=topic.Route;
             string title=ToolTitle(route,topic.Title);
-            entries.Add(new(title,LocationOf(route),topic.Steps[0].Text,SearchKeywords.GetValueOrDefault(route,""),()=>NavigateTo(route)));
+            entries.Add(new(title,LocationOf(route),topic.Steps[0].Text,SectionCatalog.Keywords(route),()=>NavigateTo(route)));
         }
         Action("Randomizado guiado · paso a paso","Elige secciones, configura opciones y revisa todo antes de generar la ROM.","asistente todo completo randomizar",OpenGuided);
         Action("Inicio","Modos, randomizado guiado y estado del proyecto.","home principal resumen",()=>Home_Click(HomeButton,new RoutedEventArgs()));
         Action("Vista guiada de esta sección","Explica la sección actual sin aplicar cambios (F1).","ayuda tour f1",()=>OpenTour());
+        Action("Exportar registro del randomizado","Archivo de texto con regalos, entrenadores y encuentros actuales (spoiler).","spoiler log registro resumen exportar",()=>_=SystemsView.ExportLogAsync(this,_session,text=>StatusText.Text=text));
+        Action("Deshacer el último cambio","Devuelve los archivos a como estaban antes del último cambio guardado.","deshacer revertir undo volver atras",()=>_=UndoLatestAsync());
         Action("Generar backup","Copia verificada del proyecto y su historial.","respaldo copia seguridad",()=>Backup_Click(BackupButton,new RoutedEventArgs()));
         Action("Restaurar backup…","Restaura un backup verificado en una carpeta nueva.","respaldo copia",()=>RestoreBackup_Click(RestoreBackupButton,new RoutedEventArgs()));
         Action("Abrir otro proyecto…","Cambia de juego extraído.","abrir cargar carpeta",()=>OpenProject_Click(OpenProjectButton,new RoutedEventArgs()));

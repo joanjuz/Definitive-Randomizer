@@ -8,7 +8,7 @@ namespace ThreeDS.Progressive;
 internal sealed class StartView:UserControl
 {
     internal StartView(GameProjectSession? project,bool simplified,Action<bool> chooseMode,Action open,Action guided,Action tour,Action? openSwitch=null,Action? openNds=null,
-        Action<string>? navigate=null,Action? backup=null)
+        Action<string>? navigate=null,Action? backup=null,Action? extract=null)
     {
         SetResourceReference(BackgroundProperty,"Bg");
         var scroll=new ScrollViewer{VerticalScrollBarVisibility=ScrollBarVisibility.Auto,HorizontalScrollBarVisibility=ScrollBarVisibility.Disabled};Content=scroll;
@@ -16,6 +16,7 @@ internal sealed class StartView:UserControl
         body.Children.Add(new TextBlock{Text="¿Cómo quieres trabajar?",FontSize=28,FontWeight=FontWeights.SemiBold,TextWrapping=TextWrapping.Wrap});
         var intro=new TextBlock{Text=project is null?"Abre un proyecto extraído para editar o generar tu randomizado.":"Proyecto: "+System.IO.Path.GetFileName(project.ProjectRoot)+" · "+project.GameName,TextWrapping=TextWrapping.Wrap,Margin=new Thickness(0,10,0,20)};intro.SetResourceReference(TextBlock.ForegroundProperty,"TextSoft");body.Children.Add(intro);
         if(project is not null)body.Children.Add(ProjectStatus(project,navigate,backup));
+        else body.Children.Add(FirstSteps(open,extract));
         var cards=new UniformGrid{Columns=2};body.Children.Add(cards);
         Button Card(string title,string description,bool simple)
         {
@@ -129,6 +130,38 @@ internal sealed class StartView:UserControl
             if(items.Count>6)list.Children.Add(Soft($"… y {items.Count-6} más en el historial",new Thickness(10,0,0,4),12));
         }
         return new Expander{Header="Ver qué se cambió",IsExpanded=false,Content=list,Margin=new Thickness(-6,0,0,8)};
+    }
+    /// <summary>«Primeros pasos»: the whole route from a ROM to a randomized ROM, for the first time the app is opened.</summary>
+    private FrameworkElement FirstSteps(Action open,Action? extract)
+    {
+        var card=UiKit.Card("PRIMEROS PASOS",out var body,new Thickness(0,0,12,20));
+        System.Windows.Automation.AutomationProperties.SetName(card,"Primeros pasos");
+        (string Title,string Text,string? Action,Action? Run)[] steps=
+        [
+            ("Extrae tu ROM","Convierte el .3ds o .cxi en una carpeta de proyecto. El archivo original no cambia.","Extraer ROM…",extract),
+            ("Abre el proyecto","Elige la carpeta extraída (la que contiene RomFS y ExeFS).","Abrir proyecto…",open),
+            ("Randomiza","Con el Randomizado guiado eliges las secciones y revisas todo antes de aplicar; o entra en cada sección.",null,null),
+            ("Genera la ROM","Rebuild crea la ROM jugable con todos los cambios guardados. Antes, haz un backup.",null,null),
+        ];
+        for(int i=0;i<steps.Length;i++)
+        {
+            var row=new System.Windows.Controls.Grid{Margin=new Thickness(0,0,0,10)};
+            row.ColumnDefinitions.Add(new ColumnDefinition{Width=new GridLength(34)});row.ColumnDefinitions.Add(new ColumnDefinition());row.ColumnDefinitions.Add(new ColumnDefinition{Width=GridLength.Auto});
+            var number=new Border{Width=24,Height=24,CornerRadius=new CornerRadius(12),VerticalAlignment=VerticalAlignment.Top,
+                Child=new TextBlock{Text=(i+1).ToString(),FontWeight=FontWeights.Bold,HorizontalAlignment=System.Windows.HorizontalAlignment.Center,VerticalAlignment=VerticalAlignment.Center}};
+            number.SetResourceReference(Border.BackgroundProperty,i<2?"Accent":"Surface");((TextBlock)number.Child).SetResourceReference(TextBlock.ForegroundProperty,i<2?"Bg":"TextSoft");
+            var text=new StackPanel();text.Children.Add(new TextBlock{Text=steps[i].Title,FontWeight=FontWeights.SemiBold});text.Children.Add(UiKit.Small(steps[i].Text,true,12,wrap:true));
+            System.Windows.Controls.Grid.SetColumn(text,1);row.Children.Add(number);row.Children.Add(text);
+            if(steps[i].Action is string label&&steps[i].Run is Action run)
+            {
+                var button=new Button{Content=label,MinHeight=30,Padding=new Thickness(10,4,10,4),Margin=new Thickness(12,0,0,0),VerticalAlignment=VerticalAlignment.Top};
+                button.SetResourceReference(StyleProperty,i==0?"SecondaryButton":"PrimaryButton");button.Click+=(_,_)=>run();
+                System.Windows.Controls.Grid.SetColumn(button,2);row.Children.Add(button);
+            }
+            body.Children.Add(row);
+        }
+        body.Children.Add(Soft("¿Ya tienes una carpeta extraída? Empieza por el paso 2. Ctrl+K busca cualquier sección cuando el proyecto esté abierto.",new Thickness(0,2,0,0),12));
+        return card;
     }
     private static TextBlock Soft(string text,Thickness margin,double size=13)
     {

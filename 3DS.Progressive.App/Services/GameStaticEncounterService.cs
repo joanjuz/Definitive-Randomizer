@@ -294,8 +294,9 @@ public sealed partial class GameStaticEncounterService : ArchiveProjectEditor, I
         {
             var gift=new EncounterGift7(raw);
             fields.Add(Field("Gender","Género",gift.Gender,0,1));
-            fields.Add(Field("Ability","Habilidad / -1 = normal",gift.Ability,-1,2));
-            fields.Add(Field("Nature","Naturaleza / -1 = aleatoria",gift.Nature,-1,24));
+            // Gift ability: -1 random, otherwise the slot (EncounterGift7: Ability = 1 << value). Nature: -1 random, otherwise its index.
+            fields.Add(Field("Ability","Habilidad",gift.Ability,-1,2,[new(-1,"Aleatoria (1 o 2)"),new(0,"Habilidad 1"),new(1,"Habilidad 2"),new(2,"Habilidad oculta")]));
+            fields.Add(Field("Nature","Naturaleza",gift.Nature,-1,24,[new(-1,"Aleatoria"),..Choices(TextName.Natures).Take(25)]));
             fields.Add(Field("Item","Objeto equipado",gift.HeldItem,0,65535,Choices(TextName.ItemNames)));
             fields.Add(Field("Egg","Huevo",gift.IsEgg?1:0,0,1));
             fields.Add(Field("ShinyLock","Bloqueo shiny",gift.ShinyLock?1:0,0,1));
@@ -305,9 +306,11 @@ public sealed partial class GameStaticEncounterService : ArchiveProjectEditor, I
         {
             var enc=new EncounterStatic7(raw);
             fields.Add(Field("Item","Objeto equipado",enc.HeldItem,0,32767,Choices(TextName.ItemNames)));
-            fields.Add(Field("Gender","Género",enc.Gender,0,3));
-            fields.Add(Field("Ability","Slot de habilidad",enc.Ability,0,7));
-            fields.Add(Field("Nature","Naturaleza",enc.Nature,0,255,Choices(TextName.Natures)));
+            // EncounterStatic7 stores these with 0 = not forced and the value shifted by one (Gender-1, Nature-1, Ability = 1 << (value-1)).
+            // The nature list used to start at value 0, so every static nature was shown one place off.
+            fields.Add(Field("Gender","Género",enc.Gender,0,3,[new(0,"Aleatorio"),new(1,"Macho"),new(2,"Hembra"),new(3,"Sin género")]));
+            fields.Add(Field("Ability","Habilidad",enc.Ability,0,7,[new(0,"Cualquiera"),new(1,"Habilidad 1"),new(2,"Habilidad 2"),new(3,"Habilidad oculta")]));
+            fields.Add(Field("Nature","Naturaleza",enc.Nature,0,255,[new(0,"Aleatoria"),..Choices(TextName.Natures).Take(25).Select(n=>new MoveChoice(n.Id+1,n.Name))]));
             fields.Add(Field("Shiny","Permitir shiny",((raw[6]&1)!=0)?1:0,0,1));
             fields.Add(Field("ShinyLock","Bloqueo shiny",enc.ShinyLock?1:0,0,1));
             fields.Add(Field("Aura","Aura de Totem",enc.Aura,0,255));
