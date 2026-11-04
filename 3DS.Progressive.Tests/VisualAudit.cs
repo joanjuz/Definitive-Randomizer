@@ -57,6 +57,7 @@ internal static class VisualAudit
         var app=new ThreeDS.Progressive.App();app.InitializeComponent();
         // Closing a window the audit opened must never end the application.
         app.ShutdownMode=ShutdownMode.OnExplicitShutdown;
+        VerifyWrappedTextDetection(check);
         // Section loading is async void: with this context its exceptions reach the dispatcher, where they are recorded
         // as problems of the current view instead of ending the process.
         SynchronizationContext.SetSynchronizationContext(new DispatcherSynchronizationContext(Dispatcher.CurrentDispatcher));
@@ -408,6 +409,56 @@ internal static class VisualAudit
         try{var r=Visible(element,root);return !r.IsEmpty&&r.Width>1&&r.Height>1;}catch(InvalidOperationException){return false;}
     }
 
+    // Exercise the real detector with a valid rounding boundary and a clear multiline clip.
+    // All dimensions come from loaded WPF controls, not assumed font metrics.
+    private static void VerifyWrappedTextDetection(Action<bool,string> check)
+    {
+        TextBlock Text(string sample)=>new(){Text=sample,FontFamily=new FontFamily("Segoe UI"),FontSize=14,
+            Foreground=Brushes.White,TextWrapping=TextWrapping.Wrap,
+            HorizontalAlignment=HorizontalAlignment.Left,VerticalAlignment=VerticalAlignment.Top};
+        var root=new Grid{Background=Brushes.Black};
+        var positive=Text("Texto válido");positive.TextWrapping=TextWrapping.NoWrap;
+        root.Children.Add(positive);
+        var parameters=new System.Windows.Interop.HwndSourceParameters("wrapped text detector checks")
+        {WindowStyle=unchecked((int)0x80000000),Width=800,Height=800,PositionX=-32000,PositionY=-32000};
+        using var source=new System.Windows.Interop.HwndSource(parameters){RootVisual=root};
+        void Layout()
+        {
+            root.Measure(new Size(800,800));root.Arrange(new Rect(0,0,800,800));root.UpdateLayout();
+            Dispatcher.CurrentDispatcher.Invoke(()=>{},DispatcherPriority.ContextIdle);
+        }
+        Layout();
+        double lineHeight=positive.ActualHeight,naturalWidth=positive.ActualWidth;
+        check(positive.IsLoaded&&positive.IsVisible&&lineHeight>2&&naturalWidth>2,"VisualAudit_WrappedPositiveIsLoaded");
+        // Less than 1.25 DIP spare width: a valid one-line control near a rounding boundary.
+        positive.Width=Math.Ceiling(naturalWidth)+0.25;positive.TextWrapping=TextWrapping.Wrap;Layout();
+        check(positive.ActualHeight<=lineHeight+2,"VisualAudit_WrappedPositiveActuallyFitsOneLine");
+        check(!Inspect(root).Any(),"VisualAudit_WrappedNaturalWidthFitsWithoutFalsePositive");
+
+        string sample=string.Join(" ",Enumerable.Repeat("Texto negativo",8));
+        var unwrapped=Text(sample);unwrapped.TextWrapping=TextWrapping.NoWrap;
+        root.Children.Clear();root.Children.Add(unwrapped);Layout();
+        double availableWidth=positive.Width*1.5,unwrappedWidth=unwrapped.ActualWidth;
+        check(unwrappedWidth>availableWidth*3,"VisualAudit_WrappedNegativeClearlyExceedsAvailableWidth");
+        var limited=Text(sample);limited.Width=availableWidth;limited.Height=lineHeight;
+        var full=Text(sample);full.Width=availableWidth;full.Margin=new Thickness(0,lineHeight*3,0,0);
+        root.Children.Clear();root.Children.Add(limited);root.Children.Add(full);Layout();
+        var layoutClip=LayoutInformation.GetLayoutClip(limited)?.Bounds;
+        double visibleHeight=layoutClip is Rect clip?Math.Min(limited.ActualHeight,clip.Height):limited.ActualHeight;
+        Console.WriteLine($"Wrapped clipping witness: availableWidth={limited.ActualWidth}; unwrappedWidth={unwrappedWidth}; requestedHeight={limited.Height}; renderHeight={limited.ActualHeight}; visibleHeight={visibleHeight}; fullHeight={full.ActualHeight}");
+        check(limited.IsLoaded&&limited.IsVisible&&full.IsLoaded&&full.IsVisible
+            &&Math.Abs(limited.ActualWidth-full.ActualWidth)<0.01,"VisualAudit_WrappedNegativeControlsShareLoadedWidth");
+        // WPF can retain the full RenderSize and clip to the requested height instead of
+        // shrinking ActualHeight. Compare the actual layout clip with the independent control.
+        check(layoutClip is not null&&visibleHeight<=lineHeight+2
+            &&full.ActualHeight>=lineHeight*2&&full.ActualHeight>visibleHeight+2,
+            "VisualAudit_WrappedFixtureActuallyNeedsAnotherLine");
+        var issues=Inspect(root);
+        Console.WriteLine("Wrapped clipping detector: "+string.Join(" | ",issues));
+        check(issues.Any(issue=>issue.Contains("cortado por abajo",StringComparison.Ordinal)||issue.Contains("recortado por su contenedor",StringComparison.Ordinal)),
+            "VisualAudit_DetectsRealWrappedClipping");
+    }
+
     /// <summary>Problems in a view; warnings are listed apart and do not fail the audit.</summary>
     internal static IEnumerable<string> Inspect(FrameworkElement view)=>Inspect(view,out _);
 
@@ -471,7 +522,8 @@ internal static class VisualAudit
                 else
                 {
                     // Wrapped text cut at the bottom.
-                    probe.TextWrapping=text.TextWrapping;probe.Measure(new Size(text.ActualWidth,double.PositiveInfinity));
+                    // The text may fill its slot to the last fraction of a pixel (ActualWidth equals the natural width); same 1.5 px tolerance as the single-line check, so float rounding at that boundary does not invent a second line.
+                    probe.TextWrapping=text.TextWrapping;probe.Measure(new Size(text.ActualWidth+1.5,double.PositiveInfinity));
                     if(probe.DesiredSize.Height>text.ActualHeight+2)issues.Add($"texto «{Short(text.Text)}» cortado por abajo ({probe.DesiredSize.Height:0} px en {text.ActualHeight:0} px)");
                 }
                 // Readable text: WCAG AA (4.5:1, or 3:1 for large text). Disabled controls are exempt.

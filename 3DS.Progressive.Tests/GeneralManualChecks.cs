@@ -13,6 +13,9 @@ internal static class GeneralManualChecks
     {
         using var state=new TestState();
         var implemented=typeof(IProjectEditor).Assembly.GetTypes().Where(t=>typeof(IProjectEditor).IsAssignableFrom(t)&&!t.IsAbstract&&!t.IsInterface).Select(t=>t.Name).ToHashSet();
+        // Manual replay is the 3DS record contract: the DS and Switch concrete editors have their own profiles and are deliberately outside it.
+        string[] otherPlatforms=["NdsRecordEditor","SwordShieldRecordEditor","SwordShieldWorldEditor"];
+        implemented.ExceptWith(otherPlatforms);
         check(implemented.SetEquals(ManualOperations.RecordEditors),"every concrete record editor is registered for manual replay");
         foreach(var version in new[]{GameVersion.XY,GameVersion.ORAS,GameVersion.SM,GameVersion.USUM})
         {
