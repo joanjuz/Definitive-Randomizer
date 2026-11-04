@@ -83,7 +83,11 @@ internal static class RestorePoints
         {
             string path=Path.Combine(projectRoot,file.Path);byte[] original=File.ReadAllBytes(Path.Combine(folder,file.Blob));
             if(!string.Equals(Hash(original),file.BeforeSha256,StringComparison.OrdinalIgnoreCase))throw new InvalidDataException("La copia de "+file.Path+" no coincide con su huella.");
-            changes.Add(new FileChange(path,File.ReadAllBytes(path),original));
+            // Validate the same captured bytes that FileChange will fingerprint; WhyNot is only a preflight.
+            byte[] current=File.ReadAllBytes(path);
+            if(!string.Equals(Hash(current),file.AfterSha256,StringComparison.OrdinalIgnoreCase))
+                throw new InvalidOperationException("Un cambio posterior modificó "+file.Path+". Deshaz antes los cambios más recientes.");
+            changes.Add(new FileChange(path,current,original));
         }
         history.Commit(changes,"Restauración","Restaurar archivos · deshacer «"+manifest.Title+"»",[],
             new Dictionary<string,string>{{"UndoOf",entry.ToString()}},section:manifest.Section);
