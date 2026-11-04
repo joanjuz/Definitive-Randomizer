@@ -47,6 +47,8 @@ internal sealed class GlobalTemplateDocument
     {
         if(!string.Equals(history.Game,expectedGame,StringComparison.OrdinalIgnoreCase))
             throw new InvalidDataException($"El historial es de {history.Game} y el proyecto abierto es {expectedGame}.");
+        // Reverted («Deshacer») entries stay in the audit trail but no longer feed the template.
+        history=EffectiveHistory.Of(history);
         var applied=history.Entries.LastOrDefault(entry=>entry.Parameters.ContainsKey("GlobalTemplateSnapshot"));
         var template=loaded?.Clone()??(applied is null?Empty(expectedGame,expectedGeneration):
             Parse(applied.Parameters["GlobalTemplateSnapshot"],expectedGame,expectedGeneration,
@@ -128,6 +130,7 @@ internal sealed class GlobalTemplateDocument
     internal void MergeHistoryActions(ProjectHistory history)=>MergeHistoryActions(history.Read());
     internal void MergeHistoryActions(HistoryDocument history)
     {
+        history=EffectiveHistory.Of(history);
         ManualEditTemplate.Capture(this, history);
         var actions=(JsonArray)_root["Actions"]!;
         var current=Actions.ToHashSet(StringComparer.OrdinalIgnoreCase);

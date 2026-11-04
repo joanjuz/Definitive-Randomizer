@@ -17,6 +17,7 @@ public static class ManualEditTemplate
     private static Edit[] Read(GlobalTemplateDocument doc)=>doc.Section("ProgressiveApp")?["ManualEdits"]?["Entries"]?.Deserialize<Edit[]>()??[];
     internal static void Capture(GlobalTemplateDocument doc,HistoryDocument history)
     {
+        history=EffectiveHistory.Of(history);
         var native=doc.Section("ProgressiveApp") as JsonObject??new();
         var edits=Read(doc).ToList();
         var operations=new List<JsonObject>();

@@ -142,6 +142,10 @@ if(args.Length==1&&args[0]=="--guidance-only")
 {
     Exception? failure=null;var thread=new Thread(()=>{try{var app=new ThreeDS.Progressive.App();app.InitializeComponent();WpfTestHost.SuppressStartup();ThreeDS.Progressive.StudioDialog.AutomatedChecks=true;GuidanceChecks.Run(Check,Reject);GuidanceChecks.RunUi(Check);}catch(Exception ex){failure=ex;}});thread.SetApartmentState(ApartmentState.STA);thread.Start();thread.Join();if(failure is not null)System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(failure).Throw();Console.WriteLine($"Completed {checks} guidance checks (off-screen, not interactive).");return;
 }
+if(args.Length==1&&args[0]=="--undo-template-regression-only")
+{
+    Exception? failure=null;var thread=new Thread(()=>{try{UndoTemplateRegressionChecks.Run(Check);}catch(Exception ex){failure=ex;}});thread.SetApartmentState(ApartmentState.STA);thread.Start();thread.Join();if(failure is not null)System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(failure).Throw();Console.WriteLine($"Completed {checks} undo/template regression checks.");return;
+}
 if(args.Length==1&&args[0]=="--undo-toctou-only"){UndoToctouChecks.Run(Check);Console.WriteLine($"Completed {checks} undo TOCTOU checks.");return;}
 if(args.Length==1&&args[0]=="--history-inspection-only"){HistoryInspectionChecks.Run(Check);Console.WriteLine($"Completed {checks} history inspection checks.");return;}
 if(args.Length==1&&args[0]=="--rebuild-stability-only"){RebuildStabilityChecks.Run(Check);Console.WriteLine($"Completed {checks} rebuild stability checks.");return;}
