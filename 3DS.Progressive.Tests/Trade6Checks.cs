@@ -91,6 +91,8 @@ internal static class Trade6Checks
         }
         var originalAssembly=System.Reflection.Assembly.LoadFrom(Path.ChangeExtension(BatchRomExecution.RunnerPath,".dll"));
         var apply=originalAssembly.GetType("pk3DS.WinForms.Gen6TradePatcher",true)!.GetMethod("ApplyGen6TradePatch")!;
+        // Keep optional real-input discovery disabled during explicitly synthetic validation.
+        if(Environment.GetEnvironmentVariable("DEFINITIVE_SYNTHETIC_ONLY")!="1")
         foreach(string name in new[]{"PokemonX","PokemonY","PokemonOR","PokemonAS"})
         {
             string source=Path.Combine(@"D:\Nintendo\3DS\Juegos",name,"ExtractedExeFS","code.bin");if(!File.Exists(source))continue;
