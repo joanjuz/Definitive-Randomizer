@@ -32,7 +32,7 @@ dotnet .\3DS.Progressive.Tests\bin\Release\net10.0-windows\3DS.Progressive.Tests
 | `--global-options-only` | — | sí |
 | `--guidance-only` | — | sí |
 | `--history-inspection-only` | — | sí |
-| `--undo-toctou-only` | — |  |
+| `--undo-toctou-only` | — | sí |
 | `--item-icons-only` | — |  |
 | `--legacy-parity-only` | — | sí |
 | `--manual-edits-only` | — |  |
@@ -69,7 +69,7 @@ dotnet .\3DS.Progressive.Tests\bin\Release\net10.0-windows\3DS.Progressive.Tests
 | `--trades6-only` | — |  |
 | `--tutors6-only` | — |  |
 
-`--undo-toctou-only` es una regresión aislada para Windows y un sistema de archivos local con soporte de oplocks. Usa dos archivos temporales sintéticos y pausa la apertura de una copia de restauración mediante un oplock; modifica el destino después de validar su `AfterSha256` y antes de capturarlo para la transacción. No usa ROMs ni esperas temporizadas. Los límites de espera solo detectan bloqueos del mecanismo. El resultado esperado es rechazo, conservación de ambos archivos (incluida la edición externa) e historial idéntico byte a byte. La prueba informa los cuatro resultados antes de exigirlos conjuntamente. Queda fuera del recorrido predeterminado y del CI; se ejecuta explícitamente con esta opción.
+`--undo-toctou-only` es una regresión aislada para Windows y un sistema de archivos local con soporte de oplocks. Usa dos archivos temporales sintéticos y pausa la apertura de una copia de restauración mediante un oplock; modifica el destino después de validar su `AfterSha256` y antes de capturarlo para la transacción. No usa ROMs ni esperas temporizadas. Los límites de espera solo detectan bloqueos del mecanismo. El resultado esperado es rechazo, conservación de ambos archivos (incluida la edición externa) e historial idéntico byte a byte. La prueba informa los cuatro resultados antes de exigirlos conjuntamente. Queda fuera del recorrido predeterminado; el CI la ejecuta explícitamente con esta opción.
 
 `RestorePoints.Undo` compara con `AfterSha256` los mismos bytes capturados que entrega a `FileChange`, antes de llamar a `ProjectHistory.Commit`. Una discrepancia durante esa preparación rechaza el conjunto sin escribir archivos ni historial. Esto cierra la ventana entre el preflight `WhyNot` y la captura. Después, `FileTransaction.Commit` vuelve a comprobar el fingerprint durante la preparación y antes de cada reemplazo, con relectura y rollback. No hay exclusión absoluta frente a escritores externos: la última comprobación y `File.Replace` son operaciones separadas, también durante rollback y recuperación. El bloqueo del historial y el archivo de lease coordinan esas operaciones, pero no bloquean las escrituras externas en los destinos. La regresión de esta opción verifica la ventana de preparación; no demuestra ausencia de todas las carreras transaccionales.
 
