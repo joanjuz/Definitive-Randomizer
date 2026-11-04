@@ -18,6 +18,7 @@ internal static class RunnerCatalog
         new("--global-options-only","",RunnerCategory.Synthetic,true),
         new("--guidance-only","",RunnerCategory.Synthetic,true),
         new("--history-inspection-only","",RunnerCategory.Synthetic,true),
+        new("--undo-toctou-only","",RunnerCategory.Synthetic,true),
         new("--item-icons-only","",RunnerCategory.Synthetic,false),
         new("--legacy-parity-only","",RunnerCategory.Synthetic,true),
         new("--manual-edits-only","",RunnerCategory.Synthetic,false),
