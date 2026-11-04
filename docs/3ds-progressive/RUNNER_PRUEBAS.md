@@ -4,6 +4,8 @@
 
 ## Uso
 
+`--undo-template-regression-only` verifica UndoOf con historial en memoria, archivos sintéticos temporales y lectura WPF fuera de pantalla. Comprueba exportación manual (ManualEdits y ManualOperation), cadenas de restauraciones, selección de snapshots, separación de hijos GlobalApplication entre recetas con acciones del mismo tipo y opciones recuperadas al reabrir. Informa todas las expectativas antes de fallar conjuntamente si quedan regresiones. No usa ROMs. Queda fuera del recorrido predeterminado; el CI la ejecuta explícitamente y rechaza un código de salida distinto de cero.
+
 ```powershell
 # Compilar (el CI mantiene apphost: Global/Batch comprueba el ejecutable de LegacyBatch)
 dotnet build .\3DS.Progressive.Tests\3DS.Progressive.Tests.csproj -c Release -p:UseAppHost=true
@@ -33,6 +35,7 @@ dotnet .\3DS.Progressive.Tests\bin\Release\net10.0-windows\3DS.Progressive.Tests
 | `--guidance-only` | — | sí |
 | `--history-inspection-only` | — | sí |
 | `--undo-toctou-only` | — | sí |
+| `--undo-template-regression-only` | — | sí |
 | `--item-icons-only` | — |  |
 | `--legacy-parity-only` | — | sí |
 | `--manual-edits-only` | — |  |

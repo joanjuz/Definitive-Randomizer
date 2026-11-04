@@ -47,7 +47,7 @@ public partial class MainWindow
             string game=GameId;
             (Action? Apply,List<(string Title,RecordEditorView.UiState State,string Source)> States,string? Label) Compute()
             {
-                var history=session.History.Read();
+                var history=EffectiveHistory.Of(session.History.Read());
                 var global=history.Entries.LastOrDefault(e=>e.Parameters.ContainsKey("GlobalTemplateSnapshot"));
                 Action? apply=null;string? label=null;
                 if(global is not null)
