@@ -19,6 +19,8 @@ internal static class HistoryInspectionChecks
         {
             string file=Path.Combine(root,"data.bin");File.WriteAllBytes(file,[0]);var history=new ProjectHistory(root,"USUM",Path.Combine(root,"metadata"));
             history.Commit([new FileChange(file,[0],[1])],"Test","Randomizar historial",[],new Dictionary<string,string>{{"Scope","All"}});
+            int Subscribers()=>((Delegate?)typeof(ThreeDS.Progressive.UiProgress).GetField("InteractionLockChanged",System.Reflection.BindingFlags.Static|System.Reflection.BindingFlags.NonPublic)!.GetValue(null))?.GetInvocationList().Length??0;
+            int beforeSubscribers=Subscribers();
             var view=new ThreeDS.Progressive.HistoryView(history);
             var parameters=new System.Windows.Interop.HwndSourceParameters("history offscreen checks")
                 {WindowStyle=unchecked((int)0x80000000),Width=900,Height=650,PositionX=-32000,PositionY=-32000};
@@ -33,10 +35,55 @@ internal static class HistoryInspectionChecks
             }
             Complete();
             check(view.IsLoaded&&Descendants<System.Windows.Controls.TextBlock>(view).Any(text=>text.Text.Contains("1 registros coherentes")),"HistoryInspectionUi_LoadedChecksActualFiles");
-            File.WriteAllBytes(file,[0]);
+            System.Windows.Controls.Button UndoButton()=>Descendants<System.Windows.Controls.Button>(view).Single(button=>button.Content?.ToString()=="Deshacer este cambio");
+            var entry=history.Read().Entries.Single();
+            check(RestorePoints.WhyNot(history.StorageDirectory,root,entry.Id) is null,"HistoryUndoUi_ControlHasValidRestorePoint");
+            check(UndoButton().IsEnabled,"HistoryUndoUi_AutomaticVerificationEnablesValidUndo");
+            check(Subscribers()==beforeSubscribers+1,"HistoryUndoUi_LoadSubscribesOnce");
             var verify=Descendants<System.Windows.Controls.Button>(view).Single(button=>button.Content?.ToString()=="Comprobar archivos actuales");
+            var gate=typeof(ProjectHistory).GetField("_gate",System.Reflection.BindingFlags.Instance|System.Reflection.BindingFlags.NonPublic)!.GetValue(history)!;
+            using(var verificationLocked=new ManualResetEventSlim())using(var verificationRelease=new ManualResetEventSlim())
+            using(var outer=ThreeDS.Progressive.UiProgress.BlockInteraction())
+            {
+                var verificationHolding=Task.Run(()=>{lock(gate){verificationLocked.Set();if(!verificationRelease.Wait(TimeSpan.FromSeconds(10)))throw new TimeoutException("History verification gate watchdog.");}});
+                try
+                {
+                    if(!verificationLocked.Wait(TimeSpan.FromSeconds(5)))throw new TimeoutException("History verification gate did not start.");
+                    verify.RaiseEvent(new System.Windows.RoutedEventArgs(System.Windows.Controls.Button.ClickEvent));
+                    check(ThreeDS.Progressive.UiProgress.IsInteractionBlocked&&!verify.IsEnabled&&!UndoButton().IsEnabled,"HistoryUndoUi_DisabledWhileVerificationIsActive");
+                    UndoButton().RaiseEvent(new System.Windows.RoutedEventArgs(System.Windows.Controls.Button.ClickEvent));
+                    check(File.ReadAllBytes(file).SequenceEqual(new byte[]{1}),"HistoryUndoUi_BlockedClickDoesNotWrite");
+                }
+                finally{verificationRelease.Set();verificationHolding.GetAwaiter().GetResult();}
+                var watch=System.Diagnostics.Stopwatch.StartNew();
+                do{Pump();}while(!verify.IsEnabled&&watch.Elapsed<TimeSpan.FromSeconds(10));
+                if(!verify.IsEnabled)throw new TimeoutException("Nested history verification did not finish.");
+                check(ThreeDS.Progressive.UiProgress.IsInteractionBlocked&&!UndoButton().IsEnabled,"HistoryUndoUi_InnerCompletionKeepsOuterOperationDisabled");
+            }
+            Complete();check(UndoButton().IsEnabled,"HistoryUndoUi_LastUnlockEnablesValidUndo");
+            using(ThreeDS.Progressive.UiProgress.BlockInteraction())File.WriteAllBytes(file,[0]);
+            Complete();check(!UndoButton().IsEnabled,"HistoryUndoUi_UnlockRechecksExternalChanges");
+            File.WriteAllBytes(file,[1]);verify.RaiseEvent(new System.Windows.RoutedEventArgs(System.Windows.Controls.Button.ClickEvent));Complete();
+            check(UndoButton().IsEnabled,"HistoryUndoUi_ManualVerificationEnablesValidUndo");
+            var retainedUndo=UndoButton();
+            var technical=Descendants<System.Windows.Controls.Expander>(view).Single(expander=>expander.Header?.ToString()=="Detalles técnicos");
+            technical.IsExpanded=true;
+            using(new FileStream(file,FileMode.Open,FileAccess.ReadWrite,FileShare.None))
+            {
+                using(ThreeDS.Progressive.UiProgress.BlockInteraction()){}
+                Pump();check(!UndoButton().IsEnabled,"HistoryUndoUi_UnreadableTargetStaysDisabledOnUnlock");
+            }
+            using(ThreeDS.Progressive.UiProgress.BlockInteraction()){}
+            Complete();check(UndoButton().IsEnabled,"HistoryUndoUi_ReadableTargetCanEnableAgain");
+            check(ReferenceEquals(UndoButton(),retainedUndo)&&technical.IsExpanded,"HistoryUndoUi_UnlockPreservesControlsAndExpandedDetails");
+            var workerLock=Task.Run(()=>ThreeDS.Progressive.UiProgress.BlockInteraction()).GetAwaiter().GetResult();
+            try{Pump();check(!UndoButton().IsEnabled,"HistoryUndoUi_WorkerLockUpdatesOnDispatcher");}
+            finally{Task.Run(workerLock.Dispose).GetAwaiter().GetResult();}
+            Complete();check(UndoButton().IsEnabled,"HistoryUndoUi_WorkerUnlockEnablesOnDispatcher");
+            File.WriteAllBytes(file,[0]);
             verify.RaiseEvent(new System.Windows.RoutedEventArgs(System.Windows.Controls.Button.ClickEvent));Complete();
             check(Descendants<System.Windows.Controls.TextBlock>(view).Any(text=>text.Text.Contains("0 registros coherentes"))&&Descendants<System.Windows.Controls.TextBlock>(view).Any(text=>text.Text.Contains("Desfasado: no acredita")),"HistoryInspectionUi_RecheckShowsResetWithoutDeletingLog");
+            check(!UndoButton().IsEnabled,"HistoryUndoUi_ExternalChangeRemainsDisabledAfterVerification");
             File.WriteAllBytes(file,[1]);verify.RaiseEvent(new System.Windows.RoutedEventArgs(System.Windows.Controls.Button.ClickEvent));Complete();
             string log=Directory.GetFiles(Path.Combine(root,"metadata","history"),"*.json").Single();byte[] saved=File.ReadAllBytes(log);
             try
@@ -45,7 +92,6 @@ internal static class HistoryInspectionChecks
                 check(Descendants<System.Windows.Controls.TextBlock>(view).Any(text=>text.Text.StartsWith("No se pudo comprobar"))&&!Descendants<System.Windows.Controls.TextBlock>(view).Any(text=>text.Text.Contains("Cadena coherente")),"HistoryInspectionUi_FailureClearsPreviousVerifiedLabels");
             }
             finally{File.WriteAllBytes(log,saved);}
-            var gate=typeof(ProjectHistory).GetField("_gate",System.Reflection.BindingFlags.Instance|System.Reflection.BindingFlags.NonPublic)!.GetValue(history)!;
             using var locked=new ManualResetEventSlim();using var release=new ManualResetEventSlim();
             var holding=Task.Run(()=>{lock(gate){locked.Set();release.Wait(TimeSpan.FromSeconds(10));}});
             if(!locked.Wait(TimeSpan.FromSeconds(5)))throw new TimeoutException("History gate probe did not start.");
@@ -57,6 +103,13 @@ internal static class HistoryInspectionChecks
             finally{release.Set();holding.GetAwaiter().GetResult();}
             Complete();
             check(!view.IsLoaded&&!ThreeDS.Progressive.UiProgress.IsInteractionBlocked,"HistoryInspectionUi_UnloadCancelsAndUnlocks");
+            check(Subscribers()==beforeSubscribers,"HistoryUndoUi_UnloadRemovesStaticHandler");
+            source.RootVisual=view;Complete();
+            check(UndoButton().IsEnabled&&Subscribers()==beforeSubscribers+1,"HistoryUndoUi_ReloadEnablesWithoutDuplicateSubscription");
+            UndoButton().RaiseEvent(new System.Windows.RoutedEventArgs(System.Windows.Controls.Button.ClickEvent));Complete();
+            check(File.ReadAllBytes(file).SequenceEqual(new byte[]{0})&&history.Read().Entries[^1].Parameters.GetValueOrDefault("UndoOf")==entry.Id.ToString(),"HistoryUndoUi_EnabledButtonRestoresAndRecordsUndo");
+            source.RootVisual=null;Pump();
+            check(Subscribers()==beforeSubscribers,"HistoryUndoUi_FinalUnloadReleasesStaticHandler");
         }
         finally{Directory.Delete(root,true);}
     }

@@ -117,8 +117,15 @@ public sealed class HistoryView : UserControl
             return stack;
         }
         HistoryItem[] shown=[];
+        Action? refreshUndoAvailability=null;
+        string? UndoReason(Guid entry)
+        {
+            try{return RestorePoints.WhyNot(history.StorageDirectory,history.ProjectRoot,entry);}
+            catch(Exception ex)when(ex is System.IO.IOException or UnauthorizedAccessException){return ex.Message;}
+        }
         void ShowDetails()
         {
+            refreshUndoAvailability=null;
             details.Children.Clear();
             if(List.SelectedItem is not ListBoxItem {Tag:HistoryItem item})
             {
@@ -163,11 +170,12 @@ public sealed class HistoryView : UserControl
             // «Deshacer»: writes back the files as they were before this change (only while nothing changed them afterwards).
             if(RestorePoints.Find(history.StorageDirectory,main.Id) is not null)
             {
-                string? reason=RestorePoints.WhyNot(history.StorageDirectory,history.ProjectRoot,main.Id);
+                string? reason=UndoReason(main.Id);
                 var undo=new Button{Content=item.IsRecipe?"Deshacer toda la receta":"Deshacer este cambio",HorizontalAlignment=HorizontalAlignment.Left,Margin=new Thickness(0,12,0,4),IsEnabled=reason is null&&!UiProgress.IsInteractionBlocked};
                 EditorPresentation.StyleAction(undo,EditorPresentation.ActionRole.Primary);
                 undo.Click+=async(_,_)=>
                 {
+                    if(UiProgress.IsInteractionBlocked)return;
                     if(!StudioDialog.Confirm(Window.GetWindow(this),"Deshacer cambio",$"Los archivos volverán a como estaban antes de «{Title(item)}».",
                         "Queda registrado en el historial como una restauración. Las recetas no lo reproducen."))return;
                     try
@@ -181,7 +189,17 @@ public sealed class HistoryView : UserControl
                     {StudioDialog.Error(Window.GetWindow(this),"No se pudo deshacer",ex.Message);}
                 };
                 details.Children.Add(undo);
-                Add(reason??"Se guardó una copia de los archivos anteriores a este cambio.");
+                const string available="Se guardó una copia de los archivos anteriores a este cambio.";
+                Add(reason??available);
+                var undoHint=(TextBlock)details.Children[^1];
+                refreshUndoAvailability=()=>
+                {
+                    // An operation may hold targets exclusively; only recheck once it releases them.
+                    if(UiProgress.IsInteractionBlocked){undo.IsEnabled=false;return;}
+                    string? latest=UndoReason(main.Id);
+                    undo.IsEnabled=latest is null&&!UiProgress.IsInteractionBlocked;
+                    undoHint.Text=latest??available;
+                };
             }
             details.Children.Add(UiKit.Heading($"Archivos ({main.Files.Count})"));
             foreach(var file in main.Files)Add(file.Path+"  ·  "+Short(file.BeforeSha256)+" → "+Short(file.AfterSha256));
@@ -192,6 +210,15 @@ public sealed class HistoryView : UserControl
             if(main.Parameters.Count>0){Tech("Parámetros",true);foreach(var parameter in main.Parameters)Tech(parameter.Key+": "+(parameter.Value.Length>1500?parameter.Value[..1500]+$"… ({parameter.Value.Length:N0} caracteres; completo en el JSON exportado)":parameter.Value));}
             foreach(var file in main.Files)Tech(file.Path+"\n"+file.BeforeSha256+" → "+file.AfterSha256);
             details.Children.Add(new Expander{Header="Detalles técnicos",IsExpanded=false,Content=technical,Margin=new Thickness(-6,14,0,0)});
+        }
+        void RefreshUndoForInteraction()
+        {
+            if(IsLoaded)refreshUndoAvailability?.Invoke();
+        }
+        void InteractionChanged(bool blocked)
+        {
+            if(Dispatcher.CheckAccess())RefreshUndoForInteraction();
+            else Dispatcher.BeginInvoke((Action)RefreshUndoForInteraction);
         }
         static string Short(string hash)=>hash.Length>12?hash[..12]:hash;
         void Fill()
@@ -226,8 +253,13 @@ public sealed class HistoryView : UserControl
             finally{pending=null;cancellation.Dispose();verify.IsEnabled=true;UiProgress.End();}
         }
         verify.Click+=async(_,_)=>await VerifyAsync();
-        Loaded+=async(_,_)=>await VerifyAsync();
-        Unloaded+=(_,_)=>pending?.Cancel();
+        Loaded+=async(_,_)=>
+        {
+            UiProgress.InteractionLockChanged-=InteractionChanged;
+            UiProgress.InteractionLockChanged+=InteractionChanged;
+            await VerifyAsync();
+        };
+        Unloaded+=(_,_)=>{UiProgress.InteractionLockChanged-=InteractionChanged;pending?.Cancel();};
         void Add(string text,bool strong=false)=>details.Children.Add(new TextBlock {Text=text,TextWrapping=TextWrapping.Wrap,FontWeight=strong?FontWeights.SemiBold:FontWeights.Normal,Margin=new Thickness(0,0,0,4),Foreground=(Brush)FindResource(strong?"TextMain":"TextSoft")});
         Content=grid;
     }
