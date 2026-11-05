@@ -11,9 +11,14 @@ internal static class GarcTransaction
     internal static byte[] ReadUnchanged(string path, byte[] fingerprint)
     {
         byte[] source = File.ReadAllBytes(path);
+        RequireUnchanged(source, fingerprint);
+        return source;
+    }
+
+    internal static void RequireUnchanged(byte[] source, byte[] fingerprint)
+    {
         if (!SHA256.HashData(source).AsSpan().SequenceEqual(fingerprint))
             throw new IOException("El archivo cambió desde que abriste el proyecto o generaste la vista previa. Vuelve a abrir el proyecto.");
-        return source;
     }
 
     internal static void RebuildPersonalMaster(byte[][] files)
@@ -33,6 +38,7 @@ internal static class GarcTransaction
     internal static byte[] Commit(string path, GARCReference reference, byte[] fingerprint,
         byte[][] records, bool mini = false)
     {
+        StandaloneTransactions.RecoverPending(Path.GetDirectoryName(Path.GetFullPath(path))!);
         byte[] source = ReadUnchanged(path, fingerprint);
         byte[] bytes = Build(source, reference, records, mini);
         FileTransaction.Commit([new FileChange(path, source, bytes)]);

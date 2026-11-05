@@ -42,13 +42,13 @@ public sealed partial class ProjectHistory
     internal (long Length,DateTime Written) Stamp(){var file=new FileInfo(_path);return file.Exists?(file.Length,file.LastWriteTimeUtc):(0,DateTime.MinValue);}
     public HistoryDocument Read()
     {
-        lock(_gate){RecoveryJournal.Recover(_path+".pending",_root,_path);return File.Exists(_path)
+        lock(_gate){RecoverPending();return File.Exists(_path)
             ? Normalize(JsonSerializer.Deserialize<HistoryDocument>(File.ReadAllBytes(_path),Json)
                 ?? throw new InvalidDataException("El historial no tiene un formato válido."))
             : new(1,_game,Path.GetFileName(_root),[]);}
     }
-    internal void RecoverPending(){lock(_gate)RecoveryJournal.Recover(_path+".pending",_root,_path);}
-    internal void RejectPending(){if(Directory.Exists(_path+".pending"))throw new IOException("El proyecto tiene un guardado interrumpido. La lectura de diagnóstico no lo modifica; ábrelo en la aplicación para recuperarlo.");}
+    internal void RecoverPending(){lock(_gate){StandaloneTransactions.RecoverPending(_root);RecoveryJournal.Recover(_path+".pending",_root,_path);}}
+    internal void RejectPending(){StandaloneTransactions.RecoverPending(_root,recover:false);if(Directory.Exists(_path+".pending"))throw new IOException("El proyecto tiene un guardado interrumpido. La lectura de diagnóstico no lo modifica; ábrelo en la aplicación para recuperarlo.");}
     internal void Commit(IReadOnlyList<FileChange> files,string module,string action,
         IEnumerable<BatchChange> changes,IReadOnlyDictionary<string,string>? parameters=null,string? section=null)
     {
@@ -58,7 +58,7 @@ public sealed partial class ProjectHistory
             var actual=files.Where(f=>f.Changed).ToArray();
             if(actual.Length==0&&parameters?.ContainsKey("RecordTemplateUse")!=true)return;
             Directory.CreateDirectory(Path.GetDirectoryName(_path)!);
-            // File.Replace requires a target. Initializing the empty journal changes no game data.
+            // The transaction requires a target. Initializing the empty journal changes no game data.
             if(!File.Exists(_path)) File.WriteAllBytes(_path,JsonSerializer.SerializeToUtf8Bytes(Read(),Json));
             byte[] source=File.ReadAllBytes(_path);
             var document=Normalize(JsonSerializer.Deserialize<HistoryDocument>(source,Json)

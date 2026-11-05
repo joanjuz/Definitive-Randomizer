@@ -18,7 +18,12 @@ if(args.Length>1&&args[0]=="--read-static-profiles"){StaticStarterChecks.RunReal
 if(args.Length>1&&args[0]=="--read-field6"){FieldItems6Checks.RunReal(args.Skip(1));return;}
 if(args.Length>1&&args[0]=="--read-hm6"){HmReferenceChecks.Run(args.Skip(1));return;}
 if(args.Length>1&&args[0]=="--read-facilities"){BattleFacilityChecks.RunReal(args.Skip(1));return;}
-if(args.Length==2&&args[0]=="--interrupt-transaction-races"){TransactionRaceChecks.InterruptChild(args[1]);return;}
+if(args.Length is 2 or 3&&args[0]=="--interrupt-transaction-races")
+{
+    if(args.Length==3&&args[2] is not ("commit" or "recover" or "commit-vacated" or "standalone-vacated" or "standalone-recover" or "garc" or "garc-reader" or "standalone-writer"))
+    {RunnerCatalog.RejectUnknown(args);return;}
+    TransactionRaceChecks.InterruptChild(args[1],args.Length==3?args[2]:"commit");return;
+}
 if(args.Length==2&&args[0]=="--interrupt-save-check"){RecoveryChecks.InterruptChild(args[1]);return;}
 if(args.Length>1&&args[0]=="--read-tm6-compatibility"){Tm6CompatibilityChecks.RunReal(args.Skip(1));return;}
 if(args.Length>2&&args[0]=="--check-catch-batch-real-copies"){CatchZoneRealCopyChecks.Run(args[1],args.Skip(2),batch:true);return;}

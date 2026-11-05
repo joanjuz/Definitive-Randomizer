@@ -19,6 +19,7 @@ public static class ProjectBackup
         if(destination.Equals(root,comparison)||destination.StartsWith(root+Path.DirectorySeparatorChar,comparison))
             throw new ArgumentException("Elige una carpeta fuera del proyecto para guardar el backup.");
         if(!Directory.Exists(root))throw new DirectoryNotFoundException(root);
+        new ProjectHistory(root,game).RejectPending();
         Directory.CreateDirectory(destination);
         return await Task.Run(()=>
         {

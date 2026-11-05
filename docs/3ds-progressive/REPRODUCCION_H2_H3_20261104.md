@@ -1,5 +1,7 @@
 # Reproducción determinista H2/H3
 
+> **Registro histórico.** Describe el código anterior a la corrección. Solución y estado vigente: [CORRECCION_H2_H3_20261104.md](CORRECCION_H2_H3_20261104.md).
+
 Base: `main` en `9f7b5a2c289f73ca4fe5498fc12ff69259a9963b`, 04/11/2026. Investigación del [issue #43](https://github.com/joanjuz/Definitive-Randomizer/issues/43), siguiendo la auditoría del [PR #42](https://github.com/joanjuz/Definitive-Randomizer/pull/42). Rama independiente `test/h2-h3-deterministic-races`. No se cambia producción, la release `v0.14.0-preview.3` ni el PR #42.
 
 ## Resultado verificado

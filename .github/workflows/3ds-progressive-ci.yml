@@ -60,7 +60,7 @@ jobs:
             'template-studio-ui-only', 'template-latest-ui-only', 'template-feedback-ui-only',
             'text-classification-ui-only', 'text-commands-ui-only', 'global-options-only',
             'guidance-only', 'global-apply-only', 'rebuild-marts-ui-only',
-            'history-inspection-only', 'undo-toctou-only', 'undo-template-regression-only', 'rebuild-stability-only', 'swsh-only', 'swsh-ui-only',
+            'history-inspection-only', 'transaction-races-only', 'undo-toctou-only', 'undo-template-regression-only', 'rebuild-stability-only', 'swsh-only', 'swsh-ui-only',
             'swsh-parity-only', 'legacy-parity-only', 'nds-only',
             'nds-ui-only'
           )
