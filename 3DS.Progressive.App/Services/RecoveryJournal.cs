@@ -54,20 +54,22 @@ internal sealed class RecoveryJournal : IDisposable
         }
         catch{lease.Dispose();throw;}
     }
+    /// <summary>The durable decision that the commit happened. Taken while every target is still held.</summary>
+    internal void MarkComplete(){_manifest=_manifest with {Complete=true};Save();}
     internal void Finish(bool complete)
     {
         if(complete)
         {
-            _manifest=_manifest with {Complete=true};Save();
             // A cleanup failure after the success marker is not a failed commit.
             try{Clean(_directory,_manifest);}catch(IOException){}catch(UnauthorizedAccessException){}
         }
         else Clean(_directory,_manifest);
     }
+    internal string Token=>_manifest.Token;
     internal string TemporaryPath(string path)=>path+".studio-"+_manifest.Token+".tmp";
     private static void Clean(string directory,Manifest manifest)
     {
-        foreach(var file in manifest.Files){string temp=file.Path+".studio-"+manifest.Token+".tmp";if(File.Exists(temp))File.Delete(temp);}
+        foreach(var file in manifest.Files)foreach(string temp in new[]{file.Path+".studio-"+manifest.Token+".tmp",ExclusiveFile.RetiredPath(file.Path,manifest.Token)})if(File.Exists(temp))File.Delete(temp);
         for(int i=0;i<manifest.Files.Length;i++){string path=Path.Combine(directory,i+".original");if(File.Exists(path))File.Delete(path);}
         foreach(string name in new[]{"manifest.tmp","manifest.json"}){string path=Path.Combine(directory,name);if(File.Exists(path))File.Delete(path);}
         if(!Directory.EnumerateFileSystemEntries(directory).Any())Directory.Delete(directory);
@@ -92,23 +94,81 @@ internal sealed class RecoveryJournal : IDisposable
         for(int i=0;i<manifest.Files.Length;i++)
         {
             var file=manifest.Files[i];
-            string current=Hash(File.ReadAllBytes(file.Path));
-            if(current!=file.Before&&current!=file.After)throw new IOException("Un archivo cambió fuera del guardado interrumpido. Se conserva para revisión: "+file.Path);
-            if(current==file.Before)continue;
+            if(Classify(file,manifest.Token)==file.Before)continue;
             originals[i]=File.ReadAllBytes(Path.Combine(directory,i+".original"));
             if(Hash(originals[i])!=file.Before)throw new InvalidDataException("El respaldo de recuperación está alterado: "+file.Path);
         }
-        for(int i=manifest.Files.Length-1;i>=0;i--)
+        var targets=new ExclusiveFile?[manifest.Files.Length];
+        var retired=new ExclusiveFile?[manifest.Files.Length];
+        try
         {
-            var file=manifest.Files[i];string current=Hash(File.ReadAllBytes(file.Path));
-            if(current==file.Before)continue;
-            if(current!=file.After)throw new IOException("El archivo cambió durante la recuperación: "+file.Path);
-            string temporary=file.Path+".studio-"+manifest.Token+".tmp";
-            try{Write(temporary,originals[i]);File.Replace(temporary,file.Path,null);}
-            finally{if(File.Exists(temporary))File.Delete(temporary);}
-            if(Hash(File.ReadAllBytes(file.Path))!=file.Before)throw new IOException("La recuperación no coincide: "+file.Path);
+            // Stage before holding, so that the writes never keep the project's files locked.
+            for(int i=manifest.Files.Length-1;i>=0;i--)
+            {
+                if(originals[i] is null)continue;
+                string target=manifest.Files[i].Path,temporary=target+".studio-"+manifest.Token+".tmp";
+                // A previous attempt may have left it hidden, and creating over a hidden file is refused.
+                File.Delete(temporary);
+                Write(temporary,originals[i]);
+                ExclusiveFile.CopyMetadata(File.Exists(target)?target:ExclusiveFile.RetiredPath(target,manifest.Token),temporary);
+            }
+            // Hold and recheck the whole set: from here an outside change is impossible, not merely unlikely.
+            for(int i=0;i<manifest.Files.Length;i++)
+            {
+                var file=manifest.Files[i];string aside=ExclusiveFile.RetiredPath(file.Path,manifest.Token);
+                string? current=null,kept=null;
+                if(File.Exists(file.Path)){targets[i]=ExclusiveFile.Open(file.Path);current=Hash(targets[i]!.ReadAll());}
+                if(File.Exists(aside)){retired[i]=ExclusiveFile.Open(aside);kept=Hash(retired[i]!.ReadAll());}
+                if(kept is not null&&kept!=file.Before&&kept!=file.After||
+                    current is null&&kept is null||current is not null&&current!=file.Before&&current!=file.After||
+                    (current==file.Before)!=(originals[i] is null))
+                    throw new IOException("El archivo cambió durante la recuperación: "+file.Path);
+            }
+            for(int i=manifest.Files.Length-1;i>=0;i--)
+            {
+                if(originals[i] is null)continue;
+                var file=manifest.Files[i];string aside=ExclusiveFile.RetiredPath(file.Path,manifest.Token);
+                var staged=ExclusiveFile.Open(file.Path+".studio-"+manifest.Token+".tmp");
+                try
+                {
+                    if(Hash(staged.ReadAll())!=file.Before)throw new IOException("La recuperación no coincide: "+file.Path);
+                    if(targets[i] is {} current)
+                    {
+                        // A retired copy left by a previous attempt was just verified as ours.
+                        retired[i]?.DeleteOnClose();retired[i]?.Dispose();
+                        current.MoveTo(aside);retired[i]=current;targets[i]=null;
+                    }
+                    staged.MoveTo(file.Path);
+                }
+                catch{staged.Dispose();throw;}
+                targets[i]=staged;
+                if(Hash(staged.ReadAll())!=file.Before)throw new IOException("La recuperación no coincide: "+file.Path);
+            }
+            foreach(var file in retired)file?.Dispose();
+            Clean(directory,manifest);
         }
-        Clean(directory,manifest);
+        finally
+        {
+            foreach(var file in targets)file?.Dispose();
+            foreach(var file in retired)file?.Dispose();
+            foreach(var file in manifest.Files)
+            {
+                string temporary=file.Path+".studio-"+manifest.Token+".tmp";
+                try{if(File.Exists(temporary))File.Delete(temporary);}catch(IOException){}catch(UnauthorizedAccessException){}
+            }
+        }
+    }
+    /// <summary>Hash of the target, or null when it is missing because a commit retired it. Anything else is an outside change.</summary>
+    private static string? Classify(Entry file,string token)
+    {
+        if(!File.Exists(file.Path))
+        {
+            if(File.Exists(ExclusiveFile.RetiredPath(file.Path,token)))return null;
+            throw new IOException("Un archivo desapareció fuera del guardado interrumpido: "+file.Path);
+        }
+        string current=Hash(File.ReadAllBytes(file.Path));
+        if(current!=file.Before&&current!=file.After)throw new IOException("Un archivo cambió fuera del guardado interrumpido. Se conserva para revisión: "+file.Path);
+        return current;
     }
     public void Dispose()=>_lease.Dispose();
 }

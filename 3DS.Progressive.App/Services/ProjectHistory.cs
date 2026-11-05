@@ -58,7 +58,7 @@ public sealed partial class ProjectHistory
             var actual=files.Where(f=>f.Changed).ToArray();
             if(actual.Length==0&&parameters?.ContainsKey("RecordTemplateUse")!=true)return;
             Directory.CreateDirectory(Path.GetDirectoryName(_path)!);
-            // File.Replace requires a target. Initializing the empty journal changes no game data.
+            // The transaction requires a target. Initializing the empty journal changes no game data.
             if(!File.Exists(_path)) File.WriteAllBytes(_path,JsonSerializer.SerializeToUtf8Bytes(Read(),Json));
             byte[] source=File.ReadAllBytes(_path);
             var document=Normalize(JsonSerializer.Deserialize<HistoryDocument>(source,Json)
