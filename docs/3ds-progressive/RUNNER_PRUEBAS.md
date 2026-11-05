@@ -34,7 +34,7 @@ dotnet .\3DS.Progressive.Tests\bin\Release\net10.0-windows\3DS.Progressive.Tests
 | `--global-options-only` | — | sí |
 | `--guidance-only` | — | sí |
 | `--history-inspection-only` | — | sí |
-| `--transaction-races-only` | — |  |
+| `--transaction-races-only` | — | sí |
 | `--undo-toctou-only` | — | sí |
 | `--undo-template-regression-only` | — | sí |
 | `--item-icons-only` | — |  |
@@ -73,11 +73,11 @@ dotnet .\3DS.Progressive.Tests\bin\Release\net10.0-windows\3DS.Progressive.Tests
 | `--trades6-only` | — |  |
 | `--tutors6-only` | — |  |
 
-`--transaction-races-only` investiga H2/H3 en Windows/NTFS con binarios sintéticos temporales y oplocks. Ejecuta Commit, rollback y Recover tras interrupciones reales de procesos hijos, tres calibraciones sin escritor y controles de preflight/reintento. Imprime bytes, SHA-256, secuencia y estado residual de todos los casos antes de exigir las invariantes conjuntamente. La versión investigada registra **18 verificadas y 8 fallidas**, con salida distinta de cero por pérdidas externas demostradas; esto no es una corrección. Queda fuera del recorrido predeterminado y de CI. El modo interno `--interrupt-transaction-races <raíz>` exige una raíz sintética propia bajo TEMP y sale con código 91 después del segundo reemplazo. Comandos, casos, resultados y límites: [REPRODUCCION_H2_H3_20261104.md](REPRODUCCION_H2_H3_20261104.md).
+`--transaction-races-only` verifica H2/H3 en Windows/NTFS con binarios sintéticos temporales y oplocks: Commit, rollback y Recover ante escritores externos, procesos hijos interrumpidos o matados a mitad, calibraciones sin escritor, journals anteriores y compatibilidad de metadatos. Imprime bytes, SHA-256, secuencia y estado residual de todos los casos antes de exigir las invariantes conjuntamente. La versión corregida registra **56 correctas y 0 fallidas**; la versión investigada registraba 18 y 8. El modo interno `--interrupt-transaction-races <raíz> [modo]` exige una raíz sintética propia bajo TEMP. Reproducción: [REPRODUCCION_H2_H3_20261104.md](REPRODUCCION_H2_H3_20261104.md). Corrección, resultados y límites: [CORRECCION_H2_H3_20261104.md](CORRECCION_H2_H3_20261104.md).
 
 `--undo-toctou-only` es una regresión aislada para Windows y un sistema de archivos local con soporte de oplocks. Usa dos archivos temporales sintéticos y pausa la apertura de una copia de restauración mediante un oplock; modifica el destino después de validar su `AfterSha256` y antes de capturarlo para la transacción. No usa ROMs ni esperas temporizadas. Los límites de espera solo detectan bloqueos del mecanismo. El resultado esperado es rechazo, conservación de ambos archivos (incluida la edición externa) e historial idéntico byte a byte. La prueba informa los cuatro resultados antes de exigirlos conjuntamente. Queda fuera del recorrido predeterminado; el CI la ejecuta explícitamente con esta opción.
 
-`RestorePoints.Undo` compara con `AfterSha256` los mismos bytes capturados que entrega a `FileChange`, antes de llamar a `ProjectHistory.Commit`. Una discrepancia durante esa preparación rechaza el conjunto sin escribir archivos ni historial. Esto cierra la ventana entre el preflight `WhyNot` y la captura. Después, `FileTransaction.Commit` vuelve a comprobar el fingerprint durante la preparación y antes de cada reemplazo, con relectura y rollback. No hay exclusión absoluta frente a escritores externos: la última comprobación y `File.Replace` son operaciones separadas, también durante rollback y recuperación. El bloqueo del historial y el archivo de lease coordinan esas operaciones, pero no bloquean las escrituras externas en los destinos. La regresión de esta opción verifica la ventana de preparación; no demuestra ausencia de todas las carreras transaccionales.
+`RestorePoints.Undo` compara con `AfterSha256` los mismos bytes capturados que entrega a `FileChange`, antes de llamar a `ProjectHistory.Commit`. Una discrepancia durante esa preparación rechaza el conjunto sin escribir archivos ni historial. Esto cierra la ventana entre el preflight `WhyNot` y la captura. Después, `FileTransaction.Commit` retiene todos los destinos, comprueba el fingerprint por ese mismo handle y los reemplaza sin soltarlos, con relectura y rollback; las garantías y sus límites están en [CORRECCION_H2_H3_20261104.md](CORRECCION_H2_H3_20261104.md). La regresión de esta opción verifica solo la ventana de preparación de Undo.
 
 ## Suites de interfaz WPF fuera de pantalla (sin argumentos)
 
