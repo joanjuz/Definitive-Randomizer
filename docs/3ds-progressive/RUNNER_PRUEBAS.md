@@ -34,6 +34,7 @@ dotnet .\3DS.Progressive.Tests\bin\Release\net10.0-windows\3DS.Progressive.Tests
 | `--global-options-only` | — | sí |
 | `--guidance-only` | — | sí |
 | `--history-inspection-only` | — | sí |
+| `--transaction-races-only` | — |  |
 | `--undo-toctou-only` | — | sí |
 | `--undo-template-regression-only` | — | sí |
 | `--item-icons-only` | — |  |
@@ -71,6 +72,8 @@ dotnet .\3DS.Progressive.Tests\bin\Release\net10.0-windows\3DS.Progressive.Tests
 | `--tm7-text-only` | — |  |
 | `--trades6-only` | — |  |
 | `--tutors6-only` | — |  |
+
+`--transaction-races-only` investiga H2/H3 en Windows/NTFS con binarios sintéticos temporales y oplocks. Ejecuta Commit, rollback y Recover tras interrupciones reales de procesos hijos, tres calibraciones sin escritor y controles de preflight/reintento. Imprime bytes, SHA-256, secuencia y estado residual de todos los casos antes de exigir las invariantes conjuntamente. La versión investigada registra **18 verificadas y 8 fallidas**, con salida distinta de cero por pérdidas externas demostradas; esto no es una corrección. Queda fuera del recorrido predeterminado y de CI. El modo interno `--interrupt-transaction-races <raíz>` exige una raíz sintética propia bajo TEMP y sale con código 91 después del segundo reemplazo. Comandos, casos, resultados y límites: [REPRODUCCION_H2_H3_20261104.md](REPRODUCCION_H2_H3_20261104.md).
 
 `--undo-toctou-only` es una regresión aislada para Windows y un sistema de archivos local con soporte de oplocks. Usa dos archivos temporales sintéticos y pausa la apertura de una copia de restauración mediante un oplock; modifica el destino después de validar su `AfterSha256` y antes de capturarlo para la transacción. No usa ROMs ni esperas temporizadas. Los límites de espera solo detectan bloqueos del mecanismo. El resultado esperado es rechazo, conservación de ambos archivos (incluida la edición externa) e historial idéntico byte a byte. La prueba informa los cuatro resultados antes de exigirlos conjuntamente. Queda fuera del recorrido predeterminado; el CI la ejecuta explícitamente con esta opción.
 
