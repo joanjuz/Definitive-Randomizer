@@ -7,6 +7,7 @@ Punto de entrada a `docs/3ds-progressive/`. Muchos documentos son **registros hi
 | Tema | Documento vigente |
 |---|---|
 | Runner de pruebas y sus opciones | [RUNNER_PRUEBAS.md](RUNNER_PRUEBAS.md) |
+| Reproducción determinista de carreras H2/H3 | [REPRODUCCION_H2_H3_20261104.md](REPRODUCCION_H2_H3_20261104.md) |
 | Última preview publicada (3DS, Espada/Escudo y Nintendo DS) | [RELEASE_0.14.0_PREVIEW_1.md](RELEASE_0.14.0_PREVIEW_1.md) |
 | Estado de Espada/Escudo | [SWITCH_ESCUDO_VALIDACION_Y_COMBATES_DOBLES.md](SWITCH_ESCUDO_VALIDACION_Y_COMBATES_DOBLES.md) (estado más reciente) y [HOJA_RUTA_SWITCH.md](HOJA_RUTA_SWITCH.md) (planificación) |
 | Matriz de familias 3DS | [ESTADO_CANDIDATO_71.md](ESTADO_CANDIDATO_71.md) (histórico; contrastar con el código) |
