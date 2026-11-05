@@ -66,6 +66,19 @@ internal sealed class RecoveryJournal : IDisposable
         else Clean(_directory,_manifest);
     }
     internal string Token=>_manifest.Token;
+    internal string DirectoryPath=>_directory;
+    internal static string[] Targets(string directory)
+    {
+        string path=Path.Combine(directory,"manifest.json");
+        // Begin cannot have moved any target before the durable manifest exists.
+        if(!File.Exists(path))return [];
+        if(new FileInfo(path).Length>10_000_000)throw new InvalidDataException("Registro de recuperación demasiado grande: "+directory);
+        var manifest=JsonSerializer.Deserialize<Manifest>(File.ReadAllBytes(path))
+            ?? throw new InvalidDataException("Registro de recuperación vacío: "+directory);
+        if(manifest.Files is null||manifest.Files.Any(f=>f is null||string.IsNullOrWhiteSpace(f.Path)))
+            throw new InvalidDataException("Registro de recuperación incompatible: "+directory);
+        return manifest.Files.Select(f=>f.Path).ToArray();
+    }
     internal string TemporaryPath(string path)=>path+".studio-"+_manifest.Token+".tmp";
     private static void Clean(string directory,Manifest manifest)
     {

@@ -42,6 +42,7 @@ internal sealed class GameRomRebuildService(GameProjectSession project, ExeFsBui
         }
         target=Path.GetFullPath(target);
         string root=Path.GetFullPath(project.ProjectRoot);
+        project.History.RejectPending();
         if(target.Equals(root,StringComparison.OrdinalIgnoreCase)||
             target.StartsWith(root.TrimEnd(Path.DirectorySeparatorChar)+Path.DirectorySeparatorChar,
                 StringComparison.OrdinalIgnoreCase))

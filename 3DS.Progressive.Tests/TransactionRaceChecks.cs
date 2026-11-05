@@ -7,6 +7,8 @@ using System.Security.Cryptography;
 using System.Security.Principal;
 using System.Text;
 using System.Text.Json;
+using pk3DS.Core;
+using pk3DS.Core.CTR;
 using ThreeDS.Progressive.Services;
 
 /// <summary>
@@ -105,6 +107,28 @@ internal static class TransactionRaceChecks
             &&Path.GetFileName(Path.GetDirectoryName(root)!).StartsWith("transaction-races-",StringComparison.Ordinal)
             &&File.ReadAllText(Path.Combine(root,"synthetic.owner"))=="H2H3 synthetic only", "child ownership marker");
         var files=Changes(root);
+        if(mode is "garc-reader" or "standalone-writer")
+        {
+            string held=mode=="garc-reader"?Path.Combine(root,"garc.bin"):files[2].Path;
+            using var stream=new FileStream(held,FileMode.Open,mode=="garc-reader"?FileAccess.Read:FileAccess.Write,
+                mode=="garc-reader"?FileShare.Read:FileShare.ReadWrite|FileShare.Delete);
+            using var ready=Signal(root,"ready");using var released=Signal(root,"armed");ready.Set();
+            Require(released.WaitOne(Watchdog),"external process share watchdog");return;
+        }
+        if(mode=="garc")
+        {
+            string path=Path.Combine(root,"garc.bin");byte[] source=GarcSource();
+            Require(File.ReadAllBytes(path).SequenceEqual(source),"synthetic GARC source");
+            GarcTransaction.Commit(path,GarcReference(),SHA256.HashData(source),GarcRecords(proposed:true));return;
+        }
+        if(mode=="standalone-recover")
+        { new ProjectHistory(root,"Synthetic").RecoverPending();return; }
+        if(mode=="standalone-vacated")
+        {
+            Require(files.All(f=>Is(f,f.Original())),"standalone child initial bytes");
+            using var ready=Signal(root,"ready");using var armed=Signal(root,"armed");
+            FileTransaction.Commit(files,afterReplace:n=>{if(n!=1)return;ready.Set();Require(armed.WaitOne(Watchdog),"standalone child arm");});return;
+        }
         if(mode=="recover")
         {
             // The parent kills this process while it is paused inside the restoration.
@@ -230,12 +254,246 @@ internal static class TransactionRaceChecks
             CrashedRecovery(Create(parent,"crash-recovery"),Result);
             RecoveryEvidence(parent,Result);
             Compatibility(parent,Result);
+            StandaloneConflict(Create(parent,"standalone-conflict"),Result);
+            StandaloneConflict(Create(parent,"standalone-rollback"),Result,rollback:true);
+            CrashedStandalone(Create(parent,"standalone-killed"),Result,conflict:false);
+            CrashedStandalone(Create(parent,"standalone-killed-conflict"),Result,conflict:true);
+            CrashedStandaloneRecovery(Create(parent,"standalone-recovery-killed"),Result);
+            StandaloneGarc(Create(parent,"standalone-garc-conflict"),Result,kill:false);
+            StandaloneGarc(Create(parent,"standalone-garc-killed"),Result,kill:true);
+            StandaloneSharing(Create(parent,"standalone-sharing"),Result);
+            StandaloneRebuild(Result);
+            StandaloneScope(Create(parent,"standalone-scope"),Result);
         }
         finally {Directory.Delete(parent,true);}
         Console.WriteLine($"Transaction race results: Passed: {results.Count(r=>r.Pass)}, Failed: {results.Count(r=>!r.Pass)}, Skipped: 0");
         // Report every case first, because the repository Check callback throws on its first failure.
         foreach(var result in results.Where(r=>r.Pass))check(true,result.Name);
         check(results.All(r=>r.Pass),"H2H3_AllExternalEditsPreserved (see individual invariant failures above)");
+    }
+
+    private static void StandaloneConflict(string root,Action<bool,string> result,bool rollback=false)
+    {
+        var files=Changes(root);var victim=files[1];Exception? failure=null;
+        TransactionOpenBarrier? barrier=null;using var armed=new ManualResetEventSlim();
+        var worker=Task.Run(()=>{try
+        {
+            FileTransaction.Commit(files,afterReplace:n=>
+            {
+                if(n!=(rollback?2:1))return;
+                string staged=Directory.GetFiles(root,rollback?"second.bin.studio-*.old.tmp":"second.bin.studio-*.tmp").Single();
+                barrier=new TransactionOpenBarrier(staged,pauseAtRename:true);armed.Set();
+                if(rollback)throw new IOException("Standalone rollback trigger");
+            });
+        }catch(Exception ex){failure=ex;}finally{armed.Set();}});
+        if(!armed.Wait(Watchdog))AbortHarness("standalone arm timeout");
+        Require(barrier is not null,"standalone barrier armed: "+failure);
+        using(barrier)Paused(worker,barrier,()=>
+        {
+            Require(!File.Exists(victim.Path),"standalone name vacated between renames");
+            WriteExternal(victim.Path);Require(Is(victim,External),"standalone external edit acknowledged");
+        });
+        string retired=Directory.GetFiles(root,"second.bin.studio-*.old.tmp").Single();
+        Console.WriteLine($"TRACE standalone: before={Bytes(victim.Original())}; proposed={Bytes(victim.Proposed())}; external={Bytes(External)}; observed={Bytes(ReadShared(victim.Path))}; retired={retired}; exception={failure}");
+        result(failure is IOException&&Is(victim,External)&&File.ReadAllBytes(retired).SequenceEqual(victim.Original())
+            &&Is(files[0],files[0].Original())&&Is(files[2],files[2].Original())&&Is(files[3],files[3].Original()),rollback?"NoJournal_RollbackConflictPreservesExternalOriginalAndOtherTargets":"NoJournal_ConflictPreservesExternalOriginalAndOtherTargets");
+        string state=Environment.GetEnvironmentVariable("PROGRESSIVE_STATE_DIR")!;
+        bool recorded=Directory.Exists(state)&&Directory.GetFiles(state,"manifest.json",SearchOption.AllDirectories).Any(p=>
+        {
+            using var doc=JsonDocument.Parse(File.ReadAllBytes(p));
+            return doc.RootElement.GetProperty("Files").EnumerateArray().Any(f=>f.GetProperty("Path").GetString()==victim.Path);
+        });
+        result(recorded,rollback?"NoJournal_RollbackConflictHasDurableRecoveryRecord":"NoJournal_ConflictHasDurableRecoveryRecord");
+        Require(recorded,"cannot safely recover without a durable record");
+        string directory=StandaloneJournal(root);byte[] manifest=File.ReadAllBytes(Path.Combine(directory,"manifest.json"));
+        failure=Capture(()=>new ProjectHistory(root,"Synthetic").RecoverPending());
+        result(failure is IOException&&failure.Message.Contains(directory,StringComparison.Ordinal)&&failure.Message.Contains(".old.tmp",StringComparison.Ordinal)
+            &&Is(victim,External)&&File.ReadAllBytes(retired).SequenceEqual(victim.Original())
+            &&File.ReadAllBytes(Path.Combine(directory,"manifest.json")).SequenceEqual(manifest),rollback?"NoJournal_RollbackConflictRetryKeepsEvidence":"NoJournal_ConflictRetryKeepsEvidenceAndExplainsRecovery");
+        string copy=Path.Combine(Path.GetDirectoryName(root)!,Path.GetFileName(root)+"-external.bin");
+        File.Move(victim.Path,copy);
+        new ProjectHistory(root,"Synthetic").RecoverPending();
+        result(files.All(f=>Is(f,f.Original()))&&File.ReadAllBytes(copy).SequenceEqual(External)&&!Directory.Exists(directory)&&!File.Exists(retired),
+            rollback?"NoJournal_RollbackConflictRecoversAfterExternalIsSaved":"NoJournal_ConflictRecoversAfterExternalIsSaved");
+    }
+
+    private static string StandaloneJournal(string root) => Directory.GetFiles(Environment.GetEnvironmentVariable("PROGRESSIVE_STATE_DIR")!,"manifest.json",SearchOption.AllDirectories)
+        .Select(p=>Path.GetDirectoryName(p)!).Single(d=>RecoveryJournal.Targets(d).Any(p=>p.StartsWith(root+Path.DirectorySeparatorChar,StringComparison.OrdinalIgnoreCase)));
+    private static string StandaloneToken(string directory)
+    {using var doc=JsonDocument.Parse(File.ReadAllBytes(Path.Combine(directory,"manifest.json")));return doc.RootElement.GetProperty("Token").GetString()!;}
+
+    private static void CrashedStandalone(string root,Action<bool,string> result,bool conflict)
+    {
+        var files=Changes(root);var victim=files[1];
+        using var ready=Signal(root,"ready");using var armed=Signal(root,"armed");
+        using var child=StartChild(root,"standalone-vacated");
+        string directory,retired;
+        try
+        {
+            Require(ready.WaitOne(Watchdog),"standalone child ready");directory=StandaloneJournal(root);
+            string token=StandaloneToken(directory);retired=ExclusiveFile.RetiredPath(victim.Path,token);
+            using var barrier=new TransactionOpenBarrier(victim.Path+".studio-"+token+".tmp",pauseAtRename:true);
+            armed.Set();barrier.WaitForOpen();
+            Kill(child,barrier,()=>!File.Exists(victim.Path)&&File.Exists(retired),"standalone killed");
+        }
+        finally{if(!child.HasExited){child.Kill(entireProcessTree:true);child.WaitForExit();}}
+        result(Is(files[0],files[0].Proposed())&&Is(files[2],files[2].Original())&&File.ReadAllBytes(retired).SequenceEqual(victim.Original()),
+            conflict?"NoJournal_KilledConflictKeepsOriginalAndPartialSet":"NoJournal_KilledBetweenRenamesKeepsOriginalAndPartialSet");
+        if(conflict)WriteExternal(victim.Path);
+        var history=new ProjectHistory(root,"Synthetic");
+        var rejected=Capture(history.RejectPending);
+        var backup=Capture(()=>ProjectBackup.CreateAsync(root,root+"-backups","Synthetic").GetAwaiter().GetResult());
+        result(rejected is IOException&&backup is IOException&&File.ReadAllBytes(retired).SequenceEqual(victim.Original())&&Directory.Exists(directory),
+            conflict?"NoJournal_KilledConflictBlocksBackupAndDiagnosticWithoutCleanup":"NoJournal_KilledBlocksBackupAndDiagnosticWithoutCleanup");
+        if(conflict)
+        {
+            rejected=Capture(history.RecoverPending);
+            result(rejected is IOException&&Is(victim,External)&&File.ReadAllBytes(retired).SequenceEqual(victim.Original()),"NoJournal_KilledConflictRetryPreservesExternalAndOld");
+            File.Move(victim.Path,root+"-external.bin");
+        }
+        history.RecoverPending();
+        result(files.All(f=>Is(f,f.Original()))&&!Directory.Exists(directory)&&Residual(root).Length==0,
+            conflict?"NoJournal_KilledConflictRecoversWholeSetAfterReconciliation":"NoJournal_KilledBetweenRenamesRecoversWholeSet");
+    }
+
+    private static void CrashedStandaloneRecovery(string root,Action<bool,string> result)
+    {
+        // A real journal/partial set is prepared with the same public no-journal entry point.
+        var files=Changes(root);
+        using(var ready=Signal(root,"ready"))using(var armed=Signal(root,"armed"))using(var child=StartChild(root,"standalone-vacated"))
+        {
+            try
+            {
+                Require(ready.WaitOne(Watchdog),"recovery setup child ready");
+                string token=StandaloneToken(StandaloneJournal(root));
+                using var barrier=new TransactionOpenBarrier(files[1].Path+".studio-"+token+".tmp",true);
+                armed.Set();barrier.WaitForOpen();
+                Kill(child,barrier,()=>!File.Exists(files[1].Path),"standalone recovery setup");
+            }
+            finally{if(!child.HasExited){child.Kill(true);child.WaitForExit();}}
+        }
+        string directory=StandaloneJournal(root),transactionToken=StandaloneToken(directory);
+        string first=files[0].Path+".studio-"+transactionToken+".tmp",second=files[1].Path+".studio-"+transactionToken+".tmp";
+        File.WriteAllBytes(first,[0xAA]);using var staging=new TransactionOpenBarrier(first);
+        using var recovery=StartChild(root,"standalone-recover");TransactionOpenBarrier? swap=null;
+        try
+        {
+            staging.WaitForOpen();swap=new TransactionOpenBarrier(second,true);staging.Release();swap.WaitForOpen();
+            Kill(recovery,swap,()=>!File.Exists(files[1].Path)&&File.Exists(ExclusiveFile.RetiredPath(files[1].Path,transactionToken)),"standalone recovery killed");
+        }
+        finally{if(!recovery.HasExited){recovery.Kill(true);recovery.WaitForExit();}swap?.Dispose();}
+        result(Directory.Exists(directory)&&File.ReadAllBytes(ExclusiveFile.RetiredPath(files[1].Path,transactionToken)).SequenceEqual(files[1].Original()),"NoJournal_KilledRecoveryRetainsOldAndJournal");
+        new ProjectHistory(root,"Synthetic").RecoverPending();
+        result(files.All(f=>Is(f,f.Original()))&&!Directory.Exists(directory)&&Residual(root).Length==0,"NoJournal_KilledRecoveryRetriesWholeSet");
+    }
+
+    private static GARCReference GarcReference()=>GARCReference.GARCReference_XY[0];
+    private static byte[][] GarcRecords(bool proposed)=>proposed?[[11,12,13,14],[15,16,17,18]]:[[1,2,3,4],[5,6,7,8]];
+    private static byte[] GarcSource()
+    {
+        string temp=Path.Combine(Path.GetTempPath(),"h2h3-garc-"+Guid.NewGuid().ToString("N")+".bin");
+        try{new GARCFile(GARC.PackGARC(GarcRecords(false),GARC.VER_4,4),GarcReference(),temp).Save();return File.ReadAllBytes(temp);}
+        finally{if(File.Exists(temp))File.Delete(temp);}
+    }
+    private static void StandaloneGarc(string root,Action<bool,string> result,bool kill)
+    {
+        string path=Path.Combine(root,"garc.bin");byte[] original=GarcSource();File.WriteAllBytes(path,original);
+        using var retiring=new TransactionOpenBarrier(path,true);using var child=StartChild(root,"garc");
+        TransactionOpenBarrier? installing=null;string directory,retired;
+        try
+        {
+            retiring.WaitForOpen();directory=StandaloneJournal(root);string token=StandaloneToken(directory);
+            retired=ExclusiveFile.RetiredPath(path,token);
+            installing=new TransactionOpenBarrier(path+".studio-"+token+".tmp",true);
+            retiring.Release();installing.WaitForOpen();Require(!File.Exists(path),"actual GARC commit between renames");
+            if(kill)Kill(child,installing,()=>!File.Exists(path)&&File.Exists(retired),"GARC killed");
+            else
+            {
+                WriteExternal(path);Require(ReadShared(path).SequenceEqual(External),"GARC external bytes confirmed");
+                installing.Release();Require(child.WaitForExit((int)Watchdog.TotalMilliseconds),"GARC child exit");
+                Require(child.ExitCode!=0,"GARC conflict must report failure");
+            }
+        }
+        finally{if(!child.HasExited){child.Kill(true);child.WaitForExit();}installing?.Dispose();}
+        result(File.ReadAllBytes(retired).SequenceEqual(original)&&Directory.Exists(directory),kill?"Garc_KilledBetweenRenamesRetainsOriginalAndJournal":"Garc_ConflictRetainsOriginalAndJournal");
+        if(!kill)
+        {
+            var failure=Capture(()=>new ProjectHistory(root,"Synthetic").RecoverPending());
+            result(failure is IOException&&ReadShared(path).SequenceEqual(External)&&File.ReadAllBytes(retired).SequenceEqual(original),"Garc_ConflictRetryDoesNotDeleteOldOrExternal");
+            File.Move(path,root+"-external.bin");
+        }
+        new ProjectHistory(root,"Synthetic").RecoverPending();
+        result(File.ReadAllBytes(path).SequenceEqual(original)&&!Directory.Exists(directory)&&!File.Exists(retired),kill?"Garc_KilledBetweenRenamesRecoversOnOpen":"Garc_ConflictRecoversAfterExternalIsSaved");
+        byte[] fingerprint=GarcTransaction.Commit(path,GarcReference(),SHA256.HashData(original),GarcRecords(true));
+        result(new GARC.MemGARC(File.ReadAllBytes(path)).Files.Zip(GarcRecords(true)).All(p=>p.First.SequenceEqual(p.Second))
+            &&fingerprint.SequenceEqual(SHA256.HashData(File.ReadAllBytes(path)))&&Residual(root).Length==0,
+            kill?"Garc_SaveAfterKilledRecoveryIsVerified":"Garc_SaveAfterConflictRecoveryIsVerified");
+    }
+
+    private static void StandaloneSharing(string root,Action<bool,string> result)
+    {
+        string path=Path.Combine(root,"garc.bin");byte[] source=GarcSource();File.WriteAllBytes(path,source);
+        Exception? failure;
+        using(var ready=Signal(root,"ready"))using(var released=Signal(root,"armed"))using(var reader=StartChild(root,"garc-reader"))
+        {
+            try
+            {
+                Require(ready.WaitOne(Watchdog),"other process reader ready");
+            failure=Capture(()=>GarcTransaction.Commit(path,GarcReference(),SHA256.HashData(source),GarcRecords(true)));
+            }
+            finally{released.Set();if(!reader.WaitForExit((int)Watchdog.TotalMilliseconds)){reader.Kill(true);reader.WaitForExit();}}
+        }
+        result(failure is IOException&&File.ReadAllBytes(path).SequenceEqual(source)&&Residual(root).Length==0,"Garc_SharingReaderRejectsWithoutPartialWrite");
+        var files=Changes(root);
+        using(var ready=Signal(root,"ready"))using(var released=Signal(root,"armed"))using(var writer=StartChild(root,"standalone-writer"))
+        {
+            try{Require(ready.WaitOne(Watchdog),"other process writer ready");failure=Capture(()=>FileTransaction.Commit(files));}
+            finally{released.Set();if(!writer.WaitForExit((int)Watchdog.TotalMilliseconds)){writer.Kill(true);writer.WaitForExit();}}
+        }
+        result(failure is IOException&&files.All(f=>Is(f,f.Original()))&&Residual(root).Length==0,"NoJournal_OtherProcessWriterRejectsWholeSetBeforeChanges");
+        FileTransaction.Commit(files);
+        result(files.All(f=>Is(f,f.Proposed()))&&Residual(root).Length==0,"NoJournal_SaveSucceedsAfterOtherProcessReleasesHandle");
+    }
+
+    private static void StandaloneRebuild(Action<bool,string> result)
+    {
+        using var fixture=new Fixture(GameVersion.XY);
+        byte[] original=File.ReadAllBytes(fixture.PersonalPath),proposed=(byte[])original.Clone();proposed[^1]^=1;
+        string directory,retired;
+        using(var journal=StandaloneTransactions.Begin([new FileChange(fixture.PersonalPath,original,proposed)]))
+        {
+            directory=journal.DirectoryPath;retired=ExclusiveFile.RetiredPath(fixture.PersonalPath,journal.Token);
+            using var held=ExclusiveFile.Open(fixture.PersonalPath);held.MoveTo(retired);
+        }
+        string target=fixture.Root+"-blocked.romfs.bin";
+        var failure=Capture(()=>new GameRomRebuildService(fixture.Session).BuildAsync(RomRebuildKind.RomFS,target).GetAwaiter().GetResult());
+        result(failure is IOException&&!File.Exists(target)&&File.ReadAllBytes(retired).SequenceEqual(original)&&Directory.Exists(directory),"NoJournal_RebuildRejectsPendingWithoutDeletingOld");
+        failure=Capture(()=>GameProjectSession.Open(fixture.Root,recoverInterruptedSave:false));
+        result(failure is IOException&&!File.Exists(fixture.PersonalPath)&&File.Exists(retired)&&Directory.Exists(directory),"NoJournal_DiagnosticOpenLeavesPendingUntouched");
+        // This minimal project is not a complete extracted game; opening may then reject its structure.
+        Capture(()=>GameProjectSession.Open(fixture.Root));
+        result(File.ReadAllBytes(fixture.PersonalPath).SequenceEqual(original)&&!File.Exists(retired)&&!Directory.Exists(directory),"NoJournal_ProjectOpenRecoversBeforeLoadingGameData");
+    }
+
+    private static void StandaloneScope(string root,Action<bool,string> result)
+    {
+        string left=Path.Combine(root,"left"),right=Path.Combine(root,"right"),foreign=Path.Combine(root,"foreign");
+        Directory.CreateDirectory(left);Directory.CreateDirectory(right);Directory.CreateDirectory(foreign);
+        FileChange[] files=[new(Path.Combine(left,"a.bin"),[1,2],[3,4]),new(Path.Combine(right,"b.bin"),[5,6],[7,8])];
+        foreach(var file in files)File.WriteAllBytes(file.Path,file.Original());
+        string directory,retired;
+        using(var journal=StandaloneTransactions.Begin(files))
+        {
+            directory=journal.DirectoryPath;retired=ExclusiveFile.RetiredPath(files[0].Path,journal.Token);
+            using var held=ExclusiveFile.Open(files[0].Path);held.MoveTo(retired);
+        }
+        var failure=Capture(()=>new ProjectHistory(left,"Synthetic").RecoverPending());
+        result(failure is IOException&&!File.Exists(files[0].Path)&&File.ReadAllBytes(retired).SequenceEqual(files[0].Original())&&Is(files[1],files[1].Original())&&Directory.Exists(directory),
+            "NoJournal_SubRootCannotRecoverOtherDirectoryTargets");
+        new ProjectHistory(foreign,"Synthetic").RecoverPending();
+        result(!File.Exists(files[0].Path)&&File.Exists(retired)&&Directory.Exists(directory),"NoJournal_UnrelatedRootDoesNotTouchPendingJournal");
+        new ProjectHistory(root,"Synthetic").RecoverPending();
+        result(files.All(f=>Is(f,f.Original()))&&!Directory.Exists(directory)&&!File.Exists(retired),"NoJournal_CommonRootRecoversMultipleDirectories");
     }
 
     // The only moment a writer can still succeed: the name is empty between the two renames.

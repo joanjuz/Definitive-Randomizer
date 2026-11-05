@@ -19,7 +19,7 @@ internal static class RunnerCatalog
         new("--guidance-only","",RunnerCategory.Synthetic,true),
         new("--history-inspection-only","",RunnerCategory.Synthetic,true),
         new("--transaction-races-only","",RunnerCategory.Synthetic,true),
-        new("--interrupt-transaction-races","1 o 2 (interno; raíz sintética propia y modo)",RunnerCategory.Synthetic,false),
+        new("--interrupt-transaction-races","1 o 2 (interno; raíz sintética propia y modo validado)",RunnerCategory.Synthetic,false),
         new("--undo-toctou-only","",RunnerCategory.Synthetic,true),
         new("--undo-template-regression-only","",RunnerCategory.Ui,true),
         new("--item-icons-only","",RunnerCategory.Synthetic,false),

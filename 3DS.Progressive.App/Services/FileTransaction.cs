@@ -48,6 +48,19 @@ internal static class FileTransaction
     {
         if (files.Select(f => f.Path).Distinct(StringComparer.OrdinalIgnoreCase).Count() != files.Count)
             throw new InvalidDataException("La propuesta contiene un archivo repetido.");
+        if(files.Count==0)return;
+        if(recovery is null)
+        {
+            using var durable=StandaloneTransactions.Begin(files);
+            try { Commit(files,afterReplace,durable); }
+            catch(Exception ex) when(ex is IOException or UnauthorizedAccessException)
+            {
+                if(Directory.Exists(durable.DirectoryPath))
+                    throw new IOException(ex.Message+" "+StandaloneTransactions.Instructions(durable.DirectoryPath),ex);
+                throw;
+            }
+            return;
+        }
         string token = recovery?.Token ?? Guid.NewGuid().ToString("N");
         var slots = new List<Slot>();
         bool completed = false;

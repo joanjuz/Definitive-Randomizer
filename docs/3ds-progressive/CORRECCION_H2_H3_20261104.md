@@ -2,6 +2,8 @@
 
 Rama `fix/h2-h3-transaction-races`, sobre `test/h2-h3-deterministic-races` (`a831077`). Corrige los defectos del [issue #43](https://github.com/joanjuz/Definitive-Randomizer/issues/43) reproducidos en [REPRODUCCION_H2_H3_20261104.md](REPRODUCCION_H2_H3_20261104.md). No cambia la versión del programa ni el formato del journal, del historial o de Global Template.
 
+> Seguimiento posterior: [guardados sin journal explícito, reproducción y recuperación persistente](H2_H3_GUARDADOS_INDIVIDUALES_20261104.md). Añade cobertura a GarcTransaction y actualiza los resultados; los conteos de este informe son la validación inicial del PR.
+
 ## Causa
 
 Commit, rollback y Recover comprobaban un archivo **por ruta** y lo reemplazaban después, también **por ruta**. Entre ambas operaciones no había nada que impidiera escribir. Añadir otra comprobación de SHA-256 solo acorta esa ventana: el defecto es la separación, no la falta de comprobaciones.
@@ -131,7 +133,7 @@ Windows 11, NTFS local, SDK .NET `10.0.301`, Release, datos sintéticos. Sin ROM
 - **Conflicto en el nombre vacío:** gana el archivo externo, y el proyecto no se recupera hasta que alguien lo reconcilie a mano, con los bytes propuestos u originales. No hay interfaz para esto; es la misma política anterior de «se conserva para revisión».
 - **Lectores durante el retenido:** quien abra sin `FileShare.Delete`, como `File.ReadAllBytes`, recibe un error de compartición (`Limit_ReadersNeedFileShareDeleteDuringTheHold`). Si ese lector ya estaba abierto, el guardado se detiene sin cambios. Con `File.Replace` ese lector también hacía fallar el guardado, ya a mitad de la transacción. No hay reintento automático.
 - **Metadatos no conservados:** flujos alternativos (ADS) y atributos de compresión o cifrado del destino, que `File.Replace` sí trataba. Los archivos de proyecto no los usan.
-- **Residuo posible:** si tras el éxito no se puede eliminar el original retirado, queda un `.old.tmp`, sin journal que lo limpie.
+- **Residuo posible en la validación inicial:** si tras el éxito no se puede eliminar el original retirado, queda un `.old.tmp`. El [seguimiento de guardados individuales](H2_H3_GUARDADOS_INDIVIDUALES_20261104.md) añade journal automático también a las rutas que antes no lo tenían, para conservar su recuperación y limpieza pendiente.
 
 **No comprobado:**
 

@@ -38,6 +38,7 @@ internal static class GarcTransaction
     internal static byte[] Commit(string path, GARCReference reference, byte[] fingerprint,
         byte[][] records, bool mini = false)
     {
+        StandaloneTransactions.RecoverPending(Path.GetDirectoryName(Path.GetFullPath(path))!);
         byte[] source = ReadUnchanged(path, fingerprint);
         byte[] bytes = Build(source, reference, records, mini);
         FileTransaction.Commit([new FileChange(path, source, bytes)]);
