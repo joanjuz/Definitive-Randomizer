@@ -259,8 +259,34 @@ internal sealed class SystemsView : UserControl
         catch(Exception ex) when(ex is IOException or UnauthorizedAccessException or InvalidOperationException){StudioDialog.Error(owner,"Registro del randomizado",ex.Message);}
         finally{UiProgress.End();}
     }
+    internal static async Task ExportTrackerDataAsync(Window? owner,GameProjectSession project,Action<string>? status=null)
+    {
+        if(UiProgress.IsInteractionBlocked)return;
+        var picker=new Microsoft.Win32.SaveFileDialog{Filter="Definitive Game Data JSON|*.json",FileName="definitive-game-data.json",OverwritePrompt=false};
+        if(picker.ShowDialog(owner)!=true)return;
+        using var interaction=UiProgress.BlockInteraction();
+        UiProgress.Begin("Datos para Progressive Tracker · leyendo archivos guardados…");
+        try
+        {
+            await Task.Run(()=>DefinitiveGameData.Export(project,picker.FileName));
+            status?.Invoke("Datos para Progressive Tracker exportados: "+picker.FileName);
+            StudioDialog.Notice(owner,"Datos exportados","Importa este JSON en la partida correspondiente de Progressive Tracker.",
+                "Se exportó el estado guardado. La revisión no puede acreditarse solo con una extracción; el Tracker lo advertirá. No se modificó el proyecto.");
+        }
+        catch(Exception ex) when(ex is IOException or UnauthorizedAccessException or InvalidOperationException or ArgumentException or FormatException)
+        {StudioDialog.Error(owner,"Exportar datos para Progressive Tracker",ex.Message);}
+        finally{UiProgress.End();}
+    }
     private void BuildRomTools(Panel stack)
     {
+        if(DefinitiveGameData.Supports(_project))
+        {
+            var tracker=Card("Progressive Tracker · Datos del juego",
+                "Exporta los datos guardados de Ultra Sol o Ultra Luna para consultar tus cambios en una partida del Tracker.",
+                "Incluye especies y formas, estadísticas base, tipos, habilidades, movimientos y evoluciones. La revisión de una extracción no se da por conocida; el Tracker pide confirmarla. Las ediciones sin guardar quedan fuera.");
+            AddButton((StackPanel)tracker.Child,"Exportar datos para Progressive Tracker",()=>_=ExportTrackerDataAsync(Window.GetWindow(this),_project,text=>_status.Text=text));
+            stack.Children.Add(tracker);
+        }
         var log=Card("Registro del randomizado","Exporta un archivo de texto con lo que tiene ahora el juego: regalos y estáticos, equipos de entrenadores, encuentros salvajes y los cambios guardados.",
             "Solo lee el proyecto. Cada parte se lee con su editor; si una no está disponible en este juego, el registro lo indica y sigue con las demás.","Spoiler");
         AddButton((StackPanel)log.Child,"Exportar registro…",()=>_=ExportLogAsync(Window.GetWindow(this),_project,text=>_status.Text=text));

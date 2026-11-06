@@ -16,6 +16,7 @@ internal static class UiSmoke
         StudioDialog.AutomatedChecks=true;
         var app = new ThreeDS.Progressive.App();
         app.InitializeComponent();
+        DefinitiveGameDataChecks.RunUi(check);
         var main = new MainWindow();
         main.Show();
         Layout((FrameworkElement)main.Content,1390,845);

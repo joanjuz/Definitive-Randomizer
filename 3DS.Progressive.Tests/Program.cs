@@ -10,6 +10,7 @@ using ThreeDS.Progressive.Models;
 using ThreeDS.Progressive.Services;
 
 if(RunnerCatalog.IsHelp(args)){RunnerCatalog.Print();return;}
+if(args.Length==2&&args[0]=="--definitive-game-data-fixture"){DefinitiveGameDataChecks.WriteInteropFixture(args[1]);Console.WriteLine("Exported synthetic DGD interop fixture.");return;}
 if(args.Length==3&&args[0]=="--extract-independent-image"){var extraction=new GameRomExtractionService().ExtractAsync(args[1],args[2]).GetAwaiter().GetResult();Console.WriteLine($"PASS EXTRACTION: {extraction.Files} files; source SHA256 {extraction.SourceSha256}; {extraction.Folder}");return;}
 if(args.Length==3&&args[0]=="--audit-catch-templates"){CatchZoneReferenceAudit.Run(args[1],args[2]);return;}
 if(args.Length>2&&args[0]=="--check-catch-real-copies"){CatchZoneRealCopyChecks.Run(args[1],args.Skip(2));return;}
@@ -112,6 +113,13 @@ if(args.Length==1&&args[0]=="--requested-ui-only")
 if(args.Length is 2 or 3&&args[0]=="--visual-audit"){Exception? failure=null;var ui=new Thread(()=>{try{VisualAudit.Run(args[1],args.Length==3?args[2]:null,Check);}catch(Exception ex){failure=ex;}});ui.SetApartmentState(ApartmentState.STA);ui.Start();ui.Join();if(failure is not null)System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(failure).Throw();Console.WriteLine($"Completed {checks} visual audit checks.");return;}
 if(args.Length>=3&&args[0]=="--visual-audit-ds"){Exception? failure=null;var ui=new Thread(()=>{try{VisualAudit.RunDs(args[1],args.Skip(2).ToArray(),Check);}catch(Exception ex){failure=ex;}});ui.SetApartmentState(ApartmentState.STA);ui.Start();ui.Join();if(failure is not null)System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(failure).Throw();Console.WriteLine($"Completed {checks} DS visual audit checks.");return;}
 if(args.Length==1&&args[0]=="--all-ui-only"){Exception? failure=null;var ui=new Thread(()=>{try{UiSmoke.Run(Check);RequestedIntegrationChecks.RunUi(Check);Review73Checks.RunUi(Check); UtilityCompletionUiChecks.Run(Check);TitleScreenChecks.RunUi(Check);TitleMovieChecks.RunUi(Check); Tutor6CompatibilityChecks.RunUi(Check); RomToolUiChecks.Run(Check); GlobalEditorBridgeChecks.RunUi(Check); FieldItems6Checks.RunUi(Check); FeatureVisibilityChecks.Run(Check);MasterBatchChecks.RunUi(Check); Tm6CompatibilityChecks.RunUi(Check); GlobalCompletionChecks.RunUi(Check); BattleFacilityChecks.RunUi(Check); BatchGen6Checks.RunUi(Check);}catch(Exception ex){failure=ex;}});ui.SetApartmentState(ApartmentState.STA);ui.Start();ui.Join();if(failure is not null)throw failure;Console.WriteLine($"Completed {checks} UI checks.");return;}
+if(args.Length==1&&args[0]=="--definitive-game-data-only")
+{
+    DefinitiveGameDataChecks.Run(Check,Reject);
+    Exception? failure=null;var ui=new Thread(()=>{try{DefinitiveGameDataChecks.RunUi(Check);}catch(Exception ex){failure=ex;}});
+    ui.SetApartmentState(ApartmentState.STA);ui.Start();ui.Join();if(failure is not null)throw failure;
+    Console.WriteLine($"Completed {checks} Definitive Game Data checks.");return;
+}
 if(args.Length==1&&args[0]=="--requested-only"){RequestedIntegrationChecks.Run(Check,Reject);Review73Checks.Run(Check,Reject);Console.WriteLine($"Completed {checks} requested checks.");return;}
 if(args.Length==1&&args[0]=="--trades6-only"){Trade6Checks.Run(Check,Reject);Console.WriteLine($"Completed {checks} Gen6 trade checks.");return;}
 if(args.Length==1&&args[0]=="--sm-marts-only"){MartSmChecks.Run(Check,Reject);Console.WriteLine($"Completed {checks} SM mart checks.");return;}
@@ -403,6 +411,7 @@ AesCtrChecks.Run(Check);
 RebuildCacheChecks.Run(Check);
 RebuildStabilityChecks.Run(Check);
 HistoryInspectionChecks.Run(Check);
+DefinitiveGameDataChecks.Run(Check,Reject);
 GuidanceChecks.Run(Check,Reject);
 StoryRandomChecks.Run(Check,Reject);
 SelectedRestoreChecks.Run(Check,Reject);
