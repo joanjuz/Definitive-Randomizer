@@ -52,6 +52,7 @@ internal sealed class MartEditorView : UserControl
 
     internal MartEditorView(GameProjectSession project)
     {
+        project.RefreshMintItemNames();
         _project = project;
         _service = new GameMartService(project);
         _items = project.ItemNames.Select((name, id) =>

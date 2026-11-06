@@ -8,6 +8,7 @@ on:
       - "3DS.Progressive.App/**"
       - "3DS.Progressive.Tests/**"
       - "pk3DS.Core/**"
+      - "native/3ds/nature-mints/**"
       - "pk3DS.WinForms/**"
       - "Directory.Build.*"
       - "global.json"
@@ -20,6 +21,7 @@ on:
       - "3DS.Progressive.App/**"
       - "3DS.Progressive.Tests/**"
       - "pk3DS.Core/**"
+      - "native/3ds/nature-mints/**"
       - "pk3DS.WinForms/**"
       - "Directory.Build.*"
       - "global.json"
@@ -62,12 +64,27 @@ jobs:
             'guidance-only', 'global-apply-only', 'rebuild-marts-ui-only',
             'history-inspection-only', 'transaction-races-only', 'undo-toctou-only', 'undo-template-regression-only', 'rebuild-stability-only', 'swsh-only', 'swsh-ui-only',
             'swsh-parity-only', 'legacy-parity-only', 'nds-only',
-            'nds-ui-only'
+            'nds-ui-only', 'usum-mints-only', 'usum-mints-ui-only'
           )
           foreach ($suite in $suites) {
             & dotnet $runner "--$suite" 2>&1 | Tee-Object -FilePath "validation-logs/$suite.log"
             if ($LASTEXITCODE -ne 0) { throw "Runner failed: $suite (exit $LASTEXITCODE)" }
           }
+      - name: Verificar fuente y ejecucion ARM de mentas USUM
+        shell: pwsh
+        run: |
+          $mintVenv = Join-Path $env:RUNNER_TEMP 'mint-harness-venv'
+          python -m venv $mintVenv
+          if ($LASTEXITCODE -ne 0) { throw 'Mint venv failed' }
+          $mintPython = Join-Path $mintVenv 'Scripts/python.exe'
+          & $mintPython -m pip install -r native/3ds/nature-mints/requirements.txt
+          if ($LASTEXITCODE -ne 0) { throw 'Mint harness dependencies failed' }
+          & $mintPython native/3ds/nature-mints/generate.py --check
+          if ($LASTEXITCODE -ne 0) { throw 'Mint source/template mismatch' }
+          dotnet ./3DS.Progressive.Tests/bin/Release/net10.0-windows/3DS.Progressive.Tests.dll --usum-mints-arm-fixtures validation-logs/mints-arm
+          if ($LASTEXITCODE -ne 0) { throw 'Mint ARM fixtures failed' }
+          & $mintPython native/3ds/nature-mints/verify_arm.py validation-logs/mints-arm
+          if ($LASTEXITCODE -ne 0) { throw 'Mint ARM execution failed' }
       - name: Regresiones con datos sinteticos XY, ORAS, SM y USUM
         env:
           PROGRESSIVE_UI_CAPTURE_DIR: ${{ github.workspace }}/ui-captures

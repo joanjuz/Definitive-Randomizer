@@ -34,6 +34,7 @@ public partial class MainWindow : Window
     private RecordEditorView? _recordView;
     private Gen7MartState? _gen7MartState;
     private MartEditorView CreateMartView(){var view=new MartEditorView(_session!);if(_gen7MartState is not null)view.RestoreRecipe(_gen7MartState);return view;}
+    private GameItemService CurrentItemEditor(){_session!.RefreshMintItemNames();return new GameItemService(_session);}
     private Gen7MachineState? _gen7MachineState;
     private MachineTutorView? _machineTutorView;
     private MachineTutorView CreateMachineTutorView(){var view=new MachineTutorView(_session!);if(_gen7MachineState is not null)view.RestoreRecipe(_gen7MachineState);return view;}
@@ -304,6 +305,7 @@ public partial class MainWindow : Window
         if(_playerCapsView is not null&&!_playerCapsView.ConfirmLeave())return false;
         if(_croRecipesView is not null&&!_croRecipesView.ConfirmLeave())return false;
         if(_relearnerView is not null&&!_relearnerView.ConfirmLeave())return false;
+        if(SectionHost.Content is UsumNatureMintView mints&&!mints.ConfirmLeave())return false;
         if(_typeChartView is not null&&!_typeChartView.ConfirmLeave())return false;
         if(_shinyRateView is not null&&!_shinyRateView.ConfirmLeave())return false;
         if(_romRebuildView is not null&&!_romRebuildView.ConfirmLeave())return false;
@@ -372,7 +374,7 @@ public partial class MainWindow : Window
                 "Tutor6" when _session.GameConfiguration.ORAS=>new Gen6TutorView(_session,CreateEditor(new GameTutor6Service(_session)),_gen6TutorCompatibilityState),
                 "MachineTutor"=>_session.Generation==6 ? new Gen6MachineView(_session,CreateEditor(new GameMachine6Service(_session)),_gen6CompatibilityState) : _machineTutorView=CreateMachineTutorView(),
                 "LevelUp"=>_levelUpView=new LevelUpView(_session),
-                "Items"=>CreateEditor(new GameItemService(_session)),
+                "Items"=>CreateEditor(CurrentItemEditor()),
                 "PersistentItems" when _session.GameConfiguration.USUM=>CreateEditor(new GamePersistentItemsService(_session)),
                 "Marts"=>_session.Generation==6 ? _mart6View=new Gen6MartView(_session,_sectionOptions.GetValueOrDefault("Tiendas · Gen6")) : _martView=CreateMartView(),
                 "FieldItems"=>CreateEditor(fieldEditor!),
@@ -388,6 +390,7 @@ public partial class MainWindow : Window
                 "PlayerCaps"=>new PlayerLevelCapsView(_session),
                 "CroRecipes"=>_croRecipesView=new CroRecipesView(_session),
                 "UsumRelearner"=>_relearnerView=new UsumRelearnerView(_session),
+                "UsumNatureMints"=>new UsumNatureMintView(_session,()=>NavigateSystem("Marts")),
                 "TemplateStudio"=>_templateStudioView??=new TemplateStudioView(_session),
                 "GlobalTemplate"=>_globalTemplateView??=new GlobalTemplateView(_session,RestoreGlobalOptions,CaptureGlobalOptions,RestoreGlobalOptionsAsync,ReloadAfterGlobalTemplateAsync),
                 "BatchRom"=>_batchRomView??=new BatchRomBuilderView(_session,
@@ -471,7 +474,7 @@ public partial class MainWindow : Window
         {Section_Click(new Button{Tag=section},new RoutedEventArgs());return;}
         if(section is "FacilityNormal" or "FacilityAlternate")
         {Section_Click(new Button{Tag=section},new RoutedEventArgs());return;}
-        if(section is "CroRecipes" or "UsumRelearner" or "EggMoves" or "MegaEvolutions" or "TypeChart" or "ShinyRate" or "OWSE" or "Rebuild" or "CroIntegrity" or "Pickup" or "OPower" or "CatchZones" or "Trade6")
+        if(section is "CroRecipes" or "UsumRelearner" or "UsumNatureMints" or "EggMoves" or "MegaEvolutions" or "TypeChart" or "ShinyRate" or "OWSE" or "Rebuild" or "CroIntegrity" or "Pickup" or "OPower" or "CatchZones" or "Trade6")
         {
             if(section is "EggMoves" or "MegaEvolutions" or "TypeChart" or "ShinyRate" or "OWSE" or "Rebuild" or "CroIntegrity" or "Pickup" or "OPower" or "CatchZones" or "Trade6"||_session.GameConfiguration.USUM)
                 Section_Click(new Button{Tag=section},new RoutedEventArgs());
