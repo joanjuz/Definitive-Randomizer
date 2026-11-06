@@ -10,7 +10,7 @@ internal static class NativeRecipeCompletion
     {
         if(project.Generation!=7)return;
         if(ShinyRateTemplate.Read(doc) is {} shiny)_=new GameShinyRateService(project).Preview(shiny.Rerolls,shiny.Everything);
-        if(doc.Actions.Contains("pickup.randomize",StringComparer.OrdinalIgnoreCase)){ValidatePickupParameters(doc);var editor=new GamePickupService(project);_=editor.Preview(editor.Randomize(editor.Read(),1));}
+        if(doc.Actions.Contains("pickup.randomize",StringComparer.OrdinalIgnoreCase)){ValidatePickupParameters(doc);var editor=new GamePickupService(project){MintInclusion=UsumMintItemPolicy.Read(doc)};_=editor.Preview(editor.Randomize(editor.Read(),1));}
     }
     internal static void ValidatePickupParameters(GlobalTemplateDocument doc)
     {
@@ -26,7 +26,7 @@ internal static class NativeRecipeCompletion
         if(document.Section("ProgressiveApp")?["PartialSnapshot"]?.GetValue<bool>()!=true)return false;
         var allowed=(project.Generation==6?NativeBatchGen6Bridge.ActionIds:NativeBatchGen7StaticBridge.ActionIds).Concat(NativeMasterBatchBridge.ActionIds).Append(ManualEditTemplate.ActionId).Concat(project.Generation==7?NativeGen7FieldBridge.ActionIds:[]).Concat(project.Generation==7?NativeGen7MachineBridge.ActionIds:[]).Concat(project.Generation==7?NativeGen7MartBridge.ActionIds:[]).Concat(project.Generation==7?Gen7ParameterActions:[]).Concat(project.Generation==7?NativeGen7WildBridge.ActionIds:[]).Concat(project.Generation==7?Gen7Adjustments.ActionIds(project.GameConfiguration.USUM):[]).ToArray();
         if(project.Generation is not (6 or 7)||document.Actions.Count==0||document.Actions.All(id=>id=="rng.seed")||document.Actions.Any(id=>id!="rng.seed"&&!allowed.Contains(id,StringComparer.OrdinalIgnoreCase))||!HasAllSelectedSnapshots(document))return false;
-        ManualEditTemplate.ValidateSession(project,document);
+        UsumMintItemPolicy.ValidateSession(project,document);ManualEditTemplate.ValidateSession(project,document);
         NativeGen7WildBridge.ValidateSession(project,document);ValidateGen7Parameters(project,document);NativeMasterBatchBridge.ValidateSession(project,document);
         if(project.Generation==6)NativeBatchGen6Bridge.ValidateSession(project,document);else {NativeBatchGen7StaticBridge.ValidateSession(project,document);NativeGen7FieldBridge.ValidateSession(project,document);NativeGen7MachineBridge.ValidateSession(project,document);_=NativeGen7MartBridge.ValidateSession(project,document);}
         // Only a missing asset prevents it; a different SHA-256 is a warning and the current file is used.

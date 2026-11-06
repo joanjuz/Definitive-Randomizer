@@ -31,6 +31,7 @@ internal sealed class UsumNatureMintView : UserControl
         heading.Children.Add(new TextBlock{Text="21 mentas consumibles. No se añaden automáticamente a tiendas ni pools de randomización. " +
             "Guarda un respaldo del proyecto. Deshacer restaura archivos del juego, no lo que hayas guardado en una partida.",
             TextWrapping=TextWrapping.Wrap,Foreground=(Brush)FindResource("TextSoft"),Margin=new Thickness(0,0,0,12)});
+        heading.Children.Add(new UsumMintPoolControl(project));
         var buttons=new WrapPanel();heading.Children.Add(buttons);
         _inspect=Add("Comprobar estado y preparar",()=>_ = InspectAsync());
         _install=Add("Instalar 21 mentas",()=>_ = InstallAsync());_install.IsEnabled=false;

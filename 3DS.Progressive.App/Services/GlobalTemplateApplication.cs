@@ -50,7 +50,7 @@ internal sealed class GlobalTemplateApplication(GameProjectSession project)
             }
             Scan(folder);
         }
-        foreach(string file in Directory.EnumerateFiles(session.ProjectRoot).Where(path=>Path.GetFileName(path).StartsWith("exheader",StringComparison.OrdinalIgnoreCase)||Path.GetFileName(path).StartsWith("decryptedexh",StringComparison.OrdinalIgnoreCase)))
+        foreach(string file in Directory.EnumerateFiles(session.ProjectRoot).Where(path=>Path.GetFileName(path).StartsWith("exheader",StringComparison.OrdinalIgnoreCase)||Path.GetFileName(path).StartsWith("decryptedexh",StringComparison.OrdinalIgnoreCase)||session.GameConfiguration.USUM&&new[]{"ncchheader.bin","HeaderNCCH0.bin","HeaderNCCH.bin"}.Contains(Path.GetFileName(path),StringComparer.OrdinalIgnoreCase)))
         {
             if((File.GetAttributes(file)&FileAttributes.ReparsePoint)!=0)throw new InvalidDataException("ExHeader no puede ser un enlace.");
             result.Add(Path.GetRelativePath(session.ProjectRoot,file),HashFile(file));

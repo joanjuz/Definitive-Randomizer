@@ -38,6 +38,7 @@ public sealed record MartShopPreview(byte[] Original, byte[] Output,
     byte[]? ItemOriginal, byte[]? ItemOutput)
 {
     internal IReadOnlyList<FileChange> ExtraFiles {get;init;}=[];
+    internal IReadOnlyList<(string Path,byte[] Fingerprint)> MintDependencies {get;init;}=[];
 }
 
 /// <summary>
@@ -173,6 +174,10 @@ public sealed partial class GameMartService
     public MartShopPreview Prepare()
     {
         Validate();
+        bool newMints=_project.GameConfiguration.USUM&&(RegularShops.Any(shop=>shop.Rows.Where((row,i)=>UsumMintItemPolicy.Ids.Contains(row.ItemId)&&
+            (i>=_regularBefore[shop.Index].Length||_regularBefore[shop.Index][i]!=row.ItemId)).Any())||BpShops.Any(shop=>shop.Rows.Where((row,i)=>
+                UsumMintItemPolicy.Ids.Contains(row.ItemId)&&_bpBefore[shop.Index][i].Item!=row.ItemId).Any()));
+        var mintDependency=_mintOperation||newMints?_project.MintItems.Capture():null;
         if(!SupportsExpansion)return PrepareSm();
         ushort[][] inventories = RegularShops
             .Select(shop => shop.Rows.Select(row => checked((ushort)row.ItemId)).ToArray())
@@ -262,7 +267,7 @@ public sealed partial class GameMartService
             report=report with{FinalFileSize=updated.Length,CodeBytesAdded=report.CodeBytesAdded+Math.Max(0,updated.Length-report.FinalFileSize)};
         }
         return new MartShopPreview((byte[])_original.Clone(), updated, changes, report,
-            items.Original, items.Output){ExtraFiles=extra};
+            items.Original, items.Output){ExtraFiles=extra,MintDependencies=mintDependency?.Files??[]};
     }
 
     private readonly Dictionary<(bool,int),string> _presetResults=[];
@@ -302,14 +307,18 @@ public sealed partial class GameMartService
             files.Add(new FileChange(itemPath, current, preview.ItemOutput));
         }
         foreach(var file in preview.ExtraFiles??[]){GarcTransaction.ReadUnchanged(file.Path,file.Fingerprint);files.Add(file);}
+        using var mintLocks=MintItemDependency.Lock(_project,preview.MintDependencies,files);
+        var recipe=GlobalTemplateDocument.Empty(_project.GameName,_project.Generation);
+        if(RecipeState is not null)NativeGen7MartBridge.Capture(recipe,RecipeState);
         _project.History.Commit(files, "Tiendas y BP",
             _presets.Count == 0 ? "Editar tiendas" : "Aplicar presets de tiendas",
-            preview.Changes, new Dictionary<string,string>
+            preview.Changes, UsumMintItemPolicy.Parameters(new Dictionary<string,string>
             {
                 ["Origen"] = "Shop.cro / relocaciones verificadas",
                 ["Acciones"] = string.Join(";", _presets),
+                ["Gen7MartRecipe"] = RecipeState is not null&&recipe.Actions.Count>0?recipe.ToJson():"",
                 ["Scope"] = _project.GameConfiguration.USUM?"USUM tiendas normales y BP":"SM tiendas normales y BP"
-            });
+            },MintInclusion??_project.MintItems.Include));
         _project.RefreshMoveAssignments();
     }
 
@@ -332,7 +341,7 @@ public sealed partial class GameMartService
             throw new InvalidDataException("No existe la tienda BP de megapiedras.");
         foreach (var row in BpShops[5].Rows)
             row.Price = 0;
-        _presets.Add("marts.free-mega-stones");
+        RecipeState=(RecipeState??new()) with{FreeMega=true};_presets.Add("marts.free-mega-stones");
     }
 
     private string ItemLabel(int id) =>

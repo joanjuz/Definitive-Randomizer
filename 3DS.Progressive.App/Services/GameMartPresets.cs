@@ -34,6 +34,20 @@ public sealed partial class GameMartService
     private int[] _vitaminIds = [];
     private readonly List<string> _presets = [];
     private bool HasItemPatches => _setCandyPrice || _setKeyPrice || _enableVitamin252;
+    internal bool? MintInclusion {get;set;}
+    internal Gen7MartState? RecipeState {get;set;}
+    private bool _mintOperation;
+    public int AddNatureMints()
+    {
+        _= _project.MintItems.Capture();
+        var missing=RegularShops.Take(8).Select(shop=>(Shop:shop,Ids:UsumNatureMintCatalog.Mints.Where(m=>shop.Rows.All(row=>row.ItemId!=m.ItemId)).Select(m=>m.ItemId).ToArray())).ToArray();
+        if(missing.Any(row=>row.Shop.Rows.Count+row.Ids.Length>Gen7ExpandedMartTable.MaximumSlotsPerMart))
+            throw new InvalidOperationException("No caben las 21 mentas en algún stock general; no se modifica ninguna tienda.");
+        using var preset=TrackPreset();
+        foreach(var row in missing)foreach(int id in row.Ids)row.Shop.Rows.Add(new(row.Shop.Rows.Count+1,id));
+        _mintOperation=true;RecipeState=(RecipeState??new()) with{AddMints=true};_presets.Add(UsumMintItemPolicy.AddGeneralAction);
+        return missing.Sum(row=>row.Ids.Length);
+    }
 
     private static string NormalizeName(string? value) =>
         new string((value??"").Normalize(NormalizationForm.FormD)
@@ -53,11 +67,16 @@ public sealed partial class GameMartService
     public int RandomizeShops(bool bp,bool specialsOnly=false,bool protectX=true,int? seed=null,IReadOnlyList<int>? customPool=null,IReadOnlySet<int>? banned=null)
     {
         using var preset=TrackPreset();
-        int[] pool=(customPool??ItemPool).Where(id=>id>0&&id<_project.ItemNames.Count&&(banned is null||!banned.Contains(id))&&
+        bool mint=MintInclusion??_project.MintItems.Include;
+        int[] candidates=_project.MintItems.Pool(customPool??ItemPool,mint,id=>(banned is null||!banned.Contains(id)));
+        int[] pool=candidates.Where(id=>id>0&&id<_project.ItemNames.Count&&(banned is null||!banned.Contains(id))&&
             (!_banCapsule||id!=AbilityCapsuleUSUM)).ToArray();
         if(pool.Length==0)throw new InvalidDataException("No hay objetos válidos para randomizar.");
         int count=RandomizeSlots(RegularShops,BpShops,pool,
-            new Random(seed??RandomNumberGenerator.GetInt32(int.MaxValue)),bp,specialsOnly,protectX,requireDifferent:customPool is null);
+            new Random(seed??RandomNumberGenerator.GetInt32(int.MaxValue)),bp,specialsOnly,protectX,requireDifferent:customPool is null,
+            unprotected:mint?UsumMintItemPolicy.Ids:null);
+        _mintOperation|=mint;
+        RecipeState=bp?(RecipeState??new()) with{RandomBP=true}:(RecipeState??new()) with{RandomRegular=true,SpecialsOnly=specialsOnly,ProtectX=protectX};
         _presets.Add(bp?"marts.randomize-bp":specialsOnly?"marts.randomize:special-only":"marts.randomize");
         return count;
     }
@@ -65,7 +84,7 @@ public sealed partial class GameMartService
     // Separated from GameProjectSession so the exact Mount Lanakila/X-item
     // scenario can be regression-tested without a real Shop.cro.
     internal static int RandomizeSlots(IReadOnlyList<MartShop> regular,IReadOnlyList<MartShop> bpShops,
-        IReadOnlyList<int> allowed,Random rng,bool bp,bool specialsOnly,bool protectX,bool requireDifferent=true)
+        IReadOnlyList<int> allowed,Random rng,bool bp,bool specialsOnly,bool protectX,bool requireDifferent=true,IReadOnlySet<int>? unprotected=null)
     {
         int[] pool=allowed.ToArray();
         if(pool.Length==0)throw new InvalidDataException("El pool de objetos está vacío.");
@@ -80,7 +99,7 @@ public sealed partial class GameMartService
             foreach(var row in shop.Rows)
             {
                 int before=row.ItemId;
-                if(!bp&&(ProtectedItems.Contains(before)||(protectX&&SpeedrunXItems.Contains(before))))continue;
+                if(!bp&&((ProtectedItems.Contains(before)&&!(unprotected?.Contains(before)??false))||(protectX&&SpeedrunXItems.Contains(before))))continue;
                 if(cursor==pool.Length){Shuffle();cursor=0;}
                 int next=pool[cursor++];
                 // Disabling protection must actually change a store made solely
@@ -108,13 +127,13 @@ public sealed partial class GameMartService
         if(!SupportsExpansion)
         {
             int count=0;foreach(var shop in RegularShops.Take(8))if(shop.Rows[^1].ItemId!=candy){shop.Rows[^1].ItemId=candy;count++;}
-            _setCandyPrice=true;_presets.Add("marts.add-rare-candies:SM-fixed-slots");return count;
+            _setCandyPrice=true;RecipeState=(RecipeState??new()) with{Candies=true};_presets.Add("marts.add-rare-candies:SM-fixed-slots");return count;
         }
         var missing=RegularShops.Take(8).Where(s=>s.Rows.All(r=>r.ItemId!=candy)).ToArray();
         if(missing.Any(s=>s.Rows.Count>=Gen7ExpandedMartTable.MaximumSlotsPerMart))
             throw new InvalidOperationException("Alguna tienda de progreso ya alcanzó el máximo de ranuras.");
         foreach(var shop in missing)shop.Rows.Add(new MartSlotRow(shop.Rows.Count+1,candy));
-        _setCandyPrice=true;_presets.Add("marts.add-rare-candies:expanded");
+        _setCandyPrice=true;RecipeState=(RecipeState??new()) with{Candies=true};_presets.Add("marts.add-rare-candies:expanded");
         return missing.Length;
     }
     public int AddVitamins252()
@@ -160,7 +179,7 @@ public sealed partial class GameMartService
                 shop.Rows.Add(new MartSlotRow(slot+1,proposed[mart][slot]));
         }
         _vitaminIds=vitamins;_enableVitamin252=true;_setKeyPrice=true;
-        _presets.Add("marts.add-ev-items:vitamins-252");
+        RecipeState=(RecipeState??new()) with{Vitamins=true};_presets.Add("marts.add-ev-items:vitamins-252");
         return changes;
     }
     public int BanAbilityCapsule()=>BanAbilityCapsule(RandomNumberGenerator.GetInt32(int.MaxValue));
@@ -170,13 +189,15 @@ public sealed partial class GameMartService
         int capsule=AbilityCapsuleUSUM;
         if(capsule>=_project.ItemNames.Count)
             throw new InvalidDataException("La tabla de objetos USUM no contiene el ID 645.");
-        int[] pool=(customPool??ItemPool).Where(id=>id>0&&id<_project.ItemNames.Count&&(banned is null||!banned.Contains(id))&&id!=capsule&&!ProtectedItems.Contains(id)).Distinct().ToArray();
+        bool mint=MintInclusion??_project.MintItems.Include;
+        int[] pool=_project.MintItems.Pool(customPool??ItemPool,mint,id=>banned is null||!banned.Contains(id))
+            .Where(id=>id>0&&id<_project.ItemNames.Count&&(banned is null||!banned.Contains(id))&&id!=capsule&&(!ProtectedItems.Contains(id)||mint&&UsumMintItemPolicy.Ids.Contains(id))).Distinct().ToArray();
         if(pool.Length==0)throw new InvalidOperationException("No hay reemplazos válidos para Cápsula Habilidad.");
         var rng=new Random(seed);int changed=0;
         foreach(var shop in RegularShops.Concat(BpShops))
             foreach(var row in shop.Rows)
                 if(row.ItemId==capsule){row.ItemId=pool[rng.Next(pool.Length)];changed++;}
-        _banCapsule=true;_presets.Add("marts.ban-ability-capsule");
+        _mintOperation|=mint;_banCapsule=true;RecipeState=(RecipeState??new()) with{BanCapsule=true};_presets.Add("marts.ban-ability-capsule");
         return changed;
     }
     private void ValidateVitamins(IReadOnlyList<int> ids,byte[][]? records=null)

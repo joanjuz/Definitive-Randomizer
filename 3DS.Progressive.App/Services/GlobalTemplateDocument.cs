@@ -59,6 +59,16 @@ internal sealed class GlobalTemplateDocument
             extension["PartialSnapshot"]=true;template.SetSection("ProgressiveApp",extension);
         }
         template.MergeHistoryActions(history);
+        // Preserve the explicit opt-in when rebuilding settings after restarting the application.
+        var recent=applied is null?history.Entries:history.Entries.SkipWhile(entry=>entry.Id!=applied.Id).Skip(1);
+        var martEntry=recent.LastOrDefault(entry=>!string.IsNullOrEmpty(entry.Parameters.GetValueOrDefault("Gen7MartRecipe")));
+        if(loaded is null&&martEntry is not null)
+        {
+            var saved=Parse(martEntry.Parameters["Gen7MartRecipe"],expectedGame,expectedGeneration);
+            NativeGen7MartBridge.Capture(template,NativeGen7MartBridge.Read(saved)!);
+        }
+        var mintEntry=recent.LastOrDefault(entry=>entry.Parameters.ContainsKey(UsumMintItemPolicy.Node));
+        if(loaded is null&&mintEntry is not null)UsumMintItemPolicy.Capture(template,mintEntry.Parameters[UsumMintItemPolicy.Node]=="true");
         if(source is not null)template.SourcePath=source;
         return template;
     }
@@ -138,7 +148,9 @@ internal sealed class GlobalTemplateDocument
         {
             if(entry.Parameters.ContainsKey("ManualOperation")||entry.Parameters.ContainsKey("ManualEdits"))continue;
             if(!entry.Parameters.TryGetValue("ActionId",out string? id)||
-                string.IsNullOrWhiteSpace(id)||!current.Add(id))continue;
+                string.IsNullOrWhiteSpace(id)||id is "usum.nature-mints.install" or "usum.nature-mints.icons.install"||!current.Add(id))continue;
+            // Mint installation stays in the audit trail. Replay validates the installed
+            // dependency instead of trying to install executable patches automatically.
             // History records demonstrate that a module ran, but do not invent missing
             // legacy RandSettings or detailed action parameter payloads.
             actions.Add(new JsonObject{["Id"]=id,["Parameters"]=entry.Parameters.TryGetValue("ActionParameters",out var payload)?JsonNode.Parse(payload):new JsonObject()});

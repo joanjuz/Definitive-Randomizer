@@ -25,13 +25,13 @@ namespace ThreeDS.Progressive;
 /// <summary>Native dark WPF editor for real USUM Shop.cro regular/BP inventories.</summary>
 internal sealed class MartEditorView : UserControl
 {
-    private readonly Button[] _recipeFlags=Enumerable.Range(0,7).Select(_=>new Button()).ToArray();
-    private readonly bool[] _recipeSelected=new bool[7];
+    private readonly Button[] _recipeFlags=Enumerable.Range(0,8).Select(_=>new Button()).ToArray();
+    private readonly bool[] _recipeSelected=new bool[8];
     private int _previewSeed=System.Security.Cryptography.RandomNumberGenerator.GetInt32(int.MaxValue);
     // Single purchase white list chosen here; null keeps the one already in Shop.cro.
     private IReadOnlyList<ushort>? _exempt;
-    internal Gen7MartState RememberRecipe()=>new(_recipeSelected[0],_recipeSelected[1],_recipeSelected[2],_recipeSelected[3],_recipeSelected[4],_recipeSelected[5],_specialOnly.IsChecked==true,_protectX.IsChecked==true,_recipeSelected[6],_exempt);
-    internal void RestoreRecipe(Gen7MartState s){bool[] flags=[s.RandomRegular,s.RandomBP,s.Candies,s.Vitamins,s.FreeMega,s.BanCapsule,s.SinglePurchase];for(int i=0;i<flags.Length;i++)SetRecipeSelection(i,flags[i]);_specialOnly.IsChecked=s.SpecialsOnly;_protectX.IsChecked=s.ProtectX;_exempt=s.Exempt;}
+    internal Gen7MartState RememberRecipe()=>new(_recipeSelected[0],_recipeSelected[1],_recipeSelected[2],_recipeSelected[3],_recipeSelected[4],_recipeSelected[5],_specialOnly.IsChecked==true,_protectX.IsChecked==true,_recipeSelected[6],_exempt,_recipeSelected[7]);
+    internal void RestoreRecipe(Gen7MartState s){bool[] flags=[s.RandomRegular,s.RandomBP,s.Candies,s.Vitamins,s.FreeMega,s.BanCapsule,s.SinglePurchase,s.AddMints];for(int i=0;i<flags.Length;i++)SetRecipeSelection(i,flags[i]);_specialOnly.IsChecked=s.SpecialsOnly;_protectX.IsChecked=s.ProtectX;_exempt=s.Exempt;}
     private readonly GameProjectSession _project;
     private GameMartService _service;
     private MartShopPreview? _pending;
@@ -77,7 +77,7 @@ internal sealed class MartEditorView : UserControl
             Foreground = soft, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 4, 0, 10)
         });
         heading.Children.Add(new TextBlock{Text="Opciones de la vista previa y de Global/Batch",Foreground=soft});
-        var recipes=new WrapPanel();string[] labels=["Randomizar tiendas","Randomizar BP","Caramelos raros",project.GameConfiguration.USUM?"Vitaminas 252 EV":"Objetos de entrenamiento EV","Megapiedras gratis (en BP)","Prohibir Cápsula Habilidad","Solo un objeto en tiendas especiales"];
+        var recipes=new WrapPanel();string[] labels=["Randomizar tiendas","Randomizar BP","Caramelos raros",project.GameConfiguration.USUM?"Vitaminas 252 EV":"Objetos de entrenamiento EV","Megapiedras gratis (en BP)","Prohibir Cápsula Habilidad","Solo un objeto en tiendas especiales","21 mentas en stocks generales (0–7)"];
         for(int i=0;i<_recipeFlags.Length;i++)
         {
             int index=i;var button=_recipeFlags[i];button.Content=labels[i];button.Margin=new Thickness(0,4,8,8);
@@ -86,9 +86,11 @@ internal sealed class MartEditorView : UserControl
             remove.Click+=(_,_)=>{SetRecipeSelection(index,false);Dirty();Preview();};
             button.ContextMenu=new ContextMenu{Items={remove}};
             SetRecipeSelection(i,i==6&&_service.HasSinglePurchase);
+            if(i==7)button.Visibility=project.GameConfiguration.USUM?Visibility.Visible:Visibility.Collapsed;
             if(i==6){button.Visibility=project.GameConfiguration.USUM?Visibility.Visible:Visibility.Collapsed;System.Windows.Automation.AutomationProperties.SetName(button,labels[i]);button.ToolTip="USUM: una unidad de cada objeto por tienda especial. No afecta a tiendas por pruebas ni BP. Se conserva al guardar y reiniciar; Global/Batch lo aplica a los inventarios finales.";}
             recipes.Children.Add(button);
         }
+        heading.Children.Add(new UsumMintPoolControl(project,Dirty));
         heading.Children.Add(recipes);
         var whitelist=Add(recipes,"Lista blanca de compra única…",EditWhitelist);
         whitelist.Margin=new Thickness(0,4,8,8);whitelist.Visibility=project.GameConfiguration.USUM?Visibility.Visible:Visibility.Collapsed;

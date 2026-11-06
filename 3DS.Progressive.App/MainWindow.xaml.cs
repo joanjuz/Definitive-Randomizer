@@ -560,6 +560,8 @@ public partial class MainWindow : Window
     private Action PrepareGlobalOptions(GlobalTemplateDocument document)
     {
         if(_session is null)return ()=>{};
+        UsumMintItemPolicy.ValidateSession(_session,document);
+        bool mintInclusion=UsumMintItemPolicy.Read(document);
         NativeMasterBatchBridge.ValidateSession(_session,document,forReplay:false);
         NativeGen7MachineBridge.ValidateSession(_session,document,forReplay:false);
         var machineRecipe=NativeGen7MachineBridge.Read(document);
@@ -575,6 +577,7 @@ public partial class MainWindow : Window
         var states=editors.Select(editor=>(editor.Title,State:GlobalEditorTemplateBridge.Restore(document,editor,_session.Generation))).ToArray();
         return ()=>
         {
+        _session.MintItems.Include=mintInclusion;
         if(martRecipe is not null){_gen7MartState=martRecipe;_martView?.RestoreRecipe(martRecipe);}
         if(machineRecipe is not null){_gen7MachineState=machineRecipe;_machineTutorView?.RestoreRecipe(machineRecipe);}
         if(personalMaster is not null)_personalTools.RestoreGlobalState(personalMaster);
@@ -588,6 +591,7 @@ public partial class MainWindow : Window
     private void CaptureGlobalOptions(GlobalTemplateDocument document)
     {
         if(_session is null)return;
+        UsumMintItemPolicy.Capture(document,_session.MintItems.Include);
         if(_mart6View is not null)_sectionOptions[_mart6View.Editor.Title]=_mart6View.RememberOptions();
         if(_personalTools.CaptureGlobalState() is {} personalMaster)NativeMasterBatchBridge.Capture(document,personalMaster,_session.Generation);
         if(_movesView?.CaptureGlobalState() is {} movesMaster)NativeMasterBatchBridge.Capture(document,movesMaster,_session.Generation);

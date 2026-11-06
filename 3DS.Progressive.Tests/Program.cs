@@ -135,6 +135,8 @@ if(args.Length==1&&args[0]=="--definitive-game-data-only")
     ui.SetApartmentState(ApartmentState.STA);ui.Start();ui.Join();if(failure is not null)throw failure;
     Console.WriteLine($"Completed {checks} Definitive Game Data checks.");return;
 }
+if(args.Length==4&&args[0]=="--usum-mints-distribution-real-copies"){await UsumMintDistributionRealChecks.Run(args[1],args[2],args[3],Check);Console.WriteLine($"Completed {checks} private mint distribution checks.");return;}
+if(args.Length==1&&args[0]=="--usum-mints-distribution-only"){UsumMintDistributionChecks.Run(Check,Reject);Console.WriteLine($"Completed {checks} USUM mint distribution checks.");return;}
 if(args.Length==1&&args[0]=="--usum-mints-only"){UsumNatureMintChecks.Run(Check,Reject);Console.WriteLine($"Completed {checks} USUM mint checks.");return;}
 if(args.Length==1&&args[0]=="--usum-mints-ui-only"){
     Exception? failure=null;var thread=new Thread(()=>{try{UsumNatureMintChecks.RunUi(Check);}catch(Exception ex){failure=ex;}});

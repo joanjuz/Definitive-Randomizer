@@ -146,6 +146,7 @@ internal static class UsumNatureMintChecks
         var view=new ThreeDS.Progressive.UsumNatureMintView(f.Session,()=>opened++);
         view.Measure(new System.Windows.Size(1000,720));view.Arrange(new System.Windows.Rect(0,0,1000,720));view.UpdateLayout();
         var nodes=Descendants(view).ToArray();
+        check(nodes.OfType<System.Windows.Controls.CheckBox>().Any(c=>System.Windows.Automation.AutomationProperties.GetName(c)==UsumMintItemPolicy.Label&&c.IsChecked==false),"MintUiDistributionOptInOffByDefault");
         check(nodes.OfType<System.Windows.Controls.TextBlock>().Any(t=>t.Text==UsumNatureMintService.Warning+"."),"MintUiRealNatureWarningVisible");
         var buttons=nodes.OfType<System.Windows.Controls.Button>().ToArray();
         check(buttons.Length==5&&buttons.Where(b=>b.Content.ToString() is "Descargar y preparar iconos (Pok\u00e9API)" or "Instalar iconos preparados").All(b=>!b.IsEnabled)&&buttons.Single(b=>b.Content.ToString()=="Instalar 21 mentas").IsEnabled==false,"MintUiFiveActionsAndNoUnpreparedInstall");

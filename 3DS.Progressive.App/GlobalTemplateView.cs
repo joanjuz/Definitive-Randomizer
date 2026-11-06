@@ -69,6 +69,11 @@ internal sealed class GlobalTemplateView : UserControl
         header.Children.Add(_name);
         _meta=new TextBlock{Foreground=(Brush)FindResource("TextSoft"),TextWrapping=TextWrapping.Wrap};
         header.Children.Add(_meta);
+        header.Children.Add(new UsumMintPoolControl(project,()=>
+        {
+            if(_loaded is not null)UsumMintItemPolicy.Capture(_loaded,project.MintItems.Include);
+            InvalidatePreview();
+        }));
         _status=new TextBlock{Foreground=(Brush)FindResource("TextSoft"),TextWrapping=TextWrapping.Wrap,
             Margin=new Thickness(0,8,0,6)};
         DockPanel.SetDock(_status,Dock.Bottom);root.Children.Add(_status);
@@ -125,6 +130,7 @@ internal sealed class GlobalTemplateView : UserControl
             $"{document.SettingsCount} líneas RandSettings · {document.TrainerCapCount} Trainer Caps · " +
             $"{document.TrainerMoveRuleCount} Trainer Move Rules · {document.PlayerCapCount} Player Caps · " +
             $"{document.AssetCount} assets · {(document.Section("ProgressiveApp")?["ManualEdits"]?["Entries"]?.AsArray().Count??0)+ManualOperations.Read(document).Length} modificaciones exactas · {_actions.Count} acciones · SHA {document.Sha256[..12]}…";
+        _meta.Text+=" · Mentas Gen7: "+(UsumMintItemPolicy.Read(document)?"incluidas (requiere parche)":"excluidas del pool");
         _save.IsEnabled=true;
         _status.Text=warning??"Receta validada y cargada en memoria. Nada se escribió en la ROM.";
     }

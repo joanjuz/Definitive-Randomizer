@@ -147,7 +147,7 @@ internal static class GlobalEditorTemplateBridge
     {
         if(document.SettingsCount==0&&!NativeRecipeCompletion.HasAllSelectedSnapshots(document))throw new InvalidDataException("La receta sin RandSettings requiere la configuración nativa de todas sus acciones.");
         if(document.Generation==7){_=ShinyRateTemplate.Read(document);NativeRecipeCompletion.ValidatePickupParameters(document);}
-        NativeGen7WildBridge.ValidateDocument(document);NativeGen7MartBridge.ValidateDocument(document);NativeGen7MachineBridge.ValidateDocument(document);NativeMasterBatchBridge.ValidateDocument(document);NativeGen7FieldBridge.ValidateDocument(document);
+        UsumMintItemPolicy.ValidateDocument(document);NativeGen7WildBridge.ValidateDocument(document);NativeGen7MartBridge.ValidateDocument(document);NativeGen7MachineBridge.ValidateDocument(document);NativeMasterBatchBridge.ValidateDocument(document);NativeGen7FieldBridge.ValidateDocument(document);
         if(document.Generation==6)NativeBatchGen6Bridge.ValidateDocument(document);
         else NativeBatchGen7StaticBridge.ValidateDocument(document);
         var native=document.Section("ProgressiveApp");

@@ -22,6 +22,9 @@ public sealed partial class GameFieldItemsService : IProjectEditor,IOptionTempla
     private byte[] _sha;
     private DisplayFileStamp _displayStamp;
     private readonly IReadOnlyList<MoveChoice> _itemChoices;
+    internal bool? MintInclusion {get;set;}
+    internal GameProjectSession Project=>_project;
+    private bool IncludeMints=>MintInclusion??_project.MintItems.Include;
     public string Title=>"Field Items";
     public IReadOnlyList<RecordEntry> Entries {get;}
     private IReadOnlyList<EditorGroup> BaseRandomOptions=>[
@@ -136,7 +139,10 @@ public sealed partial class GameFieldItemsService : IProjectEditor,IOptionTempla
         byte[] proposed=lazy.Save();
         var verify=new GARC.LazyGARC(proposed);
         if(ReadValue(id,verify)!=after)throw new InvalidDataException("La relectura del recogible no coincide.");
-        _project.History.Commit([new FileChange(_path,source,proposed)],Title,"Editar Field Item",
+        var files=new[]{new FileChange(_path,source,proposed)};
+        var dependency=_config.USUM&&UsumMintItemPolicy.Ids.Contains(after)?_project.MintItems.Capture():null;
+        using var mintLocks=dependency?.Lock(files);
+        _project.History.Commit(files,Title,"Editar Field Item",
             [new BatchChange(id,Entries[id-1].Name,"Objeto",GetItemName(before),GetItemName(after))]);
         _sha=SHA256.HashData(proposed);
         _locations[id]=_locations[id] with {OriginalItem=after};
@@ -147,6 +153,7 @@ public sealed partial class GameFieldItemsService : IProjectEditor,IOptionTempla
         var s=_locations[id];
         if(s.Source=="EI"&&settings["IncludeEI"]==0||s.Source=="EB"&&settings["IncludeEB"]==0)return false;
         int item=s.OriginalItem;string name=GetItemName(item).ToLowerInvariant();
+        if(_config.USUM&&UsumMintItemPolicy.Ids.Contains(item))return IncludeMints;
         if(settings["ExcludeMachines"]==1&&(item is >=328 and <=434||
             name.StartsWith("tm")||name.StartsWith("mt")||name.StartsWith("mo")||name.StartsWith("hm")))return false;
         if(settings["ExcludeKey"]==1)
@@ -160,6 +167,7 @@ public sealed partial class GameFieldItemsService : IProjectEditor,IOptionTempla
     internal EditorProposal Preview(IReadOnlyDictionary<string,int> options,IReadOnlyList<int> scope,int seed)
     {
         EditorValues.Validate(RandomOptions,options);
+        var mintDependency=IncludeMints?_project.MintItems.Capture():null;
         if(scope.Any(id=>!_locations.ContainsKey(id)))throw new ArgumentException("La selección contiene Field Items inválidos.");
         var ids=scope.Distinct().Where(id=>Eligible(id,options)).ToArray();
         if(ids.Length<2)throw new ArgumentException("Selecciona al menos dos Field Items seguros para mezclar.");
@@ -167,15 +175,17 @@ public sealed partial class GameFieldItemsService : IProjectEditor,IOptionTempla
         int[] original=ids.Select(id=>ReadValue(id,lazy)).ToArray();
         int[] shuffled=(int[])original.Clone();
         var random=new Random(seed);
-        int[] eligible=(_itemTemplate.AllowedItems.Length>0?_itemTemplate.AllowedItems:original).Where(_itemTemplate.Allows).Distinct().Where(item=>
+        int[] candidates=_project.MintItems.Pool(_itemTemplate.AllowedItems.Length>0?_itemTemplate.AllowedItems:original,IncludeMints,_itemTemplate.Allows);
+        int[] eligible=candidates.Where(_itemTemplate.Allows).Distinct().Where(item=>
         {
+            if(_config.USUM&&UsumMintItemPolicy.Ids.Contains(item))return IncludeMints;
             string name=GetItemName(item).ToLowerInvariant();
             if(options["ExcludeMachines"]==1&&(item is >=328 and <=434||name.StartsWith("tm")||name.StartsWith("mt")))return false;
             if(options["ExcludeKey"]==1&&new[]{"ticket","key","llave","pase","tarjeta","fósil","fosil","bicicleta","scanner","card"}.Any(name.Contains))return false;
             return true;
         }).ToArray();
         if(eligible.Length==0)throw new InvalidDataException("La plantilla y los filtros dejan el catálogo vacío.");
-        for(int i=0;i<shuffled.Length;i++)if(_itemTemplate.AllowedItems.Length>0||!_itemTemplate.Allows(shuffled[i]))shuffled[i]=eligible[random.Next(eligible.Length)];
+        for(int i=0;i<shuffled.Length;i++)if(IncludeMints||_itemTemplate.AllowedItems.Length>0||!_itemTemplate.Allows(shuffled[i]))shuffled[i]=eligible[random.Next(eligible.Length)];
         for(int i=shuffled.Length-1;i>0;i--){int j=random.Next(i+1);(shuffled[i],shuffled[j])=(shuffled[j],shuffled[i]);}
         var changes=new List<BatchChange>();
         var edits=new Dictionary<int,int>();
@@ -190,13 +200,14 @@ public sealed partial class GameFieldItemsService : IProjectEditor,IOptionTempla
         byte[] output=lazy.Save();
         return new EditorProposal(_owner,"Randomizar Field Items",seed,
             [new FileChange(_path,source,output)],changes,
-            new Dictionary<string,string> {["ActionId"]="field-items.randomize",["Scope"]=ids.Length==Entries.Count?"All":string.Join(",",ids),["Seed"]=seed.ToString()});
+            UsumMintItemPolicy.Parameters(new Dictionary<string,string> {["ActionId"]="field-items.randomize",["Scope"]=ids.Length==Entries.Count?"All":string.Join(",",ids),["Seed"]=seed.ToString()},IncludeMints),mintDependency?.Files);
     }
     public void Apply(EditorProposal proposal)
     {
         if(proposal.Owner!=_owner)throw new InvalidOperationException("La propuesta pertenece a otra sesión.");
         _=Original();
         foreach(var file in proposal.Files)GarcTransaction.ReadUnchanged(file.Path,file.Fingerprint);
+        using var mintLocks=MintItemDependency.Lock(_project,proposal.Dependencies,proposal.Files);
         _project.History.Commit(proposal.Files,Title,proposal.Action,proposal.Changes,proposal.Parameters);
         byte[] bytes=File.ReadAllBytes(_path);
         _sha=SHA256.HashData(bytes);

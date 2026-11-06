@@ -4,9 +4,15 @@
 public static class NativeBatchRomBridge
 {
     public static void ApplyPickup(string root,int seed)=>ApplyPickupSession(GameProjectSession.Open(root,recoverInterruptedSave:false),seed);
-    internal static void ApplyPickupSession(GameProjectSession project,int seed)
+    public static void ApplyPickupRecipe(string root,int seed,string json)
     {
-        if(project.Generation!=7)throw new System.IO.InvalidDataException("El replay de Pickup requiere Gen7.");var editor=new GamePickupService(project);var proposal=editor.Preview(editor.Randomize(editor.Read(),seed));if(proposal.Changes.Count>0)editor.Apply(proposal);
+        var project=GameProjectSession.Open(root,recoverInterruptedSave:false);
+        var document=GlobalTemplateDocument.Parse(json,project.GameName,project.Generation);UsumMintItemPolicy.ValidateSession(project,document);
+        ApplyPickupSession(project,seed,UsumMintItemPolicy.Read(document));
+    }
+    internal static void ApplyPickupSession(GameProjectSession project,int seed,bool includeMints=false)
+    {
+        if(project.Generation!=7)throw new System.IO.InvalidDataException("El replay de Pickup requiere Gen7.");var editor=new GamePickupService(project){MintInclusion=includeMints};var proposal=editor.Preview(editor.Randomize(editor.Read(),seed));if(proposal.Changes.Count>0)editor.Apply(proposal);
     }
     public static void ApplyShiny(string root,int rerolls,bool everything)
     {

@@ -11,6 +11,7 @@ Punto de entrada a `docs/3ds-progressive/`. Muchos documentos son **registros hi
 | Plan previo de mentas Gen7 USUM: referencia, licencia y aceptación | [MENTAS_GEN7_USUM_PLAN_20261105.md](MENTAS_GEN7_USUM_PLAN_20261105.md) |
 | Mentas USUM fase 1: funcionalidad jugable confirmada, casos pendientes e iconos | [MENTAS_GEN7_USUM_FASE1.md](MENTAS_GEN7_USUM_FASE1.md) |
 | Iconos de mentas USUM fase 1.1: fuentes, conversión, instalación y prueba visual | [MENTAS_GEN7_USUM_ICONOS_FASE11.md](MENTAS_GEN7_USUM_ICONOS_FASE11.md) |
+| Mentas USUM fase 2: pools opcionales, distribución, Global Template y Batch | [MENTAS_GEN7_USUM_FASE2.md](MENTAS_GEN7_USUM_FASE2.md) |
 | Definitive Game Data v1: exportación USUM e integración con Tracker | [Contrato técnico](../contracts/DEFINITIVE_GAME_DATA_V1.md) |
 | Historial: habilitación de Deshacer tras verificar archivos | [HISTORY_UNDO_BUTTON_20261105.md](HISTORY_UNDO_BUTTON_20261105.md) |
 | H2/H3: recuperación de guardados individuales | [H2_H3_GUARDADOS_INDIVIDUALES_20261104.md](H2_H3_GUARDADOS_INDIVIDUALES_20261104.md) |
