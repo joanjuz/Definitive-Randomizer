@@ -8,6 +8,8 @@ internal static class RunnerCatalog
 {
     internal static readonly RunnerOption[] Options=
     [
+        new("--usum-mint-icons-real-copies","<salida nueva> <Ultra Sol fase 1> <Ultra Luna fase 1>",RunnerCategory.Real,false),
+        new("--usum-mint-icons-only","",RunnerCategory.Synthetic,true),
         new("--usum-mints-only","",RunnerCategory.Synthetic,true),
         new("--usum-mints-ui-only","",RunnerCategory.Ui,true),
         new("--usum-mints-arm-fixtures","<carpeta de fixtures sintéticos>",RunnerCategory.Synthetic,true),

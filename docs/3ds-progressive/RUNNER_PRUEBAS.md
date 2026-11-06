@@ -4,6 +4,10 @@
 
 ## Uso
 
+`--usum-mint-icons-only` ejecuta las pruebas sintéticas de conversión, descarga/caché con HTTP simulado y ciclo de instalación/historial/deshacer de iconos en US/UM. No descarga gráficos comerciales. Se ejecuta en CI.
+
+`--usum-mint-icons-real-copies <salida nueva> <Ultra Sol fase 1> <Ultra Luna fase 1>` descarga las fuentes fijadas de PokéAPI y crea copias privadas nuevas para instalar, reabrir, deshacer y reinstalar, conservando tiendas y otros archivos. Nunca edita los orígenes. `--usum-mints-rebuild` también comprueba los iconos tras la reextracción si estaban reconocidos en el proyecto de entrada. Estas comprobaciones no acreditan la imagen dentro del emulador.
+
 `--mart-selector-only` verifica con controles WPF reales fuera de pantalla y Shop.cro sintético la búsqueda de las 21 mentas, selección con Enter y un clic, actualización inmediata, salida de celda, cambio de tienda, vista previa, guardado transaccional y reapertura de tiendas normales y BP. También se incluye en `--rebuild-marts-ui-only` (CI).
 
 `--mart-selector-usum-copy <Shop.cro USUM privado>` ejecuta ese recorrido sobre una copia desechable del archivo indicado, con el resto de datos sintéticos. Lee el origen sin modificarlo; no distribuye datos comerciales ni valida el efecto de las mentas dentro del juego.
