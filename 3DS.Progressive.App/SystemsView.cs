@@ -145,6 +145,10 @@ internal sealed class SystemsView : UserControl
     internal void OpenRelearnerForChecks()=>_navigate("UsumRelearner");
     private void BuildMechanics(Panel stack)
     {
+        if(_project.GameConfiguration.USUM){
+            var mints=Card("Mentas Gen7 — Ultra Sol / Ultra Luna","Instala 21 mentas consumibles y consulta el estado del parche. Cambian la naturaleza real del Pokémon.","Se comprueban huellas de US/UM y recursos; instalación transaccional y deshacer. Después puedes añadirlas manualmente desde Tiendas y BP.");
+            AddButton((StackPanel)mints.Child,"Abrir Mentas Gen7",()=>_navigate("UsumNatureMints"));stack.Children.Add(mints);
+        }
         if(_project.GameConfiguration.ORAS)
         {
             var tutors=Card("Tutores BP · ORAS","Qué movimientos enseñan los tutores de ORAS y cuántos BP cuestan, a mano o randomizados.","Edita y randomiza los 60 movimientos de tutor y sus precios. Sincroniza las listas de compatibilidad y la tabla de tienda.");

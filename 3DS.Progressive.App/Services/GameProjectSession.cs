@@ -78,7 +78,20 @@ public sealed partial class GameProjectSession
     public IReadOnlyList<PokemonListEntry> Entries { get; }
     public IReadOnlyList<string> Types { get; }
     public IReadOnlyList<string> AbilityNames { get; }
-    public IReadOnlyList<string> ItemNames { get; }
+    public IReadOnlyList<string> ItemNames { get; private set; }
+    internal void RefreshItemNames()
+    {
+        _config.InitializeGameText();
+        ItemNames=_config.GetText(TextName.ItemNames);
+    }
+    internal void RefreshMintItemNames()
+    {
+        if(!_config.USUM)return;
+        bool cached=UsumNatureMintCatalog.Mints.Any(m=>m.ItemId<ItemNames.Count&&
+            (ItemNames[m.ItemId].StartsWith("Menta ",StringComparison.Ordinal)||ItemNames[m.ItemId]==m.EnglishNature+" Mint"));
+        string bag=Path.Combine(_config.RomFS,"Bag.cro");
+        if(cached||File.Exists(bag)&&File.ReadAllBytes(bag).AsSpan().IndexOf("DGMINT1\0"u8)>=0)RefreshItemNames();
+    }
     public IReadOnlyList<string> MoveNames { get; }
     public IReadOnlyList<ushort> TmMoveIds { get; private set; }
     public IReadOnlyList<ushort> BeachTutorMoveIds { get; private set; }

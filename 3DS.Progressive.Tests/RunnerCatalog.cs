@@ -8,6 +8,11 @@ internal static class RunnerCatalog
 {
     internal static readonly RunnerOption[] Options=
     [
+        new("--usum-mints-only","",RunnerCategory.Synthetic,true),
+        new("--usum-mints-ui-only","",RunnerCategory.Ui,true),
+        new("--usum-mints-arm-fixtures","<carpeta de fixtures sintéticos>",RunnerCategory.Synthetic,true),
+        new("--usum-mints-real-copies","<carpeta nueva de salida> <Ultra Sol extraído> <Ultra Luna extraído>",RunnerCategory.Real,false),
+        new("--usum-mints-rebuild","<proyecto con mentas> <imagen 3DS nueva> <carpeta nueva de reextracción>",RunnerCategory.Real,false),
         new("--definitive-game-data-only","",RunnerCategory.Ui,false),
         new("--definitive-game-data-fixture","<archivo JSON nuevo fuera del proyecto>",RunnerCategory.Synthetic,false),
         new("--batch-gen6-only","",RunnerCategory.Synthetic,false),
@@ -40,6 +45,8 @@ internal static class RunnerCatalog
         new("--requested-only","",RunnerCategory.Synthetic,false),
         new("--shiny-batch-only","",RunnerCategory.Synthetic,false),
         new("--single-purchase-only","",RunnerCategory.Synthetic,false),
+        new("--mart-selector-only","",RunnerCategory.Ui,true),
+        new("--mart-selector-usum-copy","<Shop.cro USUM privado (solo lectura)>",RunnerCategory.Real,false),
         new("--sm-marts-only","",RunnerCategory.Synthetic,false),
         new("--starter-text-only","",RunnerCategory.Synthetic,false),
         new("--statics7-batch-only","",RunnerCategory.Synthetic,false),

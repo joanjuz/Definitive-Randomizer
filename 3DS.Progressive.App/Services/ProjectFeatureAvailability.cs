@@ -12,7 +12,7 @@ internal static class ProjectFeatureAvailability
         "TitleScreen6"=>project.Generation==6,
         "TitleScreen7"=>project.Generation==7,
         "GarcShuffle"=>project.Generation==6,
-        "PersistentItems" or "PlayerCaps" or "UsumRelearner" or "CroRecipes"=>project.GameConfiguration.USUM,
+        "PersistentItems" or "PlayerCaps" or "UsumRelearner" or "UsumNatureMints" or "CroRecipes"=>project.GameConfiguration.USUM,
         "Trade6" or "CatchZones" or "OPower"=>project.Generation==6,
         "OWSE"=>project.Generation==7,
         "Marts"=>project.Generation is 6 or 7,

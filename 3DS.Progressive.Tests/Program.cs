@@ -10,6 +10,18 @@ using ThreeDS.Progressive.Models;
 using ThreeDS.Progressive.Services;
 
 if(RunnerCatalog.IsHelp(args)){RunnerCatalog.Print();return;}
+if(args.Length==2&&args[0]=="--usum-mints-arm-fixtures"){UsumNatureMintChecks.ArmFixtures(args[1]);return;}
+if(args.Length==4&&args[0]=="--usum-mints-real-copies"){UsumNatureMintChecks.RealCopies(args[1],args[2],args[3]);return;}
+if(args.Length==4&&args[0]=="--usum-mints-rebuild"){
+    var mintProject=GameProjectSession.Open(args[1],false);
+    if(new UsumNatureMintService(mintProject).Inspect().State!=pk3DS.Core.Modding.Research.UsumMintState.Installed)throw new InvalidDataException("El proyecto no tiene mentas reconocidas.");
+    var built=new GameRomRebuildService(mintProject).BuildAsync(RomRebuildKind.Full3DS,args[2]).GetAwaiter().GetResult();
+    Console.WriteLine($"Mint full rebuild: {built.File}, {built.Bytes} bytes, SHA256 {built.Hash}");
+    RealRebuildChecks.VerifyExisting(args[1],args[2],args[3]);
+    var reopened=GameProjectSession.Open(args[3],false);
+    if(new UsumNatureMintService(reopened).Inspect().State!=pk3DS.Core.Modding.Research.UsumMintState.Installed)throw new InvalidDataException("Las mentas no persistieron tras reconstruir/reextraer.");
+    Console.WriteLine("PASS MintRebuildRoundtrip recognized after full rebuild and byte-exact extraction; gameplay NOT tested.");return;
+}
 if(args.Length==2&&args[0]=="--definitive-game-data-fixture"){DefinitiveGameDataChecks.WriteInteropFixture(args[1]);Console.WriteLine("Exported synthetic DGD interop fixture.");return;}
 if(args.Length==3&&args[0]=="--extract-independent-image"){var extraction=new GameRomExtractionService().ExtractAsync(args[1],args[2]).GetAwaiter().GetResult();Console.WriteLine($"PASS EXTRACTION: {extraction.Files} files; source SHA256 {extraction.SourceSha256}; {extraction.Folder}");return;}
 if(args.Length==3&&args[0]=="--audit-catch-templates"){CatchZoneReferenceAudit.Run(args[1],args[2]);return;}
@@ -120,6 +132,12 @@ if(args.Length==1&&args[0]=="--definitive-game-data-only")
     ui.SetApartmentState(ApartmentState.STA);ui.Start();ui.Join();if(failure is not null)throw failure;
     Console.WriteLine($"Completed {checks} Definitive Game Data checks.");return;
 }
+if(args.Length==1&&args[0]=="--usum-mints-only"){UsumNatureMintChecks.Run(Check,Reject);Console.WriteLine($"Completed {checks} USUM mint checks.");return;}
+if(args.Length==1&&args[0]=="--usum-mints-ui-only"){
+    Exception? failure=null;var thread=new Thread(()=>{try{UsumNatureMintChecks.RunUi(Check);}catch(Exception ex){failure=ex;}});
+    thread.SetApartmentState(ApartmentState.STA);thread.Start();thread.Join();if(failure is not null)throw failure;
+    Console.WriteLine($"Completed {checks} USUM mint UI checks.");return;
+}
 if(args.Length==1&&args[0]=="--requested-only"){RequestedIntegrationChecks.Run(Check,Reject);Review73Checks.Run(Check,Reject);Console.WriteLine($"Completed {checks} requested checks.");return;}
 if(args.Length==1&&args[0]=="--trades6-only"){Trade6Checks.Run(Check,Reject);Console.WriteLine($"Completed {checks} Gen6 trade checks.");return;}
 if(args.Length==1&&args[0]=="--sm-marts-only"){MartSmChecks.Run(Check,Reject);Console.WriteLine($"Completed {checks} SM mart checks.");return;}
@@ -193,9 +211,13 @@ if(args.Length==2&&args[0]=="--diagnose-text-catalogue"){TextClassificationCheck
 if(args.Length>1&&args[0]=="--read-text-classification"){TextClassificationChecks.ReadReal(args.Skip(1));return;}
 if(args.Length==1&&args[0]=="--editor-modules-only"){ModuleChecks.Run(Check,Reject);RecoveryChecks.Run(Check,Reject);Console.WriteLine($"Completed {checks} editor and recovery checks.");return;}
 if(args.Length>1&&args[0]=="--template-studio-shops-copies"){TemplateStudioChecks.ShopCopies(Check,args.Skip(1).ToArray());Console.WriteLine($"Completed {checks} isolated shop template checks.");return;}
+if(args.Length==1&&args[0]=="--mart-selector-only"||args.Length==2&&args[0]=="--mart-selector-usum-copy")
+{
+    Exception? failure=null;var thread=new Thread(()=>{try{var app=new ThreeDS.Progressive.App();app.InitializeComponent();WpfTestHost.SuppressStartup();ThreeDS.Progressive.StudioDialog.AutomatedChecks=true;MartSelectorChecks.Run(Check,args.Length==2?args[1]:null);}catch(Exception ex){failure=ex;}});thread.SetApartmentState(ApartmentState.STA);thread.Start();thread.Join();if(failure is not null)System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(failure).Throw();Console.WriteLine($"Completed {checks} mart selector checks (WPF off-screen).");return;
+}
 if(args.Length==1&&args[0]=="--rebuild-marts-ui-only")
 {
-    Exception? failure=null;var thread=new Thread(()=>{try{var app=new ThreeDS.Progressive.App();app.InitializeComponent();WpfTestHost.SuppressStartup();ThreeDS.Progressive.StudioDialog.AutomatedChecks=true;RebuildMartUiChecks.Run(Check);MartSmChecks.Run(Check,Reject);}catch(Exception ex){failure=ex;}});thread.SetApartmentState(ApartmentState.STA);thread.Start();thread.Join();if(failure is not null)System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(failure).Throw();Console.WriteLine($"Completed {checks} rebuild and mart UI checks (off-screen, not interactive).");return;
+    Exception? failure=null;var thread=new Thread(()=>{try{var app=new ThreeDS.Progressive.App();app.InitializeComponent();WpfTestHost.SuppressStartup();ThreeDS.Progressive.StudioDialog.AutomatedChecks=true;RebuildMartUiChecks.Run(Check);MartSelectorChecks.Run(Check);MartSmChecks.Run(Check,Reject);}catch(Exception ex){failure=ex;}});thread.SetApartmentState(ApartmentState.STA);thread.Start();thread.Join();if(failure is not null)System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(failure).Throw();Console.WriteLine($"Completed {checks} rebuild and mart UI checks (off-screen, not interactive).");return;
 }
 if(args.Length==1&&args[0]=="--item-icons-only")
 {
