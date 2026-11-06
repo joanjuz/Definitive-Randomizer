@@ -69,11 +69,6 @@ internal sealed class GlobalTemplateView : UserControl
         header.Children.Add(_name);
         _meta=new TextBlock{Foreground=(Brush)FindResource("TextSoft"),TextWrapping=TextWrapping.Wrap};
         header.Children.Add(_meta);
-        header.Children.Add(new UsumMintPoolControl(project,()=>
-        {
-            if(_loaded is not null)UsumMintItemPolicy.Capture(_loaded,project.MintItems.Include);
-            InvalidatePreview();
-        }));
         _status=new TextBlock{Foreground=(Brush)FindResource("TextSoft"),TextWrapping=TextWrapping.Wrap,
             Margin=new Thickness(0,8,0,6)};
         DockPanel.SetDock(_status,Dock.Bottom);root.Children.Add(_status);
