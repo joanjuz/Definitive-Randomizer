@@ -29,7 +29,7 @@ internal static class UsumNatureMintChecks
         else if(id!=126)b[13]=2;
         return b;
     }
-    private static UsumNatureMintProfile Setup(Fixture f,bool moon)
+    internal static UsumNatureMintProfile Setup(Fixture f,bool moon)
     {
         ModuleChecks.CreateArchives(f);
         byte[] code=[1,2,3,(byte)(moon?4:5)];File.WriteAllBytes(Path.Combine(f.Game.ExeFS,"code.bin"),code);
@@ -148,7 +148,7 @@ internal static class UsumNatureMintChecks
         var nodes=Descendants(view).ToArray();
         check(nodes.OfType<System.Windows.Controls.TextBlock>().Any(t=>t.Text==UsumNatureMintService.Warning+"."),"MintUiRealNatureWarningVisible");
         var buttons=nodes.OfType<System.Windows.Controls.Button>().ToArray();
-        check(buttons.Length==3&&buttons.Single(b=>b.Content.ToString()=="Instalar 21 mentas").IsEnabled==false,"MintUiThreeActionsAndNoUnpreparedInstall");
+        check(buttons.Length==5&&buttons.Where(b=>b.Content.ToString() is "Descargar y preparar iconos (Pok\u00e9API)" or "Instalar iconos preparados").All(b=>!b.IsEnabled)&&buttons.Single(b=>b.Content.ToString()=="Instalar 21 mentas").IsEnabled==false,"MintUiFiveActionsAndNoUnpreparedInstall");
         buttons.Single(b=>b.Content.ToString()=="Abrir Tiendas y BP").RaiseEvent(new System.Windows.RoutedEventArgs(System.Windows.Controls.Button.ClickEvent));
         check(opened==1&&view.ConfirmLeave(),"MintUiNavigatesExistingMartEditor");
         check(ProjectFeatureAvailability.Supports(f.Session,"UsumNatureMints"),"MintUiUsumRouteAvailable");

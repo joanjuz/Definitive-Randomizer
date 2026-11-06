@@ -141,6 +141,7 @@ public sealed class GARCReference
         new(015, "megaevo"),
         new(017, "personal"),
         new(019, "item"),
+        new(061, "itemicons"),
 
         new(077, "zonedata"),
         new(091, "worlddata"),

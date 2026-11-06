@@ -9,17 +9,20 @@ using pk3DS.Core.Structures.PersonalInfo;
 using ThreeDS.Progressive.Models;
 using ThreeDS.Progressive.Services;
 
+if(args.Length==4&&args[0]=="--usum-mint-icons-real-copies"){UsumMintIconChecks.RealCopies(args[1],args[2],args[3]);return;}
 if(RunnerCatalog.IsHelp(args)){RunnerCatalog.Print();return;}
 if(args.Length==2&&args[0]=="--usum-mints-arm-fixtures"){UsumNatureMintChecks.ArmFixtures(args[1]);return;}
 if(args.Length==4&&args[0]=="--usum-mints-real-copies"){UsumNatureMintChecks.RealCopies(args[1],args[2],args[3]);return;}
 if(args.Length==4&&args[0]=="--usum-mints-rebuild"){
     var mintProject=GameProjectSession.Open(args[1],false);
     if(new UsumNatureMintService(mintProject).Inspect().State!=pk3DS.Core.Modding.Research.UsumMintState.Installed)throw new InvalidDataException("El proyecto no tiene mentas reconocidas.");
+    bool hasMintIcons=new UsumMintIconService(mintProject).Inspect().State==pk3DS.Core.Modding.Research.UsumMintState.Installed;
     var built=new GameRomRebuildService(mintProject).BuildAsync(RomRebuildKind.Full3DS,args[2]).GetAwaiter().GetResult();
     Console.WriteLine($"Mint full rebuild: {built.File}, {built.Bytes} bytes, SHA256 {built.Hash}");
     RealRebuildChecks.VerifyExisting(args[1],args[2],args[3]);
     var reopened=GameProjectSession.Open(args[3],false);
     if(new UsumNatureMintService(reopened).Inspect().State!=pk3DS.Core.Modding.Research.UsumMintState.Installed)throw new InvalidDataException("Las mentas no persistieron tras reconstruir/reextraer.");
+    if(hasMintIcons&&new UsumMintIconService(reopened).Inspect().State!=pk3DS.Core.Modding.Research.UsumMintState.Installed)throw new InvalidDataException("Mint icons did not persist after rebuild/extraction.");
     Console.WriteLine("PASS MintRebuildRoundtrip recognized after full rebuild and byte-exact extraction; gameplay NOT tested.");return;
 }
 if(args.Length==2&&args[0]=="--definitive-game-data-fixture"){DefinitiveGameDataChecks.WriteInteropFixture(args[1]);Console.WriteLine("Exported synthetic DGD interop fixture.");return;}
@@ -140,6 +143,7 @@ if(args.Length==1&&args[0]=="--usum-mints-ui-only"){
 }
 if(args.Length==1&&args[0]=="--requested-only"){RequestedIntegrationChecks.Run(Check,Reject);Review73Checks.Run(Check,Reject);Console.WriteLine($"Completed {checks} requested checks.");return;}
 if(args.Length==1&&args[0]=="--trades6-only"){Trade6Checks.Run(Check,Reject);Console.WriteLine($"Completed {checks} Gen6 trade checks.");return;}
+if(args.Length==1&&args[0]=="--usum-mint-icons-only"){UsumMintIconChecks.Run(Check,Reject);Console.WriteLine($"Completed {checks} mint icon checks.");return;}
 if(args.Length==1&&args[0]=="--sm-marts-only"){MartSmChecks.Run(Check,Reject);Console.WriteLine($"Completed {checks} SM mart checks.");return;}
 if(args.Length==1&&args[0]=="--native-wild7-only"){NativeGen7WildChecks.Run(Check,Reject);Console.WriteLine($"Completed {checks} native Wild Gen7 checks.");return;}
 if(args.Length==1&&args[0]=="--starter-text-only"){StarterTextChecks.Run(Check,Reject);Console.WriteLine($"Completed {checks} starter text checks.");return;}

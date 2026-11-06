@@ -11,3 +11,7 @@ Fuente correspondiente: `native/3ds/nature-mints/mints.s`, su generador, requisi
 Cambios de Definitive Randomizer (5/11/2026): rutina solo de mentas; criterio compartido para disponibilidad y uso; rechazo de huevos y misma naturaleza; perfiles US/UM por huella sin sondeo +8; asignación CRO, reubicación de saltos y registro verificable; conservación de filas de texto ajenas; instalación transaccional/historial y editor de tiendas existente.
 
 No se distribuyen CRO, code.bin, cabeceras, textos originales, gráficos ni ROMs de los juegos. Los perfiles contienen hashes y datos estructurales, no los archivos de origen. Los fixtures automatizados son sintéticos; las copias comerciales de validación son privadas y están fuera de Git.
+
+## Iconos opcionales de fase 1.1
+
+Los gráficos existentes se adquieren localmente desde PokeAPI/sprites, commit `1b3b7c0a538dd2226ae08d0d2f8955125075bbd4`. Su licencia atribuye las imágenes a The Pokémon Company; el CC0 del repositorio no se interpreta como una cesión de esos derechos. No se redistribuyen imágenes oficiales, texturas convertidas ni recursos del juego en este repositorio o en el paquete. La conversión utiliza el codec gráfico existente y el nuevo instalador propio; no se copió código de PokeAPI o Bulbagarden. Fuentes, límites y atribución: [fase 1.1](../3ds-progressive/MENTAS_GEN7_USUM_ICONOS_FASE11.md).

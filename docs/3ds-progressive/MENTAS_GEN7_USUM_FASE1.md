@@ -76,3 +76,7 @@ La funcionalidad principal ya tiene confirmación jugable del propietario. Este 
 ## Corrección del selector de Tiendas y BP (PR #50)
 
 El buscador utiliza un selector enlazado estable dentro de la celda: al recibir el foco ya no se retira el editor antes de confirmar el objeto. Permite buscar por nombre o ID y confirmar con un clic o Enter. La regresión `--mart-selector-only` comprueba las 21 mentas y el recorrido Carburante (48) → Menta Firme (114), salida de celda, vista previa, guardado y reapertura, incluyendo el precio BP. También se verificó ese recorrido con Shop.cro de Ultra Sol y Ultra Luna leídos en fixtures desechables con textos y CRR sintéticos. Son pruebas WPF fuera de pantalla; la confirmación jugable y los casos manuales pendientes se distinguen en el apartado anterior.
+
+## Actualización visual opcional
+
+La [fase 1.1 de iconos](MENTAS_GEN7_USUM_ICONOS_FASE11.md) permite preparar e instalar automáticamente iconos existentes de PokéAPI en proyectos con esta fase 1, sin reinstalar las mentas ni perder tiendas. La limitación de `?` anterior describe la fase 1 sin esa actualización. La prueba visual de fase 1.1 tiene ahora confirmación expresa y satisfactoria del propietario en Ultra Sol dentro del emulador: iconos correctos, funcionamiento de las mentas y conservación de los gráficos anteriores. Ultra Luna conserva sus resultados automatizados, sin confirmación visual manual declarada.
