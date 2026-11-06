@@ -146,6 +146,7 @@ internal static class UsumNatureMintChecks
         var view=new ThreeDS.Progressive.UsumNatureMintView(f.Session,()=>opened++);
         view.Measure(new System.Windows.Size(1000,720));view.Arrange(new System.Windows.Rect(0,0,1000,720));view.UpdateLayout();
         var nodes=Descendants(view).ToArray();
+        check(nodes.OfType<System.Windows.Controls.CheckBox>().Any(c=>System.Windows.Automation.AutomationProperties.GetName(c)==UsumMintItemPolicy.Label&&c.IsChecked==false),"MintUiDistributionOptInOffByDefault");
         check(nodes.OfType<System.Windows.Controls.TextBlock>().Any(t=>t.Text==UsumNatureMintService.Warning+"."),"MintUiRealNatureWarningVisible");
         var buttons=nodes.OfType<System.Windows.Controls.Button>().ToArray();
         check(buttons.Length==5&&buttons.Where(b=>b.Content.ToString() is "Descargar y preparar iconos (Pok\u00e9API)" or "Instalar iconos preparados").All(b=>!b.IsEnabled)&&buttons.Single(b=>b.Content.ToString()=="Instalar 21 mentas").IsEnabled==false,"MintUiFiveActionsAndNoUnpreparedInstall");
@@ -160,6 +161,19 @@ internal static class UsumNatureMintChecks
         var mechanics=new ThreeDS.Progressive.SystemsView(f.Session,"Mechanics",route=>navigate.Invoke(main,[route]),()=>{},()=>{});
         Logical(mechanics).OfType<System.Windows.Controls.Button>().Single(b=>b.Content.ToString()=="Abrir Mentas Gen7").RaiseEvent(new System.Windows.RoutedEventArgs(System.Windows.Controls.Button.ClickEvent));
         check(((System.Windows.Controls.ContentControl)main.FindName("SectionHost")).Content is ThreeDS.Progressive.UsumNatureMintView,"MintUiMechanicsCardOpensInstaller");main.Close();
+        var automation=new ThreeDS.Progressive.MainWindow{ShowInTaskbar=false,ShowActivated=false,Left=-32000,Top=-32000};
+        automation.Show();automation.LoadProject(f.Session);automation.ChooseExperience(false);
+        foreach(var (width,height) in new[]{(1280,800),(1536,864),(1280,720),(1093,614)})
+        foreach(string route in new[]{"GlobalTemplate","BatchRom"})
+        {
+            automation.Width=width;automation.Height=height;navigate.Invoke(automation,[route]);
+            for(int i=0;i<6;i++){automation.Dispatcher.Invoke(()=>{},System.Windows.Threading.DispatcherPriority.ContextIdle);automation.UpdateLayout();Thread.Sleep(15);}
+            var hosted=(System.Windows.FrameworkElement)((System.Windows.Controls.ContentControl)automation.FindName("SectionHost")).Content;
+            check(route=="GlobalTemplate"?hosted is ThreeDS.Progressive.GlobalTemplateView:hosted is ThreeDS.Progressive.BatchRomBuilderView,"MintUiAutomationExpectedView"+route+width+"x"+height);
+            var issues=VisualAudit.Inspect(hosted).ToArray();
+            check(issues.Length==0,"MintUiAutomationNoClipping"+route+width+"x"+height+" "+string.Join(" | ",issues));
+        }
+        automation.Close();
         static IEnumerable<System.Windows.DependencyObject> Logical(System.Windows.DependencyObject parent){
             foreach(var child in System.Windows.LogicalTreeHelper.GetChildren(parent).OfType<System.Windows.DependencyObject>()){
                 yield return child;foreach(var next in Logical(child))yield return next;

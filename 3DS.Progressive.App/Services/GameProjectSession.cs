@@ -70,6 +70,8 @@ public sealed partial class GameProjectSession
     }
 
     public string ProjectRoot { get; }
+    private UsumMintItemPolicy? _mintItems;
+    internal UsumMintItemPolicy MintItems {get=>_mintItems??=new(this);set=>_mintItems=value;}
     public ProjectHistory History { get; }
     internal ExeFsBuildCache RebuildExeFsCache {get;}=new();
     internal GameConfig GameConfiguration => _config;

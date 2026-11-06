@@ -27,6 +27,7 @@ internal static class NativeRecipeFactory
         {
             var shiny=new GameShinyRateService(project).Read();ShinyRateTemplate.Capture(document,new(shiny.Rerolls,shiny.AlwaysShiny));
         }
+        UsumMintItemPolicy.Capture(document,project.MintItems.Include);
         // Remembered user settings take precedence over freshly initialized defaults.
         capture?.Invoke(document);
         if(project.Generation==6&&document.Section("ProgressiveApp")?["Trades"] is not null)selected.Add("Trades");

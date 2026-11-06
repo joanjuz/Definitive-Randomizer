@@ -222,3 +222,9 @@ Necesitan extracciones, ROMs o carpetas de salida. Los argumentos concretos (ent
 ## Suites incluidas en el CI
 
 `.github/workflows/3ds-progressive-ci.yml` ejecuta las opciones marcadas "sí" y después `--synthetic-only`. Las comprobaciones con datos reales no pueden correr en CI porque no hay ROMs disponibles.
+
+### Mentas fase 2
+
+`--usum-mints-distribution-only`: pools opcionales, tiendas y BP, EI/EB, Pickup, dependencias, recetas Global/Batch, determinismo y deshacer sobre fixtures sintéticos US/UM. No acredita validación jugable.
+
+`--usum-mints-distribution-real-copies <salida nueva> <Ultra Sol fase 1.1> <Ultra Luna fase 1.1>`: copia ambos proyectos privados, ejecuta la receta combinada con el motor Global/Batch real y verifica reapertura y conservación de BP, precios e iconos. No reconstruye ROM ni acredita juego en emulador.

@@ -94,6 +94,7 @@ public partial class RecordEditorView : UserControl
             state is not null&&state.Options.TryGetValue(f.Key,out int value)&&value>=f.Min&&value<=f.Max
                 ?f with {Value=value}:f).ToArray()});
         BuildGroups(OptionsPanel,groups,_options,false);
+        if(editor is GameFieldItemsService mintFields)OptionsPanel.Children.Add(new UsumMintPoolControl(mintFields.Project,Invalidate));
         if(state is not null)ScopeBox.SelectedIndex=Math.Clamp(state.Scope,0,2);
         if(_options.TryGetValue("SpecialShopsOnly",out var special)){special.ToolTip="Tiendas con inventario fijo de objetos no básicos. Se conservan los inventarios de suministros básicos y los que cambian con el progreso.";System.Windows.Automation.AutomationProperties.SetHelpText(special,special.ToolTip.ToString());}
         _loading=false;

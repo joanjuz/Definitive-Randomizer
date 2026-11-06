@@ -130,6 +130,15 @@ internal static class BatchGen6ActionExecutor
         catch(TargetInvocationException ex)when(ex.InnerException!=null){ExceptionDispatchInfo.Capture(ex.InnerException).Throw();}
         Main.Config.InitializeGameText();
     }
+    internal static void FinalizeMints(GlobalRandomizationTemplate template)
+    {
+        if(!template.Actions.Any(a=>a.Id.Equals("marts.add-nature-mints",StringComparison.OrdinalIgnoreCase)))return;
+        Main.SaveGameText();string path=Path.GetFullPath(Path.Combine(Path.GetDirectoryName(typeof(BatchGen6ActionExecutor).Assembly.Location),"..","3DS.Progressive.dll"));
+        var bridge=Assembly.LoadFrom(path).GetType("ThreeDS.Progressive.Services.NativeGen7MartBridge",true);
+        try{bridge.GetMethod("FinalizeMints",BindingFlags.Static|BindingFlags.Public).Invoke(null,new object[]{Directory.GetParent(Main.RomFSPath).FullName,System.Text.Json.JsonSerializer.Serialize(template)});}
+        catch(TargetInvocationException ex)when(ex.InnerException!=null){ExceptionDispatchInfo.Capture(ex.InnerException).Throw();}
+        Main.Config.InitializeGameText();
+    }
     internal static bool TryMartNative(GlobalRandomizationTemplate template)
     {
         string json=System.Text.Json.JsonSerializer.Serialize(template);using(var document=System.Text.Json.JsonDocument.Parse(json))if(!document.RootElement.TryGetProperty("ProgressiveApp",out var native)||!native.TryGetProperty("Gen7Marts",out _))return false;
@@ -191,10 +200,20 @@ internal static class BatchGen6ActionExecutor
         try{bridge.GetMethod("RebuildWithProgress",BindingFlags.Static|BindingFlags.Public).Invoke(null,new object[]{root,target,trimmed,progress});}
         catch(TargetInvocationException ex)when(ex.InnerException!=null){ExceptionDispatchInfo.Capture(ex.InnerException).Throw();}
     }
-    internal static void ApplyPickup7Native(string root,int seed)
+    internal static void ValidateMintDependencies(GlobalRandomizationTemplate template)
+    {
+        string json=System.Text.Json.JsonSerializer.Serialize(template);
+        // Old recipes keep their original path without new file reads or RNG draws.
+        if(json.IndexOf("Gen7MintItems",StringComparison.Ordinal)<0 && !(template.Actions?.Any(a=>a.Id=="marts.add-nature-mints")??false))return;
+        string path=System.IO.Path.GetFullPath(System.IO.Path.Combine(System.IO.Path.GetDirectoryName(typeof(BatchGen6ActionExecutor).Assembly.Location),"..","3DS.Progressive.dll"));
+        var bridge=Assembly.LoadFrom(path).GetType("ThreeDS.Progressive.Services.UsumMintItemPolicy",true);
+        try{bridge.GetMethod("ValidateBatch",BindingFlags.Static|BindingFlags.Public).Invoke(null,new object[]{System.IO.Directory.GetParent(Main.RomFSPath).FullName,json});}
+        catch(TargetInvocationException ex)when(ex.InnerException!=null){ExceptionDispatchInfo.Capture(ex.InnerException).Throw();}
+    }
+    internal static void ApplyPickup7Native(string root,int seed,GlobalRandomizationTemplate template=null)
     {
         string path=System.IO.Path.GetFullPath(System.IO.Path.Combine(System.IO.Path.GetDirectoryName(typeof(BatchGen6ActionExecutor).Assembly.Location),"..","3DS.Progressive.dll"));var bridge=Assembly.LoadFrom(path).GetType("ThreeDS.Progressive.Services.NativeBatchRomBridge",true);
-        try{bridge.GetMethod("ApplyPickup",BindingFlags.Static|BindingFlags.Public).Invoke(null,new object[]{root,seed});}catch(TargetInvocationException ex)when(ex.InnerException!=null){ExceptionDispatchInfo.Capture(ex.InnerException).Throw();}
+        try{bridge.GetMethod(template==null?"ApplyPickup":"ApplyPickupRecipe",BindingFlags.Static|BindingFlags.Public).Invoke(null,template==null?new object[]{root,seed}:new object[]{root,seed,System.Text.Json.JsonSerializer.Serialize(template)});}catch(TargetInvocationException ex)when(ex.InnerException!=null){ExceptionDispatchInfo.Capture(ex.InnerException).Throw();}
     }
     internal static void ApplyShinyNative(string root,int rerolls,bool everything)
     {

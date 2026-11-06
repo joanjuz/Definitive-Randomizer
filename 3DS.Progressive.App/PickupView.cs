@@ -33,6 +33,7 @@ internal sealed class PickupView : UserControl
             "Objetos y probabilidades por rango de nivel. Cada columna debe sumar 100 %. Puedes añadir o quitar la última fila. La randomización conserva las probabilidades.":
             "18 objetos comunes y 11 raros en XY/ORAS. Las probabilidades originales se conservan. Revisa los cambios antes de guardar.",
             TextWrapping=TextWrapping.Wrap,Foreground=(Brush)FindResource("TextSoft"),Margin=new Thickness(0,8,0,12)});
+        top.Children.Add(new UsumMintPoolControl(project,Invalidate));
         var buttons=new WrapPanel();top.Children.Add(buttons);
         Add(buttons,"Randomizar objetos",Randomize);
         if(_service.Gen7)

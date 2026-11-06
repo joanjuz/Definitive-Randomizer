@@ -22,6 +22,10 @@ public sealed class GamePickupService
     private readonly string _path;
     private byte[] _hash;
     private readonly Guid _owner=Guid.NewGuid();
+    internal bool? MintInclusion {get;set;}
+    private bool IncludeMints=>MintInclusion??_project.MintItems.Include;
+    private int? _randomSeed;
+    private bool _randomMints;
     public bool Gen7=>_project.Generation==7;
     public IReadOnlyList<MoveChoice> Items {get;}
     public GamePickupService(GameProjectSession project)
@@ -68,7 +72,8 @@ public sealed class GamePickupService
     internal List<PickupRow> Randomize(IReadOnlyList<PickupRow> draft,int seed)
     {
         _=Source();var output=draft.Select(r=>r.Copy()).ToList();
-        int[] pool=ProgressiveLegacy.Randomizer.GetRandomItemList(_project.GameConfiguration)
+        bool include=IncludeMints;
+        int[] pool=_project.MintItems.Pool(ProgressiveLegacy.Randomizer.GetRandomItemList(_project.GameConfiguration),include)
             .Where(i=>i>0&&i<Items.Count).Distinct().ToArray();
         if(pool.Length==0)throw new InvalidDataException("No hay objetos legales para Pickup.");
         var random=new Random(seed);int cursor=pool.Length;
@@ -77,12 +82,13 @@ public sealed class GamePickupService
             if(cursor==pool.Length){random.Shuffle(pool);cursor=0;}
             row.Item=pool[cursor++];
         }
-        return output;
+        _randomSeed=seed;_randomMints=include;return output;
     }
     public EditorProposal Preview(IReadOnlyList<PickupRow> draft)
     {
         // Freeze UI values before validation and serialization.
         var rows=draft.Select(r=>r.Copy()).ToArray();byte[] source=Source();var before=Decode(source);
+        var dependency=_randomMints||(_project.GameConfiguration.USUM&&rows.Where((r,i)=>i>=before.Count||r.Item!=before[i].Item).Any(r=>UsumMintItemPolicy.Ids.Contains(r.Item)))?_project.MintItems.Capture():null;
         if((!Gen7&&rows.Length!=29)||rows.Length<1||rows.Length>4096||
             rows.Any(r=>r.Item<0||r.Item>=Items.Count||r.Rates.Length!=10||r.Rates.Any(v=>v<0||v>100)))
             throw new ArgumentException("Filas, objetos o probabilidades Pickup inválidos.");
@@ -115,12 +121,14 @@ public sealed class GamePickupService
             if(before[i].Item!=rows[i].Item)changes.Add(new(i,"Pickup","Objeto",Items[before[i].Item].Display,Items[rows[i].Item].Display));
             if(Gen7)for(int c=0;c<10;c++)if(before[i].Rates[c]!=rows[i].Rates[c])changes.Add(new(i,"Pickup",$"Niveles {c*10+1}–{(c+1)*10}",before[i].Rates[c]+" %",rows[i].Rates[c]+" %"));
         }
-        return new(_owner,"Editar Pickup",0,[new FileChange(_path,source,output)],changes,new Dictionary<string,string>{{"ActionId","pickup.edit"}});
+        return new(_owner,"Editar Pickup",_randomSeed??0,[new FileChange(_path,source,output)],changes,
+            UsumMintItemPolicy.Parameters(new Dictionary<string,string>{{"ActionId",_randomSeed is null?"pickup.edit":"pickup.randomize"},{"Seed",(_randomSeed??0).ToString()}},IncludeMints),dependency?.Files);
     }
     public void Apply(EditorProposal proposal)
     {
         if(proposal.Owner!=_owner)throw new InvalidOperationException("La propuesta pertenece a otro editor.");
         foreach(var file in proposal.Files)GarcTransaction.ReadUnchanged(file.Path,file.Fingerprint);
+        using var mintLocks=MintItemDependency.Lock(_project,proposal.Dependencies,proposal.Files);
         _project.History.Commit(proposal.Files,"Pickup",proposal.Action,proposal.Changes,proposal.Parameters);
         _hash=SHA256.HashData(File.ReadAllBytes(_path));
     }

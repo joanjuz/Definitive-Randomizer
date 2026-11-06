@@ -309,6 +309,16 @@ internal static class BatchWorkspace
         CopyDirectory(sourceConfig.RomFS, stageRomFS);
         CopyDirectory(sourceConfig.ExeFS, stageExeFS);
         File.Copy(sourceExHeader, stageExHeader, true);
+        // Mint dependency validation needs the title identity in every isolated USUM stage.
+        // These headers are metadata, not source ROM containers; preserve their exact bytes.
+        if(sourceConfig.USUM)foreach(string name in new[]{"ncchheader.bin","HeaderNCCH0.bin","HeaderNCCH.bin"})
+        {
+            string header=Path.Combine(sourceRoot,name);if(!File.Exists(header))continue;
+            if((File.GetAttributes(header)&FileAttributes.ReparsePoint)!=0)throw new IOException("NCCH identity cannot be a link.");
+            using var input=new FileStream(header,FileMode.Open,FileAccess.Read,FileShare.Read);
+            using var target=new FileStream(Path.Combine(targetRoot,name),FileMode.CreateNew,FileAccess.Write,FileShare.None);
+            input.CopyTo(target);
+        }
 
         int restored=restoreBackups?OverlayPk3DSBackups(sourceRoot,targetRoot,sourceConfig):0;
         NormalizeStageCode(stageExeFS);
@@ -663,7 +673,7 @@ internal static class BatchGen7ActionExecutor
         EconomyFixer.ActionId,
         "marts.randomize",
         "marts.randomize-bp",
-        "marts.expanded-layout",
+        "marts.add-nature-mints", "marts.expanded-layout",
         "marts.add-rare-candies",
         "marts.add-ev-items",
         "marts.free-mega-stones",
@@ -701,6 +711,7 @@ internal static class BatchGen7ActionExecutor
             .Where(z => z != null && !string.IsNullOrWhiteSpace(z.Id))
             .ToDictionary(z => z.Id, z => z, StringComparer.OrdinalIgnoreCase);
 
+        BatchGen6ActionExecutor.ValidateMintDependencies(template);
         if(actions.ContainsKey("marts.single-purchase-specials")&&!Main.Config.USUM)
             throw new NotSupportedException("Single-purchase special shops require USUM.");
         RunMoves(actions,template);
@@ -725,7 +736,7 @@ internal static class BatchGen7ActionExecutor
 
         RunWildEncounters(actions, template.Wild,template);
         BatchBridgeProgress.ActionGroup("WildEncounters",actions.Keys,id=>id.StartsWith("wild-encounters.",StringComparison.OrdinalIgnoreCase));
-        RunPickup(actions);
+        RunPickup(actions,template);
         BatchBridgeProgress.ActionGroup("Pickup",actions.Keys,id=>id.StartsWith("pickup.",StringComparison.OrdinalIgnoreCase));
         RunItemEconomy(actions,template);
         BatchBridgeProgress.ActionGroup("ItemEconomy",actions.Keys,id=>id.StartsWith("items.",StringComparison.OrdinalIgnoreCase));
@@ -748,6 +759,7 @@ internal static class BatchGen7ActionExecutor
         BatchGen6ActionExecutor.ApplyManual(template);
         // After the manual edits, so that none of them brings back a Mega form.
         BatchGen6ActionExecutor.RunGen7Adjustments(template);
+        BatchGen6ActionExecutor.FinalizeMints(template);
         BatchGen6ActionExecutor.FinalizeSinglePurchase(template);
     }
 
@@ -1065,12 +1077,12 @@ internal static class BatchGen7ActionExecutor
         }
     }
 
-    private static void RunPickup(Dictionary<string, GlobalRandomizationAction> actions)
+    private static void RunPickup(Dictionary<string, GlobalRandomizationAction> actions,GlobalRandomizationTemplate template)
     {
         if (!Has(actions, "pickup.randomize"))
             return;
         BatchRuntime.Log("Pickup...");
-        BatchGen6ActionExecutor.ApplyPickup7Native(System.IO.Directory.GetParent(Main.RomFSPath).FullName,unchecked((int)Util.Random32()));
+        BatchGen6ActionExecutor.ApplyPickup7Native(System.IO.Directory.GetParent(Main.RomFSPath).FullName,unchecked((int)Util.Random32()),template);
 
     }
 
@@ -1104,7 +1116,7 @@ internal static class BatchGen7ActionExecutor
 
     private static void RunMarts(Dictionary<string, GlobalRandomizationAction> actions,GlobalRandomizationTemplate template)
     {
-        string[] ids = { "marts.randomize", "marts.randomize-bp", "marts.expanded-layout", "marts.add-rare-candies", "marts.add-ev-items", "marts.free-mega-stones", "marts.ban-ability-capsule" };
+        string[] ids = { "marts.randomize", "marts.randomize-bp", "marts.add-nature-mints", "marts.expanded-layout", "marts.add-rare-candies", "marts.add-ev-items", "marts.free-mega-stones", "marts.ban-ability-capsule" };
         if (!ids.Any(id => Has(actions, id)))
             return;
 

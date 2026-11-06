@@ -125,6 +125,7 @@ internal sealed class GlobalTemplateView : UserControl
             $"{document.SettingsCount} líneas RandSettings · {document.TrainerCapCount} Trainer Caps · " +
             $"{document.TrainerMoveRuleCount} Trainer Move Rules · {document.PlayerCapCount} Player Caps · " +
             $"{document.AssetCount} assets · {(document.Section("ProgressiveApp")?["ManualEdits"]?["Entries"]?.AsArray().Count??0)+ManualOperations.Read(document).Length} modificaciones exactas · {_actions.Count} acciones · SHA {document.Sha256[..12]}…";
+        _meta.Text+=" · Mentas Gen7: "+(UsumMintItemPolicy.Read(document)?"incluidas (requiere parche)":"excluidas del pool");
         _save.IsEnabled=true;
         _status.Text=warning??"Receta validada y cargada en memoria. Nada se escribió en la ROM.";
     }

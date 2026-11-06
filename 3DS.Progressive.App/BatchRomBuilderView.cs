@@ -96,8 +96,9 @@ internal sealed class BatchRomBuilderView : UserControl
         content.Children.Add(settings);
         var fields=new StackPanel();settings.Child=fields;
         void Label(string text)=>fields.Children.Add(new TextBlock{Text=text,
-            Foreground=(Brush)FindResource("TextSoft"),Margin=new Thickness(0,8,0,5)});
+            Foreground=(Brush)FindResource("TextSoft"),TextWrapping=TextWrapping.Wrap,Margin=new Thickness(0,8,0,5)});
         Label("Global Template JSON");
+        if(project.GameConfiguration.USUM)Label("Mentas: Batch respeta la inclusión y los stocks generales guardados en Global Template. Valida el parche antes de ejecutar; no lo instala.");
         var fileRow=new DockPanel();
         fields.Children.Add(fileRow);
         var browse=Add(fileRow,"Elegir…",()=>
@@ -214,6 +215,7 @@ internal sealed class BatchRomBuilderView : UserControl
             $"cobertura {document.Coverage} · {document.Actions.Count} acciones originales · " +
             $"{cfg.Count} ROMs · {(cfg.Trimmed?"Trimmed":"Full")} · " +
             $"SHA receta {document.Sha256[..14]}…";
+        if(UsumMintItemPolicy.Read(document))_summary.Text+="\n"+(await Task.Run(_project.MintItems.Inspect)).Report;
         var blocking=warnings.Where(w=>!BatchRomExecution.IsHashMismatch(w)).ToArray();
         if(blocking.Length>0)
         {

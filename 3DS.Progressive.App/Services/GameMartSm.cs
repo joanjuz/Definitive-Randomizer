@@ -86,6 +86,6 @@ public sealed partial class GameMartService
         int changed=0;
         for(int mart=0;mart<8;mart++)for(int slot=0;slot<proposed[mart].Length;slot++)
             if(RegularShops[mart].Rows[slot].ItemId!=proposed[mart][slot]){RegularShops[mart].Rows[slot].ItemId=proposed[mart][slot];changed++;}
-        _setKeyPrice=true;_presets.Add("marts.add-ev-items:SM-fixed-slots");return changed;
+        _setKeyPrice=true;RecipeState=(RecipeState??new()) with{Vitamins=true};_presets.Add("marts.add-ev-items:SM-fixed-slots");return changed;
     }
 }

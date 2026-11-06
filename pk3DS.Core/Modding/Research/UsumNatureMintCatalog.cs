@@ -30,7 +30,7 @@ public static class UsumNatureMintCatalog
         new UsumNatureMintProfile("US-code-d2e9b4d9", "D2E9B4D91D7B14BCEF0C34D869C1DA60EF85D98B1DF3C34CBC42E42F54CFBA27",BagHash,false),
         new UsumNatureMintProfile("UM-code-a6aa17b6", "A6AA17B6F409264F6ED15D51735E9638D3F44896C0CEC0F05C39940B79FE30E7",BagHash,true) });
     public static UsumNatureMintProfile IdentifyCode(byte[] code) => Profiles.SingleOrDefault(p =>
-        Convert.ToHexString(SHA256.HashData(UsumMintIconLayout.NormalizeCode(code))) == p.CodeSha256) ?? throw new InvalidDataException(
+        Convert.ToHexString(SHA256.HashData(UsumMintIconLayout.NormalizeCode(code))) == p.CodeSha256) ?? UsumMintCodeDataProfile.Match(code) ?? throw new InvalidDataException(
         "La revisión de code.bin no está acreditada para mentas. Se requiere una de las dos huellas US/UM documentadas; no se aplican offsets aproximados.");
     public static string OriginalItemHash(int id) => id switch {
         113 or 114 or 115 => "8E9DB2EEB35F843F2A351998BEE1752A4E52BA38CD9E430469071CB7F5E69017",
