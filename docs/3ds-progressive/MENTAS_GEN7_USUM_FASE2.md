@@ -66,7 +66,7 @@ Las salidas siguen siendo los GARC, CRO/CRR y datos de ExeFS del proyecto, consu
 
 La suite `--usum-mints-distribution-only` utiliza fixtures sintéticos independientes de Ultra Sol y Ultra Luna. Verifica pools, exclusiones, determinismo, dependencias, escritores concurrentes, los ocho stocks, conservación de BP, guardado, reapertura, deshacer y recetas nativas. La suite privada `--usum-mints-distribution-real-copies` ejecuta el motor Global/Batch sobre copias de proyectos, combinando MT, Shiny, tiendas, EI/EB y Pickup. Sus archivos de juego nunca se incorporan al repositorio. Ninguna de estas comprobaciones acredita juego real en Ultra Luna.
 
-Una prueba manual concreta en Ultra Sol:
+Procedimiento de referencia para la prueba manual en Ultra Sol:
 
 1. Duplicar un proyecto con fase 1 reconocida e iconos instalados; conservar ROM y guardado originales.
 2. Activar inclusión de mentas. En Tiendas marcar randomización normal y **21 mentas en stocks generales (0–7)**; dejar Randomizar BP desmarcado. Configurar un precio asequible con el editor existente si es necesario.
@@ -74,6 +74,6 @@ Una prueba manual concreta en Ultra Sol:
 4. Seleccionar la misma receta en Batch Builder, comprobar dependencias y construir una única ROM en una carpeta nueva. Desactivar restauración de respaldos si estos son anteriores a la instalación de mentas.
 5. Abrir esa copia en el emulador. En el dependiente general del Centro Pokémon de Ciudad Kantai comprobar las 21 mentas, precios e iconos; comprar y utilizar una. Confirmar el cambio de naturaleza real y que otros iconos permanecen correctos.
 
-La validación jugable de fases 1 y 1.1 ya fue confirmada por el propietario en Ultra Sol. La nueva distribución de fase 2 queda pendiente de esta prueba manual; no se declara validación jugable de Ultra Luna.
+El 06/11/2026, el propietario confirmó una prueba manual satisfactoria de la fase 2 en **Pokémon Ultra Sol**: la distribución de mentas, Global Template, Batch Builder y la ROM generada funcionan correctamente en su prueba. Esta confirmación se suma a la validación jugable previa de las fases 1 y 1.1 en Ultra Sol y permite dar por validada manualmente la fase 2 con ese alcance. No se atribuye esta prueba a Ultra Luna ni se declaran comprobaciones individuales adicionales que el propietario no haya confirmado.
 
 Comprobaciones de esta entrega: 122 casos específicos sintéticos de fase 2; 18 comprobaciones de la receta combinada con el motor real en copias privadas US/UM; dos comprobaciones adicionales del finalizador público sobre esas copias, con fila manual conservada, repetición sin cambios y restauración del stock de prueba mediante el editor. Regresión general sintética ejecutada una vez: 4142 comprobaciones. Interfaz fuera de pantalla: 23 casos de Mentas/Global/Batch y 145 de tiendas/reconstrucción. Los logs privados se conservan fuera de Git; no se incluyen datos comerciales ni se presenta la inspección de tablas como validación jugable.
