@@ -1,6 +1,6 @@
 param(
     [Parameter(Mandatory=$true)][string]$OutputDirectory,
-    [string]$Version = '0.14.0-preview.3'
+    [string]$Version = '0.14.0-preview.4'
 )
 $ErrorActionPreference = 'Stop'
 if ($Version -notmatch '^\d+\.\d+\.\d+-[A-Za-z0-9.-]+$') { throw 'Expected a prerelease version.' }
@@ -54,7 +54,7 @@ try {
         Copy-Item -LiteralPath (Join-Path $repo $file) -Destination (Join-Path $stage 'third-party') -Force
     }
     Copy-Item -LiteralPath $notes -Destination (Join-Path $stage 'LEEME.md')
-    "Version: $Version`nCommit: $revision`nSource: https://github.com/joanjuz/Definitive-Randomizer/tree/v$Version" | Set-Content -LiteralPath (Join-Path $stage 'VERSION.txt') -Encoding utf8
+    "Version: $Version`nCommit: $revision`nSource: https://github.com/joanjuz/Definitive-Randomizer/tree/$revision" | Set-Content -LiteralPath (Join-Path $stage 'VERSION.txt') -Encoding utf8
     # Only remove development metadata from this newly generated package.
     Get-ChildItem -LiteralPath $stage -File -Recurse -Force | Where-Object { $_.Extension -in @('.pdb','.binlog','.log') -or $_.Name -eq '.gitignore' } | ForEach-Object {
         if (-not $_.FullName.StartsWith($stage+[IO.Path]::DirectorySeparatorChar,[StringComparison]::OrdinalIgnoreCase)) { throw 'Unexpected package path.' }

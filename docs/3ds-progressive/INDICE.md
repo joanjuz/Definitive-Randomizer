@@ -88,6 +88,8 @@ Licencias de terceros: [`docs/third-party/`](../third-party/).
 
 ## Releases
 
+- Candidato prerelease pendiente de autorización: [0.14.0 Preview 4](RELEASE_0.14.0_PREVIEW_4.md).
+
 - Previews WPF: [PREVIEW_1](RELEASE_0.8.0_PREVIEW_1.md), [PREVIEW_2](RELEASE_0.8.0_PREVIEW_2.md), [PREVIEW_3](RELEASE_0.8.0_PREVIEW_3.md), [PREVIEW_4](RELEASE_0.8.0_PREVIEW_4.md), [0.9.0 PREVIEW_1](RELEASE_0.9.0_PREVIEW_1.md), [0.10.0 PREVIEW_1](RELEASE_0.10.0_PREVIEW_1.md), [0.11.0 PREVIEW_1](RELEASE_0.11.0_PREVIEW_1.md), [0.12.0 PREVIEW_1](RELEASE_0.12.0_PREVIEW_1.md), [0.13.0 PREVIEW_1](RELEASE_0.13.0_PREVIEW_1.md), [0.14.0 PREVIEW_1](RELEASE_0.14.0_PREVIEW_1.md)
 - Línea estable WinForms: `release_notes_v4.*_es.md` en la raíz del repositorio.
 
