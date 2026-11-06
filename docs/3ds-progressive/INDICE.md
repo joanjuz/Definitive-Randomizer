@@ -6,7 +6,9 @@ Punto de entrada a `docs/3ds-progressive/`. Muchos documentos son **registros hi
 
 | Tema | Documento vigente |
 |---|---|
+| Visión, prioridades y roadmap maestro de PokeJuz | [DefinitivePkm · ROADMAP.md](https://github.com/joanjuz/DefinitivePkm/blob/main/docs/ROADMAP.md) |
 | Runner de pruebas y sus opciones | [RUNNER_PRUEBAS.md](RUNNER_PRUEBAS.md) |
+| Definitive Game Data v1: exportación USUM e integración con Tracker | [Contrato técnico](../contracts/DEFINITIVE_GAME_DATA_V1.md) |
 | Historial: habilitación de Deshacer tras verificar archivos | [HISTORY_UNDO_BUTTON_20261105.md](HISTORY_UNDO_BUTTON_20261105.md) |
 | H2/H3: recuperación de guardados individuales | [H2_H3_GUARDADOS_INDIVIDUALES_20261104.md](H2_H3_GUARDADOS_INDIVIDUALES_20261104.md) |
 | Corrección de carreras H2/H3 en transacciones de archivos | [CORRECCION_H2_H3_20261104.md](CORRECCION_H2_H3_20261104.md) |

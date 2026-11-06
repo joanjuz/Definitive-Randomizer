@@ -4,6 +4,8 @@
 
 ## Uso
 
+`--definitive-game-data-only` verifica el exportador USUM con GARC y textos sintéticos: datos guardados, deshacer, lectura actual pese a cachés antiguas, formas, evoluciones vacías, identidad, destinos, privacidad y acceso WPF. No usa ROMs reales. `--definitive-game-data-fixture <json>` exporta un JSON sintético nuevo para comprobar interoperabilidad con Tracker. La suite de datos se incluye también en la regresión general; no se distribuyen datos extraídos.
+
 `--undo-template-regression-only` verifica UndoOf con historial en memoria, archivos sintéticos temporales y lectura WPF fuera de pantalla. Comprueba exportación manual (ManualEdits y ManualOperation), cadenas de restauraciones, selección de snapshots, separación de hijos GlobalApplication entre recetas con acciones del mismo tipo y opciones recuperadas al reabrir. Informa todas las expectativas antes de fallar conjuntamente si quedan regresiones. No usa ROMs. Queda fuera del recorrido predeterminado; el CI la ejecuta explícitamente y rechaza un código de salida distinto de cero.
 
 ```powershell

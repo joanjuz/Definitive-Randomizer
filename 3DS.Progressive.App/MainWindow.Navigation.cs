@@ -230,6 +230,7 @@ public partial class MainWindow
         Action("Inicio","Modos, randomizado guiado y estado del proyecto.","home principal resumen",()=>Home_Click(HomeButton,new RoutedEventArgs()));
         Action("Vista guiada de esta sección","Explica la sección actual sin aplicar cambios (F1).","ayuda tour f1",()=>OpenTour());
         Action("Exportar registro del randomizado","Archivo de texto con regalos, entrenadores y encuentros actuales (spoiler).","spoiler log registro resumen exportar",()=>_=SystemsView.ExportLogAsync(this,_session,text=>StatusText.Text=text));
+        if(DefinitiveGameData.Supports(_session))Action("Exportar datos para Progressive Tracker","JSON con estadísticas, tipos, habilidades, movimientos y evoluciones guardados de USUM.","tracker datos dgd exportar",()=>_=SystemsView.ExportTrackerDataAsync(this,_session,text=>StatusText.Text=text));
         Action("Deshacer el último cambio","Devuelve los archivos a como estaban antes del último cambio guardado.","deshacer revertir undo volver atras",()=>_=UndoLatestAsync());
         Action("Generar backup","Copia verificada del proyecto y su historial.","respaldo copia seguridad",()=>Backup_Click(BackupButton,new RoutedEventArgs()));
         Action("Restaurar backup…","Restaura un backup verificado en una carpeta nueva.","respaldo copia",()=>RestoreBackup_Click(RestoreBackupButton,new RoutedEventArgs()));

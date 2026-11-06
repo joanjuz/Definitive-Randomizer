@@ -8,6 +8,8 @@ internal static class RunnerCatalog
 {
     internal static readonly RunnerOption[] Options=
     [
+        new("--definitive-game-data-only","",RunnerCategory.Ui,false),
+        new("--definitive-game-data-fixture","<archivo JSON nuevo fuera del proyecto>",RunnerCategory.Synthetic,false),
         new("--batch-gen6-only","",RunnerCategory.Synthetic,false),
         new("--batch80-only","",RunnerCategory.Synthetic,false),
         new("--catch-batch-only","",RunnerCategory.Synthetic,false),
