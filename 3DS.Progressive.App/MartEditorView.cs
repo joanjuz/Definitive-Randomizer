@@ -185,13 +185,24 @@ internal sealed class MartEditorView : UserControl
             Header = "#", Width = 60, IsReadOnly = true,
             Binding = new Binding(nameof(MartSlotRow.Number))
         });
-        grid.Columns.Add(new DataGridComboBoxColumn
+        // A search popup takes keyboard focus outside the DataGrid. An editing-only
+        // ComboBox is then committed and removed before the user chooses a result.
+        // Keep one live, bound selector in the cell so the search writes to the row.
+        var itemSelector = new FrameworkElementFactory(typeof(ComboBox));
+        itemSelector.SetResourceReference(FrameworkElement.StyleProperty, "GridComboBox");
+        itemSelector.SetValue(ComboBox.ItemsSourceProperty, _items);
+        itemSelector.SetValue(ComboBox.DisplayMemberPathProperty, nameof(MoveChoice.Display));
+        itemSelector.SetValue(ComboBox.SelectedValuePathProperty, nameof(MoveChoice.Id));
+        itemSelector.SetValue(ComboBox.IsSynchronizedWithCurrentItemProperty, false);
+        itemSelector.SetValue(FrameworkElement.ToolTipProperty, "Busca un objeto por nombre o número y elige un resultado.");
+        itemSelector.SetValue(System.Windows.Automation.AutomationProperties.NameProperty, "Objeto de la ranura");
+        itemSelector.SetBinding(ComboBox.SelectedValueProperty, new Binding(nameof(MartSlotRow.ItemId))
+        { Mode = BindingMode.TwoWay, UpdateSourceTrigger = UpdateSourceTrigger.PropertyChanged });
+        grid.Columns.Add(new DataGridTemplateColumn
         {
             Header = "Objeto", Width = new DataGridLength(1, DataGridLengthUnitType.Star),
-            ItemsSource = _items, DisplayMemberPath = nameof(MoveChoice.Display),
-            SelectedValuePath = nameof(MoveChoice.Id),
-            SelectedValueBinding = new Binding(nameof(MartSlotRow.ItemId))
-            { Mode = BindingMode.TwoWay, UpdateSourceTrigger = UpdateSourceTrigger.PropertyChanged }
+            IsReadOnly = true, // The bound child edits directly; no transient DataGrid editor.
+            CellTemplate = new DataTemplate { VisualTree = itemSelector }
         });
         if (!bp && _service.SupportsExpansion)
         {

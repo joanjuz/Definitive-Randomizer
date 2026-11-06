@@ -45,6 +45,8 @@ internal static class RunnerCatalog
         new("--requested-only","",RunnerCategory.Synthetic,false),
         new("--shiny-batch-only","",RunnerCategory.Synthetic,false),
         new("--single-purchase-only","",RunnerCategory.Synthetic,false),
+        new("--mart-selector-only","",RunnerCategory.Ui,true),
+        new("--mart-selector-usum-copy","<Shop.cro USUM privado (solo lectura)>",RunnerCategory.Real,false),
         new("--sm-marts-only","",RunnerCategory.Synthetic,false),
         new("--starter-text-only","",RunnerCategory.Synthetic,false),
         new("--statics7-batch-only","",RunnerCategory.Synthetic,false),

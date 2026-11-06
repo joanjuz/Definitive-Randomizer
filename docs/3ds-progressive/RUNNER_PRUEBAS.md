@@ -4,6 +4,10 @@
 
 ## Uso
 
+`--mart-selector-only` verifica con controles WPF reales fuera de pantalla y Shop.cro sintético la búsqueda de las 21 mentas, selección con Enter y un clic, actualización inmediata, salida de celda, cambio de tienda, vista previa, guardado transaccional y reapertura de tiendas normales y BP. También se incluye en `--rebuild-marts-ui-only` (CI).
+
+`--mart-selector-usum-copy <Shop.cro USUM privado>` ejecuta ese recorrido sobre una copia desechable del archivo indicado, con el resto de datos sintéticos. Lee el origen sin modificarlo; no distribuye datos comerciales ni valida el efecto de las mentas dentro del juego.
+
 `--usum-mints-rebuild <proyecto con mentas> <imagen 3DS nueva> <carpeta nueva de reextracción>` hace una única reconstrucción Full3DS, verifica todos los archivos reextraídos byte a byte y comprueba que el parche siga reconocido. Solo se usa con copias privadas; no valida una partida en el emulador.
 
 `--usum-mints-only` ejecuta el mapa de 21 mentas, bolsillos, rechazo de títulos/huellas/hooks/colisiones, textos sin pérdidas, preparación, transacción con fallo inyectado, historial, reapertura, idempotencia y deshacer con fixtures sintéticos. `--usum-mints-ui-only` verifica fuera de pantalla la advertencia, instalación bloqueada sin propuesta y navegación al editor de tiendas existente. `--usum-mints-arm-fixtures <carpeta>` genera CRO sintéticos para `native/3ds/nature-mints/verify_arm.py`; no contienen datos de juegos. `--usum-mints-real-copies <salida nueva> <Ultra Sol extraído> <Ultra Luna extraído>` copia exclusivamente RomFS/ExeFS y cabeceras necesarias, instala y deshace en las copias, guarda las 21 mentas en una tienda, comprueba precios y fuentes intactas. Requiere material privado; no se ejecuta en CI ni modifica las fuentes. Los resultados jugables se registran aparte según [fase 1](MENTAS_GEN7_USUM_FASE1.md).

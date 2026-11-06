@@ -66,3 +66,7 @@ La aceptación jugable de fase 1 permanece pendiente hasta esa confirmación. Fu
 - Una reconstrucción Full3DS de la copia de Ultra Sol y reextracción: los 750 archivos coinciden byte a byte; el parche sigue reconocido. Esta comprobación no acredita una partida en el emulador ni se extrapola a una reconstrucción probada de Ultra Luna.
 
 Compra/consumo reales, cancelación desde el juego, mensajes y persistencia de naturaleza/inventario después de guardar y cargar: **pendientes de la única prueba manual anterior**. No se declara validación jugable todavía.
+
+## Corrección del selector de Tiendas y BP (PR #50)
+
+El buscador utiliza un selector enlazado estable dentro de la celda: al recibir el foco ya no se retira el editor antes de confirmar el objeto. Permite buscar por nombre o ID y confirmar con un clic o Enter. La regresión `--mart-selector-only` comprueba las 21 mentas y el recorrido Carburante (48) → Menta Firme (114), salida de celda, vista previa, guardado y reapertura, incluyendo el precio BP. También se verificó ese recorrido con Shop.cro de Ultra Sol y Ultra Luna leídos en fixtures desechables con textos y CRR sintéticos. Son pruebas WPF fuera de pantalla; la prueba jugable anterior sigue pendiente.
