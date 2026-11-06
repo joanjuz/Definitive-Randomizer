@@ -1,6 +1,6 @@
 # Mentas Gen7 para Ultra Sol / Ultra Luna — fase 1
 
-Estado: implementación en rama; validación jugable del propietario pendiente. No forma parte de una release nueva. El [plan previo](MENTAS_GEN7_USUM_PLAN_20261105.md) se conserva como investigación histórica; esta entrega implementa solo instalación y tienda manual, no sus fases de pools, Global/Batch o distribución general.
+Estado: funcionalidad principal validada manualmente por el propietario en el emulador; integración de fase 1 autorizada. Esta confirmación no es una validación exhaustiva de todos los comportamientos. No forma parte de una release nueva. El [plan previo](MENTAS_GEN7_USUM_PLAN_20261105.md) se conserva como investigación histórica; esta entrega implementa solo instalación y tienda manual, no sus fases de pools, Global/Batch o distribución general.
 
 **Estas mentas modifican la naturaleza real del Pokémon. No funcionan como las mentas de generaciones posteriores, que mantienen la naturaleza original y modifican sus efectos estadísticos.** Se modifica también lo que el juego considera su naturaleza original, con las consecuencias de esa naturaleza en sus demás sistemas.
 
@@ -40,7 +40,7 @@ Los cambios se registran en el historial y usan sus puntos de restauración. Par
 
 - No se añaden automáticamente mentas a tiendas, Recogida, recompensas, objetos de campo ni equipos. No cambian los pools ni sus semillas.
 - Global Template y Batch no instalan este parche en esta fase. No uses una receta de tiendas con IDs de mentas en un proyecto que no las tenga instaladas; no se promete reproducción automática de esta instalación.
-- Español e inglés tienen nombres/descripciones propios; otros idiomas reciben nombres/descripciones en inglés. Se conservan los demás textos originales. No se distribuyen iconos nuevos ni gráficos extraídos.
+- Español e inglés tienen nombres/descripciones propios; otros idiomas reciben nombres/descripciones en inglés. Se conservan los demás textos originales. Las mentas muestran actualmente el icono de interrogación (`?`): limitación visual conocida y no bloqueante de fase 1, con seguimiento independiente. No se distribuyen iconos nuevos ni gráficos extraídos.
 - No hay Ability Patch ni Nature Shifter. Huevos y naturaleza ya coincidente no deben consumir una menta; un éxito debe consumir una. Cancelar conserva el comportamiento nativo previo al handler.
 - El runtime usa la ruta y las funciones nativas de los perfiles fijados. Las pruebas ARM con dependencias controladas y la reconstrucción no acreditan por sí solas consumo, mensajes, cifrado del guardado y persistencia dentro del emulador.
 
@@ -53,7 +53,7 @@ En una copia y una partida respaldada, añade **Menta Firme (#114)**, **Menta Os
 3. Usa Osada y Seria: cada éxito cambia la naturaleza real correspondiente y consume una. Comprueba que no cura ni revive y no cambia habilidad, IV/EV, movimientos ni objeto equipado; prueba también un Pokémon dañado o debilitado.
 4. Guarda la partida, cierra el emulador y vuelve a cargarla. Las naturalezas y cantidades deben persistir; revisa equipo y cajas. Adjunta versión del juego/perfil, idioma y resultado de estos pasos, sin compartir ROMs ni guardados.
 
-La aceptación jugable de fase 1 permanece pendiente hasta esa confirmación. Fuente reproducible, harness ARM y licencia: [runtime](../../native/3ds/nature-mints/README.md), [procedencia](../third-party/USUM_NATURE_MINTS.md).
+La funcionalidad principal ya tiene confirmación jugable del propietario. Este procedimiento se conserva para los casos manuales aún no confirmados; no se declara completado en su totalidad. Fuente reproducible, harness ARM y licencia: [runtime](../../native/3ds/nature-mints/README.md), [procedencia](../third-party/USUM_NATURE_MINTS.md).
 
 ## Evidencia de esta implementación
 
@@ -65,8 +65,14 @@ La aceptación jugable de fase 1 permanece pendiente hasta esa confirmación. Fu
 - Copias privadas completas de Ultra Sol y Ultra Luna: instalación y reapertura, deshacer exacto de 14 archivos, reinstalación, las 21 mentas guardadas en una tienda y precios editables. Fuentes originales intactas. No se distribuyen esas copias ni sus datos.
 - Una reconstrucción Full3DS de la copia de Ultra Sol y reextracción: los 750 archivos coinciden byte a byte; el parche sigue reconocido. Esta comprobación no acredita una partida en el emulador ni se extrapola a una reconstrucción probada de Ultra Luna.
 
-Compra/consumo reales, cancelación desde el juego, mensajes y persistencia de naturaleza/inventario después de guardar y cargar: **pendientes de la única prueba manual anterior**. No se declara validación jugable todavía.
+## Validación manual del propietario y pendientes
+
+**Confirmado en el emulador:** las mentas aparecen en la tienda, se pueden comprar y utilizar sobre Pokémon, y cambian correctamente su naturaleza real. El propietario también confirma que el selector del editor de tiendas funciona tras la corrección del PR #50. La confirmación se refiere a su prueba en Ultra Sol o Ultra Luna; no acredita por separado una partida probada en cada título.
+
+**Sin confirmación manual expresa:** cancelación, consumo exacto de unidades, persistencia de naturaleza/inventario tras guardar y cargar, rechazo de huevos, naturaleza ya coincidente, variantes de estado del Pokémon y comprobación detallada de mensajes y campos ajenos. Las pruebas automatizadas anteriores se registran como tales y no sustituyen estos casos jugables.
+
+**Limitación visual aceptada:** las 21 mentas aparecen con icono de interrogación en lugar de imagen propia. No bloquea la integración funcional de fase 1. Los iconos se investigarán en un issue independiente; no se implementan en este cierre.
 
 ## Corrección del selector de Tiendas y BP (PR #50)
 
-El buscador utiliza un selector enlazado estable dentro de la celda: al recibir el foco ya no se retira el editor antes de confirmar el objeto. Permite buscar por nombre o ID y confirmar con un clic o Enter. La regresión `--mart-selector-only` comprueba las 21 mentas y el recorrido Carburante (48) → Menta Firme (114), salida de celda, vista previa, guardado y reapertura, incluyendo el precio BP. También se verificó ese recorrido con Shop.cro de Ultra Sol y Ultra Luna leídos en fixtures desechables con textos y CRR sintéticos. Son pruebas WPF fuera de pantalla; la prueba jugable anterior sigue pendiente.
+El buscador utiliza un selector enlazado estable dentro de la celda: al recibir el foco ya no se retira el editor antes de confirmar el objeto. Permite buscar por nombre o ID y confirmar con un clic o Enter. La regresión `--mart-selector-only` comprueba las 21 mentas y el recorrido Carburante (48) → Menta Firme (114), salida de celda, vista previa, guardado y reapertura, incluyendo el precio BP. También se verificó ese recorrido con Shop.cro de Ultra Sol y Ultra Luna leídos en fixtures desechables con textos y CRR sintéticos. Son pruebas WPF fuera de pantalla; la confirmación jugable y los casos manuales pendientes se distinguen en el apartado anterior.
