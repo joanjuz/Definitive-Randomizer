@@ -7,6 +7,7 @@ Punto de entrada a `docs/3ds-progressive/`. Muchos documentos son **registros hi
 | Tema | Documento vigente |
 |---|---|
 | Runner de pruebas y sus opciones | [RUNNER_PRUEBAS.md](RUNNER_PRUEBAS.md) |
+| Historial: habilitación de Deshacer tras verificar archivos | [HISTORY_UNDO_BUTTON_20261105.md](HISTORY_UNDO_BUTTON_20261105.md) |
 | H2/H3: recuperación de guardados individuales | [H2_H3_GUARDADOS_INDIVIDUALES_20261104.md](H2_H3_GUARDADOS_INDIVIDUALES_20261104.md) |
 | Corrección de carreras H2/H3 en transacciones de archivos | [CORRECCION_H2_H3_20261104.md](CORRECCION_H2_H3_20261104.md) |
 | Reproducción determinista de carreras H2/H3 (registro histórico) | [REPRODUCCION_H2_H3_20261104.md](REPRODUCCION_H2_H3_20261104.md) |

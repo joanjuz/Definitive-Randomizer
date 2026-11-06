@@ -79,6 +79,8 @@ dotnet .\3DS.Progressive.Tests\bin\Release\net10.0-windows\3DS.Progressive.Tests
 
 `RestorePoints.Undo` compara con `AfterSha256` los mismos bytes capturados que entrega a `FileChange`, antes de llamar a `ProjectHistory.Commit`. Una discrepancia durante esa preparación rechaza el conjunto sin escribir archivos ni historial. Esto cierra la ventana entre el preflight `WhyNot` y la captura. Después, `FileTransaction.Commit` retiene todos los destinos, comprueba el fingerprint por ese mismo handle y los reemplaza sin soltarlos, con relectura y rollback; las garantías y sus límites están en [CORRECCION_H2_H3_20261104.md](CORRECCION_H2_H3_20261104.md). La regresión de esta opción verifica solo la ventana de preparación de Undo.
 
+`--rebuild-marts-ui-only` incluye la regresión de HistoryView: habilitar «Deshacer este cambio» tras la comprobación automática/manual, deshabilitarlo durante bloqueos anidados o ante cambios externos y retirar suscripciones al descargar la vista. Usa un HwndSource WPF fuera de pantalla y archivos sintéticos. Casos y resultados: [HISTORY_UNDO_BUTTON_20261105.md](HISTORY_UNDO_BUTTON_20261105.md).
+
 ## Suites de interfaz WPF fuera de pantalla (sin argumentos)
 
 | Opción | Argumentos | En CI |
