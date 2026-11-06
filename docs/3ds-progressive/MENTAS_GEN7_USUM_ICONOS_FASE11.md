@@ -2,6 +2,12 @@
 
 Actualización visual independiente de la [fase 1 funcional](MENTAS_GEN7_USUM_FASE1.md), vinculada al [issue #51](https://github.com/joanjuz/Definitive-Randomizer/issues/51). No cambia naturalezas, consumo, precios, tiendas ni distribución de objetos. No incorpora Ability Patch ni fase 2. Sin cambio de versión ni release.
 
+## Estado de validación
+
+El propietario confirmó la prueba manual de fase 1.1 en **Ultra Sol dentro del emulador**: los iconos de las mentas aparecen correctamente, las mentas funcionan y los gráficos de los objetos anteriores se conservan. Esta confirmación permite cerrar el seguimiento visual de fase 1.1; no acredita una prueba manual en Ultra Luna ni una validación exhaustiva de otros comportamientos.
+
+Se mantienen separados los resultados automatizados US/UM, la reconstrucción y la prueba jugable. No se amplía la confirmación a cancelación, consumo exacto o persistencia de naturaleza/inventario tras guardar y cargar, que no se confirmaron expresamente.
+
 ## Fuentes y derechos
 
 Se utilizan los 21 PNG de `sprites/items/<nature>-mint.png` de [PokeAPI/sprites, commit 1b3b7c0a538dd2226ae08d0d2f8955125075bbd4](https://github.com/PokeAPI/sprites/tree/1b3b7c0a538dd2226ae08d0d2f8955125075bbd4/sprites/items). Los nombres ingleses se relacionan con los IDs de fase 1, no con el idioma de la partida. Las fuentes tienen seis variantes gráficas de color compartidas entre las 21 naturalezas; no se inventan diseños nuevos.
@@ -50,7 +56,7 @@ Usa una copia del proyecto y una partida respaldada. Si las tiendas ya contienen
 4. Revisa un objeto ajeno, por ejemplo Carburante, y confirma que conserva su imagen. Comprueba que la tienda sigue ofreciendo los mismos objetos y precios.
 5. Cierra y vuelve a abrir el juego para comprobar la carga visual; reabre también Randomizer para comprobar la detección. Anota título, perfil, idioma y pantallas observadas.
 
-La prueba manual de fase 1 confirmó compra, uso y cambio de naturaleza real. Esa confirmación no se amplía automáticamente a esta actualización visual. La prueba visual dentro del juego queda pendiente del propietario hasta recibir su resultado; decodificar PNG/BFLIM, ejecutar pruebas sintéticas o reconstruir no la sustituye.
+La prueba visual de fase 1.1 ya tiene confirmación expresa del propietario en Ultra Sol: iconos correctos, mentas funcionales y gráficos anteriores conservados. El procedimiento anterior se conserva como referencia reproducible; no se declara que cada paso o cada caso adicional haya sido probado. La validación manual de Ultra Luna sigue pendiente; sus pruebas automatizadas no la sustituyen.
 
 ## Verificación automatizada
 
@@ -64,6 +70,6 @@ La prueba manual de fase 1 confirmó compra, uso y cambio de naturaleza real. Es
 - 88 comprobaciones específicas de iconos; 89 de regresión de fase 1; 6 de interfaz, aprobadas. Las pruebas sintéticas no necesitan acceso a PokéAPI ni datos comerciales.
 - Copias privadas completas de Ultra Sol y Ultra Luna: descarga y conversión reales, instalación, detección al reabrir, deshacer exacto de los dos archivos y reinstalación. Las tiendas con sus 21 mentas y los demás archivos se conservan; las fuentes no se modificaron.
 - Una reconstrucción Full3DS de Ultra Sol y reextracción: los 750 archivos coinciden byte a byte y ambos parches siguen reconocidos. No se extrapola esta comprobación a una reconstrucción probada de Ultra Luna.
-- Se revisó una lámina privada de las 21 texturas decodificadas: seis variantes de color, alfa y orientación coherentes. **La comprobación visual dentro del emulador sigue pendiente.** No se distribuye esa lámina.
+- Se revisó una lámina privada de las 21 texturas decodificadas: seis variantes de color, alfa y orientación coherentes. La revisión de esta lámina se distingue de la prueba manual del propietario en Ultra Sol, ya satisfactoria. No se distribuye esa lámina.
 
-La regresión general se delega al CI del PR para evitar una segunda pasada local de suites completas. Su resultado se registra en el PR.
+La regresión general del código funcional se aprobó en el CI del PR #52 para `d680db6ecb491ad28db8279f864b720bae88af7c` (ejecución `42178671328`). No se repitió localmente para este cierre documental; los checks del SHA definitivo se registran en el PR.

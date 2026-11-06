@@ -79,4 +79,4 @@ El buscador utiliza un selector enlazado estable dentro de la celda: al recibir 
 
 ## Actualización visual opcional
 
-La [fase 1.1 de iconos](MENTAS_GEN7_USUM_ICONOS_FASE11.md) permite preparar e instalar automáticamente iconos existentes de PokéAPI en proyectos con esta fase 1, sin reinstalar las mentas ni perder tiendas. La limitación de `?` anterior describe la fase 1 sin esa actualización. La prueba visual de fase 1.1 en el emulador tiene su propio estado y no se declara validada por la confirmación jugable anterior.
+La [fase 1.1 de iconos](MENTAS_GEN7_USUM_ICONOS_FASE11.md) permite preparar e instalar automáticamente iconos existentes de PokéAPI en proyectos con esta fase 1, sin reinstalar las mentas ni perder tiendas. La limitación de `?` anterior describe la fase 1 sin esa actualización. La prueba visual de fase 1.1 tiene ahora confirmación expresa y satisfactoria del propietario en Ultra Sol dentro del emulador: iconos correctos, funcionamiento de las mentas y conservación de los gráficos anteriores. Ultra Luna conserva sus resultados automatizados, sin confirmación visual manual declarada.
