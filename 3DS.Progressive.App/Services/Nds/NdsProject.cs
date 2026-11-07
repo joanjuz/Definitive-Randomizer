@@ -26,7 +26,7 @@ internal sealed class NdsPreview
 /// A DS ROM opened for editing (Gen4 or Gen5): manual edits and randomizations stack in memory as changed tables and are
 /// written only when exporting, to a new ROM. The source ROM is never modified. Heavy calls belong off the UI thread.
 /// </summary>
-internal sealed class NdsProject : IDisposable
+internal sealed partial class NdsProject : IDisposable
 {
     private readonly Guid _id = Guid.NewGuid();
     private readonly NdsRom _rom;
@@ -50,7 +50,7 @@ internal sealed class NdsProject : IDisposable
     internal int MaxSpecies => _gen4 is not null ? Gen4Data.MaxSpecies : Gen5Randomizer.MaxSpecies;
     /// <summary>Increases with every applied change; previews and editors compare it to detect stale data.</summary>
     internal int Revision { get; private set; }
-    internal bool HasChanges => _history.Any(o => o.Changes.Count > 0);
+    internal bool HasChanges => _history.Any(o => o.Changes.Count > 0) || _events?.HasHistory == true;
     internal IReadOnlyList<NdsOperation> History => _history.AsReadOnly();
     internal IReadOnlyList<string> SpeciesNames { get; }
     internal IReadOnlyList<string> ItemNames { get; }
@@ -78,6 +78,7 @@ internal sealed class NdsProject : IDisposable
     /// </summary>
     internal static NdsProject Open(string path, bool allowRomhack)
     {
+        if (path.EndsWith(".ndsevents.json", StringComparison.OrdinalIgnoreCase)) return OpenEventProject(path, allowRomhack);
         var rom = NdsRom.Open(path);
         try
         {
@@ -213,14 +214,18 @@ internal sealed class NdsProject : IDisposable
     private static readonly JsonSerializerOptions RecipeJson = new() { WriteIndented = true, Converters = { new System.Text.Json.Serialization.JsonStringEnumConverter() } };
 
     /// <summary>The applied operations of this ROM as a replayable recipe, tied to its game code.</summary>
-    internal JsonObject CaptureGlobal() => new()
+    internal JsonObject CaptureGlobal()
     {
+        if (_events?.HasHistory == true) throw new InvalidOperationException("Los eventos de fase 1 se guardan en checkpoints .ndsevents.json y se reconstruyen con la ROM. No forman parte de Global Template ni Batch.");
+        return new()
+        {
         ["Format"] = GlobalFormat,
         ["Version"] = 1,
         ["Game"] = Identity.Profile.GameCode,
         ["Title"] = Game,
         ["Operations"] = new JsonArray(_history.Select(o => (JsonNode)o.Recipe.DeepClone()).ToArray()),
-    };
+        };
+    }
 
     internal static JsonObject ReadGlobal(string path)
     {
@@ -329,6 +334,7 @@ internal sealed class NdsProject : IDisposable
     /// <summary>Discards every pending change.</summary>
     internal void Reset()
     {
+        _events?.Reset();
         _files.Clear();
         _overlays.Clear();
         _recompress.Clear();
@@ -348,7 +354,9 @@ internal sealed class NdsProject : IDisposable
         if (File.Exists(log))
             throw new IOException("Ya existe el registro de cambios: " + log);
         var all = _history.SelectMany(o => o.Changes).ToArray();
-        var result = new Gen5RandomizerResult(new Dictionary<string, byte[]>(_files), all, new Dictionary<int, byte[]>(_overlays))
+        var exportFiles = new Dictionary<string, byte[]>(_files);
+        if (_events?.Replacement() is { } eventBytes) exportFiles[PlatinumEvents.EventPath] = eventBytes;
+        var result = new Gen5RandomizerResult(exportFiles, all, new Dictionary<int, byte[]>(_overlays))
         {
             RecompressOverlays = new HashSet<int>(_recompress),
             Arm9 = _arm9,
@@ -372,6 +380,7 @@ internal sealed class NdsProject : IDisposable
             if (trainers != _gen5.Trainers().Count || areas != _gen5.Encounters().Count)
                 throw new InvalidDataException("La ROM exportada no conserva el número de entrenadores o de áreas.");
         }
+        _events?.VerifyExport(output);
         var text = new StringBuilder();
         text.AppendLine($"Juego: {Game} ({Identity.Profile.GameCode}); volcado original verificado: {(Identity.KnownDump ? "sí" : "no")}{(IsRomhack ? "; romhack (tablas modificadas)" : "")}");
         text.AppendLine($"Origen: {SourcePath}");
@@ -382,6 +391,12 @@ internal sealed class NdsProject : IDisposable
             text.AppendLine($"== {operation.Action}{(operation.Seed is { } seed ? " · semilla " + seed : "")} · {operation.Changes.Count} cambios");
             foreach (var change in operation.Changes)
                 text.AppendLine(Describe(change));
+        }
+        if (_events?.HasHistory == true)
+        {
+            text.AppendLine("\n== Eventos CPUE/1 · checkpoints independientes de Global/Batch");
+            foreach (string entry in _events.Audit) text.AppendLine(entry);
+            text.AppendLine("Checkpoint: " + _events.LastCheckpoint);
         }
         File.WriteAllText(log, text.ToString(), new UTF8Encoding(true));
         return log;
