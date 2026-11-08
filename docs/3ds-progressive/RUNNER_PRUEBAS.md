@@ -4,6 +4,10 @@
 
 ## Uso
 
+`--nds-trainers-only` comprueba lectura y edición manual de entrenadores, conversión de formatos, conservación de datos, rebuild/reapertura y replay de recetas históricas y nuevas (fixtures Gen4/Gen5). Se incluye en `--nds-only`.
+
+`--nds-trainers-probe <salida nueva> <rom>…` ejecuta el mismo flujo con copias privadas de los perfiles soportados. Requiere un entrenador con movimientos/objetos explícitos y otro sin ellos; solo lee las fuentes y conserva las salidas aisladas. No prueba jugabilidad.
+
 `--usum-mint-icons-only` ejecuta las pruebas sintéticas de conversión, descarga/caché con HTTP simulado y ciclo de instalación/historial/deshacer de iconos en US/UM. No descarga gráficos comerciales. Se ejecuta en CI.
 
 `--usum-mint-icons-real-copies <salida nueva> <Ultra Sol fase 1> <Ultra Luna fase 1>` descarga las fuentes fijadas de PokéAPI y crea copias privadas nuevas para instalar, reabrir, deshacer y reinstalar, conservando tiendas y otros archivos. Nunca edita los orígenes. `--usum-mints-rebuild` también comprueba los iconos tras la reextracción si estaban reconocidos en el proyecto de entrada. Estas comprobaciones no acreditan la imagen dentro del emulador.

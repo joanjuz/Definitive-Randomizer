@@ -17,7 +17,7 @@ public partial class RecordEditorView
         public object ConvertBack(object value,Type targetType,object parameter,CultureInfo culture)=>System.Windows.Data.Binding.DoNothing;
     }
     private readonly Dictionary<int,string> _trainerSubtitles=[];
-    private bool ListsTrainers=>Editor is GameTrainerService;
+    private bool ListsTrainers=>Editor is GameTrainerService or ThreeDS.Progressive.Services.Nds.NdsRecordEditor {UsesTrainerLayout:true};
     /// <summary>«Joven · 3 Pokémon · Nv. 12–15», read from the trainer record (cached; cleared after a save or an applied proposal).</summary>
     internal string TrainerSubtitle(int id)
     {

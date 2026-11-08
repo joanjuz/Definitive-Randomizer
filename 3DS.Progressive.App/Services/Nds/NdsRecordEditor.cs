@@ -11,7 +11,7 @@ namespace ThreeDS.Progressive.Services.Nds;
 /// Adapts one DS section to the editor contract shared with 3DS and Sword/Shield: entries, fields with their ranges and names,
 /// manual saves and randomization proposals. Storage stays in <see cref="NdsProject"/>; this view never writes ROM files.
 /// </summary>
-internal sealed class NdsRecordEditor : IProjectEditor, ITrainerEditorPresentation, IWildEditorPresentation, ITableEditorPresentation, ITrainerRuleTableEditor,
+internal sealed partial class NdsRecordEditor : IProjectEditor, ITrainerEditorPresentation, IWildEditorPresentation, ITableEditorPresentation, ITrainerRuleTableEditor,
     IOptionTemplateProjectEditor, IOptionTemplatePresentation, IRecordSummary
 {
     // The Pokémon section shows the header card of the 3DS Pokémon editor; the other sections have no species header.
@@ -88,7 +88,7 @@ internal sealed class NdsRecordEditor : IProjectEditor, ITrainerEditorPresentati
     {
         if (_revision == _project.Revision)
             return;
-        _cells = _project.Read(_section);
+        _cells = UsesTrainerLayout ? _project.ReadTrainerFields() : _project.Read(_section);
         _revision = _project.Revision;
         Entries = _cells.GroupBy(c => c.Entry).Select(g => new RecordEntry(g.Key, g.First().EntryName)).ToArray();
     }
@@ -127,10 +127,15 @@ internal sealed class NdsRecordEditor : IProjectEditor, ITrainerEditorPresentati
             throw new InvalidOperationException("La ROM cambió desde que se abrió esta entrada. Vuelve a seleccionarla antes de guardar.");
         var rows = _cells.Where(c => c.Entry == id).ToArray();
         EditorValues.Validate(Read(id), values);
-        var edits = rows.Where(c => values.TryGetValue(c.Local, out int v) && v != c.Value).ToDictionary(c => c.Key, c => values[c.Local]);
+        bool includeMoves = !UsesTrainerLayout || values.GetValueOrDefault("HasMoves", rows.First(r=>r.Local=="HasMoves").Value)==1;
+        bool includeItems = !UsesTrainerLayout || values.GetValueOrDefault("HasItems", rows.First(r=>r.Local=="HasItems").Value)==1;
+        var edits = rows.Where(c => values.TryGetValue(c.Local, out int v) && v != c.Value
+            && (c.Kind != NdsValueKind.Move || includeMoves)
+            && (!c.Local.EndsWith(".Item", StringComparison.Ordinal) || includeItems))
+            .ToDictionary(c => c.Key, c => values[c.Local]);
         if (edits.Count == 0)
             return;
-        _project.Apply(_project.PreviewEdits(_section, edits));
+        _project.Apply(UsesTrainerLayout ? _project.PreviewTrainerEdits(edits) : _project.PreviewEdits(_section, edits));
         Refresh();
         Changed?.Invoke();
     }
@@ -428,7 +433,7 @@ internal sealed class NdsRecordEditor : IProjectEditor, ITrainerEditorPresentati
     private EditorProposal Propose(NdsPreview preview, uint seed)
     {
         string action = preview.Action;
-        var changes = preview.Result.Changes.Select(c => new BatchChange(0, c.Location, c.Field, Label(c, c.Before), Label(c, c.After))).ToArray();
+        var changes = preview.Result.Changes.Select(c => new BatchChange(0, c.Location, c.Field, TrainerBeforeLabel(c) ?? Label(c, c.Before), Label(c, c.After))).ToArray();
         var proposal = new EditorProposal(_owner, action, unchecked((int)seed), [], changes,
             new Dictionary<string, string> { ["Platform"] = "NDS", ["Game"] = _project.Identity.Profile.GameCode, ["Seed"] = seed.ToString() });
         _proposals.Add(proposal, preview);
