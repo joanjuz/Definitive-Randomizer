@@ -35,6 +35,9 @@ internal static class UsumNatureMintChecks
         byte[] code=[1,2,3,(byte)(moon?4:5)];File.WriteAllBytes(Path.Combine(f.Game.ExeFS,"code.bin"),code);
         byte[] header=new byte[0x200];"NCCH"u8.CopyTo(header.AsSpan(0x100));BitConverter.GetBytes(moon?0x00040000001b5100UL:0x00040000001b5000UL).CopyTo(header,0x118);
         File.WriteAllBytes(Path.Combine(f.Root,"HeaderNCCH0.bin"),header);
+        byte[] exheader=new byte[0x800];uint[] layout=[0x100000,0x4ba,moon?0x4b99f8u:0x4b99f0u,0x5ba000,0xad,0xac948,0x667000,0x3d,0x3cd48];
+        for(int i=0;i<layout.Length;i++)BitConverter.GetBytes(layout[i]).CopyTo(exheader,0x10+(i/3)*0x10+(i%3)*4);
+        File.WriteAllBytes(Path.Combine(f.Root,"exheader.bin"),exheader);
         byte[] bag=Bag();File.WriteAllBytes(Path.Combine(f.Game.RomFS,"Bag.cro"),bag);
         var items=Enumerable.Range(0,960).Select(_=>new byte[36]).ToArray();
         foreach(var mint in UsumNatureMintCatalog.Mints)items[mint.ItemId]=EmptyItem(mint.ItemId);
@@ -69,6 +72,7 @@ internal static class UsumNatureMintChecks
         reject(()=>UsumItemPocketTable.Write(pockets,960,1),"MintPocketBounds ID960 rejected");
         reject(()=>UsumItemPocketTable.Write(pockets,113,16),"MintPocketBounds pocket16 rejected");
         reject(()=>UsumNatureMintCatalog.IdentifyCode(new byte[128]),"MintRejectUnknownProfiles unknown executable rejected");
+        reject(()=>UsumMintCodeDataProfile.ValidateMemoryLayout(new byte[0x800],false),"MintRejectUnknownNativeAddresses");
         using(var unrelated=new Fixture(GameVersion.USUM)){
             string[] names=unrelated.Session.ItemNames.ToArray();unrelated.Session.RefreshMintItemNames();
             check(unrelated.Session.ItemNames.SequenceEqual(names),"MintCatalogDoesNotReadUnrelatedMissingTextArchive");
@@ -88,6 +92,10 @@ internal static class UsumNatureMintChecks
             using var f=new Fixture(GameVersion.USUM);var profile=Setup(f,moon);
             Func<byte[],UsumNatureMintProfile> identity=bytes=>Hash(bytes)==profile.CodeSha256?profile:throw new InvalidDataException("Synthetic code mismatch");
             var service=new UsumNatureMintService(f.Session,identity);
+            string exheaderPath=Path.Combine(f.Root,"exheader.bin");byte[] layout=File.ReadAllBytes(exheaderPath);
+            byte[] badLayout=(byte[])layout.Clone();badLayout[0x20]^=1;File.WriteAllBytes(exheaderPath,badLayout);
+            check(service.Inspect().State==UsumMintState.Incompatible,"MintMemoryLayoutMismatchBlocked "+profile.Id);
+            File.WriteAllBytes(exheaderPath,layout);
             var preview=service.Inspect();if(preview.Proposal is null)throw new Exception("Mint preview: "+preview.Report);
             check(preview.State==UsumMintState.NotInstalled&&preview.Proposal.Files.Count==14,"MintPrepareLifecycle "+profile.Id+" 14 file detached proposal");
             var before=preview.Proposal!.Files.ToDictionary(p=>p.Path,p=>File.ReadAllBytes(p.Path));
@@ -130,6 +138,50 @@ internal static class UsumNatureMintChecks
             check(UsumNatureMintPatch.Inspect(installed,profile).State==UsumMintState.Modified,"MintExternalBagMutation detected "+profile.Id);
         }
     }
+    // Real executable/Bag dependencies with synthetic reserved items and text banks.
+    // This is deliberately separate from the complete private-ROM lifecycle probe.
+    internal static void CompatibilityProbe(string sunCode,string moonCode,string originalBag,Action<bool,string> check,Action<Action,string> reject)
+    {
+        using var state=new TestState();
+        foreach(var (path,moon) in new[]{(sunCode,false),(moonCode,true)}){
+            using var f=new Fixture(GameVersion.USUM);var slots=Setup(f,moon).TextSlotHashes;
+            byte[] code=File.ReadAllBytes(path),bag=File.ReadAllBytes(originalBag);
+            var profile=UsumNatureMintCatalog.Profiles.Single(p=>p.Moon==moon);
+            check(Hash(code)==profile.CodeSha256&&UsumNatureMintCatalog.IdentifyCode(code)==profile,"MintCompatibilityRealRecognizedOriginal "+profile.Id);
+            string codePath=Path.Combine(f.Game.ExeFS,"code.bin"),bagPath=Path.Combine(f.Game.RomFS,"Bag.cro"),crrPath=Path.Combine(f.Game.RomFS,".crr/static.crr");
+            File.WriteAllBytes(codePath,code);File.WriteAllBytes(bagPath,bag);
+            File.WriteAllBytes(crrPath,CroIntegrity.RebuildCrr(File.ReadAllBytes(crrPath),[bag]));
+            var service=new UsumNatureMintService(f.Session,b=>UsumNatureMintCatalog.IdentifyCode(b) with{TextSlotHashes=slots});
+            check(service.Inspect().State==UsumMintState.NotInstalled,"MintCompatibilityRealDependenciesOriginalPreflight "+profile.Id);
+            var types=new GameTypeChartService(f.Session);byte[] compatible=types.Preview(GameTypeChartService.Inverse(types.Read())).File.Proposed();
+            new byte[]{20,35,50,65,80,100}.CopyTo(compatible,UsumMintCodeDataProfile.ObedienceOffset);
+            BitConverter.GetBytes((ushort)85).CopyTo(compatible,UsumMintCodeDataProfile.TmOffset);compatible[UsumMintCodeDataProfile.AlwaysShinyOffset]=0xea;
+            File.WriteAllBytes(codePath,compatible);
+            check(!compatible.SequenceEqual(code)&&UsumNatureMintCatalog.IdentifyCode(compatible)==profile&&service.Inspect().Proposal is not null,"MintCompatibilityRealCombinedTypechartObedienceTMShiny "+profile.Id);
+            byte[] icons=UsumMintIconLayout.InstallMapping(compatible);
+            check(UsumNatureMintCatalog.IdentifyCode(icons)==profile,"MintCompatibilityCombinedIconMappingRecognized "+profile.Id);
+            BitConverter.GetBytes(768).CopyTo(icons,UsumMintIconLayout.TableOffset+114*4);
+            reject(()=>UsumNatureMintCatalog.IdentifyCode(icons),"MintCompatibilityPartialIconMappingRejected "+profile.Id);
+            int shift=moon?8:0;
+            foreach(int offset in new[]{0x3ae0e0+shift,0x22258c,0x3ad588+shift,0x222514,0x3aea1c+shift,0x224d84,0x21bd64,UsumMintCodeDataProfile.TypeChartOffset-1,UsumMintCodeDataProfile.TypeChartOffset+324,0x567000}){
+                byte[] critical=(byte[])compatible.Clone();critical[offset]^=1;File.WriteAllBytes(codePath,critical);
+                var rejected=service.Inspect();check(rejected.State==UsumMintState.Incompatible&&rejected.Proposal is null&&rejected.Report.Contains("code.bin"),"MintCompatibilityCriticalOrUnclassifiedChangeRejected "+profile.Id+" "+offset.ToString("X"));
+            }
+            byte[] invalid=(byte[])compatible.Clone();invalid[UsumMintCodeDataProfile.TypeChartOffset]=3;
+            reject(()=>UsumNatureMintCatalog.IdentifyCode(invalid),"MintCompatibilityUnknownTypeMultiplierRejected "+profile.Id);
+            invalid=(byte[])compatible.Clone();invalid[UsumMintCodeDataProfile.ObedienceOffset]=99;
+            reject(()=>UsumNatureMintCatalog.IdentifyCode(invalid),"MintCompatibilityUnknownObedienceRejected "+profile.Id);
+            File.WriteAllBytes(codePath,compatible);
+            var preview=service.Inspect();var files=preview.Proposal!.Files.ToDictionary(p=>p.Path,p=>p.Original());
+            var unrelated=Directory.GetFiles(f.Root,"*",SearchOption.AllDirectories).Where(p=>!files.ContainsKey(p)).ToDictionary(p=>p,p=>Hash(File.ReadAllBytes(p)));
+            service.Apply(preview);
+            var reopened=Fixture.CreateSession(f.Game,f.Root,f.PersonalPath);
+            check(new UsumNatureMintService(reopened,b=>UsumNatureMintCatalog.IdentifyCode(b) with{TextSlotHashes=slots}).Inspect().State==UsumMintState.Installed,"MintCompatibilityRealRuntimeInstallReopen "+profile.Id);
+            check(unrelated.All(p=>Hash(File.ReadAllBytes(p.Key))==p.Value),"MintCompatibilityUnrelatedFilesPreserved "+profile.Id);
+            RestorePoints.Undo(f.Session.History,f.Root,f.Session.History.Read().Entries.Last().Id);
+            check(files.All(p=>File.ReadAllBytes(p.Key).SequenceEqual(p.Value))&&File.ReadAllBytes(codePath).SequenceEqual(compatible)&&service.Inspect().State==UsumMintState.NotInstalled,"MintCompatibilityUndoPreservesRandomizedCode "+profile.Id);
+        }
+    }
     internal static void ArmFixtures(string directory)
     {
         Directory.CreateDirectory(directory);
@@ -148,6 +200,9 @@ internal static class UsumNatureMintChecks
         var nodes=Descendants(view).ToArray();
         check(nodes.OfType<System.Windows.Controls.CheckBox>().Any(c=>System.Windows.Automation.AutomationProperties.GetName(c)==UsumMintItemPolicy.Label&&c.IsChecked==false),"MintUiDistributionOptInOffByDefault");
         check(nodes.OfType<System.Windows.Controls.TextBlock>().Any(t=>t.Text==UsumNatureMintService.Warning+"."),"MintUiRealNatureWarningVisible");
+        check(nodes.OfType<System.Windows.Controls.Expander>().Any(e=>e.Header.ToString()=="Diagnóstico técnico"&&!e.IsExpanded),"MintUiOptionalDiagnosticCollapsed");
+        foreach(var (state,label) in new[]{(UsumMintState.NotInstalled,"Compatible"),(UsumMintState.Installed,"Instalado"),(UsumMintState.Modified,"Incompatible"),(UsumMintState.Incompatible,"Incompatible")})
+            check(ThreeDS.Progressive.UsumNatureMintView.Status(new(state,"Causa concreta",null)).StartsWith(label+"\n"),"MintUiSimpleStatus "+state);
         var buttons=nodes.OfType<System.Windows.Controls.Button>().ToArray();
         check(buttons.Length==5&&buttons.Where(b=>b.Content.ToString() is "Descargar y preparar iconos (Pok\u00e9API)" or "Instalar iconos preparados").All(b=>!b.IsEnabled)&&buttons.Single(b=>b.Content.ToString()=="Instalar 21 mentas").IsEnabled==false,"MintUiFiveActionsAndNoUnpreparedInstall");
         buttons.Single(b=>b.Content.ToString()=="Abrir Tiendas y BP").RaiseEvent(new System.Windows.RoutedEventArgs(System.Windows.Controls.Button.ClickEvent));

@@ -145,6 +145,8 @@ internal static class UsumMintDistributionChecks
     {
         byte[] code=new byte[5914624];for(int i=0;i<100;i++)BitConverter.GetBytes((ushort)(i+1)).CopyTo(code,UsumMintCodeDataProfile.TmOffset+i*2);
         new byte[]{0x23,0,0xd4,0xe5}.CopyTo(code,UsumMintCodeDataProfile.PidOffset);code[UsumMintCodeDataProfile.AlwaysShinyOffset]=0x0a;
+        new byte[]{20,35,50,65,80,100}.CopyTo(code,UsumMintCodeDataProfile.ObedienceOffset);
+        BitConverter.GetBytes(0x5c4644u).CopyTo(code,0x21bd64);
         byte[] normalized=UsumMintCodeDataProfile.Normalize(code);code[UsumMintCodeDataProfile.TmOffset]=99;code[UsumMintCodeDataProfile.AlwaysShinyOffset]=0xea;
         check(UsumMintCodeDataProfile.Normalize(code).SequenceEqual(normalized),"MintDistributionCodeOnlyKnownDataNormalized");
         code[0x100]^=1;reject(()=>UsumNatureMintCatalog.IdentifyCode(code),"MintDistributionUnknownExecutableStillRejected");

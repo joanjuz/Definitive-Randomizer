@@ -14,6 +14,7 @@ internal sealed class UsumNatureMintView : UserControl
     private readonly UsumNatureMintService _service;
     private readonly UsumMintIconService _iconService;
     private readonly TextBlock _report;
+    private readonly TextBlock _diagnostic;
     private readonly Button _inspect,_install,_shops,_prepareIcons,_installIcons;
     private UsumMintPreview? _preview;
     private UsumMintIconPreview? _iconPreview;
@@ -43,7 +44,10 @@ internal sealed class UsumNatureMintView : UserControl
             Foreground=(Brush)FindResource("TextSoft"),Margin=new Thickness(0,0,0,8)});
         _report=new TextBlock{Text="Comprobando el proyecto…",TextWrapping=TextWrapping.Wrap,
             Foreground=(Brush)FindResource("TextMain"),Margin=new Thickness(0,12,0,0)};
-        root.Children.Add(new ScrollViewer{Content=_report,VerticalScrollBarVisibility=ScrollBarVisibility.Auto});
+        _diagnostic=new TextBlock{TextWrapping=TextWrapping.Wrap,Foreground=(Brush)FindResource("TextSoft")};
+        var status=new StackPanel();status.Children.Add(_report);
+        status.Children.Add(new Expander{Header="Diagnóstico técnico",Content=_diagnostic,Margin=new Thickness(0,12,0,0)});
+        root.Children.Add(new ScrollViewer{Content=status,VerticalScrollBarVisibility=ScrollBarVisibility.Auto});
         Loaded+=async(_,_)=>{if(_preview is null)await InspectAsync();};
         Button Add(string label,Action action){var button=new Button{Content=label,Margin=new Thickness(0,0,8,8)};
             button.Click+=(_,_)=>action();buttons.Children.Add(button);return button;}
@@ -62,9 +66,11 @@ internal sealed class UsumNatureMintView : UserControl
         catch(Exception ex){_report.Text="No se modificó el proyecto: "+ex.Message;}
         finally{Busy(false);}
     }
-    private void Show(){_report.Text=(_preview?.State switch{
-        UsumMintState.NotInstalled=>"No instalado",UsumMintState.Installed=>"Instalado y reconocido",
-        UsumMintState.Modified=>"Parcialmente reconocido / modificado externamente",_=>"Incompatible"})+"\n\n"+_preview?.Report+
+    internal static string Status(UsumMintPreview? preview)=>preview?.State switch{
+        UsumMintState.NotInstalled=>"Compatible\nPuedes instalar las 21 mentas. Las dependencias del parche están reconocidas.",
+        UsumMintState.Installed=>"Instalado\nLas 21 mentas están reconocidas. Puedes añadirlas desde Tiendas y BP.",
+        _=>"Incompatible\n"+preview?.Report};
+    private void Show(){_report.Text=Status(_preview);_diagnostic.Text=_preview?.Report+
         (_iconPreview is null?"":"\n\nICONOS · "+_iconPreview.Report);}
     private async Task InstallAsync()
     {

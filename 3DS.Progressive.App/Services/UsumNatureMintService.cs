@@ -30,7 +30,10 @@ internal sealed class UsumNatureMintService(GameProjectSession project,Func<byte
         var codes=Directory.GetFiles(config.ExeFS).Where(p=>Path.GetFileName(p) is "code.bin" or ".code.bin").ToArray();
         if(codes.Length!=1)throw new InvalidDataException("Se requiere un único code.bin descomprimido.");
         var profile=(identifyCode??UsumNatureMintCatalog.IdentifyCode)(Read(codes[0]));
-        // Identity is checked independently from the two executable fingerprints.
+        string exheader=new[]{"exheader.bin","DecryptedExHeader.bin"}.Select(name=>Path.Combine(project.ProjectRoot,name)).FirstOrDefault(File.Exists)
+            ??throw new InvalidDataException("Falta el exheader para comprobar las direcciones del runtime.");
+        UsumMintCodeDataProfile.ValidateMemoryLayout(Read(exheader),profile.Moon);
+        // Identity is checked independently from the protected executable segments.
         string header=new[]{"ncchheader.bin","HeaderNCCH0.bin","HeaderNCCH.bin"}.Select(name=>Path.Combine(project.ProjectRoot,name)).FirstOrDefault(File.Exists)
             ??throw new InvalidDataException("Falta la cabecera NCCH del proyecto para acreditar el título.");
         byte[] ncch=Read(header);

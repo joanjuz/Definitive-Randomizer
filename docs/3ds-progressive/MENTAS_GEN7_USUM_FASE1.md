@@ -6,14 +6,14 @@ Estado: funcionalidad principal validada manualmente por el propietario en el em
 
 ## Compatibilidad acreditada
 
-El título se comprueba en la cabecera NCCH (`ncchheader.bin`, `HeaderNCCH0.bin` o `HeaderNCCH.bin`) y se contrasta con un perfil separado de ejecutable. La revisión se fija por su huella exacta, no por la carpeta ni por un número comercial inferido. No se anuncia soporte general de «todas las revisiones 1.x».
+El título se comprueba en la cabecera NCCH (`ncchheader.bin`, `HeaderNCCH0.bin` o `HeaderNCCH.bin`) y se contrasta con un perfil separado de ejecutable. El instalador admite combinaciones de modificaciones acreditadas sin exigir el hash completo original: véase [compatibilidad del instalador](MENTAS_GEN7_USUM_COMPATIBILIDAD.md). No se anuncia soporte general de «todas las revisiones 1.x». Estas huellas identifican las referencias de partida; el usuario no tiene que comprobarlas manualmente.
 
 | Perfil | Title ID | SHA-256 de code.bin descomprimido |
 |---|---|---|
 | US-code-d2e9b4d9 | `00040000001B5000` | `d2e9b4d91d7b14bcef0c34d869c1da60ef85d98b1df3c34cbc42e42f54cfba27` |
 | UM-code-a6aa17b6 | `00040000001B5100` | `a6aa17b6f409264f6ed15d51735e9638d3f44896c0cec0f05c39940b79fe30e7` |
 
-Bag.cro inicial: SHA-256 `bd97393e3440a04ca6f61c98771c11e595c4ee649f9c4985e793a81e7721155c`, comprobado en ambos títulos, además de las cuatro firmas de hooks. Una revisión, code.bin previamente parcheado, Bag distinto o título sin acreditar bloquea la instalación. No existe opción de forzar ni carga de perfiles externos. No es compatible con Sol/Luna, Gen6, DS ni Switch. Otros parches que alteren code.bin quedan fuera de estos perfiles; no desactives las comprobaciones para combinarlos.
+Bag.cro inicial: SHA-256 `bd97393e3440a04ca6f61c98771c11e595c4ee649f9c4985e793a81e7721155c`, comprobado en ambos títulos, además de las cuatro firmas de hooks. Se conserva esta protección completa de Bag y se comprueba también el mapa de memoria del exheader. Una revisión, modificación del ejecutable fuera de las regiones acreditadas, Bag distinto o título sin acreditar bloquea la instalación. No existe opción de forzar ni carga de perfiles externos. No es compatible con Sol/Luna, Gen6, DS ni Switch.
 
 ## Instalar y conseguirlas
 
@@ -32,7 +32,7 @@ La instalación cambia 14 archivos: Bag.cro, tabla de objetos `a/0/1/9`, bolsill
 
 Los IDs se aceptan solo si conservan los registros acreditados y los bolsillos esperados. Las huellas de los 21 textos originales reservados se contrastaron en ambos juegos, diez idiomas y cuatro bancos; incluyen los nombres japoneses residuales de objetos antiguos. Un nombre inglés «???» nunca es el único criterio. Los textos ajenos conservan sus filas cifradas, espacios, comandos y metadatos. Solo se agrega el mensaje 159 si el banco de bolsa tiene las 159 filas originales; no se sobrescribe otro parche.
 
-El estado se calcula desde los archivos actuales: **no instalado**, **instalado y reconocido**, **incompatible** o **parcialmente reconocido/modificado externamente**. El marcador del runtime por sí solo no basta: se comprueban cuerpo, digest, hooks, integridad CRO, registros, bolsillos, textos y entrada de Bag en CRR. Reabrir no depende del historial para detectar el parche. Reinstalar lo mismo no crea otra instalación; una propuesta antigua no puede aplicarse de nuevo.
+El estado visible se calcula desde los archivos actuales: **Compatible**, **Instalado** o **Incompatible**, con explicación y diagnóstico técnico desplegable. Internamente se sigue distinguiendo una instalación modificada externamente. El marcador del runtime por sí solo no basta: se comprueban cuerpo, digest, hooks, integridad CRO, registros, bolsillos, textos y entrada de Bag en CRR. Reabrir no depende del historial para detectar el parche. Reinstalar lo mismo no crea otra instalación; una propuesta antigua no puede aplicarse de nuevo.
 
 Los cambios se registran en el historial y usan sus puntos de restauración. Para deshacer, restaura primero ediciones posteriores de objetos/textos/CRR que impidan restaurar el conjunto coherente. El editor refresca el catálogo al abrir Objetos/Tiendas. **Deshacer archivos no revierte la naturaleza ni el inventario que ya guardaste dentro de una partida**. Usa una partida de prueba o restaura su respaldo. Se conservan los límites reales de transacciones/recuperación; no se promete protección universal ante apagones o todos los sistemas de archivos.
 
