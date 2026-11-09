@@ -115,3 +115,7 @@ Registros de entregas pasadas. Útiles para entender por qué existe un comporta
 - Candidato 71: [ESTADO_CANDIDATO_71.md](ESTADO_CANDIDATO_71.md). Las iteraciones 72–73 no tienen archivo propio.
 - Iteraciones 74–86: `ITERACION_74_PLANTILLAS_VALIDACION.md` … `ITERACION_86_ENCUENTROS_BLOQUEO.md` (la 85 no tiene documento propio).
 - Primera parte visual: [HITO_01_1_VISUAL.md](HITO_01_1_VISUAL.md).
+
+## Candidata privada
+
+- [1.0.0-rc.1: preparación y alcance del paquete privado](RELEASE_1.0.0_rc.1.md)
