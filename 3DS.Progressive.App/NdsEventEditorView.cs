@@ -14,6 +14,9 @@ using HorizontalAlignment = System.Windows.HorizontalAlignment;
 using TabControl = System.Windows.Controls.TabControl;
 using DataGrid = System.Windows.Controls.DataGrid;
 using Binding = System.Windows.Data.Binding;
+using RadioButton = System.Windows.Controls.RadioButton;
+using CheckBox = System.Windows.Controls.CheckBox;
+using Point = System.Windows.Point;
 
 namespace ThreeDS.Progressive;
 
@@ -31,6 +34,13 @@ internal sealed class NdsEventEditorView : UserControl
     private readonly Button _preview = new() { Content = "Previsualizar diferencias" }, _save = new() { Content = "Guardar cambios…", IsEnabled = false };
     private readonly Button _undo = new() { Content = "Restaurar último cambio…" }, _warp = new() { Content = "Ir al destino existente", IsEnabled = false }, _script = new() { Content = "Ver referencia de script", IsEnabled = false };
     private readonly Grid _body = new();
+    private readonly NdsMapCanvasControl _canvas = new() { MinHeight = 180 };
+    private readonly Grid _center = new();
+    private readonly RadioButton _modeMap = new() { Content = "Mapa", IsChecked = true, GroupName = "NdsEventMode", Margin = new Thickness(0, 0, 10, 0) }, _modeTables = new() { Content = "Tablas", GroupName = "NdsEventMode", Margin = new Thickness(0, 0, 14, 0) };
+    private readonly WrapPanel _layerBar = new() { Margin = new Thickness(0, 0, 0, 4) };
+    private readonly StackPanel _mapFooter = new();
+    private readonly TextBlock _hover = new() { TextTrimming = TextTrimming.CharacterEllipsis, FontSize = 11.5, Margin = new Thickness(0, 2, 0, 0) }, _scale = new() { TextTrimming = TextTrimming.CharacterEllipsis, FontSize = 11.5, Margin = new Thickness(0, 2, 0, 0) };
+    private Border? _canvasFrame;
     private readonly ScrollViewer _inspector;
     private NdsEventProposal? _pending;
     private PlatinumMap? _map;
@@ -66,7 +76,7 @@ internal sealed class NdsEventEditorView : UserControl
         var searchLabel = new TextBlock { Text = "Buscar mapa (nombre o ID)", TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 4) };
         DockPanel.SetDock(searchLabel, Dock.Top); left.Children.Add(searchLabel);
         DockPanel.SetDock(_search, Dock.Top); left.Children.Add(_search); left.Children.Add(_maps); _body.Children.Add(left);
-        Grid.SetColumn(_tabs, 1); _body.Children.Add(_tabs);
+        BuildCenter();
         string[] titles = ["NPC", "Objetos", "Warps", "Scripts"];
         for (int i = 0; i < 4; i++)
         {
@@ -107,6 +117,84 @@ internal sealed class NdsEventEditorView : UserControl
         _script.Click += (_, _) => { var selected = _event; if (selected is null) return; _tabs.SelectedIndex = 3; _tables[3].SelectedItem = _tables[3].Items.Cast<PlatinumEvent>().FirstOrDefault(e => e.Kind == selected.Kind && e.Index == selected.Index); _details.Focus(); };
         SizeChanged += (_, _) => Adapt(); FilterMaps(); RefreshStatus();
     }
+    private void BuildCenter()
+    {
+        _center.RowDefinitions.Add(new() { Height = GridLength.Auto }); _center.RowDefinitions.Add(new() { Height = GridLength.Auto });
+        _center.RowDefinitions.Add(new() { Height = new GridLength(1, GridUnitType.Star) }); _center.RowDefinitions.Add(new() { Height = GridLength.Auto });
+        var bar = new WrapPanel { Margin = new Thickness(0, 0, 0, 4) }; bar.Children.Add(_modeMap); bar.Children.Add(_modeTables);
+        foreach (var (label, tip, action) in new (string, string, Action)[] { ("−", "alejar", () => _canvas.ZoomCentered(1 / 1.25)), ("+", "acercar", () => _canvas.ZoomCentered(1.25)),
+            ("Ajustar a eventos", "ajustar a eventos", () => _canvas.FitEvents()), ("Ver matriz completa", "ver matriz completa", () => _canvas.FitMatrix()) })
+        {
+            var button = new Button { Content = label, MinWidth = 36, Margin = new Thickness(0, 0, 6, 0), Padding = new Thickness(8, 2, 8, 2) };
+            AccessibleName(button, "Eventos DS · mapa · " + tip); button.Click += (_, _) => action(); EditorPresentation.StyleAction(button, EditorPresentation.ActionRole.Tertiary); bar.Children.Add(button);
+        }
+        foreach (var radio in new[] { _modeMap, _modeTables }) radio.SetResourceReference(ForegroundProperty, "TextMain");
+        AccessibleName(_modeMap, "Eventos DS · modo mapa esquemático"); AccessibleName(_modeTables, "Eventos DS · modo tablas");
+        _center.Children.Add(bar);
+        foreach (var (label, layer) in new[] { ("NPC", NdsMapLayers.Npc), ("Objetos", NdsMapLayers.Objects), ("Warps", NdsMapLayers.Warps), ("Activadores", NdsMapLayers.Triggers), ("Bloques", NdsMapLayers.Blocks), ("Tiles", NdsMapLayers.Tiles), ("Máscara", NdsMapLayers.Ownership) })
+        {
+            var box = new CheckBox { Content = label, IsChecked = true, Margin = new Thickness(0, 0, 10, 0), Tag = layer, FontSize = 12 }; AccessibleName(box, "Eventos DS · capa " + label + (layer == NdsMapLayers.Blocks ? " de 32×32 tiles" : layer == NdsMapLayers.Ownership ? " de cabecera (celdas de la cabecera, contextuales y ajenas)" : "")); box.ToolTip = (string)AutomationProperties.GetName(box).Substring(13);
+            box.Checked += (_, _) => ApplyLayers(); box.Unchecked += (_, _) => ApplyLayers(); _layerBar.Children.Add(box);
+        }
+        Grid.SetRow(_layerBar, 1); _center.Children.Add(_layerBar);
+        _canvasFrame = new Border { BorderThickness = new Thickness(1), Child = _canvas, MinHeight = 180 }; _canvasFrame.SetResourceReference(Border.BorderBrushProperty, "Stroke");
+        Grid.SetRow(_canvasFrame, 2); _center.Children.Add(_canvasFrame); Grid.SetRow(_tabs, 2); _center.Children.Add(_tabs); _tabs.Visibility = Visibility.Collapsed;
+        var notice = new TextBlock { Text = NdsMapCanvasControl.SchematicNotice, FontWeight = FontWeights.SemiBold, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 4, 0, 0) };
+        AccessibleName(notice, "Eventos DS · aviso de vista esquemática"); AccessibleName(_hover, "Eventos DS · posición bajo el cursor"); AccessibleName(_scale, "Eventos DS · escala y dimensiones");
+        _mapFooter.Children.Add(notice); _mapFooter.Children.Add(_scale); _mapFooter.Children.Add(_hover); _mapFooter.Children.Add(BuildLegend());
+        Grid.SetRow(_mapFooter, 3); _center.Children.Add(_mapFooter);
+        Grid.SetColumn(_center, 1); _body.Children.Add(_center);
+        _modeMap.Checked += (_, _) => ApplyMode(); _modeTables.Checked += (_, _) => ApplyMode();
+        _canvas.EventPicked += PickFromCanvas; _canvas.ViewChanged += UpdateScale; _canvas.Hover += text => _hover.Text = text;
+    }
+    private UIElement BuildLegend()
+    {
+        var legend = new WrapPanel { Margin = new Thickness(0, 2, 0, 0) }; AccessibleName(legend, "Eventos DS · leyenda de marcadores");
+        void Item(UIElement glyph, string text) { var row = new StackPanel { Orientation = System.Windows.Controls.Orientation.Horizontal, Margin = new Thickness(0, 0, 10, 0) }; row.Children.Add(glyph); row.Children.Add(new TextBlock { Text = text, FontSize = 11.5, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(3, 0, 0, 0) }); legend.Children.Add(row); }
+        foreach (var (shape, text) in new[] { (NdsMarkerShape.Npc, "NPC"), (NdsMarkerShape.GroundObject, "NPC objeto de suelo"), (NdsMarkerShape.BackgroundObject, "objeto de fondo"), (NdsMarkerShape.Warp, "warp"), (NdsMarkerShape.Trigger, "activador (rango declarado)") })
+            Item(new System.Windows.Shapes.Path { Width = 20, Height = 16, Data = NdsMapCanvasControl.ShapeGeometry(shape, new Point(10, 8), 5.5), Fill = new System.Windows.Media.SolidColorBrush(NdsMapCanvasControl.ColorOf(shape)), Stroke = System.Windows.Media.Brushes.Black, StrokeThickness = 1 }, text);
+        foreach (var (kind, text) in new[] { (NdsBlockOwnership.Explicit, "celda asociada a esta cabecera"), (NdsBlockOwnership.Contextual, "cabecera contextual (sin IDs)"), (NdsBlockOwnership.Other, "celda de otra cabecera") })
+            Item(new System.Windows.Shapes.Rectangle { Width = 16, Height = 12, Fill = NdsMapCanvasControl.LegendBrush(kind), Stroke = NdsMapCanvasControl.LegendStroke }, text);
+        legend.Children.Add(new TextBlock { Text = "Anillo discontinuo: evento fuera de la máscara de la cabecera · Aspa: fuera de la matriz", FontSize = 11.5, TextWrapping = TextWrapping.Wrap });
+        return legend;
+    }
+    private void ApplyMode()
+    {
+        bool map = _modeMap.IsChecked == true;
+        if (_canvasFrame is not null) _canvasFrame.Visibility = map ? Visibility.Visible : Visibility.Collapsed;
+        _tabs.Visibility = map ? Visibility.Collapsed : Visibility.Visible; _layerBar.Visibility = _mapFooter.Visibility = map ? Visibility.Visible : Visibility.Collapsed;
+    }
+    private void ApplyLayers()
+    {
+        var layers = NdsMapLayers.None;
+        foreach (var box in _layerBar.Children.OfType<CheckBox>()) if (box.IsChecked == true) layers |= (NdsMapLayers)box.Tag;
+        _canvas.SetLayers(layers);
+    }
+    private void LoadCanvas(PlatinumMap? map, IReadOnlyList<PlatinumEvent> events)
+    {
+        if (map is null) { _canvas.Clear(); _scale.Text = ""; return; }
+        try { _canvas.SetMap(_session.Data.Layout(map.Id), events); }
+        catch (InvalidDataException ex) { _canvas.Clear(); _scale.Text = "No se pudo leer la matriz de este mapa: " + ex.Message; }
+    }
+    private void UpdateScale()
+    {
+        if (_canvas.Model is not { } m) return;
+        _scale.Text = $"Escala: 1 tile = {m.Zoom:0.##} px · bloque = 32×32 tiles · matriz {m.Layout.Width}×{m.Layout.Height} bloques ({m.Layout.TileWidth}×{m.Layout.TileHeight} tiles) · celdas asociadas explícitamente a la cabecera {m.Layout.MapId}: {(m.Layout.HasStoredHeaders ? m.OwnedBlockCount.ToString(CultureInfo.InvariantCulture) : "sin cabeceras almacenadas")} · eventos fuera de la máscara: {m.OutsideMaskCount}"; _scale.ToolTip = _scale.Text;
+    }
+    private void PickFromCanvas(PlatinumEvent? item)
+    {
+        if (item is null || _busy) return;
+        if (_dirty || _pending is not null)
+        {
+            if (!ConfirmLeave()) { _canvas.SelectProgrammatic(_event, false); return; }
+            _dirty = false; InvalidatePreview();
+        }
+        bool InTable(int t) => _tables[t].Items.Cast<PlatinumEvent>().Any(e => e.Kind == item.Kind && e.Index == item.Index);
+        int tab = _tabs.SelectedIndex >= 0 && InTable(_tabs.SelectedIndex) ? _tabs.SelectedIndex : item.Kind switch { PlatinumEventKind.Npc => 0, PlatinumEventKind.Object => 1, PlatinumEventKind.Warp => 2, _ => 3 };
+        _updating = true; _tabs.SelectedIndex = tab;
+        _tables[tab].SelectedItem = _tables[tab].Items.Cast<PlatinumEvent>().FirstOrDefault(e => e.Kind == item.Kind && e.Index == item.Index); _updating = false;
+        SelectEvent(item);
+    }
     private static void AccessibleName(DependencyObject control, string name) => AutomationProperties.SetName(control, name);
     private void Adapt()
     {
@@ -114,7 +202,7 @@ internal sealed class NdsEventEditorView : UserControl
         _body.ColumnDefinitions[0].Width = new GridLength(compact ? 165 : 205);
         _body.ColumnDefinitions[2].Width = compact ? new GridLength(0) : new GridLength(280);
         Grid.SetRow(_inspector, compact ? 1 : 0); Grid.SetColumn(_inspector, compact ? 0 : 2); Grid.SetColumnSpan(_inspector, compact ? 2 : 1);
-        _inspector.MaxHeight = compact ? 230 : double.PositiveInfinity;
+        _inspector.MaxHeight = compact ? 170 : double.PositiveInfinity;
     }
     private void FilterMaps()
     {
@@ -134,13 +222,14 @@ internal sealed class NdsEventEditorView : UserControl
         _tables[2].ItemsSource = events.Where(e => e.Kind == PlatinumEventKind.Warp).ToArray();
         _tables[3].ItemsSource = events.Where(e => e.Kind == PlatinumEventKind.Trigger || e.Script != 0).ToArray();
         foreach (var table in _tables) table.SelectedItem = table.Items.Cast<PlatinumEvent>().FirstOrDefault();
+        LoadCanvas(map, events);
         _updating = false; SelectEvent(CurrentTable.SelectedItem as PlatinumEvent);
     }
     private void SelectEvent(PlatinumEvent? item)
     {
         if ((_dirty || _pending is not null) && !ConfirmLeave())
         {
-            _updating = true; _tabs.SelectedIndex = _activeTab; CurrentTable.SelectedItem = _event; _updating = false; return;
+            _updating = true; _tabs.SelectedIndex = _activeTab; CurrentTable.SelectedItem = _event; _updating = false; _canvas.SelectProgrammatic(_event, false); return;
         }
         _activeTab = Math.Max(0, _tabs.SelectedIndex);
         _event = item; _updating = true; _dirty = false; InvalidatePreview();
@@ -163,6 +252,9 @@ internal sealed class NdsEventEditorView : UserControl
             if (!editable) _details.Text += "\nSolo consulta en fase 1.";
             if (_session.Data.Maps.Count(m => m.EventFile == _map.EventFile) > 1) _details.Text += "\nArchivo compartido por varias cabeceras: el cambio afecta a todas sus referencias.";
         }
+        if (item is not null && _canvas.Model?.Find(item.Kind, item.Index) is { } marker)
+            _details.Text += $"\nPosición en el mapa esquemático: {_canvas.Model.Describe(item.X, item.Y)}\n{NdsMapCanvasModel.Describe(marker.Placement)}.";
+        _canvas.SelectProgrammatic(item, true);
         _updating = false;
     }
     private bool CanNavigate(PlatinumEvent warp) => warp.Destination >= 0 && warp.Destination < _session.Data.Maps.Count &&
