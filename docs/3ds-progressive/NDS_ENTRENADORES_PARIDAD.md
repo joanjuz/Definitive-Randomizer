@@ -59,4 +59,49 @@ Resultados locales del 08/11/2026:
 | `--nds-trainers-probe` sobre copia privada original de Platino CPUE/1 | 27 aprobadas: equipo explícito y predeterminado, edición, conversiones, rebuild, reapertura, replay exacto, Batch, preservación de otros archivos/ARM9 y SHA-256 del origen |
 | Renders DS inspeccionados | 1100×760 y 760×620, a 96 DPI; texto de procedencia/objeto ajustado, identificación numérica conservada sin imagen |
 
-No se ejecutó un probe privado de Gen5 en esta entrega; su comprobación local es sintética, con sus tres perfiles y diferencias de rutas/textos. No hay validación nueva dentro del juego, con Windows en alto contraste ni con DPI real distintos de 100 %. Los sprites siguen dependiendo del servicio opcional existente. Las pruebas fuera de pantalla y el rebuild no sustituyen una prueba jugable ni una revisión interactiva de foco, alto contraste y DPI.
+En la entrega inicial del 08/11 no se ejecutó un probe privado de Gen5; esa limitación se actualiza con la ejecución real documentada a continuación. En esa entrega inicial no había validación nueva dentro del juego, con Windows en alto contraste ni con DPI real distintos de 100 %. Los sprites siguen dependiendo del servicio opcional existente. Las pruebas fuera de pantalla y el rebuild no sustituyen una prueba jugable ni una revisión interactiva de foco, alto contraste y DPI.
+
+## Reanudación del PR #56 — 09/11/2026 UTC
+
+Se recuperó la copia de trabajo existente de `feature/nds-trainer-parity`, head `baa0dc56b0d422c282cc89d3aa1c4205d242e2b6`, inicialmente limpia. No se cambió de rama en el árbol principal, que contiene trabajo previo de otros módulos. Esta continuación modifica únicamente el probe de entrenadores y documentación; ningún cambio funcional en App/Core, ningún commit de #55/#57, versión, tag, release o merge.
+
+### Copias privadas y ejecución real
+
+En el árbol privado autorizado de Nintendo DS se localizaron originales de Negro USA/EUR (`IRBO/0`) y Blanco 2 USA/EUR (`IRDO/0`), además de Blanco español (`IRAS`) y varias copias modificadas. No se localizó Negro 2 en ese árbol. Se seleccionaron los dos originales Gen5; Blanco español y los romhacks no se usaron en este probe. También se volvió a comprobar Platino USA rev. 1 (`CPUE/1`) porque se amplió una aserción compartida.
+
+Primero se ejecutó el probe sin cambios en el runner del head: **54 aprobadas**, 27 por ROM Gen5, código 0. No hubo fallo funcional que corregir. Se detectó una carencia de evidencia en el propio probe: no cambiaba la especie ni exigía forma distinta de cero. Se amplió `NdsTrainerParityChecks.Exercise`: conversión de un equipo predeterminado a explícito con cambio de especie (Unown o Deoxys, diferente del original), forma 1 y nivel; al reabrir se comprueban conjuntamente esos valores, objeto y los cuatro movimientos. La validación numérica de formas no constituye un catálogo de legalidad por especie ni una prueba de sus efectos en combate.
+
+Después se compiló Tests/App/Core/LegacyBatch con Release, apphost, `--no-incremental` y binlog: **0 errores y 0 advertencias**. El primer intento quedó bloqueado al leer NuGet.Config por permisos del entorno; el mismo comando completó con el acceso necesario, sin modificar esa configuración.
+
+| Ejecución de esta continuación | Resultado |
+|---|---|
+| `--nds-trainers-only` | 171 aprobadas, código 0; seis perfiles sintéticos y derivación de movimientos |
+| `--nds-trainers-probe <salida nueva> <Platino> <Blanco 2> <Negro>` | 84 aprobadas, código 0; 28 por fuente real |
+| `--nds-only`, `--nds-ui-only`, `--requested-ui-only`, renders | No repetidos; se conservan los resultados anteriores, sin cambios funcionales ni visuales |
+
+Comando real, ejecutado desde la copia del PR #56 con rutas privadas resueltas localmente:
+
+```text
+dotnet 3DS.Progressive.Tests/bin/Release/net10.0-windows/3DS.Progressive.Tests.dll --nds-trainers-probe <salida nueva aislada> <Platino CPUE/1> <Blanco 2 IRDO/0> <Negro IRBO/0>
+```
+
+Este ejemplo documenta los argumentos; los marcadores no son rutas para copiar literalmente. El usuario no necesita ejecutar el runner para hacer su prueba jugable.
+
+| Requisito | Evidencia ejecutada en CPUE, IRBO e IRDO |
+|---|---|
+| Especie distinta, forma no cero, nivel, objeto y cuatro movimientos tras reconstruir/reabrir | `RebuildReopensEditedSpeciesNonzeroFormLevelItemAndFourMoves` |
+| Edición manual y conversión a formato explícito | `ManualEditKeepsEachSupportedField`, `ConvertsDefaultTeamToExplicitWithoutLosingMembers` |
+| Los cuatro formatos de equipo y conservación de datos base | `ExplicitFormatRemovalKeepsBaseData`, `ItemOnlyFormatPreservesDefaultMoves`, `MovesOnlyFormatPreservesDefaultItem` |
+| Reapertura, recetas históricas/nuevas y Batch | `RebuildReopensFourthMove`, `OldAndNewGlobalOperationsReplayByteIdentically`, `BatchKeepsExplicitManualValues` |
+| Archivos ajenos, ARM9, otros entrenadores, cabeceras y sufijos | `UnrelatedFilesAndArm9AreUnchanged`, `OtherTrainerMembersAreUntouched`, `HeaderAiBattleTypeAndOpaqueBytesArePreserved`, `ManualConversionAndRandomizationPreserveSealsAndOpaqueSuffix` |
+| Origen intacto | `SourceHashIsUnchanged`, `NoOpRebuildIsByteIdentical` |
+
+Cada nombre de la tabla lleva el prefijo `NdsTrainer_<código>_`. Las fuentes solo se leyeron; las ROM reconstruidas y registros privados se conservan fuera de Git en `artifacts/nds-trainer-real-20261109-final`, con log hermano `.log`. La ejecución anterior Gen5 está en `artifacts/nds-trainer-gen5-20261109-baseline`. El log sintético está en `artifacts/nds-trainers-synthetic-20261109.log`. No se distribuyen ROMs ni rutas privadas en paquetes.
+
+### Criterio de cierre y límites
+
+La verificación técnica focalizada queda aprobada para los dos originales Gen5 probados y Platino. **El propietario confirmó el 09/11/2026 una prueba jugable satisfactoria del editor de entrenadores en Pokémon Platino**: pudo modificar un Pokémon, asignarle cuatro movimientos y un objeto y comprobar el resultado en combate. Esta confirmación corresponde al PR #56, después de abrir su compilación local, y cierra el pendiente jugable de esta paridad. Se conserva [la guía concreta de Platino](NDS_ENTRENADORES_PRUEBA_PLATINO.md) para reproducir la prueba; no se atribuyen al propietario resultados individuales de cada paso de la guía que no haya comunicado.
+
+Siguen sin acreditarse por esta continuación: probe real de Blanco español, juegos/revisiones fuera de los perfiles admitidos, ejecución en juego Gen5, legalidad/efecto jugable de formas arbitrarias y revisión interactiva de alto contraste/DPI. Se conservan las limitaciones documentadas del aprendizaje de formas no base y sprites de especie. No hay un fallo funcional Gen5 reproducido ni pendiente de corrección. El siguiente trabajo sobre eventos/mapa del PR #55 permanece separado y no se inició aquí.
+
+Consolidación autorizada: se incorporan únicamente el refuerzo del probe y estos registros de validación al PR #56. No se repiten suites locales ya aprobadas; el CI del commit final se consulta tras el push. El PR permanece sin fusionar. No se requieren los PR #55/#57 para esta implementación; su integración no depende de ellos.

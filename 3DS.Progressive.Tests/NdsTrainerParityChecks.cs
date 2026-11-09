@@ -117,12 +117,14 @@ internal static class NdsTrainerParityChecks
         var derived = editor.DerivedMoves(species, 0, level);
         Check(derived is {Length:4}, "BaseFormShowsFourDerivedSlots");
         defaultValues["HasMoves"] = 1; defaultValues["HasItems"] = 1;
+        species = species == 201 ? 386 : 201; level = level == 33 ? 34 : 33;
+        defaultValues["P0.Species"] = species; defaultValues["P0.Form"] = 1; defaultValues["P0.Level"] = level;
         for (int i=0;i<4;i++) defaultValues["P0.Move"+i] = new[]{33,45,52,55}[i];
         defaultValues["P0.Item"] = 234;
         editor.Save(defaults, defaultValues);
         Check(project.Trainers().Single(t => t.Id == defaults) is {HasMoves:true,HasItems:true} converted
             && converted.Team[0].Moves.SequenceEqual(new[]{33,45,52,55}) && converted.Team[0].HeldItem == 234
-            && converted.Team[0].Species == species && converted.Team[0].Level == level, "ConvertsDefaultTeamToExplicitWithoutLosingMembers");
+            && converted.Team[0].Species == species && converted.Team[0].Form == 1 && converted.Team[0].Level == level, "ConvertsDefaultTeamToExplicitWithoutLosingMembers");
 
         // Historical keys keep their old meaning; the new route does not reinterpret them.
         project.Apply(project.PreviewEdits(NdsSection.Trainers, new Dictionary<string,int>{[$"{id}:P0.Move1"] = 85, [$"{id}:P0.Move4"] = 86}));
@@ -140,6 +142,9 @@ internal static class NdsTrainerParityChecks
         string target = Path.Combine(output, "edited.nds"); project.Export(target);
         using var reopened = NdsProject.Open(target, true);
         Check(Values(new NdsRecordEditor(reopened,NdsSection.Trainers),defaults)["P0.Move3"] == 55, "RebuildReopensFourthMove");
+        var rebuilt = reopened.Trainers().Single(t => t.Id == defaults).Team[0];
+        Check(rebuilt.Species == species && rebuilt.Form == 1 && rebuilt.Level == level && rebuilt.HeldItem == 234
+            && rebuilt.Moves.SequenceEqual(new[]{33,45,52,55}), "RebuildReopensEditedSpeciesNonzeroFormLevelItemAndFourMoves");
         using var replay = NdsProject.Open(source, true);
         var recipe = project.CaptureGlobal(); replay.ApplyGlobal(recipe, false);
         string replayTarget = Path.Combine(output,"replay.nds"); replay.Export(replayTarget);
