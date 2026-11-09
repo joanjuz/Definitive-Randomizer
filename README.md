@@ -2,7 +2,13 @@
 
 **Definitive Randomizer**, formerly **pk3DS Progressive**, is a free and open-source evolution of [pk3DS](https://github.com/kwsch/pk3DS). It focuses on deeper progression systems, configurable randomization, balancing, automation, quality-of-life features, and advanced customization for Pokémon games.
 
-It supports the Nintendo 3DS titles X/Y, Omega Ruby/Alpha Sapphire, Sun/Moon and Ultra Sun/Ultra Moon. Support for **Pokémon Sword/Shield** (Nintendo Switch) is in development on a separate branch.
+It edits and randomizes three platforms from one Windows application:
+
+- **Nintendo 3DS:** X/Y, Omega Ruby/Alpha Sapphire, Sun/Moon and Ultra Sun/Ultra Moon.
+- **Nintendo DS:** Diamond, Platinum, HeartGold, Black, White (Spanish) and White 2, for original ROMs with an exact profile. A romhack mode is available in beta.
+- **Nintendo Switch:** Pokémon Sword and Shield, version 1.3.2. The application exports a mod (Ryujinx format) instead of rebuilding a ROM.
+
+How much each game has been checked differs, and "implemented" does not mean "played in-game". See the [compatibility matrix](docs/3ds-progressive/COMPATIBILIDAD_PUBLICA.md) (Spanish) for what is automated, tested on real files or confirmed in-game, and the [stated limitations](docs/3ds-progressive/LIMITACIONES_ESTABLE.md).
 
 > **Free software, always.** The latest stable version is available for free. There are no paid builds, premium editions, memberships, or paywalled features.
 
@@ -11,7 +17,7 @@ It supports the Nintendo 3DS titles X/Y, Omega Ruby/Alpha Sapphire, Sun/Moon and
 | Line | Version | Branch | Notes |
 |---|---|---|---|
 | Stable (WinForms) | v4.17.1 | `Eris-Ultranova` | Current stable release |
-| Definitive Randomizer WPF (3DS + Sword/Shield) | 0.9.0-preview.1 | `main` | Prerelease for testers; Sword/Shield exports mods instead of rebuilding ROMs |
+| Definitive Randomizer WPF (3DS + DS + Sword/Shield) | Prereleases (latest published: v0.15.0-preview.2) | `main` | Prereleases for testers; Sword/Shield exports mods instead of rebuilding ROMs. A first stable WPF version is being prepared and is **not yet published** |
 
 - **Platform:** Windows x64
 - **License:** GNU GPL v3
@@ -21,9 +27,11 @@ The two version numbers are independent: v4.x is the original WinForms line, and
 
 ## Definitive Randomizer WPF preview
 
-Windows x64 prereleases of the new WPF editor are published in this repository's [Releases](../../releases). They are built from `main`.
+Windows x64 prereleases of the new WPF editor are published in this repository's [Releases](../../releases).
 
-Download the Windows ZIP, extract the complete folder, and run `DefinitiveRandomizer.exe`. The preview includes .NET and the Batch backend. See the [latest tester guide](docs/3ds-progressive/RELEASE_0.9.0_PREVIEW_1.md) for test areas, limitations, and packaging instructions. Personal templates and game data are not included.
+Download the Windows ZIP, extract the **complete** folder into a new directory, and run `DefinitiveRandomizer.exe`. The package includes .NET and the Batch backend. Personal templates and game data are not included. The executables are **not digitally signed**, so Windows or SmartScreen may show a warning; check the SHA-256 listed in the release.
+
+New users: start with [Primeros pasos](docs/3ds-progressive/PRIMEROS_PASOS.md) (installation, project setup, backups, editing, rebuilding and checking the result) and read [Respaldo y recuperación](docs/3ds-progressive/RESPALDO_Y_RECUPERACION.md) before editing. These guides are in Spanish. The tester notes of each release are in [docs/3ds-progressive](docs/3ds-progressive/INDICE.md).
 
 ## Sword/Shield (preview)
 
@@ -32,12 +40,25 @@ The Switch integration adds editors and randomization for Pokémon, moves, learn
 Current limits:
 
 - Targets game version 1.3.2 only. Other versions and updates are rejected.
-- Sword and Shield have in-game confirmation from the owner's testing (Shield: the options of 0.9.0-preview.1, tested before release). A full playthrough of every event is not claimed.
+- Sword and Shield have in-game confirmation from the owner's testing in the Ryujinx emulator (Shield: the options of 0.9.0-preview.1, tested before release). A full playthrough of every event, real console hardware, Atmosphère and DLC are not claimed.
 - Random double battles only start after the first gym: trainers whose team is no stronger than the first gym leader (Milo) stay single, as do the mandatory early Hop battles. There is still no runtime guard for a player with a single usable Pokémon later on.
 - Pokédex animations are temporarily disabled.
 - Console/Atmosphère and DLC are not validated.
 
 See [HOJA_RUTA_SWITCH.md](docs/3ds-progressive/HOJA_RUTA_SWITCH.md) and [SWITCH_ESCUDO_VALIDACION_Y_COMBATES_DOBLES.md](docs/3ds-progressive/SWITCH_ESCUDO_VALIDACION_Y_COMBATES_DOBLES.md) (Spanish).
+
+## Nintendo DS
+
+Pokémon Diamond (USA), Platinum (USA), HeartGold (USA), Black, White (Spanish) and White 2 (USA/EUR) are supported through one exact profile per game, which fixes the code and the tables it expects. Features include trainers, wild encounters, starters, items and shops, game data, evolutions, statics and trades, egg moves and tutors, game tweaks, Global Template and Batch. "Export ROM" writes a **new** ROM; the original is never modified.
+
+Current limits:
+
+- Other games and revisions (for example Black 2, SoulSilver or Pearl) are rejected.
+- The romhack mode is beta and only patches game code (overlays, ARM9) when it is the original. Black, White and White 2 are DSi-enhanced and their ARM9 is not modified.
+- The owner confirmed phases 0–14 in-game (2026-10-31) and trainer editing in Platinum in combat; that confirmation is not extended to other controls or games.
+- The DS map and event editor is not part of the stable scope.
+
+See [COMPATIBILIDAD_PUBLICA.md](docs/3ds-progressive/COMPATIBILIDAD_PUBLICA.md) (Spanish) and the `NDS_FASE*` documents in the [index](docs/3ds-progressive/INDICE.md).
 
 ## Current development highlights
 
@@ -88,7 +109,7 @@ The features below describe the 3DS feature set, consolidated in v4.17.1 Stable 
 - Static / gift / trade filters
 - Additional configurable gameplay patches
 
-Progressive-specific functionality is currently most developed for **Ultra Sun / Ultra Moon**. The original pk3DS functionality for other supported Nintendo 3DS Pokémon titles remains part of the project, but not every Progressive feature is available for every game.
+Progressive-specific functionality is currently most developed for **Ultra Sun / Ultra Moon**, including the optional Gen 7 Mints (21 functional Mints, Ultra Sun/Ultra Moon only; confirmed in-game on Ultra Sun, not yet on Ultra Moon). The original pk3DS functionality for other supported Nintendo 3DS Pokémon titles remains part of the project, but not every Progressive feature is available for every game.
 
 ## Downloads
 
@@ -139,14 +160,14 @@ dotnet publish .\pk3DS.WinForms\pk3DS.WinForms.csproj `
 
 ## Usage
 
-1. Dump your own legally obtained Pokémon 3DS game.
-2. Extract the required RomFS / ExeFS content using your preferred 3DS tooling.
-3. Keep your own clean copy of the original extracted files. Automatic persistent backups are disabled by default.
-4. Open the extracted game in pk3DS Progressive.
-5. Configure the randomization and gameplay options you want.
-6. Save the modified files and rebuild or deploy them using your normal 3DS modding workflow.
+1. Dump your own legally obtained game. The application does not decrypt commercial games: 3DS projects need an already decrypted extraction.
+2. Keep your own clean copy of the original files, and work on a copy.
+3. Open the copy in Definitive Randomizer (3DS extraction, DS ROM or Sword/Shield extraction).
+4. Configure the edits and randomization you want, and review the preview and the History.
+5. Save, then rebuild (3DS), export the ROM (DS) or export the mod (Switch).
+6. Test the result in an emulator with a new game or a copy of your save, not your main save.
 
-Because several features modify game files, keep a clean original extraction outside the working project. pk3DS Progressive does not create persistent backups automatically by default.
+3DS projects keep restore points (the last 8 saved changes) that the History can undo, but they are not a substitute for your own backups: undo does not revert saves or already generated ROMs. See [Primeros pasos](docs/3ds-progressive/PRIMEROS_PASOS.md) and [Respaldo y recuperación](docs/3ds-progressive/RESPALDO_Y_RECUPERACION.md) (Spanish).
 
 ## Support, donations, and commissions
 
