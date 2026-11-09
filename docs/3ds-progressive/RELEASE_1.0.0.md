@@ -1,6 +1,8 @@
-# Definitive Randomizer v1.0.0 — BORRADOR de notas de versión
+# Definitive Randomizer v1.0.0 — preparada, todavía no publicada
 
-> **Borrador. v1.0.0 NO está publicada.** Este documento prepara las notas; no autoriza versión, tag, release ni publicación. Los valores entre `[corchetes]` se completan al preparar el candidato final. Antes de publicar, revisar la sección «Pendiente de confirmar».
+> **v1.0.0 está preparada, pero NO publicada.** La distribución generada desde la rama del PR es una candidata privada. Estas notas no autorizan integración, tag ni publicación. Después de integrar, será obligatorio construir y validar de nuevo desde el HEAD real de `main`; el commit de esta candidata no debe presentarse como el de una versión pública.
+
+Versión del paquete: **1.0.0**. Commit exacto compilado: `@BUILD_COMMIT@` (se resuelve al empaquetar, junto con `VERSION.txt` y `BUILD_PROVENANCE.json`). La procedencia mantiene `publicRelease=false` para esta entrega privada.
 
 Primera versión **estable** de la aplicación WPF para Windows x64. Reúne la edición y randomización de **Nintendo 3DS**, **Nintendo DS** (Gen4 y Gen5) y **Espada/Escudo** (Switch) acreditadas en las versiones preliminares, y las acompaña de documentación de uso, respaldo y compatibilidad. No sustituye a la línea estable WinForms v4.17.1, que es independiente.
 
@@ -22,13 +24,13 @@ Primera versión **estable** de la aplicación WPF para Windows x64. Reúne la e
 
 ## Qué no incluye
 
-Editor de eventos y mapas de DS · mentas fuera de Ultra Sol/Ultra Luna · caramelos raros y repelentes infinitos · perfiles de ROM hacks y biblioteca comunitaria · Negro 2, SoulSilver y Perla · consola real, Atmosphère y DLC en Switch. Detalle en [LIMITACIONES_ESTABLE.md](LIMITACIONES_ESTABLE.md).
+Editor de eventos y mapas de DS (PR #55 excluido) · mentas fuera de Ultra Sol/Ultra Luna · caramelos raros y repelentes infinitos · perfiles de ROM hacks y biblioteca comunitaria · Negro 2, SoulSilver y Perla · consola real, Atmosphère y DLC en Switch. Detalle en `LIMITACIONES_ESTABLE.md`, incluida en la carpeta `docs` del paquete y junto a estas notas en el repositorio.
 
 ## Cómo se comprobó
 
-Tres niveles de evidencia, indicados por separado en la [matriz](COMPATIBILIDAD_PUBLICA.md):
+Tres niveles de evidencia, indicados por separado en `COMPATIBILIDAD_PUBLICA.md`:
 
-- **Automática:** suites del repositorio y CI sobre el commit de compilación `[SHA]`, con datos sintéticos.
+- **Automática:** suites del repositorio y CI. Se reutilizan las 200 comprobaciones focalizadas aprobadas para RC.1 (13 de paridad LegacyBatch y 187 de interfaz WPF); esta preparación no cambia los motores ni repite la aceptación funcional. El CI del PR final se registra por separado en ese PR.
 - **Con archivos reales:** copias de juegos del propietario, sin modificar los originales.
 - **Dentro del juego**, por el propietario y limitada a lo indicado:
   - DS: fases 0–14 (31/10/2026) y edición de entrenadores en Platino.
@@ -36,6 +38,8 @@ Tres niveles de evidencia, indicados por separado en la [matriz](COMPATIBILIDAD_
   - Switch: Espada y Escudo en Ryujinx.
 
 Ultra Luna, consola real de Switch, Atmosphère, DLC y una partida completa de cualquier juego **no** están comprobados jugando.
+
+RC.1 tuvo 525 hashes verificados y arranque WPF del ZIP exacto con cierre normal. Esas cifras pertenecen a RC.1: para el ZIP privado 1.0.0 se verifican de nuevo compilación, contenido, dependencias, hashes y arranque desde una extracción independiente. El informe privado de entrega identifica sus resultados y SHA-256. Ni las pruebas sintéticas ni el arranque sustituyen la validación dentro del juego.
 
 ### Aceptación técnica (09/11/2026)
 
@@ -56,7 +60,7 @@ Total: 27 comprobaciones aprobadas, ninguna fallida. Cada prueba cubre un solo t
 3. Mantén juntas `LegacyBatch`, `Tools`, `Templates`, `custom_balance_templates`, `catch_zone_patches`, las licencias y las demás dependencias.
 4. Respalda proyectos, recetas y partidas. Trabaja con copias; no edites ROMs ni extracciones originales.
 
-Los ejecutables **no tienen firma digital**: Windows o SmartScreen pueden mostrar advertencias. Comprueba el origen y el SHA-256 con `SHA256SUMS.txt`. `VERSION.txt` identifica versión y commit. No se incluyen ROMs, extracciones, partidas, recetas privadas ni gráficos oficiales.
+Los ejecutables **no tienen firma digital**: Windows o SmartScreen pueden mostrar advertencias. Comprueba el origen y el SHA-256 con `SHA256SUMS.txt`. `VERSION.txt` identifica versión y commit, y `BUILD_PROVENANCE.json` documenta la compilación privada. No se incluyen ROMs, extracciones, partidas, recetas privadas ni gráficos oficiales. Mantén también la carpeta `docs` con las guías y `VALIDATION_REPORT.md`; el informe externo de entrega acredita el ZIP exacto sin una referencia circular a su propio hash.
 
 ## Limitaciones principales
 
@@ -69,11 +73,10 @@ Los ejecutables **no tienen firma digital**: Windows o SmartScreen pueden mostra
 
 ## Reportar problemas
 
-Indica versión y commit, juego/región/revisión/idioma, pasos, semilla y mensajes de error. **No adjuntes ROMs, extracciones ni partidas.** Ver [RESPALDO_Y_RECUPERACION.md](RESPALDO_Y_RECUPERACION.md).
+Indica versión y commit, juego/región/revisión/idioma, pasos, semilla y mensajes de error. **No adjuntes ROMs, extracciones ni partidas.** Ver `RESPALDO_Y_RECUPERACION.md` en las guías incluidas.
 
-## Pendiente antes de publicar (quitar al finalizar)
+## Condiciones de una futura publicación
 
-1. Construir el paquete candidato desde `main` con este PR integrado; comprobar arranque, identidad de commit, dependencias y hash. Completar versión final y `[SHA]` con los de ese paquete.
-2. Revisar la redacción de mentas contra el resultado de la ROM del tester (pendiente).
-3. Regiones y revisiones concretas de los juegos 3DS y de `IRBO`: no determinadas, no se enumeran.
-4. Autorización expresa del propietario para versión, tag y publicación.
+La integración y la publicación requieren autorizaciones expresas independientes del propietario. Una vez integrado el PR, hay que generar de nuevo el paquete desde el HEAD real de `main`, resolver su commit en los metadatos y notas, verificar todos los hashes y probar ese ZIP exacto. No se reutiliza ni se renombra como público el paquete privado de la rama del PR.
+
+La ROM específica del tester de mentas sigue pendiente. Las regiones y revisiones concretas de los juegos 3DS y de `IRBO` no están determinadas y no se enumeran. Esas limitaciones se mantienen sin atribuir comprobaciones nuevas.
