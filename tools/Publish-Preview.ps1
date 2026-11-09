@@ -72,7 +72,7 @@ try {
     "# Validation: $Version`n`nSource commit: $revision`n`nWPF/Core/LegacyBatch self-contained publish succeeded. Required dependencies, templates and package exclusions are checked by Publish-Preview.ps1 before compression. SHA256SUMS.txt covers every payload file except itself. Installation and UI validation must be recorded separately against the final ZIP; no game validation is claimed by this packaging step." | Set-Content -LiteralPath (Join-Path $stage 'VALIDATION_REPORT.md') -Encoding utf8
     "Version: $Version`nCommit: $revision`nSource: https://github.com/joanjuz/Definitive-Randomizer/tree/$revision" | Set-Content -LiteralPath (Join-Path $stage 'VERSION.txt') -Encoding utf8
     # Only remove development metadata from this newly generated package.
-    Get-ChildItem -LiteralPath $stage -File -Recurse -Force | Where-Object { $_.Extension -in @('.pdb','.binlog','.log') -or $_.Name -eq '.gitignore' } | ForEach-Object {
+    Get-ChildItem -LiteralPath $stage -File -Recurse -Force | Where-Object { $_.Extension -in @('.pdb','.binlog','.log') -or $_.Name -in @('.gitignore','Preparar-Mobipeg.ps1') } | ForEach-Object {
         if (-not $_.FullName.StartsWith($stage+[IO.Path]::DirectorySeparatorChar,[StringComparison]::OrdinalIgnoreCase)) { throw 'Unexpected package path.' }
         Remove-Item -LiteralPath $_.FullName -Force
     }
