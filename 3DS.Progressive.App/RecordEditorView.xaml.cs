@@ -214,7 +214,7 @@ public partial class RecordEditorView : UserControl
             }
         }
         // Trainer: the selected Pokémon goes right below the team cards; the trainer data closes the page.
-        if(editor&&Editor is ThreeDS.Progressive.Services.GameTrainerService&&panel.Children.Count>1&&panel.Children[0] is UIElement trainerData)
+        if(editor&&(Editor is ThreeDS.Progressive.Services.GameTrainerService or ThreeDS.Progressive.Services.Nds.NdsRecordEditor {UsesTrainerLayout:true})&&panel.Children.Count>1&&panel.Children[0] is UIElement trainerData)
         {panel.Children.RemoveAt(0);panel.Children.Add(trainerData);}
         if(editor && Editor is ITableEditorPresentation {UsesRecordTable:true}) BuildRecordTable(panel,entries,controls);
         WireExclusive(controls,"SimilarBST","Progressive");
@@ -339,6 +339,7 @@ public partial class RecordEditorView : UserControl
     {
         var tabs=new TabControl {Margin=new Thickness(0,8,0,0)};
         string[] labels=["Principal","IV y EV","Movimientos"];
+        if(Editor is ThreeDS.Progressive.Services.Nds.NdsRecordEditor {UsesTrainerLayout:true})labels[1]="Dificultad / IV";
         for(int i=0;i<labels.Length;i++)
         {
             int section=i;
@@ -565,8 +566,7 @@ public partial class RecordEditorView : UserControl
             var result=await _trainerSpriteService.GetSpriteAsync(speciesId,speciesId,form,token);
             if(token.IsCancellationRequested||_id!=trainerId)return;
             picture.Source=result.Image;
-            fallback.Visibility=Visibility.Collapsed;
-            fallback.Text="";
+            if(result.Image is not null){fallback.Visibility=Visibility.Collapsed;fallback.Text="";}
         }
         catch(System.OperationCanceledException) { }
     }
@@ -601,7 +601,7 @@ public partial class RecordEditorView : UserControl
                 var groups=Editor.RandomOptions.Select(g=>g with {Fields=g.Fields.Select(f=>state is not null&&state.Options.TryGetValue(f.Key,out int value)?f with {Value=value}:f).ToArray()});
                 BuildGroups(OptionsPanel,groups,_options,false);
             }
-            _id=id;var record=Editor.Read(id);_record=record;BuildGroups(FieldsPanel,record,_fields,true);UpdateTrainerTeam(id,record);UpdateEncounterSprites(id,record);UpdateFieldItemOverview(id);PresentEvolutionArguments();SelectionText.Text=Editor.Entries.First(e=>e.Id==id).Display;_dirty=false;SaveButton.IsEnabled=false;StatusText.Text="Editor listo.";Invalidate();
+            _id=id;var record=Editor.Read(id);_record=record;BuildGroups(FieldsPanel,record,_fields,true);WireNdsTrainerFormats();UpdateTrainerTeam(id,record);UpdateEncounterSprites(id,record);UpdateFieldItemOverview(id);PresentEvolutionArguments();SelectionText.Text=Editor.Entries.First(e=>e.Id==id).Display;_dirty=false;SaveButton.IsEnabled=false;StatusText.Text="Editor listo.";Invalidate();
             UpdateSummary(reload:true);
         }
         finally{_loading=false;}
