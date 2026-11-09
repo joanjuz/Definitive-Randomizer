@@ -101,9 +101,10 @@ public partial class RecordEditorView
             var identity=new StackPanel{VerticalAlignment=VerticalAlignment.Center};
             identity.Children.Add(new TextBlock{Text=name,FontWeight=FontWeights.SemiBold,TextTrimming=TextTrimming.CharacterEllipsis});
             identity.Children.Add(Small($"Nv. {level}"+(form>0?$" · Forma {form}":""),true,12));
-            if(LiveValue(prefix+"Item") is >0&&LiveDisplay(prefix+"Item") is string item)identity.Children.Add(Small("◆ "+item));
+            if(Editor is not ThreeDS.Progressive.Services.Nds.NdsRecordEditor&&LiveValue(prefix+"Item") is >0&&LiveDisplay(prefix+"Item") is string item)identity.Children.Add(Small("◆ "+item));
             var top=new DockPanel();DockPanel.SetDock(art,Dock.Left);top.Children.Add(art);top.Children.Add(identity);
             var moves=new StackPanel{Margin=new Thickness(2,6,0,0)};
+            if(!PresentNdsTrainerMember(identity,moves,slot,species,form,level))
             for(int j=0;j<4;j++)
                 if(LiveValue(prefix+"Move"+j) is >0&&LiveDisplay(prefix+"Move"+j) is string move)moves.Children.Add(Small("· "+move));
             if(moves.Children.Count==0)moves.Children.Add(Small("Movimientos por nivel"));
@@ -145,6 +146,7 @@ public partial class RecordEditorView
             TrainerTeamCards.Children.Add(new TextBlock{Text="Este entrenador no tiene Pokémon en el equipo.",
                 Foreground=(Brush)FindResource("TextSoft"),Margin=new Thickness(6,12,6,12)});
         ApplyTrainerSlots(count);
+        PresentNdsTrainerComparison(id);
     }
     internal bool CanPastePokemon=>_copiedPokemon?.Owner==PokemonClipboardOwner;
     private static MenuItem MenuEntry(string header,string? gesture,Action run)
@@ -218,6 +220,7 @@ public partial class RecordEditorView
         if(_editorSections.TryGetValue(key,out var section))section.IsExpanded=true;
         if(_pokemonTabs.TryGetValue(slot,out var tabs))tabs.SelectedIndex=0;
         if(_slotBorders.TryGetValue(slot,out var border))border.BringIntoView();
+        if(Editor is ThreeDS.Progressive.Services.Nds.NdsRecordEditor {UsesTrainerLayout:true})RefreshCards();
     }
     private void ApplyTrainerSlots(int count)
     {

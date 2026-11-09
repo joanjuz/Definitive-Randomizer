@@ -161,7 +161,7 @@ internal static class NdsGen4Checks
     }
 
     // Two trainers (one without items or moves, one with both) and one encounter file in the layout of the profile's game.
-    internal static byte[] SyntheticRom(Gen4Profile profile)=>Synthetic(profile);
+    internal static byte[] SyntheticRom(Gen4Profile profile,bool romhack=false)=>Synthetic(profile,romhack);
 
     private static byte[] Synthetic(Gen4Profile profile,bool romhack=false)
     {

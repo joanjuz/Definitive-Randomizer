@@ -111,7 +111,7 @@ public sealed record NdsTrainerOptions(uint Seed)
 /// the Gen4 ARM9 and battle sub-sequence, or the Gen5 field overlay and trainer text boxes; only on the original binaries.
 /// Gen5 cannot get UPR-ZX's ARM9 text-box fix (DSi ARM9), so a doubles trainer that spots the player may show a blank box.
 /// </summary>
-public static class NdsTrainerTools
+public static partial class NdsTrainerTools
 {
     // Gen4/Gen5 held items, the same ids in both generations (checked against the names of the five supported dumps).
     private const int SitrusBerry = 158, LumBerry = 157, Leftovers = 234, LifeOrb = 270, FocusSash = 275, ExpertBelt = 268, ChoiceBand = 220,
@@ -307,18 +307,8 @@ public static class NdsTrainerTools
             int flags = header[0], count = header[3];
             if (count == 0)
                 continue;
-            int size = layout.BaseSize + ((flags & 2) != 0 ? 2 : 0) + ((flags & 1) != 0 ? 8 : 0) + layout.Trailing;
             byte[] raw = teams.Files[trainer.Id];
-            var team = new List<Member>();
-            for (int slot = 0; slot < count; slot++)
-            {
-                int at = slot * size, rest = at + layout.BaseSize;
-                var member = new Member { Base = raw.AsSpan(at, layout.BaseSize).ToArray(), Gen5 = layout.Gen5 };
-                if ((flags & 2) != 0) { member.Item = BinaryPrimitives.ReadUInt16LittleEndian(raw.AsSpan(rest)); rest += 2; }
-                if ((flags & 1) != 0) { member.Moves = Enumerable.Range(0, 4).Select(m => (int)BinaryPrimitives.ReadUInt16LittleEndian(raw.AsSpan(rest + m * 2))).ToArray(); rest += 8; }
-                member.Trailing = raw.AsSpan(rest, layout.Trailing).ToArray();
-                team.Add(member);
-            }
+            var team = ReadTeam(layout, raw, flags, count);
             int newFlags = flags;
             void Note(string field, int before, int after) { if (before != after) changes.Add(new Gen5Change(name, field, before, after)); }
 
@@ -499,24 +489,9 @@ public static class NdsTrainerTools
             header[0] = (byte)newFlags;
             Note("Pokémon en el equipo", count, team.Count);
             header[3] = (byte)team.Count;
-            int newSize = layout.BaseSize + ((newFlags & 2) != 0 ? 2 : 0) + ((newFlags & 1) != 0 ? 8 : 0) + layout.Trailing;
-            var output = new byte[newSize * team.Count];
-            for (int slot = 0; slot < team.Count; slot++)
-            {
-                var m = team[slot];
-                int at = slot * newSize;
-                m.Base.CopyTo(output, at);
-                at += layout.BaseSize;
-                if ((newFlags & 2) != 0) { BinaryPrimitives.WriteUInt16LittleEndian(output.AsSpan(at), (ushort)m.Item); at += 2; }
-                if ((newFlags & 1) != 0)
-                {
-                    for (int k = 0; k < 4; k++)
-                        BinaryPrimitives.WriteUInt16LittleEndian(output.AsSpan(at + k * 2), (ushort)m.Moves[k]);
-                    at += 8;
-                }
-                m.Trailing.CopyTo(output, at);
-            }
-            teams.Files[trainer.Id] = output;
+            var output = WriteTeam(layout, team, newFlags);
+            int originalSize = layout.BaseSize + ((flags & 2) != 0 ? 2 : 0) + ((flags & 1) != 0 ? 8 : 0) + layout.Trailing;
+            teams.Files[trainer.Id] = output.Concat(raw.AsSpan(originalSize * count).ToArray()).ToArray();
         }
         return converted;
     }
