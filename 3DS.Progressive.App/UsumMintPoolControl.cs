@@ -8,14 +8,14 @@ namespace ThreeDS.Progressive;
 /// <summary>A single session setting, shared by the supported item editors; recipes persist it.</summary>
 internal sealed class UsumMintPoolControl : StackPanel
 {
-    internal UsumMintPoolControl(GameProjectSession project,Action? changed=null)
+    internal UsumMintPoolControl(GameProjectSession project,Action? changed=null,bool showStatus=true)
     {
         if(!project.GameConfiguration.USUM){Visibility=Visibility.Collapsed;return;}
         Margin=new Thickness(0,4,0,10);
         var toggle=new CheckBox{Content=new TextBlock{Text=UsumMintItemPolicy.Label,TextWrapping=TextWrapping.Wrap},IsChecked=project.MintItems.Include,IsEnabled=false};
         System.Windows.Automation.AutomationProperties.SetName(toggle,UsumMintItemPolicy.Label);
-        var report=new TextBlock{Text="Comprobando dependencia de mentas…",TextWrapping=TextWrapping.Wrap,Margin=new Thickness(0,4,0,0)};
-        report.SetResourceReference(TextBlock.ForegroundProperty,"TextSoft");Children.Add(toggle);Children.Add(report);
+        var report=new TextBlock{Text="Comprobando dependencia de mentas…",TextWrapping=TextWrapping.Wrap,Margin=new Thickness(0,4,0,0),Visibility=showStatus?Visibility.Visible:Visibility.Collapsed};
+        report.SetResourceReference(TextBlock.ForegroundProperty,"TextSoft");Children.Add(toggle);if(showStatus)Children.Add(report);
         bool refreshing=false,available=false;
         Loaded+=async(_,_)=>
         {

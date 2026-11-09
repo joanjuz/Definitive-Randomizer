@@ -20,7 +20,7 @@ public static class UsumMintIconLayout
             BitConverter.ToUInt32(code, TableOffset + mint.ItemId * 4) ==
             (uint)(installed ? OriginalImageCount + i : OriginalImage(mint.ItemId))).All(matches => matches);
     }
-    /// <summary>Normalize only our exact 21-word mapping; callers still verify the complete executable hash.</summary>
+    /// <summary>Normalize only our exact 21-word mapping; callers still verify every other protected executable region.</summary>
     public static byte[] NormalizeCode(byte[] code)
     {
         if (!HasMapping(code, true)) return code;
