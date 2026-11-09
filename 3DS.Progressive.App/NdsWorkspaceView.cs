@@ -61,6 +61,7 @@ internal sealed class NdsWorkspaceView:UserControl
         }
         void Group(string text){var heading=new TextBlock{Text=text,Margin=new Thickness(10,18,0,6),FontSize=11,FontWeight=FontWeights.SemiBold};heading.SetResourceReference(TextBlock.ForegroundProperty,"TextSoft");nav.Children.Add(heading);}
         Add("Home","Inicio");Group("EDICIÓN");foreach(var (section,route) in Sections)Add(route,NdsProject.SectionName(section));
+        Add("Events","Eventos");
         Group("SISTEMAS");Add("Tweaks","Ajustes del juego");Add("Template","Global Template y Batch");Add("History","Historial de cambios");
         _status.Margin=new Thickness(4,15,0,0);_status.SetResourceReference(TextBlock.ForegroundProperty,"TextSoft");nav.Children.Add(_status);
         Grid.SetColumn(_page,1);root.Children.Add(_page);
@@ -72,14 +73,14 @@ internal sealed class NdsWorkspaceView:UserControl
 
     internal bool CanLeave()=>!_busy&&PageCanLeave();
     // The shared record editor and the 3DS views used by DS (Level Up) ask before discarding unsaved changes.
-    private bool PageCanLeave()=>_page.Content switch{RecordEditorView record=>record.PrepareToLeave(),LevelUpView levelUp=>levelUp.ConfirmLeave(),_=>true};
+    private bool PageCanLeave()=>_page.Content switch{RecordEditorView record=>record.PrepareToLeave(),LevelUpView levelUp=>levelUp.ConfirmLeave(),NdsEventEditorView events=>events.ConfirmLeave(),_=>true};
 
     /// <summary>Asks for a DS ROM and opens it; pending changes of the open ROM must be exported or discarded first.</summary>
     internal async Task OpenAsync()
     {
         if(_busy)return;
         if(Project?.HasChanges==true&&!StudioDialog.AutomatedChecks&&!StudioDialog.Confirm(_owner,"Nintendo DS","Hay cambios sin exportar en "+Project.Game+". ¿Descartarlos y abrir otra ROM?"))return;
-        var picker=new Microsoft.Win32.OpenFileDialog{Filter="ROM de Nintendo DS (*.nds)|*.nds",Title="ROM original de Pokémon para Nintendo DS"};
+        var picker=new Microsoft.Win32.OpenFileDialog{Filter="ROM o checkpoint de eventos DS|*.nds;*.ndsevents.json|ROM de Nintendo DS (*.nds)|*.nds|Checkpoint de eventos DS|*.ndsevents.json",Title="Abrir ROM o checkpoint de eventos de Nintendo DS"};
         if(picker.ShowDialog(_owner)==true)await LoadAsync(picker.FileName);
     }
 
@@ -144,6 +145,21 @@ internal sealed class NdsWorkspaceView:UserControl
             else if(route=="Tweaks")content=TweaksPage();
             else if(route=="Template")content=TemplatePage();
             else if(route=="History")content=HistoryPage();
+            else if(route=="Events")
+            {
+                if(!Project!.SupportsEventProfile)content=Notice("Eventos","Fase 1: solo Pokémon Platino CPUE/1, con tablas acreditadas. Otros títulos y revisiones no están implementados.");
+                else
+                {
+                    SetBusy(true,"Leyendo mapas y eventos de Platino…");
+                    using var interaction=UiProgress.BlockInteraction();
+                    try
+                    {
+                        var project=Project;var session=await Task.Run(()=>project.Events);
+                        var view=new NdsEventEditorView(session);view.Changed+=()=>{project.EventChanged();UpdateStatus();ContextChanged?.Invoke();};content=view;
+                    }
+                    finally{SetBusy(false,null);}
+                }
+            }
             else if(_pages.TryGetValue(route,out var cached)){if(cached is RecordEditorView record)record.RefreshSession();content=cached;}
             else
             {
@@ -202,7 +218,7 @@ internal sealed class NdsWorkspaceView:UserControl
         _summary.Text=Project is null?"Ninguna ROM abierta.":
             $"{Project.Game} · {(Project.IsRomhack?"romhack (tablas modificadas)":Project.Identity.KnownDump?"volcado original verificado":"código reconocido, volcado no verificado")}\n{Project.SourcePath}"+
             string.Concat(Project.Unavailable.Select(u=>$"\nNo disponible · {u.Key}: {u.Value}."))+
-            $"\n{(Project.HasChanges?Project.History.Count+" operaciones pendientes de exportar.":"Sin cambios pendientes.")}";
+            $"\n{(Project.HasChanges?Project.OperationCount+" operaciones pendientes de exportar.":"Sin cambios pendientes.")}";
         panel.Children.Add(_summary.Parent is Panel s?Detach(s,_summary):_summary);
         _discard.IsEnabled=Project?.HasChanges==true;panel.Children.Add(_discard.Parent is Panel d?Detach(d,_discard):_discard);
         return new ScrollViewer{Content=panel,VerticalScrollBarVisibility=ScrollBarVisibility.Auto};
@@ -312,7 +328,7 @@ internal sealed class NdsWorkspaceView:UserControl
         var title=new TextBlock{Text="Historial de cambios",FontSize=23,FontWeight=FontWeights.SemiBold};DockPanel.SetDock(title,Dock.Top);panel.Children.Add(title);
         var note=new TextBlock{TextWrapping=TextWrapping.Wrap,Margin=new Thickness(0,6,0,0),Text="Operaciones aplicadas a la ROM abierta, en orden. Se escriben al exportar, junto con este registro."};
         note.SetResourceReference(TextBlock.ForegroundProperty,"TextSoft");DockPanel.SetDock(note,Dock.Top);panel.Children.Add(note);
-        _history.ItemsSource=Project is null?Array.Empty<string>():Project.History.SelectMany(o=>new[]{$"== {o.Action}{(o.Seed is {} seed?" · semilla "+seed:"")} · {o.Changes.Count} cambios"}.Concat(o.Changes.Take(200).Select(Project.Describe))).ToArray();
+        _history.ItemsSource=Project is null?Array.Empty<string>():Project.History.SelectMany(o=>new[]{$"== {o.Action}{(o.Seed is {} seed?" · semilla "+seed:"")} · {o.Changes.Count} cambios"}.Concat(o.Changes.Take(200).Select(Project.Describe))).Concat(Project.EventHistory.Select(e=>"Eventos · "+e)).ToArray();
         if(_history.Parent is Panel old)old.Children.Remove(_history);panel.Children.Add(_history);
         return panel;
     }
@@ -337,7 +353,7 @@ internal sealed class NdsWorkspaceView:UserControl
     private void UpdateStatus()
     {
         if(Project is null)return;
-        _status.Text=Project.Game+(Project.IsRomhack?" · romhack":"")+" · "+(Project.HasChanges?Project.History.Count+" operaciones pendientes":"sin cambios pendientes");
+        _status.Text=Project.Game+(Project.IsRomhack?" · romhack":"")+" · "+(Project.HasChanges?Project.OperationCount+" operaciones pendientes":"sin cambios pendientes");
     }
 
     private void SetBusy(bool busy,string? status)

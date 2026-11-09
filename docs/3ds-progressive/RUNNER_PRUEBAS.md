@@ -66,6 +66,7 @@ dotnet .\3DS.Progressive.Tests\bin\Release\net10.0-windows\3DS.Progressive.Tests
 | `--native-gen6-only` | — |  |
 | `--native-wild7-only` | — |  |
 | `--nds-only` | — | sí |
+| `--nds-events-only` | — | incluida también en `--nds-only` |
 | `--performance-only` | — |  |
 | `--pickup-only` | — |  |
 | `--pokefeur-only` | — |  |
@@ -112,6 +113,7 @@ dotnet .\3DS.Progressive.Tests\bin\Release\net10.0-windows\3DS.Progressive.Tests
 | `--interaction-lock-only` | — | sí |
 | `--rebuild-marts-ui-only` | — | sí |
 | `--nds-ui-only` | — | sí |
+| `--nds-events-ui-only` | — | sí |
 | `--requested-ui-only` | — | sí |
 | `--swsh-ui-only` | — | sí |
 | `--template-feedback-ui-only` | — | sí |
@@ -183,6 +185,7 @@ Necesitan extracciones, ROMs o carpetas de salida. Los argumentos concretos (ent
 | `--nds-gen5-probe` | 1 o más |  |
 | `--nds-data-probe` | 2 o más |  |
 | `--nds-gen4-probe` | 2 o más |  |
+| `--nds-events-probe` | `<salida nueva> <ROM privada Platino CPUE/1>` |  |
 | `--nds-gen5-items-probe` | 2 o más |  |
 | `--nds-gen5-random-probe` | 2 o más |  |
 | `--nds-gen5-starters-probe` | 2 o más |  |
@@ -228,6 +231,10 @@ Necesitan extracciones, ROMs o carpetas de salida. Los argumentos concretos (ent
 | `--verify-existing-rebuild` | exactamente 3 |  |
 
 ## Suites incluidas en el CI
+
+Eventos DS fase 1: `--nds-events-only` ejecuta los casos sintéticos de mapas, archivos de eventos, límites, scripts, preservación de bytes y checkpoints inmutables. Sus casos se incluyen en `--nds-only`. `--nds-events-ui-only` comprueba la vista WPF fuera de pantalla y escribe capturas de fixtures en `bin/.../nds-events-ui/`; no acredita interacción real ni juego. El CI ejecuta ambas rutas mediante `--nds-only` y `--nds-events-ui-only`.
+
+`--nds-events-probe <salida nueva> <ROM privada Platino CPUE/1>` copia la fuente a la carpeta nueva y verifica guardado/checkpoint, reapertura, reconstrucción, restauración y bytes ajenos. Prepara `MANUAL.txt` y una ROM aislada de prueba. No ejecuta un emulador ni acredita jugabilidad. No pasar una ROM de trabajo o guardado como salida; la carpeta debe ser nueva.
 
 `.github/workflows/3ds-progressive-ci.yml` ejecuta las opciones marcadas "sí" y después `--synthetic-only`. Las comprobaciones con datos reales no pueden correr en CI porque no hay ROMs disponibles.
 
