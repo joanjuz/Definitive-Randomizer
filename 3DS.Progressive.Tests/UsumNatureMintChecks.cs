@@ -213,6 +213,15 @@ internal static class UsumNatureMintChecks
         check(nodes.OfType<System.Windows.Controls.CheckBox>().Any(c=>System.Windows.Automation.AutomationProperties.GetName(c)==UsumMintItemPolicy.Label&&c.IsChecked==false),"MintUiDistributionOptInOffByDefault");
         check(nodes.OfType<System.Windows.Controls.TextBlock>().Any(t=>t.Text==UsumNatureMintService.Warning+"."),"MintUiRealNatureWarningVisible");
         check(nodes.OfType<System.Windows.Controls.Expander>().Any(e=>e.Header.ToString()=="Diagnóstico técnico"&&!e.IsExpanded),"MintUiOptionalDiagnosticCollapsed");
+        var pool=nodes.OfType<ThreeDS.Progressive.UsumMintPoolControl>().Single();
+        check(!pool.Children.OfType<System.Windows.Controls.TextBlock>().Any(),"MintUiInstallerDoesNotShowDistributionUnavailableMessage");
+        var editorPool=new ThreeDS.Progressive.UsumMintPoolControl(f.Session);
+        check(editorPool.Children.OfType<System.Windows.Controls.TextBlock>().Single().Visibility==System.Windows.Visibility.Visible,"MintUiOtherEditorsKeepDistributionStatus");
+        const string fileList="Bag.cro\na/0/1/9\na/0/3/0\n.crr/static.crr";
+        typeof(ThreeDS.Progressive.UsumNatureMintView).GetField("_preview",System.Reflection.BindingFlags.NonPublic|System.Reflection.BindingFlags.Instance)!.SetValue(view,new UsumMintPreview(UsumMintState.NotInstalled,fileList,null));
+        typeof(ThreeDS.Progressive.UsumNatureMintView).GetMethod("Show",System.Reflection.BindingFlags.NonPublic|System.Reflection.BindingFlags.Instance)!.Invoke(view,null);
+        var diagnostic=nodes.OfType<System.Windows.Controls.Expander>().Single(e=>e.Header.ToString()=="Diagnóstico técnico");
+        check(!diagnostic.IsExpanded&&((System.Windows.Controls.TextBlock)diagnostic.Content).Text==fileList&&ThreeDS.Progressive.UsumNatureMintView.Status(new(UsumMintState.NotInstalled,fileList,null)).StartsWith("Listo para instalar\n")&&!ThreeDS.Progressive.UsumNatureMintView.Status(new(UsumMintState.NotInstalled,fileList,null)).Contains("Bag.cro"),"MintUiReadyKeepsFileListOnlyInTechnicalDiagnostic");
         foreach(var (state,label) in new[]{(UsumMintState.NotInstalled,"Listo para instalar"),(UsumMintState.Installed,"Instalado correctamente"),(UsumMintState.Modified,"Instalación no compatible"),(UsumMintState.Incompatible,"Instalación no compatible")})
             check(ThreeDS.Progressive.UsumNatureMintView.Status(new(state,"Causa concreta",null)).StartsWith(label+"\n"),"MintUiSimpleStatus "+state);
         var buttons=nodes.OfType<System.Windows.Controls.Button>().ToArray();

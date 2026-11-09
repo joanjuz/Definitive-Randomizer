@@ -51,7 +51,7 @@ Con la corrección, el mismo proyecto real supera preparación, instalación, re
 
 Las pruebas focalizadas de compatibilidad rechazan cambios en las seis entradas, checksum/cifrado, fórmulas, tablas de bloques/naturaleza y descriptor/interfaz. Aceptan mutaciones ajenas antes rechazadas por segmento. Se conservan memoria, hooks, rollback, concurrencia, relectura y deshacer. No se ejecutan suites generales locales para esta corrección.
 
-El propietario confirma instalación y uso en juego con una versión anterior después de randomizar. La **compilación nueva requiere su prueba personal en emulador**; no se atribuye a esta corrección una prueba jugable nueva.
+El propietario confirmó que probó personalmente **`bd07d42` dentro del juego con su ROM de Ultra Sol previamente randomizada y las mentas funcionaron correctamente**. Esta confirmación jugable corresponde a Ultra Sol y a ese caso concreto. **Ultra Luna no tiene una prueba jugable acreditada por esta confirmación y la ROM específica del tester continúa pendiente**. El reconocimiento de archivos de una copia ya instalada de Ultra Luna no equivale a ejecución en juego.
 
 El fallo CI anterior de `c6b670e` era distinto: `Lifecycle()` sobrescribía el exheader válido del fixture con ceros. Su corrección se conserva; `ValidateMemoryLayout` no se relaja.
 
@@ -65,4 +65,36 @@ Compilación Release no incremental con apphost y binlog: 0 errores y 0 adverten
 2. Pulsa **Comprobar estado y preparar**. Si aparece **Listo para instalar**, pulsa **Aplicar y guardar**.
 3. Genera la salida desde esa copia y prueba las mentas con una partida respaldada. Ante **Instalación no compatible**, comparte solo el diagnóstico textual de la dependencia concreta.
 
-No es necesario ejecutar PowerShell, comparar SHA-256 ni enviar ROMs, partidas o binarios. No se modifican los PR #55/#56 ni se crean tags, previews o releases.
+No es necesario ejecutar PowerShell, comparar SHA-256 ni enviar ROMs, partidas o binarios. Esta consolidación no modifica el PR #55 ni las funciones del PR #56 y no crea tags, previews o releases.
+
+## Consolidación para integrar en main — 09/11/2026
+
+Base del PR #57: `bd07d42377bd709eb71b167e5741badf9bdd0f1d`. Preview publicada: `6389158048f154bd535afb12b5c79816a009f1aa`, con los commits adicionales `aec6ddf` y `6389158`. Se comparó su diferencia final y se incorporó selectivamente, sin cherry-pick de los commits completos:
+
+| Archivos de la preview | Tratamiento en #57 |
+|---|---|
+| `UsumMintPoolControl.cs`, `UsumNatureMintView.cs` | Se incorporan sin diferencias respecto a `6389158`: omitir el informe redundante únicamente en el instalador, también en accesibilidad, y resumir la confirmación de guardado. Otros editores conservan su informe. |
+| `UsumNatureMintChecks.cs` | Se incorpora sin diferencias respecto a `6389158`: tres comprobaciones de interfaz que acreditan los dos comportamientos anteriores y mantienen la lista extensa dentro de Diagnóstico técnico, cerrado inicialmente. |
+| `MENTAS_GEN7_USUM_COMPATIBILIDAD.md` | Se incorpora la confirmación del propietario precisando Ultra Sol; se actualizan integración y límites. |
+| `3DS.Progressive.App.csproj`, `MainWindow.xaml`, `Publish-Preview.ps1` | Se excluyen versión, pie y valor predeterminado propios de preview.2; permanecen como en main. |
+| `RELEASE_0.15.0_PREVIEW_2.md` y su entrada en `INDICE.md` | No se importan las notas ni la entrada de publicación. La release histórica conserva su fuente/tag; este PR no la vuelve a empaquetar ni publicar. |
+
+Se integró `main` en `cbf6f9502185fb4be69e5f54aa1cd41def20d1c1`, que ya contiene el PR #56. No hubo conflictos textuales. Git combinó automáticamente `Program.cs`, `RunnerCatalog.cs`, `RUNNER_PRUEBAS.md` e `INDICE.md`; se revisó que conserven tanto las suites/probes de entrenadores DS como las de mentas. El código y las pruebas específicos de entrenadores DS permanecen idénticos a ese main. No se modifica la rama de eventos #55 ni se incluye su implementación.
+
+Los servicios de ROM, dependencias nativas, preparaciones temporales, transacciones y reglas de compatibilidad de mentas permanecen idénticos a `bd07d42`; los cambios posteriores de funcionamiento son únicamente los de presentación ya publicados en `6389158`. No se reabre la investigación de compatibilidad ni se acredita una prueba jugable nueva del commit de integración.
+
+Validación local de la integración (runner propio, Release):
+
+| Comprobación | Resultado |
+|---|---|
+| Compilación no incremental de Tests/App/Core/LegacyBatch, apphost y binlog | 0 errores, 0 advertencias |
+| `--usum-mints-only` | 98 aprobadas |
+| `--usum-mints-ui-only` | 31 aprobadas |
+| `--usum-mints-distribution-only` | 128 aprobadas |
+| `--usum-mint-icons-only` | 88 aprobadas |
+| `--nds-trainers-only` | 171 aprobadas |
+| `--nds-ui-only` | 27 aprobadas, fuera de pantalla |
+
+Las seis suites finalizaron con código 0. Las tres comprobaciones importadas se mantienen en la suite de interfaz: `MintUiInstallerDoesNotShowDistributionUnavailableMessage`, `MintUiOtherEditorsKeepDistributionStatus` y `MintUiReadyKeepsFileListOnlyInTechnicalDiagnostic`. Acreditan la ausencia del aviso redundante en el instalador, la conservación del informe en los demás editores y la ubicación exclusiva de la lista de archivos en el diagnóstico.
+
+No se repitieron suites generales, auditorías visuales extensas, probes de ROM reales ni pruebas dentro del juego para esta integración: se conservan sus evidencias previas con su alcance original. La regresión DS focalizada comprueba serialización, recetas y presentación sobre la base #56 sin modificarla. Los 13 archivos de trabajo previo del árbol principal se contrastaron por SHA-256 y permanecieron intactos; no forman parte de este commit. El CI final de #57 se registra en la descripción del PR tras el push, sin atribuir al commit de integración el CI histórico de `bd07d42` ni la prueba jugable de ese commit.
