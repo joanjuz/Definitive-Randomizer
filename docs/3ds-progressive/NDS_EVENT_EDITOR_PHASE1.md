@@ -71,3 +71,15 @@ Prueba manual corta, responsabilidad del propietario:
 5. Informa ROM/perfil, mapa/índice/ID, valores antes/después, resultado visible y restauración. No adjuntes ROMs ni partidas.
 
 **No hay validación jugable declarada para esta fase.** No implica una campaña completa, un editor visual de mapas ni la paridad total con DSPRE.
+
+## Integración con main (09/11/2026)
+
+La rama de eventos integra `main` en `890b9d8fd9b4387c84cba7b8a9c9aeeb0f62d74c`, incluidos los entrenadores DS del PR #56, la versión WPF 1.0.0 y los modos PRIVATE/PUBLIC del empaquetador. No modifica esa versión ni el mecanismo de distribución, ni añade funciones de mapas.
+
+Los dos conflictos textuales se resolvieron conservando ambos lados: `Program.cs` mantiene los selectores de eventos y entrenadores y ejecuta ambas suites en `--nds-only`; el índice conserva la entrada de eventos y las guías y entregas incorporadas en main. Se revisaron también `NdsWorkspaceView`, el auto-merge de `NdsProject`, los catálogos y la documentación del runner. Los métodos de edición de entrenadores de main y los componentes de eventos del PR original permanecen intactos. La exportación combina los archivos del borrador DS y el NARC de eventos; Global/Batch continúa rechazando la captura de operaciones de eventos.
+
+Validación focalizada de la integración: build Release del runner, WPF, Core y LegacyBatch con 0 errores y 0 advertencias; `--nds-events-only` **42**, `--nds-events-ui-only` **12**, `--nds-trainers-only` **171**, `--nds-ui-only` **27** y `--nds-only` **374**, todas aprobadas. Las 374 ya incluyen las suites sintéticas de eventos y entrenadores; no se suman como cobertura independiente. Las comprobaciones de interfaz son fuera de pantalla.
+
+Se reutilizó la fuente privada CPUE/1 identificada arriba, con nuevas salidas aisladas: tres verificaciones integrales del probe de eventos (593 mapas, checkpoint/reapertura/rebuild/restauración y archivos ajenos intactos) y **28** comprobaciones reales de entrenadores, incluidas exportación/reapertura, recetas y conservación de datos. La fuente conservó su SHA-256 y la restauración de eventos produjo una ROM con SHA-256 idéntico. Los checkpoints y las salidas anteriores no se sobrescribieron. No se amplía esta evidencia a otros juegos ni a ejecución en emulador.
+
+El resultado del CI del HEAD actualizado se registra en el [PR #55](https://github.com/joanjuz/Definitive-Randomizer/pull/55). Para la comprobación jugable siguen vigentes los cinco pasos anteriores: mapa 411/T01, NPC 0, dirección 2 → 3, checkpoint nuevo, exportación a otra ROM y restauración. Usar la compilación de la rama actualizada, no asumir que un ZIP estable anterior incluye este editor. La prueba jugable continúa pendiente del propietario; esta integración no publica un paquete ni fusiona el PR.

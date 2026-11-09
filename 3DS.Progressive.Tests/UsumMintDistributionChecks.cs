@@ -76,6 +76,9 @@ internal static class UsumMintDistributionChecks
         byte[] pickupBefore=File.ReadAllBytes(ModuleChecks.PathFor(f,"pickup"));
         reject(()=>pickup.Apply(pending),"MintDistributionChangedDependencyBlocksWrite"+tag);
         check(File.ReadAllBytes(ModuleChecks.PathFor(f,"pickup")).SequenceEqual(pickupBefore),"MintDistributionNoPartialWrite"+tag);File.WriteAllBytes(bagPath,bag);
+        string memoryPath=Path.Combine(f.Root,"exheader.bin");byte[] memory=File.ReadAllBytes(memoryPath),changedMemory=(byte[])memory.Clone();changedMemory[0x20]^=1;File.WriteAllBytes(memoryPath,changedMemory);
+        reject(()=>pickup.Apply(pending),"MintDistributionChangedMemoryMapBlocksWrite"+tag);
+        check(File.ReadAllBytes(ModuleChecks.PathFor(f,"pickup")).SequenceEqual(pickupBefore),"MintDistributionMemoryConflictNoPartialWrite"+tag);File.WriteAllBytes(memoryPath,memory);
         using(var writer=new FileStream(bagPath,FileMode.Open,FileAccess.ReadWrite,FileShare.ReadWrite|FileShare.Delete))reject(()=>pickup.Apply(pending),"MintDistributionConcurrentDependencyWriterRejected"+tag);
         pickup.Apply(pending);check(new GamePickupService(f.Session).Read().Take(21).Select(r=>r.Item).SequenceEqual(ids),"MintDistributionPickupPersists"+tag);
         RestorePoints.Undo(f.Session.History,f.Root,f.Session.History.Read().Entries.Last().Id);
@@ -100,10 +103,14 @@ internal static class UsumMintDistributionChecks
         reject(()=>crowded.AddNatureMints(),"MintDistributionCapacityRejectsBeforeAnyStockChanged"+tag);
         check(crowded.RegularShops[0].Rows.Count==107&&crowded.RegularShops.Skip(1).All(s=>s.Rows.Count==2)&&File.ReadAllBytes(shopPath).SequenceEqual(shop),"MintDistributionCapacityFailureIsAtomic"+tag);
         // The real Batch workspace copier must carry identity, before stage preflight.
-        string stage=Path.Combine(f.Root,"stage-test"),exheader=Path.Combine(f.Root,"exheader.bin");File.WriteAllBytes(exheader,new byte[0x800]);
+        string stage=Path.Combine(f.Root,"stage-test"),exheader=Path.Combine(f.Root,"exheader.bin");
+        // Setup already wrote the accredited US/UM memory map. Keep it valid for
+        // the distribution checks which continue using this same project.
+        byte[] sourceExheader=File.ReadAllBytes(exheader);
         var assembly=System.Reflection.Assembly.LoadFrom(Path.ChangeExtension(BatchRomExecution.RunnerPath,".dll"));
         assembly.GetType("pk3DS.WinForms.BatchWorkspace",true)!.GetMethod("PrepareCleanCopy",System.Reflection.BindingFlags.NonPublic|System.Reflection.BindingFlags.Static)!.Invoke(null,[f.Root,stage,f.Game,exheader,false]);
         check(File.ReadAllBytes(Path.Combine(stage,"HeaderNCCH0.bin")).SequenceEqual(File.ReadAllBytes(Path.Combine(f.Root,"HeaderNCCH0.bin"))),"MintDistributionBatchStagePreservesNCCH"+tag);
+        check(File.ReadAllBytes(exheader).SequenceEqual(sourceExheader)&&File.ReadAllBytes(Path.Combine(stage,"exheader.bin")).SequenceEqual(sourceExheader),"MintDistributionBatchStagePreservesMemoryMap"+tag);
         var field=new GameFieldItemsService(f.Session);int[] scope=field.Entries.Select(e=>e.Id).ToArray();var opts=EditorValues.Flatten(field.RandomOptions);
         var fieldPreview=field.Preview(opts,scope,23);check(fieldPreview.Files[0].Proposed().SequenceEqual(field.Preview(opts,scope,23).Files[0].Proposed()),"MintDistributionFieldDeterministic"+tag);
         byte[] fieldBefore=File.ReadAllBytes(ModuleChecks.PathFor(f,"encdata"));
@@ -145,6 +152,8 @@ internal static class UsumMintDistributionChecks
     {
         byte[] code=new byte[5914624];for(int i=0;i<100;i++)BitConverter.GetBytes((ushort)(i+1)).CopyTo(code,UsumMintCodeDataProfile.TmOffset+i*2);
         new byte[]{0x23,0,0xd4,0xe5}.CopyTo(code,UsumMintCodeDataProfile.PidOffset);code[UsumMintCodeDataProfile.AlwaysShinyOffset]=0x0a;
+        new byte[]{20,35,50,65,80,100}.CopyTo(code,UsumMintCodeDataProfile.ObedienceOffset);
+        BitConverter.GetBytes(0x5c4644u).CopyTo(code,0x21bd64);
         byte[] normalized=UsumMintCodeDataProfile.Normalize(code);code[UsumMintCodeDataProfile.TmOffset]=99;code[UsumMintCodeDataProfile.AlwaysShinyOffset]=0xea;
         check(UsumMintCodeDataProfile.Normalize(code).SequenceEqual(normalized),"MintDistributionCodeOnlyKnownDataNormalized");
         code[0x100]^=1;reject(()=>UsumNatureMintCatalog.IdentifyCode(code),"MintDistributionUnknownExecutableStillRejected");

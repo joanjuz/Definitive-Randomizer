@@ -38,6 +38,7 @@ internal static class NdsUiChecks
             string hack=Path.Combine(temp,"romhack.nds");File.WriteAllBytes(hack,NdsGen5RandomizerChecks.SyntheticBlackRomhack());
             Pump(workspace.LoadAsync(hack));var project=workspace.Project;
             check(project is {IsRomhack:true},"NdsUi_RomhackOptionOpensModifiedRom");
+            NdsTrainerUiChecks.Run(hack,check);
             Pump(workspace.NavigateAsync("Trainers"));
             check(Descendants<RecordEditorView>(workspace).Count()==1&&workspace.CurrentRoute=="Trainers","NdsUi_TrainersOpenInTheSharedRecordEditor");
             Pump(workspace.NavigateAsync("Starters"));
@@ -47,7 +48,7 @@ internal static class NdsUiChecks
             // The adapter behind the shared editor: manual save, scoped randomization, then export.
             var trainers=new NdsRecordEditor(project!,NdsSection.Trainers);
             var team=trainers.Read(1).SelectMany(g=>g.Fields).ToDictionary(f=>f.Key);
-            check(trainers.UsesTrainerLayout&&trainers.Entries.Count==2&&team["P0.Species"].Choices!.Count==Gen5Randomizer.MaxSpecies&&team.ContainsKey("P0.Item")&&team.ContainsKey("P1.Move4"),"NdsUi_TrainerFieldsUseTheSharedKeysAndNames");
+            check(trainers.UsesTrainerLayout&&trainers.Entries.Count==2&&team["P0.Species"].Choices!.Count==Gen5Randomizer.MaxSpecies&&team.ContainsKey("P0.Item")&&team.ContainsKey("P1.Move3")&&!team.ContainsKey("P1.Move4"),"NdsUi_TrainerFieldsUseTheSharedKeysAndNames");
             var values=team.ToDictionary(p=>p.Key,p=>p.Value.Value);values["P0.Species"]=25;values["P0.Level"]=33;trainers.Save(1,values);
             check(project!.HasChanges&&project.History.Count==1&&trainers.Read(1).SelectMany(g=>g.Fields).Single(f=>f.Key=="P0.Species").Value==25,"NdsUi_ManualSaveStacksAChange");
             var proposal=trainers.Preview(Defaults(trainers),[2]);

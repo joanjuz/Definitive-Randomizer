@@ -8,11 +8,15 @@ internal static class RunnerCatalog
 {
     internal static readonly RunnerOption[] Options=
     [
+        new("--nds-trainers-only","",RunnerCategory.Synthetic,true),
+        new("--nds-trainers-probe","<salida nueva> <rom>…",RunnerCategory.Real,false),
         new("--usum-mint-icons-real-copies","<salida nueva> <Ultra Sol fase 1> <Ultra Luna fase 1>",RunnerCategory.Real,false),
         new("--usum-mint-icons-only","",RunnerCategory.Synthetic,true),
         new("--usum-mints-distribution-real-copies","<salida nueva> <Ultra Sol fase 1.1> <Ultra Luna fase 1.1>",RunnerCategory.Real,false),
         new("--usum-mints-distribution-only","",RunnerCategory.Synthetic,true),
         new("--usum-mints-only","",RunnerCategory.Synthetic,true),
+        new("--usum-mints-project-regression","<proyecto USUM privado> <copia nueva de salida>",RunnerCategory.Real,false),
+        new("--usum-mints-compatibility-probe","<code.bin US reconocido> <code.bin UM reconocido> <Bag.cro original reconocido>",RunnerCategory.Real,false),
         new("--usum-mints-ui-only","",RunnerCategory.Ui,true),
         new("--usum-mints-arm-fixtures","<carpeta de fixtures sintéticos>",RunnerCategory.Synthetic,true),
         new("--usum-mints-real-copies","<carpeta nueva de salida> <Ultra Sol extraído> <Ultra Luna extraído>",RunnerCategory.Real,false),

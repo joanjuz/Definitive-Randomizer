@@ -9,11 +9,20 @@ Punto de entrada a `docs/3ds-progressive/`. Muchos documentos son **registros hi
 | Visión, prioridades y roadmap maestro de PokeJuz | [DefinitivePkm · ROADMAP.md](https://github.com/joanjuz/DefinitivePkm/blob/main/docs/ROADMAP.md) |
 | Runner de pruebas y sus opciones | [RUNNER_PRUEBAS.md](RUNNER_PRUEBAS.md) |
 | Editor de eventos Nintendo DS, fase 1: Platino CPUE/1, checkpoints y restauración | [NDS_EVENT_EDITOR_PHASE1.md](NDS_EVENT_EDITOR_PHASE1.md) |
+| **Primera estable WPF (v1.0.0, en preparación, sin publicar):** guía para usuarios nuevos | [PRIMEROS_PASOS.md](PRIMEROS_PASOS.md) |
+| Estable WPF: respaldo, Deshacer, recuperación de guardados y qué enviar al reportar | [RESPALDO_Y_RECUPERACION.md](RESPALDO_Y_RECUPERACION.md) |
+| Estable WPF: matriz pública por juego (implementado, automático, archivos reales, en juego, no comprobado) | [COMPATIBILIDAD_PUBLICA.md](COMPATIBILIDAD_PUBLICA.md) |
+| Estable WPF: limitaciones públicas y alcance excluido (incluye el editor de eventos DS, PR #55) | [LIMITACIONES_ESTABLE.md](LIMITACIONES_ESTABLE.md) |
+| Estable WPF: notas v1.0.0 preparada, todavía no publicada | [RELEASE_1.0.0.md](RELEASE_1.0.0.md) |
+| Empaquetado: modos PRIVATE/PUBLIC y confirmación del commit del operador | [EMPAQUETADO_PRIVATE_PUBLIC.md](EMPAQUETADO_PRIVATE_PUBLIC.md) |
+| Entrenadores DS: tarjetas, formatos explícitos, derivados y comparación con 3DS | [NDS_ENTRENADORES_PARIDAD.md](NDS_ENTRENADORES_PARIDAD.md) |
+| Entrenadores: prueba jugable confirmada en Platino y guía de Ruta 202 | [NDS_ENTRENADORES_PRUEBA_PLATINO.md](NDS_ENTRENADORES_PRUEBA_PLATINO.md) |
 | Candidato prerelease 0.15.0-preview.1: mentas Gen7 y distribución | [RELEASE_0.15.0_PREVIEW_1.md](RELEASE_0.15.0_PREVIEW_1.md) |
 | Plan previo de mentas Gen7 USUM: referencia, licencia y aceptación | [MENTAS_GEN7_USUM_PLAN_20261105.md](MENTAS_GEN7_USUM_PLAN_20261105.md) |
 | Mentas USUM fase 1: funcionalidad jugable confirmada, casos pendientes e iconos | [MENTAS_GEN7_USUM_FASE1.md](MENTAS_GEN7_USUM_FASE1.md) |
 | Iconos de mentas USUM fase 1.1: fuentes, conversión, instalación y prueba visual | [MENTAS_GEN7_USUM_ICONOS_FASE11.md](MENTAS_GEN7_USUM_ICONOS_FASE11.md) |
 | Mentas USUM fase 2: pools opcionales, distribución, Global Template y Batch | [MENTAS_GEN7_USUM_FASE2.md](MENTAS_GEN7_USUM_FASE2.md) |
+| Mentas USUM: compatibilidad por regiones y cambios acreditados | [MENTAS_GEN7_USUM_COMPATIBILIDAD.md](MENTAS_GEN7_USUM_COMPATIBILIDAD.md) |
 | Definitive Game Data v1: exportación USUM e integración con Tracker | [Contrato técnico](../contracts/DEFINITIVE_GAME_DATA_V1.md) |
 | Historial: habilitación de Deshacer tras verificar archivos | [HISTORY_UNDO_BUTTON_20261105.md](HISTORY_UNDO_BUTTON_20261105.md) |
 | H2/H3: recuperación de guardados individuales | [H2_H3_GUARDADOS_INDIVIDUALES_20261104.md](H2_H3_GUARDADOS_INDIVIDUALES_20261104.md) |
@@ -108,3 +117,7 @@ Registros de entregas pasadas. Útiles para entender por qué existe un comporta
 - Candidato 71: [ESTADO_CANDIDATO_71.md](ESTADO_CANDIDATO_71.md). Las iteraciones 72–73 no tienen archivo propio.
 - Iteraciones 74–86: `ITERACION_74_PLANTILLAS_VALIDACION.md` … `ITERACION_86_ENCUENTROS_BLOQUEO.md` (la 85 no tiene documento propio).
 - Primera parte visual: [HITO_01_1_VISUAL.md](HITO_01_1_VISUAL.md).
+
+## Candidata privada
+
+- [1.0.0-rc.1: preparación y alcance del paquete privado](RELEASE_1.0.0_rc.1.md)

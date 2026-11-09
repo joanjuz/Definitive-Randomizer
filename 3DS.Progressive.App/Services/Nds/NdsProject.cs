@@ -133,6 +133,12 @@ internal sealed partial class NdsProject : IDisposable
         new(_id, Revision, "Edición manual · " + SectionName(section), null, _gen4 is not null ? NdsCells.Write(Gen4View, section, edits) : NdsCells.Write(Gen5View, section, edits),
             new JsonObject { ["Kind"] = "Edit", ["Section"] = section.ToString(), ["Edits"] = JsonSerializer.SerializeToNode(edits.OrderBy(p => p.Key, StringComparer.Ordinal).ToDictionary(p => p.Key, p => p.Value)) });
 
+    internal IReadOnlyList<NdsCell> ReadTrainerFields() => _gen4 is not null ? NdsTrainerTools.ReadManual(Gen4View) : NdsTrainerTools.ReadManual(Gen5View);
+    internal IReadOnlyList<Gen5Trainer> OriginalTrainers() => _gen4 is not null ? _gen4.Trainers() : _gen5!.Trainers();
+    internal NdsPreview PreviewTrainerEdits(IReadOnlyDictionary<string, int> edits) =>
+        new(_id, Revision, "Edición manual · Entrenadores", null, _gen4 is not null ? NdsTrainerTools.EditManual(Gen4View, edits) : NdsTrainerTools.EditManual(Gen5View, edits),
+            new JsonObject { ["Kind"] = "TrainerEdit1", ["Edits"] = JsonSerializer.SerializeToNode(edits.OrderBy(p => p.Key, StringComparer.Ordinal).ToDictionary(p => p.Key, p => p.Value)) });
+
     internal NdsPreview PreviewRandom(string action, Gen5RandomizerOptions options) =>
         new(_id, Revision, action, options.Seed, _gen4 is not null ? Gen4Randomizer.Generate(Gen4View, options) : Gen5Randomizer.Generate(Gen5View, options),
             new JsonObject { ["Kind"] = "Species", ["Action"] = action, ["Options"] = JsonSerializer.SerializeToNode(options, RecipeJson) });
@@ -275,6 +281,7 @@ internal sealed partial class NdsProject : IDisposable
         return kind switch
         {
             "Edit" => PreviewEdits(Section(), op["Edits"]!.Deserialize<Dictionary<string, int>>()!),
+            "TrainerEdit1" => PreviewTrainerEdits(op["Edits"]!.Deserialize<Dictionary<string, int>>()!),
             "Species" => PreviewRandom(action, Options().Deserialize<Gen5RandomizerOptions>(RecipeJson)! with { Scope = scope }),
             "Trainers" => PreviewTrainers(action, Options().Deserialize<Gen5RandomizerOptions>(RecipeJson)! with { Scope = scope },
                 Options("Tools").Deserialize<NdsTrainerOptions>(RecipeJson)! with { Scope = scope }),

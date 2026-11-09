@@ -21,22 +21,32 @@ internal sealed class UsumNatureMintService(GameProjectSession project,Func<byte
         catch(Exception ex) when(ex is IOException or InvalidDataException or NotSupportedException or ArgumentException)
         {return new(UsumMintState.Incompatible,ex.Message,null);}
     }
-    private UsumMintPreview Prepare()
+    private UsumMintPreview Prepare(string? trialRoot=null)
     {
         var config=project.GameConfiguration;
         if(!config.USUM)throw new NotSupportedException("Mentas Gen7 únicamente admite Ultra Sol y Ultra Luna.");
         var dependencies=new Dictionary<string,byte[]>(StringComparer.OrdinalIgnoreCase);
-        byte[] Read(string path){path=Path.GetFullPath(path);ValidatePath(path);byte[] bytes=File.ReadAllBytes(path);dependencies.Add(path,SHA256.HashData(bytes));return bytes;}
+        var snapshots=new Dictionary<string,byte[]>(StringComparer.OrdinalIgnoreCase);
+        string TrialPath(string path)=>Path.Combine(trialRoot!,Path.GetRelativePath(project.ProjectRoot,path));
+        byte[] Read(string path){path=Path.GetFullPath(path);ValidatePath(path);byte[] bytes=File.ReadAllBytes(trialRoot is null?path:TrialPath(path));dependencies.Add(path,SHA256.HashData(bytes));snapshots.Add(path,bytes);return bytes;}
         var codes=Directory.GetFiles(config.ExeFS).Where(p=>Path.GetFileName(p) is "code.bin" or ".code.bin").ToArray();
         if(codes.Length!=1)throw new InvalidDataException("Se requiere un único code.bin descomprimido.");
-        var profile=(identifyCode??UsumNatureMintCatalog.IdentifyCode)(Read(codes[0]));
-        // Identity is checked independently from the two executable fingerprints.
+        byte[] code=Read(codes[0]);
+        // NCCH selects US/UM. Only the mint native call surface is accredited;
+        // unrelated executable bytes are neither normalized nor fingerprinted.
         string header=new[]{"ncchheader.bin","HeaderNCCH0.bin","HeaderNCCH.bin"}.Select(name=>Path.Combine(project.ProjectRoot,name)).FirstOrDefault(File.Exists)
             ??throw new InvalidDataException("Falta la cabecera NCCH del proyecto para acreditar el título.");
         byte[] ncch=Read(header);
-        ulong title=profile.Moon?0x00040000001b5100UL:0x00040000001b5000UL;
-        if(ncch.Length<0x160||!ncch.AsSpan(0x100,4).SequenceEqual("NCCH"u8)||BitConverter.ToUInt64(ncch,0x118)!=title)
-            throw new InvalidDataException("La identidad NCCH no coincide con el perfil de Ultra Sol/Ultra Luna.");
+        if(ncch.Length<0x160||!ncch.AsSpan(0x100,4).SequenceEqual("NCCH"u8)||BitConverter.ToUInt64(ncch,0x118) is not (0x00040000001b5000UL or 0x00040000001b5100UL))
+            throw new InvalidDataException("La identidad NCCH no corresponde a Ultra Sol/Ultra Luna.");
+        bool moon=BitConverter.ToUInt64(ncch,0x118)==0x00040000001b5100UL;
+        var profile=identifyCode is null?UsumNatureMintCatalog.Profiles.Single(p=>p.Moon==moon):identifyCode(code);
+        if(profile.Moon!=moon)throw new InvalidDataException("La identidad NCCH no coincide con el perfil de Ultra Sol/Ultra Luna.");
+        if(identifyCode is null&&code.Length!=5914624)throw new InvalidDataException("Se requiere code.bin USUM descomprimido.");
+        string exheader=new[]{"exheader.bin","DecryptedExHeader.bin"}.Select(name=>Path.Combine(project.ProjectRoot,name)).FirstOrDefault(File.Exists)
+            ??throw new InvalidDataException("Falta el exheader para comprobar las direcciones del runtime.");
+        UsumMintCodeDataProfile.ValidateMemoryLayout(Read(exheader),moon);
+        if(identifyCode is null)UsumMintCodeDataProfile.ValidateNativeDependencies(code,moon);
         string bagPath=Path.Combine(config.RomFS,"Bag.cro");byte[] bag=Read(bagPath);
         var state=UsumNatureMintPatch.Inspect(bag,profile);
         if(state.State is UsumMintState.Incompatible or UsumMintState.Modified)return new(state.State,state.Detail,null);
@@ -105,19 +115,51 @@ internal sealed class UsumNatureMintService(GameProjectSession project,Func<byte
         foreach(string path in inventory.Where(path=>!path.Equals(bagPath,StringComparison.OrdinalIgnoreCase)))Read(path);
         string crrPath=Path.Combine(config.RomFS,".crr/static.crr");byte[] crr=Read(crrPath);
         byte[] updatedCrr=ReplaceCrrBag(crr,bag,outputBag,inventory.Length);
-        if(installed)return new(UsumMintState.Installed,profile.Id+" · "+state.Detail+"\nLos precios son editables. Abre Tiendas y BP para añadirlas.",null);
+        // Bag's relocated structure/hashes are checked by UsumNatureMintPatch.
+        // Other CROs stay opaque and unchanged; CRR must accredit their headers.
+        if(!installed||trialRoot is not null){
+            var images=inventory.Select(path=>snapshots[Path.GetFullPath(path)]).ToArray();
+            if(!CroIntegrity.RebuildCrr(crr,images).AsSpan().SequenceEqual(crr))throw new InvalidDataException("La tabla CRR no acredita el inventario CRO completo.");
+        }
+        if(installed){
+            var verified=(identifyCode??UsumNatureMintCatalog.IdentifyCode)(code);
+            if(verified.Moon!=moon)throw new InvalidDataException("El ejecutable no corresponde a la identidad NCCH.");
+            return new(UsumMintState.Installed,profile.Id+" · "+state.Detail+"\nLos precios son editables. Abre Tiendas y BP para añadirlas.",null);
+        }
+        if(trialRoot is not null)throw new InvalidDataException("La copia temporal no reconoce las 21 mentas instaladas.");
         files.Add(new(crrPath,crr,updatedCrr));
         var parameters=new Dictionary<string,string>{{"ActionId","usum.nature-mints.install"},{"Profile",profile.Id},{"Semantics","RealNature"},{"Phase","1"}};
         var proposal=new EditorProposal(_owner,"Instalar mentas Gen7",0,files,
             UsumNatureMintCatalog.Mints.Select(m=>new BatchChange(m.ItemId,"Menta "+m.EnglishNature,"Naturaleza real","Sin menta",m.NatureId.ToString())),parameters,
             dependencies.Select(d=>(d.Key,d.Value)));
-        return new(UsumMintState.NotInstalled,profile.Id+"\n21 mentas consumibles. Sin Ability Patch ni cambios en pools.\n"+
+        VerifyTrial(proposal,snapshots);
+        return new(UsumMintState.NotInstalled,profile.Id+"\nInstalación y relectura verificadas en una copia temporal aislada. El proyecto aún no se ha modificado.\n21 mentas consumibles. Sin Ability Patch ni cambios en pools.\n"+
             string.Join("\n",files.Where(f=>f.Changed).Select(f=>Path.GetRelativePath(project.ProjectRoot,f.Path))),proposal);
+    }
+    private void VerifyTrial(EditorProposal proposal,IReadOnlyDictionary<string,byte[]> snapshots)
+    {
+        // Only files read by this installer are copied. No history or source project
+        // is opened for writing. The same transaction primitive applies the trial.
+        string trial=Path.Combine(Path.GetTempPath(),"DefinitiveRandomizer-Mints-"+Guid.NewGuid().ToString("N"));
+        string Map(string path)=>Path.Combine(trial,Path.GetRelativePath(project.ProjectRoot,path));
+        Directory.CreateDirectory(trial);
+        try {
+            foreach(var (path,bytes) in snapshots){string target=Map(path);Directory.CreateDirectory(Path.GetDirectoryName(target)!);File.WriteAllBytes(target,bytes);}
+            FileTransaction.Commit(proposal.Files.Select(f=>new FileChange(Map(f.Path),f.Original(),f.Proposed())).ToArray());
+            var verified=Prepare(trial);
+            if(verified.State!=UsumMintState.Installed)throw new InvalidDataException("La instalación temporal no supera la relectura: "+verified.Report);
+            foreach(var (path,bytes) in snapshots){
+                var changed=proposal.Files.SingleOrDefault(f=>f.Path.Equals(path,StringComparison.OrdinalIgnoreCase));
+                if(!File.ReadAllBytes(Map(path)).AsSpan().SequenceEqual(changed is null?bytes:changed.Proposed()))
+                    throw new InvalidDataException("La instalación temporal modificó un archivo ajeno: "+Path.GetRelativePath(project.ProjectRoot,path));
+            }
+            foreach(var dependency in proposal.Dependencies)GarcTransaction.ReadUnchanged(dependency.Path,dependency.Fingerprint);
+        } finally{Directory.Delete(trial,true);}
     }
     private static UsumMintPreview Modified(string reason)=>new(UsumMintState.Modified,reason+" No se reinstala; revisa el historial o restaura una copia coherente.",null);
     internal void Apply(UsumMintPreview preview)
     {
-        var proposal=preview.Proposal??throw new InvalidOperationException("No hay una instalación preparada.");
+        var proposal=preview.Proposal??throw new InvalidOperationException("No hay una instalación preparada. "+preview.Report);
         if(proposal.Owner!=_owner||preview.State!=UsumMintState.NotInstalled)throw new InvalidOperationException("Vista previa ajena o no instalable.");
         // Freeze the unchanged dependencies during the existing history transaction.
         var locks=new List<FileStream>();

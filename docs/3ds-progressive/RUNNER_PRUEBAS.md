@@ -4,6 +4,10 @@
 
 ## Uso
 
+`--nds-trainers-only` comprueba lectura y edición manual de entrenadores, conversión de formatos, conservación de datos, rebuild/reapertura y replay de recetas históricas y nuevas (fixtures Gen4/Gen5). Se incluye en `--nds-only`.
+
+`--nds-trainers-probe <salida nueva> <rom>…` ejecuta el mismo flujo con copias privadas de los perfiles soportados. Requiere un entrenador con movimientos/objetos explícitos y otro sin ellos; solo lee las fuentes y conserva las salidas aisladas. No prueba jugabilidad.
+
 `--usum-mint-icons-only` ejecuta las pruebas sintéticas de conversión, descarga/caché con HTTP simulado y ciclo de instalación/historial/deshacer de iconos en US/UM. No descarga gráficos comerciales. Se ejecuta en CI.
 
 `--usum-mint-icons-real-copies <salida nueva> <Ultra Sol fase 1> <Ultra Luna fase 1>` descarga las fuentes fijadas de PokéAPI y crea copias privadas nuevas para instalar, reabrir, deshacer y reinstalar, conservando tiendas y otros archivos. Nunca edita los orígenes. `--usum-mints-rebuild` también comprueba los iconos tras la reextracción si estaban reconocidos en el proyecto de entrada. Estas comprobaciones no acreditan la imagen dentro del emulador.
@@ -15,6 +19,10 @@
 `--usum-mints-rebuild <proyecto con mentas> <imagen 3DS nueva> <carpeta nueva de reextracción>` hace una única reconstrucción Full3DS, verifica todos los archivos reextraídos byte a byte y comprueba que el parche siga reconocido. Solo se usa con copias privadas; no valida una partida en el emulador.
 
 `--usum-mints-only` ejecuta el mapa de 21 mentas, bolsillos, rechazo de títulos/huellas/hooks/colisiones, textos sin pérdidas, preparación, transacción con fallo inyectado, historial, reapertura, idempotencia y deshacer con fixtures sintéticos. `--usum-mints-ui-only` verifica fuera de pantalla la advertencia, instalación bloqueada sin propuesta y navegación al editor de tiendas existente. `--usum-mints-arm-fixtures <carpeta>` genera CRO sintéticos para `native/3ds/nature-mints/verify_arm.py`; no contienen datos de juegos. `--usum-mints-real-copies <salida nueva> <Ultra Sol extraído> <Ultra Luna extraído>` copia exclusivamente RomFS/ExeFS y cabeceras necesarias, instala y deshace en las copias, guarda las 21 mentas en una tienda, comprueba precios y fuentes intactas. Requiere material privado; no se ejecuta en CI ni modifica las fuentes. Los resultados jugables se registran aparte según [fase 1](MENTAS_GEN7_USUM_FASE1.md).
+
+`--usum-mints-compatibility-probe <code.bin US reconocido> <code.bin UM reconocido> <Bag.cro original reconocido>` lee dependencias privadas sin modificar las fuentes. Comprueba originales, combinación de tipos/obediencia/MT/shiny, rechazo preciso de cambios en las seis entradas nativas, auxiliares, descriptores y tablas de naturaleza/bloques PK7; acepta cambios ajenos en código, tablas y datos. Verifica instalación/reapertura/deshacer y archivos ajenos. Usa objetos y textos sintéticos: no equivale a una ROM completa ni a una prueba jugable.
+
+`--usum-mints-project-regression <proyecto USUM privado> <copia nueva de salida>` copia los archivos reales de RomFS/ExeFS y las cabeceras a una salida nueva y separada. En un proyecto sin mentas exige preparación, instalación, reapertura, historial y deshacer exacto de los archivos, preservando lo ajeno; en uno ya instalado comprueba reconocimiento. Contrasta las fuentes antes/después y no escribe en ellas. No ejecuta el juego ni reconstruye una ROM.
 
 `--definitive-game-data-only` verifica el exportador USUM con GARC y textos sintéticos: datos guardados, deshacer, lectura actual pese a cachés antiguas, formas, evoluciones vacías, identidad, destinos, privacidad y acceso WPF. No usa ROMs reales. `--definitive-game-data-fixture <json>` exporta un JSON sintético nuevo para comprobar interoperabilidad con Tracker. La suite de datos se incluye también en la regresión general; no se distribuyen datos extraídos.
 

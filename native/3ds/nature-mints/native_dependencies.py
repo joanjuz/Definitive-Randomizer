@@ -1,0 +1,117 @@
+"""Generate hashes of the mint native call surface from private US/UM references.
+
+Requires Capstone 5 (developer-only; no ROM or instruction bytes are emitted).
+Follows direct branches/calls, bounded ARM switch tables and PC-relative pools.
+The generic event/synchronisation interfaces are ABI boundaries, not inferred
+mint functions: their dispatch adapters and fixed callback descriptor are pinned.
+See MENTAS_GEN7_USUM_COMPATIBILIDAD.md for the boundary and table rationale.
+"""
+import argparse
+import hashlib
+import struct
+from pathlib import Path
+from capstone import Cs, CS_ARCH_ARM, CS_MODE_ARM
+from capstone.arm import *
+
+BASE = 0x100000
+REFERENCES = ['D2E9B4D91D7B14BCEF0C34D869C1DA60EF85D98B1DF3C34CBC42E42F54CFBA27',
+              'A6AA17B6F409264F6ED15D51735E9638D3F44896C0CEC0F05C39940B79FE30E7']
+
+def ranges(code, moon):
+    shift = 8 if moon else 0
+    roots = {0x4ae0e0+shift:'naturaleza', 0x32258c:'abrir acceso',
+             0x4ad588+shift:'bloque A', 0x322514:'cerrar acceso',
+             0x4aea1c+shift:'leer IV', 0x324d84:'escribir IV y recalcular estadisticas'}
+    # Dispatcher member-function descriptor: r6=[5BA1CC+38], r4=[...+3C].
+    # r4==0 selects the direct callback, NOT an arbitrary vtable target.
+    descriptor = 0x5ba204
+    word = lambda at: struct.unpack_from('<I', code, at-BASE)[0]
+    if word(descriptor+4) != 0: raise ValueError('Unknown callback descriptor')
+    roots[word(descriptor)] = 'callback del gestor nativo'
+    md = Cs(CS_ARCH_ARM, CS_MODE_ARM); md.detail = True
+    todo = list(roots); seen = set(); pools = set(); indirect = set()
+    def decode(at):
+        if at % 4 or not BASE <= at < BASE+0x4ba000: raise ValueError(hex(at))
+        return next(md.disasm(code[at-BASE:at-BASE+4], at))
+    while todo:
+        at = todo.pop()
+        if at in seen: continue
+        ins = decode(at); seen.add(at); terminal = False
+        for operand in ins.operands:
+            if operand.type == ARM_OP_MEM and operand.mem.base == ARM_REG_PC and not operand.mem.index:
+                pools.add(at+8+operand.mem.disp)
+        if ins.id in (ARM_INS_B, ARM_INS_BL, ARM_INS_BLX) and ins.operands[0].type == ARM_OP_IMM:
+            todo.append(ins.operands[0].imm)
+            terminal = ins.id == ARM_INS_B and ins.cc == ARM_CC_AL
+        elif ins.id == ARM_INS_BX:
+            if ins.operands[0].reg != ARM_REG_LR: indirect.add(at)
+            terminal = ins.cc == ARM_CC_AL
+        elif ins.id in (ARM_INS_POP, ARM_INS_LDM) and any(o.type==ARM_OP_REG and o.reg==ARM_REG_PC for o in ins.operands):
+            terminal = ins.cc == ARM_CC_AL
+        elif ins.operands and ins.operands[0].type==ARM_OP_REG and ins.operands[0].reg==ARM_REG_PC:
+            if (ins.id==ARM_INS_LDR and ins.operands[1].type==ARM_OP_MEM and ins.operands[1].mem.base==ARM_REG_PC) or (ins.id==ARM_INS_ADD and ins.operands[1].reg==ARM_REG_PC):
+                bound = None
+                for distance in range(4,24,4):
+                    prev = decode(at-distance)
+                    if prev.id==ARM_INS_CMP and prev.operands[-1].type==ARM_OP_IMM:
+                        bound=prev.operands[-1].imm+(ins.cc==ARM_CC_LS); break
+                if bound is None: raise ValueError('Unbounded switch '+hex(at))
+                for i in range(bound):
+                    location=at+8+4*i
+                    if ins.id==ARM_INS_LDR: pools.add(location); todo.append(word(location))
+                    else: todo.append(location)
+            elif not(ins.id==ARM_INS_MOV and ins.operands[1].reg==ARM_REG_LR):
+                raise ValueError('Unknown control flow '+hex(at))
+            terminal = ins.cc==ARM_CC_AL
+        elif ins.id==ARM_INS_BLX: indirect.add(at)
+        if not terminal: todo.append(at+4)
+    # Explicitly reviewed interfaces of the generic engine event manager.
+    # Pin adapter bodies, the descriptor above and its resolved callback.
+    expected={0x3487f8,0x3679dc,0x3679ec,0x367a28,0x4b36d4+shift,0x4b3724+shift}
+    if indirect != expected: raise ValueError('Review indirect ABI sites: '+str(sorted(indirect)))
+    locations = seen | pools
+    # Block selectors use index=(EC>>13)&31 and byte stride 4. Nature math
+    # indexes nature*5+stat-1 for 25 natures and selectors 1..5.
+    intervals=[]
+    for at in sorted(locations):
+        if intervals and intervals[-1][1]==at: intervals[-1][1]+=4
+        else: intervals.append([at,at+4])
+    for start,size,name in [(0x5e6994,128,'permutacion de bloques PK7'),(0x5e6a14,125,'modificadores por naturaleza'),(descriptor,8,'descriptor del callback nativo'),(0x6486a0,16,'interfaz del mensaje nativo')]:
+        intervals.append([start,start+size]);roots[start]=name
+    intervals.sort()
+    return intervals, roots
+
+def main():
+    parser=argparse.ArgumentParser()
+    parser.add_argument('sun');parser.add_argument('moon');parser.add_argument('output')
+    args=parser.parse_args()
+    out=['// Generated by native/3ds/nature-mints/native_dependencies.py. Hashes only; no game code.',
+         '// Each range is reachable native instructions, their PC-relative pools or a documented table.',
+         '#nullable enable','namespace pk3DS.Core.Modding.Research;','',
+         'internal static class UsumMintNativeDependencies','{',
+         '    internal sealed record Range(int Offset,int Length,string Name,string Sha256);',
+         '    internal static readonly Range[][] Profiles = [']
+    for moon,path in enumerate([args.sun,args.moon]):
+        code=Path(path).read_bytes()
+        if hashlib.sha256(code).hexdigest().upper()!=REFERENCES[moon]:raise ValueError('Use the accredited private reference')
+        intervals,roots=ranges(code,moon)
+        out.append('        [ // '+('UM' if moon else 'US'))
+        for first,end in intervals:
+            if first<0x118000: family='sincronizacion, memoria o ABI aritmetica'
+            elif first<0x310000: family='division entera nativa'
+            elif first<0x320000: family='consulta de especie y forma'
+            elif first<0x321000: family='checksum y cifrado PK7'
+            elif first<0x323000: family='acceso PK7 y actualizacion de estadisticas'
+            elif first<0x326000: family='formulas y almacenamiento de estadisticas'
+            elif first<0x4a0000: family='adaptador del gestor nativo'
+            else: family='consulta de campos PK7 y datos personales'
+            contained=[name for at,name in roots.items() if first<=at<end]
+            name=' / '.join(contained) if contained else family
+            digest=hashlib.sha256(code[first-BASE:end-BASE]).hexdigest().upper()
+            out.append(f'            new(0x{first-BASE:X},0x{end-first:X},"{name}","{digest}"),')
+        out.append('        ],')
+        print(('UM' if moon else 'US'),len(intervals),'ranges',sum(b-a for a,b in intervals),'bytes')
+    out+=['    ];','}']
+    Path(args.output).write_text('\n'.join(out)+'\n',encoding='utf-8')
+
+if __name__=='__main__': main()
