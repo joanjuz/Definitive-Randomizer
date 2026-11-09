@@ -1,8 +1,10 @@
-# Definitive Randomizer v1.0.0 — preparada, todavía no publicada
+# Definitive Randomizer v1.0.0 — notas de versión
 
-> **v1.0.0 está preparada, pero NO publicada.** La distribución generada desde la rama del PR es una candidata privada. Estas notas no autorizan integración, tag ni publicación. Después de integrar, será obligatorio construir y validar de nuevo desde el HEAD real de `main`; el commit de esta candidata no debe presentarse como el de una versión pública.
+@DISTRIBUTION_STATUS@
 
-Versión del paquete: **1.0.0**. Commit exacto compilado: `@BUILD_COMMIT@` (se resuelve al empaquetar, junto con `VERSION.txt` y `BUILD_PROVENANCE.json`). La procedencia mantiene `publicRelease=false` para esta entrega privada.
+Versión del paquete: **1.0.0**. Commit exacto compilado: `@BUILD_COMMIT@`. `VERSION.txt` y `BUILD_PROVENANCE.json` identifican la misma compilación.
+
+@DISTRIBUTION_METADATA@
 
 Primera versión **estable** de la aplicación WPF para Windows x64. Reúne la edición y randomización de **Nintendo 3DS**, **Nintendo DS** (Gen4 y Gen5) y **Espada/Escudo** (Switch) acreditadas en las versiones preliminares, y las acompaña de documentación de uso, respaldo y compatibilidad. No sustituye a la línea estable WinForms v4.17.1, que es independiente.
 
@@ -39,7 +41,7 @@ Tres niveles de evidencia, indicados por separado en `COMPATIBILIDAD_PUBLICA.md`
 
 Ultra Luna, consola real de Switch, Atmosphère, DLC y una partida completa de cualquier juego **no** están comprobados jugando.
 
-RC.1 tuvo 525 hashes verificados y arranque WPF del ZIP exacto con cierre normal. Esas cifras pertenecen a RC.1: para el ZIP privado 1.0.0 se verifican de nuevo compilación, contenido, dependencias, hashes y arranque desde una extracción independiente. El informe privado de entrega identifica sus resultados y SHA-256. Ni las pruebas sintéticas ni el arranque sustituyen la validación dentro del juego.
+RC.1 tuvo 525 hashes verificados y arranque WPF del ZIP exacto con cierre normal. Esas cifras pertenecen a RC.1: para cada distribución 1.0.0 se verifican compilación, contenido, dependencias, hashes y arranque desde una extracción independiente. El informe de validación de esa entrega identifica sus resultados y SHA-256. Ni las pruebas sintéticas ni el arranque sustituyen la validación dentro del juego.
 
 ### Aceptación técnica (09/11/2026)
 
@@ -60,7 +62,7 @@ Total: 27 comprobaciones aprobadas, ninguna fallida. Cada prueba cubre un solo t
 3. Mantén juntas `LegacyBatch`, `Tools`, `Templates`, `custom_balance_templates`, `catch_zone_patches`, las licencias y las demás dependencias.
 4. Respalda proyectos, recetas y partidas. Trabaja con copias; no edites ROMs ni extracciones originales.
 
-Los ejecutables **no tienen firma digital**: Windows o SmartScreen pueden mostrar advertencias. Comprueba el origen y el SHA-256 con `SHA256SUMS.txt`. `VERSION.txt` identifica versión y commit, y `BUILD_PROVENANCE.json` documenta la compilación privada. No se incluyen ROMs, extracciones, partidas, recetas privadas ni gráficos oficiales. Mantén también la carpeta `docs` con las guías y `VALIDATION_REPORT.md`; el informe externo de entrega acredita el ZIP exacto sin una referencia circular a su propio hash.
+Los ejecutables **no tienen firma digital**: Windows o SmartScreen pueden mostrar advertencias. Comprueba el origen y el SHA-256 con `SHA256SUMS.txt`. `VERSION.txt` identifica versión y commit, y `BUILD_PROVENANCE.json` documenta la compilación y el modo de distribución. No se incluyen ROMs, extracciones, partidas, recetas privadas ni gráficos oficiales. Mantén también la carpeta `docs` con las guías y `VALIDATION_REPORT.md`; el informe externo de entrega acredita el ZIP exacto sin una referencia circular a su propio hash.
 
 ## Limitaciones principales
 
@@ -75,8 +77,8 @@ Los ejecutables **no tienen firma digital**: Windows o SmartScreen pueden mostra
 
 Indica versión y commit, juego/región/revisión/idioma, pasos, semilla y mensajes de error. **No adjuntes ROMs, extracciones ni partidas.** Ver `RESPALDO_Y_RECUPERACION.md` en las guías incluidas.
 
-## Condiciones de una futura publicación
+## Identidad de la distribución
 
-La integración y la publicación requieren autorizaciones expresas independientes del propietario. Una vez integrado el PR, hay que generar de nuevo el paquete desde el HEAD real de `main`, resolver su commit en los metadatos y notas, verificar todos los hashes y probar ese ZIP exacto. No se reutiliza ni se renombra como público el paquete privado de la rama del PR.
+@DISTRIBUTION_WORKFLOW@
 
 La ROM específica del tester de mentas sigue pendiente. Las regiones y revisiones concretas de los juegos 3DS y de `IRBO` no están determinadas y no se enumeran. Esas limitaciones se mantienen sin atribuir comprobaciones nuevas.
