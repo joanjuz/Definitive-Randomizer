@@ -35,7 +35,7 @@ internal sealed class UsumNatureMintView : UserControl
         heading.Children.Add(new UsumMintPoolControl(project));
         var buttons=new WrapPanel();heading.Children.Add(buttons);
         _inspect=Add("Comprobar estado y preparar",()=>_ = InspectAsync());
-        _install=Add("Instalar 21 mentas",()=>_ = InstallAsync());_install.IsEnabled=false;
+        _install=Add("Aplicar y guardar",()=>_ = InstallAsync());_install.IsEnabled=false;
         _shops=Add("Abrir Tiendas y BP",openShops);
         _prepareIcons=Add("Descargar y preparar iconos (PokéAPI)",()=>_ = PrepareIconsAsync());_prepareIcons.IsEnabled=false;
         _installIcons=Add("Instalar iconos preparados",()=>_ = InstallIconsAsync());_installIcons.IsEnabled=false;
@@ -63,13 +63,13 @@ internal sealed class UsumNatureMintView : UserControl
     {
         if(_running)return;Busy(true);_preview=null;_iconPreview=null;
         try{_preview=await Task.Run(_service.Inspect);if(_preview.State==UsumMintState.Installed)_iconPreview=await Task.Run(_iconService.Inspect);Show();}
-        catch(Exception ex){_report.Text="No se modificó el proyecto: "+ex.Message;}
+        catch(Exception ex){_preview=new(UsumMintState.Incompatible,ex.Message,null);Show();}
         finally{Busy(false);}
     }
     internal static string Status(UsumMintPreview? preview)=>preview?.State switch{
-        UsumMintState.NotInstalled=>"Compatible\nPuedes instalar las 21 mentas. Las dependencias del parche están reconocidas.",
-        UsumMintState.Installed=>"Instalado\nLas 21 mentas están reconocidas. Puedes añadirlas desde Tiendas y BP.",
-        _=>"Incompatible\n"+preview?.Report};
+        UsumMintState.NotInstalled=>"Listo para instalar\nLas 21 mentas superaron la instalación de prueba en una copia temporal. Pulsa Aplicar y guardar para conservar los cambios.",
+        UsumMintState.Installed=>"Instalado correctamente\nLas 21 mentas están reconocidas. Puedes añadirlas desde Tiendas y BP.",
+        _=>"Instalación no compatible\n"+preview?.Report};
     private void Show(){_report.Text=Status(_preview);_diagnostic.Text=_preview?.Report+
         (_iconPreview is null?"":"\n\nICONOS · "+_iconPreview.Report);}
     private async Task InstallAsync()
@@ -79,7 +79,7 @@ internal sealed class UsumNatureMintView : UserControl
             _preview.Report+"\nLos cambios se registrarán juntos en el historial."))return;
         Busy(true);UiProgress.Begin("Instalando mentas Gen7 con transacción e historial…");
         try{await Task.Run(()=>_service.Apply(_preview));_preview=await Task.Run(_service.Inspect);_iconPreview=await Task.Run(_iconService.Inspect);Show();}
-        catch(Exception ex){_preview=null;_report.Text="Instalación no confirmada: "+ex.Message;
+        catch(Exception ex){_preview=new(UsumMintState.Incompatible,ex.Message,null);Show();
             StudioDialog.Error(Window.GetWindow(this),"Mentas Gen7",ex.Message);}
         finally{UiProgress.End();Busy(false);}
     }

@@ -92,12 +92,20 @@ internal static class UsumNatureMintChecks
             using var f=new Fixture(GameVersion.USUM);var profile=Setup(f,moon);
             Func<byte[],UsumNatureMintProfile> identity=bytes=>Hash(bytes)==profile.CodeSha256?profile:throw new InvalidDataException("Synthetic code mismatch");
             var service=new UsumNatureMintService(f.Session,identity);
+            var sourceBefore=Directory.GetFiles(f.Root,"*",SearchOption.AllDirectories).ToDictionary(p=>p,p=>Hash(File.ReadAllBytes(p)));
+            var trialsBefore=Directory.GetDirectories(Path.GetTempPath(),"DefinitiveRandomizer-Mints-*").Order().ToArray();
+            int reads=0;
+            var failedTrial=new UsumNatureMintService(f.Session,bytes=>++reads==2?throw new InvalidDataException("Injected staged reread failure"):identity(bytes));
+            var discarded=failedTrial.Inspect();
+            check(reads==2&&discarded.State==UsumMintState.Incompatible&&discarded.Proposal is null&&discarded.Report.Contains("Injected staged reread failure"),"MintTrialRereadFailureRejected "+profile.Id);
+            check(sourceBefore.All(p=>Hash(File.ReadAllBytes(p.Key))==p.Value)&&f.Session.History.Read().Entries.Count==0&&Directory.GetDirectories(Path.GetTempPath(),"DefinitiveRandomizer-Mints-*").Order().SequenceEqual(trialsBefore),"MintTrialFailureDiscardsCopyKeepsSourceAndHistory "+profile.Id);
             string exheaderPath=Path.Combine(f.Root,"exheader.bin");byte[] layout=File.ReadAllBytes(exheaderPath);
             byte[] badLayout=(byte[])layout.Clone();badLayout[0x20]^=1;File.WriteAllBytes(exheaderPath,badLayout);
             check(service.Inspect().State==UsumMintState.Incompatible,"MintMemoryLayoutMismatchBlocked "+profile.Id);
             File.WriteAllBytes(exheaderPath,layout);
             var preview=service.Inspect();if(preview.Proposal is null)throw new Exception("Mint preview: "+preview.Report);
-            check(preview.State==UsumMintState.NotInstalled&&preview.Proposal.Files.Count==14,"MintPrepareLifecycle "+profile.Id+" 14 file detached proposal");
+            check(preview.State==UsumMintState.NotInstalled&&preview.Proposal.Files.Count==14&&preview.Report.Contains("copia temporal aislada"),"MintPrepareLifecycle "+profile.Id+" 14 file detached proposal");
+            check(Directory.GetDirectories(Path.GetTempPath(),"DefinitiveRandomizer-Mints-*").Order().SequenceEqual(trialsBefore)&&f.Session.History.Read().Entries.Count==0,"MintTrialSuccessDiscardsCopyWithoutHistory "+profile.Id);
             var before=preview.Proposal!.Files.ToDictionary(p=>p.Path,p=>File.ReadAllBytes(p.Path));
             var inventory=Directory.GetFiles(f.Game.RomFS,"*",SearchOption.AllDirectories).Concat(Directory.GetFiles(f.Game.ExeFS,"*",SearchOption.AllDirectories)).ToDictionary(p=>p,p=>Hash(File.ReadAllBytes(p)));
             check(preview.Proposal.Files.All(p=>File.ReadAllBytes(p.Path).SequenceEqual(before[p.Path])),"MintPreviewReadOnly "+profile.Id);
@@ -201,10 +209,10 @@ internal static class UsumNatureMintChecks
         check(nodes.OfType<System.Windows.Controls.CheckBox>().Any(c=>System.Windows.Automation.AutomationProperties.GetName(c)==UsumMintItemPolicy.Label&&c.IsChecked==false),"MintUiDistributionOptInOffByDefault");
         check(nodes.OfType<System.Windows.Controls.TextBlock>().Any(t=>t.Text==UsumNatureMintService.Warning+"."),"MintUiRealNatureWarningVisible");
         check(nodes.OfType<System.Windows.Controls.Expander>().Any(e=>e.Header.ToString()=="Diagnóstico técnico"&&!e.IsExpanded),"MintUiOptionalDiagnosticCollapsed");
-        foreach(var (state,label) in new[]{(UsumMintState.NotInstalled,"Compatible"),(UsumMintState.Installed,"Instalado"),(UsumMintState.Modified,"Incompatible"),(UsumMintState.Incompatible,"Incompatible")})
+        foreach(var (state,label) in new[]{(UsumMintState.NotInstalled,"Listo para instalar"),(UsumMintState.Installed,"Instalado correctamente"),(UsumMintState.Modified,"Instalación no compatible"),(UsumMintState.Incompatible,"Instalación no compatible")})
             check(ThreeDS.Progressive.UsumNatureMintView.Status(new(state,"Causa concreta",null)).StartsWith(label+"\n"),"MintUiSimpleStatus "+state);
         var buttons=nodes.OfType<System.Windows.Controls.Button>().ToArray();
-        check(buttons.Length==5&&buttons.Where(b=>b.Content.ToString() is "Descargar y preparar iconos (Pok\u00e9API)" or "Instalar iconos preparados").All(b=>!b.IsEnabled)&&buttons.Single(b=>b.Content.ToString()=="Instalar 21 mentas").IsEnabled==false,"MintUiFiveActionsAndNoUnpreparedInstall");
+        check(buttons.Length==5&&buttons.Where(b=>b.Content.ToString() is "Descargar y preparar iconos (Pok\u00e9API)" or "Instalar iconos preparados").All(b=>!b.IsEnabled)&&buttons.Single(b=>b.Content.ToString()=="Aplicar y guardar").IsEnabled==false,"MintUiFiveActionsAndNoUnpreparedInstall");
         buttons.Single(b=>b.Content.ToString()=="Abrir Tiendas y BP").RaiseEvent(new System.Windows.RoutedEventArgs(System.Windows.Controls.Button.ClickEvent));
         check(opened==1&&view.ConfirmLeave(),"MintUiNavigatesExistingMartEditor");
         check(ProjectFeatureAvailability.Supports(f.Session,"UsumNatureMints"),"MintUiUsumRouteAvailable");

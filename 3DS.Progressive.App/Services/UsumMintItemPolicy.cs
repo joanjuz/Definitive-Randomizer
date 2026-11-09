@@ -40,8 +40,10 @@ internal sealed class UsumMintItemPolicy(GameProjectSession project,Func<byte[],
         var config=project.GameConfiguration;
         string header=new[]{"ncchheader.bin","HeaderNCCH0.bin","HeaderNCCH.bin"}.Select(name=>Path.Combine(project.ProjectRoot,name)).FirstOrDefault(File.Exists)
             ??throw new InvalidDataException("Falta la identidad NCCH para acreditar las mentas.");
+        string exheader=new[]{"exheader.bin","DecryptedExHeader.bin"}.Select(name=>Path.Combine(project.ProjectRoot,name)).FirstOrDefault(File.Exists)
+            ??throw new InvalidDataException("Falta el mapa de memoria del exheader para acreditar las mentas.");
         var paths=Directory.GetFiles(config.ExeFS).Where(p=>Path.GetFileName(p) is "code.bin" or ".code.bin")
-            .Concat(Directory.GetFiles(config.RomFS,"*.cro")).Concat(new[]{header,
+            .Concat(Directory.GetFiles(config.RomFS,"*.cro")).Concat(new[]{header,exheader,
                 Path.Combine(config.RomFS,config.GetGARCFileName("item")),Path.Combine(config.RomFS,"a/1/0/3"),Path.Combine(config.RomFS,".crr/static.crr")})
             .Concat(Enumerable.Range(0,10).Select(language=>Path.Combine(config.RomFS,config.GetGARCReference("gametext").GetRelativeGARC(language).Reference)))
             .Select(Path.GetFullPath).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();

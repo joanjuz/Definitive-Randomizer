@@ -2,6 +2,18 @@
 
 El instalador admite combinaciones de cambios acreditados sin registrar el SHA-256 de cada ROM randomizada. Esto no acredita cualquier romhack ni revisiones nuevas. La comprobación es automática; no requiere comparar hashes manualmente ni ofrece instalación forzada.
 
+## Instalación de prueba antes de guardar
+
+La preparación comprueba la identidad NCCH US/UM, el tamaño descomprimido, el mapa de memoria y el estado de Bag.cro y sus hooks. Selecciona el perfil por título, sin exigir inicialmente una huella completa de code.bin. Prepara los 21 objetos, bolsillos, diez idiomas, runtime y CRR con los mecanismos existentes.
+
+Después copia los archivos afectados y todas las dependencias leídas a una carpeta temporal aislada. Aplica allí la transacción existente, relee los archivos y exige el reconocimiento de la instalación completa, las referencias del runtime, las dependencias nativas protegidas y el inventario CRR/CRO. Comprueba los resultados de los archivos afectados y la preservación exacta de las dependencias ajenas. La carpeta se elimina tanto en éxito como en error; esta prueba no escribe en el proyecto ni crea historial.
+
+Solo tras superar la prueba aparece **Listo para instalar** y se habilita **Aplicar y guardar**. El guardado conserva la transacción de `ProjectHistory`, los bloqueos, las huellas de concurrencia y Deshacer. El exheader también se captura y bloquea como dependencia al distribuir las mentas. Los otros estados son **Instalado correctamente** e **Instalación no compatible**, con explicación y diagnóstico técnico desplegable.
+
+La comprobación final de segmentos no se ha debilitado: acepta las variaciones acreditadas de la tabla siguiente, aunque cambie la huella completa. Una diferencia desconocida sigue sin acreditar sus posibles dependencias transitivas; se rechaza antes de guardar incluso si la escritura temporal pudo completarse. La prueba de archivos no demuestra ejecución en emulador.
+
+El fallo CI de `c6b670e` se reprodujo con `--usum-mints-distribution-only`: `Lifecycle()` sustituía el exheader válido de `Setup()` por 2048 ceros para comprobar el copiado Batch y luego continuaba distribuyendo mentas con ese proyecto inválido. Se conserva el fixture válido y se verifica su copia y preservación para US y UM. No se cambió `ValidateMemoryLayout`, los perfiles ni sus huellas.
+
 ## Alcance de la validación
 
 Se mantienen los perfiles separados de Ultra Sol y Ultra Luna, el Title ID de NCCH y las protecciones de Bag.cro completo, sus cuatro puntos de instalación, objetos reservados, bolsillos, textos, CRR, transacciones, dependencias concurrentes e historial/deshacer. `UsumNatureMintPatch` se revisó y no necesitó cambios.
@@ -20,9 +32,13 @@ En code.bin se comprueban tres segmentos completos: código `0–4B9FFF`, datos 
 
 Todo byte restante se sigue protegiendo, incluso datos cuya independencia no se ha demostrado. Quedan incluidos los cuerpos completos y dependencias transitivas de getter, begin/end access, block A, derive/store stat, instrucciones, literales y referencias. No se intenta deducir límites de funciones a partir de unos pocos prólogos ni permitir automáticamente todo lo que esté fuera de cuatro hooks. Los segmentos US y UM no pueden mezclarse.
 
-Si hay diferencias no acreditadas, se indica el segmento concreto afectado; eso no significa que toda diferencia de ese segmento sea un fallo demostrado de las mentas, sino que no se puede acreditar su compatibilidad. Las tablas con valores desconocidos y los mapas de memoria distintos tienen causas específicas. Los estados visibles son **Compatible**, **Instalado** e **Incompatible**, con los detalles en **Diagnóstico técnico**.
+Si hay diferencias no acreditadas, se indica el segmento concreto afectado; eso no significa que toda diferencia de ese segmento sea un fallo demostrado de las mentas, sino que no se puede acreditar su compatibilidad. Las tablas con valores desconocidos y los mapas de memoria distintos tienen causas específicas. Los detalles están en **Diagnóstico técnico**.
 
 ## Validación focalizada del 08/11/2026
+
+Corrección y prueba temporal posteriores al fallo CI: build Release no incremental con apphost y binlog, 0 errores/advertencias; `--usum-mints-distribution-only` 128, `--usum-mints-only` 98, `--usum-mints-ui-only` 28 y `--usum-mints-compatibility-probe` 40 comprobaciones aprobadas. Se añadieron el descarte por fallo de relectura temporal, limpieza en éxito/error sin historial, preservación del mapa en Batch y rechazo de cambios concurrentes del exheader. El probe usa las referencias US/UM reconocidas y Bag real con objetos/textos sintéticos. Una primera ejecución con otra copia local US se detuvo al no coincidir con la huella original requerida por el fixture; se utilizó la referencia US conservada y no se cambiaron los datos ni el requisito. Sin suites generales locales nuevas ni prueba jugable del tester.
+
+Validación anterior a la corrección, conservada como antecedente:
 
 - Build Release de Tests, que compila App/Core/LegacyBatch: 0 errores y 0 advertencias; binlog privado bajo `3DS.Progressive.Tests/bin`.
 - `--usum-mints-only`: 92 comprobaciones sintéticas aprobadas, incluidos conflictos, rollback, reapertura y deshacer.
@@ -37,6 +53,6 @@ El propietario confirma que pudo randomizar antes de instalar las mentas. El tes
 
 1. Abre tu proyecto extraído existente con el ejecutable privado de prueba para Windows x64 y entra en **Mecánicas y CRO → Mentas Gen7**.
 2. Pulsa **Comprobar estado y preparar**. Esta consulta no instala las mentas.
-3. Informa si aparece **Compatible** o **Incompatible**. Si es incompatible, despliega **Diagnóstico técnico** y copia su texto; no compartas archivos de la ROM, partidas ni datos binarios.
+3. Si aparece **Listo para instalar**, pulsa **Aplicar y guardar** únicamente en una copia respaldada del proyecto. Si aparece **Instalación no compatible**, despliega **Diagnóstico técnico** y copia su texto; no compartas archivos de la ROM, partidas ni datos binarios.
 
-Si aparece **Compatible** y deseas continuar, instala únicamente en una copia del proyecto con respaldo, genera la salida desde esa copia y verifica las mentas en el emulador con una partida de prueba respaldada. La consulta de compatibilidad y el arranque del ejecutable no sustituyen esa comprobación jugable. Si aparece **Incompatible**, no se instala ni se fuerza el parche.
+Después de **Instalado correctamente**, genera la salida desde esa copia y verifica las mentas en el emulador con una partida de prueba respaldada. La prueba temporal y el arranque del ejecutable no sustituyen esa comprobación jugable. Si aparece **Instalación no compatible**, no se instala ni se fuerza el parche.
