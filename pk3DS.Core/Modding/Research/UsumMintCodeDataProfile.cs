@@ -7,20 +7,11 @@ using pk3DS.Core.Properties;
 
 namespace pk3DS.Core.Modding.Research;
 
-/// <summary>Validate known variable tables, then protect every remaining byte by executable segment.</summary>
+/// <summary>Validate the bounded native dependencies of mints, independently of unrelated game code.</summary>
 public static class UsumMintCodeDataProfile
 {
     public const int TmOffset=0x4BB98E,PidOffset=0x220668,AlwaysShinyOffset=0x2205CF;
     public const int TypeChartOffset=0x4BB558,ObedienceOffset=0x4C4644;
-    // Page-aligned file segments from the two accredited exheaders. All native functions,
-    // their transitive callees, literals, imports and unclassified data remain protected.
-    private static readonly (int Offset,int Length,string Name)[] Segments=[
-        (0,0x4BA000,"código ejecutable y funciones nativas"),
-        (0x4BA000,0xAD000,"datos de solo lectura y referencias"),
-        (0x567000,0x3D000,"datos del runtime")];
-    private static readonly string[][] Hashes=[
-        ["9BB50A592AC367E977D3CDD482409BDA875B03CE10B9D3E0A661B0BC7294E56F","57E888649437C5D4ED234068166B3BC0033ECA2BF4F1C07669330775F2454752","2689F73649A01B6AAC179D032966F90E212435BB9F8891BDAD08B5489317E7E6"],
-        ["A5BE0CBD091062FC0866301759CC59F5B9395CB9984D0C30BC84AE6B4E4584ED","9BA3886B284D0F911DC39E3D73740C414323512D7C276522820D4F15C60BF07D","36FEAC7BA9444251503B8167D46276431EBAA03CD0CAFC0021548D292413C67C"]];
 
     public static void ValidateMemoryLayout(byte[] exheader,bool moon)
     {
@@ -28,6 +19,8 @@ public static class UsumMintCodeDataProfile
         if(exheader.Length<0x40||Enumerable.Range(0,9).Any(i=>BitConverter.ToUInt32(exheader,0x10+(i/3)*0x10+(i%3)*4)!=expected[i]))
             throw new InvalidDataException("El mapa de memoria del exheader no coincide con las direcciones nativas USUM acreditadas.");
     }
+    // Historical table-normalization utility. It is NOT an installation gate;
+    // Match/ValidateNativeDependencies intentionally do not call it.
     public static byte[] Normalize(byte[] input)
     {
         if(input.Length!=5914624)throw new InvalidDataException("Tamaño de ejecutable USUM desconocido.");
@@ -50,14 +43,25 @@ public static class UsumMintCodeDataProfile
     public static UsumNatureMintProfile? Match(byte[] code)
     {
         if(code.Length!=5914624)return null;
-        byte[] normalized=Normalize(code);
-        int[] candidates=[0,1];
-        for(int i=0;i<Segments.Length;i++){
-            var segment=Segments[i];
-            string hash=Convert.ToHexString(SHA256.HashData(normalized.AsSpan(segment.Offset,segment.Length)));
-            candidates=candidates.Where(p=>Hashes[p][i]==hash).ToArray();
-            if(candidates.Length==0)throw new InvalidDataException($"Modificación no acreditada en {segment.Name} de code.bin (0x{segment.Offset:X}–0x{segment.Offset+segment.Length-1:X}). No se puede demostrar compatibilidad con mentas.");
+        string[] failures=new string[2];
+        for(int i=0;i<2;i++){
+            failures[i]=NativeFailure(code,i==1);
+            if(failures[i].Length==0)return UsumNatureMintCatalog.Profiles.Single(p=>p.Moon==(i==1));
         }
-        return UsumNatureMintCatalog.Profiles.Single(p=>p.Moon==(candidates[0]==1));
+        throw new InvalidDataException(string.Join("\n",failures));
+    }
+    public static void ValidateNativeDependencies(byte[] code,bool moon)
+    {
+        if(code.Length!=5914624)throw new InvalidDataException("Tamaño de code.bin USUM descomprimido incompatible.");
+        string failure=NativeFailure(code,moon);
+        if(failure.Length!=0)throw new InvalidDataException(failure);
+    }
+    private static string NativeFailure(byte[] code,bool moon)
+    {
+        foreach(var range in UsumMintNativeDependencies.Profiles[moon?1:0]){
+            string hash=Convert.ToHexString(SHA256.HashData(code.AsSpan(range.Offset,range.Length)));
+            if(hash!=range.Sha256)return $"Dependencia de mentas {(moon?"UM":"US")} no acreditada: {range.Name}, code.bin 0x{range.Offset:X}–0x{range.Offset+range.Length-1:X} (dirección nativa 0x{range.Offset+0x100000:X}). La implementación, instrucciones o referencias de esta dependencia cambiaron; no se instala.";
+        }
+        return "";
     }
 }

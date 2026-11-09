@@ -32,8 +32,8 @@ internal sealed class UsumNatureMintService(GameProjectSession project,Func<byte
         var codes=Directory.GetFiles(config.ExeFS).Where(p=>Path.GetFileName(p) is "code.bin" or ".code.bin").ToArray();
         if(codes.Length!=1)throw new InvalidDataException("Se requiere un único code.bin descomprimido.");
         byte[] code=Read(codes[0]);
-        // Select identity independently of executable fingerprints. Unknown differences
-        // are still rejected by the protected-segment check after the isolated trial.
+        // NCCH selects US/UM. Only the mint native call surface is accredited;
+        // unrelated executable bytes are neither normalized nor fingerprinted.
         string header=new[]{"ncchheader.bin","HeaderNCCH0.bin","HeaderNCCH.bin"}.Select(name=>Path.Combine(project.ProjectRoot,name)).FirstOrDefault(File.Exists)
             ??throw new InvalidDataException("Falta la cabecera NCCH del proyecto para acreditar el título.");
         byte[] ncch=Read(header);
@@ -46,6 +46,7 @@ internal sealed class UsumNatureMintService(GameProjectSession project,Func<byte
         string exheader=new[]{"exheader.bin","DecryptedExHeader.bin"}.Select(name=>Path.Combine(project.ProjectRoot,name)).FirstOrDefault(File.Exists)
             ??throw new InvalidDataException("Falta el exheader para comprobar las direcciones del runtime.");
         UsumMintCodeDataProfile.ValidateMemoryLayout(Read(exheader),moon);
+        if(identifyCode is null)UsumMintCodeDataProfile.ValidateNativeDependencies(code,moon);
         string bagPath=Path.Combine(config.RomFS,"Bag.cro");byte[] bag=Read(bagPath);
         var state=UsumNatureMintPatch.Inspect(bag,profile);
         if(state.State is UsumMintState.Incompatible or UsumMintState.Modified)return new(state.State,state.Detail,null);

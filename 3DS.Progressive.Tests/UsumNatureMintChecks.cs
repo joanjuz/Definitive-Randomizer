@@ -169,16 +169,20 @@ internal static class UsumNatureMintChecks
             byte[] icons=UsumMintIconLayout.InstallMapping(compatible);
             check(UsumNatureMintCatalog.IdentifyCode(icons)==profile,"MintCompatibilityCombinedIconMappingRecognized "+profile.Id);
             BitConverter.GetBytes(768).CopyTo(icons,UsumMintIconLayout.TableOffset+114*4);
-            reject(()=>UsumNatureMintCatalog.IdentifyCode(icons),"MintCompatibilityPartialIconMappingRejected "+profile.Id);
+            check(UsumNatureMintCatalog.IdentifyCode(icons)==profile&&!UsumMintIconLayout.HasMapping(icons,true)&&!UsumMintIconLayout.HasMapping(icons,false),"MintCompatibilityPartialIconsDoNotBlockFunctionalMints "+profile.Id);
             int shift=moon?8:0;
-            foreach(int offset in new[]{0x3ae0e0+shift,0x22258c,0x3ad588+shift,0x222514,0x3aea1c+shift,0x224d84,0x21bd64,UsumMintCodeDataProfile.TypeChartOffset-1,UsumMintCodeDataProfile.TypeChartOffset+324,0x567000}){
+            foreach(int offset in new[]{0x3ae0e0+shift,0x22258c,0x3ad588+shift,0x222514,0x3aea1c+shift,0x224d84,0x220438,0x4e6994,0x4e6a14,0x4ba204,0x223744,0x5486a0}){
                 byte[] critical=(byte[])compatible.Clone();critical[offset]^=1;File.WriteAllBytes(codePath,critical);
-                var rejected=service.Inspect();check(rejected.State==UsumMintState.Incompatible&&rejected.Proposal is null&&rejected.Report.Contains("code.bin"),"MintCompatibilityCriticalOrUnclassifiedChangeRejected "+profile.Id+" "+offset.ToString("X"));
+                var rejected=service.Inspect();check(rejected.State==UsumMintState.Incompatible&&rejected.Proposal is null&&rejected.Report.Contains("code.bin")&&rejected.Report.Contains("dirección nativa")&&!rejected.Report.Contains("4B9FFF"),"MintCompatibilityCriticalDependencyRejectedPrecisely "+profile.Id+" "+offset.ToString("X"));
+            }
+            foreach(int offset in new[]{0x100,0x21bd64,UsumMintCodeDataProfile.TypeChartOffset-1,UsumMintCodeDataProfile.TypeChartOffset+324,0x567000,0x225ad4,0x2843f4,0x29a044,0x341654,0x3417d8,0x4b99f0}){
+                byte[] otherCode=(byte[])compatible.Clone();otherCode[offset]^=1;
+                check(UsumNatureMintCatalog.IdentifyCode(otherCode)==profile,"MintCompatibilityUnrelatedCodeChangeAccepted "+profile.Id+" "+offset.ToString("X"));
             }
             byte[] invalid=(byte[])compatible.Clone();invalid[UsumMintCodeDataProfile.TypeChartOffset]=3;
-            reject(()=>UsumNatureMintCatalog.IdentifyCode(invalid),"MintCompatibilityUnknownTypeMultiplierRejected "+profile.Id);
+            check(UsumNatureMintCatalog.IdentifyCode(invalid)==profile,"MintCompatibilityUnrelatedTypeChartNotMintDependency "+profile.Id);
             invalid=(byte[])compatible.Clone();invalid[UsumMintCodeDataProfile.ObedienceOffset]=99;
-            reject(()=>UsumNatureMintCatalog.IdentifyCode(invalid),"MintCompatibilityUnknownObedienceRejected "+profile.Id);
+            check(UsumNatureMintCatalog.IdentifyCode(invalid)==profile,"MintCompatibilityUnrelatedObedienceNotMintDependency "+profile.Id);
             File.WriteAllBytes(codePath,compatible);
             var preview=service.Inspect();var files=preview.Proposal!.Files.ToDictionary(p=>p.Path,p=>p.Original());
             var unrelated=Directory.GetFiles(f.Root,"*",SearchOption.AllDirectories).Where(p=>!files.ContainsKey(p)).ToDictionary(p=>p,p=>Hash(File.ReadAllBytes(p)));

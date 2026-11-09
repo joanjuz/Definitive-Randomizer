@@ -13,7 +13,7 @@ El título se comprueba en la cabecera NCCH (`ncchheader.bin`, `HeaderNCCH0.bin`
 | US-code-d2e9b4d9 | `00040000001B5000` | `d2e9b4d91d7b14bcef0c34d869c1da60ef85d98b1df3c34cbc42e42f54cfba27` |
 | UM-code-a6aa17b6 | `00040000001B5100` | `a6aa17b6f409264f6ed15d51735e9638d3f44896c0cec0f05c39940b79fe30e7` |
 
-Bag.cro inicial: SHA-256 `bd97393e3440a04ca6f61c98771c11e595c4ee649f9c4985e793a81e7721155c`, comprobado en ambos títulos, además de las cuatro firmas de hooks. Se conserva esta protección completa de Bag y se comprueba también el mapa de memoria del exheader. Una revisión, modificación del ejecutable fuera de las regiones acreditadas, Bag distinto o título sin acreditar bloquea la instalación. No existe opción de forzar ni carga de perfiles externos. No es compatible con Sol/Luna, Gen6, DS ni Switch.
+Bag.cro inicial: SHA-256 `bd97393e3440a04ca6f61c98771c11e595c4ee649f9c4985e793a81e7721155c`, comprobado en ambos títulos, además de las cuatro firmas de hooks. Se conserva esta protección completa de Bag y se comprueba también el mapa de memoria del exheader. Se rechazan cambios en las dependencias nativas concretas de las mentas; las modificaciones ajenas del ejecutable no bloquean por su huella. No existe opción de forzar ni carga de perfiles externos. No es compatible con Sol/Luna, Gen6, DS ni Switch.
 
 ## Instalar y conseguirlas
 

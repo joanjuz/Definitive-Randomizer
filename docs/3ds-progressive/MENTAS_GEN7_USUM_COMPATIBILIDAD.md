@@ -1,58 +1,68 @@
 # Compatibilidad del instalador de mentas USUM
 
-El instalador admite combinaciones de cambios acreditados sin registrar el SHA-256 de cada ROM randomizada. Esto no acredita cualquier romhack ni revisiones nuevas. La comprobación es automática; no requiere comparar hashes manualmente ni ofrece instalación forzada.
+La compatibilidad depende de las funciones y estructuras que utiliza el parche. No se exige que el hash de code.bin ni de sus segmentos completos coincida con una referencia. Los cambios en otros lugares del ejecutable no bloquean las mentas. No hay instalación forzada ni se requiere comparar hashes manualmente.
 
-## Instalación de prueba antes de guardar
+## Preparación temporal y guardado
 
-La preparación comprueba la identidad NCCH US/UM, el tamaño descomprimido, el mapa de memoria y el estado de Bag.cro y sus hooks. Selecciona el perfil por título, sin exigir inicialmente una huella completa de code.bin. Prepara los 21 objetos, bolsillos, diez idiomas, runtime y CRR con los mecanismos existentes.
+Se comprueban el Title ID NCCH de Ultra Sol/Ultra Luna, el tamaño descomprimido, el mapa del exheader y las dependencias nativas del perfil seleccionado por título. Se mantienen las comprobaciones de Bag.cro completo y sus cuatro hooks originales, los 21 objetos reservados, bolsillos, textos de diez idiomas y CRO/CRR.
 
-Después copia los archivos afectados y todas las dependencias leídas a una carpeta temporal aislada. Aplica allí la transacción existente, relee los archivos y exige el reconocimiento de la instalación completa, las referencias del runtime, las dependencias nativas protegidas y el inventario CRR/CRO. Comprueba los resultados de los archivos afectados y la preservación exacta de las dependencias ajenas. La carpeta se elimina tanto en éxito como en error; esta prueba no escribe en el proyecto ni crea historial.
+La propuesta se aplica mediante `FileTransaction` a copias aisladas de todos los archivos afectados y dependencias leídas. Se relee el resultado, se exige el reconocimiento completo del runtime y se contrastan los archivos modificados y los ajenos. La copia se elimina en éxito/error. Preparar no guarda en el proyecto ni crea historial.
 
-Solo tras superar la prueba aparece **Listo para instalar** y se habilita **Aplicar y guardar**. El guardado conserva la transacción de `ProjectHistory`, los bloqueos, las huellas de concurrencia y Deshacer. El exheader también se captura y bloquea como dependencia al distribuir las mentas. Los otros estados son **Instalado correctamente** e **Instalación no compatible**, con explicación y diagnóstico técnico desplegable.
+Solo después se muestra **Listo para instalar** y se habilita **Aplicar y guardar**. El guardado usa `ProjectHistory`, transacciones, bloqueos, concurrencia y Deshacer existentes. El exheader también es una dependencia de distribución. Los otros estados son **Instalado correctamente** e **Instalación no compatible**, con explicación y diagnóstico técnico desplegable.
 
-La comprobación final de segmentos no se ha debilitado: acepta las variaciones acreditadas de la tabla siguiente, aunque cambie la huella completa. Una diferencia desconocida sigue sin acreditar sus posibles dependencias transitivas; se rechaza antes de guardar incluso si la escritura temporal pudo completarse. La prueba de archivos no demuestra ejecución en emulador.
+## Dependencias nativas fundamentadas
 
-El fallo CI de `c6b670e` se reprodujo con `--usum-mints-distribution-only`: `Lifecycle()` sustituía el exheader válido de `Setup()` por 2048 ceros para comprobar el copiado Batch y luego continuaba distribuyendo mentas con ese proyecto inválido. Se conserva el fixture válido y se verifica su copia y preservación para US y UM. No se cambió `ValidateMemoryLayout`, los perfiles ni sus huellas.
+El manifiesto `UsumMintNativeDependencies.cs` contiene 62 rangos y 9.185 bytes por perfil: instrucciones alcanzables, sus literales y tablas concretas. Un cambio en un rango necesario se rechaza aunque la instalación temporal pueda escribirse correctamente.
 
-## Alcance de la validación
+Las raíces proceden de los seis literales de `native/3ds/nature-mints/mints.s` y del ajuste UM de `UsumNatureMintPatch.Payload`. Son direcciones virtuales; se resta `100000` para obtener el offset de code.bin:
 
-Se mantienen los perfiles separados de Ultra Sol y Ultra Luna, el Title ID de NCCH y las protecciones de Bag.cro completo, sus cuatro puntos de instalación, objetos reservados, bolsillos, textos, CRR, transacciones, dependencias concurrentes e historial/deshacer. `UsumNatureMintPatch` se revisó y no necesitó cambios.
+| Entrada | US | UM | Contrato utilizado |
+|---|---|---|---|
+| getter | `4AE0E0` | `4AE0E8` | Naturaleza desde el objeto Pokémon y su bloque cifrado |
+| begin_access | `32258C` | `32258C` | Apertura, descifrado y checksum PK7 |
+| block_a | `4AD588` | `4AD590` | Selección del bloque A; se escribe su byte `14` |
+| end_access | `322514` | `322514` | Cierre, checksum y recifrado |
+| derive_stat | `4AEA1C` | `4AEA24` | Lectura de IV con selectores 1–5 |
+| store_stat | `324D84` | `324D84` | Reescritura de esos IV y recálculo nativo de estadísticas |
 
-El mapa del exheader debe conservar las direcciones, páginas y tamaños de los tres segmentos acreditados. Hay que disponer de `exheader.bin` o `DecryptedExHeader.bin` en la raíz del proyecto; se verifica como dependencia de la transacción. El tamaño del texto difiere en ocho bytes entre US y UM y se comprueba por separado.
+Se siguen ramas y llamadas directas, incluidos tail calls y tablas de saltos ARM acotadas por comparación. Se incluyen las rutas de especie/forma, campos PK7, fórmulas y auxiliares de memoria/sincronización alcanzados. Se protegen instrucciones completas de esas rutas, no ventanas arbitrarias alrededor de prólogos. Cada intervalo tiene un hash separado US/UM.
 
-En code.bin se comprueban tres segmentos completos: código `0–4B9FFF`, datos de solo lectura `4BA000–566FFF` y datos del runtime `567000–5A3FFF`. Las huellas se obtuvieron de las dos referencias ya reconocidas por `UsumNatureMintCatalog.CodeSha256`. Antes de calcularlas se normalizan exclusivamente:
+También se incluyen:
 
-| Región | Variaciones admitidas y evidencia local |
-|---|---|
-| MT, `4BB98E`, 200 bytes | 100 IDs entre 1 y 728; tabla escrita por `GameMachineTutorService`. No altera la representación de naturaleza ni sus funciones. |
-| Shiny, `220668` y `2205CF` | Solo las instrucciones ya admitidas por el perfil anterior y el editor shiny. No se amplía este contrato. |
-| Iconos de mentas | Solo el mapa completo de las 21 referencias producido por `UsumMintIconLayout`; los mapas parciales siguen sin reconocerse. |
-| Efectividad de tipos, `4BB558`, 324 bytes | Matriz 18×18 de `GameTypeChartService`, valores 0, 2, 4 u 8. Es la efectividad de ataques entre tipos, separada del cálculo de estadísticas por naturaleza. Se conservan su firma, ubicación y todos los bytes vecinos. |
-| Obediencia, `4C4644`, 6 bytes | Solo `[20,35,50,65,80,100]` o seis valores 100, acreditados por `Gen7Obedience`. Se conserva el literal de referencia en `21BD64`; decide obediencia de Pokémon intercambiados, sin cambiar su naturaleza. |
+- Permutación PK7 en `5E6994`, 128 bytes: índice `(EC >> 13) & 31`, paso de cuatro bytes; cubre las rutas de bloques A/B/C usadas por getters y setters.
+- Modificadores de naturaleza en `5E6A14`, **125 bytes**: 25 naturalezas × cinco estadísticas. No es la matriz de efectividad de tipos.
+- Pools PC-relativos y tablas de saltos de las funciones que los leen.
+- Descriptor en `5BA204`, ocho bytes: el gestor carga el destino de `5BA1CC+38` y su ajuste de `+3C`. Ajuste cero selecciona el callback directo `4B3694` US / `4B369C` UM, cuyo cuerpo se incluye.
+- Interfaz del mensaje nativo en `6486A0`, 16 bytes, y adaptadores del gestor usados por la consulta de datos personales.
 
-Todo byte restante se sigue protegiendo, incluso datos cuya independencia no se ha demostrado. Quedan incluidos los cuerpos completos y dependencias transitivas de getter, begin/end access, block A, derive/store stat, instrucciones, literales y referencias. No se intenta deducir límites de funciones a partir de unos pocos prólogos ni permitir automáticamente todo lo que esté fuera de cuatro hooks. Los segmentos US y UM no pueden mezclarse.
+El límite del análisis de archivos es el ABI del motor: objetos, listas de receptores, vtables y sincronización creados dinámicamente no pueden certificarse mediante una instantánea de archivos. Se fijan los adaptadores y el descriptor estático anteriores; no se deducen destinos dinámicos desconocidos de una instalación temporal satisfactoria ni se anuncia soporte de otros runtimes/ABIs. Esto no demuestra que un romhack arbitrario o su estado de ejecución sean correctos ni sustituye probar el juego.
 
-Si hay diferencias no acreditadas, se indica el segmento concreto afectado; eso no significa que toda diferencia de ese segmento sea un fallo demostrado de las mentas, sino que no se puede acreditar su compatibilidad. Las tablas con valores desconocidos y los mapas de memoria distintos tienen causas específicas. Los detalles están en **Diagnóstico técnico**.
+El generador de desarrollo `native_dependencies.py` reproduce los rangos desde las dos referencias privadas con SHA-256 exacto. Requiere Capstone 5 y solo emite offsets, etiquetas y hashes; no incorpora instrucciones ni archivos comerciales. No es necesario para usar la aplicación ni compilar el manifiesto generado.
 
-## Validación focalizada del 08/11/2026
+Una incompatibilidad identifica perfil, dependencia, intervalo de code.bin y dirección virtual. Ejemplo: getter US, `code.bin 3AE0E0–3AE0F3`, dirección `4AE0E0`. Ya no se presenta una región de casi cinco megabytes como única causa.
 
-Corrección y prueba temporal posteriores al fallo CI: build Release no incremental con apphost y binlog, 0 errores/advertencias; `--usum-mints-distribution-only` 128, `--usum-mints-only` 98, `--usum-mints-ui-only` 28 y `--usum-mints-compatibility-probe` 40 comprobaciones aprobadas. Se añadieron el descarte por fallo de relectura temporal, limpieza en éxito/error sin historial, preservación del mapa en Batch y rechazo de cambios concurrentes del exheader. El probe usa las referencias US/UM reconocidas y Bag real con objetos/textos sintéticos. Una primera ejecución con otra copia local US se detuvo al no coincidir con la huella original requerida por el fixture; se utilizó la referencia US conservada y no se cambiaron los datos ni el requisito. Sin suites generales locales nuevas ni prueba jugable del tester.
+MT, shiny, efectividad de tipos, obediencia, mapas de iconos y demás datos ajenos no son requisitos de instalación funcional. Los iconos opcionales mantienen sus comprobaciones propias de mapa completo y archivo gráfico; no se adopta un mapa parcial como instalación de iconos válida.
 
-Validación anterior a la corrección, conservada como antecedente:
+## Regresión real del PR #57
 
-- Build Release de Tests, que compila App/Core/LegacyBatch: 0 errores y 0 advertencias; binlog privado bajo `3DS.Progressive.Tests/bin`.
-- `--usum-mints-only`: 92 comprobaciones sintéticas aprobadas, incluidos conflictos, rollback, reapertura y deshacer.
-- `--usum-mints-compatibility-probe`: 40 comprobaciones aprobadas con los code.bin de referencia US/UM y Bag.cro real reconocido. Usa objetos/textos sintéticos en proyectos temporales. Acepta la combinación tipos/obediencia/MT/shiny y su mapa de iconos completo; rechaza mapas parciales y alteraciones en cada una de las seis funciones nativas, el literal de obediencia, vecinos de la matriz y datos del runtime. Instala, reabre y restaura los 14 archivos; preserva el ejecutable randomizado y los archivos ajenos.
-- `--usum-mints-ui-only`: 28 comprobaciones WPF fuera de pantalla aprobadas, incluidos los tres estados y el diagnóstico cerrado inicialmente.
+`9b9349b` aún comparaba segmentos completos después de preparar la copia temporal. Se reprodujo su rechazo usando una copia completa del Ultra Sol randomizado indicado por el propietario, con Bag original y sin mentas. Hay 621 bytes distintos frente a la referencia US, incluidos cambios en offsets `225AD4`, `2843F4`, `29A044`, `341654`, `3417D8`, tablas y espacio/código añadido. Esas diferencias no intersectan el manifiesto nativo y se conservan.
 
-No se repitieron suites generales ni se probó una nueva ROM completa en juego, foco interactivo, alto contraste o DPI adicionales. Los originales privados solo se leyeron y no se incorporan al repositorio. No se modificaron PR #55/#56, versiones, tags ni releases.
+Con la corrección, el mismo proyecto real supera preparación, instalación, reapertura e historial; Deshacer restaura exactamente los archivos de juego y el ejecutable randomizado. Se contrastan archivos ajenos y fuente original antes/después. El runner privado `--usum-mints-project-regression` usa una salida nueva separada y no escribe en el origen. También contempla reconocimiento de un proyecto real ya instalado, como el Ultra Luna indicado por el propietario.
 
-El propietario confirma que pudo randomizar antes de instalar las mentas. El tester usa Ultra Sol: **su caso concreto sigue pendiente de la prueba privada**. En esta prueba se solicita únicamente el estado y, si es incompatible, el diagnóstico textual desplegable. No se solicitan ROMs, partidas, archivos extraídos ni datos binarios. Si persiste el rechazo, se conserva el bloqueo y no se amplían las regiones permitidas sin identificar la diferencia.
+Las pruebas focalizadas de compatibilidad rechazan cambios en las seis entradas, checksum/cifrado, fórmulas, tablas de bloques/naturaleza y descriptor/interfaz. Aceptan mutaciones ajenas antes rechazadas por segmento. Se conservan memoria, hooks, rollback, concurrencia, relectura y deshacer. No se ejecutan suites generales locales para esta corrección.
 
-## Guía de prueba privada para el tester
+El propietario confirma instalación y uso en juego con una versión anterior después de randomizar. La **compilación nueva requiere su prueba personal en emulador**; no se atribuye a esta corrección una prueba jugable nueva.
 
-1. Abre tu proyecto extraído existente con el ejecutable privado de prueba para Windows x64 y entra en **Mecánicas y CRO → Mentas Gen7**.
-2. Pulsa **Comprobar estado y preparar**. Esta consulta no instala las mentas.
-3. Si aparece **Listo para instalar**, pulsa **Aplicar y guardar** únicamente en una copia respaldada del proyecto. Si aparece **Instalación no compatible**, despliega **Diagnóstico técnico** y copia su texto; no compartas archivos de la ROM, partidas ni datos binarios.
+El fallo CI anterior de `c6b670e` era distinto: `Lifecycle()` sobrescribía el exheader válido del fixture con ceros. Su corrección se conserva; `ValidateMemoryLayout` no se relaja.
 
-Después de **Instalado correctamente**, genera la salida desde esa copia y verifica las mentas en el emulador con una partida de prueba respaldada. La prueba temporal y el arranque del ejecutable no sustituyen esa comprobación jugable. Si aparece **Instalación no compatible**, no se instala ni se fuerza el parche.
+## Validación focalizada de la corrección
+
+Compilación Release no incremental con apphost y binlog: 0 errores y 0 advertencias. Suites: instalación 98, distribución 128, interfaz 28, compatibilidad nativa 66 e iconos 88 comprobaciones aprobadas. El probe completo de Ultra Sol randomizado supera 12 comprobaciones; el de Ultra Luna ya instalado, tres. Se revisan además registros de objetos ajenos, nibbles y miembros de bolsillos, bancos y filas de texto fuera de las mentas. La fuente US conserva code.bin SHA-256 `b5388f7500d91be01499a99ca007c98212068608ed7c83c43952e1d5148e9e09`.
+
+## Prueba privada
+
+1. Abre una copia respaldada del proyecto con el ejecutable privado nuevo y entra en **Mecánicas y CRO → Mentas Gen7**.
+2. Pulsa **Comprobar estado y preparar**. Si aparece **Listo para instalar**, pulsa **Aplicar y guardar**.
+3. Genera la salida desde esa copia y prueba las mentas con una partida respaldada. Ante **Instalación no compatible**, comparte solo el diagnóstico textual de la dependencia concreta.
+
+No es necesario ejecutar PowerShell, comparar SHA-256 ni enviar ROMs, partidas o binarios. No se modifican los PR #55/#56 ni se crean tags, previews o releases.
