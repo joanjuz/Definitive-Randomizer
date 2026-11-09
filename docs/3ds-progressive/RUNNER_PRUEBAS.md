@@ -66,6 +66,7 @@ dotnet .\3DS.Progressive.Tests\bin\Release\net10.0-windows\3DS.Progressive.Tests
 | `--native-gen6-only` | — |  |
 | `--native-wild7-only` | — |  |
 | `--nds-only` | — | sí |
+| `--nds-map-layout-only` | — | matrices sintéticas de solo lectura; ejecución focalizada independiente |
 | `--nds-events-only` | — | incluida también en `--nds-only` |
 | `--performance-only` | — |  |
 | `--pickup-only` | — |  |
@@ -185,6 +186,7 @@ Necesitan extracciones, ROMs o carpetas de salida. Los argumentos concretos (ent
 | `--nds-gen5-probe` | 1 o más |  |
 | `--nds-data-probe` | 2 o más |  |
 | `--nds-gen4-probe` | 2 o más |  |
+| `--nds-map-layout-probe` | `<informe JSON nuevo> <ROM privada Platino CPUE/1>` | solo lectura; no copia ni exporta ROM |
 | `--nds-events-probe` | `<salida nueva> <ROM privada Platino CPUE/1>` |  |
 | `--nds-gen5-items-probe` | 2 o más |  |
 | `--nds-gen5-random-probe` | 2 o más |  |
@@ -243,3 +245,5 @@ Eventos DS fase 1: `--nds-events-only` ejecuta los casos sintéticos de mapas, a
 `--usum-mints-distribution-only`: pools opcionales, tiendas y BP, EI/EB, Pickup, dependencias, recetas Global/Batch, determinismo y deshacer sobre fixtures sintéticos US/UM. No acredita validación jugable.
 
 `--usum-mints-distribution-real-copies <salida nueva> <Ultra Sol fase 1.1> <Ultra Luna fase 1.1>`: copia ambos proyectos privados, ejecuta la receta combinada con el motor Global/Batch real y verifica reapertura y conservación de BP, precios e iconos. No reconstruye ROM ni acredita juego en emulador.
+
+Matrices DS, fase visual 1: `--nds-map-layout-only` valida secciones opcionales, propiedad de celdas, coordenadas de 32×32, límites y lectura inmutable. `--nds-map-layout-probe <informe JSON nuevo> <ROM privada Platino CPUE/1>` exige el perfil acreditado, lee las 289 matrices y 593 contextos de cabecera, comprueba el NPC 0 de T01 y compara el SHA-256 de la fuente y todos los bytes del archivo de eventos antes/después. El directorio padre del informe debe existir; el archivo debe ser nuevo. No crea sesiones, checkpoints ni ROMs. Véase [NDS_MAP_LAYOUT_PHASE1.md](NDS_MAP_LAYOUT_PHASE1.md).

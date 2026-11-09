@@ -8,6 +8,7 @@ Punto de entrada a `docs/3ds-progressive/`. Muchos documentos son **registros hi
 |---|---|
 | Visión, prioridades y roadmap maestro de PokeJuz | [DefinitivePkm · ROADMAP.md](https://github.com/joanjuz/DefinitivePkm/blob/main/docs/ROADMAP.md) |
 | Runner de pruebas y sus opciones | [RUNNER_PRUEBAS.md](RUNNER_PRUEBAS.md) |
+| Base espacial DS, fase visual 1: matrices CPUE/1 de solo lectura y caso T01 | [NDS_MAP_LAYOUT_PHASE1.md](NDS_MAP_LAYOUT_PHASE1.md) |
 | Editor de eventos Nintendo DS, fase 1: Platino CPUE/1, checkpoints y restauración | [NDS_EVENT_EDITOR_PHASE1.md](NDS_EVENT_EDITOR_PHASE1.md) |
 | **Primera estable WPF (v1.0.0, en preparación, sin publicar):** guía para usuarios nuevos | [PRIMEROS_PASOS.md](PRIMEROS_PASOS.md) |
 | Estable WPF: respaldo, Deshacer, recuperación de guardados y qué enviar al reportar | [RESPALDO_Y_RECUPERACION.md](RESPALDO_Y_RECUPERACION.md) |
