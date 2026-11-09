@@ -1,8 +1,45 @@
-param(
+﻿param(
     [Parameter(Mandatory=$true)][string]$OutputDirectory,
-    [string]$Version = '1.0.0'
+    [string]$Version = '1.0.0',
+    [ValidateSet('PRIVATE','PUBLIC')][string]$DistributionMode = 'PRIVATE',
+    [string]$PublicReleaseCommit
 )
 $ErrorActionPreference = 'Stop'
+
+# Pure selection/rendering: tests invoke only this function with simulated data, never a PUBLIC publish.
+function Get-DistributionMetadata {
+    param(
+        [ValidateSet('PRIVATE','PUBLIC')][string]$Mode = 'PRIVATE',
+        [Parameter(Mandatory=$true)][string]$Version,
+        [Parameter(Mandatory=$true)][string]$Revision,
+        [Parameter(Mandatory=$true)][string]$NotesText,
+        [string]$PublicReleaseCommit
+    )
+    if ($Revision -cnotmatch '\A[0-9a-f]{40}\z') { throw 'Expected the full source HEAD SHA.' }
+    $modeName = $Mode.ToUpperInvariant()
+    $isPublic = $modeName -eq 'PUBLIC'
+    $confirmedCommit = $null
+    if ($isPublic) {
+        if ($PublicReleaseCommit -cne $Revision) { throw 'PUBLIC requires -PublicReleaseCommit equal to the full source HEAD SHA.' }
+        foreach ($marker in @('@DISTRIBUTION_STATUS@','@DISTRIBUTION_METADATA@','@DISTRIBUTION_WORKFLOW@')) {
+            if (-not $NotesText.Contains($marker)) { throw 'PUBLIC requires mode-aware release notes.' }
+        }
+        $confirmedCommit = $PublicReleaseCommit
+        $status = "> **Distribución pública v$Version.** Comprueba la identidad de compilación y los hashes antes de instalar."
+        $metadata = 'Modo de distribución: **PUBLIC**. `publicRelease=true`. La confirmación del operador corresponde al commit de compilación indicado en estas notas y en la procedencia.'
+        $workflow = 'VERSION.txt y BUILD_PROVENANCE.json identifican el commit de esta distribución. Comprueba el SHA-256 del ZIP y el manifiesto de archivos. La selección de metadatos PUBLIC no crea por sí misma tags ni una release en GitHub.'
+    } else {
+        if ($PublicReleaseCommit) { throw '-PublicReleaseCommit is only valid with -DistributionMode PUBLIC.' }
+        $status = "> **Entrega privada v$Version, todavía no publicada.** Este paquete local de prueba no autoriza tags, integración ni publicación."
+        $metadata = 'Modo de distribución: **PRIVATE** (predeterminado). `publicRelease=false`. El paquete permanece privado.'
+        $workflow = 'La integración y publicación requieren autorizaciones expresas independientes del propietario. Después de integrar cambios, genera y valida otro paquete desde el HEAD real de main. No renombres un ZIP privado como distribución pública: genera uno nuevo con los metadatos apropiados y autorización expresa.'
+    }
+    $rendered = $NotesText.Replace('@BUILD_COMMIT@', $Revision).Replace('@DISTRIBUTION_STATUS@', $status).Replace('@DISTRIBUTION_METADATA@', $metadata).Replace('@DISTRIBUTION_WORKFLOW@', $workflow)
+    # Older preview notes remain usable for PRIVATE; PUBLIC requires the explicit template above.
+    if (-not $NotesText.Contains('@DISTRIBUTION_STATUS@')) { $rendered = $status+"`n`n"+$rendered }
+    [pscustomobject]@{ mode=$modeName; publicRelease=$isPublic; publicReleaseCommit=$confirmedCommit; notes=$rendered }
+}
+
 # SemVer 2.0: stable or prerelease, with optional build metadata; numeric identifiers have no leading zeroes.
 $versionPattern = '\A(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(?:-(?:0|[1-9][0-9]*|[0-9]*[A-Za-z-][0-9A-Za-z-]*)(?:\.(?:0|[1-9][0-9]*|[0-9]*[A-Za-z-][0-9A-Za-z-]*))*)?(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?\z'
 if ($Version -cnotmatch $versionPattern) { throw 'Expected a valid SemVer version (stable or prerelease).' }
@@ -27,6 +64,7 @@ try {
     if (@(& git status --porcelain).Count) { throw 'Packaging requires a clean source worktree.' }
     [xml]$appProject = Get-Content -LiteralPath (Join-Path $repo '3DS.Progressive.App/3DS.Progressive.App.csproj')
     if ([string]$appProject.Project.PropertyGroup[0].Version -ne $Version) { throw 'Package and WPF project versions must match.' }
+    $distribution = Get-DistributionMetadata -Mode $DistributionMode -Version $Version -Revision $revision -NotesText (Get-Content -LiteralPath $notes -Raw -Encoding utf8) -PublicReleaseCommit $PublicReleaseCommit
     foreach ($tool in @('ffmpeg.exe','ffprobe.exe','mobipeg-v2.3-source.tar.gz')) {
         if (-not (Test-Path -LiteralPath (Join-Path $repo "3DS.Progressive.App/Tools/Mobipeg/$tool"))) { throw "Missing Mobipeg dependency: $tool" }
     }
@@ -62,7 +100,7 @@ try {
     foreach ($file in @(& git ls-files docs/third-party)) {
         Copy-Item -LiteralPath (Join-Path $repo $file) -Destination (Join-Path $stage 'third-party') -Force
     }
-    $packageNotes = (Get-Content -LiteralPath $notes -Raw -Encoding utf8).Replace('@BUILD_COMMIT@', $revision)
+    $packageNotes = $distribution.notes
     foreach ($guide in @('PRIMEROS_PASOS.md','RESPALDO_Y_RECUPERACION.md','COMPATIBILIDAD_PUBLICA.md','LIMITACIONES_ESTABLE.md')) {
         $packageNotes = $packageNotes.Replace("]($guide)", "](docs/$guide)")
     }
@@ -71,7 +109,8 @@ try {
     [ordered]@{
         version = $Version; commit = $revision; sourceTree = (& git rev-parse 'HEAD^{tree}').Trim()
         sourceClean = $true; configuration = 'Release'; runtimeIdentifier = 'win-x64'; selfContained = $true
-        sdk = (& dotnet --version).Trim(); publicRelease = $false
+        sdk = (& dotnet --version).Trim(); publicRelease = $distribution.publicRelease
+        distributionMode = $distribution.mode; publicReleaseCommit = $distribution.publicReleaseCommit
         legacyProductVersion = [Diagnostics.FileVersionInfo]::GetVersionInfo((Join-Path $stage 'LegacyBatch/pk3DS.WinForms.exe')).ProductVersion
     } | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $stage 'BUILD_PROVENANCE.json') -Encoding utf8
     "# Validation: $Version`n`nSource commit: $revision`n`nWPF/Core/LegacyBatch self-contained publish succeeded. Required dependencies, templates and package exclusions are checked by Publish-Preview.ps1 before compression. SHA256SUMS.txt covers every payload file except itself. Installation and UI validation must be recorded separately against the final ZIP; no game validation is claimed by this packaging step." | Set-Content -LiteralPath (Join-Path $stage 'VALIDATION_REPORT.md') -Encoding utf8

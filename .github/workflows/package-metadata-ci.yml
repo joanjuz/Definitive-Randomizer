@@ -1,0 +1,19 @@
+name: Package metadata modes
+on:
+  pull_request:
+    paths:
+      - 'tools/Publish-Preview.ps1'
+      - 'tools/Test-PublishPreview.ps1'
+      - 'docs/3ds-progressive/RELEASE_*.md'
+      - 'docs/3ds-progressive/EMPAQUETADO_PRIVATE_PUBLIC.md'
+      - '.github/workflows/package-metadata-ci.yml'
+permissions:
+  contents: read
+jobs:
+  metadata:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Test simulated modes without publishing or building packages
+        shell: powershell
+        run: ./tools/Test-PublishPreview.ps1

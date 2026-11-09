@@ -13,6 +13,7 @@ Punto de entrada a `docs/3ds-progressive/`. Muchos documentos son **registros hi
 | Estable WPF: matriz pública por juego (implementado, automático, archivos reales, en juego, no comprobado) | [COMPATIBILIDAD_PUBLICA.md](COMPATIBILIDAD_PUBLICA.md) |
 | Estable WPF: limitaciones públicas y alcance excluido (incluye el editor de eventos DS, PR #55) | [LIMITACIONES_ESTABLE.md](LIMITACIONES_ESTABLE.md) |
 | Estable WPF: notas v1.0.0 preparada, todavía no publicada | [RELEASE_1.0.0.md](RELEASE_1.0.0.md) |
+| Empaquetado: modos PRIVATE/PUBLIC y confirmación del commit del operador | [EMPAQUETADO_PRIVATE_PUBLIC.md](EMPAQUETADO_PRIVATE_PUBLIC.md) |
 | Entrenadores DS: tarjetas, formatos explícitos, derivados y comparación con 3DS | [NDS_ENTRENADORES_PARIDAD.md](NDS_ENTRENADORES_PARIDAD.md) |
 | Entrenadores: prueba jugable confirmada en Platino y guía de Ruta 202 | [NDS_ENTRENADORES_PRUEBA_PLATINO.md](NDS_ENTRENADORES_PRUEBA_PLATINO.md) |
 | Candidato prerelease 0.15.0-preview.1: mentas Gen7 y distribución | [RELEASE_0.15.0_PREVIEW_1.md](RELEASE_0.15.0_PREVIEW_1.md) |
