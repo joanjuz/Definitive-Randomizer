@@ -214,9 +214,7 @@ internal static class UsumNatureMintChecks
         check(nodes.OfType<System.Windows.Controls.TextBlock>().Any(t=>t.Text==UsumNatureMintService.Warning+"."),"MintUiRealNatureWarningVisible");
         check(nodes.OfType<System.Windows.Controls.Expander>().Any(e=>e.Header.ToString()=="Diagnóstico técnico"&&!e.IsExpanded),"MintUiOptionalDiagnosticCollapsed");
         var pool=nodes.OfType<ThreeDS.Progressive.UsumMintPoolControl>().Single();
-        var poolReport=pool.Children.OfType<System.Windows.Controls.TextBlock>().Single();
-        poolReport.Text="Mentas no disponibles: archivo1\narchivo2";
-        check(poolReport.Visibility==System.Windows.Visibility.Collapsed,"MintUiInstallerDoesNotShowDistributionUnavailableMessage");
+        check(!pool.Children.OfType<System.Windows.Controls.TextBlock>().Any(),"MintUiInstallerDoesNotShowDistributionUnavailableMessage");
         var editorPool=new ThreeDS.Progressive.UsumMintPoolControl(f.Session);
         check(editorPool.Children.OfType<System.Windows.Controls.TextBlock>().Single().Visibility==System.Windows.Visibility.Visible,"MintUiOtherEditorsKeepDistributionStatus");
         const string fileList="Bag.cro\na/0/1/9\na/0/3/0\n.crr/static.crr";
