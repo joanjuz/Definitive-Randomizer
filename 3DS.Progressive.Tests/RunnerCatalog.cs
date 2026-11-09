@@ -44,6 +44,8 @@ internal static class RunnerCatalog
         new("--native-gen6-only","",RunnerCategory.Synthetic,false),
         new("--native-wild7-only","",RunnerCategory.Synthetic,false),
         new("--nds-only","",RunnerCategory.Synthetic,true),
+        new("--nds-map-layout-only","",RunnerCategory.Synthetic,false),
+        new("--nds-map-layout-probe","<informe JSON nuevo> <Platino CPUE/1 privado>",RunnerCategory.Real,false),
         new("--nds-events-only","",RunnerCategory.Synthetic,false),
         new("--nds-events-ui-only","",RunnerCategory.Ui,true),
         new("--nds-events-probe","<salida nueva> <Platino CPUE/1 privado>",RunnerCategory.Real,false),
