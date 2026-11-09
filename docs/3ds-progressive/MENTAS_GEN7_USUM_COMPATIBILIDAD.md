@@ -51,7 +51,7 @@ Con la corrección, el mismo proyecto real supera preparación, instalación, re
 
 Las pruebas focalizadas de compatibilidad rechazan cambios en las seis entradas, checksum/cifrado, fórmulas, tablas de bloques/naturaleza y descriptor/interfaz. Aceptan mutaciones ajenas antes rechazadas por segmento. Se conservan memoria, hooks, rollback, concurrencia, relectura y deshacer. No se ejecutan suites generales locales para esta corrección.
 
-El propietario confirma instalación y uso en juego con una versión anterior después de randomizar. La **compilación nueva requiere su prueba personal en emulador**; no se atribuye a esta corrección una prueba jugable nueva.
+El propietario confirma que probó personalmente **`bd07d42` dentro del juego con su ROM previamente randomizada y las mentas funcionaron correctamente**. Esta es una prueba jugable satisfactoria del propietario de la corrección de compatibilidad. **La ROM específica del tester continúa pendiente**; no se extrapola la confirmación del propietario a ese caso ni a todos los romhacks.
 
 El fallo CI anterior de `c6b670e` era distinto: `Lifecycle()` sobrescribía el exheader válido del fixture con ceros. Su corrección se conserva; `ValidateMemoryLayout` no se relaja.
 
@@ -65,4 +65,4 @@ Compilación Release no incremental con apphost y binlog: 0 errores y 0 adverten
 2. Pulsa **Comprobar estado y preparar**. Si aparece **Listo para instalar**, pulsa **Aplicar y guardar**.
 3. Genera la salida desde esa copia y prueba las mentas con una partida respaldada. Ante **Instalación no compatible**, comparte solo el diagnóstico textual de la dependencia concreta.
 
-No es necesario ejecutar PowerShell, comparar SHA-256 ni enviar ROMs, partidas o binarios. No se modifican los PR #55/#56 ni se crean tags, previews o releases.
+No es necesario ejecutar PowerShell, comparar SHA-256 ni enviar ROMs, partidas o binarios. La publicación autorizada y los ajustes mínimos de presentación posteriores se documentan en [v0.15.0-preview.2](RELEASE_0.15.0_PREVIEW_2.md); los PR #55/#56/#57 siguen sin fusionar.

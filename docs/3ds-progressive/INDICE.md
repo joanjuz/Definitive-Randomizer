@@ -8,6 +8,7 @@ Punto de entrada a `docs/3ds-progressive/`. Muchos documentos son **registros hi
 |---|---|
 | Visión, prioridades y roadmap maestro de PokeJuz | [DefinitivePkm · ROADMAP.md](https://github.com/joanjuz/DefinitivePkm/blob/main/docs/ROADMAP.md) |
 | Runner de pruebas y sus opciones | [RUNNER_PRUEBAS.md](RUNNER_PRUEBAS.md) |
+| Pre-release 0.15.0-preview.2: instalador de mentas con prueba temporal | [RELEASE_0.15.0_PREVIEW_2.md](RELEASE_0.15.0_PREVIEW_2.md) |
 | Candidato prerelease 0.15.0-preview.1: mentas Gen7 y distribución | [RELEASE_0.15.0_PREVIEW_1.md](RELEASE_0.15.0_PREVIEW_1.md) |
 | Plan previo de mentas Gen7 USUM: referencia, licencia y aceptación | [MENTAS_GEN7_USUM_PLAN_20261105.md](MENTAS_GEN7_USUM_PLAN_20261105.md) |
 | Mentas USUM fase 1: funcionalidad jugable confirmada, casos pendientes e iconos | [MENTAS_GEN7_USUM_FASE1.md](MENTAS_GEN7_USUM_FASE1.md) |

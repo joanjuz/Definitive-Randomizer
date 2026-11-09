@@ -32,7 +32,8 @@ internal sealed class UsumNatureMintView : UserControl
         heading.Children.Add(new TextBlock{Text="21 mentas consumibles. No se añaden automáticamente a tiendas ni pools de randomización. " +
             "Guarda un respaldo del proyecto. Deshacer restaura archivos del juego, no lo que hayas guardado en una partida.",
             TextWrapping=TextWrapping.Wrap,Foreground=(Brush)FindResource("TextSoft"),Margin=new Thickness(0,0,0,12)});
-        heading.Children.Add(new UsumMintPoolControl(project));
+        // This screen already owns installation status and the technical report.
+        heading.Children.Add(new UsumMintPoolControl(project,showStatus:false));
         var buttons=new WrapPanel();heading.Children.Add(buttons);
         _inspect=Add("Comprobar estado y preparar",()=>_ = InspectAsync());
         _install=Add("Aplicar y guardar",()=>_ = InstallAsync());_install.IsEnabled=false;
@@ -76,7 +77,7 @@ internal sealed class UsumNatureMintView : UserControl
     {
         if(_running||_preview?.Proposal is null)return;
         if(!StudioDialog.Confirm(Window.GetWindow(this),"Instalar mentas Gen7",UsumNatureMintService.Warning+".",
-            _preview.Report+"\nLos cambios se registrarán juntos en el historial."))return;
+            "Los cambios de las 21 mentas se guardarán juntos en el historial. Puedes revisar los archivos en Diagnóstico técnico y restaurarlos con Deshacer."))return;
         Busy(true);UiProgress.Begin("Instalando mentas Gen7 con transacción e historial…");
         try{await Task.Run(()=>_service.Apply(_preview));_preview=await Task.Run(_service.Inspect);_iconPreview=await Task.Run(_iconService.Inspect);Show();}
         catch(Exception ex){_preview=new(UsumMintState.Incompatible,ex.Message,null);Show();
