@@ -11,7 +11,7 @@ Lista pública de lo que la primera versión estable WPF **no** hace o no garant
 
 ## Qué significa «estable» aquí
 
-La versión estable cubre el alcance descrito en la matriz de compatibilidad. **No** promete que toda combinación de opciones, ROM, revisión o ROM hack funcione, ni que se haya jugado cada evento de cada juego. Las pruebas automáticas, con archivos reales y dentro del juego son evidencias distintas, y cada una se indica por separado.
+La versión estable cubre el alcance descrito en la matriz de compatibilidad. **No** promete que toda combinación de opciones, ROM, revisión o ROM hack funcione, ni que se haya jugado cada evento de cada juego. Las pruebas automáticas, con archivos reales y dentro del juego son evidencias distintas, y cada una se indica por separado. La aceptación técnica de `main` no encontró un defecto vigente y reproducido de corrupción o pérdida de datos en este alcance; eso no equivale a garantía absoluta. En X/Y, OR/AS y Sol/Luna no hay pruebas jugables documentadas en la línea WPF: su evidencia es con archivos reales.
 
 ## Copias de seguridad y Deshacer
 
@@ -27,7 +27,7 @@ La versión estable cubre el alcance descrito en la matriz de compatibilidad. **
 - Global Template y Batch requieren una copia que ya tenga instaladas las dependencias (por ejemplo, el parche de mentas); no las instalan en silencio.
 - Las mecánicas Progressive están más desarrolladas en **Ultra Sol/Ultra Luna**; no todas existen en todos los juegos. Sol/Luna excluye el balance de movimientos a propósito.
 - **Incidencias USUM conocidas y sin resolver:**
-  - Un **cuelgue al entregar los pétalos** en una partida de USUM. No tiene reproducción ni causa determinada. Si juegas USUM modificado y te ocurre, repórtalo con los datos de la guía de respaldo.
+  - Un **cuelgue al entregar los pétalos** en una partida de USUM. Su causa sigue sin determinar y no hay una reproducción nueva; no está solucionado. Si juegas USUM modificado y te ocurre, repórtalo con los datos de la guía de respaldo.
   - Un **diagnóstico localizado del movimiento Z** en el primer combate contra Tilo. No se ha demostrado como fallo general.
 - El visor de objetos de mapa (OWSE) conserva el alcance de lectura del pk3DS original; no es un editor de mapas.
 

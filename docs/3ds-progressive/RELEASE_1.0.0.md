@@ -37,6 +37,18 @@ Tres niveles de evidencia, indicados por separado en la [matriz](COMPATIBILIDAD_
 
 Ultra Luna, consola real de Switch, Atmosphère, DLC y una partida completa de cualquier juego **no** están comprobados jugando.
 
+### Aceptación técnica (09/11/2026)
+
+Sobre `main` tras integrar los PR #56 y #57 se revisó la evidencia existente y se ejecutaron tres casos nuevos de guardar → reabrir → Deshacer con copias aisladas de proyectos reales, sin tocar el origen:
+
+| Juego | Archivos comparados | Resultado |
+|---|---:|---|
+| Pokémon X | 659 | 9 comprobaciones aprobadas; restauración exacta |
+| Pokémon Omega Ruby | 661 | 9 comprobaciones aprobadas; restauración exacta |
+| Pokémon Sol | 671 | 9 comprobaciones aprobadas; restauración exacta |
+
+Total: 27 comprobaciones aprobadas, ninguna fallida. Cada prueba cubre un solo título: **no se atribuye a Y, Alpha Sapphire ni Luna**, cuya evidencia es la histórica. No se repitió la reconstrucción ni se probó en juego. Para DS y Switch no se exige el Deshacer transaccional de 3DS: se acreditó que la salida (ROM nueva o mod) se genera, se relee y deja el origen intacto. Conclusión de la aceptación: no se identificó un defecto vigente y reproducido de corrupción o pérdida de datos dentro del alcance. Esto **no** publica ni certifica la estable, y la candidata debe construirse y probarse como paquete exacto.
+
 ## Instalación
 
 1. Extrae el ZIP **completo** en una carpeta nueva de Windows x64. No lo ejecutes desde el ZIP ni lo copies sobre una versión anterior.
@@ -49,7 +61,7 @@ Los ejecutables **no tienen firma digital**: Windows o SmartScreen pueden mostra
 ## Limitaciones principales
 
 - Mentas solo en Ultra Sol/Ultra Luna; Ultra Luna sin prueba jugable.
-- Incidencias USUM sin resolver: cuelgue al entregar los pétalos (sin reproducción) y diagnóstico del movimiento Z en el primer combate de Tilo.
+- Incidencias USUM sin resolver: cuelgue al entregar los pétalos (causa sin determinar, sin reproducción nueva; se espera una partida previa) y diagnóstico del movimiento Z en el primer combate de Tilo.
 - Deshacer solo en 3DS, solo los 8 últimos cambios, y no revierte partidas guardadas ni ROM ya generadas.
 - La recuperación de guardados no cubre todo fallo físico ni toda edición externa posterior.
 - DS: romhack en beta; solo perfiles exactos.
@@ -59,11 +71,9 @@ Los ejecutables **no tienen firma digital**: Windows o SmartScreen pueden mostra
 
 Indica versión y commit, juego/región/revisión/idioma, pasos, semilla y mensajes de error. **No adjuntes ROMs, extracciones ni partidas.** Ver [RESPALDO_Y_RECUPERACION.md](RESPALDO_Y_RECUPERACION.md).
 
-## Pendiente de confirmar antes de publicar (quitar al finalizar)
+## Pendiente antes de publicar (quitar al finalizar)
 
-1. Revisar la redacción de mentas contra el resultado de la ROM del tester (pendiente). PR #56 y #57 ya están integrados en `main`.
-2. Versión final, SHA de compilación y CI aprobado sobre el commit que se empaquete.
-3. Que el ciclo representativo guardar → deshacer → reabrir → reconstruir esté acreditado por plataforma con evidencia existente o una pasada nueva.
-4. Evidencia real o jugable de X/Y, OR/AS y Sol/Luna en la línea WPF, o mantener «sin evidencia documentada».
-5. Regiones y revisiones concretas por juego en la matriz.
-6. Autorización expresa del propietario para versión, tag y publicación.
+1. Construir el paquete candidato desde `main` con este PR integrado; comprobar arranque, identidad de commit, dependencias y hash. Completar versión final y `[SHA]` con los de ese paquete.
+2. Revisar la redacción de mentas contra el resultado de la ROM del tester (pendiente).
+3. Regiones y revisiones concretas de los juegos 3DS y de `IRBO`: no determinadas, no se enumeran.
+4. Autorización expresa del propietario para versión, tag y publicación.

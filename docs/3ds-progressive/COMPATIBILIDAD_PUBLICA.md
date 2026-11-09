@@ -20,13 +20,19 @@ Requiere una extracción **ya descifrada** (la aplicación no descifra ROMs come
 
 | Juego | Implementado | Automático | Archivos reales | En juego | Notas |
 |---|---|---|---|---|---|
-| **X / Y** | Editores y randomizadores de Pokémon, movimientos, evoluciones, entrenadores, encuentros, objetos y tiendas; Progressive; Global/Batch | Sí (suites sintéticas de las cuatro familias) | Sin evidencia documentada en esta línea WPF | Sin confirmación documentada para esta línea | Paridad de funciones **no** asumida respecto a otras familias. |
-| **Omega Ruby / Alpha Sapphire** | Igual que X/Y, más tutores BP y herramientas Gen6 propias | Sí | Sin evidencia documentada en esta línea WPF | Sin confirmación documentada para esta línea | — |
-| **Sol / Luna** | Editores y randomizadores; Global/Batch | Sí | Sin evidencia documentada en esta línea WPF | Sin confirmación documentada para esta línea | El balance de movimientos y las mecánicas Progressive están **excluidos a propósito**. Sin mentas. |
-| **Ultra Sol** | Todo lo anterior, más las extensiones Progressive (level caps, Relearner, tutores, Megas, distribución de mentas) | Sí | Sí: copias reales (mentas, distribución, historial, deshacer, reconstrucción) | **Mentas, iconos, distribución, Global Template, Batch y ROM generada** (propietario, emulador); además, el propietario comprobó las mentas con una ROM previamente randomizada | Resto de funciones de USUM: ver la lista de pendientes en [LIMITACIONES_ESTABLE.md](LIMITACIONES_ESTABLE.md). |
-| **Ultra Luna** | Igual que Ultra Sol | Sí | Sí: instalación de mentas reconocida en copia real | **No comprobado** jugando | Mentas con perfil propio; no se extiende la confirmación de Ultra Sol. |
+| **X / Y** | Editores y randomizadores de Pokémon, movimientos, evoluciones, entrenadores, encuentros, objetos y tiendas; Progressive; Global/Batch | Sí (suites sintéticas de las cuatro familias) | **Sí, en ambos.** Históricas: proceso empaquetado con preservación de 656 archivos por fuente; en **X**, preflight WPF → backend → reconstrucción Trimmed3DS y Full3DS con extracción exacta; Catch + Wild y lectura/propuesta WPF en X e Y. Reciente (09/11/2026): ciclo guardar → reabrir → Deshacer **solo en X**, 9 comprobaciones, 659 archivos restaurados byte a byte | Sin prueba jugable documentada en esta línea | La prueba reciente no se atribuye a Y. |
+| **Omega Ruby / Alpha Sapphire** | Igual que X/Y, más tutores BP y herramientas Gen6 propias | Sí | **Sí, en ambos.** Históricas: 60 tutores/precios exactos en copias de OR y AS sin cambiar las fuentes; Catch + Wild en ambos; en **OR**, flujo WPF → backend → reconstrucción → extracción con 658 archivos preservados. Reciente: guardar → reabrir → Deshacer **solo en Omega Ruby**, 9 comprobaciones, 661 archivos | Sin prueba jugable documentada en esta línea | La prueba reciente y la reconstrucción no se atribuyen a Alpha Sapphire. |
+| **Sol / Luna** | Editores y randomizadores; Global/Batch | Sí | **Sí, en ambos.** Históricas: ocho extracciones reales, con ambas de Sol/Luna; en Sol y en Luna, preflight WPF → backend → reconstrucción → extracción con un cambio exacto y 668 archivos iguales; tiendas de Luna con reextracción exacta. Reciente: guardar → reabrir → Deshacer **solo en Sol**, 9 comprobaciones, 671 archivos | Sin prueba jugable documentada en esta línea | La prueba reciente no se atribuye a Luna. El balance de movimientos y las mecánicas Progressive están **excluidos a propósito**. Sin mentas. |
+| **Ultra Sol** | Todo lo anterior, más las extensiones Progressive (level caps, Relearner, tutores, Megas, distribución de mentas) | Sí | Sí: reconstrucción Full3DS con reextracción exacta de 750 archivos; instalación, reapertura y Deshacer exacto (14 archivos); regresión sobre una copia randomizada real | **Mentas, iconos, distribución, Global Template, Batch y ROM generada** (propietario, emulador); además, el propietario comprobó las mentas con una ROM previamente randomizada | Resto de funciones de USUM: ver la lista de pendientes en [LIMITACIONES_ESTABLE.md](LIMITACIONES_ESTABLE.md). |
+| **Ultra Luna** | Igual que Ultra Sol | Sí | Sí: instalación, reapertura y Deshacer exacto (14 archivos) en copia real; reconocimiento de una copia con mentas instaladas | **No comprobado** jugando | Mentas con perfil propio; no se extiende la confirmación de Ultra Sol. |
 
-Región y revisión en 3DS: la aplicación identifica el título por la cabecera NCCH. Para las **mentas**, la instalación **no exige que `code.bin` ni sus segmentos completos coincidan con una referencia**: comprueba la identidad del título, el tamaño y el mapa del ejecutable, las **dependencias nativas concretas** que usa el parche (62 rangos por perfil) y la integridad de Bag, objetos, textos y CRO/CRR. Un cambio ajeno a esas dependencias no bloquea las mentas; un cambio en una dependencia necesaria se rechaza con un diagnóstico que indica cuál. No se anuncia soporte de «todas las revisiones» ni de cualquier ROM hack, y no hay instalación forzada. Detalle en [MENTAS_GEN7_USUM_COMPATIBILIDAD.md](MENTAS_GEN7_USUM_COMPATIBILIDAD.md). *[Confirmar antes de publicar: la lista de regiones/revisiones 3DS con evidencia real; ver sección «Pendiente de confirmar» al final.]*
+Región y revisión en 3DS: la aplicación identifica el título por la cabecera NCCH. Para las **mentas**, la instalación **no exige que `code.bin` ni sus segmentos completos coincidan con una referencia**: comprueba la identidad del título, el tamaño y el mapa del ejecutable, las **dependencias nativas concretas** que usa el parche (62 rangos por perfil) y la integridad de Bag, objetos, textos y CRO/CRR. Un cambio ajeno a esas dependencias no bloquea las mentas; un cambio en una dependencia necesaria se rechaza con un diagnóstico que indica cuál. No se anuncia soporte de «todas las revisiones» ni de cualquier ROM hack, y no hay instalación forzada. Detalle en [MENTAS_GEN7_USUM_COMPATIBILIDAD.md](MENTAS_GEN7_USUM_COMPATIBILIDAD.md). **La aceptación técnica no fijó regiones ni revisiones concretas de las copias 3DS usadas**, así que esta matriz no las enumera.
+
+Notas sobre la evidencia 3DS:
+
+- Lo «histórico» procede de informes versionados en este repositorio (iteraciones 54, 56, 57, 64–71); sus carpetas de logs originales no se localizaron en la última revisión. Tiene menos fuerza que un registro reciente y no se presenta como ejecución nueva.
+- Lo «reciente» son ejecuciones nuevas del 09/11/2026 sobre servicios de `main`, con copias aisladas y el origen intacto. No incluyen reconstrucción nueva ni juego.
+- Que los archivos se editen, reconstruyan y relean bien **no** demuestra que el juego se ejecute bien: eso solo lo acredita la columna «En juego».
 
 ## Nintendo DS (Gen4 y Gen5)
 
@@ -66,6 +72,8 @@ Qué **no** se acredita en Switch:
 - **Combates dobles aleatorios:** protegidos para los primeros combates (los de Paul y los de menor nivel que el primer líder); no hay protección de runtime para un único Pokémon utilizable en dobles posteriores. El valor predeterminado es 0 %.
 - Las animaciones del Pokédex están desactivadas temporalmente.
 
+Notas DS: los seis perfiles tienen contenedor y exportación reales comprobados. Las pruebas recientes del editor de entrenadores (PR #56) cubren Platino, Negro y Blanco 2 con archivos reales; **Blanco (España) y Diamante/HeartGold no repitieron esa prueba reciente específica** y se apoyan en las pruebas reales anteriores y en pruebas sintéticas. DS no tiene Deshacer transaccional de archivos como 3DS: se exporta una ROM nueva y el origen queda intacto.
+
 ## Funciones transversales
 
 | Función | Alcance | Estado |
@@ -78,12 +86,8 @@ Qué **no** se acredita en Switch:
 
 Editor de eventos y mapas de DS · mentas en Gen6, Sol/Luna, DS o Switch · caramelos raros o repelentes infinitos · perfiles de ROM hacks populares y biblioteca comunitaria (Hub) · Negro 2, SoulSilver y Perla · soporte de DLC, consola real o Atmosphère en Switch.
 
-## Pendiente de confirmar antes de publicar
+## Pendiente de documentar
 
-Estos puntos requieren decisión o dato del propietario; no se rellenaron por suposición:
-
-1. Para X/Y, OR/AS y Sol/Luna, qué evidencia con archivos reales o en juego existe para la **línea WPF**. Hasta confirmarlo, la matriz declara «sin evidencia documentada».
-2. Regiones y revisiones concretas de los juegos 3DS con evidencia real.
-3. Región exacta de `IRBO` y de los demás volcados DS, si se desea indicarlas por idioma además de por código.
-4. Resultado de la ROM propia del tester de mentas, aún pendiente: hasta recibirlo no se añade a la matriz.
-5. Evidencias históricas y pruebas representativas que se están comprobando por separado; no se completan aquí por suposición.
+- Regiones y revisiones concretas de los juegos 3DS y de `IRBO`: la aceptación técnica no las fijó. No se inventan; se indican por código donde el perfil lo define.
+- Resultado de la ROM propia del tester de mentas (Ultra Sol/Ultra Luna), aún pendiente.
+- Pruebas jugables de X/Y, OR/AS y Sol/Luna en la línea WPF: no documentadas.
