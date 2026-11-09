@@ -17,7 +17,7 @@ How much each game has been checked differs, and "implemented" does not mean "pl
 | Line | Version | Branch | Notes |
 |---|---|---|---|
 | Stable (WinForms) | v4.17.1 | `Eris-Ultranova` | Current stable release |
-| Definitive Randomizer WPF (3DS + DS + Sword/Shield) | Prereleases (latest published: v0.15.0-preview.2) | `main` | Prereleases for testers; Sword/Shield exports mods instead of rebuilding ROMs. A first stable WPF version is being prepared and is **not yet published** |
+| Definitive Randomizer WPF (3DS + DS + Sword/Shield) | Prereleases (latest published: v0.15.0-preview.2) | `main` | Prereleases for testers; Sword/Shield exports mods instead of rebuilding ROMs. `v0.15.0-preview.2` was published from a release branch; its functional fix is also integrated in `main`. A first stable WPF version is being prepared and is **not yet published** |
 
 - **Platform:** Windows x64
 - **License:** GNU GPL v3
@@ -55,7 +55,7 @@ Current limits:
 
 - Other games and revisions (for example Black 2, SoulSilver or Pearl) are rejected.
 - The romhack mode is beta and only patches game code (overlays, ARM9) when it is the original. Black, White and White 2 are DSi-enhanced and their ARM9 is not modified.
-- The owner confirmed phases 0–14 in-game (2026-10-31) and trainer editing in Platinum in combat; that confirmation is not extended to other controls or games.
+- The owner confirmed phases 0–14 in-game (2026-10-31) and trainer editing (one Pokémon, four moves and an item) in Platinum in combat; that confirmation is not extended to other controls or games.
 - The DS map and event editor is not part of the stable scope.
 
 See [COMPATIBILIDAD_PUBLICA.md](docs/3ds-progressive/COMPATIBILIDAD_PUBLICA.md) (Spanish) and the `NDS_FASE*` documents in the [index](docs/3ds-progressive/INDICE.md).

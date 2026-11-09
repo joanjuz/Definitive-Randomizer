@@ -1,6 +1,6 @@
 # Matriz pública de compatibilidad
 
-Qué juegos admite Definitive Randomizer (WPF) y **qué nivel de comprobación tiene cada uno**. Estado a 2026-11-09, sobre `main` en `cbf6f95`. Es un resumen para usuarios: el detalle técnico de cada módulo está en el [índice](INDICE.md).
+Qué juegos admite Definitive Randomizer (WPF) y **qué nivel de comprobación tiene cada uno**. Estado a 2026-11-09, sobre `main` con los PR #56 (entrenadores DS) y #57 (compatibilidad de mentas) ya integrados. Las versiones preliminares publicadas son anteriores o salieron de ramas de release; esta matriz describe el estado de `main`. Es un resumen para usuarios: el detalle técnico de cada módulo está en el [índice](INDICE.md).
 
 > **Cómo leer esta matriz.** «Implementado» no significa «probado en el juego». Cada columna es una evidencia distinta y ninguna sustituye a las demás. Donde no hay confirmación documentada, la celda lo dice; no se interpreta como que funciona ni como que falla.
 
@@ -23,10 +23,10 @@ Requiere una extracción **ya descifrada** (la aplicación no descifra ROMs come
 | **X / Y** | Editores y randomizadores de Pokémon, movimientos, evoluciones, entrenadores, encuentros, objetos y tiendas; Progressive; Global/Batch | Sí (suites sintéticas de las cuatro familias) | Sin evidencia documentada en esta línea WPF | Sin confirmación documentada para esta línea | Paridad de funciones **no** asumida respecto a otras familias. |
 | **Omega Ruby / Alpha Sapphire** | Igual que X/Y, más tutores BP y herramientas Gen6 propias | Sí | Sin evidencia documentada en esta línea WPF | Sin confirmación documentada para esta línea | — |
 | **Sol / Luna** | Editores y randomizadores; Global/Batch | Sí | Sin evidencia documentada en esta línea WPF | Sin confirmación documentada para esta línea | El balance de movimientos y las mecánicas Progressive están **excluidos a propósito**. Sin mentas. |
-| **Ultra Sol** | Todo lo anterior, más las extensiones Progressive (level caps, Relearner, tutores, Megas, distribución de mentas) | Sí | Sí: copias reales (mentas, distribución, historial, deshacer, reconstrucción) | **Mentas, iconos, distribución, Global Template, Batch y ROM generada** (propietario, emulador) | Resto de funciones de USUM: ver la lista de pendientes en [LIMITACIONES_ESTABLE.md](LIMITACIONES_ESTABLE.md). |
+| **Ultra Sol** | Todo lo anterior, más las extensiones Progressive (level caps, Relearner, tutores, Megas, distribución de mentas) | Sí | Sí: copias reales (mentas, distribución, historial, deshacer, reconstrucción) | **Mentas, iconos, distribución, Global Template, Batch y ROM generada** (propietario, emulador); además, el propietario comprobó las mentas con una ROM previamente randomizada | Resto de funciones de USUM: ver la lista de pendientes en [LIMITACIONES_ESTABLE.md](LIMITACIONES_ESTABLE.md). |
 | **Ultra Luna** | Igual que Ultra Sol | Sí | Sí: instalación de mentas reconocida en copia real | **No comprobado** jugando | Mentas con perfil propio; no se extiende la confirmación de Ultra Sol. |
 
-Región y revisión en 3DS: la aplicación identifica el título por la cabecera NCCH y, para los parches nativos (mentas), **por la huella exacta del ejecutable**, no por un número de versión comercial. No se anuncia soporte de «todas las revisiones». Cuando una revisión no está acreditada, la aplicación se detiene y muestra qué dependencia no coincide. *[Confirmar antes de publicar: la lista de regiones/revisiones 3DS con evidencia real; ver sección «Pendiente de confirmar» al final.]*
+Región y revisión en 3DS: la aplicación identifica el título por la cabecera NCCH. Para las **mentas**, la instalación **no exige que `code.bin` ni sus segmentos completos coincidan con una referencia**: comprueba la identidad del título, el tamaño y el mapa del ejecutable, las **dependencias nativas concretas** que usa el parche (62 rangos por perfil) y la integridad de Bag, objetos, textos y CRO/CRR. Un cambio ajeno a esas dependencias no bloquea las mentas; un cambio en una dependencia necesaria se rechaza con un diagnóstico que indica cuál. No se anuncia soporte de «todas las revisiones» ni de cualquier ROM hack, y no hay instalación forzada. Detalle en [MENTAS_GEN7_USUM_COMPATIBILIDAD.md](MENTAS_GEN7_USUM_COMPATIBILIDAD.md). *[Confirmar antes de publicar: la lista de regiones/revisiones 3DS con evidencia real; ver sección «Pendiente de confirmar» al final.]*
 
 ## Nintendo DS (Gen4 y Gen5)
 
@@ -35,7 +35,7 @@ Seis perfiles de **ROM original** identificados por código de juego, revisión 
 | Juego | Código / rev. | Implementado | Automático | Archivos reales | En juego |
 |---|---|---|---|---|---|
 | **Diamante** (USA) | `ADAE` / 5 | Entrenadores, encuentros, iniciales, objetos y tiendas, datos, evoluciones, estáticos/intercambios, movimientos huevo y tutores, ajustes, Global y Batch | Sí | Sí (volcado del propietario) | Sí: fases 0–14 (propietario, 31/10/2026) |
-| **Platino** (USA) | `CPUE` / 1 | Igual, más el editor de entrenadores compartido con 3DS | Sí | Sí | Sí: fases 0–14 y **edición de un entrenador (Pokémon, cuatro movimientos y objeto) comprobada en combate** |
+| **Platino** (USA) | `CPUE` / 1 | Igual, más el editor de entrenadores compartido con 3DS | Sí | Sí | Sí: fases 0–14 y, tras integrar el PR #56, **la edición de un entrenador (un Pokémon, cuatro movimientos y objeto) comprobada en combate** por el propietario |
 | **HeartGold** (USA) | `IPKE` / 0 | Igual que Diamante | Sí | Sí | Sí: fases 0–14 |
 | **Negro** | `IRBO` / 0 | Igual que Diamante (Gen5) | Sí | Sí | Sí: fases 0–14 |
 | **Blanco** (España) | `IRAS` / 0 | Igual que Diamante (Gen5) | Sí | Sí | Sí: fases 0–14 |
@@ -85,4 +85,5 @@ Estos puntos requieren decisión o dato del propietario; no se rellenaron por su
 1. Para X/Y, OR/AS y Sol/Luna, qué evidencia con archivos reales o en juego existe para la **línea WPF**. Hasta confirmarlo, la matriz declara «sin evidencia documentada».
 2. Regiones y revisiones concretas de los juegos 3DS con evidencia real.
 3. Región exacta de `IRBO` y de los demás volcados DS, si se desea indicarlas por idioma además de por código.
-4. Si la ROM propia del tester de mentas (pendiente en el seguimiento de PR #57) se incorpora a la matriz de Ultra Sol.
+4. Resultado de la ROM propia del tester de mentas, aún pendiente: hasta recibirlo no se añade a la matriz.
+5. Evidencias históricas y pruebas representativas que se están comprobando por separado; no se completan aquí por suposición.

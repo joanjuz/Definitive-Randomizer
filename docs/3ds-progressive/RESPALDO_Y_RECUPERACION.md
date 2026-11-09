@@ -48,12 +48,12 @@ Deshacer es conservador a propósito:
 
 El sistema de puntos de restauración y «Deshacer» descrito arriba es el de **3DS**; no asumas que existe igual en las otras plataformas.
 
-- **Nintendo DS:** abrir un proyecto **no modifica la ROM original**. Las ediciones se acumulan en memoria y «Exportar ROM…» escribe una ROM **nueva**. Para volver atrás antes de exportar usa «Descartar cambios pendientes». Si exportaste algo que no te gusta, borra esa ROM y vuelve a exportar desde el original.
-- **Espada/Escudo:** se exporta un **mod**; la extracción de origen se abre en solo lectura y no se genera historial dentro de su RomFS/ExeFS. Para quitar un mod, desactívalo o bórralo en la carpeta de mods del emulador. Eso restaura los recursos originales del juego.
+- **Nintendo DS:** abrir un proyecto **no modifica la ROM original**. Las ediciones y randomizaciones se acumulan en el proyecto y «Exportar ROM…» escribe una ROM **nueva** más un `.cambios.txt` con las operaciones y semillas. DS tiene Historial, Global Template y Batch, pero **esta guía no documenta un «Deshacer» con puntos de restauración como el de 3DS**. Para volver atrás antes de exportar usa «Descartar cambios pendientes». Si exportaste algo que no te gusta, borra esa ROM y vuelve a exportar desde el original.
+- **Espada/Escudo:** tiene su propio Historial (paginado y exportable), Global Template y Batch de mods. Se exporta un **mod**; la extracción de origen se abre en solo lectura y no se genera historial dentro de su RomFS/ExeFS. Para quitar un mod, desactívalo o bórralo en la carpeta de mods del emulador. Eso restaura los recursos originales del juego.
 
 ## Si falla un guardado
 
-Un guardado puede interrumpirse (corte de energía, disco lleno, otro programa escribiendo en el proyecto). La aplicación intenta no dejar el proyecto a medias:
+Esta recuperación está documentada y probada para los guardados de **proyectos 3DS** (historial y guardados individuales). En DS y Switch las salidas son una ROM nueva o un mod: si una exportación falla, borra la salida incompleta y vuelve a exportar desde el original. Un guardado de proyecto 3DS puede interrumpirse (corte de energía, disco lleno, otro programa escribiendo en el proyecto). La aplicación intenta no dejar el proyecto a medias:
 
 1. **Lee el mensaje de error completo** y no cierres nada todavía. Indica la causa, los archivos implicados y la ubicación del registro de recuperación.
 2. **No guardes, no reconstruyas ni borres archivos temporales** (`.tmp`, `.old.tmp`, `.pending`) después del error. Conserva también la carpeta del registro que menciona el mensaje.

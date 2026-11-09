@@ -4,11 +4,13 @@
 
 Primera versión **estable** de la aplicación WPF para Windows x64. Reúne la edición y randomización de **Nintendo 3DS**, **Nintendo DS** (Gen4 y Gen5) y **Espada/Escudo** (Switch) acreditadas en las versiones preliminares, y las acompaña de documentación de uso, respaldo y compatibilidad. No sustituye a la línea estable WinForms v4.17.1, que es independiente.
 
+> `v0.15.0-preview.2` se publicó desde una rama de release; la corrección funcional de las mentas ya está integrada en `main`, que es la base de esta versión. Los SHA y versiones de las previews no son los de la estable.
+
 ## Qué incluye
 
 - **Nintendo 3DS:** X/Y, Omega Ruby/Alpha Sapphire, Sol/Luna y Ultra Sol/Ultra Luna. Editores y randomizadores de Pokémon, movimientos, evoluciones, entrenadores, encuentros, objetos y tiendas; funciones Progressive (sobre todo en Ultra Sol/Ultra Luna); Global Template y Batch; historial con Deshacer; extracción y reconstrucción.
-- **Mentas Gen7** en Ultra Sol y Ultra Luna: 21 mentas funcionales con instalación segura, historial y Deshacer, distribución opcional en tiendas y pools, iconos opcionales, Global Template y Batch. [Confirmar tras integrar PR #57: ajuste de compatibilidad con ROM randomizadas.]
-- **Nintendo DS:** Diamante, Platino, HeartGold, Negro, Blanco (ES) y Blanco 2 (perfiles exactos de ROM original). Entrenadores (incluida la edición de equipo compartida con 3DS), encuentros, iniciales, objetos y tiendas, datos, evoluciones, estáticos e intercambios, movimientos huevo y tutores, ajustes, Global y Batch. Modo romhack en beta.
+- **Mentas Gen7** en Ultra Sol y Ultra Luna: 21 mentas funcionales con instalación segura, historial y Deshacer, distribución opcional en tiendas y pools, iconos opcionales, Global Template y Batch. La instalación se basa en dependencias nativas concretas del parche (PR #57), no en hashes completos de `code.bin`.
+- **Nintendo DS:** Diamante, Platino, HeartGold, Negro, Blanco (ES) y Blanco 2 (perfiles exactos de ROM original). Entrenadores, con tarjetas y edición de equipo compartidas con 3DS (PR #56), encuentros, iniciales, objetos y tiendas, datos, evoluciones, estáticos e intercambios, movimientos huevo y tutores, ajustes, Global y Batch. Modo romhack en beta.
 - **Espada y Escudo 1.3.2:** editores de datos, entrenadores, encuentros, objetos, tiendas, movimientos/Level Up/evoluciones, compatibilidad MT/TR y tutores, Global/Batch de mods y runtime propio por juego. Exporta un mod en formato Ryujinx.
 - **Seguridad de guardado:** escritura transaccional con recuperación de guardados interrumpidos, historial legible y Deshacer (3DS), registro del randomizado.
 - **Definitive Game Data v1** (Ultra Sol/Ultra Luna) para Progressive Tracker.
@@ -59,7 +61,7 @@ Indica versión y commit, juego/región/revisión/idioma, pasos, semilla y mensa
 
 ## Pendiente de confirmar antes de publicar (quitar al finalizar)
 
-1. Integración de PR #57 en `main` y revisión de la línea sobre mentas.
+1. Revisar la redacción de mentas contra el resultado de la ROM del tester (pendiente). PR #56 y #57 ya están integrados en `main`.
 2. Versión final, SHA de compilación y CI aprobado sobre el commit que se empaquete.
 3. Que el ciclo representativo guardar → deshacer → reabrir → reconstruir esté acreditado por plataforma con evidencia existente o una pasada nueva.
 4. Evidencia real o jugable de X/Y, OR/AS y Sol/Luna en la línea WPF, o mantener «sin evidencia documentada».

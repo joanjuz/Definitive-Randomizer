@@ -23,7 +23,7 @@ La versión estable cubre el alcance descrito en la matriz de compatibilidad. **
 ## Nintendo 3DS
 
 - **Mentas Gen7:** solo **Ultra Sol y Ultra Luna**, con perfiles exactos. Cambian la naturaleza **real** del Pokémon; no implementan el sistema de estadísticas de generaciones posteriores. Confirmadas jugando en **Ultra Sol**; **Ultra Luna no está comprobada jugando**. No hay mentas en Sol/Luna, Gen6, DS ni Switch.
-- Los ejecutables desconocidos o con diferencias no acreditadas **no se parchean**: la aplicación muestra qué dependencia no coincide en lugar de forzar la instalación. No se promete compatibilidad con cualquier ROM previamente modificada.
+- La instalación de mentas no exige hashes completos de `code.bin`, pero sí comprueba las dependencias nativas concretas del parche y la integridad de Bag, objetos, textos y CRO/CRR. Si una dependencia necesaria no coincide, **no se instala** y se explica cuál; no hay instalación forzada. No se promete compatibilidad con cualquier ROM previamente modificada ni se certifica el estado del motor creado en ejecución. Probar el juego sigue siendo necesario.
 - Global Template y Batch requieren una copia que ya tenga instaladas las dependencias (por ejemplo, el parche de mentas); no las instalan en silencio.
 - Las mecánicas Progressive están más desarrolladas en **Ultra Sol/Ultra Luna**; no todas existen en todos los juegos. Sol/Luna excluye el balance de movimientos a propósito.
 - **Incidencias USUM conocidas y sin resolver:**
@@ -35,7 +35,7 @@ La versión estable cubre el alcance descrito en la matriz de compatibilidad. **
 
 - Seis juegos con perfil exacto (ver la matriz). **Negro 2, SoulSilver, Perla** y otras regiones/revisiones no se admiten.
 - **Modo romhack en beta.** El código del juego (overlays, ARM9) solo se parchea si es el original. Negro, Blanco y Blanco 2 son DSi-enhanced y su ARM9 no se modifica.
-- Las confirmaciones jugables corresponden a lo que se indica en la matriz. La edición de entrenadores comprobada en combate fue en **Platino**.
+- Las confirmaciones jugables corresponden a lo que se indica en la matriz. La edición de entrenadores (PR #56) se comprobó en combate **solo en Platino** (un Pokémon, cuatro movimientos y objeto); no se extrapola a otros juegos DS, a controles no probados, a formas arbitrarias ni a una partida completa.
 - **El editor de eventos y mapas de DS no está incluido** en esta versión. No hay edición de scripts, destinos ni geometría de mapas.
 
 ## Espada y Escudo
