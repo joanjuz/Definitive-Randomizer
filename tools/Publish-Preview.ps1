@@ -1,9 +1,11 @@
 param(
     [Parameter(Mandatory=$true)][string]$OutputDirectory,
-    [string]$Version = '1.0.0-rc.1'
+    [string]$Version = '1.0.0'
 )
 $ErrorActionPreference = 'Stop'
-if ($Version -notmatch '^\d+\.\d+\.\d+-[A-Za-z0-9.-]+$') { throw 'Expected a prerelease version.' }
+# SemVer 2.0: stable or prerelease, with optional build metadata; numeric identifiers have no leading zeroes.
+$versionPattern = '\A(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(?:-(?:0|[1-9][0-9]*|[0-9]*[A-Za-z-][0-9A-Za-z-]*)(?:\.(?:0|[1-9][0-9]*|[0-9]*[A-Za-z-][0-9A-Za-z-]*))*)?(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?\z'
+if ($Version -cnotmatch $versionPattern) { throw 'Expected a valid SemVer version (stable or prerelease).' }
 $repo = Split-Path $PSScriptRoot -Parent
 $notes = Join-Path $repo ("docs/3ds-progressive/RELEASE_"+$Version.Replace('-','_').Replace('preview.','PREVIEW_')+'.md')
 if (-not (Test-Path -LiteralPath $notes)) { throw "Missing release notes: $notes" }
@@ -61,6 +63,9 @@ try {
         Copy-Item -LiteralPath (Join-Path $repo $file) -Destination (Join-Path $stage 'third-party') -Force
     }
     $packageNotes = (Get-Content -LiteralPath $notes -Raw -Encoding utf8).Replace('@BUILD_COMMIT@', $revision)
+    foreach ($guide in @('PRIMEROS_PASOS.md','RESPALDO_Y_RECUPERACION.md','COMPATIBILIDAD_PUBLICA.md','LIMITACIONES_ESTABLE.md')) {
+        $packageNotes = $packageNotes.Replace("]($guide)", "](docs/$guide)")
+    }
     $packageNotes | Set-Content -LiteralPath (Join-Path $stage 'LEEME.md') -Encoding utf8
     $packageNotes | Set-Content -LiteralPath (Join-Path $stage 'RELEASE_NOTES.md') -Encoding utf8
     [ordered]@{
