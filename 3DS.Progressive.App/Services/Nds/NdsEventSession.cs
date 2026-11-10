@@ -9,13 +9,16 @@ namespace ThreeDS.Progressive.Services.Nds;
 internal sealed record NdsNpcEdit(int Map, int Index, PlatinumNpcValues Before, PlatinumNpcValues After);
 /// <summary>A new NPC record appended to the NPC block of a map's event file. <c>Index</c> is the position it takes (the NPC count before the addition).</summary>
 internal sealed record NdsNpcAddition(int Map, int Index, string RecordHex);
+/// <summary>Removal of an NPC that an earlier operation of this history ADDED (never an NPC of the original data). <c>RecordHex</c> must match.</summary>
+internal sealed record NdsNpcRemoval(int Map, int Index, string RecordHex);
 /// <summary>One recorded operation. Exactly one of the payloads is set, according to <c>Kind</c>.</summary>
-internal sealed record NdsEventOperation(string Kind, NdsNpcEdit? Move, NdsNpcAddition? Add)
+internal sealed record NdsEventOperation(string Kind, NdsNpcEdit? Move, NdsNpcAddition? Add, NdsNpcRemoval? Remove = null)
 {
-    internal const string MoveKind = "MoveNpc", AddKind = "AddNpc";
+    internal const string MoveKind = "MoveNpc", AddKind = "AddNpc", RemoveKind = "RemoveAddedNpc";
+    internal static NdsEventOperation OfRemove(NdsNpcRemoval remove) => new(RemoveKind, null, null, remove);
     internal static NdsEventOperation OfMove(NdsNpcEdit edit) => new(MoveKind, edit, null);
     internal static NdsEventOperation OfAdd(NdsNpcAddition add) => new(AddKind, null, add);
-    internal int Map => Move?.Map ?? Add?.Map ?? -1;
+    internal int Map => Move?.Map ?? Add?.Map ?? Remove?.Map ?? -1;
 }
 /// <summary>
 /// Version 1: moves only (<c>Edits</c>), exactly as before. Version 2: ordered <c>Operations</c> (moves and NPC additions); <c>Edits</c> is empty.
@@ -25,7 +28,7 @@ internal sealed record NdsEventDocument(string Format, int Version, string Game,
     IReadOnlyList<NdsNpcEdit> Edits, IReadOnlyList<string> Audit, IReadOnlyList<NdsEventOperation>? Operations = null);
 internal sealed record NdsEventProposal(Guid Owner, int Revision, NdsEventOperation Operation, bool Undo, IReadOnlyList<Gen5Change> Changes, IReadOnlyList<string>? Lines = null)
 {
-    internal bool IsStructural => Operation.Kind == NdsEventOperation.AddKind;
+    internal bool IsStructural => Operation.Kind is NdsEventOperation.AddKind or NdsEventOperation.RemoveKind;
 }
 
 /// <summary>DS-specific immutable checkpoints. Every save publishes a NEW JSON file; the source NDS and previous checkpoints stay intact.</summary>
@@ -46,7 +49,10 @@ internal sealed class NdsEventSession
     internal bool CanUndo => _ops.Count > 0;
     /// <summary>The addition recorded by the last operation, if that is what it was (its exact undo is "Restaurar último cambio").</summary>
     internal NdsNpcAddition? LastAddition => _ops.Count > 0 ? _ops[^1].Add : null;
-    internal bool HasStructuralOperations => _ops.Any(o => o.Kind == NdsEventOperation.AddKind);
+    internal bool HasStructuralOperations => _ops.Any(o => o.Kind != NdsEventOperation.MoveKind);
+    /// <summary>NPC of the ORIGINAL data occupy indices below this count; anything at or above it was added by this history.</summary>
+    internal int OriginalNpcCount(int map) => _original.NpcCount(map);
+    internal bool IsAddedNpc(int map, int index) => index >= _original.NpcCount(map) && index < Data.NpcCount(map);
     internal IReadOnlyList<string> Audit => _audit.AsReadOnly();
     internal string? LastCheckpoint { get; private set; }
     internal string SourcePath => _rom.Path;
@@ -78,12 +84,27 @@ internal sealed class NdsEventSession
             return new(_owner, Revision, NdsEventOperation.OfAdd(addition), false, AdditionChanges(addition, added.NpcCount(map)), AdditionLines(addition, record));
         }
     }
+    /// <summary>Previews removing an NPC that this history added (any position). NPC of the original data are refused.</summary>
+    internal NdsEventProposal PreviewRemoveAdded(int map, int index)
+    {
+        lock (_gate)
+        {
+            if (!IsAddedNpc(map, index)) throw new InvalidOperationException("Solo se pueden eliminar NPC añadidos por el editor; los del juego original no se eliminan.");
+            var npc = Data.Npc(map, index); byte[] record = Convert.FromHexString(npc.Raw);
+            _ = Data.RemoveNpc(map, index, record);
+            var removal = new NdsNpcRemoval(map, index, npc.Raw); int count = Data.NpcCount(map);
+            return new(_owner, Revision, NdsEventOperation.OfRemove(removal), false, [new($"Mapa {map} · NPC añadido {index}", "Cantidad de NPC", count, count - 1)],
+                [$"Mapa {map} · eliminar el NPC añadido (índice {index}, ID {npc.Id})", $"  X {npc.X} · Y {npc.Y} · gráfico {npc.Graphics}", index < count - 1 ? $"  Los NPC añadidos posteriores pasan del índice {index + 1}… al {index}…" : "  Es el último NPC del bloque.", $"  Cantidad de NPC: {count} → {count - 1}"]);
+        }
+    }
     internal NdsEventProposal PreviewUndo()
     {
         lock (_gate)
         {
             if (_ops.Count == 0) throw new InvalidOperationException("No hay una edición de eventos que restaurar.");
             var last = _ops[^1];
+            if (last.Kind == NdsEventOperation.RemoveKind)
+                return new(_owner, Revision, last, true, [new($"Mapa {last.Remove!.Map} · NPC añadido {last.Remove.Index}", "Cantidad de NPC", Data.NpcCount(last.Remove.Map), Data.NpcCount(last.Remove.Map) + 1)], [$"Mapa {last.Remove.Map} · volver a poner el NPC añadido eliminado (índice {last.Remove.Index})"]);
             if (last.Kind == NdsEventOperation.AddKind)
                 return new(_owner, Revision, last, true, AdditionChanges(last.Add!, last.Add!.Index, undo: true), AdditionLines(last.Add!, Convert.FromHexString(last.Add!.RecordHex), undo: true));
             var move = last.Move!; var reversed = move with { Before = move.After, After = move.Before };
@@ -118,8 +139,8 @@ internal sealed class NdsEventSession
             {
                 if (ops.Count == 0) throw new InvalidDataException("La restauración no corresponde al último cambio.");
                 var last = ops[^1];
-                bool matches = proposal.Operation.Kind == last.Kind && (last.Kind == NdsEventOperation.AddKind
-                    ? proposal.Operation.Add == last.Add
+                bool matches = proposal.Operation.Kind == last.Kind && (last.Kind != NdsEventOperation.MoveKind
+                    ? proposal.Operation == last
                     : proposal.Operation.Move == (last.Move! with { Before = last.Move!.After, After = last.Move!.Before }));
                 if (!matches) throw new InvalidDataException("La restauración no corresponde al último cambio.");
                 ops.RemoveAt(ops.Count - 1);
@@ -131,10 +152,12 @@ internal sealed class NdsEventSession
                 ops.Add(proposal.Operation);
             }
             var next = Replay(ops);
-            string what = proposal.Operation.Kind == NdsEventOperation.AddKind ? $"NPC nuevo índice {proposal.Operation.Add!.Index}" : $"NPC {proposal.Operation.Move!.Index}";
+            string what = proposal.Operation.Kind switch { NdsEventOperation.AddKind => $"NPC nuevo índice {proposal.Operation.Add!.Index}", NdsEventOperation.RemoveKind => $"NPC añadido índice {proposal.Operation.Remove!.Index}", _ => $"NPC {proposal.Operation.Move!.Index}" };
             string detail = proposal.Operation.Kind == NdsEventOperation.AddKind ? string.Join("; ", AdditionLines(proposal.Operation.Add!, Convert.FromHexString(proposal.Operation.Add!.RecordHex), proposal.Undo).Skip(1).Select(l => l.Trim()))
+                : proposal.Operation.Kind == NdsEventOperation.RemoveKind ? "registro " + proposal.Operation.Remove!.RecordHex
                 : string.Join("; ", proposal.Changes.Select(c => $"{c.Field} {c.Before} → {c.After}"));
-            var audit = new List<string>(_audit) { (proposal.Undo ? "Restaurar" : proposal.Operation.Kind == NdsEventOperation.AddKind ? "Añadir" : "Guardar") + $" mapa {proposal.Operation.Map} {what}: " + detail };
+            string verb = proposal.Undo ? "Restaurar" : proposal.Operation.Kind switch { NdsEventOperation.AddKind => "Añadir", NdsEventOperation.RemoveKind => "Eliminar", _ => "Guardar" };
+            var audit = new List<string>(_audit) { verb + $" mapa {proposal.Operation.Map} {what}: " + detail };
             var document = Build(ops, audit);
             CheckSource();
             WriteNew(checkpoint, JsonSerializer.SerializeToUtf8Bytes(document, Json), path =>
@@ -180,17 +203,27 @@ internal sealed class NdsEventSession
             {
                 case NdsEventOperation.MoveKind:
                     var edit = operation.Move;
-                    if (edit is null || edit.Before is null || edit.After is null || operation.Add is not null) throw new InvalidDataException("Edición de NPC incompleta.");
+                    if (edit is null || edit.Before is null || edit.After is null || operation.Add is not null || operation.Remove is not null) throw new InvalidDataException("Edición de NPC incompleta.");
                     result = result.WithEvents(result.ReplaceNpc(edit.Map, edit.Index, edit.Before, edit.After));
                     break;
                 case NdsEventOperation.AddKind:
                     var add = operation.Add;
-                    if (add is null || operation.Move is not null || string.IsNullOrEmpty(add.RecordHex) || add.RecordHex.Length != 64) throw new InvalidDataException("Adición de NPC incompleta.");
+                    if (add is null || operation.Move is not null || operation.Remove is not null || string.IsNullOrEmpty(add.RecordHex) || add.RecordHex.Length != 64) throw new InvalidDataException("Adición de NPC incompleta.");
                     byte[] record;
                     try { record = Convert.FromHexString(add.RecordHex); } catch (FormatException ex) { throw new InvalidDataException("Registro de NPC ilegible en el checkpoint.", ex); }
                     if (add.Map < 0 || add.Map >= result.Maps.Count) throw new InvalidDataException("Mapa inexistente en la adición de NPC.");
                     if (add.Index != result.NpcCount(add.Map)) throw new InvalidDataException("El índice del NPC añadido no coincide con el estado reconstruido.");
                     try { result = result.AddNpc(add.Map, record); }
+                    catch (InvalidOperationException ex) { throw new InvalidDataException(ex.Message, ex); }
+                    break;
+                case NdsEventOperation.RemoveKind:
+                    var remove = operation.Remove;
+                    if (remove is null || operation.Move is not null || operation.Add is not null || string.IsNullOrEmpty(remove.RecordHex) || remove.RecordHex.Length != 64) throw new InvalidDataException("Eliminación de NPC incompleta.");
+                    if (remove.Map < 0 || remove.Map >= result.Maps.Count) throw new InvalidDataException("Mapa inexistente en la eliminación de NPC.");
+                    if (remove.Index < _original.NpcCount(remove.Map) || remove.Index >= result.NpcCount(remove.Map)) throw new InvalidDataException("Solo se pueden eliminar NPC añadidos por el editor.");
+                    byte[] expected;
+                    try { expected = Convert.FromHexString(remove.RecordHex); } catch (FormatException ex) { throw new InvalidDataException("Registro de NPC ilegible en el checkpoint.", ex); }
+                    try { result = result.RemoveNpc(remove.Map, remove.Index, expected); }
                     catch (InvalidOperationException ex) { throw new InvalidDataException(ex.Message, ex); }
                     break;
                 default: throw new InvalidDataException("Operación de eventos desconocida: " + operation.Kind);

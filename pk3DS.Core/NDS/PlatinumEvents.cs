@@ -188,13 +188,14 @@ public sealed class PlatinumEvents
     /// the template; script, flag and type are set to 0 ("no script", "no flag", normal NPC) because a script or flag copied from another NPC would
     /// refer to that NPC's local id.
     /// </summary>
-    public static byte[] NewNpcRecord(PlatinumEvent template, int id, int graphics, int movement, int direction, int x, int y)
+    public static byte[] NewNpcRecord(PlatinumEvent template, int id, int graphics, int movement, int direction, int x, int y, int? rawHeight = null)
     {
         if (template.Kind != PlatinumEventKind.Npc || template.Type != 0) throw new ArgumentException("La plantilla debe ser un NPC normal existente.", nameof(template));
         byte[] record = Convert.FromHexString(template.Raw);
         if (record.Length != 32) throw new InvalidDataException("Registro de NPC de plantilla inválido.");
         Put16(record, 0, id); Put16(record, 2, graphics); Put16(record, 4, movement); Put16(record, 6, 0); Put16(record, 8, 0); Put16(record, 10, 0);
         Put16(record, 12, direction); Put16(record, 24, x); Put16(record, 26, y);
+        if (rawHeight is int z) BinaryPrimitives.WriteInt32LittleEndian(record.AsSpan(28), z);
         return record;
     }
 
@@ -238,6 +239,31 @@ public sealed class PlatinumEvents
         bool others = after.Count == before.Count && Enumerable.Range(0, before.Count).All(i => i == file || before[i].AsSpan().SequenceEqual(after[i]));
         var added = next.Events(mapId).Where(e => e.Kind == PlatinumEventKind.Npc).ToList();
         if (!others || after[file].Length != member.Length + 32 || added.Count != count + 1 || !string.Equals(added[^1].Raw, Convert.ToHexString(record), StringComparison.Ordinal))
+            throw new InvalidDataException("La reconstrucción del archivo de eventos no cumple las invariantes; se descarta.");
+        return next;
+    }
+
+    /// <summary>
+    /// Returns a NEW instance without the NPC record at <paramref name="index"/> (later NPC of the same file move up one index). Only the caller
+    /// knows whether the record may be removed (the session restricts it to records it added itself); this method enforces the structure:
+    /// the record must match <paramref name="expectedRecord"/>, every other member stays byte-identical, and the result is re-parsed.
+    /// </summary>
+    public PlatinumEvents RemoveNpc(int mapId, int index, byte[] expectedRecord)
+    {
+        int file = Map(mapId).EventFile; var (offset, count) = _blocks[file][1];
+        if ((uint)index >= (uint)count) throw new ArgumentOutOfRangeException(nameof(index), "NPC inexistente.");
+        var archive = Narc.Read(_events); byte[] member = archive.Files[file]; int at = offset + index * 32;
+        if (expectedRecord.Length != 32 || !member.AsSpan(at, 32).SequenceEqual(expectedRecord)) throw new InvalidOperationException("El NPC ya no coincide con el registro esperado.");
+        byte[] shrunk = new byte[member.Length - 32];
+        member.AsSpan(0, at).CopyTo(shrunk); member.AsSpan(at + 32).CopyTo(shrunk.AsSpan(at));
+        Put32(shrunk, offset - 4, (uint)(count - 1));
+        archive.Files[file] = shrunk;
+        var next = new PlatinumEvents(_headers, _names, archive.Write(), _matrices, _scriptBytes, _labels);
+        var before = Narc.Read(_events).Files; var after = Narc.Read(next._events).Files;
+        bool others = after.Count == before.Count && Enumerable.Range(0, before.Count).All(i => i == file || before[i].AsSpan().SequenceEqual(after[i]));
+        var remaining = next.Events(mapId).Where(e => e.Kind == PlatinumEventKind.Npc).Select(e => e.Raw).ToList();
+        var expected = Events(mapId).Where(e => e.Kind == PlatinumEventKind.Npc && e.Index != index).Select(e => e.Raw).ToList();
+        if (!others || after[file].Length != member.Length - 32 || !remaining.SequenceEqual(expected))
             throw new InvalidDataException("La reconstrucción del archivo de eventos no cumple las invariantes; se descarta.");
         return next;
     }

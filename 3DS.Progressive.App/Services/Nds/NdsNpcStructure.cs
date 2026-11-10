@@ -8,7 +8,8 @@ internal sealed record NdsNpcClip(PlatinumEvent Source, bool Cut, int SourceMap,
     internal string Origin => $"mapa {SourceMap}, NPC {Source.Index} (ID {Source.Id}), archivo de eventos {SourceEventFile}";
 }
 
-internal sealed record NdsAddDraft(int Id, int Graphics, int Movement, int Direction, int X, int Y);
+/// <summary>Values of a new NPC. <c>RawHeight</c> overrides the template's raw height (+28) when the template comes from another map.</summary>
+internal sealed record NdsAddDraft(int Id, int Graphics, int Movement, int Direction, int X, int Y, int? RawHeight = null);
 
 /// <summary>Result of evaluating a new-NPC draft. Nothing is written; <c>Record</c> is set when it can be previewed.</summary>
 internal sealed record NdsAddPlan(NdsMoveOutcome Outcome, byte[]? Record, IReadOnlyList<string> Reasons, NdsTileAssessment? Assessment)
@@ -38,7 +39,7 @@ internal static class NdsNpcStructurePlanner
     {
         if (!IsTemplate(template)) return new(NdsMoveOutcome.Rejected, null, ["la plantilla debe ser un NPC normal existente (no un NPC objeto de suelo, objeto, warp ni activador)"], null);
         byte[] record;
-        try { record = PlatinumEvents.NewNpcRecord(template, draft.Id, draft.Graphics, draft.Movement, draft.Direction, draft.X, draft.Y); }
+        try { record = PlatinumEvents.NewNpcRecord(template, draft.Id, draft.Graphics, draft.Movement, draft.Direction, draft.X, draft.Y, draft.RawHeight); }
         catch (OverflowException) { return new(NdsMoveOutcome.Rejected, null, ["algún valor está fuera del rango de 16 bits que admite el registro"], null); }
         var problems = data.ValidateNewNpc(mapId, record);
         var a = model.Query.Assess(draft.X, draft.Y);
@@ -51,9 +52,9 @@ internal static class NdsNpcStructurePlanner
     }
 
     /// <summary>
-    /// Compatibility of pasting a clip into a map. A copy only needs the target event file to accept a new record (its ids and bounds are re-checked by PlanAdd);
-    /// a cut is a MOVE of the original and therefore needs the SAME event file. Anything across different event files is rejected: scripts, flags and local ids
-    /// belong to their own map and nothing here can prove that they carry over.
+    /// What makes a paste impossible. A COPY always creates a NEW NPC in the target event file (same file or another map: "basic copy", see
+    /// <see cref="CrossMapNotes"/>); its id, values and bounds are re-checked by PlanAdd. A CUT is a MOVE of the original and therefore needs the SAME
+    /// event file: moving across files would mean deleting an original NPC, which is never done.
     /// </summary>
     internal static IReadOnlyList<string> PasteProblems(PlatinumEvents data, NdsNpcClip clip, int targetMap)
     {
@@ -65,16 +66,42 @@ internal static class NdsNpcStructurePlanner
             else if (!data.Events(targetMap).Any(e => e.Kind == PlatinumEventKind.Npc && e.Index == clip.Source.Index && e.Id == clip.Source.Id))
                 problems.Add("el NPC original ya no existe con ese índice e ID");
         }
-        else if (target.EventFile != clip.SourceEventFile)
-            problems.Add($"el destino usa otro archivo de eventos ({target.EventFile}) distinto del origen ({clip.SourceEventFile}): no se puede demostrar que su gráfico, movimiento y numeración sean compatibles, y los scripts no se trasladan");
         return problems;
     }
 
-    /// <summary>Deleting is refused for every NPC of the original data. The reasons list what makes it unprovable; it never offers an override.</summary>
-    internal static NdsDeleteAssessment AssessDelete(PlatinumEvents data, int mapId, PlatinumEvent npc, bool lastOperationAddedIt)
+    internal static bool IsCrossMap(PlatinumEvents data, NdsNpcClip clip, int targetMap) => data.Map(targetMap).EventFile != clip.SourceEventFile;
+
+    /// <summary>
+    /// Copy between maps, mode A ("apariencia y configuración básica"): what is kept, what is reset and why. Never promises dialogue or behaviour.
+    /// </summary>
+    internal static IReadOnlyList<string> CrossMapNotes(NdsNpcClip clip) =>
+    [
+        $"copia básica desde {clip.Origin}: se crea un NPC NUEVO en este mapa; el original no cambia",
+        $"se conservan: gráfico {clip.Source.Graphics}, movimiento {clip.Source.Movement}, dirección, rango de visión y rangos de movimiento",
+        "se reinician: script 0 y flag 0 (los del origen pertenecen a otro mapa); el ID local es uno libre de este mapa",
+        "no se trasladan diálogos, combates ni comportamiento de scripts del NPC original",
+        "altura: la del NPC más cercano de este mapa (no se lee el BDHC)",
+    ];
+
+    /// <summary>Raw height (+28) for a NPC brought from another map: that of the nearest NPC of the target map, else the template's own.</summary>
+    internal static (int RawHeight, string Source) TargetHeight(PlatinumEvents data, int targetMap, PlatinumEvent template, int x, int y)
     {
+        var near = data.Events(targetMap).Where(e => e.Kind == PlatinumEventKind.Npc).OrderBy(e => Math.Max(Math.Abs(e.X - x), Math.Abs(e.Y - y))).ThenBy(e => e.Index).FirstOrDefault();
+        return near is null ? (template.Z, "la de la plantilla (el mapa no tiene NPC)") : (near.Z, $"la del NPC {near.Index} de este mapa");
+    }
+
+    /// <summary>Draft for pasting a clip at (x, y): a free id, the clip's appearance and, across maps, a height taken from the target map.</summary>
+    internal static NdsAddDraft PasteDraft(PlatinumEvents data, NdsNpcClip clip, int targetMap, int x, int y)
+    {
+        var draft = DraftFrom(data, targetMap, clip.Source, x, y);
+        return IsCrossMap(data, clip, targetMap) ? draft with { RawHeight = TargetHeight(data, targetMap, clip.Source, x, y).RawHeight } : draft;
+    }
+
+    /// <summary>Deleting is refused for every NPC of the original data. The reasons list what makes it unprovable; it never offers an override.</summary>
+    internal static NdsDeleteAssessment AssessDelete(PlatinumEvents data, int mapId, PlatinumEvent npc, bool addedByEditor)
+    {
+        if (addedByEditor) return new(true, ["este NPC lo añadió el editor: se puede eliminar con una propuesta reversible (los NPC añadidos posteriores bajan un índice)", "nada del juego original se refiere a él: se creó con script 0, flag 0 y un ID libre"]);
         var reasons = new List<string>();
-        if (lastOperationAddedIt) reasons.Add("este NPC lo añadió la última operación guardada: usa «Restaurar último cambio…» para quitarlo de forma exacta y reversible");
         reasons.Add($"no existe un analizador de scripts: no se puede demostrar que ningún script se refiera al NPC con ID {npc.Id} (los scripts localizan a los NPC por su ID local)");
         if (npc.Script != 0) reasons.Add($"el NPC tiene asociado el script {npc.Script}");
         var same = data.Events(mapId).Where(e => e.Kind == PlatinumEventKind.Npc && e.Id == npc.Id && e.Index != npc.Index).ToList();
