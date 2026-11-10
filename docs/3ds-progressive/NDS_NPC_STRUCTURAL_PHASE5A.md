@@ -21,6 +21,19 @@ Consecuencias de diseño:
 - Gráfico y movimiento solo pueden ser valores que aparecen en NPC del juego original (listas acreditadas). La dirección es 0–3. Posición dentro de los límites del editor.
 - Un mapa no supera **51** NPC (el máximo observado); el límite real del motor no se conoce y no se intenta rebasar el del juego original.
 
+## Corrección posterior (rediseño)
+
+Tras la prueba del propietario se corrigió la experiencia de uso y se amplió el alcance; el diagnóstico está en [NDS_EDITOR_REDESIGN_PLAN.md](NDS_EDITOR_REDESIGN_PLAN.md). En resumen:
+
+- **Duplicar / Pegar / Añadir** se hacen eligiendo la casilla en el mapa (fantasma). Una casilla sin conflictos previsualiza directamente; una advertencia, «Añadir» o una copia desde otro mapa abren el formulario, que ahora vive en el inspector (el mapa sigue visible) y muestra la **plantilla**, que se puede cambiar.
+- El NPC previsualizado se dibuja en el mapa como **«NPC nuevo · pendiente de guardar»** hasta guardarlo o descartarlo.
+- El **clic derecho** selecciona el NPC bajo el cursor y el menú ofrece «Pegar aquí», «Duplicar aquí» y «Añadir NPC aquí» en esa casilla.
+- **Copiar entre mapas** está permitido como **copia básica** (modo A): NPC nuevo con el gráfico, el movimiento, la dirección, la visión y los rangos del original; script y flag a 0; ID libre del destino; altura del NPC más cercano del destino. No se trasladan diálogos ni comportamiento. Cortar entre mapas sigue rechazado.
+- **Eliminar** quita cualquier NPC **añadido por el editor** (no solo el último), con una propuesta reversible; los NPC del juego original siguen protegidos con su explicación.
+- Guardar o restaurar **conserva el zoom y la posición** del mapa.
+
+Las secciones siguientes describen la entrega original y siguen siendo válidas salvo en esos puntos.
+
 ## Operaciones
 
 Botones **[Añadir] [Duplicar] [Copiar] [Cortar] [Pegar] [Eliminar]** junto al inspector, menú contextual del lienzo y atajos (Ctrl+C, Ctrl+X, Ctrl+V, Ctrl+D, Supr). Cada operación termina en una **propuesta revisable**: nada se escribe al pulsar un botón ni al elegir una casilla.
@@ -43,7 +56,7 @@ Evaluación de la casilla con `NdsSpatialQuery`: **Rechazado** (colisión, fuera
 
 Formato `DefinitiveRandomizer.NdsEvents`, **versión 2**, solo cuando la sesión incluye una adición. Una sesión que únicamente mueve NPC **sigue escribiendo la versión 1** (mismo JSON que antes, sin campo nuevo), de modo que esos archivos se siguen leyendo en versiones anteriores. La versión 1 se lee y restaura igual que siempre.
 
-- Campos de la v2: los de la v1 (`Format`, `Version`, `Game`, `Revision`, `SourcePath`, `SourceSha256`, `Audit`), `Edits` vacío y **`Operations`** ordenadas. Cada operación tiene `Kind` (`MoveNpc` o `AddNpc`) y una carga: `Move` (mapa, índice, antes/después) o `Add` (mapa, índice al que entra y el registro de 32 bytes en hexadecimal).
+- Campos de la v2: los de la v1 (`Format`, `Version`, `Game`, `Revision`, `SourcePath`, `SourceSha256`, `Audit`), `Edits` vacío y **`Operations`** ordenadas. Cada operación tiene `Kind` (`MoveNpc`, `AddNpc` o `RemoveAddedNpc`) y una carga: `Move` (mapa, índice, antes/después), `Add` (mapa, índice al que entra y el registro de 32 bytes en hexadecimal) o `Remove` (mapa, índice y registro esperado). `RemoveAddedNpc` solo es válida para índices iguales o mayores que el número de NPC del juego original y si el registro coincide; nunca elimina un NPC original.
 - La reconstrucción repite las operaciones sobre la fuente acreditada: el resultado es determinista y se **vuelve a leer y reproducir antes de publicar** el archivo (staging, vaciado a disco, relectura, sin sobrescritura), como en la v1.
 - Se rechazan: versión desconocida; v2 sin operaciones o con `Edits`; v1 con `Operations`; operaciones de tipo desconocido o con dos cargas; adiciones con índice que no coincide con el estado reconstruido, ID repetido, valores no acreditados, hexadecimal ilegible o truncado, mapa inexistente; fuente distinta (SHA-256).
 - Propuestas ligadas a sesión y revisión; una propuesta obsoleta o concurrente se rechaza.
