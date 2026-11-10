@@ -82,7 +82,7 @@ NPC (registro de eventos) ── script (número) ──┬─ local: archivo de
 - **Exportación:** eventos y, si cambiaron, `scr_seq`. Si otro módulo DS también escribió `scr_seq`, se **combinan** los miembros distintos y se **rechaza** si ambos tocaron el mismo archivo. La verificación posterior comprueba lo añadido por el editor.
 - **Restaurar** una adición con script quita ambos (reproducción sin esa operación). Eliminar un NPC añadido deja su script local sin uso (inofensivo); «Restaurar» es la vía exacta.
 
-## 5. Entrenadores nuevos (siguiente PR, diseño)
+## 5. Entrenadores nuevos (diseño; implementación pospuesta)
 
 1. **Reutilizar ranuras DUMMY** (204 IDs cuyo flag de derrota no usa el juego), nunca ampliar `trdata` hasta acreditar el tamaño de la zona de flags. Antes, comprobar que **ningún** NPC ni script referencia esa ranura (combates 3000/5000 y comandos de combate).
 2. Escribir **datos y equipo** con el editor de entrenadores DS existente (clase, nombre, Pokémon, niveles, movimientos, objetos).

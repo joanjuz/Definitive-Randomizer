@@ -100,14 +100,6 @@ La selección y el portapapeles ya son tipados; la **selección múltiple y copi
 | E | selección múltiple y grupos (propuestas multi‑operación) | guardado atómico y restauración exacta |
 | F | sprites de NPC | tabla gráfico → sprite acreditada |
 
-## 8. Prioridades y decisiones del roadmap (actualizado)
+## 8. Prioridades (actualizado el 10/11/2026)
 
-**Prioridad actual:** copiar NPC **con su comportamiento** y añadir **entrenadores nuevos** con equipos personalizables, antes del renderer. Primer paso entregado: enfermera con comportamiento y scripts compartidos ([NDS_NPC_SCRIPTS_PHASE6.md](NDS_NPC_SCRIPTS_PHASE6.md)). El PR #67 (estructuras) sigue pendiente de integración y el renderer espera a esta prioridad.
-
-Decisiones aprobadas por el propietario, **registradas sin implementar**:
-
-- **Abrir proyecto universal** con detección automática de Nintendo DS, 3DS o Switch.
-- **Exportar los Level Caps** configurados manualmente a Progressive Tracker y mostrar el límite de la etapa actual de la partida.
-- **Completar Nintendo DS Gen IV y Gen V** antes de extender el editor de mapas a 3DS.
-- **Paridad de las operaciones principales** entre plataformas, no igualdad de formatos internos.
-- El editor visual de mapas se limita por ahora a **escenarios y NPC existentes**; **añadir NPC y entrenadores nuevos sí forma parte del alcance**.
+El propietario reordenó las prioridades: primero **consolidar Platino** (mover NPC y entrenadores existentes, añadir y duplicar NPC, copiar entre mapas y colocar Enfermeras Joy funcionales). Después vienen la **apertura universal de proyectos** (requisito de 1.0.0) y la **paridad del editor en Gen IV y Gen V**. Los **entrenadores nuevos** y el **renderer gráfico** (entregas C, D y F de la tabla anterior) quedan **pospuestos**. El PR #67 sigue pendiente de integración. La hoja de ruta completa, con fases, matriz de evidencias y criterios de aceptación, está en el documento de hoja de ruta del editor y de 1.0.0.
