@@ -48,6 +48,7 @@ internal static class RunnerCatalog
         new("--nds-map-layout-probe","<informe JSON nuevo> <Platino CPUE/1 privado>",RunnerCategory.Real,false),
         new("--nds-npc-structure-only","",RunnerCategory.Synthetic,false),
         new("--nds-npc-structure-probe","<carpeta nueva> <Platino CPUE/1 privado>",RunnerCategory.Real,false),
+        new("--nds-live-ui-probe","<Platino CPUE/1 privado> <carpeta nueva> <ancho> <alto>",RunnerCategory.Real,false),
         new("--nds-npc-drag-only","",RunnerCategory.Synthetic,false),
         new("--nds-map-terrain-only","",RunnerCategory.Synthetic,false),
         new("--nds-map-terrain-probe","<informe JSON nuevo> <Platino CPUE/1 privado>",RunnerCategory.Real,false),

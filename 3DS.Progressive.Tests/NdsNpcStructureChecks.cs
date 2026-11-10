@@ -160,6 +160,26 @@ internal static class NdsNpcStructureChecks
                             () => { try { s7.Save(pb, Path.Combine(temp, "race-b.ndsevents.json")); Interlocked.Increment(ref wins); } catch (InvalidOperationException) { } });
             check(wins == 1 && s7.Revision == 1 && s7.Data.NpcCount(1) == 5 && Directory.GetFiles(temp, "race-*.ndsevents.json").Length == 1, "NpcStructure_ConcurrentStructuralSavesCommitExactlyOne");
             Reject<InvalidOperationException>(() => session.PreviewAdd(1, Record(data, 1, 20, 1, 1)), check, "NpcStructure_PreviewRejectsInvalidRecordsBeforeAnything");
+
+            // Removing NPC that the editor added (any position), never originals
+            var s8 = new NdsEventSession(rom, f.Read()); string q1 = Path.Combine(temp, "q1.ndsevents.json"), q2 = Path.Combine(temp, "q2.ndsevents.json"), q3 = Path.Combine(temp, "q3.ndsevents.json"), q4 = Path.Combine(temp, "q4.ndsevents.json");
+            s8.Save(s8.PreviewAdd(1, rec), q1); s8.Save(s8.PreviewAdd(1, Record(s8.Data, 1, 41, 121, 878)), q2); byte[] withTwo = s8.Data.Bytes();
+            check(s8.OriginalNpcCount(1) == 4 && s8.IsAddedNpc(1, 4) && s8.IsAddedNpc(1, 5) && !s8.IsAddedNpc(1, 3) && !s8.IsAddedNpc(1, 6), "NpcStructure_SessionKnowsWhichNpcItAdded");
+            Reject<InvalidOperationException>(() => s8.PreviewRemoveAdded(1, 0), check, "NpcStructure_OriginalNpcCannotBeRemoved");
+            var removeFirst = s8.PreviewRemoveAdded(1, 4);
+            check(removeFirst.IsStructural && removeFirst.Changes[0] is { Before: 6, After: 5 } && removeFirst.Lines!.Any(l => l.Contains("pasan del índice 5")) && s8.Data.Bytes().SequenceEqual(withTwo), "NpcStructure_RemovePreviewChangesNothing");
+            s8.Save(removeFirst, q3); var removedDoc = NdsEventSession.ReadDocument(q3);
+            check(s8.Data.NpcCount(1) == 5 && s8.Data.Npc(1, 4).Id == 41 && removedDoc.Version == 2 && removedDoc.Operations!.Select(o => o.Kind).SequenceEqual(["AddNpc", "AddNpc", "RemoveAddedNpc"]) && removedDoc.Operations![2].Remove!.Index == 4, "NpcStructure_RemovingANonLastAddedNpcIsRecorded");
+            using (var remRom = NdsRom.Open(source)) { var re = new NdsEventSession(remRom, f.Read()); re.Load(removedDoc, q3); check(re.Data.Bytes().SequenceEqual(s8.Data.Bytes()), "NpcStructure_RemovalReopensExactly"); }
+            s8.Save(s8.PreviewUndo(), q4); check(s8.Data.Bytes().SequenceEqual(withTwo), "NpcStructure_UndoOfARemovalPutsTheNpcBack");
+            using (var badRom = NdsRom.Open(source))
+            {
+                var b2 = new NdsEventSession(badRom, f.Read()); var bad = removedDoc.Operations![2];
+                void BadRemove(NdsEventOperation op, string name) { try { b2.Load(removedDoc with { Operations = [removedDoc.Operations![0], removedDoc.Operations[1], op] }, "x.ndsevents.json"); throw new Exception("FAIL accepted: " + name); } catch (InvalidDataException) { check(b2.Revision == 0, name); } }
+                BadRemove(bad with { Remove = bad.Remove! with { Index = 0, RecordHex = s8.Data.Npc(1, 0).Raw } }, "NpcStructure_CheckpointCannotRemoveAnOriginalNpc");
+                BadRemove(bad with { Remove = bad.Remove! with { RecordHex = s8.Data.Npc(1, 0).Raw } }, "NpcStructure_CheckpointRemovalMustMatchTheRecord");
+                BadRemove(bad with { Add = removedDoc.Operations[0].Add }, "NpcStructure_RemovalWithTwoPayloadsRejected");
+            }
         }
         finally { Directory.Delete(temp, true); }
 
@@ -182,7 +202,20 @@ internal static class NdsNpcStructureChecks
         // copy / cut / paste compatibility
         var copy = new NdsNpcClip(template, false, 1, 1); var cut = new NdsNpcClip(template, true, 1, 1);
         check(NdsNpcStructurePlanner.PasteProblems(data, copy, 1).Count == 0 && NdsNpcStructurePlanner.PasteProblems(data, cut, 1).Count == 0, "NpcStructurePlanner_CopyAndCutPasteInTheSameMap");
-        check(NdsNpcStructurePlanner.PasteProblems(data, copy, 2) is { Count: 1 } across && across[0].Contains("otro archivo de eventos") && NdsNpcStructurePlanner.PasteProblems(data, copy, 0).Count == 1, "NpcStructurePlanner_CopyAcrossEventFilesIsRejected");
+        check(NdsNpcStructurePlanner.PasteProblems(data, copy, 2).Count == 0 && NdsNpcStructurePlanner.PasteProblems(data, copy, 0).Count == 0 && NdsNpcStructurePlanner.IsCrossMap(data, copy, 2) && !NdsNpcStructurePlanner.IsCrossMap(data, copy, 1), "NpcStructurePlanner_CopyAcrossEventFilesIsABasicCopy");
+        var notes = NdsNpcStructurePlanner.CrossMapNotes(copy);
+        check(notes.Any(n => n.Contains("NPC NUEVO")) && notes.Any(n => n.Contains("script 0 y flag 0")) && notes.Any(n => n.Contains("no se trasladan diálogos")) && notes.Any(n => n.Contains("gráfico 33")), "NpcStructurePlanner_CrossMapNotesNeverPromiseBehaviour");
+        var crossDraft = NdsNpcStructurePlanner.PasteDraft(data, copy, 2, 3, 5); var sameDraft = NdsNpcStructurePlanner.PasteDraft(data, copy, 1, 120, 878);
+        check(crossDraft.RawHeight == data.Npc(2, 0).Z && crossDraft.Id == 31 && sameDraft.RawHeight is null && sameDraft.Id == 24, "NpcStructurePlanner_CrossMapHeightComesFromTheTargetMap");
+        var crossRecord = PlatinumEvents.NewNpcRecord(template, 31, 33, 0, 1, 3, 5, unchecked((int)0x00050000));
+        check(BinaryPrimitives.ReadInt32LittleEndian(crossRecord.AsSpan(28)) == 0x00050000 && data.ValidateNewNpc(2, crossRecord).Count == 0, "NpcStructurePlanner_CrossMapRecordIsValidInTheTargetFile");
+        // ---- RemoveNpc: only structure; the session decides what may be removed
+        var twoMore = data.AddNpc(1, Record(data, 1, 40, 120, 878)); twoMore = twoMore.AddNpc(1, Record(twoMore, 1, 41, 121, 878));
+        var first40 = twoMore.Npc(1, 4); var without40 = twoMore.RemoveNpc(1, 4, Convert.FromHexString(first40.Raw));
+        check(without40.NpcCount(1) == 5 && without40.Npc(1, 4).Id == 41 && Enumerable.Range(0, 4).All(i => without40.Npc(1, i) == data.Npc(1, i)) && without40.Events(0).SequenceEqual(data.Events(0)) && without40.Events(2).SequenceEqual(data.Events(2)), "NpcStructure_RemovingAMiddleRecordShiftsOnlyLaterOnes");
+        check(twoMore.RemoveNpc(1, 5, Convert.FromHexString(twoMore.Npc(1, 5).Raw)).RemoveNpc(1, 4, Convert.FromHexString(first40.Raw)).Bytes().SequenceEqual(originalBytes), "NpcStructure_AddThenRemoveRestoresTheOriginalBytes");
+        Reject<InvalidOperationException>(() => twoMore.RemoveNpc(1, 4, Convert.FromHexString(twoMore.Npc(1, 5).Raw)), check, "NpcStructure_RemoveChecksTheExpectedRecord");
+        Reject<ArgumentOutOfRangeException>(() => twoMore.RemoveNpc(1, 9, new byte[32]), check, "NpcStructure_RemoveRejectsAMissingIndex");
         check(NdsNpcStructurePlanner.PasteProblems(data, cut, 2) is { Count: 1 } cutAcross && cutAcross[0].Contains("no se puede demostrar") && data.NpcCount(1) == 4, "NpcStructurePlanner_CutAcrossEventFilesIsRejectedAndKeepsTheOriginal");
         check(NdsNpcStructurePlanner.PasteProblems(sharedData, new NdsNpcClip(FirstNpc(sharedData, 1), false, 1, 1), 2).Count == 0 && NdsNpcStructurePlanner.PasteProblems(sharedData, new NdsNpcClip(FirstNpc(sharedData, 1), true, 1, 1), 2).Count == 0, "NpcStructurePlanner_PastingIntoAHeaderThatSharesTheEventFileIsAllowed");
         check(NdsNpcStructurePlanner.PasteProblems(data, new NdsNpcClip(template with { Id = 999 }, true, 1, 1), 1).Any(p => p.Contains("ya no existe")), "NpcStructurePlanner_CutOfAnNpcThatChangedIsRejected");
@@ -191,9 +224,9 @@ internal static class NdsNpcStructureChecks
         // delete is never offered for original data
         var del = NdsNpcStructurePlanner.AssessDelete(data, 1, template, false);
         check(!del.Allowed && del.Reasons.Any(r => r.Contains("analizador de scripts")) && del.Reasons.Any(r => r.Contains("script 1")) && del.Reasons.Any(r => r.Contains("reindexaría 3")) && !del.Reasons.Any(r => r.Contains("Restaurar")), "NpcStructurePlanner_DeleteIsRefusedWithTheEvidence");
-        check(!NdsNpcStructurePlanner.AssessDelete(sharedData, 1, FirstNpc(sharedData, 1), true).Allowed && NdsNpcStructurePlanner.AssessDelete(sharedData, 1, FirstNpc(sharedData, 1), true).Reasons.Any(r => r.Contains("Restaurar último cambio") || r.Contains("comparten 2 cabeceras")), "NpcStructurePlanner_DeleteMentionsRestoreAndSharedFiles");
+        check(!NdsNpcStructurePlanner.AssessDelete(sharedData, 1, FirstNpc(sharedData, 1), false).Allowed && NdsNpcStructurePlanner.AssessDelete(sharedData, 1, FirstNpc(sharedData, 1), false).Reasons.Any(r => r.Contains("comparten 2 cabeceras")), "NpcStructurePlanner_DeleteOfAnOriginalMentionsSharedFiles");
         var dupIds = data.AddNpc(1, Record(data, 1, 30, 130, 130)); var lastNpc = dupIds.Events(1).Last(e => e.Kind == PlatinumEventKind.Npc);
-        check(NdsNpcStructurePlanner.AssessDelete(dupIds, 1, lastNpc, true).Reasons.Any(r => r.Contains("Restaurar último cambio")) && !NdsNpcStructurePlanner.AssessDelete(dupIds, 1, lastNpc, true).Allowed, "NpcStructurePlanner_AddedNpcPointsToTheExactUndo");
+        check(NdsNpcStructurePlanner.AssessDelete(dupIds, 1, lastNpc, true) is { Allowed: true } addedDelete && addedDelete.Reasons.Any(r => r.Contains("añadió el editor")), "NpcStructurePlanner_AddedNpcCanBeDeleted");
     }
 
     /// <summary>Real CPUE/1 round trip in a NEW folder: add → checkpoint v2 → export → reopen → undo → identical. Source is read-only and its SHA-256 is compared before and after.</summary>
@@ -269,129 +302,93 @@ internal static class NdsNpcStructureChecks
             NdsMapCanvasChecks.Arrange(view, 1100, 760); maps.SelectedItem = maps.Items[1]; NdsMapCanvasChecks.Arrange(view, 1100, 760);
             Point Tile(int x, int y) { var c = canvas.Model!.TileToPixel(x + 0.5, y + 0.5); return new Point(c.X, c.Y); }
             void Select(int index) { tabs.SelectedIndex = 0; npcTable.SelectedItem = npcTable.Items.Cast<PlatinumEvent>().First(e => e.Index == index); }
-            bool Untouched() => session.Revision == 0 && session.Data.Bytes().SequenceEqual(eventsBefore) && NdsMapCanvasChecks.Sha(source) == sourceHash && Directory.GetFiles(temp).Length == 1 && Directory.GetFiles(outputDir).Length == 0;
+            MenuItem Menu(string name) => canvas.ContextMenu!.Items.OfType<MenuItem>().Single(i => AutomationProperties.GetName(i) == "Eventos DS · menú · " + name);
+            void ClickMenu(string name) => Menu(name).RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
+            bool Untouched() => session.Revision == 0 && session.Data.Bytes().SequenceEqual(eventsBefore) && NdsMapCanvasChecks.Sha(source) == sourceHash && Directory.GetFiles(outputDir).Length == 0;
+            int saves = 0; void Save() { NdsMapCanvasChecks.Pump(view.SaveToAsync(Path.Combine(outputDir, $"s{++saves}.ndsevents.json"))); }
             Select(0);
 
             // Buttons follow what is selected
-            check(add.IsEnabled && dup.IsEnabled && copy.IsEnabled && cut.IsEnabled && !paste.IsEnabled && delete.IsEnabled, "NpcStructureUi_ButtonsForAnOrdinaryNpc");
-            Select(2); check(!add.IsEnabled && !dup.IsEnabled && !copy.IsEnabled && !cut.IsEnabled && !paste.IsEnabled && delete.IsEnabled, "NpcStructureUi_GroundObjectNpcCannotBeCopiedOrDuplicated");
+            check(add.IsEnabled && dup.IsEnabled && copy.IsEnabled && cut.IsEnabled && !paste.IsEnabled && delete.IsEnabled && (string)delete.Content == "Eliminar", "NpcStructureUi_ButtonsForAnOrdinaryNpc");
+            Select(2); check(add.IsEnabled && !dup.IsEnabled && !copy.IsEnabled && !cut.IsEnabled && delete.IsEnabled, "NpcStructureUi_GroundObjectIsNotATemplateButAddStillWorks");
             tabs.SelectedIndex = 2; grids[2].SelectedItem = grids[2].Items.Cast<PlatinumEvent>().First();
-            check(!add.IsEnabled && !copy.IsEnabled && !delete.IsEnabled, "NpcStructureUi_WarpsOfferNoNpcOperations"); Select(0);
-            var menu = canvas.ContextMenu!;
-            check(menu.Items.Count == 6 && menu.Items.Cast<MenuItem>().Select(i => i.IsEnabled).SequenceEqual(new[] { add, dup, copy, cut, paste, delete }.Select(b => b.IsEnabled)) && menu.Items.Cast<MenuItem>().All(i => AutomationProperties.GetName(i).StartsWith("Eventos DS · menú")), "NpcStructureUi_ContextMenuMirrorsTheButtons");
-            check(new[] { add, dup, copy, cut, paste, delete }.All(b => b.ToolTip is string { Length: > 0 }), "NpcStructureUi_ButtonsExplainThemselves");
+            check(add.IsEnabled && !dup.IsEnabled && !copy.IsEnabled && !delete.IsEnabled, "NpcStructureUi_WarpSelectedOnlyAddIsOffered"); Select(0);
+            check(canvas.ContextMenu!.Items.OfType<MenuItem>().Count() == 9 && canvas.ContextMenu.Items.OfType<MenuItem>().All(i => AutomationProperties.GetName(i).StartsWith("Eventos DS · menú")), "NpcStructureUi_ContextMenuHasTheOperationsAndTheHereActions");
+            check(new[] { add, dup, copy, cut, delete }.All(b => b.ToolTip is string { Length: > 0 }), "NpcStructureUi_ButtonsExplainThemselves");
+            check(NdsMapCanvasChecks.Children<TextBlock>(view).Any(t => t.Text.Contains("añade, duplica y copia NPC")), "NpcStructureUi_HeaderNoLongerSaysNothingCanBeAdded");
 
-            // Copy and cut write nothing and delete nothing
-            Click(copy);
-            check(paste.IsEnabled && status.Text.Contains("Copiado") && status.Text.Contains("Nada se ha modificado") && Untouched(), "NpcStructureUi_CopyOnlyFillsTheClipboard");
-            Click(cut);
-            check(status.Text.Contains("No se ha eliminado nada") && session.Data.NpcCount(1) == 4 && Untouched() && ((string)paste.ToolTip).StartsWith("Trasladar"), "NpcStructureUi_CutDoesNotDeleteTheOriginal");
-            Click(copy);
-
-            // Duplicate: ghost, evaluation, form, proposal
+            // Duplicate: ghost → click a clear tile → proposal at once, visible on the map
             Click(dup);
-            check(canvas.Placing && !Visible(newBox) && Untouched(), "NpcStructureUi_DuplicateStartsAGhostPlacement");
-            canvas.PlacementMoveTo(Tile(124, 878));
-            check(canvas.PlacementState is { Eval.Outcome: NdsMoveOutcome.Rejected } && !canvas.PlacementClick(Tile(124, 878)) && canvas.Placing && !Visible(newBox), "NpcStructureUi_CollisionTileCannotBeChosen");
-            canvas.PlacementMoveTo(Tile(119, 878));
-            check(canvas.PlacementState is { Eval.Outcome: NdsMoveOutcome.NeedsWarning }, "NpcStructureUi_TileWithAnotherNpcIsAnIndeterminateGhost");
-            canvas.CancelPlacement();
-            check(!canvas.Placing && !Visible(newBox) && Untouched(), "NpcStructureUi_CancellingThePlacementChangesNothing");
-            Click(dup); canvas.PlacementMoveTo(Tile(120, 878));
-            check(canvas.PlacementState is { Eval.Outcome: NdsMoveOutcome.Ready }, "NpcStructureUi_ClearTileIsAReadyGhost");
-            NdsMapCanvasChecks.CenterOn(canvas, PlatinumEventKind.Npc, 0, 14); canvas.PlacementMoveTo(Tile(120, 878)); NdsMapCanvasChecks.Capture(view, 1100, 760, "npc-structure-placement-1100");
-            check(canvas.PlacementClick(Tile(120, 878)) && !canvas.Placing && Visible(newBox) && Untouched(), "NpcStructureUi_ChoosingATileOpensTheNewNpcForm");
-            check(Box("nuevo NPC · ID").Text == "24" && Box("nuevo NPC · X").Text == "120" && Box("nuevo NPC · Y").Text == "878" && Box("nuevo NPC · dirección").Text == "0" && Find<ComboBox>(view, "Eventos DS · nuevo NPC · gráfico").SelectedItem is 33, "NpcStructureUi_FormIsPrefilledWithAFreeIdAndTheTemplateValues");
-            check(info.Text.Contains("Estado: Sin conflictos estáticos conocidos") && info.Text.Contains("script 0, flag 0, tipo 0") && info.Text.Contains("4 → 5") && info.Text.Contains("No evaluado:") && preview.IsEnabled && !info.Text.Contains("seguro en el juego."), "NpcStructureUi_FormShowsTheStateTheCountAndWhatIsNotEvaluated");
-            NdsMapCanvasChecks.Capture(view, 1100, 760, "npc-structure-form-1100");
+            check(canvas.Placing && status.Text.Contains("Haz clic en la casilla") && Untouched(), "NpcStructureUi_DuplicateStartsAGhostPlacement");
+            canvas.PlacementMoveTo(Tile(124, 878)); check(canvas.PlacementState is { Eval.Outcome: NdsMoveOutcome.Rejected } && !canvas.PlacementClick(Tile(124, 878)) && canvas.Placing, "NpcStructureUi_CollisionTileCannotBeChosen");
+            canvas.CancelPlacement(); check(!canvas.Placing && Untouched(), "NpcStructureUi_CancellingThePlacementChangesNothing");
+            Click(dup); NdsMapCanvasChecks.CenterOn(canvas, PlatinumEventKind.Npc, 0, 14); canvas.PlacementMoveTo(Tile(120, 878)); NdsMapCanvasChecks.Capture(view, 1100, 760, "npc-fix-duplicate-ghost-1100");
+            check(canvas.PlacementClick(Tile(120, 878)) && !Visible(newBox) && diff.Text.Contains("NPC nuevo (índice 4)") && diff.Text.Contains("ID 24") && save.IsEnabled, "NpcStructureUi_ReadyDuplicateBecomesAProposalWithoutAForm");
+            check(canvas.PendingAddition is { X: 120, Y: 878 } && status.Text.Contains("pendiente") && Untouched(), "NpcStructureUi_PendingNpcIsDrawnOnTheMapBeforeSaving");
+            canvas.Invalidate(); NdsMapCanvasChecks.Capture(view, 1100, 760, "npc-fix-duplicate-pending-1100");
+            Save();
+            check(session.Revision == 1 && session.Data.NpcCount(1) == 5 && session.Data.Npc(1, 4) is { Id: 24, X: 120, Y: 878, Script: 0 } && canvas.PendingAddition is null && npcTable.Items.Count == 5 && canvas.Model!.Find(PlatinumEventKind.Npc, 4) is { X: 120 }, "NpcStructureUi_DuplicateSavedIsARealExtraNpcAndTheOriginalStays");
+            check(session.Data.Npc(1, 0) is { X: 119, Y: 878, Id: 20 } && NdsMapCanvasChecks.Sha(source) == sourceHash, "NpcStructureUi_OriginalUntouchedBySaving");
+            check(Math.Abs(canvas.Model!.Zoom - 14) < 1e-9, "NpcStructureUi_SavingKeepsTheZoomAndPositionOfTheMap");
 
-            // Validation of the form
-            Box("nuevo NPC · ID").Text = "20"; check(!preview.IsEnabled && info.Text.Contains("ID 20 ya lo usa") && info.Text.Contains("Estado: Rechazado"), "NpcStructureUi_DuplicateIdBlocksThePreview"); Box("nuevo NPC · ID").Text = "25";
-            Box("nuevo NPC · X").Text = "960"; check(!preview.IsEnabled && info.Text.Contains("límites"), "NpcStructureUi_OutOfBoundsBlocksThePreview");
-            Box("nuevo NPC · X").Text = "124"; check(!preview.IsEnabled && info.Text.Contains("colisión"), "NpcStructureUi_CollisionBlocksThePreview");
-            Box("nuevo NPC · X").Text = "abc"; check(!preview.IsEnabled && info.Text.Contains("enteros"), "NpcStructureUi_NonNumericInputIsExplained");
-            Box("nuevo NPC · X").Text = "120"; Box("nuevo NPC · dirección").Text = "9"; check(!preview.IsEnabled && info.Text.Contains("dirección"), "NpcStructureUi_InvalidDirectionBlocksThePreview"); Box("nuevo NPC · dirección").Text = "2";
-            Box("nuevo NPC · X").Text = "119"; check(preview.IsEnabled && preview.Content.ToString() == "Previsualizar propuesta con advertencia" && info.Text.Contains("NPC 0"), "NpcStructureUi_OverlapNeedsAnExplicitWarning"); Box("nuevo NPC · X").Text = "120";
-            check(preview.IsEnabled && preview.Content.ToString() == "Previsualizar propuesta" && Untouched(), "NpcStructureUi_ValidatingWritesNothing");
+            // Same-map copy/paste creates a copy (the original keeps its place)
+            Select(0); Click(copy); check(paste.IsEnabled && (string)paste.Content == "Pegar copia" && status.Text.Contains("Copiado"), "NpcStructureUi_CopyFillsTheClipboard");
+            Click(paste); check(canvas.Placing, "NpcStructureUi_PasteStartsAPlacement");
+            check(canvas.PlacementClick(Tile(121, 879)) && diff.Text.Contains("NPC nuevo (índice 5)") && diff.Text.Contains("ID 25"), "NpcStructureUi_PasteCreatesANewNpcProposal");
+            Save(); check(session.Data.NpcCount(1) == 6 && session.Data.Npc(1, 0) is { X: 119, Y: 878 } && session.Data.Npc(1, 5) is { X: 121, Y: 879, Id: 25 }, "NpcStructureUi_PastedCopyIsSavedAndTheOriginalStays");
 
-            // Preview -> checkpoint v2 -> restore
-            Click(preview);
-            check(!Visible(newBox) && diff.Text.Contains("NPC nuevo (índice 4)") && diff.Text.Contains("ID 25") && diff.Text.Contains("Cantidad de NPC: 4 → 5") && save.IsEnabled && Untouched(), "NpcStructureUi_PreviewIsAReviewableProposalAndStillWritesNothing");
-            string first = Path.Combine(outputDir, "dup.ndsevents.json"); NdsMapCanvasChecks.Pump(view.SaveToAsync(first)); var doc = NdsEventSession.ReadDocument(first);
-            check(session.Revision == 1 && session.Data.NpcCount(1) == 5 && doc.Version == 2 && doc.Operations!.Single().Add is { Map: 1, Index: 4 } && NdsMapCanvasChecks.Sha(source) == sourceHash, "NpcStructureUi_CheckpointV2StoresTheNewNpc");
-            check(npcTable.Items.Count == 5 && canvas.Model!.Markers.Count(m => m.Kind == PlatinumEventKind.Npc) == 5 && canvas.Model.Find(PlatinumEventKind.Npc, 4) is { X: 120, Y: 878 } && canvas.Model.Layout.OwnedCells.Count == 1, "NpcStructureUi_TableAndCanvasRefreshFromTheRealSession");
-            Select(4); check(npcTable.SelectedItem is PlatinumEvent { Id: 25, Script: 0 } && Box("Coordenada X").Text == "120", "NpcStructureUi_NewNpcIsSelectableAndHasNoScript");
-            Click(delete);
-            check(Visible(moveBox) && moveText.Text.Contains("NO permitido") && moveText.Text.Contains("Restaurar último cambio") && !Visible(accept) && session.Data.NpcCount(1) == 5, "NpcStructureUi_DeletingTheAddedNpcPointsToTheExactUndo");
-            Click(Btn("cancelar propuesta"));
-            Click(Btn("Restaurar último cambio…")); check(diff.Text.Contains("quitar el NPC añadido") && diff.Text.Contains("5 → 4") && session.Data.NpcCount(1) == 5, "NpcStructureUi_RestorePreviewNamesTheRemoval");
-            string second = Path.Combine(outputDir, "undo.ndsevents.json"); NdsMapCanvasChecks.Pump(view.SaveToAsync(second));
-            check(session.Revision == 2 && session.Data.Bytes().SequenceEqual(eventsBefore) && npcTable.Items.Count == 4 && canvas.Model!.Markers.Count(m => m.Kind == PlatinumEventKind.Npc) == 4 && NdsEventSession.ReadDocument(second).Version == 1 && File.Exists(first), "NpcStructureUi_RestoreReturnsToTheOriginalBytesAndKeepsBothCheckpoints");
+            // Right-click selects the NPC under the cursor and «Pegar aquí» pastes at that tile directly
+            NdsMapCanvasChecks.CenterOn(canvas, PlatinumEventKind.Npc, 0, 14); Select(1);
+            canvas.ContextAt(Tile(119, 878)); check(canvas.Model!.Selected == (PlatinumEventKind.Npc, 0) && npcTable.SelectedItem is PlatinumEvent { Index: 0 }, "NpcStructureUi_RightClickSelectsTheNpcUnderTheCursor");
+            canvas.ContextAt(Tile(118, 880)); ClickMenu("pegar NPC aquí");
+            check(!canvas.Placing && diff.Text.Contains("NPC nuevo (índice 6)") && diff.Text.Contains("X 118") && diff.Text.Contains("Y 880"), "NpcStructureUi_PasteHereUsesTheRightClickedTile");
+            Select(1); check(canvas.PendingAddition is null && !save.IsEnabled && session.Data.NpcCount(1) == 6, "NpcStructureUi_LeavingAPendingProposalDiscardsItAfterConfirmation");
 
-            // Delete of an original NPC: refused with the evidence
-            Select(0); Click(delete);
-            check(Visible(moveBox) && moveText.Text.Contains("NO permitido") && moveText.Text.Contains("analizador de scripts") && moveText.Text.Contains("script 1") && moveText.Text.Contains("reindexaría 3") && moveText.Text.Contains("No se modificó nada") && !Visible(accept) && session.Data.NpcCount(1) == 4, "NpcStructureUi_DeleteIsRefusedWithTheEvidence");
-            Click(Btn("cancelar propuesta")); check(!Visible(moveBox), "NpcStructureUi_DeleteReportCloses");
+            // Add: choose the tile, then the form (template visible and changeable)
+            Select(0); Click(add); check(canvas.Placing, "NpcStructureUi_AddStartsAPlacement");
+            check(canvas.PlacementClick(Tile(110, 875)) && Visible(newBox) && Box("nuevo NPC · X").Text == "110" && Box("nuevo NPC · Y").Text == "875" && Box("nuevo NPC · ID").Text == "26", "NpcStructureUi_AddOpensTheFormAtTheChosenTile");
+            var templates = Find<ComboBox>(view, "Eventos DS · nuevo NPC · plantilla");
+            check(templates.Items.Count >= 5 && templates.SelectedItem?.ToString()!.Contains("NPC 0 de este mapa") == true, "NpcStructureUi_TemplateIsShownAndChangeable");
+            check(info.Text.Contains("Estado:") && info.Text.Contains("script 0, flag 0, tipo 0") && preview.IsEnabled, "NpcStructureUi_FormExplainsTheResult");
+            Box("nuevo NPC · ID").Text = "20"; check(!preview.IsEnabled && info.Text.Contains("ID 20 ya lo usa"), "NpcStructureUi_DuplicateIdBlocksThePreview"); Box("nuevo NPC · ID").Text = "26";
+            Box("nuevo NPC · X").Text = "124"; check(!preview.IsEnabled && info.Text.Contains("colisión"), "NpcStructureUi_CollisionBlocksThePreview"); Box("nuevo NPC · X").Text = "110";
+            Box("nuevo NPC · X").Text = "abc"; check(!preview.IsEnabled && info.Text.Contains("enteros"), "NpcStructureUi_NonNumericInputIsExplained"); Box("nuevo NPC · X").Text = "110";
+            NdsMapCanvasChecks.Arrange(view, 760, 760); NdsMapCanvasChecks.Flush();
+            check(canvas.ActualHeight >= 150 && Visible(newBox) && newBox.ActualHeight > 0, "NpcStructureUi_CompactLayoutKeepsTheMapWhileTheFormIsOpen");
+            NdsMapCanvasChecks.Capture(view, 760, 760, "npc-fix-add-form-760"); NdsMapCanvasChecks.Arrange(view, 1100, 760); NdsMapCanvasChecks.Capture(view, 1100, 760, "npc-fix-add-form-1100");
+            Click(preview); check(!Visible(newBox) && diff.Text.Contains("NPC nuevo") && canvas.PendingAddition is { X: 110, Y: 875 }, "NpcStructureUi_AddPreviewShowsThePendingNpc");
+            Save(); check(session.Data.NpcCount(1) == 7 && session.Data.Npc(1, 6) is { X: 110, Y: 875, Id: 26 }, "NpcStructureUi_AddedNpcSaved");
 
-            // Add button: a form without choosing a tile
-            Select(0); Click(add);
-            check(Visible(newBox) && Box("nuevo NPC · ID").Text == "24" && Box("nuevo NPC · X").Text == "120" && !canvas.Placing, "NpcStructureUi_AddOpensTheFormOnTheTemplateNeighbour");
-            NdsMapCanvasChecks.Capture(view, 1100, 760, "npc-structure-add-form-1100"); Click(Btn("cancelar NPC nuevo"));
-            check(!Visible(newBox) && session.Revision == 2, "NpcStructureUi_CancellingTheFormChangesNothing");
-
-            // Paste: same map copy
-            Select(0); Click(copy); Select(1); Click(paste);
-            check(canvas.Placing && canvas.PlacementState!.Value.Eval is null, "NpcStructureUi_PasteStartsAPlacementOfTheCopiedNpc");
-            check(canvas.PlacementClick(Tile(121, 879)) && Visible(newBox) && Box("nuevo NPC · ID").Text == "24" && Find<ComboBox>(view, "Eventos DS · nuevo NPC · gráfico").SelectedItem is 33 && info.Text.Contains("NPC nuevo") == false, "NpcStructureUi_PasteOpensTheNewNpcFormWithAFreshId"); Click(Btn("cancelar NPC nuevo"));
-            // Paste across event files is refused and nothing is lost
-            maps.SelectedItem = maps.Items[2]; NdsMapCanvasChecks.Arrange(view, 1100, 760);
-            check(paste.IsEnabled, "NpcStructureUi_ClipboardSurvivesAMapChange"); Click(paste);
-            check(!canvas.Placing && Visible(moveBox) && moveText.Text.Contains("otro archivo de eventos") && moveText.Text.Contains("No se modificó nada") && Untouched() == false && session.Data.NpcCount(2) == 1 && session.Data.NpcCount(1) == 4, "NpcStructureUi_PasteIntoAnIncompatibleMapIsRefused");
-            Click(Btn("cancelar propuesta"));
-            // Cut across files
-            maps.SelectedItem = maps.Items[1]; NdsMapCanvasChecks.Arrange(view, 1100, 760); Select(0); Click(cut); maps.SelectedItem = maps.Items[2]; NdsMapCanvasChecks.Arrange(view, 1100, 760); Click(paste);
-            check(!canvas.Placing && moveText.Text.Contains("cortar y pegar entre archivos de eventos distintos") && session.Data.Npc(1, 0) is { X: 119, Y: 878 } && session.Data.NpcCount(1) == 4, "NpcStructureUi_CutAcrossEventFilesIsRefusedAndKeepsTheOriginal"); Click(Btn("cancelar propuesta"));
-            // Cut and paste in the same map is a reversible move through the existing preview
-            maps.SelectedItem = maps.Items[1]; NdsMapCanvasChecks.Arrange(view, 1100, 760); Select(0); Click(cut); Click(paste);
-            check(canvas.Placing, "NpcStructureUi_CutPasteStartsAPlacement");
-            canvas.PlacementMoveTo(Tile(124, 878)); check(canvas.PlacementState is { Eval.Outcome: NdsMoveOutcome.Rejected } && !canvas.PlacementClick(Tile(124, 878)), "NpcStructureUi_CutPasteOnACollisionIsRefused");
-            canvas.CancelPlacement(); check(session.Data.Npc(1, 0) is { X: 119 } && !Visible(moveBox), "NpcStructureUi_CancellingACutKeepsTheOriginal");
-            Click(paste); check(canvas.PlacementClick(Tile(120, 878)) && Visible(moveBox) && moveText.Text.Contains("Propuesto: X=120, Y=878") && Visible(accept), "NpcStructureUi_CutPasteBecomesTheMoveProposal");
-            Click(accept);
-            check(Box("Coordenada X").Text == "120" && diff.Text.Contains("Coordenada X: 119 → 120") && save.IsEnabled && session.Data.NpcCount(1) == 4 && session.Revision == 2, "NpcStructureUi_AcceptedCutGoesThroughTheExistingPreview");
-
-            // Tool change and map change cancel placements and forms
-            maps.SelectedItem = maps.Items[1]; NdsMapCanvasChecks.Arrange(view, 1100, 760); Select(0); Click(dup); var tool = Find<RadioButton>(view, "Eventos DS · herramienta mover NPC"); tool.IsChecked = true;
-            check(!canvas.Placing, "NpcStructureUi_ChangingToolCancelsThePlacement"); Find<RadioButton>(view, "Eventos DS · herramienta seleccionar").IsChecked = true;
-            Select(0); Click(add); maps.SelectedItem = maps.Items[2];
-            check(!Visible(newBox), "NpcStructureUi_ChangingMapClosesTheForm");
+            // Copy from ANOTHER map: basic copy (appearance and basic settings), never behaviour
+            maps.SelectedItem = maps.Items[2]; NdsMapCanvasChecks.Arrange(view, 1100, 760); Select(0); Click(copy);
             maps.SelectedItem = maps.Items[1]; NdsMapCanvasChecks.Arrange(view, 1100, 760);
+            Click(paste); check(canvas.Placing, "NpcStructureUi_CrossMapPasteIsNoLongerRefused");
+            check(canvas.PlacementClick(Tile(112, 875)) && Visible(newBox) && info.Text.Contains("Copia entre mapas") && info.Text.Contains("no se trasladan diálogos") && info.Text.Contains("script 0 y flag 0") && info.Text.Contains("altura"), "NpcStructureUi_CrossMapPasteExplainsWhatIsKeptAndReset");
+            check(Find<ComboBox>(view, "Eventos DS · nuevo NPC · plantilla").SelectedItem?.ToString()!.StartsWith("Copiado de otro mapa") == true && Box("nuevo NPC · ID").Text == "27", "NpcStructureUi_CrossMapTemplateIsTheCopiedNpcWithALocalId");
+            Click(preview); Save();
+            var crossNpc = session.Data.Npc(1, 7);
+            check(crossNpc is { Id: 27, X: 112, Y: 875, Script: 0, Flag: 0, Graphics: 33 } && crossNpc.Z == session.Data.Events(1).Where(e => e.Kind == PlatinumEventKind.Npc && e.Index < 7).OrderBy(e => Math.Max(Math.Abs(e.X - 112), Math.Abs(e.Y - 875))).ThenBy(e => e.Index).First().Z && session.Data.NpcCount(2) == 1, "NpcStructureUi_CrossMapCopyIsANewLocalNpcAndTheSourceMapIsUntouched");
 
-            // Pending preview is protected by the usual authorization before a structural operation starts
-            Select(0); Box("Coordenada X").Text = "130"; view.PreviewSelection(); check(save.IsEnabled, "NpcStructureUi_APreviewIsPending");
-            Click(dup); check(canvas.Placing && !save.IsEnabled && diff.Text == "", "NpcStructureUi_StartingAnOperationAsksBeforeDiscardingAPendingPreview"); canvas.CancelPlacement();
+            // Cut across maps is still refused (it would delete an original); cut in the same map is a move
+            Select(0); Click(cut); check((string)paste.Content == "Pegar (trasladar)", "NpcStructureUi_CutIsVisiblyDifferentFromCopy");
+            maps.SelectedItem = maps.Items[2]; NdsMapCanvasChecks.Arrange(view, 1100, 760); Click(paste);
+            check(!canvas.Placing && Visible(moveBox) && moveText.Text.Contains("cortar y pegar entre archivos de eventos distintos") && session.Data.Npc(1, 0) is { X: 119, Y: 878 }, "NpcStructureUi_CutAcrossMapsIsRefusedAndKeepsTheOriginal"); Click(Btn("cancelar propuesta"));
+            maps.SelectedItem = maps.Items[1]; NdsMapCanvasChecks.Arrange(view, 1100, 760); Select(0); Click(cut); Click(paste);
+            check(canvas.PlacementClick(Tile(119, 877)) && Visible(moveBox) && moveText.Text.Contains("Propuesto: X=119, Y=877"), "NpcStructureUi_CutPasteInTheSameMapIsTheMoveProposal");
+            Click(accept); check(diff.Text.Contains("Coordenada Y: 878 → 877") && session.Data.NpcCount(1) == 8, "NpcStructureUi_AcceptedCutIsAMoveNotACopy"); Click(Btn("Previsualizar diferencias"));
+            Select(0);
 
-            // Layout and accessibility
-            foreach (int width in new[] { 1100, 760 })
-            {
-                NdsMapCanvasChecks.Arrange(view, width, 760); Select(0); Click(add);
-                check(Visible(newBox) && canvas.ActualHeight >= 110 && view.DesiredSize.Width <= width && newBox.ActualHeight > 0 && preview.ActualWidth > 0, "NpcStructureUi_FormLayoutAt" + width);
-                NdsMapCanvasChecks.Capture(view, width, 760, "npc-structure-form-layout-" + width); Click(Btn("cancelar NPC nuevo"));
-            }
+            // Delete: originals refused; NPC added by the editor can be removed at any position
+            Select(0); Click(delete);
+            check(Visible(moveBox) && moveText.Text.Contains("NO permitido") && moveText.Text.Contains("analizador de scripts") && session.Data.NpcCount(1) == 8, "NpcStructureUi_DeletingAnOriginalNpcIsRefusedWithTheEvidence"); Click(Btn("cancelar propuesta"));
+            Select(4); check((string)delete.Content == "Eliminar (añadido)", "NpcStructureUi_DeleteSaysWhenTheNpcWasAdded");
+            Click(delete); check(diff.Text.Contains("eliminar el NPC añadido (índice 4") && diff.Text.Contains("pasan del índice 5"), "NpcStructureUi_DeletingANonLastAddedNpcIsAProposal");
+            Save(); check(session.Data.NpcCount(1) == 7 && session.Data.Npc(1, 4).Id == 25 && session.Data.Npc(1, 0) is { Id: 20 }, "NpcStructureUi_DeletedAddedNpcLaterOnesMoveUp");
+
+            // Restore everything step by step: back to the original bytes
+            while (session.CanUndo) { Click(Btn("Restaurar último cambio…")); Save(); }
+            check(session.Data.Bytes().SequenceEqual(eventsBefore) && npcTable.Items.Count == 4 && NdsMapCanvasChecks.Sha(source) == sourceHash, "NpcStructureUi_RestoringEveryOperationReturnsToTheOriginalBytes");
             check(NdsMapCanvasChecks.Children<Button>(view).Concat<Control>(NdsMapCanvasChecks.Children<TextBox>(view)).Concat(NdsMapCanvasChecks.Children<ComboBox>(view)).All(c => AutomationProperties.GetName(c).Length > 0), "NpcStructureUi_NewControlsHaveAccessibleNames");
-
-            // Shared event file: the new NPC shows up for every header
-            var shared = f with { Headers = (byte[])f.Headers.Clone() }; BinaryPrimitives.WriteUInt16LittleEndian(shared.Headers.AsSpan(2 * 24 + 16), 1);
-            string sharedSource = Path.Combine(temp, "shared.nds"); File.WriteAllBytes(sharedSource, shared.Rom()); using var sharedRom = NdsRom.Open(sharedSource); var sharedSession = new NdsEventSession(sharedRom, shared.Read());
-            var sv = new NdsEventEditorView(sharedSession, UiTerrain(), null); var sm = NdsMapCanvasChecks.Children<ListBox>(sv).Single(); var sg = NdsMapCanvasChecks.Children<DataGrid>(sv).ToList(); var st = NdsMapCanvasChecks.Children<TabControl>(sv).Single();
-            NdsMapCanvasChecks.Arrange(sv, 1100, 760); sm.SelectedItem = sm.Items[1]; NdsMapCanvasChecks.Arrange(sv, 1100, 760); st.SelectedIndex = 0; sg[0].SelectedItem = sg[0].Items.Cast<PlatinumEvent>().First(e => e.Index == 0);
-            Click(Find<Button>(sv, "Eventos DS · añadir NPC")); var sInfo = Find<TextBlock>(sv, "Eventos DS · validación del NPC nuevo");
-            // map 2 is only 64x96: the conservative bounds reject the default position (121,878), so pick a tile inside both
-            Find<TextBox>(sv, "Eventos DS · nuevo NPC · X").Text = "10"; Find<TextBox>(sv, "Eventos DS · nuevo NPC · Y").Text = "10";
-            check(sInfo.Text.Contains("compartido por 2 cabeceras (1, 2)") && sInfo.Text.Contains("aparecerá en todas"), "NpcStructureUi_SharedFileFormWarnsThatEveryHeaderGetsTheNpc");
-            Click(Find<Button>(sv, "Eventos DS · previsualizar propuesta de NPC nuevo")); NdsMapCanvasChecks.Pump(sv.SaveToAsync(Path.Combine(outputDir, "shared.ndsevents.json")));
-            sm.SelectedItem = sm.Items[2]; NdsMapCanvasChecks.Arrange(sv, 1100, 760);
-            check(sharedSession.Data.NpcCount(1) == 5 && sharedSession.Data.NpcCount(2) == 5 && sg[0].Items.Count == 5, "NpcStructureUi_SharedFileNpcAppearsInTheOtherHeader");
         }
         finally { Directory.Delete(temp, true); }
     }

@@ -35,6 +35,7 @@ internal sealed class NdsMapCanvasControl : FrameworkElement
     private System.Windows.Media.Imaging.BitmapSource? _terrainBitmap;
     private NdsNpcDragSession? _drag;
     private (PlatinumEvent Npc, int X, int Y)? _pendingMove;
+    private (PlatinumEvent Template, int X, int Y)? _pendingAdd;
     private NdsMapTool _tool;
     private bool _middlePan;
     private (PlatinumEvent Template, Func<int, int, NdsPlacementEval> Evaluate, int X, int Y, NdsPlacementEval? Eval)? _placement;
@@ -129,8 +130,8 @@ internal sealed class NdsMapCanvasControl : FrameworkElement
 
     internal void SetMap(PlatinumMapLayout layout, IEnumerable<PlatinumEvent> events, PlatinumTerrain? terrain = null, (int Width, int Height)? editorBounds = null, (PlatinumEventKind Kind, int Index)? selected = null, NdsMapLayers? layers = null)
     {
-        CancelDrag(); _placement = null; _pendingMove = null;
-        var previousLayers = layers ?? _model?.Layers ?? NdsMapLayers.All;
+        CancelDrag(); _placement = null; _pendingMove = null; _pendingAdd = null;
+        var previousLayers = layers ?? _model?.Layers ?? NdsMapLayers.All; var previous = _model;
         _model = new NdsMapCanvasModel(layout, events, terrain, editorBounds) { Layers = previousLayers };
         _terrainBitmap = null;
         if (_model.TerrainPixels() is { } pixels)
@@ -138,7 +139,8 @@ internal sealed class NdsMapCanvasControl : FrameworkElement
             var bitmap = System.Windows.Media.Imaging.BitmapSource.Create(layout.TileWidth, layout.TileHeight, 96, 96, PixelFormats.Pbgra32, null, pixels, layout.TileWidth * 4); bitmap.Freeze(); _terrainBitmap = bitmap;
         }
         if (selected is { } key) _model.Select(key.Kind, key.Index);
-        if (ActualWidth > 0 && ActualHeight > 0) _model.SetViewport(ActualWidth, ActualHeight);
+        if (previous is not null && previous.Layout.MapId == layout.MapId && previous.Layout.MatrixId == layout.MatrixId && previous.ViewportWidth > 0) _model.AdoptView(previous);
+        else if (ActualWidth > 0 && ActualHeight > 0) _model.SetViewport(ActualWidth, ActualHeight);
         Refresh();
     }
     internal void Clear() { CancelDrag(); _placement = null; _pendingMove = null; _model = null; Refresh(); }
@@ -277,7 +279,14 @@ internal sealed class NdsMapCanvasControl : FrameworkElement
         _drag = null; Cursor = Cursors.Arrow; DragChanged?.Invoke(null); if (IsMouseCaptured) ReleaseMouseCapture(); InvalidateVisual();
     }
     internal void SetPendingMove(PlatinumEvent npc, int x, int y) { _pendingMove = (npc, x, y); InvalidateVisual(); }
-    internal void ClearPendingMove() { if (_pendingMove is null) return; _pendingMove = null; InvalidateVisual(); }
+    /// <summary>A previewed (not yet saved) new NPC, drawn as a labelled ghost so the user sees where it will appear.</summary>
+    internal void SetPendingAddition(PlatinumEvent template, int x, int y) { _pendingAdd = (template, x, y); InvalidateVisual(); }
+    internal (PlatinumEvent Template, int X, int Y)? PendingAddition => _pendingAdd;
+    internal void ClearPendingMove() { if (_pendingMove is null && _pendingAdd is null) return; _pendingMove = null; _pendingAdd = null; InvalidateVisual(); }
+    /// <summary>Raised on right button down with the tile and the marker under the cursor, before the context menu opens.</summary>
+    internal event Action<(int X, int Y), NdsMapMarker?>? ContextTarget;
+    internal void ContextAt(Point point) { if (_model is null) return; ContextTarget?.Invoke(_model.TileAt(point.X, point.Y), _model.HitTest(point.X, point.Y)); }
+    protected override void OnMouseRightButtonDown(MouseButtonEventArgs e) { base.OnMouseRightButtonDown(e); Focus(); ContextAt(e.GetPosition(this)); }
 
     /// <summary>Selects the marker under a point (what a click does). Empty space keeps the current selection.</summary>
     internal void ClickAt(Point point) { if (_model is not null) Pick(_model.HitTest(point.X, point.Y)); }
@@ -392,6 +401,7 @@ internal sealed class NdsMapCanvasControl : FrameworkElement
         if (m.SelectedMarker is { } sel && m.IsLayerVisible(sel)) DrawSelection(dc, m, sel);
         if (_drag is { Active: true } drag) DrawGhost(dc, m, drag.Npc, drag.Plan.ToX, drag.Plan.ToY, drag.Plan.Outcome, "");
         else if (_pendingMove is { } pending) DrawGhost(dc, m, pending.Npc, pending.X, pending.Y, null, "propuesta pendiente");
+        if (_pendingAdd is { } add) DrawGhost(dc, m, add.Template, add.X, add.Y, null, "NPC nuevo · pendiente de guardar", showOrigin: false);
         if (_placement is { Eval: { } placing } place) DrawGhost(dc, m, place.Template, place.X, place.Y, placing.Outcome, "NPC nuevo", showOrigin: false);
         if (IsKeyboardFocused) dc.DrawRectangle(null, new Pen(Themed(this, "Accent", Inspect), 2), new Rect(1, 1, Math.Max(0, w - 2), Math.Max(0, h - 2)));
     }

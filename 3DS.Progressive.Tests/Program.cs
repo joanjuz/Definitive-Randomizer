@@ -218,6 +218,10 @@ if(args.Length==1&&args[0]=="--nds-map-layout-only"){PlatinumMapLayoutChecks.Run
 if(args.Length==3&&args[0]=="--nds-map-terrain-probe"){PlatinumTerrainChecks.Probe(args[2],args[1]);return;}
 if(args.Length==3&&args[0]=="--nds-npc-structure-probe"){NdsNpcStructureChecks.Probe(args[2],args[1]);return;}
 if(args.Length==1&&args[0]=="--nds-npc-structure-only"){NdsNpcStructureChecks.Run(Check);Console.WriteLine($"Completed {checks} DS structural NPC checks (synthetic).");return;}
+if(args.Length==5&&args[0]=="--nds-live-ui-probe")
+{
+    Exception? failure=null;var thread=new Thread(()=>{try{var app=new ThreeDS.Progressive.App();app.InitializeComponent();WpfTestHost.SuppressStartup();ThreeDS.Progressive.StudioDialog.AutomatedChecks=true;NdsLiveUiProbe.Run(args[1],args[2],int.Parse(args[3]),int.Parse(args[4]));}catch(Exception ex){failure=ex;}});thread.SetApartmentState(ApartmentState.STA);thread.Start();thread.Join();if(failure is not null)System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(failure).Throw();return;
+}
 if(args.Length==1&&args[0]=="--nds-npc-structure-ui-only")
 {
     Exception? failure=null;var thread=new Thread(()=>{try{var app=new ThreeDS.Progressive.App();app.InitializeComponent();WpfTestHost.SuppressStartup();ThreeDS.Progressive.StudioDialog.AutomatedChecks=true;NdsNpcStructureChecks.RunUi(Check);}catch(Exception ex){failure=ex;}});thread.SetApartmentState(ApartmentState.STA);thread.Start();thread.Join();if(failure is not null)System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(failure).Throw();Console.WriteLine($"Completed {checks} DS structural NPC UI checks (off-screen).");return;
