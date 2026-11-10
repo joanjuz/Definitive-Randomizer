@@ -67,6 +67,7 @@ dotnet .\3DS.Progressive.Tests\bin\Release\net10.0-windows\3DS.Progressive.Tests
 | `--native-wild7-only` | — |  |
 | `--nds-only` | — | sí |
 | `--nds-map-layout-only` | — | matrices sintéticas de solo lectura; ejecución focalizada independiente |
+| `--nds-npc-structure-only` | — | operaciones estructurales de NPC (registro, NARC, checkpoint v2, política); sintética |
 | `--nds-npc-drag-only` | — | planificación y matemática del arrastre de NPC (sin WPF); sintética |
 | `--nds-map-terrain-only` | — | lector de terreno `land_data`, consulta espacial y superposición; sintética |
 | `--nds-map-canvas-only` | — | modelo espacial puro del lienzo DS de solo lectura; sin WPF |
@@ -121,6 +122,7 @@ dotnet .\3DS.Progressive.Tests\bin\Release\net10.0-windows\3DS.Progressive.Tests
 | `--nds-map-canvas-ui-only` | — | sí |
 | `--nds-map-terrain-ui-only` | — | sí |
 | `--nds-npc-drag-ui-only` | — | sí |
+| `--nds-npc-structure-ui-only` | — | sí |
 | `--requested-ui-only` | — | sí |
 | `--swsh-ui-only` | — | sí |
 | `--template-feedback-ui-only` | — | sí |
@@ -194,6 +196,7 @@ Necesitan extracciones, ROMs o carpetas de salida. Los argumentos concretos (ent
 | `--nds-gen4-probe` | 2 o más |  |
 | `--nds-map-layout-probe` | `<informe JSON nuevo> <ROM privada Platino CPUE/1>` | solo lectura; no copia ni exporta ROM |
 | `--nds-map-terrain-probe` | `<informe JSON nuevo> <ROM privada Platino CPUE/1>` | solo lectura; no copia ni exporta ROM |
+| `--nds-npc-structure-probe` | `<carpeta nueva> <ROM privada Platino CPUE/1>` | copia la fuente a la carpeta nueva; no modifica la original |
 | `--nds-events-probe` | `<salida nueva> <ROM privada Platino CPUE/1>` |  |
 | `--nds-gen5-items-probe` | 2 o más |  |
 | `--nds-gen5-random-probe` | 2 o más |  |
@@ -260,3 +263,5 @@ Lienzo DS de solo lectura, fase visual 2: `--nds-map-canvas-only` valida el mode
 Terreno DS, fase visual 3: `--nds-map-terrain-only` valida el lector de `land_data` (orden fila-mayor z×32+x, solo el bit 15 como colisión, validación estricta de cabeceras y longitudes, celdas vacías o fuera de tabla = desconocido, perfil CPUE/1 con CRC32), la consulta espacial (Permitido / Bloqueado / Indeterminado con procedencia y límites), matrices compartidas entre cabeceras, el caso 411 y el rendimiento. `--nds-map-terrain-ui-only` abre la vista con y sin datos de terreno, comprueba la capa, la leyenda, el inspector, el dibujo con la capa activada y desactivada, el tiempo de dibujo de 960×960 y que previsualizar y guardar siguen funcionando; guarda capturas en `nds-map-canvas/`. `--nds-map-terrain-probe <informe JSON nuevo> <ROM privada Platino CPUE/1>` exige el perfil, lee los 666 miembros de `land_data`, comprueba el caso 411 y la alineación con los eventos reales y el SHA-256 de la fuente antes y después. No crea sesiones, checkpoints ni ROMs. Véase [NDS_MAP_TERRAIN_PHASE3.md](NDS_MAP_TERRAIN_PHASE3.md).
 
 Mover NPC DS, fase visual 4: `--nds-npc-drag-only` valida la política de bloqueo/advertencia (colisión, límites del editor, casilla ocupada, otra cabecera, rango de activador, sin datos), la conversión píxel→tile con distintos zoom y desplazamientos y que el arrastre no muta eventos. `--nds-npc-drag-ui-only` abre la vista con una ROM sintética tipo 411 y comprueba herramienta Seleccionar/Mover NPC, arrastre, fantasma, cancelación (Esc, herramienta, mapa, modo), propuesta antes/después, aceptación mediante la previsualización existente, checkpoint con la posición arrastrada, restauración de los bytes originales, archivos de eventos compartidos y que durante el arrastre no hay escrituras. Guarda capturas en `nds-map-canvas/`. No sustituye la prueba en el juego. Véase [NDS_NPC_DRAG_PHASE4.md](NDS_NPC_DRAG_PHASE4.md).
+
+NPC estructurales DS, fase 5A: `--nds-npc-structure-only` valida la construcción del registro de 32 bytes, las reglas (ID libre, gráfico y movimiento acreditados, límites, tope de 51), la reconstrucción del NARC con todos los demás miembros idénticos, el checkpoint versión 2 (y que la versión 1 no cambia), documentos inválidos, propuestas obsoletas, fallos de escritura, concurrencia, exportación con `NdsRom.Save` y la política de pegar/cortar/eliminar. `--nds-npc-structure-ui-only` abre la vista con una ROM sintética tipo 411 y recorre botones, colocación, formulario, propuesta, guardado y restauración, pegar/cortar, rechazo de eliminar, cancelaciones y archivo compartido; guarda capturas en `nds-map-canvas/`. `--nds-npc-structure-probe <carpeta nueva> <ROM privada Platino CPUE/1>` hace el recorrido real añadir → checkpoint v2 → exportar → reabrir → restaurar sobre una copia, compara cada archivo ajeno y el SHA-256 de la fuente. No sustituye la prueba en el juego. Véase [NDS_NPC_STRUCTURAL_PHASE5A.md](NDS_NPC_STRUCTURAL_PHASE5A.md).
