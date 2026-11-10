@@ -65,8 +65,9 @@ Un archivo autoverificable (`NdsProjectCodec`):
 ```text
 cabecera (64 B)  «DRDSPRJ1», versión del contenedor, lector mínimo, generación, nº de operaciones,
                  longitud del manifiesto, nº de tablas, hora UTC, longitud total, CRC-32
-manifiesto       JSON UTF-8 (NdsProjectMeta): identidad de la ROM, operaciones, eventos, ajustes, índice de tablas
-tablas           [u32 longitud][bytes] en el orden del índice (Brotli o crudas; el SHA-256 de los bytes crudos está en el índice)
+manifiesto       JSON UTF-8 (NdsProjectMeta): identidad de la ROM, eventos, ajustes, índice de tablas
+tablas           [u32 longitud][bytes] en el orden del índice (Brotli o crudas; el SHA-256 de los bytes crudos está en el índice);
+                 una de ellas, «history», es la lista de operaciones con sus cambios
 pie (40 B)       «DRDSEND1» + SHA-256 de todo lo anterior
 ```
 
@@ -74,6 +75,7 @@ pie (40 B)       «DRDSEND1» + SHA-256 de todo lo anterior
 - **Integridad.** CRC-32 de la cabecera, SHA-256 del archivo, SHA-256 de cada tabla, coherencia cabecera–manifiesto, límites de tamaño antes de reservar memoria (manifiesto 32 MiB, 4096 tablas, 256 MiB por tabla, 1 GiB total), descompresión acotada a la longitud declarada. Leer nunca lanza una excepción por contenido malo: devuelve `Truncated`, `NotAProject`, `NewerFormat`, `Corrupt` o `Invalid` con un mensaje. `Truncated` se reserva para lo que podría ser el principio de un proyecto (también un archivo vacío); cualquier otro contenido es `NotAProject`, sea cual sea su longitud.
 - **Manifiesto completo.** Unas sumas válidas no bastan: `NdsProjectCodec.Validate` exige que el manifiesto esté completo y sea coherente (generación ≥ 1, identificador de proyecto, identidad de ROM con SHA-256 y SHA-1 bien formados, operaciones con receta y cambios, operaciones de eventos con su contenido, listas presentes). La misma regla se aplica al escribir, así que no se produce un archivo que luego no se pueda leer, y un documento leído nunca tiene partes ausentes.
 - **Cabecera útil tras un daño.** La generación y el número de operaciones están en la cabecera protegida: si el cuerpo se daña, la recuperación puede decir cuántas operaciones podrían perderse.
+- **Historial fuera del manifiesto.** Las operaciones (acción, semilla, receta y lista de cambios) se guardan como una tabla comprimida más, `history` (un arreglo JSON), protegida por su SHA-256 y validada igual que el manifiesto; un proyecto sin operaciones no la tiene. Medido con el contenedor real en cinco volcados: una sola randomización registra miles de cambios, y con el historial dentro del manifiesto seis operaciones ocupaban 1,85 MiB sin comprimir y 36 superaban el límite de 32 MiB (el proyecto habría dejado de guardarse). Como tabla: 180–219 KiB con seis operaciones y 1,7–2,9 MiB con 36 operaciones y 190 000–300 000 cambios. El JSON de cada operación confirmada se calcula una sola vez, así que guardar cuesta la operación nueva y no todo el historial (las operaciones confirmadas no se modifican).
 - **Determinista.** Las tablas se ordenan por nombre; documentos iguales producen bytes iguales.
 - **Eventos.** `NdsProjectEvents` guarda las operaciones y la auditoría con la forma de los checkpoints; `FromCheckpoint` importa v1, v2 y v3 y `ToCheckpoint` los exporta idénticos (la versión se deduce con la misma regla de `NdsEventSession`). Los bytes de eventos y de scripts se guardan además como tablas para poder verificar la repetición.
 
@@ -99,7 +101,7 @@ pie (40 B)       «DRDSEND1» + SHA-256 de todo lo anterior
 
 ## 6. PR 1: qué incluye y cómo se acredita
 
-Código en `3DS.Progressive.App/Services/Nds/Project/` (sin tocar motores, scripts ni el renderer): `NdsProjectModel`, `NdsProjectCodec`, `NdsProjectIdentity`, `NdsProjectStore` (contrato y almacén en memoria) y `NdsProjectTransactor`. Pruebas: `--nds-project-format-only` (121 comprobaciones sintéticas, en el CI) y la sonda `--nds-project-measure` (real, solo lectura).
+Código en `3DS.Progressive.App/Services/Nds/Project/` (sin tocar motores, scripts ni el renderer): `NdsProjectModel`, `NdsProjectCodec`, `NdsProjectIdentity`, `NdsProjectStore` (contrato y almacén en memoria) y `NdsProjectTransactor`. Pruebas: `--nds-project-format-only` (133 comprobaciones sintéticas, en el CI) y la sonda `--nds-project-measure` (real, solo lectura).
 
 | Área | Qué se prueba |
 |---|---|
@@ -107,6 +109,7 @@ Código en `3DS.Progressive.App/Services/Nds/Project/` (sin tocar motores, scrip
 | Truncado | **todos** los prefijos de un proyecto se rechazan como truncados y sin excepción |
 | Corrupción | **todos** los bytes volteados se detectan; 1500 daños de bits aleatorios; 300 archivos basura; bytes añadidos; cabecera dañada |
 | Manifiesto hostil | 31 manifiestos con sumas válidas y contenido incompleto o contradictorio (nulos en la ROM, las operaciones, los eventos o el índice; versiones discordantes; generación 0 o negativa): todos `Invalid`, ninguno lanza |
+| Historial | tabla comprimida y no parte del manifiesto; 13 historiales con sumas válidas y contenido incompleto, mal formado, de más o de menos: todos `Invalid`; operaciones contadas en la cabecera pero ausentes; 2001 operaciones con 204 000 cambios en 1 MiB, con el guardado siguiente en decenas de milisegundos |
 | Límites | tablas o manifiesto excesivos, longitud absurda, cabecera y manifiesto discordantes, tabla más larga que lo declarado, SHA-256 de tabla erróneo (con el resumen del archivo rehecho, para probar los controles estructurales) |
 | Compatibilidad | checkpoints v1, v2 y v3 se importan, se guardan y se exportan idénticos; fuera de v1–v3 se rechazan; misma ROM y SHA-256 que el detector universal |
 | Almacén | comparar y sustituir, tres respaldos, fallas inyectadas sin cambiar lo guardado, modificación externa, segunda instancia, reapertura tras liberar |
@@ -115,7 +118,7 @@ Código en `3DS.Progressive.App/Services/Nds/Project/` (sin tocar motores, scrip
 | Identidad | hashes completos, copia renombrada o movida coincide, un byte distinto es otra ROM, otro juego o revisión, ROM no admitida o ilegible, convención de nombres |
 | Escala | 6 MiB brutos y 5000 operaciones: 30 ms y 35 ms |
 
-**Auditoría del 10/11/2026 (antes de construir sobre el formato).** Defectos confirmados con una prueba que fallaba y corregidos en este mismo PR: (1) la lectura lanzaba `NullReferenceException` con un historial de eventos sin operaciones y aceptaba manifiestos incompletos con sumas válidas; (2) un principal de formato más reciente se trataba como dañado y una recuperación podía sustituirlo por un respaldo anterior; (3) con la misma generación se podía sobrescribir otro proyecto u otra ROM; (4) una excepción del almacén fuera de contrato se tomaba por «nada cambió», y la falta de memoria al instalar dejaba la sesión por detrás del archivo sin bloquearla; (5) solo se conservaban los campos desconocidos de la raíz del manifiesto; (6) un archivo corto ajeno se clasificaba como truncado; (7) el «0 KiB» del informe de medidas era una división entera. Sin cambios en la disposición del contenedor: los archivos v1 siguen siendo los mismos.
+**Auditoría del 10/11/2026 (antes de construir sobre el formato).** Defectos confirmados con una prueba que fallaba y corregidos en este mismo PR: (1) la lectura lanzaba `NullReferenceException` con un historial de eventos sin operaciones y aceptaba manifiestos incompletos con sumas válidas; (2) un principal de formato más reciente se trataba como dañado y una recuperación podía sustituirlo por un respaldo anterior; (3) con la misma generación se podía sobrescribir otro proyecto u otra ROM; (4) una excepción del almacén fuera de contrato se tomaba por «nada cambió», y la falta de memoria al instalar dejaba la sesión por detrás del archivo sin bloquearla; (5) solo se conservaban los campos desconocidos de la raíz del manifiesto; (6) un archivo corto ajeno se clasificaba como truncado; (7) el «0 KiB» del informe de medidas era una división entera; (8) el historial viajaba sin comprimir en el manifiesto y un proyecto con decenas de randomizaciones dejaba de poder guardarse (ahora es una tabla comprimida). La disposición del contenedor (cabecera, manifiesto, tablas, pie) no cambia; el punto 8 mueve las operaciones del manifiesto a una tabla, antes de que exista ningún archivo v1 publicado.
 
 ## 7. PR 2: almacén en disco
 

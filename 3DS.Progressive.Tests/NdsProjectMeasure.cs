@@ -93,6 +93,22 @@ internal static class NdsProjectMeasure
                 rows.Add(new(name, project.Game, label, touched.Length, raw, members, bf, bm, df, clock.Elapsed.TotalMilliseconds));
                 Console.WriteLine($"   + {label}: {touched.Length} archivos · {Size(raw)} · miembros {Size(members)} · brotli {Size(bf)} (miembros {Size(bm)}) · deflate {Size(df)} · {clock.Elapsed.TotalMilliseconds:0} ms");
             }
+            // The real container: how much of a project is its history (operations with their change lists) and how much its tables.
+            void Container(string stage)
+            {
+                var st = State(project); var files = st.Where(p => p.Key != "arm9" && !p.Key.StartsWith("overlay:", StringComparison.Ordinal)).ToDictionary(p => p.Key, p => p.Value, StringComparer.Ordinal);
+                var meta = new ThreeDS.Progressive.Services.Nds.Project.NdsProjectMeta { Writer = "medida", ProjectId = Guid.NewGuid(), CreatedUtc = DateTime.UtcNow, SavedUtc = DateTime.UtcNow, Generation = 1,
+                    Rom = new(new string('A', 64), new string('B', 40), project.Identity.Profile.GameCode, 0, project.Game, 1, false, rom),
+                    Operations = project.History.Select(ThreeDS.Progressive.Services.Nds.Project.NdsProjectOperationRecord.Of).ToList() };
+                var document = new ThreeDS.Progressive.Services.Nds.Project.NdsProjectDocument(meta, new ThreeDS.Progressive.Services.Nds.Project.NdsProjectState { Files = files, Arm9 = st.GetValueOrDefault("arm9") });
+                var sw = Stopwatch.StartNew(); byte[] bytes = ThreeDS.Progressive.Services.Nds.Project.NdsProjectCodec.Serialize(document); double write = sw.Elapsed.TotalMilliseconds;
+                sw.Restart(); bool ok = ThreeDS.Progressive.Services.Nds.Project.NdsProjectCodec.Read(bytes).Ok; double read = sw.Elapsed.TotalMilliseconds; int manifest = BitConverter.ToInt32(bytes, 28);
+                Console.WriteLine($"   # contenedor ({stage}): {project.History.Count} operaciones · {project.History.Sum(o => o.Changes.Count)} cambios · manifiesto {Size(manifest)} (brotli {Size(Brotli(bytes.AsSpan(64, manifest).ToArray(), CompressionLevel.Fastest).Length)}) · archivo {Size(bytes.Length)} · serializar {write:0} ms · leer {read:0} ms · {(ok ? "válido" : "NO VÁLIDO")}");
+            }
+            Container("seis operaciones");
+            for (int extra = 0; extra < 30; extra++)
+                project.Apply(project.PreviewRandom("Especies " + extra, new Gen5RandomizerOptions((uint)(100 + extra)) { Trainers = Gen5SpeciesMode.SimilarBst, Wild = Gen5SpeciesMode.SimilarBst }));
+            Container("más 30 randomizaciones");
             // Full snapshot of the cumulative state vs. one incremental record, durable on this disk.
             var state = State(project); long rawAll = state.Values.Sum(v => (long)v.Length);
             var compressedAll = new Dictionary<string, byte[]>(); var swCompress = Stopwatch.StartNew();

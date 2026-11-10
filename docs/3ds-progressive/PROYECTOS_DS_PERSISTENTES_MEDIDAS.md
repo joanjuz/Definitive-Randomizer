@@ -46,3 +46,22 @@ Informe de `--nds-project-measure` (sonda real de solo lectura) sobre copias pri
 | Pokémon Blanco 2 (USA/EUR) | 5 | 411 | 233 | 46 | 43,5 | 2 |
 
 **El coste duradero depende del disco.** Los tiempos de la tabla anterior se midieron en el disco mecánico donde están las ROM (unidad D:, SATA). Repetida la sonda el 10/11/2026 con la misma entrada: en ese disco, instantánea completa 28–50 ms y registro incremental 21–45 ms; en un SSD NVMe (unidad C:), instantánea completa 5–9 ms y registro incremental 1,3–2,5 ms. En el SSD el registro incremental es unos 4 ms más rápido en términos absolutos, una diferencia que no percibe quien confirma una operación; la decisión (instantánea completa, sin diario) se mantiene en ambos.
+
+## Contenedor real (10/11/2026)
+
+Las tablas anteriores miden solo las tablas del juego. La sonda mide ahora también el archivo que escribe `NdsProjectCodec`, con el historial de operaciones y sus listas de cambios, tras las seis operaciones y tras 30 randomizaciones más de entrenadores y salvajes.
+
+| ROM | Operaciones | Cambios | Manifiesto | Archivo | Serializar (ms) | Leer y verificar (ms) |
+|---|---|---|---|---|---|---|
+| Pokémon Platino (USA, rev. 1) | 6 | 16 748 | 1 KiB | 203 KiB | 77 | 83 |
+| Pokémon Platino (USA, rev. 1) | 36 | 297 418 | 1 KiB | 2858 KiB | 447 | 569 |
+| Pokémon Diamante (USA, rev. 5) | 6 | 16 085 | 1 KiB | 193 KiB | 13 | 17 |
+| Pokémon Diamante (USA, rev. 5) | 36 | 286 965 | 1 KiB | 2720 KiB | 221 | 403 |
+| Pokémon Oro HeartGold (USA) | 6 | 15 581 | 1 KiB | 184 KiB | 11 | 23 |
+| Pokémon Oro HeartGold (USA) | 36 | 270 627 | 1 KiB | 2430 KiB | 185 | 395 |
+| Pokémon Blanco 2 (USA/EUR) | 6 | 17 027 | 1 KiB | 219 KiB | 15 | 18 |
+| Pokémon Blanco 2 (USA/EUR) | 36 | 251 639 | 1 KiB | 2308 KiB | 182 | 350 |
+| Pokémon Negro (USA/EUR) | 6 | 14 376 | 1 KiB | 180 KiB | 10 | 20 |
+| Pokémon Negro (USA/EUR) | 36 | 192 098 | 1 KiB | 1710 KiB | 136 | 238 |
+
+Antes de mover el historial a una tabla comprimida, el mismo proyecto de seis operaciones de Platino tenía un manifiesto de 1847 KiB (archivo de 1891 KiB) y el de 36 operaciones no se podía escribir. «Serializar» es en frío (todo el historial de una vez, y la primera fila incluye el arranque del serializador); durante una sesión solo se serializa la operación nueva.

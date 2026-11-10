@@ -52,7 +52,8 @@ internal sealed record NdsProjectEvents(IReadOnlyList<NdsEventOperation> Operati
 }
 
 /// <summary>Where a stored table comes from. The container names blobs by kind and key.</summary>
-internal enum NdsProjectBlobKind { File, Overlay, Arm9, EventData, EventScripts }
+/// <summary><c>History</c> is not a table of the game: it is the list of operations (with their change lists), stored compressed like the tables.</summary>
+internal enum NdsProjectBlobKind { File, Overlay, Arm9, EventData, EventScripts, History }
 
 internal sealed record NdsProjectBlobEntry(string Name, NdsProjectBlobKind Kind, long RawLength, long StoredLength, string Sha256, string Codec);
 
@@ -77,7 +78,11 @@ internal sealed record NdsProjectMeta
     /// <summary>Increases by one with every durable commit; it is the compare-and-swap token of the store.</summary>
     public long Generation { get; init; }
     public required NdsProjectRom Rom { get; init; }
-    public IReadOnlyList<NdsProjectOperationRecord> Operations { get; init; } = [];
+    /// <summary>
+    /// The confirmed operations, in order. They are NOT written in the manifest: one randomization records thousands of changes, so the list is stored as a
+    /// compressed table (<see cref="NdsProjectBlobKind.History"/>) and the codec puts it back here when reading.
+    /// </summary>
+    [JsonIgnore] public IReadOnlyList<NdsProjectOperationRecord> Operations { get; init; } = [];
     public NdsProjectEvents? Events { get; init; }
     /// <summary>Overlays that must be recompressed on export (state, not metadata).</summary>
     public IReadOnlyList<int> RecompressOverlays { get; init; } = [];
