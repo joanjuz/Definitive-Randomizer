@@ -55,7 +55,7 @@ internal sealed class NdsEventEditorView : UserControl
     private NdsNpcMovePlan? _move;
     private PlatinumMap? _moveMap;
     // ---- structural NPC operations: every one ends in a reviewable proposal; nothing is written by clicking
-    private readonly Button _btnAdd = new() { Content = "Añadir" }, _btnDup = new() { Content = "Duplicar" }, _btnCopy = new() { Content = "Copiar" }, _btnCut = new() { Content = "Cortar" }, _btnPaste = new() { Content = "Pegar" }, _btnDelete = new() { Content = "Eliminar" };
+    private readonly Button _btnAdd = new() { Content = "Añadir" }, _btnDup = new() { Content = "Duplicar" }, _btnCopy = new() { Content = "Copiar" }, _btnCut = new() { Content = "Cortar" }, _btnPaste = new() { Content = "Pegar" }, _btnDelete = new() { Content = "Eliminar" }, _btnNurse = new() { Content = "Añadir enfermera" };
     private readonly List<(MenuItem Item, Button Source)> _menuItems = [];
     private readonly Border _newBox = new() { BorderThickness = new Thickness(1), Padding = new Thickness(8), Margin = new Thickness(0, 4, 0, 0), Visibility = Visibility.Collapsed };
     private readonly TextBox _nId = new() { Width = 64 }, _nX = new() { Width = 64 }, _nY = new() { Width = 64 }, _nDir = new() { Width = 56 };
@@ -285,7 +285,7 @@ internal sealed class NdsEventEditorView : UserControl
         var bar = new WrapPanel { Margin = new Thickness(6, 0, 0, 0) }; AccessibleName(bar, "Eventos DS · operaciones de NPC"); bar.Children.Add(new TextBlock { Text = "NPC:", VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 6, 6) });
         var menu = new ContextMenu();
         foreach (var (button, tip, action) in new (Button, string, Action)[] {
-            (_btnAdd, "añadir NPC", () => DoAdd(null)), (_btnDup, "duplicar NPC", () => DoDuplicate(null)), (_btnCopy, "copiar NPC", DoCopy), (_btnCut, "cortar NPC", DoCut), (_btnPaste, "pegar NPC", () => DoPaste(null)), (_btnDelete, "eliminar NPC", DoDelete) })
+            (_btnAdd, "añadir NPC", () => DoAdd(null)), (_btnNurse, "añadir enfermera", () => DoAddNurse(null)), (_btnDup, "duplicar NPC", () => DoDuplicate(null)), (_btnCopy, "copiar NPC", DoCopy), (_btnCut, "cortar NPC", DoCut), (_btnPaste, "pegar NPC", () => DoPaste(null)), (_btnDelete, "eliminar NPC", DoDelete) })
         {
             button.Margin = new Thickness(0, 0, 6, 6); button.Padding = new Thickness(8, 2, 8, 2); AccessibleName(button, "Eventos DS · " + tip); EditorPresentation.StyleAction(button, EditorPresentation.ActionRole.Tertiary);
             button.Click += (_, _) => action(); bar.Children.Add(button);
@@ -293,13 +293,14 @@ internal sealed class NdsEventEditorView : UserControl
         }
         // Context-menu actions at the right-clicked tile: no extra placement step.
         menu.Items.Add(new Separator());
-        foreach (var (header, tip, action) in new (string, string, Action)[] { ("Pegar aquí", "pegar NPC aquí", () => DoPaste(_contextTile)), ("Duplicar aquí", "duplicar NPC aquí", () => DoDuplicate(_contextTile)), ("Añadir NPC aquí", "añadir NPC aquí", () => DoAdd(_contextTile)) })
+        foreach (var (header, tip, action) in new (string, string, Action)[] { ("Pegar aquí", "pegar NPC aquí", () => DoPaste(_contextTile)), ("Duplicar aquí", "duplicar NPC aquí", () => DoDuplicate(_contextTile)), ("Añadir NPC aquí", "añadir NPC aquí", () => DoAdd(_contextTile)), ("Añadir enfermera aquí", "añadir enfermera aquí", () => DoAddNurse(_contextTile)) })
         {
             var item = new MenuItem { Header = header }; AutomationProperties.SetName(item, "Eventos DS · menú · " + tip); item.Click += (_, _) => action(); menu.Items.Add(item);
-            _menuItems.Add((item, tip.StartsWith("pegar") ? _btnPaste : tip.StartsWith("duplicar") ? _btnDup : _btnAdd));
+            _menuItems.Add((item, tip.StartsWith("pegar") ? _btnPaste : tip.StartsWith("duplicar") ? _btnDup : tip.Contains("enfermera") ? _btnNurse : _btnAdd));
         }
         _btnAdd.ToolTip = "Crea un NPC nuevo: elige la casilla en el mapa y su apariencia. No se guarda nada hasta confirmar."; _btnDup.ToolTip = "Duplica el NPC seleccionado: elige la casilla en el mapa (Ctrl+D).";
         _btnCopy.ToolTip = "Copia el NPC seleccionado (Ctrl+C). Se puede pegar en este mapa o en otro."; _btnCut.ToolTip = "Marca el NPC para trasladarlo dentro de su archivo de eventos; no se elimina nada (Ctrl+X).";
+        _btnNurse.ToolTip = "Añade una Enfermera Joy que cura al equipo (Ctrl+E): elige la casilla en el mapa. Usa una enfermera real de la ROM como plantilla y añade su script al mapa; fuera de un Centro Pokémon no hay animación de la máquina.";
         _btnDelete.ToolTip = "Elimina un NPC añadido por el editor (Supr). Los NPC del juego original no se eliminan: se explica por qué.";
         _canvas.ContextMenu = menu; _canvas.ContextMenuOpening += (_, _) => UpdateStructureButtons();
         _canvas.ContextTarget += (tile, marker) =>
@@ -312,7 +313,7 @@ internal sealed class NdsEventEditorView : UserControl
         {
             bool ctrl = (System.Windows.Input.Keyboard.Modifiers & System.Windows.Input.ModifierKeys.Control) != 0; Action? run = null;
             if (ctrl && e.Key == System.Windows.Input.Key.C) run = DoCopy; else if (ctrl && e.Key == System.Windows.Input.Key.X) run = DoCut; else if (ctrl && e.Key == System.Windows.Input.Key.V) run = () => DoPaste(null);
-            else if (ctrl && e.Key == System.Windows.Input.Key.D) run = () => DoDuplicate(null); else if (e.Key == System.Windows.Input.Key.Delete) run = DoDelete;
+            else if (ctrl && e.Key == System.Windows.Input.Key.D) run = () => DoDuplicate(null); else if (ctrl && e.Key == System.Windows.Input.Key.E) run = () => DoAddNurse(null); else if (e.Key == System.Windows.Input.Key.Delete) run = DoDelete;
             if (run is null) return; e.Handled = true; run();
         };
         UpdateStructureButtons(); return bar;
@@ -324,7 +325,8 @@ internal sealed class NdsEventEditorView : UserControl
     {
         bool ok = !_busy && _map is not null && _canvas.Model is not null; var t = SelectedTemplate;
         _btnDup.IsEnabled = _btnCopy.IsEnabled = _btnCut.IsEnabled = ok && t is not null;
-        _btnAdd.IsEnabled = ok && DefaultTemplate is not null;
+        _btnAdd.IsEnabled = ok && DefaultTemplate is not null; _btnNurse.IsEnabled = ok && NurseClip is not null;
+        if (NurseClip is null) _btnNurse.ToolTip = "La ROM no contiene ninguna enfermera con el script reconocido: no hay plantilla acreditada.";
         _btnPaste.IsEnabled = ok && _clip is not null; _btnDelete.IsEnabled = ok && _event?.Kind == PlatinumEventKind.Npc;
         _btnPaste.Content = _clip is { Cut: true } ? "Pegar (trasladar)" : "Pegar copia";
         _btnPaste.ToolTip = _clip is null ? "No hay nada copiado." : _clip.Cut ? "Traslada el NPC cortado (Ctrl+V) · " + _clip.Origin : "Crea una copia nueva (Ctrl+V) · " + _clip.Origin;
@@ -374,6 +376,27 @@ internal sealed class NdsEventEditorView : UserControl
         if (DefaultTemplate is not { } t || _map is null || !StructureGuard()) return;
         var clip = _clip is { Cut: false } c && ReferenceEquals(c.Source, t) ? c : new NdsNpcClip(t, false, _map.Id, _map.EventFile);
         if (at is { } tile) OnTileChosen(clip, tile.X, tile.Y, openForm: true); else StartPlacement(clip, true);
+    }
+    private (PlatinumEvents Data, NdsNpcClip? Clip, int Count)? _nurseCache;
+    /// <summary>The accredited nurse template of the current data (see <see cref="NdsNpcStructurePlanner.NurseTemplate"/>), computed once per data instance.</summary>
+    private NdsNpcClip? NurseClip
+    {
+        get
+        {
+            var data = _session.Data;
+            if (_nurseCache is not { } cache || !ReferenceEquals(cache.Data, data)) { var clip = NdsNpcStructurePlanner.NurseTemplate(data, out int n); _nurseCache = cache = (data, clip, n); }
+            return cache.Clip;
+        }
+    }
+    /// <summary>«Añadir enfermera»: the paste flow of a real nurse with her behaviour, without visiting a Pokémon Center first. The user's clipboard is untouched.</summary>
+    private void DoAddNurse((int X, int Y)? at)
+    {
+        if (NurseClip is not { } clip || _map is null || !StructureGuard()) return;
+        var option = BehaviourFor(clip).Single(o => o.Mode == NdsBehaviourMode.WithBehaviour);
+        if (!option.Available) { ShowInfo($"No se puede añadir una enfermera funcional en el mapa {_map.Id}:\n• {option.Reason}\nNo se modificó nada."); return; }
+        if (at is { } tile) { OnTileChosen(clip, tile.X, tile.Y, openForm: true); return; }
+        StartPlacement(clip, true);
+        _hover.Text = _status.Text = "Haz clic en la casilla de la enfermera nueva; Esc cancela. No se guarda nada hasta guardar el checkpoint.";
     }
     private void DoDelete()
     {
@@ -451,7 +474,9 @@ internal sealed class NdsEventEditorView : UserControl
         if (_map is null) return;
         _newTemplate = clip.Source; _newClip = clip; _newDraft = draft; _newLoading = true;
         var templates = _session.Data.Events(_map.Id).Where(NdsNpcStructurePlanner.IsTemplate).Select(e => new TemplateItem(e, $"NPC {e.Index} de este mapa · ID {e.Id} · gráfico {e.Graphics}")).ToList();
-        if (NdsNpcStructurePlanner.IsCrossMap(_session.Data, clip, _map.Id)) templates.Insert(0, new TemplateItem(clip.Source, $"Copiado de otro mapa: {clip.Origin}"));
+        bool nurse = _nurseCache is { Clip: { } n } && ReferenceEquals(n, clip);
+        if (nurse) { templates.RemoveAll(t => ReferenceEquals(t.Event, clip.Source)); templates.Insert(0, new TemplateItem(clip.Source, $"Enfermera Joy · plantilla de la ROM ({clip.Origin})")); }
+        else if (NdsNpcStructurePlanner.IsCrossMap(_session.Data, clip, _map.Id)) templates.Insert(0, new TemplateItem(clip.Source, $"Copiado de otro mapa: {clip.Origin}"));
         _nTemplate.ItemsSource = templates; _nTemplate.SelectedItem = templates.FirstOrDefault(t => ReferenceEquals(t.Event, clip.Source)) ?? templates.FirstOrDefault();
         _nGfx.ItemsSource = _session.Data.AccreditedGraphics.ToArray(); _nMov.ItemsSource = _session.Data.AccreditedMovements.ToArray();
         _nId.Text = draft.Id.ToString(CultureInfo.InvariantCulture); _nX.Text = draft.X.ToString(CultureInfo.InvariantCulture); _nY.Text = draft.Y.ToString(CultureInfo.InvariantCulture); _nDir.Text = draft.Direction.ToString(CultureInfo.InvariantCulture);
@@ -484,7 +509,7 @@ internal sealed class NdsEventEditorView : UserControl
         var lines = new List<string> { "Estado: " + plan.Summary, $"Comportamiento: {option.Label} — {option.Reason}" };
         if (option.Mode == NdsBehaviourMode.WithBehaviour)
             lines.AddRange(["Dependencias que se trasladan o reasignan:", $"  · script común {PlatinumScriptFile.PokecenterNurseCommonScript} (global): se conserva", $"  · variable 0x8007 = ID local del NPC nuevo ({id}): se reasigna", "  · textos: los del banco común (ninguno local)", $"  · archivo de scripts {_map.ScriptFile}: se añade el script local {script} al final; los demás no cambian",
-                "  · la animación de la máquina de curación solo existe en los Centros Pokémon; fuera de ellos el juego no la reproduce y cura igualmente (pendiente de confirmar en el emulador)"]);
+                "  · la animación de la máquina de curación solo existe en los Centros Pokémon; fuera de ellos el juego no la reproduce y cura igualmente (comprobado por el propietario en el emulador, en Pueblo Hojaverde)"]);
         lines.AddRange(plan.Reasons.Select(r => "• " + r));
         if (crossMap) { lines.Add("Copia entre mapas (apariencia y configuración básica):"); lines.AddRange(NdsNpcStructurePlanner.CrossMapNotes(_newClip!).Select(r => "  · " + r)); lines.Add("  · " + NdsNpcStructurePlanner.TargetHeight(_session.Data, _map.Id, template, x, y).Source); }
         lines.Add($"Cantidad de NPC en el mapa: {_session.Data.NpcCount(_map.Id)} → {_session.Data.NpcCount(_map.Id) + 1} · script {script}, flag 0, tipo 0.");

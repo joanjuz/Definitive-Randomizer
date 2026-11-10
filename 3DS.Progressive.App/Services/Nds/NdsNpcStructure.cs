@@ -126,6 +126,24 @@ internal static class NdsNpcStructurePlanner
         };
     }
 
+    /// <summary>
+    /// The nurse used by «Añadir enfermera»: a real NPC of the ROM whose local script is EXACTLY the recognised Pokémon Center nurse script and refers to
+    /// itself, with an accredited graphic. Deterministic (lowest map id, then lowest index). Null when the ROM has none: nothing is invented.
+    /// </summary>
+    internal static NdsNpcClip? NurseTemplate(PlatinumEvents data, out int nurses)
+    {
+        NdsNpcClip? first = null; nurses = 0;
+        foreach (var map in data.Maps.GroupBy(m => (m.EventFile, m.ScriptFile)).Select(g => g.OrderBy(m => m.Id).First()).OrderBy(m => m.Id))
+            foreach (var e in data.Events(map.Id).Where(e => IsTemplate(e) && e.Script is >= 1 and < 2000).OrderBy(e => e.Index))
+            {
+                PlatinumScriptInfo? info;
+                try { info = data.ClassifyScript(map.Id, e.Script); } catch (System.IO.InvalidDataException) { continue; }
+                if (info is not { Pattern: PlatinumScriptPattern.PokecenterNurse } || info.LocalIdReference != e.Id || !data.AccreditedGraphics.Contains(e.Graphics)) continue;
+                nurses++; first ??= new NdsNpcClip(e, false, map.Id, map.EventFile);
+            }
+        return first;
+    }
+
     internal static bool IsCrossMap(PlatinumEvents data, NdsNpcClip clip, int targetMap) => data.Map(targetMap).EventFile != clip.SourceEventFile;
 
     /// <summary>

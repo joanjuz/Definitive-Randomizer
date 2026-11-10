@@ -92,7 +92,19 @@ internal static class NdsNpcScriptChecks
         var nurseOfOther = new NdsNpcClip(data.Npc(1, 0) with { Id = 99 }, false, 1, 1);
         check(!NdsNpcStructurePlanner.BehaviourOptions(data, nurseOfOther, 2).Single(o => o.Mode == NdsBehaviourMode.WithBehaviour).Available && NdsNpcStructurePlanner.BehaviourOptions(data, nurseOfOther, 2).Single(o => o.Mode == NdsBehaviourMode.WithBehaviour).Reason.Contains("otro NPC"), "NpcScript_NurseScriptOfAnotherNpcIsNotPortable");
 
-        // ---- sessions, checkpoint v3, export, undo
+        // ---- «Añadir enfermera»: accredited template from the ROM itself
+        var nurseTemplate = NdsNpcStructurePlanner.NurseTemplate(data, out int nurseCount);
+        check(nurseTemplate is { SourceMap: 1, Cut: false } && nurseTemplate.Source is { Index: 0, Id: 20 } && nurseCount == 1, "Nurse_TemplateIsARealNurseOfTheRom");
+        check(NdsNpcStructurePlanner.BehaviourOptions(data, nurseTemplate!, 2).Single(o => o.Mode == NdsBehaviourMode.WithBehaviour).Available && NdsNpcStructurePlanner.BehaviourOptions(data, nurseTemplate!, 1).Single(o => o.Mode == NdsBehaviourMode.WithBehaviour).Available, "Nurse_TemplateGivesBehaviourInAnyMapWithAScriptTable");
+        var noNurse = (Make() with { Scripts = NdsGen5RandomizerChecks.BuildNarc([ScriptMember(Message(1), Message(3), [2, 0]), ScriptMember(Message(0)), ScriptMember([2, 0])]) }).Read();
+        var foreignNurse = (Make() with { Scripts = NdsGen5RandomizerChecks.BuildNarc([ScriptMember(PlatinumScriptFile.NurseScript(99), Message(3), [2, 0]), ScriptMember(Message(0)), ScriptMember([2, 0])]) }).Read();
+        check(NdsNpcStructurePlanner.NurseTemplate(noNurse, out int none) is null && none == 0 && NdsNpcStructurePlanner.NurseTemplate(foreignNurse, out _) is null, "Nurse_NoTemplateIsInventedWhenTheRomHasNoExactNurse");
+        var levelScripts = (Make() with { Scripts = NdsGen5RandomizerChecks.BuildNarc([ScriptMember(PlatinumScriptFile.NurseScript(20), Message(3), [2, 0]), [1, 0, 0, 0], ScriptMember([2, 0])]) }).Read();
+        var blocked = NdsNpcStructurePlanner.BehaviourOptions(levelScripts, NdsNpcStructurePlanner.NurseTemplate(levelScripts, out _)!, 2).Single(o => o.Mode == NdsBehaviourMode.WithBehaviour);
+        check(!blocked.Available && blocked.Reason.Contains("tabla de entradas reconocible"), "Nurse_MapWithoutAScriptTableIsRefusedWithAReason");
+        var withAdded = data.WithAppendedScript(2, PlatinumScriptFile.NurseScript(31), out _);
+        check(NdsNpcStructurePlanner.NurseTemplate(withAdded, out _)!.Source.Id == 20, "Nurse_TemplateChoiceIsDeterministic");
+
         string temp = Path.Combine(Path.GetTempPath(), "nds-npc-script-" + Guid.NewGuid().ToString("N")); Directory.CreateDirectory(temp);
         try
         {
@@ -175,7 +187,7 @@ internal static class NdsNpcScriptChecks
             Select(0); Click(Btn("copiar NPC")); maps.SelectedItem = maps.Items[2]; NdsMapCanvasChecks.Arrange(view, 1100, 760); Click(Btn("pegar NPC"));
             check(canvas.Placing && canvas.PlacementClick(Tile(10, 10)) && form.Visibility == Visibility.Visible, "NpcScriptUi_PastingTheNurseOpensTheForm");
             var selected = (ComboBoxItem)mode.SelectedItem;
-            check(((NdsBehaviourOption)selected.Tag).Mode == NdsBehaviourMode.WithBehaviour && info.Text.Contains("Dependencias") && info.Text.Contains("0x8007") && info.Text.Contains("script común 2002") && info.Text.Contains("pendiente de confirmar en el emulador"), "NpcScriptUi_NurseBehaviourIsPreselectedWithItsDependencies");
+            check(((NdsBehaviourOption)selected.Tag).Mode == NdsBehaviourMode.WithBehaviour && info.Text.Contains("Dependencias") && info.Text.Contains("0x8007") && info.Text.Contains("script común 2002") && info.Text.Contains("comprobado por el propietario en el emulador"), "NpcScriptUi_NurseBehaviourIsPreselectedWithItsDependencies");
             check(mode.Items.Cast<ComboBoxItem>().Single(i => ((NdsBehaviourOption)i.Tag).Mode == NdsBehaviourMode.ShareScript) is { IsEnabled: false } shareItem && (string)shareItem.ToolTip! != "", "NpcScriptUi_UnavailableModesAreDisabledWithTheirReason");
             NdsMapCanvasChecks.Capture(view, 1100, 760, "npc-script-nurse-form-1100");
             mode.SelectedItem = mode.Items.Cast<ComboBoxItem>().First(i => ((NdsBehaviourOption)i.Tag).Mode == NdsBehaviourMode.Appearance);
@@ -192,6 +204,24 @@ internal static class NdsNpcScriptChecks
             check(session.Data.Npc(1, 4) is { Script: 2 } && Narc.Read(session.Data.ScriptArchiveBytes()).Files[0].AsSpan().SequenceEqual(Narc.Read(scriptsBefore).Files[0]), "NpcScriptUi_SharedScriptWritesNothingToTheScripts");
             while (session.CanUndo) { Click(Btn("Restaurar último cambio…")); Save(); }
             check(session.Data.Bytes().SequenceEqual(eventsBefore) && session.Data.ScriptArchiveBytes().SequenceEqual(scriptsBefore), "NpcScriptUi_RestoringReturnsToTheOriginalEventsAndScripts");
+            // «Añadir enfermera»: button → placement with the pending nurse → form with behaviour preselected → save → restore
+            var nurseButton = Btn("añadir enfermera"); maps.SelectedItem = maps.Items[2]; NdsMapCanvasChecks.Arrange(view, 1100, 760);
+            check(nurseButton.IsEnabled && (string)nurseButton.Content == "Añadir enfermera" && ((string)nurseButton.ToolTip!).Contains("Ctrl+E"), "NurseUi_ButtonIsAvailableWithItsShortcut");
+            var clipBefore = Btn("pegar NPC").IsEnabled; Click(nurseButton);
+            check(canvas.Placing && clipBefore == Btn("pegar NPC").IsEnabled, "NurseUi_ButtonStartsPlacementWithoutTouchingTheClipboard");
+            check(canvas.PlacementClick(Tile(12, 12)) && form.Visibility == Visibility.Visible && ((NdsBehaviourOption)((ComboBoxItem)mode.SelectedItem).Tag).Mode == NdsBehaviourMode.WithBehaviour, "NurseUi_FormOpensWithTheNurseBehaviour");
+            var templateBox = Find<ComboBox>(view, "Eventos DS · nuevo NPC · plantilla");
+            check(templateBox.SelectedItem?.ToString()?.Contains("Enfermera Joy") == true, "NurseUi_TemplateIsNamedAsTheRomNurse");
+            check(info.Text.Contains("Dependencias") && info.Text.Contains("0x8007") && info.Text.Contains("script común 2002"), "NurseUi_DependenciesAreListed");
+            Click(Btn("previsualizar propuesta de NPC nuevo"));
+            check(diff.Text.Contains("AÑADIDO") && session.Data.Bytes().SequenceEqual(eventsBefore) && canvas.PendingAddition is { X: 12, Y: 12 }, "NurseUi_PreviewShowsThePendingNurseAndWritesNothing");
+            Save();
+            var placedNurse = session.Data.Npc(2, session.Data.NpcCount(2) - 1);
+            check(placedNurse is { X: 12, Y: 12, Graphics: 33 } && session.Data.ClassifyScript(2, placedNurse.Script) is { Pattern: PlatinumScriptPattern.PokecenterNurse } pn && pn.LocalIdReference == placedNurse.Id && NdsEventSession.ReadDocument(Path.Combine(temp, $"s{saves}.ndsevents.json")).Version == 3, "NurseUi_SavedNurseIsFunctionalAndRecordedInV3");
+            Click(Btn("Restaurar último cambio…")); Save();
+            check(session.Data.Bytes().SequenceEqual(eventsBefore) && session.Data.ScriptArchiveBytes().SequenceEqual(scriptsBefore), "NurseUi_RestoreRemovesTheNurseAndItsScript");
+            Click(nurseButton); bool placingAgain = canvas.Placing; canvas.CancelPlacement();
+            check(placingAgain && !canvas.Placing && form.Visibility != Visibility.Visible && session.Data.Bytes().SequenceEqual(eventsBefore), "NurseUi_CancellingThePlacementChangesNothing");
             check(AutomationProperties.GetName(mode).Length > 0 && mode.Items.Cast<ComboBoxItem>().All(i => AutomationProperties.GetName(i).Length > 0 && AutomationProperties.GetHelpText(i).Length > 0), "NpcScriptUi_ModesAreAccessible");
         }
         finally { Directory.Delete(temp, true); }
@@ -239,8 +269,39 @@ internal static class NdsNpcScriptChecks
             report = new { profile = "CPUE/1", sourceSha256 = hash, nurses, sourceMap = new { MapId = pc.Id, pc.InternalName, NpcIndex = nurse.Index, NpcId = nurse.Id, nurse.Script }, target = new { MapId = twin.Id, twin.InternalName, twin.ScriptFile, NpcIndex = added.Index, NpcId = added.Id, added.X, added.Y, added.Script },
                 scriptBytes = Convert.ToHexString(PlatinumScriptFile.NurseScript(added.Id)), gameplay = "NOT tested: heal the party in Twinleaf in the emulator" };
         }
+        // «Añadir enfermera» on a route (outside any Pokémon Center), from the accredited template of the ROM
+        object nurseReport;
+        using (var project = NdsProject.Open(copy, false))
+        {
+            var events = project.Events; var data = events.Data; byte[] eventsBefore = data.Bytes(), scriptsBefore = data.ScriptArchiveBytes();
+            var template = NdsNpcStructurePlanner.NurseTemplate(data, out int count);
+            Require(template is not null && count == 18 && data.Map(template.SourceMap).InternalName.Contains("PC"), "NurseReal_TemplateIsOneOfTheEighteenRomNurses");
+            var route = data.Maps.First(m => m.InternalName == "R201");
+            Require(NdsNpcStructurePlanner.BehaviourOptions(data, template!, route.Id).Single(o => o.Mode == NdsBehaviourMode.WithBehaviour).Available, "NurseReal_Route201AcceptsAFunctionalNurse");
+            var model = new NdsMapCanvasModel(data.Layout(route.Id), data.Events(route.Id), project.LoadTerrain().Terrain, data.Bounds(route.Id));
+            var anchor = data.Events(route.Id).First(e => e.Kind == PlatinumEventKind.Npc);
+            NdsAddPlan? plan = null; NdsAddDraft? draft = null; NdsScriptBinding? binding = null;
+            for (int r = 1; r <= 12 && plan is not { Outcome: NdsMoveOutcome.Ready }; r++)
+                for (int dx = -r; dx <= r && plan is not { Outcome: NdsMoveOutcome.Ready }; dx++)
+                    foreach (int dy in new[] { -r, r })
+                    {
+                        var d = NdsNpcStructurePlanner.PasteDraft(data, template!, route.Id, anchor.X + dx, anchor.Y + dy); var (sc, b) = NdsNpcStructurePlanner.BindingFor(data, template!, route.Id, NdsBehaviourMode.WithBehaviour, d.Id);
+                        var p = NdsNpcStructurePlanner.PlanAdd(data, model, route.Id, template!.Source, d with { Script = sc });
+                        if (p.Outcome == NdsMoveOutcome.Ready) { plan = p; draft = d with { Script = sc }; binding = b; break; }
+                    }
+            Require(plan is { CanPropose: true }, "NurseReal_AFreeRouteTileIsFound");
+            events.Save(events.PreviewAdd(route.Id, plan!.Record!, binding), Path.Combine(output, "nurse-route.ndsevents.json")); project.EventChanged();
+            var added = events.Data.Npc(route.Id, events.Data.NpcCount(route.Id) - 1);
+            Require(added.Graphics == template!.Source.Graphics && events.Data.ClassifyScript(route.Id, added.Script) is { Pattern: PlatinumScriptPattern.PokecenterNurse } ri && ri.LocalIdReference == added.Id, "NurseReal_RouteNurseHasHerOwnScript");
+            string built = Path.Combine(output, "Platino-enfermera-Ruta201.nds"); project.Export(built);
+            using (var baseline = NdsRom.Open(copy)) using (var rebuilt = NdsRom.Open(built))
+                Require(baseline.Files.Where(x => x.Path != PlatinumEvents.EventPath && x.Path != PlatinumEvents.ScriptPath).All(x => baseline.ReadFile(x).SequenceEqual(rebuilt.ReadFile(x.Path))), "NurseReal_EveryOtherNdsFileIsByteExact");
+            events.Save(events.PreviewUndo(), Path.Combine(output, "nurse-route-restored.ndsevents.json")); project.EventChanged();
+            Require(events.Data.Bytes().SequenceEqual(eventsBefore) && events.Data.ScriptArchiveBytes().SequenceEqual(scriptsBefore), "NurseReal_RestoreIsExact");
+            nurseReport = new { template = new { MapId = template.SourceMap, data.Map(template.SourceMap).InternalName, NpcIndex = template.Source.Index, NpcId = template.Source.Id, template.Source.Graphics }, route = new { MapId = route.Id, route.InternalName, route.ScriptFile, NpcIndex = added.Index, NpcId = added.Id, added.X, added.Y, added.Script }, gameplay = "NOT tested: heal the party on Route 201 in the emulator" };
+        }
         Require(Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(Path.Combine(output, "Platino-restaurado.nds")))) == hash && Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(source))) == hash, "NpcScriptReal_RestoredRomAndSourceAreIdentical");
-        File.WriteAllText(Path.Combine(output, "report.json"), JsonSerializer.Serialize(report, new JsonSerializerOptions { WriteIndented = true }));
+        File.WriteAllText(Path.Combine(output, "report.json"), JsonSerializer.Serialize(new { copy = report, addNurse = nurseReport }, new JsonSerializerOptions { WriteIndented = true }));
         Console.WriteLine("Real nurse copy finished; gameplay NOT tested");
     }
 }
