@@ -67,6 +67,7 @@ dotnet .\3DS.Progressive.Tests\bin\Release\net10.0-windows\3DS.Progressive.Tests
 | `--native-wild7-only` | — |  |
 | `--nds-only` | — | sí |
 | `--nds-map-layout-only` | — | matrices sintéticas de solo lectura; ejecución focalizada independiente |
+| `--nds-map-canvas-only` | — | modelo espacial puro del lienzo DS de solo lectura; sin WPF |
 | `--nds-events-only` | — | incluida también en `--nds-only` |
 | `--performance-only` | — |  |
 | `--pickup-only` | — |  |
@@ -115,6 +116,7 @@ dotnet .\3DS.Progressive.Tests\bin\Release\net10.0-windows\3DS.Progressive.Tests
 | `--rebuild-marts-ui-only` | — | sí |
 | `--nds-ui-only` | — | sí |
 | `--nds-events-ui-only` | — | sí |
+| `--nds-map-canvas-ui-only` | — | sí |
 | `--requested-ui-only` | — | sí |
 | `--swsh-ui-only` | — | sí |
 | `--template-feedback-ui-only` | — | sí |
@@ -247,3 +249,5 @@ Eventos DS fase 1: `--nds-events-only` ejecuta los casos sintéticos de mapas, a
 `--usum-mints-distribution-real-copies <salida nueva> <Ultra Sol fase 1.1> <Ultra Luna fase 1.1>`: copia ambos proyectos privados, ejecuta la receta combinada con el motor Global/Batch real y verifica reapertura y conservación de BP, precios e iconos. No reconstruye ROM ni acredita juego en emulador.
 
 Matrices DS, fase visual 1: `--nds-map-layout-only` valida secciones opcionales, propiedad de celdas, coordenadas de 32×32, límites y lectura inmutable. `--nds-map-layout-probe <informe JSON nuevo> <ROM privada Platino CPUE/1>` exige el perfil acreditado, lee las 289 matrices y 593 contextos de cabecera, comprueba el NPC 0 de T01 y compara el SHA-256 de la fuente y todos los bytes del archivo de eventos antes/después. El directorio padre del informe debe existir; el archivo debe ser nuevo. No crea sesiones, checkpoints ni ROMs. Véase [NDS_MAP_LAYOUT_PHASE1.md](NDS_MAP_LAYOUT_PHASE1.md).
+
+Lienzo DS de solo lectura, fase visual 2: `--nds-map-canvas-only` valida el modelo espacial (conversión tile/píxel, zoom, desplazamiento, ajuste, hit-test, selección, celdas explícitas/contextuales/ajenas y eventos fuera de la máscara o de la matriz). `--nds-map-canvas-ui-only` abre la vista Eventos con una ROM sintética tipo 411 (matriz 30×30, una celda explícita), comprueba sincronización tabla↔lienzo, cambio de mapa, modos, capas, accesibilidad, tiempo de dibujo, ausencia de cambios en la sesión y la fuente, y que previsualizar/guardar siguen funcionando; guarda capturas en `nds-map-canvas/` junto al ejecutable. Ninguna sustituye una prueba en el juego. Véase [NDS_MAP_CANVAS_PHASE2.md](NDS_MAP_CANVAS_PHASE2.md).

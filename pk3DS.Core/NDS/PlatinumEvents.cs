@@ -44,7 +44,7 @@ public sealed class PlatinumEvents
     public const uint EventsCrc32 = 0xD8BB2D84, NamesCrc32 = 0x530174B6, MatricesCrc32 = 0x90D98DF7, HeadersCrc32 = 0xBB8DDE9D;
     public const string NormalizedEventsSha256 = "24D1E66E53C5D87DE91CAA26D6D19690C8AC04BAFDE1EAD6BFD7C25F2E1AA7DE";
     private readonly byte[] _events;
-    private readonly Narc _scripts;
+    private readonly Narc _scripts, _matrixFiles;
     private readonly int[] _starts;
     private readonly List<(int Offset, int Count)[]> _blocks;
     private readonly PlatinumMap[] _maps;
@@ -77,7 +77,7 @@ public sealed class PlatinumEvents
             throw new InvalidDataException("Cabeceras o nombres de mapa truncados.");
         _headers = (byte[])headers.Clone(); _names = (byte[])names.Clone(); _matrices = (byte[])matricesBytes.Clone();
         _scriptBytes = (byte[])scripts.Clone(); _labels = labels?.ToArray(); _events = (byte[])events.Clone();
-        var archive = Narc.Read(_events); var matrices = Narc.Read(matricesBytes); _scripts = Narc.Read(scripts);
+        var archive = Narc.Read(_events); var matrices = _matrixFiles = Narc.Read(matricesBytes); _scripts = Narc.Read(scripts);
         _starts = MemberStarts(_events, archive); _blocks = new();
         for (int file = 0; file < archive.Files.Count; file++)
         {
@@ -146,6 +146,8 @@ public sealed class PlatinumEvents
         return result.AsReadOnly();
     }
 
+    /// <summary>Read-only matrix layout of a map's own matrix (no writes, no events).</summary>
+    public PlatinumMapLayout Layout(int mapId) { var map = Map(mapId); return PlatinumMapLayout.ParseMatrix(_matrixFiles.Files[map.Matrix], map.Id, map.Matrix); }
     public PlatinumMap Map(int mapId) => mapId >= 0 && mapId < _maps.Length ? _maps[mapId] : throw new ArgumentOutOfRangeException(nameof(mapId));
     public PlatinumEvent Npc(int mapId, int index) => Events(mapId).FirstOrDefault(e => e.Kind == PlatinumEventKind.Npc && e.Index == index)
         ?? throw new ArgumentOutOfRangeException(nameof(index), "NPC inexistente.");
