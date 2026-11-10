@@ -43,6 +43,14 @@ internal sealed class NdsEventEditorView : UserControl
     private readonly StackPanel _mapFooter = new();
     private readonly TextBlock _hover = new() { TextTrimming = TextTrimming.CharacterEllipsis, FontSize = 11.5, Margin = new Thickness(0, 2, 0, 0) }, _scale = new() { TextTrimming = TextTrimming.CharacterEllipsis, FontSize = 11.5, Margin = new Thickness(0, 2, 0, 0) };
     private Border? _canvasFrame;
+    private readonly RadioButton _toolSelect = new() { Content = "Seleccionar", IsChecked = true, GroupName = "NdsEventTool", Margin = new Thickness(8, 0, 10, 0) }, _toolMove = new() { Content = "Mover NPC", GroupName = "NdsEventTool", Margin = new Thickness(0, 0, 10, 0) };
+    private readonly TextBlock _toolHelp = new() { TextWrapping = TextWrapping.Wrap, FontSize = 11.5, Margin = new Thickness(0, 0, 0, 3) };
+    private readonly Border _moveBox = new() { BorderThickness = new Thickness(1), Padding = new Thickness(8), Margin = new Thickness(0, 4, 0, 0), Visibility = Visibility.Collapsed };
+    private readonly TextBlock _moveText = new() { TextWrapping = TextWrapping.Wrap };
+    private readonly Button _moveAccept = new() { Content = "Aceptar propuesta", Margin = new Thickness(0, 6, 8, 0) }, _moveCancel = new() { Content = "Cancelar", Margin = new Thickness(0, 6, 8, 0) };
+    private UIElement? _legend;
+    private NdsNpcMovePlan? _move;
+    private PlatinumMap? _moveMap;
     private readonly ScrollViewer _inspector;
     private NdsEventProposal? _pending;
     private PlatinumMap? _map;
@@ -134,6 +142,11 @@ internal sealed class NdsEventEditorView : UserControl
             AccessibleName(button, "Eventos DS · mapa · " + tip); button.Click += (_, _) => action(); EditorPresentation.StyleAction(button, EditorPresentation.ActionRole.Tertiary); bar.Children.Add(button);
         }
         foreach (var radio in new[] { _modeMap, _modeTables }) radio.SetResourceReference(ForegroundProperty, "TextMain");
+        var tools = new StackPanel { Orientation = System.Windows.Controls.Orientation.Horizontal, Margin = new Thickness(6, 0, 0, 0) };
+        tools.Children.Add(new TextBlock { Text = "Herramienta:", VerticalAlignment = VerticalAlignment.Center }); tools.Children.Add(_toolSelect); tools.Children.Add(_toolMove); bar.Children.Add(tools);
+        foreach (var radio in new[] { _toolSelect, _toolMove }) radio.SetResourceReference(ForegroundProperty, "TextMain");
+        AccessibleName(_toolSelect, "Eventos DS · herramienta seleccionar"); AccessibleName(_toolMove, "Eventos DS · herramienta mover NPC");
+        _toolSelect.Checked += (_, _) => ApplyTool(); _toolMove.Checked += (_, _) => ApplyTool();
         AccessibleName(_modeMap, "Eventos DS · modo mapa esquemático"); AccessibleName(_modeTables, "Eventos DS · modo tablas");
         _center.Children.Add(bar);
         foreach (var (label, layer) in new[] { ("NPC", NdsMapLayers.Npc), ("Objetos", NdsMapLayers.Objects), ("Warps", NdsMapLayers.Warps), ("Activadores", NdsMapLayers.Triggers), ("Bloques", NdsMapLayers.Blocks), ("Tiles", NdsMapLayers.Tiles), ("Máscara", NdsMapLayers.Ownership), ("Terreno", NdsMapLayers.Terrain) })
@@ -146,7 +159,9 @@ internal sealed class NdsEventEditorView : UserControl
         Grid.SetRow(_canvasFrame, 2); _center.Children.Add(_canvasFrame); Grid.SetRow(_tabs, 2); _center.Children.Add(_tabs); _tabs.Visibility = Visibility.Collapsed;
         var notice = new TextBlock { Text = NdsMapCanvasControl.SchematicNotice, FontWeight = FontWeights.SemiBold, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 4, 0, 0) };
         AccessibleName(notice, "Eventos DS · aviso de vista esquemática"); AccessibleName(_hover, "Eventos DS · posición bajo el cursor"); AccessibleName(_scale, "Eventos DS · escala y dimensiones");
-        _mapFooter.Children.Add(notice); _mapFooter.Children.Add(_terrainNote); _mapFooter.Children.Add(_scale); _mapFooter.Children.Add(_hover); _mapFooter.Children.Add(BuildLegend());
+        BuildMoveBox(); AccessibleName(_toolHelp, "Eventos DS · ayuda de la herramienta");
+        _legend = BuildLegend(); ApplyTool(); _canvas.DragGuard = BeginMoveGuard; _canvas.MoveDropped += OnMoveDropped; _canvas.DragChanged += OnDragChanged;
+        _mapFooter.Children.Add(_toolHelp); _mapFooter.Children.Add(_moveBox); _mapFooter.Children.Add(notice); _mapFooter.Children.Add(_terrainNote); _mapFooter.Children.Add(_scale); _mapFooter.Children.Add(_hover); _mapFooter.Children.Add(_legend);
         Grid.SetRow(_mapFooter, 3); _center.Children.Add(_mapFooter);
         Grid.SetColumn(_center, 1); _body.Children.Add(_center);
         _modeMap.Checked += (_, _) => ApplyMode(); _modeTables.Checked += (_, _) => ApplyMode();
@@ -166,9 +181,80 @@ internal sealed class NdsEventEditorView : UserControl
         legend.Children.Add(new TextBlock { Text = "Anillo discontinuo: evento fuera de la máscara de la cabecera · Aspa: fuera de la matriz", FontSize = 11.5, TextWrapping = TextWrapping.Wrap });
         return legend;
     }
+    // ---- NPC move tool: a drop only creates a proposal; accepting fills X/Y and runs the existing Preview -------------------
+    private void BuildMoveBox()
+    {
+        _moveBox.SetResourceReference(Border.BorderBrushProperty, "Accent"); _moveBox.SetResourceReference(Border.BackgroundProperty, "Panel");
+        var stack = new StackPanel(); var buttons = new WrapPanel();
+        AccessibleName(_moveBox, "Eventos DS · propuesta de movimiento"); AccessibleName(_moveText, "Eventos DS · detalle de la propuesta"); AccessibleName(_moveAccept, "Eventos DS · aceptar propuesta"); AccessibleName(_moveCancel, "Eventos DS · cancelar propuesta");
+        EditorPresentation.StyleAction(_moveAccept, EditorPresentation.ActionRole.Primary); EditorPresentation.StyleAction(_moveCancel, EditorPresentation.ActionRole.Tertiary);
+        buttons.Children.Add(_moveAccept); buttons.Children.Add(_moveCancel); stack.Children.Add(_moveText); stack.Children.Add(buttons); _moveBox.Child = stack;
+        _moveAccept.Click += (_, _) => AcceptMove(); _moveCancel.Click += (_, _) => HideProposal();
+    }
+    private void ApplyTool()
+    {
+        bool move = _toolMove.IsChecked == true; HideProposal(); _canvas.Tool = move ? NdsMapTool.MoveNpc : NdsMapTool.Select;
+        _toolHelp.Text = move
+            ? "Mover NPC: arrastra un NPC existente a otra casilla; Esc cancela. Para desplazar el mapa, arrastra el fondo o usa el botón central. Soltar solo crea una propuesta: no se guarda nada."
+            : "Seleccionar: clic para elegir un evento; arrastra el fondo para desplazar el mapa.";
+    }
+    /// <summary>Called when a drag actually activates (after the movement threshold): pending fields or a pending preview need the same authorization as changing the selection.</summary>
+    private bool BeginMoveGuard(PlatinumEvent npc)
+    {
+        if (_busy) return false;
+        if (_dirty || _pending is not null)
+        {
+            if (!ConfirmLeave()) return false;
+            _dirty = false; InvalidatePreview();
+        }
+        HideProposal(cancelDrag: false); return true;   // the drag that is activating must survive
+    }
+    private void OnDragChanged(NdsNpcDragSession? drag) { if (drag is { Active: true }) _hover.Text = drag.Plan.Live; else if (drag is null && _move is null) _hover.Text = ""; }
+    private string PositionText(int x, int y) => _canvas.Model is { } m && x >= 0 && y >= 0 && x < m.Layout.TileWidth && y < m.Layout.TileHeight
+        ? $"X={x}, Y={y} · bloque ({x / 32},{y / 32}), local ({x % 32},{y % 32})" : $"X={x}, Y={y} · fuera de la matriz";
+    private void OnMoveDropped(NdsNpcMovePlan plan)
+    {
+        if (_map is null) return;
+        _move = plan; _moveMap = _map;
+        var lines = new List<string> { $"Propuesta de movimiento · NPC {plan.Npc.Index} (ID {plan.Npc.Id}) — Mapa {_map.Id}: {_map.Name}", "Original:  " + PositionText(plan.FromX, plan.FromY), "Propuesto: " + PositionText(plan.ToX, plan.ToY), "Estado: " + plan.Summary };
+        lines.AddRange(plan.Reasons.Select(r => "• " + r));
+        if (plan.CanPropose) lines.Add("No evaluado: alturas y BDHC, comportamiento del tile, puertas, scripts, movimiento del NPC y estado dinámico. Esto no es una confirmación de que el movimiento sea seguro en el juego.");
+        var sharing = _session.Data.Maps.Where(m => m.EventFile == _map.EventFile).Select(m => m.Id).ToList();
+        if (sharing.Count > 1) lines.Add($"Archivo de eventos compartido por {sharing.Count} cabeceras ({string.Join(", ", sharing.Take(8))}{(sharing.Count > 8 ? "…" : "")}): el cambio afecta a todas y se aplican los límites más conservadores.");
+        lines.Add(plan.CanPropose ? "Aceptar NO guarda nada: pasa X/Y al editor y genera la previsualización; después guarda un checkpoint nuevo." : "Este destino no se puede aceptar; no se modificó nada.");
+        _moveText.Text = string.Join("\n", lines);
+        _moveAccept.Visibility = plan.CanPropose ? Visibility.Visible : Visibility.Collapsed; _moveAccept.Content = plan.Outcome == NdsMoveOutcome.NeedsWarning ? "Aceptar propuesta con advertencia" : "Aceptar propuesta";
+        _moveCancel.Content = plan.CanPropose ? "Cancelar" : "Cerrar";
+        _moveBox.Visibility = Visibility.Visible; _hover.Text = plan.Live; SetFooterCompact(true);
+    }
+    private void SetFooterCompact(bool compact)
+    {
+        var visibility = compact ? Visibility.Collapsed : Visibility.Visible;
+        _terrainNote.Visibility = visibility; _toolHelp.Visibility = visibility; if (_legend is not null) _legend.Visibility = visibility;
+        if (_inspector is not null) Adapt();
+    }
+    private void HideProposal(bool cancelDrag = true)
+    {
+        _move = null; _moveMap = null; if (_moveBox.Visibility != Visibility.Collapsed) _moveBox.Visibility = Visibility.Collapsed;
+        SetFooterCompact(false); if (cancelDrag) _canvas.CancelDrag();
+    }
+    private void AcceptMove()
+    {
+        var plan = _move; var map = _moveMap; if (plan is null || map is null || !plan.CanPropose || !ReferenceEquals(map, _map) && map.Id != _map?.Id) { HideProposal(); return; }
+        HideProposal();
+        var npc = _tables[0].Items.Cast<PlatinumEvent>().FirstOrDefault(e => e.Kind == plan.Npc.Kind && e.Index == plan.Npc.Index);
+        if (npc is null) return;
+        _updating = true; _tabs.SelectedIndex = 0; _tables[0].SelectedItem = npc; _updating = false;
+        SelectEvent(npc);
+        if (!ReferenceEquals(_event, npc)) return;      // the user declined to leave pending fields: keep everything as it was
+        _x.Text = plan.ToX.ToString(CultureInfo.InvariantCulture); _y.Text = plan.ToY.ToString(CultureInfo.InvariantCulture);
+        PreviewSelection();
+        if (_pending is { Changes.Count: > 0 }) { _canvas.SetPendingMove(npc, plan.ToX, plan.ToY); _status.Text = "Propuesta aceptada: revisa las diferencias y guarda un checkpoint nuevo. Aún no se ha guardado nada."; }
+    }
+
     private void ApplyMode()
     {
-        bool map = _modeMap.IsChecked == true;
+        bool map = _modeMap.IsChecked == true; if (!map) HideProposal();
         if (_canvasFrame is not null) _canvasFrame.Visibility = map ? Visibility.Visible : Visibility.Collapsed;
         _tabs.Visibility = map ? Visibility.Collapsed : Visibility.Visible; _layerBar.Visibility = _mapFooter.Visibility = map ? Visibility.Visible : Visibility.Collapsed;
     }
@@ -210,6 +296,7 @@ internal sealed class NdsEventEditorView : UserControl
         _body.ColumnDefinitions[0].Width = new GridLength(compact ? 165 : 205);
         _body.ColumnDefinitions[2].Width = compact ? new GridLength(0) : new GridLength(280);
         Grid.SetRow(_inspector, compact ? 1 : 0); Grid.SetColumn(_inspector, compact ? 0 : 2); Grid.SetColumnSpan(_inspector, compact ? 2 : 1);
+        _inspector.Visibility = compact && _move is not null ? Visibility.Collapsed : Visibility.Visible;   // compact layout: give the canvas the room while a proposal is open
         _inspector.MaxHeight = compact ? 170 : double.PositiveInfinity;
     }
     private void FilterMaps()
@@ -222,6 +309,7 @@ internal sealed class NdsEventEditorView : UserControl
     }
     private void SelectMap(PlatinumMap? map, bool confirm = true)
     {
+        if (_move is not null || _canvas.Drag is not null) HideProposal();
         if (confirm && !ConfirmLeave()) { _updating = true; _maps.SelectedItem = _map; _updating = false; return; }
         _dirty = false; InvalidatePreview(); _map = map; _updating = true;
         var events = map is null ? Array.Empty<PlatinumEvent>() : _session.Data.Events(map.Id).ToArray();
@@ -271,7 +359,7 @@ internal sealed class NdsEventEditorView : UserControl
     private bool CanNavigate(PlatinumEvent warp) => warp.Destination >= 0 && warp.Destination < _session.Data.Maps.Count &&
         _session.Data.Events(warp.Destination).Any(e => e.Kind == PlatinumEventKind.Warp && e.Index == warp.Anchor);
     internal bool ConfirmLeave() => !_busy && ((!_dirty && _pending is null) || StudioDialog.Confirm(Window.GetWindow(this), "Eventos DS", "Hay campos o una propuesta sin guardar. ¿Descartarlos y continuar?"));
-    private void InvalidatePreview() { _pending = null; _save.IsEnabled = false; _differences.Text = ""; }
+    private void InvalidatePreview() { _pending = null; _save.IsEnabled = false; _differences.Text = ""; _canvas.ClearPendingMove(); }
     internal void PreviewSelection()
     {
         try

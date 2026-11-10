@@ -33,11 +33,29 @@ internal sealed class NdsMapCanvasControl : FrameworkElement
     private NdsMapCanvasModel? _model;
     private Point _down, _last; private bool _pressed, _panning;
     private System.Windows.Media.Imaging.BitmapSource? _terrainBitmap;
+    private NdsNpcDragSession? _drag;
+    private (PlatinumEvent Npc, int X, int Y)? _pendingMove;
+    private NdsMapTool _tool;
+    private bool _middlePan;
 
     internal NdsMapCanvasModel? Model => _model;
     /// <summary>Raised only for user clicks/keys (not for programmatic selection) so tables stay the source of truth.</summary>
     internal event Action<PlatinumEvent?>? EventPicked;
     internal event Action? ViewChanged;
+    /// <summary>Asked before a drag starts (the view applies ConfirmLeave). Returning false keeps everything as it was.</summary>
+    internal Func<PlatinumEvent, bool>? DragGuard { get; set; }
+    /// <summary>A completed drop with a different tile; nothing has been written. The view decides what to do with the plan.</summary>
+    internal event Action<NdsNpcMovePlan>? MoveDropped;
+    /// <summary>Live drag feedback; null when the drag ended or was cancelled.</summary>
+    internal event Action<NdsNpcDragSession?>? DragChanged;
+    internal NdsNpcDragSession? Drag => _drag;
+    internal bool DragDeclined { get; private set; }
+    internal (PlatinumEvent Npc, int X, int Y)? PendingMove => _pendingMove;
+    internal NdsMapTool Tool
+    {
+        get => _tool;
+        set { if (_tool == value) return; CancelDrag(); _tool = value; InvalidateVisual(); }
+    }
     internal event Action<string>? Hover;
     internal int RenderedMarkers { get; private set; }
     internal static Brush LegendTerrain(PlatinumTerrainStatus status)
@@ -82,6 +100,7 @@ internal sealed class NdsMapCanvasControl : FrameworkElement
 
     internal void SetMap(PlatinumMapLayout layout, IEnumerable<PlatinumEvent> events, PlatinumTerrain? terrain = null, (int Width, int Height)? editorBounds = null, (PlatinumEventKind Kind, int Index)? selected = null, NdsMapLayers? layers = null)
     {
+        CancelDrag(); _pendingMove = null;
         var previousLayers = layers ?? _model?.Layers ?? NdsMapLayers.All;
         _model = new NdsMapCanvasModel(layout, events, terrain, editorBounds) { Layers = previousLayers };
         _terrainBitmap = null;
@@ -93,7 +112,7 @@ internal sealed class NdsMapCanvasControl : FrameworkElement
         if (ActualWidth > 0 && ActualHeight > 0) _model.SetViewport(ActualWidth, ActualHeight);
         Refresh();
     }
-    internal void Clear() { _model = null; Refresh(); }
+    internal void Clear() { CancelDrag(); _pendingMove = null; _model = null; Refresh(); }
     internal void SetLayers(NdsMapLayers layers) { if (_model is not null) _model.Layers = layers; Refresh(); }
     internal void SelectProgrammatic(PlatinumEvent? item, bool reveal)
     {
@@ -125,11 +144,30 @@ internal sealed class NdsMapCanvasControl : FrameworkElement
     protected override void OnMouseLeftButtonDown(MouseButtonEventArgs e)
     {
         Focus(); if (_model is null) return;
-        _down = _last = e.GetPosition(this); _pressed = true; _panning = false; CaptureMouse(); e.Handled = true;
+        var start = e.GetPosition(this);
+        if (BeginDragAt(start)) { CaptureMouse(); e.Handled = true; return; }
+        if (DragDeclined) { e.Handled = true; return; }
+        _down = _last = start; _pressed = true; _panning = false; CaptureMouse(); e.Handled = true;
     }
+    protected override void OnMouseDown(MouseButtonEventArgs e)
+    {
+        base.OnMouseDown(e);
+        // Middle button pans with any tool, so the map can always be moved while dragging NPCs is enabled.
+        if (e.ChangedButton != MouseButton.Middle || _model is null || _drag is not null) return;
+        Focus(); _middlePan = true; _last = e.GetPosition(this); Cursor = Cursors.SizeAll; CaptureMouse(); e.Handled = true;
+    }
+    protected override void OnMouseUp(MouseButtonEventArgs e)
+    {
+        base.OnMouseUp(e);
+        if (e.ChangedButton != MouseButton.Middle || !_middlePan) return;
+        _middlePan = false; Cursor = Cursors.Arrow; if (IsMouseCaptured) ReleaseMouseCapture(); e.Handled = true;
+    }
+    protected override void OnLostMouseCapture(MouseEventArgs e) { base.OnLostMouseCapture(e); _middlePan = false; if (_drag is not null) CancelDrag(); }
     protected override void OnMouseMove(MouseEventArgs e)
     {
         if (_model is null) return; var p = e.GetPosition(this);
+        if (_drag is not null) { DragTo(p); return; }
+        if (_middlePan) { _model.PanBy(_last.X - p.X, _last.Y - p.Y); _last = p; Refresh(); return; }
         if (_pressed)
         {
             if (!_panning && (Math.Abs(p.X - _down.X) > 4 || Math.Abs(p.Y - _down.Y) > 4)) { _panning = true; Cursor = Cursors.SizeAll; }
@@ -142,12 +180,14 @@ internal sealed class NdsMapCanvasControl : FrameworkElement
     }
     protected override void OnMouseLeftButtonUp(MouseButtonEventArgs e)
     {
+        if (_drag is not null) { var at = e.GetPosition(this); e.Handled = true; DropAt(at); if (IsMouseCaptured) ReleaseMouseCapture(); return; }
         if (!_pressed) return;
         bool click = !_panning; _pressed = _panning = false; if (IsMouseCaptured) ReleaseMouseCapture(); Cursor = Cursors.Arrow; e.Handled = true;
         if (click) ClickAt(e.GetPosition(this));
     }
     protected override void OnKeyDown(KeyEventArgs e)
     {
+        if (e.Key == Key.Escape && _drag is not null) { CancelDrag(); e.Handled = true; return; }
         if (_model is null) return;
         bool ctrl = (Keyboard.Modifiers & ModifierKeys.Control) != 0; bool handled = true;
         (int dx, int dy) = e.Key switch { Key.Left => (-1, 0), Key.Right => (1, 0), Key.Up => (0, -1), Key.Down => (0, 1), _ => (0, 0) };
@@ -163,6 +203,49 @@ internal sealed class NdsMapCanvasControl : FrameworkElement
     }
     protected override void OnGotKeyboardFocus(KeyboardFocusChangedEventArgs e) { base.OnGotKeyboardFocus(e); InvalidateVisual(); }
     protected override void OnLostKeyboardFocus(KeyboardFocusChangedEventArgs e) { base.OnLostKeyboardFocus(e); InvalidateVisual(); }
+
+    // ---- NPC drag (no data is touched; a drop only reports a plan) -----------------------------------------------------
+    /// <summary>Starts dragging the editable NPC under the point (Move tool only). Empty space or other events return false so the map can pan.</summary>
+    internal bool BeginDragAt(Point point)
+    {
+        DragDeclined = false;
+        if (_model is null || _tool != NdsMapTool.MoveNpc || _drag is not null) return false;
+        var hit = _model.HitTest(point.X, point.Y);
+        if (hit is null || !NdsNpcMovePlanner.IsDraggable(hit.Event)) return false;
+        _drag = new NdsNpcDragSession(_model, hit.Event, point.X, point.Y); Cursor = Cursors.SizeAll; DragChanged?.Invoke(_drag); InvalidateVisual(); return true;
+    }
+    /// <summary>The guard (ConfirmLeave) runs once, when the drag really activates after the movement threshold; a click or an early cancel never reaches it.</summary>
+    private bool ActivationAllowed(NdsNpcDragSession drag, bool wasActive)
+    {
+        if (wasActive || !drag.Active || DragGuard is null || DragGuard(drag.Npc)) return true;
+        DragDeclined = true; CancelDrag(); return false;
+    }
+    internal void DragTo(Point point)
+    {
+        if (_drag is null) return;
+        bool wasActive = _drag.Active;
+        if (!_drag.Update(point.X, point.Y)) return;
+        if (!ActivationAllowed(_drag, wasActive)) return;
+        DragChanged?.Invoke(_drag); InvalidateVisual();
+    }
+    internal void DropAt(Point point)
+    {
+        var drag = _drag; if (drag is null || _model is null) return;
+        bool wasActive = drag.Active; drag.Update(point.X, point.Y);
+        if (!ActivationAllowed(drag, wasActive)) return;
+        _drag = null; Cursor = Cursors.Arrow; DragChanged?.Invoke(null);
+        // A click without moving keeps pending fields and previews: only a NPC that is not already selected is picked (normal selection rules).
+        if (!drag.Active) { if (_model.Selected != (drag.Npc.Kind, drag.Npc.Index)) Pick(_model.Find(drag.Npc.Kind, drag.Npc.Index)); }
+        else if (drag.Complete() is { } plan) MoveDropped?.Invoke(plan);
+        InvalidateVisual();
+    }
+    internal void CancelDrag()
+    {
+        if (_drag is null) return;
+        _drag = null; Cursor = Cursors.Arrow; DragChanged?.Invoke(null); if (IsMouseCaptured) ReleaseMouseCapture(); InvalidateVisual();
+    }
+    internal void SetPendingMove(PlatinumEvent npc, int x, int y) { _pendingMove = (npc, x, y); InvalidateVisual(); }
+    internal void ClearPendingMove() { if (_pendingMove is null) return; _pendingMove = null; InvalidateVisual(); }
 
     /// <summary>Selects the marker under a point (what a click does). Empty space keeps the current selection.</summary>
     internal void ClickAt(Point point) { if (_model is not null) Pick(_model.HitTest(point.X, point.Y)); }
@@ -275,6 +358,8 @@ internal sealed class NdsMapCanvasControl : FrameworkElement
             if (z >= 14 && marker.Shape != NdsMarkerShape.Trigger) { var c = m.TileToPixel(marker.CenterX, marker.CenterY); dc.DrawText(Text("#" + marker.Index, 10, textBrush), new Point(c.X + 9, c.Y - 18)); }
         }
         if (m.SelectedMarker is { } sel && m.IsLayerVisible(sel)) DrawSelection(dc, m, sel);
+        if (_drag is { Active: true } drag) DrawGhost(dc, m, drag.Npc, drag.Plan.ToX, drag.Plan.ToY, drag.Plan.Outcome, "");
+        else if (_pendingMove is { } pending) DrawGhost(dc, m, pending.Npc, pending.X, pending.Y, null, "propuesta pendiente");
         if (IsKeyboardFocused) dc.DrawRectangle(null, new Pen(Themed(this, "Accent", Inspect), 2), new Rect(1, 1, Math.Max(0, w - 2), Math.Max(0, h - 2)));
     }
 
@@ -314,6 +399,29 @@ internal sealed class NdsMapCanvasControl : FrameworkElement
         dc.DrawGeometry(fill, edge, ShapeGeometry(marker.Shape, centre, r));
         if (marker.Placement == NdsMarkerPlacement.OutsideOwnedBlocks) dc.DrawEllipse(null, WarnPen, centre, r + 5, r + 5);
         else if (marker.Placement == NdsMarkerPlacement.OutsideMatrix) { dc.DrawLine(WarnPen, new Point(c.X - r - 4, c.Y - r - 4), new Point(c.X + r + 4, c.Y + r + 4)); dc.DrawLine(WarnPen, new Point(c.X - r - 4, c.Y + r + 4), new Point(c.X + r + 4, c.Y - r - 4)); }
+    }
+
+    /// <summary>Original position (dashed ring) and ghost at the target tile. State = shape + colour: check, ?, cross; never "safe".</summary>
+    private void DrawGhost(DrawingContext dc, NdsMapCanvasModel m, PlatinumEvent npc, int tx, int ty, NdsMoveOutcome? outcome, string note)
+    {
+        var accent = Themed(this, "Accent", Inspect);
+        Color color = outcome switch { NdsMoveOutcome.Ready => Color.FromRgb(0x4F, 0xC9, 0xB5), NdsMoveOutcome.NeedsWarning => Color.FromRgb(0xF2, 0xB8, 0x4B), NdsMoveOutcome.Rejected => Color.FromRgb(0xFF, 0x5A, 0x5A), NdsMoveOutcome.NoChange => Color.FromRgb(0xA6, 0xB5, 0xC9), _ => Color.FromRgb(0x86, 0xB7, 0xF3) };
+        var stroke = new SolidColorBrush(color); var dashed = outcome is NdsMoveOutcome.NeedsWarning or null;
+        var pen = new Pen(stroke, outcome == NdsMoveOutcome.Rejected ? 3 : 2.5) { DashStyle = dashed ? DashStyles.Dash : DashStyles.Solid };
+        var o = m.TileToPixel(npc.X + 0.5, npc.Y + 0.5); var t = m.TileToPixel(tx + 0.5, ty + 0.5); var origin = new Point(o.X, o.Y); var target = new Point(t.X, t.Y);
+        double r = Math.Clamp(m.Zoom * 0.45, 6, 11);
+        dc.DrawEllipse(null, new Pen(Brushes.White, 1.5) { DashStyle = DashStyles.Dot }, origin, r + 6, r + 6);
+        dc.DrawLine(new Pen(stroke, 1.5) { DashStyle = DashStyles.Dash }, origin, target);
+        double side = Math.Max(m.Zoom, 18);
+        dc.DrawRectangle(new SolidColorBrush(Color.FromArgb(0x30, color.R, color.G, color.B)), pen, new Rect(target.X - side / 2, target.Y - side / 2, side, side));
+        dc.DrawEllipse(new SolidColorBrush(Color.FromArgb(0xA0, 0xF4, 0xC9, 0x5D)), new Pen(Brushes.Black, 1.2), target, r, r);
+        var glyph = new Pen(stroke, 2.5); double g = r * 0.55;
+        if (outcome == NdsMoveOutcome.Rejected) { dc.DrawLine(glyph, new Point(target.X - g, target.Y - g), new Point(target.X + g, target.Y + g)); dc.DrawLine(glyph, new Point(target.X + g, target.Y - g), new Point(target.X - g, target.Y + g)); }
+        else if (outcome == NdsMoveOutcome.Ready) { var figure = new PathFigure(new Point(target.X - g, target.Y), [new LineSegment(new Point(target.X - g * 0.2, target.Y + g * 0.8), true), new LineSegment(new Point(target.X + g, target.Y - g * 0.7), true)], false); dc.DrawGeometry(null, glyph, new PathGeometry([figure])); }
+        else if (outcome == NdsMoveOutcome.NeedsWarning) { var q = Text("?", 14, Brushes.Black); dc.DrawText(q, new Point(target.X - q.Width / 2, target.Y - q.Height / 2)); }
+        string label = $"{npc.X},{npc.Y} → {tx},{ty}" + (note.Length > 0 ? " · " + note : "");
+        var text = Text(label, 11.5, Brushes.White); var spot = new Point(Math.Clamp(target.X - text.Width / 2, 2, Math.Max(2, ActualWidth - text.Width - 6)), Math.Max(2, target.Y - side / 2 - text.Height - 4));
+        dc.DrawRectangle(new SolidColorBrush(Color.FromArgb(0xD0, 0x10, 0x16, 0x1E)), null, new Rect(spot.X - 3, spot.Y - 1, text.Width + 6, text.Height + 2)); dc.DrawText(text, spot);
     }
 
     private static void DrawSelection(DrawingContext dc, NdsMapCanvasModel model, NdsMapMarker marker)
