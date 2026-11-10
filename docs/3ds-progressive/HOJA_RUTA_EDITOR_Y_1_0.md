@@ -103,7 +103,7 @@ Cada PR de C actualiza la matriz de la sección 3 con su evidencia. Solo se marc
 
 | PR | Contenido | Aceptación |
 |---|---|---|
-| B1 | Detector y pruebas: entradas sintéticas de cada tipo, entradas ambiguas, desconocidas, ROM con código no admitido y carpeta incompleta | suite nueva sin interfaz; sondas reales con los seis perfiles DS, una carpeta 3DS y las extracciones de Espada y Escudo, sin escribir nada |
+| B1 (**implementado en el PR de detector; ver [DETECTOR_PROYECTOS_B1.md](DETECTOR_PROYECTOS_B1.md)**) | Detector y pruebas: entradas sintéticas de cada tipo, entradas ambiguas, desconocidas, ROM con código no admitido y carpeta incompleta | suite nueva sin interfaz; sondas reales con los seis perfiles DS, una carpeta 3DS y las extracciones de Espada y Escudo, sin escribir nada |
 | B2 | Abrir proyecto universal en la ventana principal | suites de interfaz y sonda con entrada real; los proyectos y checkpoints antiguos abren igual; los cambios pendientes nunca se pierden al cambiar de plataforma |
 | B3 | Arrastrar y soltar | sonda con entrada real; rechazo claro de archivos no admitidos |
 | B4 | Documentación (primeros pasos, compatibilidad pública, notas de 1.0.0) | revisión del propietario |

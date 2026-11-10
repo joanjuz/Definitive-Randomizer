@@ -67,6 +67,7 @@ dotnet .\3DS.Progressive.Tests\bin\Release\net10.0-windows\3DS.Progressive.Tests
 | `--native-wild7-only` | — |  |
 | `--nds-only` | — | sí |
 | `--nds-map-layout-only` | — | matrices sintéticas de solo lectura; ejecución focalizada independiente |
+| `--project-detector-only` | — | detector universal de proyectos: seis perfiles DS, checkpoints v1–v3, 3DS, Switch, rechazos, nombres engañosos y no modificación de las entradas; sintética, en el CI |
 | `--nds-npc-script-only` | — | lector/escritor mínimo de scripts, patrón de la enfermera, scripts compartidos, checkpoint v3; sintética |
 | `--nds-npc-structure-only` | — | operaciones estructurales de NPC (registro, NARC, checkpoint v2, política); sintética |
 | `--nds-npc-drag-only` | — | planificación y matemática del arrastre de NPC (sin WPF); sintética |
@@ -199,6 +200,7 @@ Necesitan extracciones, ROMs o carpetas de salida. Los argumentos concretos (ent
 | `--nds-map-layout-probe` | `<informe JSON nuevo> <ROM privada Platino CPUE/1>` | solo lectura; no copia ni exporta ROM |
 | `--nds-map-terrain-probe` | `<informe JSON nuevo> <ROM privada Platino CPUE/1>` | solo lectura; no copia ni exporta ROM |
 | `--nds-npc-structure-probe` | `<carpeta nueva> <ROM privada Platino CPUE/1>` | copia la fuente a la carpeta nueva; no modifica la original |
+| `--project-detector-probe` | `<carpeta nueva de informe> <ruta> [<ruta>…]` | detecta cada archivo o carpeta, comprueba que no cambia (SHA-256 o instantánea) y abre los candidatos DS y Switch con su motor; solo lectura; documentación: [DETECTOR_PROYECTOS_B1.md](DETECTOR_PROYECTOS_B1.md) |
 | `--nds-npc-script-probe` | `<carpeta nueva> <ROM privada Platino CPUE/1>` | copia la fuente; copia la enfermera de Jubileo a Hojaverde, exporta, reabre y restaura; añade una enfermera desde la plantilla de la ROM en la Ruta 201 y restaura |
 | `--nds-live-ui-probe` | `<ROM privada Platino CPUE/1> <carpeta nueva> <ancho> <alto>` | **interactiva y local**: abre una ventana real y usa ratón y teclado reales (SendInput) sobre una copia; requiere el escritorio desbloqueado; no se ejecuta en CI |
 | `--nds-events-probe` | `<salida nueva> <ROM privada Platino CPUE/1>` |  |
