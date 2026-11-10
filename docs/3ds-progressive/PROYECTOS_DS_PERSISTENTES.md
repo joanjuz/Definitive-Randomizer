@@ -117,7 +117,41 @@ Código en `3DS.Progressive.App/Services/Nds/Project/` (sin tocar motores, scrip
 
 **Auditoría del 10/11/2026 (antes de construir sobre el formato).** Defectos confirmados con una prueba que fallaba y corregidos en este mismo PR: (1) la lectura lanzaba `NullReferenceException` con un historial de eventos sin operaciones y aceptaba manifiestos incompletos con sumas válidas; (2) un principal de formato más reciente se trataba como dañado y una recuperación podía sustituirlo por un respaldo anterior; (3) con la misma generación se podía sobrescribir otro proyecto u otra ROM; (4) una excepción del almacén fuera de contrato se tomaba por «nada cambió», y la falta de memoria al instalar dejaba la sesión por detrás del archivo sin bloquearla; (5) solo se conservaban los campos desconocidos de la raíz del manifiesto; (6) un archivo corto ajeno se clasificaba como truncado; (7) el «0 KiB» del informe de medidas era una división entera. Sin cambios en la disposición del contenedor: los archivos v1 siguen siendo los mismos.
 
-## 7. Plan de PR
+## 7. PR 2: almacén en disco
+
+`NdsProjectFileStore` cumple el contrato de `INdsProjectStore` con archivos reales (`3DS.Progressive.App/Services/Nds/Project/NdsProjectFileStore.cs`). Nada lo usa todavía: se conecta a las operaciones en el PR 3.
+
+**Guardar.** (1) Se lee el principal y se comprueba que sigue siendo el mismo proyecto, de la misma ROM, en la generación esperada y con los mismos bytes que esta instancia vio por última vez. (2) El proyecto nuevo se escribe entero en `Juego.nds.drproj.tmp-…`, en la misma carpeta, con escritura directa y vaciado a disco. (3) Se relee del disco y se compara byte a byte con lo que se quería escribir. (4) La generación que se va a sustituir se copia como `.bak1` y las anteriores bajan (`.bak2`, `.bak3`); si `.bak1` ya es esa generación no se rota, así que un guardado fallido no consume respaldos. (5) El temporal sustituye al principal con **un único renombrado** (`MoveFileEx`, reemplazar y esperar a disco). (6) Se relee el principal. Todo lo anterior al paso 5 no toca el principal: cualquier fallo ahí es definitivo (`WriteFailed`, `VerificationFailed`, `ReadOnly`) y deja el proyecto como estaba. Desde el paso 5 la respuesta depende de qué es el principal después: si sigue siendo, demostrablemente, el anterior, es un fallo definitivo; si no, `OutcomeUnknown`.
+
+**Por qué un renombrado y no `File.Replace`.** `ReplaceFile` puede terminar con el principal renombrado a respaldo y el nuevo sin colocar (el principal desaparece); con un renombrado que reemplaza, el principal es siempre la generación anterior completa o la nueva completa. El respaldo es una copia y no se vacía a disco: si un corte de luz lo deja a medias, sus sumas lo delatan y no se ofrece.
+
+**Bloqueo.** `Juego.nds.drproj.lock` se mantiene abierto mientras una instancia usa el proyecto (otros pueden leer quién lo tiene, nadie más puede abrirlo para escribir) y se borra con su manejador; si el proceso muere, el sistema lo libera. Una segunda instancia recibe `AlreadyInUse` con el identificador del proceso que lo tiene. `OpenReadOnly` abre sin bloqueo y nunca escribe.
+
+**Modificaciones externas.** Además de la generación y la identidad, el almacén recuerda el SHA-256 del principal que leyó o escribió por última vez: si otro programa lo reescribe con la misma generación, el siguiente guardado se rechaza (`StaleGeneration`) y el archivo no se toca. Un principal borrado con respaldos presentes se recupera, no se recrea; un proyecto borrado por completo no se recrea desde una sesión antigua. Si otro programa tiene el archivo abierto un instante (antivirus, sincronizadores), leer y sustituir se reintentan hasta 1 s.
+
+**Recuperación.** `Recover` instala solo una copia que siga siendo uno de los respaldos, primero la hace duradera en un temporal, después aparta el principal dañado como `.damaged-<UTC>` (renombrado; nunca se borra ni se pisa, con sufijo si el nombre ya existe) y coloca la copia. Si el proceso se detiene en medio, falta el principal y los respaldos están intactos: se vuelve a ofrecer la misma recuperación.
+
+**Carpeta sin permiso de escritura.** `NdsProjectLocator.Resolve` decide el lugar: junto a la ROM si la carpeta admite archivos (se comprueba creando uno, que desaparece con su manejador); si no, una ruta alternativa en `%LOCALAPPDATA%\DefinitiveRandomizer\Projects\<SHA-256 de la ROM>\<código>-rev<revisión>.nds.drproj`, que depende solo de la identidad de la ROM y por eso se reencuentra aunque la ROM se mueva o se renombre. Resolver no crea nada: usar la ruta alternativa para un proyecto **nuevo** requiere consentimiento (`NeedsConsent`), un proyecto existente en una carpeta de solo lectura se abre en solo lectura en vez de duplicarse (`ReadOnly`), y un proyecto presente en ambos lugares se informa como ambiguo (`Ambiguous`) para que no se elija uno en silencio. La interfaz de estas decisiones es del PR 4 y del PR 5.
+
+**Cómo se acredita.** `--nds-project-store-only` (82 comprobaciones, en el CI) usa el sistema de archivos real de una carpeta temporal; `--nds-project-store-probe <carpeta nueva>` ejecuta lo mismo en el disco que se indique.
+
+| Área | Qué se prueba, con archivos reales |
+|---|---|
+| Contrato | los mismos casos que el almacén en memoria: comparar y sustituir, tres respaldos, reapertura, almacén cerrado, bytes del archivo iguales a la serialización |
+| Fallos inyectados | un fallo en cada uno de los seis pasos anteriores a la sustitución deja el proyecto anterior, sin temporales y sin gastar respaldos; un temporal con un byte cambiado, truncado, vacío o desaparecido se detecta al releer; un fallo tras la sustitución es `OutcomeUnknown` |
+| Fallos reales | el principal abierto por otro programa (no se sustituye; se guarda al soltarlo), abierto en exclusiva (ilegible, no «dañado»), marcado de solo lectura, y un archivo de más de 1 GiB rechazado sin leerlo |
+| Cortes de proceso | un proceso hijo se termina sin limpieza en cada uno de los siete pasos de un guardado: el proyecto encontrado después es siempre una generación completa, los respaldos son válidos y el siguiente guardado continúa y limpia el temporal abandonado |
+| Concurrencia | de 16 aperturas simultáneas una obtiene el proyecto; 200 cierres y reaperturas seguidos; otro proceso lo retiene hasta que muere; cuatro procesos compiten varios segundos y la generación final es la suma exacta de los guardados que cada uno informó |
+| Modificación externa | misma generación con otro contenido, generación más nueva, otro proyecto, otra ROM, principal borrado, proyecto borrado entero, formato más reciente |
+| Recuperación | principal truncado a 0, 10, 64, la mitad y todos menos un byte; cuerpo dañado; respaldos dañados; sin principal; contenido ajeno; respaldo cambiado después de ofrecerse; dos recuperaciones en el mismo instante |
+| Permisos | con una regla de acceso real que deniega crear archivos: apertura `ReadOnly`, lectura en solo lectura, ruta alternativa con consentimiento, la carpeta de la ROM intacta |
+| Transacción | 300 operaciones sobre el almacén real con sesiones reabiertas y fallos en pasos al azar: solo quedan las confirmadas |
+
+Resultados del 10/11/2026 en el equipo del propietario: 82 de 82 en un SSD NVMe (guardado duradero de 167 KiB: mediana 12 ms) y 82 de 82 en el disco mecánico donde están las ROM (mediana 49 ms).
+
+**Lo que no se ha demostrado.** No se ha cortado la corriente: que un archivo vaciado y un renombrado con escritura directa sobrevivan a un corte de luz es la garantía de Windows y NTFS, y depende de que el disco no mienta sobre su caché. Tampoco se ha probado un disco lleno real (solo fallos inyectados en los mismos puntos), unidades de red, FAT/exFAT ni carpetas sincronizadas con la nube. Entre la comprobación del paso 1 y el renombrado del paso 5 queda una ventana de milisegundos en la que un programa externo podría reescribir el principal sin ser detectado; el bloqueo solo coordina instancias de esta aplicación.
+
+## 8. Plan de PR
 
 1. **PR 1 (este).** Contrato, formato, identidad, almacén en memoria, transacción y mediciones.
 2. **PR 2. Almacén en disco.** `NdsProjectFileStore`: temporal en la misma carpeta, `Flush(true)`, relectura y verificación, `File.Replace` con rotación de respaldos, bloqueo con un archivo abierto sin compartir (el sistema lo libera si el proceso muere), detección de cambios externos por generación e identidad del archivo, carpetas sin permisos de escritura (alternativa explícita en `%LOCALAPPDATA%`, con consentimiento), recuperación y conservación del dañado. Pruebas con fallas inyectadas y con un proceso hijo que se interrumpe, como `RecoveryChecks`.
@@ -125,9 +159,9 @@ Código en `3DS.Progressive.App/Services/Nds/Project/` (sin tocar motores, scrip
 4. **PR 4. Apertura desde B2.** Nuevo tipo `DsProject` en el detector, creación y reanudación automáticas tras verificar la ROM, apertura desde el `.drproj` si la ROM cambió de sitio (volver a localizarla y comprobar la identidad), importación de checkpoints, y cambio de proyecto sin «descartar» porque el trabajo ya está guardado.
 5. **PR 5. Interfaz y resistencia.** Indicador (guardando, guardado, error, solo lectura, bloqueado por reconciliación), diálogos de recuperación y de conflicto, simulación de varios días con cierres forzados, sonda con entrada real, documentación y notas de 1.0.0.
 
-## 8. Limitaciones y riesgos abiertos
+## 9. Limitaciones y riesgos abiertos
 
-- El PR 1 no escribe en disco: la durabilidad real (vaciado, reemplazo atómico, bloqueo del sistema) se acredita en el PR 2.
+- El PR 1 no escribe en disco: el almacén real y lo que se ha demostrado y lo que no están en la sección 7.
 - No hay mediciones de Blanco (España); se cubre con las de Negro y Blanco 2 (misma estructura).
 - Se midieron seis operaciones representativas; un uso con más módulos podría producir un estado mayor. La escala probada deja un margen de más de diez veces.
 - La variante «solo miembros NARC que cambian» se descartó por innecesaria. El «0 KiB» que mostraba en ediciones manuales era una división entera (son 50–84 bytes); está explicado y corregido en el informe de medidas.
