@@ -154,6 +154,12 @@ internal sealed class NdsMapCanvasModel
         ClampOffset();
     }
 
+    /// <summary>Keeps the user's place when the same map is reloaded (after saving or restoring): same zoom, offset and viewport.</summary>
+    internal void AdoptView(NdsMapCanvasModel other)
+    {
+        ViewportWidth = other.ViewportWidth; ViewportHeight = other.ViewportHeight; Zoom = other.Zoom; OffsetX = other.OffsetX; OffsetY = other.OffsetY; Layers = other.Layers; _positioned = true; ClampOffset();
+    }
+
     internal (double X, double Y) TileToPixel(double tileX, double tileY) => (tileX * Zoom - OffsetX, tileY * Zoom - OffsetY);
     internal (double X, double Y) PixelToTile(double pixelX, double pixelY) => ((pixelX + OffsetX) / Zoom, (pixelY + OffsetY) / Zoom);
     internal (int X, int Y) TileAt(double pixelX, double pixelY)
