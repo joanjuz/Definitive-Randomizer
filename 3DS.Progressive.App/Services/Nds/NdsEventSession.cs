@@ -8,7 +8,16 @@ namespace ThreeDS.Progressive.Services.Nds;
 
 internal sealed record NdsNpcEdit(int Map, int Index, PlatinumNpcValues Before, PlatinumNpcValues After);
 /// <summary>A new NPC record appended to the NPC block of a map's event file. <c>Index</c> is the position it takes (the NPC count before the addition).</summary>
-internal sealed record NdsNpcAddition(int Map, int Index, string RecordHex);
+/// <summary>
+/// Behaviour attached to a new NPC. <c>AppendScript</c>: <c>CodeHex</c> is appended as the last local script of the map's script file and the NPC uses
+/// it (only the Pokémon Center nurse pattern, re-targeted to the new NPC's own local id). <c>ShareScript</c>: the NPC uses an existing local script
+/// of the same file that is a plain message (no local id, flag or variable references). Anything else is refused on replay.
+/// </summary>
+internal sealed record NdsScriptBinding(string Mode, int ScriptFile, int Number, string? CodeHex)
+{
+    internal const string Append = "AppendScript", Share = "ShareScript";
+}
+internal sealed record NdsNpcAddition(int Map, int Index, string RecordHex, NdsScriptBinding? Script = null);
 /// <summary>Removal of an NPC that an earlier operation of this history ADDED (never an NPC of the original data). <c>RecordHex</c> must match.</summary>
 internal sealed record NdsNpcRemoval(int Map, int Index, string RecordHex);
 /// <summary>One recorded operation. Exactly one of the payloads is set, according to <c>Kind</c>.</summary>
@@ -75,12 +84,12 @@ internal sealed class NdsEventSession
         }
     }
     /// <summary>Previews appending a new NPC. Nothing changes until the proposal is saved into a checkpoint.</summary>
-    internal NdsEventProposal PreviewAdd(int map, byte[] record)
+    internal NdsEventProposal PreviewAdd(int map, byte[] record, NdsScriptBinding? script = null)
     {
         lock (_gate)
         {
-            var added = Data.AddNpc(map, record);   // throws with every violated rule
-            int index = Data.NpcCount(map); var addition = new NdsNpcAddition(map, index, Convert.ToHexString(record));
+            int index = Data.NpcCount(map); var addition = new NdsNpcAddition(map, index, Convert.ToHexString(record), script);
+            var added = ApplyAddition(Data, addition, record);   // throws with every violated rule
             return new(_owner, Revision, NdsEventOperation.OfAdd(addition), false, AdditionChanges(addition, added.NpcCount(map)), AdditionLines(addition, record));
         }
     }
@@ -125,8 +134,35 @@ internal sealed class NdsEventSession
     {
         int U16(int at) => record[at] | record[at + 1] << 8; int S16(int at) => (short)U16(at);
         string head = undo ? $"Mapa {add.Map} · quitar el NPC añadido (índice {add.Index}, ID {U16(0)})" : $"Mapa {add.Map} · NPC nuevo (índice {add.Index})";
-        return [head, $"  ID {U16(0)} · gráfico {U16(2)} · movimiento {U16(4)} · dirección {U16(12)}", $"  X {S16(24)} · Y {S16(26)} · script 0 · flag 0 · tipo 0",
+        string behaviour = add.Script switch
+        {
+            { Mode: NdsScriptBinding.Append } b => $"  Comportamiento: script local {b.Number} AÑADIDO al archivo de scripts {b.ScriptFile} (enfermera: ID local {U16(0)}, script común {PlatinumScriptFile.PokecenterNurseCommonScript})",
+            { Mode: NdsScriptBinding.Share } b => $"  Comportamiento: comparte el script local {b.Number} del archivo {b.ScriptFile} (mensaje simple); no se añade nada",
+            _ => "  Comportamiento: solo apariencia (script 0)",
+        };
+        return [head, $"  ID {U16(0)} · gráfico {U16(2)} · movimiento {U16(4)} · dirección {U16(12)}", $"  X {S16(24)} · Y {S16(26)} · script {U16(10)} · flag 0 · tipo 0", behaviour,
             undo ? "  Cantidad de NPC: " + (add.Index + 1) + " → " + add.Index : "  Cantidad de NPC: " + add.Index + " → " + (add.Index + 1)];
+    }
+    /// <summary>Applies one addition, with its script binding, re-checking every rule (used by preview and by replay).</summary>
+    private static PlatinumEvents ApplyAddition(PlatinumEvents from, NdsNpcAddition add, byte[] record)
+    {
+        if (add.Script is not { } b) return from.AddNpc(add.Map, record);
+        var map = from.Map(add.Map); int recordScript = record[10] | record[11] << 8, recordId = record[0] | record[1] << 8;
+        if (b.ScriptFile != map.ScriptFile) throw new InvalidOperationException("El script no pertenece al archivo de scripts del mapa.");
+        switch (b.Mode)
+        {
+            case NdsScriptBinding.Append:
+                byte[] code = Convert.FromHexString(b.CodeHex ?? "");
+                if (!code.AsSpan().SequenceEqual(PlatinumScriptFile.NurseScript(recordId))) throw new InvalidOperationException("Solo se añade el script acreditado de la enfermera, con el ID local del NPC nuevo.");
+                var withScript = from.WithAppendedScript(add.Map, code, out int number);
+                if (number != b.Number || recordScript != number) throw new InvalidOperationException("El número del script añadido no coincide con el del NPC.");
+                return withScript.AddNpc(add.Map, record, number);
+            case NdsScriptBinding.Share:
+                if (b.CodeHex is not null || recordScript != b.Number || from.ClassifyScript(add.Map, b.Number)?.Pattern != PlatinumScriptPattern.PlainMessage)
+                    throw new InvalidOperationException("Solo se comparten scripts locales de mensaje simple del mismo archivo.");
+                return from.AddNpc(add.Map, record, b.Number);
+            default: throw new InvalidOperationException("Modo de script desconocido: " + b.Mode);
+        }
     }
     internal void Save(NdsEventProposal proposal, string checkpoint)
     {
@@ -173,9 +209,9 @@ internal sealed class NdsEventSession
     private NdsEventDocument Build(List<NdsEventOperation> ops, List<string> audit) =>
         ops.All(o => o.Kind == NdsEventOperation.MoveKind)
             ? new(Format, 1, "CPUE", 1, SourcePath, _sha256, ops.Select(o => o.Move!).ToList().AsReadOnly(), audit.AsReadOnly())
-            : new(Format, 2, "CPUE", 1, SourcePath, _sha256, Array.Empty<NdsNpcEdit>(), audit.AsReadOnly(), ops.AsReadOnly());
+            : new(Format, ops.Any(o => o.Add?.Script is not null) ? 3 : 2, "CPUE", 1, SourcePath, _sha256, Array.Empty<NdsNpcEdit>(), audit.AsReadOnly(), ops.AsReadOnly());
     private static IReadOnlyList<NdsEventOperation> Operations(NdsEventDocument document) =>
-        document.Version == 2 ? document.Operations! : document.Edits.Select(NdsEventOperation.OfMove).ToList();
+        document.Version >= 2 ? document.Operations! : document.Edits.Select(NdsEventOperation.OfMove).ToList();
     internal void Load(NdsEventDocument document, string checkpoint)
     {
         lock (_gate)
@@ -187,7 +223,8 @@ internal sealed class NdsEventSession
     private void ValidateDocument(NdsEventDocument document)
     {
         bool shape = document.Version == 1 ? document.Operations is null && document.Edits is not null
-            : document.Version == 2 && document.Operations is not null && document.Operations.Count > 0 && document.Edits is { Count: 0 };
+            : document.Version is 2 or 3 && document.Operations is not null && document.Operations.Count > 0 && document.Edits is { Count: 0 }
+              && (document.Version == 3 ? document.Operations.Any(o => o?.Add?.Script is not null) : document.Operations.All(o => o?.Add?.Script is null));
         if (document.Format != Format || !shape || document.Game != "CPUE" || document.Revision != 1 ||
             document.SourceSha256 != _sha256 || !Path.GetFullPath(document.SourcePath).Equals(SourcePath, StringComparison.OrdinalIgnoreCase) ||
             document.Audit is null || (document.Edits?.Count ?? 0) > 10000 || (document.Operations?.Count ?? 0) > 10000 || document.Audit.Count > 20000 || document.Audit.Any(s => s is null || s.Length > 2048))
@@ -213,8 +250,8 @@ internal sealed class NdsEventSession
                     try { record = Convert.FromHexString(add.RecordHex); } catch (FormatException ex) { throw new InvalidDataException("Registro de NPC ilegible en el checkpoint.", ex); }
                     if (add.Map < 0 || add.Map >= result.Maps.Count) throw new InvalidDataException("Mapa inexistente en la adición de NPC.");
                     if (add.Index != result.NpcCount(add.Map)) throw new InvalidDataException("El índice del NPC añadido no coincide con el estado reconstruido.");
-                    try { result = result.AddNpc(add.Map, record); }
-                    catch (InvalidOperationException ex) { throw new InvalidDataException(ex.Message, ex); }
+                    try { result = ApplyAddition(result, add, record); }
+                    catch (Exception ex) when (ex is InvalidOperationException or FormatException or ArgumentException) { throw new InvalidDataException(ex.Message, ex); }
                     break;
                 case NdsEventOperation.RemoveKind:
                     var remove = operation.Remove;
@@ -241,12 +278,39 @@ internal sealed class NdsEventSession
     {
         lock (_gate) { CheckSource(); byte[] bytes = Data.Bytes(); return bytes.SequenceEqual(_original.Bytes()) ? null : bytes; }
     }
+    /// <summary>The script archive when a history appended scripts; null otherwise (the original archive is exported as it is).</summary>
+    internal byte[]? ScriptReplacement()
+    {
+        lock (_gate) { CheckSource(); byte[] bytes = Data.ScriptArchiveBytes(); return bytes.SequenceEqual(_original.ScriptArchiveBytes()) ? null : bytes; }
+    }
+    /// <summary>
+    /// Combines the scripts appended by this history with a script archive written by another DS module (randomizer options also edit scr_seq).
+    /// A member changed by both is refused: the two edits are never mixed blindly.
+    /// </summary>
+    internal byte[] MergeScriptArchive(byte[] theirs)
+    {
+        lock (_gate)
+        {
+            var original = Narc.Read(_original.ScriptArchiveBytes()).Files; var mine = Narc.Read(Data.ScriptArchiveBytes()).Files; var merged = Narc.Read(theirs);
+            if (merged.Files.Count != original.Count) throw new InvalidOperationException("El archivo de scripts de otro módulo no tiene el mismo número de miembros.");
+            for (int i = 0; i < original.Count; i++)
+            {
+                if (mine[i].AsSpan().SequenceEqual(original[i])) continue;
+                if (!merged.Files[i].AsSpan().SequenceEqual(original[i])) throw new InvalidOperationException($"Otro módulo DS también modificó el archivo de scripts {i}; no se combinan dos ediciones del mismo archivo.");
+                merged.Files[i] = mine[i];
+            }
+            return merged.Write();
+        }
+    }
     internal void VerifyExport(string path)
     {
         lock (_gate)
         {
             using var rom = NdsRom.Open(path);
             if (!rom.ReadFile(PlatinumEvents.EventPath).SequenceEqual(Data.Bytes())) throw new InvalidDataException("Los eventos no persistieron en la ROM reconstruida.");
+            var written = Narc.Read(rom.ReadFile(PlatinumEvents.ScriptPath)).Files; var mine = Narc.Read(Data.ScriptArchiveBytes()).Files; var original = Narc.Read(_original.ScriptArchiveBytes()).Files;
+            if (written.Count != mine.Count || Enumerable.Range(0, mine.Count).Any(i => !mine[i].AsSpan().SequenceEqual(original[i]) && !written[i].AsSpan().SequenceEqual(mine[i])))
+                throw new InvalidDataException("Los scripts añadidos no persistieron en la ROM reconstruida.");
         }
     }
     internal void Reset() { lock (_gate) { Data = _original; _ops.Clear(); _audit.Clear(); LastCheckpoint = null; Revision++; } }
