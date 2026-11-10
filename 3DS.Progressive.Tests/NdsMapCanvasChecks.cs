@@ -121,14 +121,14 @@ internal static class NdsMapCanvasChecks
     }
 
     // ------------------------------------------------------------------ WPF integration (off-screen)
-    private sealed record Fixture(byte[] Headers, byte[] Names, byte[] Events, byte[] Matrices, byte[] Scripts)
+    internal sealed record Fixture(byte[] Headers, byte[] Names, byte[] Events, byte[] Matrices, byte[] Scripts)
     {
         internal PlatinumEvents Read() => PlatinumEvents.Parse(Headers, Names, Events, Matrices, Scripts, ["Zona A"]);
         internal byte[] Rom() => NdsGen5RandomizerChecks.BuildRom(new Dictionary<string, byte[]>
         { [PlatinumEvents.EventPath] = Events, [PlatinumEvents.NamesPath] = Names, [PlatinumEvents.MatrixPath] = Matrices, [PlatinumEvents.ScriptPath] = Scripts, ["untouched.bin"] = [7, 1, 99, 18] }, "CPUE", 1);
     }
     private static void Put(byte[] bytes, int offset, int value) => BinaryPrimitives.WriteUInt16LittleEndian(bytes.AsSpan(offset), checked((ushort)value));
-    private static Fixture Make()
+    internal static Fixture Make()
     {
         byte[] Npc(int id, int x, int y, int type = 0, int script = 0) { var b = new byte[32]; Put(b, 0, id); Put(b, 2, 33); Put(b, 6, type); Put(b, 10, script); Put(b, 24, x); Put(b, 26, y); return b; }
         byte[] Warp(int x, int y, int dest) { var b = new byte[12]; Put(b, 0, x); Put(b, 2, y); Put(b, 4, dest); return b; }
@@ -150,24 +150,24 @@ internal static class NdsMapCanvasChecks
         var matrices = NdsGen5RandomizerChecks.BuildNarc([Matrix(30, 30, i => i == 3 + 27 * 30 ? 1 : 2), Matrix(2, 3, null), Matrix(1, 1, null)]);
         return new(headers, names, events, matrices, NdsGen5RandomizerChecks.BuildNarc([[2, 0, 0, 0, 0x13, 0xFD, 2, 0, 0xAB, 0xCD]]));
     }
-    private static IEnumerable<T> Children<T>(DependencyObject root) where T : DependencyObject
+    internal static IEnumerable<T> Children<T>(DependencyObject root) where T : DependencyObject
     {
         if (root is T match) yield return match;
         foreach (object child in LogicalTreeHelper.GetChildren(root)) if (child is DependencyObject item) foreach (var descendant in Children<T>(item)) yield return descendant;
     }
-    private static void Pump(Task task)
+    internal static void Pump(Task task)
     {
         var timer = System.Diagnostics.Stopwatch.StartNew();
         while (!task.IsCompleted) { if (timer.Elapsed.TotalSeconds > 90) throw new TimeoutException(); System.Windows.Threading.Dispatcher.CurrentDispatcher.Invoke(() => { }, System.Windows.Threading.DispatcherPriority.Background); }
         task.GetAwaiter().GetResult();
     }
-    private static string Sha(string path) => Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(path)));
-    private static void Arrange(FrameworkElement view, int width, int height)
+    internal static string Sha(string path) => Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(path)));
+    internal static void Arrange(FrameworkElement view, int width, int height)
     {
         view.Margin = new Thickness(0); view.Width = width; view.Height = height; view.Measure(new Size(width, height)); view.Arrange(new Rect(0, 0, width, height)); view.UpdateLayout();
     }
-    private static void Flush() => System.Windows.Threading.Dispatcher.CurrentDispatcher.Invoke(() => { }, System.Windows.Threading.DispatcherPriority.Render);
-    private static void Capture(FrameworkElement view, int width, int height, string name)
+    internal static void Flush() => System.Windows.Threading.Dispatcher.CurrentDispatcher.Invoke(() => { }, System.Windows.Threading.DispatcherPriority.Render);
+    internal static void Capture(FrameworkElement view, int width, int height, string name)
     {
         Flush();
         var bitmap = new System.Windows.Media.Imaging.RenderTargetBitmap(width, height, 96, 96, System.Windows.Media.PixelFormats.Pbgra32); bitmap.Render(view);
@@ -175,7 +175,7 @@ internal static class NdsMapCanvasChecks
         string captures = Path.Combine(AppContext.BaseDirectory, "nds-map-canvas"); Directory.CreateDirectory(captures);
         using var stream = File.Create(Path.Combine(captures, name + ".png")); png.Save(stream);
     }
-    private static void CenterOn(NdsMapCanvasControl canvas, PlatinumEventKind kind, int index, double zoom)
+    internal static void CenterOn(NdsMapCanvasControl canvas, PlatinumEventKind kind, int index, double zoom)
     {
         var m = canvas.Model!; var marker = m.Find(kind, index)!; m.SetZoom(zoom, m.ViewportWidth / 2, m.ViewportHeight / 2);
         var (px, py) = m.TileToPixel(marker.CenterX, marker.CenterY); m.PanBy(px - m.ViewportWidth / 2, py - m.ViewportHeight / 2); canvas.Invalidate();
@@ -268,7 +268,7 @@ internal static class NdsMapCanvasChecks
         }
         finally { Directory.Delete(temp, true); }
     }
-    private static byte[] Pixels(FrameworkElement element, int width, int height)
+    internal static byte[] Pixels(FrameworkElement element, int width, int height)
     {
         Flush(); var bitmap = new System.Windows.Media.Imaging.RenderTargetBitmap(width, height, 96, 96, System.Windows.Media.PixelFormats.Pbgra32); bitmap.Render(element);
         var pixels = new byte[width * height * 4]; bitmap.CopyPixels(pixels, width * 4, 0); return pixels;
