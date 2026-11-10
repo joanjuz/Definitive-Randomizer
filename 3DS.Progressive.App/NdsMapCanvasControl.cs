@@ -37,6 +37,7 @@ internal sealed class NdsMapCanvasControl : FrameworkElement
     private (PlatinumEvent Npc, int X, int Y)? _pendingMove;
     private NdsMapTool _tool;
     private bool _middlePan;
+    private (PlatinumEvent Template, Func<int, int, NdsPlacementEval> Evaluate, int X, int Y, NdsPlacementEval? Eval)? _placement;
 
     internal NdsMapCanvasModel? Model => _model;
     /// <summary>Raised only for user clicks/keys (not for programmatic selection) so tables stay the source of truth.</summary>
@@ -49,12 +50,40 @@ internal sealed class NdsMapCanvasControl : FrameworkElement
     /// <summary>Live drag feedback; null when the drag ended or was cancelled.</summary>
     internal event Action<NdsNpcDragSession?>? DragChanged;
     internal NdsNpcDragSession? Drag => _drag;
+    /// <summary>Raised when the user clicks an acceptable tile while placing an NPC; nothing has been written.</summary>
+    internal event Action<int, int>? PlacementChosen;
+    internal event Action? PlacementCancelled;
+    internal bool Placing => _placement is not null;
+    internal (int X, int Y, NdsPlacementEval? Eval)? PlacementState => _placement is { } p ? (p.X, p.Y, p.Eval) : null;
+    /// <summary>Ghost of a new NPC that follows the cursor; every tile is evaluated with <paramref name="evaluate"/>. Rejected tiles cannot be chosen.</summary>
+    internal void BeginPlacement(PlatinumEvent template, Func<int, int, NdsPlacementEval> evaluate)
+    {
+        CancelDrag(); _placement = (template, evaluate, template.X, template.Y, null); Cursor = Cursors.Cross; InvalidateVisual();
+    }
+    internal void CancelPlacement()
+    {
+        if (_placement is null) return;
+        _placement = null; Cursor = Cursors.Arrow; InvalidateVisual(); PlacementCancelled?.Invoke();
+    }
+    internal void PlacementMoveTo(Point point)
+    {
+        if (_placement is not { } p || _model is null) return;
+        var (x, y) = _model.TileAt(point.X, point.Y); var eval = p.Evaluate(x, y);
+        _placement = (p.Template, p.Evaluate, x, y, eval); Hover?.Invoke(eval.Text); InvalidateVisual();
+    }
+    /// <summary>Returns true when the tile was accepted. A rejected tile keeps the placement open and explains why.</summary>
+    internal bool PlacementClick(Point point)
+    {
+        PlacementMoveTo(point);
+        if (_placement is not { Eval: { } eval } p || eval.Outcome == NdsMoveOutcome.Rejected || eval.Outcome == NdsMoveOutcome.NoChange) return false;
+        _placement = null; Cursor = Cursors.Arrow; InvalidateVisual(); PlacementChosen?.Invoke(p.X, p.Y); return true;
+    }
     internal bool DragDeclined { get; private set; }
     internal (PlatinumEvent Npc, int X, int Y)? PendingMove => _pendingMove;
     internal NdsMapTool Tool
     {
         get => _tool;
-        set { if (_tool == value) return; CancelDrag(); _tool = value; InvalidateVisual(); }
+        set { if (_tool == value) return; CancelDrag(); CancelPlacement(); _tool = value; InvalidateVisual(); }
     }
     internal event Action<string>? Hover;
     internal int RenderedMarkers { get; private set; }
@@ -100,7 +129,7 @@ internal sealed class NdsMapCanvasControl : FrameworkElement
 
     internal void SetMap(PlatinumMapLayout layout, IEnumerable<PlatinumEvent> events, PlatinumTerrain? terrain = null, (int Width, int Height)? editorBounds = null, (PlatinumEventKind Kind, int Index)? selected = null, NdsMapLayers? layers = null)
     {
-        CancelDrag(); _pendingMove = null;
+        CancelDrag(); _placement = null; _pendingMove = null;
         var previousLayers = layers ?? _model?.Layers ?? NdsMapLayers.All;
         _model = new NdsMapCanvasModel(layout, events, terrain, editorBounds) { Layers = previousLayers };
         _terrainBitmap = null;
@@ -112,7 +141,7 @@ internal sealed class NdsMapCanvasControl : FrameworkElement
         if (ActualWidth > 0 && ActualHeight > 0) _model.SetViewport(ActualWidth, ActualHeight);
         Refresh();
     }
-    internal void Clear() { CancelDrag(); _pendingMove = null; _model = null; Refresh(); }
+    internal void Clear() { CancelDrag(); _placement = null; _pendingMove = null; _model = null; Refresh(); }
     internal void SetLayers(NdsMapLayers layers) { if (_model is not null) _model.Layers = layers; Refresh(); }
     internal void SelectProgrammatic(PlatinumEvent? item, bool reveal)
     {
@@ -145,6 +174,7 @@ internal sealed class NdsMapCanvasControl : FrameworkElement
     {
         Focus(); if (_model is null) return;
         var start = e.GetPosition(this);
+        if (_placement is not null) { PlacementClick(start); e.Handled = true; return; }
         if (BeginDragAt(start)) { CaptureMouse(); e.Handled = true; return; }
         if (DragDeclined) { e.Handled = true; return; }
         _down = _last = start; _pressed = true; _panning = false; CaptureMouse(); e.Handled = true;
@@ -166,6 +196,7 @@ internal sealed class NdsMapCanvasControl : FrameworkElement
     protected override void OnMouseMove(MouseEventArgs e)
     {
         if (_model is null) return; var p = e.GetPosition(this);
+        if (_placement is not null) { PlacementMoveTo(p); return; }
         if (_drag is not null) { DragTo(p); return; }
         if (_middlePan) { _model.PanBy(_last.X - p.X, _last.Y - p.Y); _last = p; Refresh(); return; }
         if (_pressed)
@@ -187,6 +218,7 @@ internal sealed class NdsMapCanvasControl : FrameworkElement
     }
     protected override void OnKeyDown(KeyEventArgs e)
     {
+        if (e.Key == Key.Escape && _placement is not null) { CancelPlacement(); e.Handled = true; return; }
         if (e.Key == Key.Escape && _drag is not null) { CancelDrag(); e.Handled = true; return; }
         if (_model is null) return;
         bool ctrl = (Keyboard.Modifiers & ModifierKeys.Control) != 0; bool handled = true;
@@ -360,6 +392,7 @@ internal sealed class NdsMapCanvasControl : FrameworkElement
         if (m.SelectedMarker is { } sel && m.IsLayerVisible(sel)) DrawSelection(dc, m, sel);
         if (_drag is { Active: true } drag) DrawGhost(dc, m, drag.Npc, drag.Plan.ToX, drag.Plan.ToY, drag.Plan.Outcome, "");
         else if (_pendingMove is { } pending) DrawGhost(dc, m, pending.Npc, pending.X, pending.Y, null, "propuesta pendiente");
+        if (_placement is { Eval: { } placing } place) DrawGhost(dc, m, place.Template, place.X, place.Y, placing.Outcome, "NPC nuevo", showOrigin: false);
         if (IsKeyboardFocused) dc.DrawRectangle(null, new Pen(Themed(this, "Accent", Inspect), 2), new Rect(1, 1, Math.Max(0, w - 2), Math.Max(0, h - 2)));
     }
 
@@ -402,7 +435,7 @@ internal sealed class NdsMapCanvasControl : FrameworkElement
     }
 
     /// <summary>Original position (dashed ring) and ghost at the target tile. State = shape + colour: check, ?, cross; never "safe".</summary>
-    private void DrawGhost(DrawingContext dc, NdsMapCanvasModel m, PlatinumEvent npc, int tx, int ty, NdsMoveOutcome? outcome, string note)
+    private void DrawGhost(DrawingContext dc, NdsMapCanvasModel m, PlatinumEvent npc, int tx, int ty, NdsMoveOutcome? outcome, string note, bool showOrigin = true)
     {
         var accent = Themed(this, "Accent", Inspect);
         Color color = outcome switch { NdsMoveOutcome.Ready => Color.FromRgb(0x4F, 0xC9, 0xB5), NdsMoveOutcome.NeedsWarning => Color.FromRgb(0xF2, 0xB8, 0x4B), NdsMoveOutcome.Rejected => Color.FromRgb(0xFF, 0x5A, 0x5A), NdsMoveOutcome.NoChange => Color.FromRgb(0xA6, 0xB5, 0xC9), _ => Color.FromRgb(0x86, 0xB7, 0xF3) };
@@ -410,8 +443,7 @@ internal sealed class NdsMapCanvasControl : FrameworkElement
         var pen = new Pen(stroke, outcome == NdsMoveOutcome.Rejected ? 3 : 2.5) { DashStyle = dashed ? DashStyles.Dash : DashStyles.Solid };
         var o = m.TileToPixel(npc.X + 0.5, npc.Y + 0.5); var t = m.TileToPixel(tx + 0.5, ty + 0.5); var origin = new Point(o.X, o.Y); var target = new Point(t.X, t.Y);
         double r = Math.Clamp(m.Zoom * 0.45, 6, 11);
-        dc.DrawEllipse(null, new Pen(Brushes.White, 1.5) { DashStyle = DashStyles.Dot }, origin, r + 6, r + 6);
-        dc.DrawLine(new Pen(stroke, 1.5) { DashStyle = DashStyles.Dash }, origin, target);
+        if (showOrigin) { dc.DrawEllipse(null, new Pen(Brushes.White, 1.5) { DashStyle = DashStyles.Dot }, origin, r + 6, r + 6); dc.DrawLine(new Pen(stroke, 1.5) { DashStyle = DashStyles.Dash }, origin, target); }
         double side = Math.Max(m.Zoom, 18);
         dc.DrawRectangle(new SolidColorBrush(Color.FromArgb(0x30, color.R, color.G, color.B)), pen, new Rect(target.X - side / 2, target.Y - side / 2, side, side));
         dc.DrawEllipse(new SolidColorBrush(Color.FromArgb(0xA0, 0xF4, 0xC9, 0x5D)), new Pen(Brushes.Black, 1.2), target, r, r);
@@ -419,7 +451,7 @@ internal sealed class NdsMapCanvasControl : FrameworkElement
         if (outcome == NdsMoveOutcome.Rejected) { dc.DrawLine(glyph, new Point(target.X - g, target.Y - g), new Point(target.X + g, target.Y + g)); dc.DrawLine(glyph, new Point(target.X + g, target.Y - g), new Point(target.X - g, target.Y + g)); }
         else if (outcome == NdsMoveOutcome.Ready) { var figure = new PathFigure(new Point(target.X - g, target.Y), [new LineSegment(new Point(target.X - g * 0.2, target.Y + g * 0.8), true), new LineSegment(new Point(target.X + g, target.Y - g * 0.7), true)], false); dc.DrawGeometry(null, glyph, new PathGeometry([figure])); }
         else if (outcome == NdsMoveOutcome.NeedsWarning) { var q = Text("?", 14, Brushes.Black); dc.DrawText(q, new Point(target.X - q.Width / 2, target.Y - q.Height / 2)); }
-        string label = $"{npc.X},{npc.Y} → {tx},{ty}" + (note.Length > 0 ? " · " + note : "");
+        string label = (showOrigin ? $"{npc.X},{npc.Y} → {tx},{ty}" : $"{tx},{ty}") + (note.Length > 0 ? " · " + note : "");
         var text = Text(label, 11.5, Brushes.White); var spot = new Point(Math.Clamp(target.X - text.Width / 2, 2, Math.Max(2, ActualWidth - text.Width - 6)), Math.Max(2, target.Y - side / 2 - text.Height - 4));
         dc.DrawRectangle(new SolidColorBrush(Color.FromArgb(0xD0, 0x10, 0x16, 0x1E)), null, new Rect(spot.X - 3, spot.Y - 1, text.Width + 6, text.Height + 2)); dc.DrawText(text, spot);
     }

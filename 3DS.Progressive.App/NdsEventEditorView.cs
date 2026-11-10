@@ -16,6 +16,9 @@ using DataGrid = System.Windows.Controls.DataGrid;
 using Binding = System.Windows.Data.Binding;
 using RadioButton = System.Windows.Controls.RadioButton;
 using CheckBox = System.Windows.Controls.CheckBox;
+using ComboBox = System.Windows.Controls.ComboBox;
+using MenuItem = System.Windows.Controls.MenuItem;
+using ContextMenu = System.Windows.Controls.ContextMenu;
 using Point = System.Windows.Point;
 
 namespace ThreeDS.Progressive;
@@ -51,6 +54,18 @@ internal sealed class NdsEventEditorView : UserControl
     private UIElement? _legend;
     private NdsNpcMovePlan? _move;
     private PlatinumMap? _moveMap;
+    // ---- structural NPC operations: every one ends in a reviewable proposal; nothing is written by clicking
+    private readonly Button _btnAdd = new() { Content = "Añadir" }, _btnDup = new() { Content = "Duplicar" }, _btnCopy = new() { Content = "Copiar" }, _btnCut = new() { Content = "Cortar" }, _btnPaste = new() { Content = "Pegar" }, _btnDelete = new() { Content = "Eliminar" };
+    private readonly List<(MenuItem Item, Button Source)> _menuItems = [];
+    private readonly Border _newBox = new() { BorderThickness = new Thickness(1), Padding = new Thickness(8), Margin = new Thickness(0, 4, 0, 0), Visibility = Visibility.Collapsed };
+    private readonly TextBox _nId = new() { Width = 64 }, _nX = new() { Width = 64 }, _nY = new() { Width = 64 }, _nDir = new() { Width = 56 };
+    private readonly ComboBox _nGfx = new() { MinWidth = 70 }, _nMov = new() { MinWidth = 70 };
+    private readonly TextBlock _newInfo = new() { TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 6, 0, 0) };
+    private readonly Button _newPreview = new() { Content = "Previsualizar propuesta", Margin = new Thickness(0, 6, 8, 0) }, _newCancel = new() { Content = "Cancelar", Margin = new Thickness(0, 6, 8, 0) };
+    private NdsNpcClip? _clip;
+    private PlatinumEvent? _newTemplate, _placeTemplate;
+    private bool _placeCut, _newLoading;
+    private NdsAddPlan? _newPlan;
     private readonly ScrollViewer _inspector;
     private NdsEventProposal? _pending;
     private PlatinumMap? _map;
@@ -102,7 +117,7 @@ internal sealed class NdsEventEditorView : UserControl
             _tables[i] = table; _tabs.Items.Add(new TabItem { Header = titles[i], Content = table }); AccessibleName(table, "Eventos DS · tabla " + titles[i]);
         }
         var inspector = new StackPanel { Margin = new Thickness(10, 0, 0, 0) };
-        inspector.Children.Add(_selection);
+        inspector.Children.Add(_selection); inspector.Children.Add(BuildStructureBar());
         foreach (var (label, box) in new[] { ("Coordenada X", _x), ("Coordenada Y", _y), ("Dirección (0–3)", _direction) })
         {
             inspector.Children.Add(new TextBlock { Text = label, Margin = new Thickness(0, 8, 0, 3) }); inspector.Children.Add(box); AccessibleName(box, "Eventos DS · " + label);
@@ -161,7 +176,8 @@ internal sealed class NdsEventEditorView : UserControl
         AccessibleName(notice, "Eventos DS · aviso de vista esquemática"); AccessibleName(_hover, "Eventos DS · posición bajo el cursor"); AccessibleName(_scale, "Eventos DS · escala y dimensiones");
         BuildMoveBox(); AccessibleName(_toolHelp, "Eventos DS · ayuda de la herramienta");
         _legend = BuildLegend(); ApplyTool(); _canvas.DragGuard = BeginMoveGuard; _canvas.MoveDropped += OnMoveDropped; _canvas.DragChanged += OnDragChanged;
-        _mapFooter.Children.Add(_toolHelp); _mapFooter.Children.Add(_moveBox); _mapFooter.Children.Add(notice); _mapFooter.Children.Add(_terrainNote); _mapFooter.Children.Add(_scale); _mapFooter.Children.Add(_hover); _mapFooter.Children.Add(_legend);
+        BuildNewBox(); _canvas.PlacementChosen += OnPlacementChosen; _canvas.PlacementCancelled += () => { if (_move is null) _hover.Text = ""; };
+        _mapFooter.Children.Add(_toolHelp); _mapFooter.Children.Add(_moveBox); _mapFooter.Children.Add(_newBox); _mapFooter.Children.Add(notice); _mapFooter.Children.Add(_terrainNote); _mapFooter.Children.Add(_scale); _mapFooter.Children.Add(_hover); _mapFooter.Children.Add(_legend);
         Grid.SetRow(_mapFooter, 3); _center.Children.Add(_mapFooter);
         Grid.SetColumn(_center, 1); _body.Children.Add(_center);
         _modeMap.Checked += (_, _) => ApplyMode(); _modeTables.Checked += (_, _) => ApplyMode();
@@ -236,7 +252,8 @@ internal sealed class NdsEventEditorView : UserControl
     private void HideProposal(bool cancelDrag = true)
     {
         _move = null; _moveMap = null; if (_moveBox.Visibility != Visibility.Collapsed) _moveBox.Visibility = Visibility.Collapsed;
-        SetFooterCompact(false); if (cancelDrag) _canvas.CancelDrag();
+        _newBox.Visibility = Visibility.Collapsed; _newTemplate = null; _newPlan = null;
+        SetFooterCompact(false); if (cancelDrag) { _canvas.CancelDrag(); _canvas.CancelPlacement(); }
     }
     private void AcceptMove()
     {
@@ -250,6 +267,160 @@ internal sealed class NdsEventEditorView : UserControl
         _x.Text = plan.ToX.ToString(CultureInfo.InvariantCulture); _y.Text = plan.ToY.ToString(CultureInfo.InvariantCulture);
         PreviewSelection();
         if (_pending is { Changes.Count: > 0 }) { _canvas.SetPendingMove(npc, plan.ToX, plan.ToY); _status.Text = "Propuesta aceptada: revisa las diferencias y guarda un checkpoint nuevo. Aún no se ha guardado nada."; }
+    }
+
+    // ---- structural NPC operations --------------------------------------------------------------------------------------
+    private UIElement BuildStructureBar()
+    {
+        var bar = new WrapPanel { Margin = new Thickness(0, 8, 0, 0) }; AccessibleName(bar, "Eventos DS · operaciones de NPC");
+        var menu = new ContextMenu();
+        foreach (var (button, tip, action) in new (Button, string, Action)[] {
+            (_btnAdd, "añadir NPC", DoAdd), (_btnDup, "duplicar NPC", DoDuplicate), (_btnCopy, "copiar NPC", DoCopy), (_btnCut, "cortar NPC", DoCut), (_btnPaste, "pegar NPC", DoPaste), (_btnDelete, "eliminar NPC", DoDelete) })
+        {
+            button.Margin = new Thickness(0, 0, 6, 6); button.Padding = new Thickness(8, 2, 8, 2); AccessibleName(button, "Eventos DS · " + tip); EditorPresentation.StyleAction(button, EditorPresentation.ActionRole.Tertiary);
+            button.Click += (_, _) => action(); bar.Children.Add(button);
+            var item = new MenuItem { Header = button.Content }; AutomationProperties.SetName(item, "Eventos DS · menú · " + tip); item.Click += (_, _) => action(); menu.Items.Add(item); _menuItems.Add((item, button));
+        }
+        _btnAdd.ToolTip = "Crea un NPC nuevo a partir del NPC seleccionado. No se guarda nada hasta confirmar."; _btnDup.ToolTip = "Duplica el NPC seleccionado: elige la casilla en el mapa (Ctrl+D)."; _btnCopy.ToolTip = "Copia el NPC seleccionado (Ctrl+C).";
+        _btnCut.ToolTip = "Marca el NPC para trasladarlo; no se elimina nada (Ctrl+X)."; _btnPaste.ToolTip = "Pega el NPC copiado o traslada el cortado (Ctrl+V)."; _btnDelete.ToolTip = "Eliminar NPC: muestra por qué no se permite (Supr).";
+        _canvas.ContextMenu = menu; _canvas.ContextMenuOpening += (_, _) => UpdateStructureButtons();
+        _canvas.PreviewKeyDown += (_, e) =>
+        {
+            bool ctrl = (System.Windows.Input.Keyboard.Modifiers & System.Windows.Input.ModifierKeys.Control) != 0; Action? run = null;
+            if (ctrl && e.Key == System.Windows.Input.Key.C) run = DoCopy; else if (ctrl && e.Key == System.Windows.Input.Key.X) run = DoCut; else if (ctrl && e.Key == System.Windows.Input.Key.V) run = DoPaste;
+            else if (ctrl && e.Key == System.Windows.Input.Key.D) run = DoDuplicate; else if (e.Key == System.Windows.Input.Key.Delete) run = DoDelete;
+            if (run is null) return; e.Handled = true; run();
+        };
+        UpdateStructureButtons(); return bar;
+    }
+    private PlatinumEvent? SelectedTemplate => _event is { } e && NdsNpcStructurePlanner.IsTemplate(e) ? e : null;
+    private void UpdateStructureButtons()
+    {
+        bool ok = !_busy && _map is not null && _canvas.Model is not null; var t = SelectedTemplate;
+        _btnAdd.IsEnabled = _btnDup.IsEnabled = _btnCopy.IsEnabled = _btnCut.IsEnabled = ok && t is not null;
+        _btnPaste.IsEnabled = ok && _clip is not null; _btnDelete.IsEnabled = ok && _event?.Kind == PlatinumEventKind.Npc;
+        _btnPaste.ToolTip = _clip is null ? "No hay nada copiado." : (_clip.Cut ? "Trasladar" : "Pegar") + " · " + _clip.Origin;
+        foreach (var (item, source) in _menuItems) item.IsEnabled = source.IsEnabled;
+    }
+    /// <summary>Starting a structural operation needs the same authorization as leaving pending fields or a pending preview.</summary>
+    private bool StructureGuard()
+    {
+        if (_busy || _map is null) return false;
+        if (_dirty || _pending is not null)
+        {
+            if (!ConfirmLeave()) return false;
+            _dirty = false; InvalidatePreview();
+        }
+        HideProposal(); return true;
+    }
+    private void ShowInfo(string text)
+    {
+        _move = null; _moveText.Text = text; _moveAccept.Visibility = Visibility.Collapsed; _moveCancel.Content = "Cerrar"; _moveBox.Visibility = Visibility.Visible; SetFooterCompact(true);
+    }
+    private void DoCopy()
+    {
+        if (SelectedTemplate is not { } t || _map is null) return;
+        _clip = new NdsNpcClip(t, false, _map.Id, _map.EventFile); _status.Text = $"Copiado: {_clip.Origin}. Nada se ha modificado."; UpdateStructureButtons();
+    }
+    private void DoCut()
+    {
+        if (SelectedTemplate is not { } t || _map is null) return;
+        _clip = new NdsNpcClip(t, true, _map.Id, _map.EventFile); _status.Text = $"Marcado para trasladar: {_clip.Origin}. No se ha eliminado nada; el traslado solo se aplica al pegar y tras confirmar."; UpdateStructureButtons();
+    }
+    private void DoDuplicate() { if (SelectedTemplate is { } t && StructureGuard()) StartPlacement(t, false); }
+    private void DoPaste()
+    {
+        if (_clip is not { } clip || _map is null || !StructureGuard()) return;
+        var problems = NdsNpcStructurePlanner.PasteProblems(_session.Data, clip, _map.Id);
+        if (problems.Count > 0) { ShowInfo("No se puede pegar este NPC aquí:\n" + string.Join("\n", problems.Select(p => "• " + p)) + "\nNo se modificó nada ni se perdió el NPC original."); return; }
+        StartPlacement(clip.Source, clip.Cut);
+    }
+    private void DoAdd()
+    {
+        if (SelectedTemplate is not { } t || _map is null || !StructureGuard()) return;
+        OpenNewForm(t, NdsNpcStructurePlanner.DraftFrom(_session.Data, _map.Id, t, t.X + 1, t.Y));
+    }
+    private void DoDelete()
+    {
+        if (_event is not { Kind: PlatinumEventKind.Npc } npc || _map is null || _busy) return;
+        HideProposal();
+        bool lastAdded = _session.LastAddition is { } add && add.Map == _map.Id && add.Index == npc.Index;
+        var report = NdsNpcStructurePlanner.AssessDelete(_session.Data, _map.Id, npc, lastAdded);
+        ShowInfo($"Eliminar NPC {npc.Index} (ID {npc.Id}) — Mapa {_map.Id}: NO permitido.\n" + string.Join("\n", report.Reasons.Select(r => "• " + r)) + "\nNo se modificó nada.");
+    }
+    private void StartPlacement(PlatinumEvent template, bool cut)
+    {
+        if (_canvas.Model is not { } model || _map is null) return;
+        int mapId = _map.Id; _placeTemplate = template; _placeCut = cut;
+        _canvas.BeginPlacement(template, (x, y) =>
+        {
+            if (cut) { var move = NdsNpcMovePlanner.Plan(model, template, x, y); return new(move.Outcome, move.Live); }
+            var plan = NdsNpcStructurePlanner.PlanAdd(_session.Data, model, mapId, template, NdsNpcStructurePlanner.DraftFrom(_session.Data, mapId, template, x, y));
+            return new(plan.Outcome, $"Nuevo NPC en X {x}, Y {y} · {plan.Summary}" + (plan.Reasons.Count > 0 ? " · " + plan.Reasons[0] : ""));
+        });
+        _hover.Text = cut ? "Elige la casilla destino del traslado; Esc cancela. No se ha eliminado nada." : "Elige la casilla del NPC nuevo; Esc cancela. No se guarda nada.";
+        _canvas.Focus();
+    }
+    private void OnPlacementChosen(int x, int y)
+    {
+        if (_placeTemplate is not { } template || _map is null || _canvas.Model is not { } model) return;
+        if (_placeCut) { OnMoveDropped(NdsNpcMovePlanner.Plan(model, template, x, y)); return; }
+        OpenNewForm(template, NdsNpcStructurePlanner.DraftFrom(_session.Data, _map.Id, template, x, y));
+    }
+    private void BuildNewBox()
+    {
+        _newBox.SetResourceReference(Border.BorderBrushProperty, "Accent"); _newBox.SetResourceReference(Border.BackgroundProperty, "Panel");
+        var stack = new StackPanel(); var title = new TextBlock { Text = "NPC nuevo — se añade al final del bloque de NPC del archivo de eventos", FontWeight = FontWeights.SemiBold, TextWrapping = TextWrapping.Wrap };
+        var fields = new WrapPanel { Margin = new Thickness(0, 4, 0, 0) };
+        foreach (var (label, control, name) in new (string, FrameworkElement, string)[] { ("ID", _nId, "ID"), ("Gráfico", _nGfx, "gráfico"), ("Movimiento", _nMov, "movimiento"), ("Dirección", _nDir, "dirección"), ("X", _nX, "X"), ("Y", _nY, "Y") })
+        {
+            var cell = new StackPanel { Margin = new Thickness(0, 0, 10, 0) }; cell.Children.Add(new TextBlock { Text = label, FontSize = 11.5 }); cell.Children.Add(control); fields.Children.Add(cell);
+            AccessibleName(control, "Eventos DS · nuevo NPC · " + name);
+        }
+        var buttons = new WrapPanel(); buttons.Children.Add(_newPreview); buttons.Children.Add(_newCancel);
+        AccessibleName(_newBox, "Eventos DS · NPC nuevo"); AccessibleName(_newInfo, "Eventos DS · validación del NPC nuevo"); AccessibleName(_newPreview, "Eventos DS · previsualizar propuesta de NPC nuevo"); AccessibleName(_newCancel, "Eventos DS · cancelar NPC nuevo");
+        EditorPresentation.StyleAction(_newPreview, EditorPresentation.ActionRole.Primary); EditorPresentation.StyleAction(_newCancel, EditorPresentation.ActionRole.Tertiary);
+        foreach (var box in new[] { _nId, _nX, _nY, _nDir }) box.TextChanged += (_, _) => RevalidateNew();
+        foreach (var combo in new[] { _nGfx, _nMov }) combo.SelectionChanged += (_, _) => RevalidateNew();
+        _newCancel.Click += (_, _) => HideProposal();
+        _newPreview.Click += (_, _) => PreviewNewNpc();
+        stack.Children.Add(title); stack.Children.Add(fields); stack.Children.Add(_newInfo); stack.Children.Add(buttons); _newBox.Child = stack;
+    }
+    private void OpenNewForm(PlatinumEvent template, NdsAddDraft draft)
+    {
+        _newTemplate = template; _newLoading = true;
+        _nGfx.ItemsSource = _session.Data.AccreditedGraphics.ToArray(); _nMov.ItemsSource = _session.Data.AccreditedMovements.ToArray();
+        _nId.Text = draft.Id.ToString(CultureInfo.InvariantCulture); _nX.Text = draft.X.ToString(CultureInfo.InvariantCulture); _nY.Text = draft.Y.ToString(CultureInfo.InvariantCulture); _nDir.Text = draft.Direction.ToString(CultureInfo.InvariantCulture);
+        _nGfx.SelectedItem = draft.Graphics; _nMov.SelectedItem = draft.Movement; _newLoading = false;
+        _moveBox.Visibility = Visibility.Collapsed; _newBox.Visibility = Visibility.Visible; SetFooterCompact(true); RevalidateNew();
+    }
+    private void RevalidateNew()
+    {
+        if (_newLoading || _newTemplate is not { } template || _map is null || _canvas.Model is not { } model) return;
+        static bool Int(TextBox box, out int value) => int.TryParse(box.Text, NumberStyles.Integer, CultureInfo.InvariantCulture, out value);
+        if (!Int(_nId, out int id) || !Int(_nX, out int x) || !Int(_nY, out int y) || !Int(_nDir, out int dir) || _nGfx.SelectedItem is not int gfx || _nMov.SelectedItem is not int mov)
+        {
+            _newPlan = null; _newPreview.IsEnabled = false; _newInfo.Text = "Introduce enteros en ID, dirección, X e Y y elige un gráfico y un movimiento acreditados."; return;
+        }
+        var plan = NdsNpcStructurePlanner.PlanAdd(_session.Data, model, _map.Id, template, new(id, gfx, mov, dir, x, y)); _newPlan = plan;
+        var lines = new List<string> { "Estado: " + plan.Summary };
+        lines.AddRange(plan.Reasons.Select(r => "• " + r));
+        lines.Add($"Cantidad de NPC en el mapa: {_session.Data.NpcCount(_map.Id)} → {_session.Data.NpcCount(_map.Id) + 1} · script 0, flag 0, tipo 0 (no se copian scripts ni flags) · altura y bytes desconocidos copiados de la plantilla.");
+        if (plan.CanPropose) lines.Add("No evaluado: alturas y BDHC, comportamiento del tile, puertas, scripts, movimiento del NPC y estado dinámico. Previsualizar no guarda nada.");
+        var sharing = _session.Data.Maps.Where(m => m.EventFile == _map.EventFile).Select(m => m.Id).ToList();
+        if (sharing.Count > 1) lines.Add($"Archivo de eventos compartido por {sharing.Count} cabeceras ({string.Join(", ", sharing.Take(8))}): el NPC nuevo aparecerá en todas.");
+        _newInfo.Text = string.Join("\n", lines); _newPreview.IsEnabled = plan.CanPropose;
+        _newPreview.Content = plan.Outcome == NdsMoveOutcome.NeedsWarning ? "Previsualizar propuesta con advertencia" : "Previsualizar propuesta";
+    }
+    private void PreviewNewNpc()
+    {
+        if (_newPlan is not { CanPropose: true } plan || _map is null) return;
+        try
+        {
+            var proposal = _session.PreviewAdd(_map.Id, plan.Record!);
+            HideProposal(); ShowProposal(proposal); _status.Text = "Propuesta de NPC nuevo preparada: revisa las diferencias y guarda un checkpoint nuevo. Aún no se ha guardado nada.";
+        }
+        catch (Exception ex) when (Known(ex)) { Fail(ex); }
     }
 
     private void ApplyMode()
@@ -296,7 +467,7 @@ internal sealed class NdsEventEditorView : UserControl
         _body.ColumnDefinitions[0].Width = new GridLength(compact ? 165 : 205);
         _body.ColumnDefinitions[2].Width = compact ? new GridLength(0) : new GridLength(280);
         Grid.SetRow(_inspector, compact ? 1 : 0); Grid.SetColumn(_inspector, compact ? 0 : 2); Grid.SetColumnSpan(_inspector, compact ? 2 : 1);
-        _inspector.Visibility = compact && _move is not null ? Visibility.Collapsed : Visibility.Visible;   // compact layout: give the canvas the room while a proposal is open
+        _inspector.Visibility = compact && (_moveBox.Visibility == Visibility.Visible || _newBox.Visibility == Visibility.Visible) ? Visibility.Collapsed : Visibility.Visible;   // compact layout: give the canvas the room while a proposal is open
         _inspector.MaxHeight = compact ? 170 : double.PositiveInfinity;
     }
     private void FilterMaps()
@@ -309,7 +480,7 @@ internal sealed class NdsEventEditorView : UserControl
     }
     private void SelectMap(PlatinumMap? map, bool confirm = true)
     {
-        if (_move is not null || _canvas.Drag is not null) HideProposal();
+        if (_move is not null || _canvas.Drag is not null || _canvas.Placing || _newBox.Visibility == Visibility.Visible) HideProposal();
         if (confirm && !ConfirmLeave()) { _updating = true; _maps.SelectedItem = _map; _updating = false; return; }
         _dirty = false; InvalidatePreview(); _map = map; _updating = true;
         var events = map is null ? Array.Empty<PlatinumEvent>() : _session.Data.Events(map.Id).ToArray();
@@ -354,6 +525,7 @@ internal sealed class NdsEventEditorView : UserControl
             _details.Text += "\n\nConsulta espacial (solo lectura, no es una validación de juego):\n" + _canvas.Model.Query.Assess(item.X, item.Y, (item.Kind, item.Index)).ToText();
         }
         _canvas.SelectProgrammatic(item, true);
+        UpdateStructureButtons();
         _updating = false;
     }
     private bool CanNavigate(PlatinumEvent warp) => warp.Destination >= 0 && warp.Destination < _session.Data.Maps.Count &&
@@ -374,7 +546,7 @@ internal sealed class NdsEventEditorView : UserControl
     private void ShowProposal(NdsEventProposal proposal)
     {
         _pending = proposal; _save.IsEnabled = proposal.Changes.Count > 0;
-        _differences.Text = string.Join("\n", proposal.Changes.Select(c => $"{c.Location} · {c.Field}: {c.Before} → {c.After}"));
+        _differences.Text = proposal.Lines is { Count: > 0 } lines ? string.Join("\n", lines) : string.Join("\n", proposal.Changes.Select(c => $"{c.Location} · {c.Field}: {c.Before} → {c.After}"));
     }
     internal async Task SaveToAsync(string path)
     {
