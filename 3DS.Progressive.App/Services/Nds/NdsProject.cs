@@ -363,6 +363,8 @@ internal sealed partial class NdsProject : IDisposable
         var all = _history.SelectMany(o => o.Changes).ToArray();
         var exportFiles = new Dictionary<string, byte[]>(_files);
         if (_events?.Replacement() is { } eventBytes) exportFiles[PlatinumEvents.EventPath] = eventBytes;
+        if (_events?.ScriptReplacement() is { } scriptBytes)
+            exportFiles[PlatinumEvents.ScriptPath] = exportFiles.TryGetValue(PlatinumEvents.ScriptPath, out var otherScripts) ? _events.MergeScriptArchive(otherScripts) : scriptBytes;
         var result = new Gen5RandomizerResult(exportFiles, all, new Dictionary<int, byte[]>(_overlays))
         {
             RecompressOverlays = new HashSet<int>(_recompress),

@@ -9,7 +9,12 @@ internal sealed record NdsNpcClip(PlatinumEvent Source, bool Cut, int SourceMap,
 }
 
 /// <summary>Values of a new NPC. <c>RawHeight</c> overrides the template's raw height (+28) when the template comes from another map.</summary>
-internal sealed record NdsAddDraft(int Id, int Graphics, int Movement, int Direction, int X, int Y, int? RawHeight = null);
+internal sealed record NdsAddDraft(int Id, int Graphics, int Movement, int Direction, int X, int Y, int? RawHeight = null, int Script = 0);
+
+internal enum NdsBehaviourMode { Appearance, WithBehaviour, ShareScript }
+
+/// <summary>One way of bringing an NPC's behaviour along, with whether it is possible here and why.</summary>
+internal sealed record NdsBehaviourOption(NdsBehaviourMode Mode, bool Available, string Label, string Reason);
 
 /// <summary>Result of evaluating a new-NPC draft. Nothing is written; <c>Record</c> is set when it can be previewed.</summary>
 internal sealed record NdsAddPlan(NdsMoveOutcome Outcome, byte[]? Record, IReadOnlyList<string> Reasons, NdsTileAssessment? Assessment)
@@ -39,9 +44,9 @@ internal static class NdsNpcStructurePlanner
     {
         if (!IsTemplate(template)) return new(NdsMoveOutcome.Rejected, null, ["la plantilla debe ser un NPC normal existente (no un NPC objeto de suelo, objeto, warp ni activador)"], null);
         byte[] record;
-        try { record = PlatinumEvents.NewNpcRecord(template, draft.Id, draft.Graphics, draft.Movement, draft.Direction, draft.X, draft.Y, draft.RawHeight); }
+        try { record = PlatinumEvents.NewNpcRecord(template, draft.Id, draft.Graphics, draft.Movement, draft.Direction, draft.X, draft.Y, draft.RawHeight); System.Buffers.Binary.BinaryPrimitives.WriteUInt16LittleEndian(record.AsSpan(10), checked((ushort)draft.Script)); }
         catch (OverflowException) { return new(NdsMoveOutcome.Rejected, null, ["algún valor está fuera del rango de 16 bits que admite el registro"], null); }
-        var problems = data.ValidateNewNpc(mapId, record);
+        var problems = data.ValidateNewNpc(mapId, record, draft.Script == 0 ? null : draft.Script);
         var a = model.Query.Assess(draft.X, draft.Y);
         var reasons = new List<string>(problems);
         if (a.Placement == NdsMarkerPlacement.OutsideMatrix) reasons.Add("fuera de la matriz de este mapa");
@@ -67,6 +72,58 @@ internal static class NdsNpcStructurePlanner
                 problems.Add("el NPC original ya no existe con ese índice e ID");
         }
         return problems;
+    }
+
+    /// <summary>
+    /// The behaviour modes for pasting <paramref name="clip"/> into <paramref name="targetMap"/>. Only exact, recognised local scripts are offered:
+    /// the Pokémon Center nurse (copied, re-targeted to the new NPC) and plain-message scripts (shared inside the same script file).
+    /// </summary>
+    internal static IReadOnlyList<NdsBehaviourOption> BehaviourOptions(PlatinumEvents data, NdsNpcClip clip, int targetMap)
+    {
+        var source = clip.Source; int script = source.Script; bool sameScriptFile = data.Map(targetMap).ScriptFile == data.Map(clip.SourceMap).ScriptFile;
+        PlatinumScriptInfo? info = null;
+        try { info = data.ClassifyScript(clip.SourceMap, script); } catch (System.IO.InvalidDataException) { }
+        string why = script switch
+        {
+            0 or 0xFFFF => "el NPC original no tiene script",
+            >= 3000 and < 7000 => $"el script {script} es de combate de entrenador: los entrenadores nuevos se crean en otra fase",
+            >= 7000 and < 8800 => $"el script {script} es de objeto: no se copia",
+            >= 2000 => $"el script {script} es común/global y depende de su contexto: no está acreditado para copiarse",
+            _ when info is null => $"el script local {script} no existe en el archivo de scripts",
+            _ when info.Pattern == PlatinumScriptPattern.PokecenterNurse && info.LocalIdReference != source.Id => $"el script local {script} se refiere a otro NPC (ID {info.LocalIdReference})",
+            _ when info.Pattern == PlatinumScriptPattern.Unknown => $"el script local {script} no es un patrón reconocido; no se puede demostrar qué textos, flags, variables o NPC usa",
+            _ => "",
+        };
+        bool targetScripts = data.HasReadableScriptFile(targetMap);
+        bool nurse = info is { Pattern: PlatinumScriptPattern.PokecenterNurse } && info.LocalIdReference == source.Id && targetScripts;
+        if (!targetScripts && why.Length == 0) why = "el archivo de scripts del mapa destino no tiene una tabla de entradas reconocible";
+        bool message = info is { Pattern: PlatinumScriptPattern.PlainMessage };
+        return
+        [
+            new(NdsBehaviourMode.Appearance, true, "Solo apariencia", "script 0 y flag 0: el NPC no hace nada al hablarle"),
+            new(NdsBehaviourMode.WithBehaviour, nurse, "Con comportamiento (enfermera)", nurse
+                ? $"se añade un script local nuevo al archivo de scripts del mapa: fija la variable 0x8007 con el ID local del NPC nuevo y llama al script común {PlatinumScriptFile.PokecenterNurseCommonScript} (cura al equipo); sin textos locales"
+                : why.Length > 0 ? why : "solo está acreditado el script de la enfermera del Centro Pokémon"),
+            new(NdsBehaviourMode.ShareScript, message && sameScriptFile, "Compartir script del mapa", message && sameScriptFile
+                ? $"usa el mismo script local {script} (mensaje {info!.MessageId} del banco de textos del mapa); no se escribe ningún script"
+                : message ? "el mensaje está en el banco de textos de otro mapa; copiar textos no está implementado" : why.Length > 0 ? why : "solo se comparten scripts de mensaje simple"),
+        ];
+    }
+
+    internal static NdsBehaviourMode DefaultMode(IReadOnlyList<NdsBehaviourOption> options) =>
+        options.FirstOrDefault(o => o.Mode == NdsBehaviourMode.WithBehaviour && o.Available) is not null ? NdsBehaviourMode.WithBehaviour
+        : options.FirstOrDefault(o => o.Mode == NdsBehaviourMode.ShareScript && o.Available) is not null ? NdsBehaviourMode.ShareScript : NdsBehaviourMode.Appearance;
+
+    /// <summary>The script number the new record uses and the binding the session must apply (null for appearance only).</summary>
+    internal static (int Script, NdsScriptBinding? Binding) BindingFor(PlatinumEvents data, NdsNpcClip clip, int targetMap, NdsBehaviourMode mode, int newLocalId)
+    {
+        var map = data.Map(targetMap);
+        return mode switch
+        {
+            NdsBehaviourMode.WithBehaviour => (data.ScriptEntryCount(targetMap) + 1, new NdsScriptBinding(NdsScriptBinding.Append, map.ScriptFile, data.ScriptEntryCount(targetMap) + 1, Convert.ToHexString(PlatinumScriptFile.NurseScript(newLocalId)))),
+            NdsBehaviourMode.ShareScript => (clip.Source.Script, new NdsScriptBinding(NdsScriptBinding.Share, map.ScriptFile, clip.Source.Script, null)),
+            _ => (0, null),
+        };
     }
 
     internal static bool IsCrossMap(PlatinumEvents data, NdsNpcClip clip, int targetMap) => data.Map(targetMap).EventFile != clip.SourceEventFile;

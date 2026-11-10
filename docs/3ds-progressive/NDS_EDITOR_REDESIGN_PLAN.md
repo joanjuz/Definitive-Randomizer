@@ -99,3 +99,7 @@ La selección y el portapapeles ya son tipados; la **selección múltiple y copi
 | D | render cenital por bloque y capa «Gráficos del mapa» | comparación visual de Pueblo Hojaverde por el propietario |
 | E | selección múltiple y grupos (propuestas multi‑operación) | guardado atómico y restauración exacta |
 | F | sprites de NPC | tabla gráfico → sprite acreditada |
+
+## 8. Prioridades (actualizado el 10/11/2026)
+
+El propietario reordenó las prioridades: primero **consolidar Platino** (mover NPC y entrenadores existentes, añadir y duplicar NPC, copiar entre mapas y colocar Enfermeras Joy funcionales). Después vienen la **apertura universal de proyectos** (requisito de 1.0.0) y la **paridad del editor en Gen IV y Gen V**. Los **entrenadores nuevos** y el **renderer gráfico** (entregas C, D y F de la tabla anterior) quedan **pospuestos**. El PR #67 sigue pendiente de integración. La hoja de ruta completa, con fases, matriz de evidencias y criterios de aceptación, está en el documento de hoja de ruta del editor y de 1.0.0.

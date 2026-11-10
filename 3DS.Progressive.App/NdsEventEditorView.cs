@@ -117,7 +117,7 @@ internal sealed class NdsEventEditorView : UserControl
             _tables[i] = table; _tabs.Items.Add(new TabItem { Header = titles[i], Content = table }); AccessibleName(table, "Eventos DS · tabla " + titles[i]);
         }
         var inspector = new StackPanel { Margin = new Thickness(10, 0, 0, 0) };
-        inspector.Children.Add(_selection); inspector.Children.Add(BuildStructureBar()); inspector.Children.Add(_newBox);
+        inspector.Children.Add(_selection); inspector.Children.Add(_newBox);
         foreach (var (label, box) in new[] { ("Coordenada X", _x), ("Coordenada Y", _y), ("Dirección (0–3)", _direction) })
         {
             inspector.Children.Add(new TextBlock { Text = label, Margin = new Thickness(0, 8, 0, 3) }); inspector.Children.Add(box); AccessibleName(box, "Eventos DS · " + label);
@@ -163,6 +163,8 @@ internal sealed class NdsEventEditorView : UserControl
         AccessibleName(_toolSelect, "Eventos DS · herramienta seleccionar"); AccessibleName(_toolMove, "Eventos DS · herramienta mover NPC");
         _toolSelect.Checked += (_, _) => ApplyTool(); _toolMove.Checked += (_, _) => ApplyTool();
         AccessibleName(_modeMap, "Eventos DS · modo mapa esquemático"); AccessibleName(_modeTables, "Eventos DS · modo tablas");
+        // NPC operations live in the toolbar above the map: always visible, never scrolled away with the inspector.
+        bar.Children.Add(BuildStructureBar());
         _center.Children.Add(bar);
         foreach (var (label, layer) in new[] { ("NPC", NdsMapLayers.Npc), ("Objetos", NdsMapLayers.Objects), ("Warps", NdsMapLayers.Warps), ("Activadores", NdsMapLayers.Triggers), ("Bloques", NdsMapLayers.Blocks), ("Tiles", NdsMapLayers.Tiles), ("Máscara", NdsMapLayers.Ownership), ("Terreno", NdsMapLayers.Terrain) })
         {
@@ -252,7 +254,7 @@ internal sealed class NdsEventEditorView : UserControl
     private void HideProposal(bool cancelDrag = true)
     {
         _move = null; _moveMap = null; if (_moveBox.Visibility != Visibility.Collapsed) _moveBox.Visibility = Visibility.Collapsed;
-        _newBox.Visibility = Visibility.Collapsed; _newTemplate = null; _newPlan = null; _newClip = null; _newDraft = null;
+        _newBox.Visibility = Visibility.Collapsed; _newTemplate = null; _newPlan = null; _newClip = null; _newDraft = null; _newBinding = null;
         SetFooterCompact(false); if (cancelDrag) { _canvas.CancelDrag(); _canvas.CancelPlacement(); }
     }
     private void AcceptMove()
@@ -280,7 +282,7 @@ internal sealed class NdsEventEditorView : UserControl
 
     private UIElement BuildStructureBar()
     {
-        var bar = new WrapPanel { Margin = new Thickness(0, 8, 0, 0) }; AccessibleName(bar, "Eventos DS · operaciones de NPC");
+        var bar = new WrapPanel { Margin = new Thickness(6, 0, 0, 0) }; AccessibleName(bar, "Eventos DS · operaciones de NPC"); bar.Children.Add(new TextBlock { Text = "NPC:", VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 6, 6) });
         var menu = new ContextMenu();
         foreach (var (button, tip, action) in new (Button, string, Action)[] {
             (_btnAdd, "añadir NPC", () => DoAdd(null)), (_btnDup, "duplicar NPC", () => DoDuplicate(null)), (_btnCopy, "copiar NPC", DoCopy), (_btnCut, "cortar NPC", DoCut), (_btnPaste, "pegar NPC", () => DoPaste(null)), (_btnDelete, "eliminar NPC", DoDelete) })
@@ -408,17 +410,24 @@ internal sealed class NdsEventEditorView : UserControl
         var draft = NdsNpcStructurePlanner.PasteDraft(_session.Data, clip, _map.Id, x, y);
         var plan = NdsNpcStructurePlanner.PlanAdd(_session.Data, model, _map.Id, clip.Source, draft);
         bool crossMap = NdsNpcStructurePlanner.IsCrossMap(_session.Data, clip, _map.Id);
-        if (openForm || crossMap || plan.Outcome != NdsMoveOutcome.Ready) { OpenNewForm(clip, draft); return; }
-        _newTemplate = clip.Source; _newClip = clip; _newDraft = draft; _newPlan = plan; PreviewNewNpc();
+        // A recognised behaviour (nurse, shared message) is a choice the user must see: open the form with it preselected.
+        bool behaviour = BehaviourFor(clip).Any(o => o.Mode != NdsBehaviourMode.Appearance && o.Available);
+        if (openForm || crossMap || behaviour || plan.Outcome != NdsMoveOutcome.Ready) { OpenNewForm(clip, draft); return; }
+        _newTemplate = clip.Source; _newClip = clip; _newDraft = draft; _newPlan = plan; _newBinding = null; PreviewNewNpc();
     }
     private NdsNpcClip? _newClip;
     private NdsAddDraft? _newDraft;
+    private NdsScriptBinding? _newBinding;
+    private readonly ComboBox _nMode = new() { MinWidth = 220 };
+    private IReadOnlyList<NdsBehaviourOption> BehaviourFor(NdsNpcClip clip) => _map is null ? [] : NdsNpcStructurePlanner.BehaviourOptions(_session.Data, clip, _map.Id);
     private void BuildNewBox()
     {
         _newBox.SetResourceReference(Border.BorderBrushProperty, "Accent"); _newBox.SetResourceReference(Border.BackgroundProperty, "Panel");
         var stack = new StackPanel(); var title = new TextBlock { Text = "NPC nuevo", FontWeight = FontWeights.SemiBold, TextWrapping = TextWrapping.Wrap };
         var templateRow = new StackPanel { Margin = new Thickness(0, 4, 0, 0) }; templateRow.Children.Add(new TextBlock { Text = "Plantilla (bytes desconocidos, rangos y visión)", FontSize = 11.5 }); templateRow.Children.Add(_nTemplate);
         AccessibleName(_nTemplate, "Eventos DS · nuevo NPC · plantilla");
+        var modeRow = new StackPanel { Margin = new Thickness(0, 4, 0, 0) }; modeRow.Children.Add(new TextBlock { Text = "Comportamiento", FontSize = 11.5 }); modeRow.Children.Add(_nMode);
+        AccessibleName(_nMode, "Eventos DS · nuevo NPC · comportamiento"); _nMode.SelectionChanged += (_, _) => RevalidateNew();
         var fields = new WrapPanel { Margin = new Thickness(0, 4, 0, 0) };
         foreach (var (label, control, name) in new (string, FrameworkElement, string)[] { ("ID", _nId, "ID"), ("Gráfico", _nGfx, "gráfico"), ("Movimiento", _nMov, "movimiento"), ("Dirección", _nDir, "dirección"), ("X", _nX, "X"), ("Y", _nY, "Y") })
         {
@@ -435,7 +444,7 @@ internal sealed class NdsEventEditorView : UserControl
         _newPreview.Click += (_, _) => PreviewNewNpc();
         // Buttons first: on small windows the explanation can be long, and the action must stay reachable without scrolling.
         var infoScroll = new ScrollViewer { Content = _newInfo, MaxHeight = 150, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled };
-        stack.Children.Add(title); stack.Children.Add(buttons); stack.Children.Add(templateRow); stack.Children.Add(fields); stack.Children.Add(infoScroll); _newBox.Child = stack;
+        stack.Children.Add(title); stack.Children.Add(buttons); stack.Children.Add(modeRow); stack.Children.Add(templateRow); stack.Children.Add(fields); stack.Children.Add(infoScroll); _newBox.Child = stack;
     }
     private void OpenNewForm(NdsNpcClip clip, NdsAddDraft draft)
     {
@@ -446,7 +455,16 @@ internal sealed class NdsEventEditorView : UserControl
         _nTemplate.ItemsSource = templates; _nTemplate.SelectedItem = templates.FirstOrDefault(t => ReferenceEquals(t.Event, clip.Source)) ?? templates.FirstOrDefault();
         _nGfx.ItemsSource = _session.Data.AccreditedGraphics.ToArray(); _nMov.ItemsSource = _session.Data.AccreditedMovements.ToArray();
         _nId.Text = draft.Id.ToString(CultureInfo.InvariantCulture); _nX.Text = draft.X.ToString(CultureInfo.InvariantCulture); _nY.Text = draft.Y.ToString(CultureInfo.InvariantCulture); _nDir.Text = draft.Direction.ToString(CultureInfo.InvariantCulture);
-        _nGfx.SelectedItem = draft.Graphics; _nMov.SelectedItem = draft.Movement; _newLoading = false;
+        _nGfx.SelectedItem = draft.Graphics; _nMov.SelectedItem = draft.Movement;
+        var options = BehaviourFor(clip); var defaultMode = NdsNpcStructurePlanner.DefaultMode(options);
+        _nMode.Items.Clear();
+        foreach (var option in options)
+        {
+            var item = new ComboBoxItem { Content = option.Label + (option.Available ? "" : " — no disponible"), Tag = option, IsEnabled = option.Available, ToolTip = option.Reason };
+            AutomationProperties.SetName(item, "Eventos DS · comportamiento · " + option.Label); AutomationProperties.SetHelpText(item, option.Reason); _nMode.Items.Add(item);
+        }
+        _nMode.SelectedItem = _nMode.Items.Cast<ComboBoxItem>().First(i => ((NdsBehaviourOption)i.Tag).Mode == defaultMode);
+        _newLoading = false;
         _moveBox.Visibility = Visibility.Collapsed; _newBox.Visibility = Visibility.Visible; _inspector.ScrollToTop(); RevalidateNew(); _newBox.BringIntoView();
     }
     private void RevalidateNew()
@@ -459,12 +477,17 @@ internal sealed class NdsEventEditorView : UserControl
         }
         bool crossMap = _newClip is { } c && NdsNpcStructurePlanner.IsCrossMap(_session.Data, c, _map.Id) && ReferenceEquals(template, c.Source);
         int? height = crossMap ? NdsNpcStructurePlanner.TargetHeight(_session.Data, _map.Id, template, x, y).RawHeight : null;
-        var draft = new NdsAddDraft(id, gfx, mov, dir, x, y, height); _newDraft = draft;
+        var option = (_nMode.SelectedItem as ComboBoxItem)?.Tag as NdsBehaviourOption ?? new NdsBehaviourOption(NdsBehaviourMode.Appearance, true, "Solo apariencia", "");
+        var (script, binding) = _newClip is { } bc ? NdsNpcStructurePlanner.BindingFor(_session.Data, bc, _map.Id, option.Mode, id) : (0, null);
+        var draft = new NdsAddDraft(id, gfx, mov, dir, x, y, height, script); _newDraft = draft; _newBinding = binding;
         var plan = NdsNpcStructurePlanner.PlanAdd(_session.Data, model, _map.Id, template, draft); _newPlan = plan;
-        var lines = new List<string> { "Estado: " + plan.Summary };
+        var lines = new List<string> { "Estado: " + plan.Summary, $"Comportamiento: {option.Label} — {option.Reason}" };
+        if (option.Mode == NdsBehaviourMode.WithBehaviour)
+            lines.AddRange(["Dependencias que se trasladan o reasignan:", $"  · script común {PlatinumScriptFile.PokecenterNurseCommonScript} (global): se conserva", $"  · variable 0x8007 = ID local del NPC nuevo ({id}): se reasigna", "  · textos: los del banco común (ninguno local)", $"  · archivo de scripts {_map.ScriptFile}: se añade el script local {script} al final; los demás no cambian",
+                "  · la animación de la máquina de curación solo existe en los Centros Pokémon; fuera de ellos el juego no la reproduce y cura igualmente (pendiente de confirmar en el emulador)"]);
         lines.AddRange(plan.Reasons.Select(r => "• " + r));
         if (crossMap) { lines.Add("Copia entre mapas (apariencia y configuración básica):"); lines.AddRange(NdsNpcStructurePlanner.CrossMapNotes(_newClip!).Select(r => "  · " + r)); lines.Add("  · " + NdsNpcStructurePlanner.TargetHeight(_session.Data, _map.Id, template, x, y).Source); }
-        lines.Add($"Cantidad de NPC en el mapa: {_session.Data.NpcCount(_map.Id)} → {_session.Data.NpcCount(_map.Id) + 1} · script 0, flag 0, tipo 0.");
+        lines.Add($"Cantidad de NPC en el mapa: {_session.Data.NpcCount(_map.Id)} → {_session.Data.NpcCount(_map.Id) + 1} · script {script}, flag 0, tipo 0.");
         if (plan.CanPropose) lines.Add("No evaluado: alturas y BDHC, comportamiento del tile, puertas, scripts y estado dinámico. Previsualizar no guarda nada.");
         var sharing = _session.Data.Maps.Where(m => m.EventFile == _map.EventFile).Select(m => m.Id).ToList();
         if (sharing.Count > 1) lines.Add($"Archivo de eventos compartido por {sharing.Count} cabeceras ({string.Join(", ", sharing.Take(8))}): el NPC nuevo aparecerá en todas.");
@@ -476,7 +499,7 @@ internal sealed class NdsEventEditorView : UserControl
         if (_newPlan is not { CanPropose: true } plan || _map is null || _newTemplate is not { } template || _newDraft is not { } draft) return;
         try
         {
-            var proposal = _session.PreviewAdd(_map.Id, plan.Record!);
+            var proposal = _session.PreviewAdd(_map.Id, plan.Record!, _newBinding);
             HideProposal(); ShowProposal(proposal); _canvas.SetPendingAddition(template, draft.X, draft.Y);
             _status.Text = $"NPC nuevo preparado en X {draft.X}, Y {draft.Y} (se ve en el mapa como «pendiente»). Pulsa «Guardar cambios…» para crear el checkpoint; aún no se ha guardado nada.";
         }
@@ -578,6 +601,14 @@ internal sealed class NdsEventEditorView : UserControl
             _details.Text += "\nBytes completos (campos desconocidos preservados):\n" + item.Raw;
             if (!editable) _details.Text += "\nSolo consulta en fase 1.";
             if (_session.Data.Maps.Count(m => m.EventFile == _map.EventFile) > 1) _details.Text += "\nArchivo compartido por varias cabeceras: el cambio afecta a todas sus referencias.";
+        }
+        if (item is { Kind: PlatinumEventKind.Npc } && _map is not null)
+        {
+            string behaviour;
+            try { behaviour = item.Script is >= 1 and < 2000 ? _session.Data.ClassifyScript(_map.Id, item.Script)?.Describe() ?? $"script local {item.Script} inexistente" : item.Script == 0 ? "sin script" : $"script {item.Script} (común, de combate o de objeto; no se copia)"; }
+            catch (InvalidDataException) { behaviour = "archivo de scripts no legible"; }
+            var options = NdsNpcStructurePlanner.BehaviourOptions(_session.Data, new NdsNpcClip(item, false, _map.Id, _map.EventFile), _map.Id);
+            _details.Text += $"\nComportamiento: {behaviour}\nCopiar con comportamiento: " + (options.Single(o => o.Mode == NdsBehaviourMode.WithBehaviour) is { Available: true } ? "disponible" : "no — " + options.Single(o => o.Mode == NdsBehaviourMode.WithBehaviour).Reason) + "\n";
         }
         if (item is not null && _canvas.Model?.Find(item.Kind, item.Index) is { } marker)
         {
