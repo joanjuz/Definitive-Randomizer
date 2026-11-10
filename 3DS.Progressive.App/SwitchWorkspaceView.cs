@@ -31,8 +31,11 @@ internal sealed class SwitchWorkspaceView:UserControl
     internal SwordShieldProject? Project=>_personal.Project;
     internal void PresentProject(SwordShieldProject project)=>_personal.PresentProject(project);
     internal bool Busy=>_pages.Values.OfType<SwitchAutomationView>().Any(v=>v.Busy)||_loadingPage||_personal.IsWorking||_controllers.Any(w=>w is SwordPokeFeurWindow p?p.IsWorking:w is SwordShieldGameplayWindow g&&g.IsWorking)||_pages.Values.OfType<SwitchDataEditorView>().Any(p=>p.Busy);
+    internal bool HasUnsavedWork=>_personal.HasUnsavedWork;
     internal Task OpenAsync()=>Busy?Task.CompletedTask:_personal.OpenEmbeddedAsync();
     internal Task ExportAsync()=>Busy?Task.CompletedTask:_personal.ExportEmbeddedAsync();
+    /// <summary>Settles the open page (no prompt about the project: the universal "Abrir proyecto" asks about that itself).</summary>
+    internal bool CanReplaceProject()=>!Busy&&(_page.Content is not RecordEditorView record||record.PrepareToLeave());
     internal bool CanLeave()=>!Busy&&(_page.Content is not RecordEditorView record||record.PrepareToLeave())&&_personal.CanLeave();
     internal SwitchWorkspaceView(Window owner,Action home)
     {

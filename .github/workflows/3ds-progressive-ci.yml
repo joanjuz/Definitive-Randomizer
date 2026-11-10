@@ -64,7 +64,7 @@ jobs:
             'guidance-only', 'global-apply-only', 'rebuild-marts-ui-only',
             'history-inspection-only', 'transaction-races-only', 'undo-toctou-only', 'undo-template-regression-only', 'rebuild-stability-only', 'swsh-only', 'swsh-ui-only',
             'swsh-parity-only', 'legacy-parity-only', 'nds-only',
-            'nds-ui-only', 'nds-events-ui-only', 'project-detector-only', 'usum-mints-only', 'usum-mints-ui-only', 'usum-mint-icons-only', 'usum-mints-distribution-only'
+            'nds-ui-only', 'nds-events-ui-only', 'project-detector-only', 'universal-open-only', 'usum-mints-only', 'usum-mints-ui-only', 'usum-mint-icons-only', 'usum-mints-distribution-only'
           )
           foreach ($suite in $suites) {
             & dotnet $runner "--$suite" 2>&1 | Tee-Object -FilePath "validation-logs/$suite.log"

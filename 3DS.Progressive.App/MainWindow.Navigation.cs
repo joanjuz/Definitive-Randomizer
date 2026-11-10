@@ -211,7 +211,8 @@ public partial class MainWindow
         void Action(string title,string description,string keywords,Action run)=>entries.Add(new(title,"Acción",description,keywords,run));
         if(_session is null)
         {
-            Action("Abrir proyecto…","Abre la carpeta de un juego extraído (RomFS + ExeFS).","abrir cargar carpeta",()=>OpenProject_Click(OpenProjectButton,new RoutedEventArgs()));
+            Action("Abrir proyecto…","Abre una ROM o checkpoint de Nintendo DS, o la extracción de un juego de 3DS o Switch: la aplicación detecta la plataforma.","abrir cargar carpeta archivo rom nds 3ds switch",()=>OpenProject_Click(OpenProjectButton,new RoutedEventArgs()));
+            Action("Abrir por plataforma…","Método anterior: abre la carpeta de un juego de 3DS o usa el selector de la plataforma que está en pantalla.","abrir carpeta plataforma clasico",()=>OpenProjectByPlatform_Click(OpenProjectButton,new RoutedEventArgs()));
             entries.Add(new("Extraer ROM","Herramientas ROM","Extrae una ROM de 3DS en una carpeta nueva para editarla.",SectionCatalog.Keywords("Extraction"),()=>ExtractRom_Click(ExtractRomButton,new RoutedEventArgs())));
             Action("Restaurar backup…","Restaura un backup verificado en una carpeta nueva.","respaldo copia",()=>RestoreBackup_Click(RestoreBackupButton,new RoutedEventArgs()));
             Action("Espada/Escudo · editor Switch","Abre el editor de Espada/Escudo para exportar mods.","switch sword shield mod",OpenSwitchPrototype);
@@ -234,7 +235,7 @@ public partial class MainWindow
         Action("Deshacer el último cambio","Devuelve los archivos a como estaban antes del último cambio guardado.","deshacer revertir undo volver atras",()=>_=UndoLatestAsync());
         Action("Generar backup","Copia verificada del proyecto y su historial.","respaldo copia seguridad",()=>Backup_Click(BackupButton,new RoutedEventArgs()));
         Action("Restaurar backup…","Restaura un backup verificado en una carpeta nueva.","respaldo copia",()=>RestoreBackup_Click(RestoreBackupButton,new RoutedEventArgs()));
-        Action("Abrir otro proyecto…","Cambia de juego extraído.","abrir cargar carpeta",()=>OpenProject_Click(OpenProjectButton,new RoutedEventArgs()));
+        Action("Abrir otro proyecto…","Abre otro juego de cualquier plataforma (DS, 3DS o Switch).","abrir cargar carpeta archivo",()=>OpenProject_Click(OpenProjectButton,new RoutedEventArgs()));
         Action(_simplified?"Cambiar a modo completo":"Cambiar a modo simplificado",_simplified?"Muestra todos los editores y herramientas.":"Deja a la vista solo las secciones principales.","modo vista",()=>ChooseExperience(!_simplified));
         return entries;
     }

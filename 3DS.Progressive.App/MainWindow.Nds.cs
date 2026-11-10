@@ -7,10 +7,12 @@ public partial class MainWindow
     // The DS workspace shares the platform host and header with Sword/Shield; the open 3DS project is never touched.
     private bool NdsVisible=>SwitchHost.Visibility==Visibility.Visible&&SwitchHost.Content is NdsWorkspaceView;
     internal NdsWorkspaceView? NdsWorkspace=>_ndsWorkspace;
-    internal void OpenNdsRandomizer()
+    internal void OpenNdsRandomizer()=>ShowNdsWorkspace(leaveConfirmed:false);
+    /// <param name="leaveConfirmed">The universal "Abrir proyecto" already settled the visible workspace.</param>
+    internal void ShowNdsWorkspace(bool leaveConfirmed)
     {
         if(_closed||UiProgress.IsInteractionBlocked||_switchWorkspace?.Busy==true||_ndsWorkspace?.Busy==true)return;
-        if(SwitchHost.Visibility==Visibility.Visible&&SwitchHost.Content is SwitchWorkspaceView current&&!current.CanLeave())return;
+        if(!leaveConfirmed&&SwitchHost.Visibility==Visibility.Visible&&SwitchHost.Content is SwitchWorkspaceView current&&!current.CanLeave())return;
         if(_ndsWorkspace is null){_ndsWorkspace=new NdsWorkspaceView(this);_ndsWorkspace.ContextChanged+=RefreshNdsHeader;}
         HomeHost.Visibility=Visibility.Collapsed;EditorShell.Visibility=Visibility.Collapsed;
         SwitchHost.Content=_ndsWorkspace;SwitchHost.Visibility=Visibility.Visible;

@@ -16,7 +16,7 @@ internal static class ProjectDetectorChecks
 {
     private static readonly Dictionary<string, byte[]> RomFiles = new() { ["untouched.bin"] = [7, 1, 99, 18] };
 
-    private static byte[] Rom(string code, byte version) => NdsGen5RandomizerChecks.BuildRom(RomFiles, code, version);
+    internal static byte[] Rom(string code, byte version) => NdsGen5RandomizerChecks.BuildRom(RomFiles, code, version);
 
     /// <summary>Digest of a whole tree: relative path, length, last write time and the SHA-256 of every file, plus the folders themselves.</summary>
     private static string Snapshot(string root)
@@ -32,9 +32,9 @@ internal static class ProjectDetectorChecks
         return sb.ToString();
     }
 
-    private static string Write(string folder, string name, byte[] bytes) { string path = Path.Combine(folder, name); Directory.CreateDirectory(Path.GetDirectoryName(path)!); File.WriteAllBytes(path, bytes); return path; }
+    internal static string Write(string folder, string name, byte[] bytes) { string path = Path.Combine(folder, name); Directory.CreateDirectory(Path.GetDirectoryName(path)!); File.WriteAllBytes(path, bytes); return path; }
 
-    private static string Make3ds(string root, string name, int garc, bool exe = true, string exeName = "ExeFS", string romName = "RomFS", bool code = true)
+    internal static string Make3ds(string root, string name, int garc, bool exe = true, string exeName = "ExeFS", string romName = "RomFS", bool code = true)
     {
         string game = Path.Combine(root, name);
         string a = Path.Combine(game, romName, "a");
@@ -43,8 +43,8 @@ internal static class ProjectDetectorChecks
         return game;
     }
 
-    private static readonly string SwordBuild = "A3B75BCD3311385AEED67FBEEB79CBB7BF02F471000000000000000000000000";
-    private static readonly string ShieldBuild = "A16802625E7826BF83B6F9708E475B912A9AB7DF000000000000000000000000";
+    internal static readonly string SwordBuild = "A3B75BCD3311385AEED67FBEEB79CBB7BF02F471000000000000000000000000";
+    internal static readonly string ShieldBuild = "A16802625E7826BF83B6F9708E475B912A9AB7DF000000000000000000000000";
 
     private static byte[] Npdm(ulong titleId, bool validMeta = true, bool validAci = true)
     {
@@ -56,7 +56,7 @@ internal static class ProjectDetectorChecks
     {
         var b = new byte[0x200]; if (valid) "NSO0"u8.CopyTo(b); Convert.FromHexString(buildHex).CopyTo(b, 0x40); return b;
     }
-    private static string MakeSwitch(string root, string name, ulong titleId, string build, bool personal = true, bool npdm = true, bool main = true, bool validMeta = true, bool validNso = true)
+    internal static string MakeSwitch(string root, string name, ulong titleId, string build, bool personal = true, bool npdm = true, bool main = true, bool validMeta = true, bool validNso = true)
     {
         string game = Path.Combine(root, name);
         if (npdm) Write(game, "exefs/main.npdm", Npdm(titleId, validMeta)); else Directory.CreateDirectory(Path.Combine(game, "exefs"));
@@ -65,7 +65,7 @@ internal static class ProjectDetectorChecks
         return game;
     }
 
-    private static string Checkpoint(string folder, string name, string source, int version = 1, string game = "CPUE", int revision = 1, string? format = null, bool addOps = false)
+    internal static string Checkpoint(string folder, string name, string source, int version = 1, string game = "CPUE", int revision = 1, string? format = null, bool addOps = false)
     {
         var doc = new NdsEventDocument(format ?? NdsEventSession.Format, version, game, revision, source, new string('A', 64), [], [], version >= 2 ? Array.Empty<NdsEventOperation>() : null);
         return Write(folder, name, JsonSerializer.SerializeToUtf8Bytes(doc));
@@ -272,7 +272,7 @@ internal static class ProjectDetectorChecks
     /// A synthetic but complete on-disk demo project: every GARC that GameConfig.InitializeAll reads (personal, level-up, game text, moves, evolutions)
     /// plus filler one-character files up to the exact GARC count that identifies the demo.
     /// </summary>
-    private static string MakeDemoProject(string parent, string name, GameVersion version, int garcCount, bool machineTable = true)
+    internal static string MakeDemoProject(string parent, string name, GameVersion version, int garcCount, bool machineTable = true)
     {
         string root = Path.Combine(parent, name), romfs = Path.Combine(root, "RomFS"), exefs = Path.Combine(root, "ExeFS");
         Directory.CreateDirectory(romfs); Directory.CreateDirectory(exefs);
@@ -308,7 +308,7 @@ internal static class ProjectDetectorChecks
         return root;
     }
 
-    private static void MakeSwitchInto(string root)
+    internal static void MakeSwitchInto(string root)
     {
         Write(root, "exefs/main", Nso(SwordBuild)); Write(root, "exefs/main.npdm", Npdm(0x0100ABF008968000)); Write(root, "romfs/bin/pml/personal/personal_total.bin", [1]);
     }
