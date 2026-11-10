@@ -1,6 +1,8 @@
 # Nintendo DS — NPC con comportamiento (scripts) y entrenadores: auditoría y primera entrega
 
-**Platino USA CPUE/1.** Esta fase permite copiar una **Enfermera Joy con su comportamiento** a otro mapa y **compartir** el script de un NPC de mensaje simple dentro del mismo archivo de scripts. Los entrenadores nuevos se diseñan aquí y se implementarán en un PR aparte. **Nada de esto está validado dentro del juego** hasta que el propietario lo confirme en el emulador.
+**Platino USA CPUE/1.** Esta fase permite copiar una **Enfermera Joy con su comportamiento** a otro mapa y **compartir** el script de un NPC de mensaje simple dentro del mismo archivo de scripts. Los entrenadores nuevos se diseñaron aquí, pero su implementación **queda pospuesta** por decisión del propietario.
+
+**Validación jugable (propietario, emulador, 10/11/2026):** la Enfermera Joy copiada de Ciudad Jubileo aparece en Pueblo Hojaverde; su diálogo y la curación son correctos (recupera PS y PP del equipo) y la conversación termina bien; la enfermera original de Jubileo sigue funcionando; los demás NPC y eventos comprobados funcionan; exportación y restauración correctas. La evidencia cubre **este caso concreto en Platino CPUE/1**. «Compartir script» (mensaje simple) no tiene aún prueba jugable propia.
 
 Fuentes: [pret/pokeplatinum](https://github.com/pret/pokeplatinum) (`src/script_manager.c`, `include/constants/field/script_ranges.h`, `asm/macros/scrcmd.inc`, `res/field/scripts/common.s`, `res/field/maps/*/scripts.s`, `src/overlay006/healing_machine_animation/pokecenter.c`, `generated/vars_flags.txt`, `include/global/assert.h`, `src/error_handling.c`) y la copia privada (solo lectura). DSPRE (AGPL‑3.0) se consultó como referencia de comportamiento; no se copió código.
 
@@ -112,7 +114,7 @@ Informa del resultado. Hasta entonces la función no se declara validada en jueg
 
 | PR | Contenido |
 |---|---|
-| Entrenadores 1 | lector de ranuras DUMMY y referencias, datos/equipo con el editor existente, NPC tipo 1 + script de combate en una operación atómica; textos de entrenador |
+| Entrenadores 1 (**pospuesto**) | lector de ranuras DUMMY y referencias, datos/equipo con el editor existente, NPC tipo 1 + script de combate en una operación atómica; textos de entrenador |
 | Textos | escritura de mensajes Gen IV para copiar NPC de mensaje entre mapas y diálogos de entrenador |
 | Scripts 2 | más patrones acreditados (tiendas, NPC que entregan objetos con flag propio) con remapeo de flags |
 | #67 | integración de la capa de estructuras |
