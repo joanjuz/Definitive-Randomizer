@@ -23,6 +23,18 @@ internal sealed partial class NdsProject
         }
         return (_terrain, _terrainNote);
     }
+    private PlatinumLandProps? _props; private string? _propsNote; private bool _propsRead;
+    /// <summary>Read-only map props (structure positions and model ids). Missing or unaccredited data never blocks the event editor.</summary>
+    internal (PlatinumLandProps? Props, string? Note) LoadProps()
+    {
+        if (!_propsRead)
+        {
+            try { _props = PlatinumLandProps.Open(_rom); }
+            catch (Exception ex) when (ex is InvalidDataException or FileNotFoundException or IOException) { _propsNote = ex.Message; }
+            _propsRead = true;
+        }
+        return (_props, _propsNote);
+    }
     internal IReadOnlyList<string> EventHistory => _events?.Audit ?? Array.Empty<string>();
     internal int OperationCount => _history.Count + EventHistory.Count;
     internal void EventChanged() { Revision++; _gen4View = null; _gen5View = null; }

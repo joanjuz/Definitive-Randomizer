@@ -42,6 +42,8 @@ internal sealed class NdsMapCanvasControl : FrameworkElement
     /// <summary>Raised only for user clicks/keys (not for programmatic selection) so tables stay the source of truth.</summary>
     internal event Action<PlatinumEvent?>? EventPicked;
     internal event Action? ViewChanged;
+    /// <summary>A structure was picked (null = none). Events keep priority over structures when both are under the cursor.</summary>
+    internal event Action<PlatinumPlacedProp?>? PropPicked;
     /// <summary>Asked before a drag starts (the view applies ConfirmLeave). Returning false keeps everything as it was.</summary>
     internal Func<PlatinumEvent, bool>? DragGuard { get; set; }
     /// <summary>A completed drop with a different tile; nothing has been written. The view decides what to do with the plan.</summary>
@@ -98,11 +100,11 @@ internal sealed class NdsMapCanvasControl : FrameworkElement
         Unloaded += (_, _) => { if (IsMouseCaptured) ReleaseMouseCapture(); _pressed = _panning = false; };
     }
 
-    internal void SetMap(PlatinumMapLayout layout, IEnumerable<PlatinumEvent> events, PlatinumTerrain? terrain = null, (int Width, int Height)? editorBounds = null, (PlatinumEventKind Kind, int Index)? selected = null, NdsMapLayers? layers = null)
+    internal void SetMap(PlatinumMapLayout layout, IEnumerable<PlatinumEvent> events, PlatinumTerrain? terrain = null, (int Width, int Height)? editorBounds = null, (PlatinumEventKind Kind, int Index)? selected = null, NdsMapLayers? layers = null, PlatinumLandProps? props = null)
     {
         CancelDrag(); _pendingMove = null;
         var previousLayers = layers ?? _model?.Layers ?? NdsMapLayers.All;
-        _model = new NdsMapCanvasModel(layout, events, terrain, editorBounds) { Layers = previousLayers };
+        _model = new NdsMapCanvasModel(layout, events, terrain, editorBounds, props) { Layers = previousLayers };
         _terrainBitmap = null;
         if (_model.TerrainPixels() is { } pixels)
         {
@@ -174,9 +176,9 @@ internal sealed class NdsMapCanvasControl : FrameworkElement
             if (_panning) { _model.PanBy(_last.X - p.X, _last.Y - p.Y); _last = p; Refresh(); }
             return;
         }
-        var tile = _model.TileAt(p.X, p.Y); var hit = _model.HitTest(p.X, p.Y);
-        Cursor = hit is null ? Cursors.Arrow : Cursors.Hand;
-        Hover?.Invoke(_model.Describe(tile.X, tile.Y) + (hit is null ? "" : $" · {hit.Event.Description} {hit.Index}"));
+        var tile = _model.TileAt(p.X, p.Y); var hit = _model.HitTest(p.X, p.Y); var prop = hit is null ? _model.HitProp(p.X, p.Y) : null;
+        Cursor = hit is null && prop is null ? Cursors.Arrow : Cursors.Hand;
+        Hover?.Invoke(_model.Describe(tile.X, tile.Y) + (hit is null ? "" : $" · {hit.Event.Description} {hit.Index}") + (prop is null ? "" : $" · estructura modelo {prop.Prop.ModelId} (sin geometría)"));
     }
     protected override void OnMouseLeftButtonUp(MouseButtonEventArgs e)
     {
@@ -248,7 +250,14 @@ internal sealed class NdsMapCanvasControl : FrameworkElement
     internal void ClearPendingMove() { if (_pendingMove is null) return; _pendingMove = null; InvalidateVisual(); }
 
     /// <summary>Selects the marker under a point (what a click does). Empty space keeps the current selection.</summary>
-    internal void ClickAt(Point point) { if (_model is not null) Pick(_model.HitTest(point.X, point.Y)); }
+    internal void ClickAt(Point point)
+    {
+        if (_model is null) return;
+        if (_model.HitTest(point.X, point.Y) is { } marker) { Pick(marker); return; }
+        if (_model.HitProp(point.X, point.Y) is { } prop) { _model.SelectProp(prop); Refresh(); PropPicked?.Invoke(prop); }
+    }
+    /// <summary>Called by the view when an event becomes the selection: a structure is no longer highlighted.</summary>
+    internal void ClearPropSelection() { if (_model?.SelectedProp is null) return; _model.SelectProp(null); InvalidateVisual(); }
     /// <summary>Keyboard navigation: neighbour selection, or panning when <paramref name="pan"/> is set. Never edits events.</summary>
     internal void Navigate(int dx, int dy, bool pan)
     {
@@ -259,7 +268,7 @@ internal sealed class NdsMapCanvasControl : FrameworkElement
     {
         if (_model is null) return;
         if (marker is null) return;   // clicking empty space keeps the current selection: no accidental loss of the inspector
-        _model.Select(marker.Kind, marker.Index); _model.EnsureVisible(marker); Refresh(); EventPicked?.Invoke(marker.Event);
+        _model.SelectProp(null); _model.Select(marker.Kind, marker.Index); _model.EnsureVisible(marker); Refresh(); EventPicked?.Invoke(marker.Event);
     }
 
     // ---- drawing ----------------------------------------------------------------------------------------------------
@@ -347,6 +356,7 @@ internal sealed class NdsMapCanvasControl : FrameworkElement
             }
         }
         dc.DrawRectangle(null, MatrixPen, new Rect(mx, my, m.Layout.TileWidth * z, m.Layout.TileHeight * z));
+        if ((m.Layers & NdsMapLayers.Structures) != 0 && m.HasProps) DrawProps(dc, m, textBrush);
         // Markers: triggers first (underneath), then points. Off-screen markers are skipped.
         var drawn = new List<NdsMapMarker>();
         foreach (var marker in m.VisibleMarkers.OrderByDescending(k => k.Shape == NdsMarkerShape.Trigger).ThenBy(k => k.Shape))
@@ -383,6 +393,22 @@ internal sealed class NdsMapCanvasControl : FrameworkElement
                         ctx.BeginFigure(new Point(a + s - i, b + i), false, false); ctx.LineTo(new Point(a + i, b + s - i), true, false);
                     }
         geometry.Freeze(); dc.DrawGeometry(null, GlyphPen, geometry);
+    }
+
+    /// <summary>Structure markers: a house-shaped glyph at the prop's real position. This is NOT the building's shape or footprint.</summary>
+    private void DrawProps(DrawingContext dc, NdsMapCanvasModel m, Brush textBrush)
+    {
+        double w = ActualWidth, h = ActualHeight, r = Math.Clamp(m.Zoom * 0.5, 5, 9); var fill = new SolidColorBrush(Color.FromRgb(0xC9, 0x8B, 0x5E)); var edge = new Pen(Brushes.Black, 1.2);
+        foreach (var p in m.Props)
+        {
+            var (px, py) = m.TileToPixel(p.TileX, p.TileZ);
+            if (px < -20 || py < -20 || px > w + 20 || py > h + 20) continue;
+            var c = new Point(px, py);
+            var house = new PathGeometry([new PathFigure(new Point(c.X - r, c.Y + r), [new LineSegment(new Point(c.X - r, c.Y - r * 0.2), true), new LineSegment(new Point(c.X, c.Y - r * 1.2), true), new LineSegment(new Point(c.X + r, c.Y - r * 0.2), true), new LineSegment(new Point(c.X + r, c.Y + r), true)], true)]);
+            dc.DrawGeometry(fill, edge, house);
+            if (m.Zoom >= 10) dc.DrawText(Text("m" + p.Prop.ModelId, 10, textBrush), new Point(px + r + 2, py - r));
+            if (m.SelectedProp == p) { var ring = new Pen(Brushes.White, 2.5) { DashStyle = DashStyles.Dash }; dc.DrawEllipse(null, ring, c, r + 5, r + 5); }
+        }
     }
 
     private void DrawMarker(DrawingContext dc, NdsMapCanvasModel model, NdsMapMarker marker, double px, double py)
