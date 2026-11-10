@@ -5,7 +5,7 @@ namespace ThreeDS.Progressive.Services.Nds;
 internal enum NdsMarkerShape { Npc, GroundObject, BackgroundObject, Warp, Trigger }
 
 [Flags]
-internal enum NdsMapLayers { None = 0, Npc = 1, Objects = 2, Warps = 4, Triggers = 8, Blocks = 16, Tiles = 32, Ownership = 64, All = 127 }
+internal enum NdsMapLayers { None = 0, Npc = 1, Objects = 2, Warps = 4, Triggers = 8, Blocks = 16, Tiles = 32, Ownership = 64, Terrain = 128, All = 255 }
 
 /// <summary>How a 32×32 block relates to the selected header. Never implies geometry, collisions or walkability.</summary>
 internal enum NdsBlockOwnership { Explicit, Contextual, Other }
@@ -40,6 +40,8 @@ internal sealed class NdsMapCanvasModel
     private bool _positioned;
 
     internal PlatinumMapLayout Layout { get; }
+    internal NdsSpatialQuery Query { get; }
+    internal bool HasTerrain => Query.HasTerrain;
     internal IReadOnlyList<NdsMapMarker> Markers => _markers;
     internal int WorldMinX { get; }
     internal int WorldMinY { get; }
@@ -55,10 +57,11 @@ internal sealed class NdsMapCanvasModel
     internal int OwnedBlockCount => Layout.OwnedCells.Count;
     internal int OutsideMaskCount => _markers.Count(m => m.Placement is NdsMarkerPlacement.OutsideOwnedBlocks or NdsMarkerPlacement.OutsideMatrix);
 
-    internal NdsMapCanvasModel(PlatinumMapLayout layout, IEnumerable<PlatinumEvent> events)
+    internal NdsMapCanvasModel(PlatinumMapLayout layout, IEnumerable<PlatinumEvent> events, PlatinumTerrain? terrain = null, (int Width, int Height)? editorBounds = null)
     {
         Layout = layout ?? throw new ArgumentNullException(nameof(layout));
-        _markers = events.Select(e => Build(layout, e)).ToList();
+        var list = events.ToList(); _markers = list.Select(e => Build(layout, e)).ToList();
+        Query = new NdsSpatialQuery(layout, terrain, list, editorBounds);
         int minX = 0, minY = 0, maxX = layout.TileWidth, maxY = layout.TileHeight;
         foreach (var m in _markers)
         {
@@ -112,8 +115,35 @@ internal sealed class NdsMapCanvasModel
         var at = Layout.Locate(x, y);
         string header = !Layout.HasStoredHeaders ? "cabecera contextual " + Layout.MapId + " (sin cabeceras almacenadas)"
             : at.Cell.HeaderId == Layout.MapId ? "cabecera " + at.Cell.HeaderId + " (explícita)" : "otra cabecera: " + at.Cell.HeaderId;
-        return $"X {x} · Y {y} · bloque ({at.Cell.BlockX},{at.Cell.BlockY}) · local ({at.LocalX},{at.LocalY}) · {header}";
+        string ground = !HasTerrain ? "" : Query.Status(x, y) switch { PlatinumTerrainStatus.Blocked => " · terreno: bloqueado (colisión)", PlatinumTerrainStatus.ClearOfCollision => " · terreno: sin colisión (no confirma paso)", _ => " · terreno: sin datos" };
+        return $"X {x} · Y {y} · bloque ({at.Cell.BlockX},{at.Cell.BlockY}) · local ({at.LocalX},{at.LocalY}) · {header}{ground}";
     }
+
+    /// <summary>
+    /// One BGRA (premultiplied) pixel per tile of the matrix for the terrain overlay: blocked = solid, clear of collision = faint,
+    /// unknown = checkerboard (never drawn as free). Null when the project has no terrain data.
+    /// </summary>
+    internal byte[]? TerrainPixels()
+    {
+        if (!HasTerrain) return null;
+        int w = Layout.TileWidth, h = Layout.TileHeight; var pixels = new byte[checked(w * h * 4)];
+        static void Put(byte[] data, int at, byte r, byte g, byte b, byte a) { data[at] = (byte)(b * a / 255); data[at + 1] = (byte)(g * a / 255); data[at + 2] = (byte)(r * a / 255); data[at + 3] = a; }
+        for (int by = 0; by < Layout.Height; by++)
+            for (int bx = 0; bx < Layout.Width; bx++)
+                for (int ly = 0; ly < PlatinumMapLayout.BlockSize; ly++)
+                    for (int lx = 0; lx < PlatinumMapLayout.BlockSize; lx++)
+                    {
+                        int x = bx * 32 + lx, y = by * 32 + ly, at = (y * w + x) * 4;
+                        switch (Query.Status(x, y))
+                        {
+                            case PlatinumTerrainStatus.Blocked: Put(pixels, at, 0xE0, 0x3A, 0x3A, 0xB8); break;
+                            case PlatinumTerrainStatus.ClearOfCollision: Put(pixels, at, 0x4F, 0xC9, 0xB5, 0x24); break;
+                            default: if (((x + y) & 1) == 0) Put(pixels, at, 0xA0, 0xA8, 0xB4, 0xA0); else Put(pixels, at, 0x20, 0x24, 0x2C, 0x80); break;
+                        }
+                    }
+        return pixels;
+    }
+    internal PlatinumTerrainStatus TerrainStatus(int x, int y) => Query.Status(x, y);
 
     // ---- viewport -------------------------------------------------------------------------------------------------
     internal void SetViewport(double width, double height)

@@ -154,8 +154,8 @@ internal sealed class NdsWorkspaceView:UserControl
                     using var interaction=UiProgress.BlockInteraction();
                     try
                     {
-                        var project=Project;var session=await Task.Run(()=>project.Events);
-                        var view=new NdsEventEditorView(session);view.Changed+=()=>{project.EventChanged();UpdateStatus();ContextChanged?.Invoke();};content=view;
+                        var project=Project;var (session,terrain)=await Task.Run(()=>(project.Events,project.LoadTerrain()));
+                        var view=new NdsEventEditorView(session,terrain.Terrain,terrain.Note);view.Changed+=()=>{project.EventChanged();UpdateStatus();ContextChanged?.Invoke();};content=view;
                     }
                     finally{SetBusy(false,null);}
                 }
