@@ -4,6 +4,9 @@ namespace ThreeDS.Progressive.Services.Nds;
 
 internal enum NdsMapTool { Select, MoveNpc }
 
+/// <summary>Live evaluation of a tile while choosing where to place an NPC (ghost state + one-line text).</summary>
+internal sealed record NdsPlacementEval(NdsMoveOutcome Outcome, string Text);
+
 internal enum NdsMoveOutcome { NoChange, Rejected, NeedsWarning, Ready }
 
 /// <summary>
