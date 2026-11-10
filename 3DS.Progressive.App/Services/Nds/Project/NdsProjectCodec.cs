@@ -71,7 +71,9 @@ internal static class NdsProjectCodec
         if (document.State.EventScripts is { } scripts) raws.Add((NdsProjectBlobKind.EventScripts, BlobName(NdsProjectBlobKind.EventScripts, ""), scripts));
         raws.Sort((a, b) => string.CompareOrdinal(a.Name, b.Name));
         if (raws.Count > MaxBlobs) throw new InvalidDataException("El proyecto tiene demasiadas tablas modificadas.");
-        if (document.OperationCount > MaxOperations) throw new InvalidDataException("El proyecto tiene demasiadas operaciones.");
+        // The writer refuses what the reader would refuse, so a file that cannot be read back is never produced.
+        if (document.Meta.MinReaderVersion > ushort.MaxValue) throw new InvalidDataException("Versión mínima de lector fuera de rango.");
+        if (Validate(document.Meta) is { } problem) throw new InvalidDataException("El proyecto no es válido: " + problem);
         var stored = new List<byte[]>(); var entries = new List<NdsProjectBlobEntry>();
         foreach (var (kind, name, raw) in raws)
         {
@@ -110,7 +112,9 @@ internal static class NdsProjectCodec
     internal static NdsProjectReadResult Read(ReadOnlySpan<byte> data)
     {
         NdsProjectReadResult Fail(NdsProjectReadStatus status, string message, NdsProjectHeader? header = null) => new(status, message, null, header);
-        if (data.Length < 8 || !data[..8].SequenceEqual(Magic)) return Fail(data.Length < HeaderSize ? NdsProjectReadStatus.Truncated : NdsProjectReadStatus.NotAProject, data.Length < HeaderSize ? "El archivo está truncado: no llega ni a la cabecera." : "No es un proyecto de Definitive Randomizer (firma distinta).");
+        // Truncated only when what there is could be the start of a project (an empty file included); any other content is simply not a project, whatever its length.
+        int signature = Math.Min(data.Length, Magic.Length);
+        if (!data[..signature].SequenceEqual(Magic.AsSpan(0, signature))) return Fail(NdsProjectReadStatus.NotAProject, "No es un proyecto de Definitive Randomizer (firma distinta).");
         if (data.Length < HeaderSize) return Fail(NdsProjectReadStatus.Truncated, "El archivo está truncado: no llega ni a la cabecera.");
         var header = ReadHeader(data);
         if (header is null) return Fail(NdsProjectReadStatus.Corrupt, "La cabecera del proyecto está dañada (suma de comprobación distinta).");
@@ -125,11 +129,15 @@ internal static class NdsProjectCodec
         if (manifestLength > MaxManifestBytes || blobCount > MaxBlobs || HeaderSize + (long)manifestLength > end) return Fail(NdsProjectReadStatus.Invalid, "Los tamaños declarados del manifiesto o de las tablas no son válidos.", header);
         NdsProjectMeta? meta;
         try { meta = JsonSerializer.Deserialize<NdsProjectMeta>(data.Slice(HeaderSize, (int)manifestLength), Json); }
-        catch (JsonException ex) { return Fail(NdsProjectReadStatus.Invalid, "El manifiesto del proyecto no es válido: " + ex.Message, header); }
-        if (meta is null || meta.Format != NdsProjectMeta.FormatName || meta.Blobs is null || meta.Rom is null || meta.Operations is null) return Fail(NdsProjectReadStatus.Invalid, "El manifiesto no describe un proyecto DS.", header);
-        if (meta.MinReaderVersion > ContainerVersion || meta.FormatVersion < 1) return Fail(meta.MinReaderVersion > ContainerVersion ? NdsProjectReadStatus.NewerFormat : NdsProjectReadStatus.Invalid, "Versión de formato no admitida.", header);
-        if (meta.Generation != header.Generation || meta.Operations.Count + (meta.Events?.Operations.Count ?? 0) != header.OperationCount || meta.Blobs.Count != blobCount || meta.Operations.Count > MaxOperations)
+        catch (Exception ex) when (ex is JsonException or NotSupportedException or InvalidOperationException or FormatException) { return Fail(NdsProjectReadStatus.Invalid, "El manifiesto del proyecto no es válido: " + ex.Message, header); }
+        if (meta is null || meta.Format != NdsProjectMeta.FormatName || meta.Blobs is null) return Fail(NdsProjectReadStatus.Invalid, "El manifiesto no describe un proyecto DS.", header);
+        // Every checksum can be valid and the content still be incomplete (a hostile or a buggy writer): nothing below may assume a part exists before this.
+        if (Validate(meta) is { } problem) return Fail(NdsProjectReadStatus.Invalid, "El manifiesto del proyecto no es válido: " + problem, header);
+        if (meta.MinReaderVersion != header.MinReaderVersion) return Fail(NdsProjectReadStatus.Invalid, "La cabecera y el manifiesto no coinciden (versión mínima de lector).", header);
+        if (meta.Generation != header.Generation || meta.Operations.Count + (meta.Events?.Operations.Count ?? 0) != header.OperationCount || meta.Blobs.Count != blobCount)
             return Fail(NdsProjectReadStatus.Invalid, "La cabecera y el manifiesto no coinciden (generación, operaciones o tablas).", header);
+        foreach (var blob in meta.Blobs)
+            if (blob is null || blob.Name is null || blob.Sha256 is null || blob.Codec is null || !IsHex(blob.Sha256, 64)) return Fail(NdsProjectReadStatus.Invalid, "El índice de tablas está incompleto.", header);
         var files = new Dictionary<string, byte[]>(StringComparer.Ordinal); var overlays = new Dictionary<int, byte[]>(); byte[]? arm9 = null, eventData = null, eventScripts = null;
         int at = HeaderSize + (int)manifestLength; var seen = new HashSet<string>(StringComparer.Ordinal); long budget = 0;
         foreach (var entry in meta.Blobs)
@@ -155,6 +163,43 @@ internal static class NdsProjectCodec
         }
         if (at != end) return Fail(NdsProjectReadStatus.Invalid, "Quedan bytes sin describir antes del final del proyecto.", header);
         return new(NdsProjectReadStatus.Ok, "", new NdsProjectDocument(meta, new NdsProjectState { Files = files, Overlays = overlays, Arm9 = arm9, EventData = eventData, EventScripts = eventScripts }), header);
+    }
+
+    // -------------------------------------------------------------------------------------------------------------------------- validation
+
+    private static bool IsHex(string? text, int length) => text is not null && text.Length == length && text.All(Uri.IsHexDigit);
+
+    /// <summary>
+    /// Checks that the manifest is complete and coherent, whoever wrote it (the same rule for writing and for reading). Returns the problem, or null. After this
+    /// nothing in a document is null where the model says it is not, so the layers above never have to defend against a half-described project.
+    /// </summary>
+    internal static string? Validate(NdsProjectMeta meta)
+    {
+        if (meta.Format != NdsProjectMeta.FormatName) return "formato distinto";
+        if (meta.FormatVersion < 1 || meta.MinReaderVersion < 1) return "versión de formato no admitida";
+        if (meta.Generation < 1) return "generación no válida";
+        if (meta.Writer is null || meta.ProjectId == Guid.Empty) return "falta el identificador del proyecto o de quien lo escribió";
+        if (meta.Rom is not { } rom) return "falta la identidad de la ROM";
+        if (!IsHex(rom.Sha256, 64) || !IsHex(rom.Sha1, 40) || string.IsNullOrEmpty(rom.GameCode) || rom.Game is null || rom.LastKnownPath is null || rom.Length <= 0 || rom.Revision < 0) return "la identidad de la ROM está incompleta";
+        if (meta.Operations is null || meta.RecompressOverlays is null) return "falta el historial";
+        if ((long)meta.Operations.Count + (meta.Events?.Operations?.Count ?? 0) > MaxOperations) return "demasiadas operaciones";
+        foreach (var operation in meta.Operations)
+            if (operation is null || operation.Action is null || operation.Recipe is null || operation.Changes is null || operation.Changes.Any(c => c is null)) return "una operación del historial está incompleta";
+        if (meta.Events is { } events)
+        {
+            if (events.Operations is null || events.Audit is null || events.Audit.Any(line => line is null)) return "el historial de eventos está incompleto";
+            foreach (var operation in events.Operations)
+            {
+                // Kinds this build does not know are kept as they are (the event session refuses them when it replays); the known ones must carry their payload.
+                bool complete = operation is not null && operation.Kind switch
+                {
+                    null => false, NdsEventOperation.MoveKind => operation.Move is not null, NdsEventOperation.AddKind => operation.Add is not null,
+                    NdsEventOperation.RemoveKind => operation.Remove is not null, _ => true,
+                };
+                if (!complete) return "una operación de eventos está incompleta";
+            }
+        }
+        return null;
     }
 
     // ----------------------------------------------------------------------------------------------------------------------------- helpers

@@ -13,11 +13,17 @@ namespace ThreeDS.Progressive.Services.Nds.Project;
 internal sealed record NdsProjectRom(string Sha256, string Sha1, string GameCode, int Revision, string Game, long Length, bool IsRomhack, string LastKnownPath)
 {
     internal string ProfileKey => GameCode + "/" + Revision;
+    /// <summary>Properties a newer build wrote here; kept and written back (see <see cref="NdsProjectMeta.Extra"/>).</summary>
+    [JsonExtensionData] public Dictionary<string, JsonElement>? Extra { get; init; }
+    /// <summary>Same ROM: the identity fields only (the unknown properties are not part of the identity).</summary>
+    internal bool SameRomAs(NdsProjectRom other) => string.Equals(Sha256, other.Sha256, StringComparison.OrdinalIgnoreCase) && GameCode == other.GameCode && Revision == other.Revision && Length == other.Length;
 }
 
 /// <summary>One confirmed operation (same fields as <see cref="NdsOperation"/>): metadata only, the resulting tables live in the state.</summary>
 internal sealed record NdsProjectOperationRecord(string Action, uint? Seed, JsonObject Recipe, IReadOnlyList<Gen5Change> Changes)
 {
+    /// <summary>Properties a newer build wrote here; kept and written back.</summary>
+    [JsonExtensionData] public Dictionary<string, JsonElement>? Extra { get; init; }
     internal static NdsProjectOperationRecord Of(NdsOperation operation) => new(operation.Action, operation.Seed, (JsonObject)operation.Recipe.DeepClone(), operation.Changes);
     internal NdsOperation ToOperation() => new(Action, Seed, Changes, (JsonObject)Recipe.DeepClone());
 }
@@ -28,6 +34,8 @@ internal sealed record NdsProjectOperationRecord(string Action, uint? Seed, Json
 /// </summary>
 internal sealed record NdsProjectEvents(IReadOnlyList<NdsEventOperation> Operations, IReadOnlyList<string> Audit, int? ImportedFrom = null)
 {
+    /// <summary>Properties a newer build wrote here; kept and written back. The operations themselves have the shape of the checkpoints and keep only what that shape has.</summary>
+    [JsonExtensionData] public Dictionary<string, JsonElement>? Extra { get; init; }
     /// <summary>Same rule as <c>NdsEventSession.Build</c>: v1 when there are only moves, v3 when a new NPC has a script, v2 otherwise.</summary>
     internal int CheckpointVersion => Operations.All(o => o.Kind == NdsEventOperation.MoveKind) ? 1 : Operations.Any(o => o.Add?.Script is not null) ? 3 : 2;
 
@@ -50,7 +58,9 @@ internal sealed record NdsProjectBlobEntry(string Name, NdsProjectBlobKind Kind,
 
 /// <summary>
 /// The persistent metadata (manifest). Unknown properties written by a newer build are kept in <see cref="Extra"/> and written back, so an older build that is
-/// allowed to read the file (same major version) never drops them. <see cref="Blobs"/> is the index of the stored tables; it is filled by the codec.
+/// allowed to read the file (same major version) never drops them. The same holds inside the ROM identity, each operation record and the event history; it does
+/// NOT hold inside an event operation, a change or the table index (their shapes are fixed), so a newer build that needs a new field there must raise
+/// <see cref="MinReaderVersion"/>. <see cref="Blobs"/> is the index of the stored tables; it is filled by the codec.
 /// </summary>
 internal sealed record NdsProjectMeta
 {

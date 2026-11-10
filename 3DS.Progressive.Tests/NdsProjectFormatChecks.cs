@@ -63,6 +63,15 @@ internal static class NdsProjectFormatChecks
         var extended = new NdsProjectDocument(doc.Meta with { Extra = new() { ["Futuro"] = JsonSerializer.SerializeToElement(future) } }, doc.State);
         var again = NdsProjectCodec.Read(NdsProjectCodec.Serialize(NdsProjectCodec.Read(NdsProjectCodec.Serialize(extended)).Document!)).Document!;
         check(again.Meta.Extra is { Count: 1 } && again.Meta.Extra["Futuro"].GetRawText() == future.ToJsonString(), "NdsProject_UnknownFieldsOfANewerMinorVersionAreKept");
+        // The same inside the ROM identity, an operation record and the event history (a newer build may extend those objects too).
+        var nested = NdsProjectCodec.Read(Remanifest(bytes, m => { m["Rom"]!["Region"] = "EUR"; m["Operations"]![0]!["Etiqueta"] = new JsonArray(1, 2); m["Events"]!["Mapa"] = new JsonObject { ["Z"] = 3 }; }));
+        var nestedAgain = nested.Ok ? NdsProjectCodec.Read(NdsProjectCodec.Serialize(nested.Document!)).Document! : null;
+        check(nestedAgain is not null && nestedAgain.Meta.Rom.Extra!["Region"].GetString() == "EUR" && nestedAgain.Meta.Operations[0].Extra!["Etiqueta"].GetRawText() == "[1,2]" && nestedAgain.Meta.Events!.Extra!["Mapa"].GetRawText() == "{\"Z\":3}"
+            && nestedAgain.Meta.Rom.SameRomAs(doc.Meta.Rom) && NdsProjectAssociation.Evaluate(nestedAgain.Meta.Rom, doc.Meta.Rom).IsMatch, "NdsProject_UnknownFieldsInsideTheRomOperationsAndEventsAreKept");
+        // Determinism does not depend on the order in which the tables were added to the state.
+        var reversed = new NdsProjectState { Arm9 = doc.State.Arm9, EventData = doc.State.EventData, EventScripts = doc.State.EventScripts };
+        foreach (var (path, data) in doc.State.Files.Reverse()) reversed.Files[path] = data; foreach (var (id, data) in doc.State.Overlays) reversed.Overlays[id] = data;
+        check(NdsProjectCodec.Serialize(new(doc.Meta, reversed)).AsSpan().SequenceEqual(bytes), "NdsProject_SerializationDoesNotDependOnInsertionOrder");
         var ninth = NdsProjectCodec.Read(NdsProjectCodec.Serialize(Doc(files: 40, fileSize: 300)));
         check(ninth.Ok && ninth.Document!.State.Files.Count == 40, "NdsProject_ManyTablesRoundTrip");
         var op = new NdsOperation("Manual", 5, [new Gen5Change("x", "y", 1, 2)], new JsonObject { ["Kind"] = "Edit" });
@@ -102,6 +111,9 @@ internal static class NdsProjectFormatChecks
         check(bad == 0 && thrown == 0, "NdsProject_RandomGarbageNeverThrowsAndIsNeverAccepted");
         check(NdsProjectCodec.Read(new byte[200]).Status == NdsProjectReadStatus.NotAProject && NdsProjectCodec.Read([]).Status == NdsProjectReadStatus.Truncated, "NdsProject_ZerosAndEmptyAreClassified");
         check(NdsProjectCodec.Read([.. bytes, 0]).Status == NdsProjectReadStatus.Corrupt, "NdsProject_TrailingBytesAreCorrupt");
+        // Short content that is not the start of a project is "not a project", not "truncated" (a small text file is not an interrupted save).
+        check(NdsProjectCodec.Read("hola"u8).Status == NdsProjectReadStatus.NotAProject && NdsProjectCodec.Read("{\"Format\":\"x\"} y algo más"u8).Status == NdsProjectReadStatus.NotAProject
+            && NdsProjectCodec.Read(NdsProjectCodec.Magic.AsSpan(0, 5)).Status == NdsProjectReadStatus.Truncated && NdsProjectCodec.Read(bytes.AsSpan(0, 20)).Status == NdsProjectReadStatus.Truncated, "NdsProject_ShortForeignContentIsNotAProjectAndAShortProjectIsTruncated");
         // A damaged body keeps a trustworthy header: recovery can say how many operations may be lost.
         var damaged = (byte[])bytes.Clone(); damaged[NdsProjectCodec.HeaderSize + 40] ^= 1; var dr = NdsProjectCodec.Read(damaged);
         check(!dr.Ok && dr.Header is { Generation: 1, OperationCount: 3 }, "NdsProject_DamagedBodyKeepsTheCheckedHeader");
@@ -123,6 +135,47 @@ internal static class NdsProjectFormatChecks
         check(at > 0 && NdsProjectCodec.Read(Resign(shrunk)) is { Ok: false, Status: NdsProjectReadStatus.Corrupt }, "NdsProject_TableLongerThanDeclaredIsRejectedWithoutExpandingIt");
         var wrongSha = (byte[])bomb.Clone(); int shaAt = manifestText.LastIndexOf("\"Sha256\":\"", StringComparison.Ordinal) + 10; wrongSha[NdsProjectCodec.HeaderSize + shaAt] = (byte)(wrongSha[NdsProjectCodec.HeaderSize + shaAt] == '0' ? '1' : '0');
         check(NdsProjectCodec.Read(Resign(wrongSha)) is { Ok: false, Status: NdsProjectReadStatus.Corrupt }, "NdsProject_TableWithWrongSha256IsCorruptEvenWithAValidFileDigest");
+        HostileManifest(check, bytes);
+    }
+
+    /// <summary>Rewrites the manifest of a valid project and makes every checksum valid again: only the validation of the manifest's CONTENT is left to refuse it.</summary>
+    private static byte[] Remanifest(byte[] data, Action<JsonObject> patch, Action<byte[]>? header = null)
+    {
+        int length = BitConverter.ToInt32(data, 28); var node = (JsonObject)JsonNode.Parse(data.AsSpan(NdsProjectCodec.HeaderSize, length))!; patch(node);
+        byte[] manifest = System.Text.Encoding.UTF8.GetBytes(node.ToJsonString()); var output = new byte[data.Length - length + manifest.Length];
+        data.AsSpan(0, NdsProjectCodec.HeaderSize).CopyTo(output); manifest.CopyTo(output, NdsProjectCodec.HeaderSize); data.AsSpan(NdsProjectCodec.HeaderSize + length).CopyTo(output.AsSpan(NdsProjectCodec.HeaderSize + manifest.Length));
+        BitConverter.TryWriteBytes(output.AsSpan(28), (uint)manifest.Length); BitConverter.TryWriteBytes(output.AsSpan(48), (ulong)output.Length); header?.Invoke(output); Header(output);
+        return Resign(output);
+    }
+
+    /// <summary>A manifest with valid checksums but incomplete or contradictory content (a hostile or a buggy writer) is refused as Invalid, never with an exception, and never yields a document with missing parts.</summary>
+    private static void HostileManifest(Action<bool, string> check, byte[] bytes)
+    {
+        check(NdsProjectCodec.Read(Remanifest(bytes, _ => { })).Ok, "NdsProject_RewrittenManifestWithValidChecksumsIsTheControlCase");
+        static JsonObject Blob(JsonObject m, int i) => (JsonObject)m["Blobs"]![i]!;
+        static JsonObject Op(JsonObject m, int i) => (JsonObject)m["Operations"]![i]!;
+        static JsonObject Ev(JsonObject m) => (JsonObject)m["Events"]!;
+        var cases = new (string Name, Action<JsonObject> Patch)[]
+        {
+            ("BlobNameNull", m => Blob(m, 0)["Name"] = null), ("BlobCodecNull", m => Blob(m, 0)["Codec"] = null), ("BlobShaNull", m => Blob(m, 0)["Sha256"] = null), ("BlobEntryNull", m => ((JsonArray)m["Blobs"]!)[0] = null),
+            ("BlobsNull", m => m["Blobs"] = null), ("RomNull", m => m["Rom"] = null), ("RomShaNull", m => m["Rom"]!["Sha256"] = null), ("RomSha1Null", m => m["Rom"]!["Sha1"] = null), ("RomCodeNull", m => m["Rom"]!["GameCode"] = null),
+            ("RomGameNull", m => m["Rom"]!["Game"] = null), ("RomPathNull", m => m["Rom"]!["LastKnownPath"] = null), ("RomShaNotHex", m => m["Rom"]!["Sha256"] = "zz"), ("RomLengthNegative", m => m["Rom"]!["Length"] = -1),
+            ("OperationsNull", m => m["Operations"] = null), ("OperationNull", m => ((JsonArray)m["Operations"]!)[0] = null), ("OperationActionNull", m => Op(m, 0)["Action"] = null), ("OperationRecipeNull", m => Op(m, 0)["Recipe"] = null),
+            ("OperationChangesNull", m => Op(m, 0)["Changes"] = null), ("OperationChangeNull", m => ((JsonArray)Op(m, 0)["Changes"]!)[0] = null),
+            ("EventsEmptyObject", m => m["Events"] = new JsonObject()), ("EventOperationsNull", m => Ev(m)["Operations"] = null), ("EventOperationNull", m => ((JsonArray)Ev(m)["Operations"]!)[0] = null), ("EventAuditNull", m => Ev(m)["Audit"] = null),
+            ("EventAuditLineNull", m => ((JsonArray)Ev(m)["Audit"]!)[0] = null), ("EventKindNull", m => Ev(m)["Operations"]![0]!["Kind"] = null), ("EventMoveWithoutPayload", m => Ev(m)["Operations"]![0]!["Move"] = null),
+            ("RecompressNull", m => m["RecompressOverlays"] = null), ("WriterNull", m => m["Writer"] = null), ("FormatVersionZero", m => m["FormatVersion"] = 0), ("ManifestMinReaderDiffersFromHeader", m => m["MinReaderVersion"] = 0),
+            ("ProjectIdEmpty", m => m["ProjectId"] = Guid.Empty.ToString()),
+        };
+        foreach (var (name, patch) in cases)
+        {
+            string outcome;
+            try { var r = NdsProjectCodec.Read(Remanifest(bytes, patch)); outcome = r.Ok ? "accepted" : r.Status.ToString(); } catch (Exception ex) { outcome = "threw " + ex.GetType().Name; }
+            check(outcome == nameof(NdsProjectReadStatus.Invalid), $"NdsProject_HostileManifest_{name}_IsInvalid" + (outcome == nameof(NdsProjectReadStatus.Invalid) ? "" : " [" + outcome + "]"));
+        }
+        // A generation below 1 (0 means "no project yet") is never a stored project, even when the header and the manifest agree on it.
+        foreach (long generation in new[] { 0L, -1L })
+            check(NdsProjectCodec.Read(Remanifest(bytes, m => m["Generation"] = generation, h => BitConverter.TryWriteBytes(h.AsSpan(16), generation))).Status == NdsProjectReadStatus.Invalid, $"NdsProject_Generation{generation}_IsInvalid");
     }
 
     // ----------------------------------------------------------------------------------------------------------------- B2 and checkpoint compatibility
@@ -213,7 +266,31 @@ internal static class NdsProjectFormatChecks
         var allBad = Populated(3, out _); allBad.Main![30] ^= 1; foreach (var bkp in allBad.Backups) bkp[40] ^= 1;
         using (var s = new InMemoryNdsProjectStore(allBad)) check(s.Load() is { Status: NdsProjectLoadStatus.Damaged, Plan.Recommended: null }, "NdsProjectRecovery_NoValidBackupMeansNoOfferAndNothingIsChanged");
         var future = new NdsProjectMedium { Main = NdsProjectCodec.Serialize(new NdsProjectDocument(Doc().Meta with { MinReaderVersion = 2 }, Doc().State)) }; byte[] before = future.Main.ToArray();
-        using (var s = new InMemoryNdsProjectStore(future)) check(s.Load().Status == NdsProjectLoadStatus.NewerFormat && Fails(() => s.Commit(Next(Doc(), 1), 1)) is not null && future.Main.AsSpan().SequenceEqual(before), "NdsProjectStore_NewerFormatIsNeverModified");
+        using (var s = new InMemoryNdsProjectStore(future)) check(s.Load().Status == NdsProjectLoadStatus.NewerFormat && Fails(() => s.Commit(Next(Doc(), 1), 1)) == NdsProjectStoreError.NewerFormat && future.Main.AsSpan().SequenceEqual(before), "NdsProjectStore_NewerFormatIsNeverModified");
+        // A newer-format main file is not "damaged": a recovery must not move it aside and install an older backup over it.
+        var newerWithBackups = Populated(4, out var newest); byte[] newerMain = NdsProjectCodec.Serialize(new NdsProjectDocument(newest.Meta with { MinReaderVersion = 2, Generation = 5 }, newest.State)); newerWithBackups.Main = newerMain;
+        using (var s = new InMemoryNdsProjectStore(newerWithBackups))
+        {
+            var backup = NdsProjectCodec.Read(newerWithBackups.Backups[0]); var candidate = new NdsProjectRecoveryCandidate("copia 1", backup.Document!.Generation, backup.Document.OperationCount, backup.Document.Meta.SavedUtc, backup.Document, newerWithBackups.Backups[0]);
+            check(s.Load() is { Status: NdsProjectLoadStatus.NewerFormat, Plan: null } && Fails(() => s.Recover(candidate)) == NdsProjectStoreError.NewerFormat && newerWithBackups.Main.AsSpan().SequenceEqual(newerMain) && newerWithBackups.Preserved == 0, "NdsProjectRecovery_ANewerFormatMainIsNeverReplacedByAnOlderBackup");
+        }
+        // A candidate that is not (or no longer) one of the backups of this project is refused, valid or not.
+        var foreign = Populated(4, out _); foreign.Main![NdsProjectCodec.HeaderSize + 30] ^= 1; byte[] foreignBefore = foreign.Main.ToArray(); var other = Doc(generation: 2, seed: 77);
+        using (var s = new InMemoryNdsProjectStore(foreign))
+            check(Fails(() => s.Recover(new("ajena", 2, other.OperationCount, other.Meta.SavedUtc, other, NdsProjectCodec.Serialize(other)))) == NdsProjectStoreError.WriteFailed && foreign.Main.AsSpan().SequenceEqual(foreignBefore) && foreign.Preserved == 0, "NdsProjectRecovery_ACandidateThatIsNotABackupOfThisProjectIsRefused");
+        // Same generation, another project or another ROM put in place of the file: never overwritten.
+        foreach (var (label, replace) in new (string, Func<NdsProjectDocument, NdsProjectDocument>)[]
+            { ("AnotherProject", d => new(d.Meta with { ProjectId = Guid.NewGuid() }, d.State)), ("AnotherRom", d => new(d.Meta with { Rom = Rom(sha: "CD") }, d.State)) })
+        {
+            var swapped = Populated(3, out var mine); byte[] theirs = NdsProjectCodec.Serialize(replace(mine)); swapped.Main = theirs;
+            using var s = new InMemoryNdsProjectStore(swapped);
+            check(Fails(() => s.Commit(Next(mine, 8), mine.Generation)) == NdsProjectStoreError.DifferentProject && swapped.Main.AsSpan().SequenceEqual(theirs) && swapped.Backups.Count == 2, $"NdsProjectStore_{label}WithTheSameGenerationIsNeverOverwritten");
+        }
+        // A document the codec refuses to write is a definite failure of the store's own kind (the contract allows no other exception).
+        var unwritable = Populated(2, out var valid);
+        using (var s = new InMemoryNdsProjectStore(unwritable))
+            check(Fails(() => s.Commit(new(Next(valid, 3).Meta with { ProjectId = Guid.Empty }, valid.State), valid.Generation)) is NdsProjectStoreError.DifferentProject or NdsProjectStoreError.WriteFailed
+                && Fails(() => s.Commit(new(Next(valid, 3).Meta with { Operations = [null!] }, valid.State), valid.Generation)) == NdsProjectStoreError.WriteFailed && s.Load().Document!.Generation == 2, "NdsProjectStore_AnUnwritableDocumentIsADefiniteFailure");
     }
 
     // ------------------------------------------------------------------------------------------------------------------------------- transaction
@@ -261,15 +338,40 @@ internal static class NdsProjectFormatChecks
         var m5 = new NdsProjectMedium(); var s5 = new InMemoryNdsProjectStore(m5); var t5 = new NdsProjectTransactor(s5, Doc(generation: 0)); t5.Run(Prepare, Publish); m5.Main![30] ^= 1;
         s5.Fault = NdsProjectFault.FailAfterPublish; try { t5.Run(Prepare, Publish); } catch (NdsProjectStoreException) { } catch (NdsProjectFaultedException) { }
         check(Fails(() => s5.Commit(Next(t5.Current, 1), 1)) == NdsProjectStoreError.MainDamaged, "NdsProjectTransactor_CannotCommitOverADamagedMain");
+        // An exception the contract does not allow (the store cannot say what happened) is an unknown outcome, never "nothing changed".
+        var m6 = new NdsProjectMedium(); var rogue = new FlakyStore(new InMemoryNdsProjectStore(m6)); var t6 = new NdsProjectTransactor(rogue, Doc(generation: 0)); t6.Run(Prepare, Publish); published.Clear();
+        rogue.ThrowAfterCommit = new UnauthorizedAccessException("acceso denegado");
+        check(Faults(() => t6.Run(Prepare, Publish)) && t6.Faulted && published.Count == 0 && t6.Current.Generation == 1, "NdsProjectTransactor_AnExceptionOutsideTheContractIsAnUnknownOutcome");
+        adopted = null; t6.Reconcile(d => adopted = d);
+        check(!t6.Faulted && adopted!.Generation == 2 && t6.Run(Prepare, Publish).Generation == 3, "NdsProjectTransactor_ReconcileAfterAContractBreachAdoptsWhatIsDurable");
+        // Out of memory while installing: the operation is already durable, so the session must block instead of drifting behind the file.
+        var m7 = new NdsProjectMedium(); var s7 = new InMemoryNdsProjectStore(m7); var t7 = new NdsProjectTransactor(s7, Doc(generation: 0)); t7.Run(Prepare, Publish);
+        check(Faults(() => t7.Run(Prepare, _ => throw new OutOfMemoryException())) && t7.Faulted && s7.Load().Document!.Generation == 2 && t7.Current.Generation == 1, "NdsProjectTransactor_OutOfMemoryWhileInstallingBlocksInsteadOfDrifting");
+        adopted = null; t7.Reconcile(d => adopted = d);
+        check(!t7.Faulted && t7.Current.Generation == 2 && t7.Run(Prepare, Publish).Generation == 3, "NdsProjectTransactor_ReconcileAfterOutOfMemoryResumes");
+        // An operation cannot move the project to another identity, and a reconcile never adopts another project.
+        int commitsBefore = s7.Commits; bool refusedIdentity = false;
+        try { t7.Run(d => new(Prepare(d).Meta with { Rom = Rom(sha: "EF") }, d.State), Publish); } catch (InvalidOperationException) { refusedIdentity = true; }
+        check(refusedIdentity && s7.Commits == commitsBefore && !t7.Faulted, "NdsProjectTransactor_AnOperationCannotChangeTheRomOrTheProject");
+        try { t7.Run(Prepare, _ => throw new InvalidOperationException("x")); } catch (NdsProjectFaultedException) { }
+        byte[] durable7 = m7.Main!; m7.Main = NdsProjectCodec.Serialize(new NdsProjectDocument(s7.Load().Document!.Meta with { ProjectId = Guid.NewGuid() }, new NdsProjectState()));
+        check(Faults(() => t7.Reconcile(Publish)) && t7.Faulted, "NdsProjectTransactor_ReconcileNeverAdoptsAnotherProject");
+        m7.Main = durable7; t7.Reconcile(Publish); check(!t7.Faulted && t7.Current.Generation == 4, "NdsProjectTransactor_ReconcileWorksOnceTheRightFileIsBack");
         Days(check);
         static bool Faults(Action a) { try { a(); return false; } catch (NdsProjectFaultedException) { return true; } }
     }
 
     private sealed class FlakyStore(INdsProjectStore inner) : INdsProjectStore
     {
-        internal bool UnknownNext;
+        internal bool UnknownNext; internal Exception? ThrowAfterCommit;
         public NdsProjectLoadResult Load() => inner.Load();
-        public long Commit(NdsProjectDocument next, long expected) { if (UnknownNext) { UnknownNext = false; throw new NdsProjectStoreException(NdsProjectStoreError.OutcomeUnknown, "sin respuesta"); } return inner.Commit(next, expected); }
+        public long Commit(NdsProjectDocument next, long expected)
+        {
+            if (UnknownNext) { UnknownNext = false; throw new NdsProjectStoreException(NdsProjectStoreError.OutcomeUnknown, "sin respuesta"); }
+            long generation = inner.Commit(next, expected);
+            if (ThrowAfterCommit is { } ex) { ThrowAfterCommit = null; throw ex; }
+            return generation;
+        }
         public long Recover(NdsProjectRecoveryCandidate candidate) => inner.Recover(candidate);
         public void Dispose() => inner.Dispose();
     }

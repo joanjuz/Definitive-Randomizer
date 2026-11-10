@@ -56,7 +56,7 @@ Se midió en cinco perfiles reales ([PROYECTOS_DS_PERSISTENTES_MEDIDAS.md](PROYE
 | Registro incremental duradero (añadir y `Flush`) | **39–46 ms** |
 | Leer, descomprimir y verificar el estado completo | 2 ms |
 
-**Conclusión.** El coste lo domina el vaciado a disco (~40 ms), no el tamaño: escribir 230 KiB cuesta lo mismo que añadir 15 KiB. Un diario no ahorra tiempo y exige tolerar colas truncadas, compactar y recuperar en dos fases. Se adopta la alternativa más simple: **un único archivo, instantánea completa con reemplazo atómico y tres generaciones anteriores como respaldo**. Si el estado creciera (eventos y textos), la prueba de escala del PR 1 (6 MiB brutos, 5000 operaciones: 30 ms para serializar y 35 ms para leer y verificar) y la sonda de PR 2 lo vigilan; solo si una medición real lo contradijera se reabriría esta decisión.
+**Conclusión.** En el disco mecánico de las ROM el coste lo domina el vaciado a disco (~40 ms), no el tamaño: escribir 230 KiB cuesta lo mismo que añadir 15 KiB. En un SSD NVMe ambos bajan a 5–9 ms y 1–3 ms (revisión del 10/11/2026 en el informe de medidas): la diferencia absoluta es de milisegundos. Un diario no ahorra tiempo apreciable y exige tolerar colas truncadas, compactar y recuperar en dos fases. Se adopta la alternativa más simple: **un único archivo, instantánea completa con reemplazo atómico y tres generaciones anteriores como respaldo**. Si el estado creciera (eventos y textos), la prueba de escala del PR 1 (6 MiB brutos, 5000 operaciones: 30 ms para serializar y 35 ms para leer y verificar) y la sonda de PR 2 lo vigilan; solo si una medición real lo contradijera se reabriría esta decisión.
 
 ## 4. Formato (versión 1)
 
@@ -70,8 +70,9 @@ tablas           [u32 longitud][bytes] en el orden del índice (Brotli o crudas;
 pie (40 B)       «DRDSEND1» + SHA-256 de todo lo anterior
 ```
 
-- **Versionado.** `FormatVersion` y `MinReaderVersion`: un lector con versión inferior rechaza el archivo (`NewerFormat`) sin tocarlo; los campos desconocidos del manifiesto se conservan (`Extra`) al reescribir.
-- **Integridad.** CRC-32 de la cabecera, SHA-256 del archivo, SHA-256 de cada tabla, coherencia cabecera–manifiesto, límites de tamaño antes de reservar memoria (manifiesto 32 MiB, 4096 tablas, 256 MiB por tabla, 1 GiB total), descompresión acotada a la longitud declarada. Leer nunca lanza una excepción por contenido malo: devuelve `Truncated`, `NotAProject`, `NewerFormat`, `Corrupt` o `Invalid` con un mensaje.
+- **Versionado.** `FormatVersion` y `MinReaderVersion`: un lector con versión inferior rechaza el archivo (`NewerFormat`) sin tocarlo; los campos desconocidos se conservan (`Extra`) al reescribir, tanto en la raíz del manifiesto como dentro de la identidad de la ROM, de cada operación y del historial de eventos. No se conservan dentro de una operación de eventos, de un cambio ni del índice de tablas (sus formas son fijas): una versión futura que necesite un campo ahí debe subir `MinReaderVersion`. La cabecera y el manifiesto deben declarar el mismo lector mínimo.
+- **Integridad.** CRC-32 de la cabecera, SHA-256 del archivo, SHA-256 de cada tabla, coherencia cabecera–manifiesto, límites de tamaño antes de reservar memoria (manifiesto 32 MiB, 4096 tablas, 256 MiB por tabla, 1 GiB total), descompresión acotada a la longitud declarada. Leer nunca lanza una excepción por contenido malo: devuelve `Truncated`, `NotAProject`, `NewerFormat`, `Corrupt` o `Invalid` con un mensaje. `Truncated` se reserva para lo que podría ser el principio de un proyecto (también un archivo vacío); cualquier otro contenido es `NotAProject`, sea cual sea su longitud.
+- **Manifiesto completo.** Unas sumas válidas no bastan: `NdsProjectCodec.Validate` exige que el manifiesto esté completo y sea coherente (generación ≥ 1, identificador de proyecto, identidad de ROM con SHA-256 y SHA-1 bien formados, operaciones con receta y cambios, operaciones de eventos con su contenido, listas presentes). La misma regla se aplica al escribir, así que no se produce un archivo que luego no se pueda leer, y un documento leído nunca tiene partes ausentes.
 - **Cabecera útil tras un daño.** La generación y el número de operaciones están en la cabecera protegida: si el cuerpo se daña, la recuperación puede decir cuántas operaciones podrían perderse.
 - **Determinista.** Las tablas se ordenan por nombre; documentos iguales producen bytes iguales.
 - **Eventos.** `NdsProjectEvents` guarda las operaciones y la auditoría con la forma de los checkpoints; `FromCheckpoint` importa v1, v2 y v3 y `ToCheckpoint` los exporta idénticos (la versión se deduce con la misma regla de `NdsEventSession`). Los bytes de eventos y de scripts se guardan además como tablas para poder verificar la repetición.
@@ -82,10 +83,13 @@ pie (40 B)       «DRDSEND1» + SHA-256 de todo lo anterior
 - `Load()`: nunca modifica; devuelve `Empty`, `Loaded`, `Damaged` (con un plan de recuperación) o `NewerFormat`.
 - `Commit(siguiente, generaciónEsperada)`: compara y sustituye sobre la generación. Si el archivo cambió fuera de la sesión, `StaleGeneration`; el resultado se relee y se verifica antes de tocar el anterior; cualquier error distinto de `OutcomeUnknown` garantiza que nada duradero cambió.
 - `Recover(candidata)`: conserva el archivo dañado con otro nombre (nunca lo borra) e instala la copia válida elegida; se niega si el principal es válido.
+- La generación no es la única condición: el archivo guardado debe seguir siendo **el mismo proyecto de la misma ROM** (`DifferentProject` si alguien puso otro en su lugar, aunque tenga la misma generación).
+- Un principal escrito por una versión más reciente no está «dañado»: `Commit` y `Recover` lo rechazan con `NewerFormat` y no se sustituye por una copia anterior. `Recover` solo instala una copia que siga siendo uno de los respaldos del proyecto.
+- `Commit` solo lanza `NdsProjectStoreException`; si un almacén deja escapar otra excepción ha roto el contrato y quien llama debe tratar el resultado como desconocido.
 - Bloqueo: dos instancias sobre el mismo proyecto → `AlreadyInUse`.
 - `InMemoryNdsProjectStore` especifica este comportamiento (incluidas fallas inyectadas: escritura fallida, escritura corrupta, resultado desconocido) y servirá a las pruebas de las capas siguientes.
 
-**Transacción (`NdsProjectTransactor`, decisión B).** Orden fijo: *preparar* el estado resultante sin mutar la sesión → hacerlo *duradero y verificado* → solo entonces *publicarlo* en memoria. Si preparar o guardar falla con un error definitivo, no queda nada aplicado ni informado como guardado. Dos casos excepcionales **bloquean** nuevas operaciones hasta `Reconcile()`: el almacén informa de un resultado desconocido, o el guardado terminó pero la instalación en memoria falló; reconciliar vuelve a leer lo guardado y lo instala (aunque la operación interrumpida no llegara a guardarse).
+**Transacción (`NdsProjectTransactor`, decisión B).** Orden fijo: *preparar* el estado resultante sin mutar la sesión → hacerlo *duradero y verificado* → solo entonces *publicarlo* en memoria. Si preparar o guardar falla con un error definitivo, no queda nada aplicado ni informado como guardado. Dos casos excepcionales **bloquean** nuevas operaciones hasta `Reconcile()`: el almacén informa de un resultado desconocido, o el guardado terminó pero la instalación en memoria falló; reconciliar vuelve a leer lo guardado y lo instala (aunque la operación interrumpida no llegara a guardarse), y se niega si lo guardado es otro proyecto. También es «resultado desconocido» cualquier excepción del almacén fuera de su contrato, y la falta de memoria al instalar bloquea igual que cualquier otro fallo de instalación (la operación ya es duradera). Una operación no puede cambiar el proyecto ni la ROM. Un conflicto (`StaleGeneration`, `DifferentProject`) no bloquea ni adopta nada: la sesión conserva su estado y no puede guardar hasta que el usuario decida (PR 5).
 
 **Recuperación (decisión C).** Si el principal está dañado, truncado o falta, nunca se reemplaza en silencio: el plan lista las copias válidas (más reciente primero), cuántas operaciones podrían perderse (o «desconocido» si la cabecera tampoco es fiable) y el archivo dañado se conserva.
 
@@ -95,13 +99,14 @@ pie (40 B)       «DRDSEND1» + SHA-256 de todo lo anterior
 
 ## 6. PR 1: qué incluye y cómo se acredita
 
-Código en `3DS.Progressive.App/Services/Nds/Project/` (sin tocar motores, scripts ni el renderer): `NdsProjectModel`, `NdsProjectCodec`, `NdsProjectIdentity`, `NdsProjectStore` (contrato y almacén en memoria) y `NdsProjectTransactor`. Pruebas: `--nds-project-format-only` (72 comprobaciones sintéticas, en el CI) y la sonda `--nds-project-measure` (real, solo lectura).
+Código en `3DS.Progressive.App/Services/Nds/Project/` (sin tocar motores, scripts ni el renderer): `NdsProjectModel`, `NdsProjectCodec`, `NdsProjectIdentity`, `NdsProjectStore` (contrato y almacén en memoria) y `NdsProjectTransactor`. Pruebas: `--nds-project-format-only` (121 comprobaciones sintéticas, en el CI) y la sonda `--nds-project-measure` (real, solo lectura).
 
 | Área | Qué se prueba |
 |---|---|
 | Ida y vuelta | todos los campos, proyecto vacío, bytes deterministas y estables tras recargar, campos futuros conservados, 40 tablas, operaciones convertibles sin alias |
 | Truncado | **todos** los prefijos de un proyecto se rechazan como truncados y sin excepción |
 | Corrupción | **todos** los bytes volteados se detectan; 1500 daños de bits aleatorios; 300 archivos basura; bytes añadidos; cabecera dañada |
+| Manifiesto hostil | 31 manifiestos con sumas válidas y contenido incompleto o contradictorio (nulos en la ROM, las operaciones, los eventos o el índice; versiones discordantes; generación 0 o negativa): todos `Invalid`, ninguno lanza |
 | Límites | tablas o manifiesto excesivos, longitud absurda, cabecera y manifiesto discordantes, tabla más larga que lo declarado, SHA-256 de tabla erróneo (con el resumen del archivo rehecho, para probar los controles estructurales) |
 | Compatibilidad | checkpoints v1, v2 y v3 se importan, se guardan y se exportan idénticos; fuera de v1–v3 se rechazan; misma ROM y SHA-256 que el detector universal |
 | Almacén | comparar y sustituir, tres respaldos, fallas inyectadas sin cambiar lo guardado, modificación externa, segunda instancia, reapertura tras liberar |
@@ -109,6 +114,8 @@ Código en `3DS.Progressive.App/Services/Nds/Project/` (sin tocar motores, scrip
 | Transacción | orden preparar–guardar–publicar; fallo al preparar; fallo y verificación fallida sin publicar; resultado desconocido (guardado o no) con bloqueo y reconciliación; instalación en memoria fallida; 400 operaciones con reaperturas y fallos, donde solo permanecen las confirmadas |
 | Identidad | hashes completos, copia renombrada o movida coincide, un byte distinto es otra ROM, otro juego o revisión, ROM no admitida o ilegible, convención de nombres |
 | Escala | 6 MiB brutos y 5000 operaciones: 30 ms y 35 ms |
+
+**Auditoría del 10/11/2026 (antes de construir sobre el formato).** Defectos confirmados con una prueba que fallaba y corregidos en este mismo PR: (1) la lectura lanzaba `NullReferenceException` con un historial de eventos sin operaciones y aceptaba manifiestos incompletos con sumas válidas; (2) un principal de formato más reciente se trataba como dañado y una recuperación podía sustituirlo por un respaldo anterior; (3) con la misma generación se podía sobrescribir otro proyecto u otra ROM; (4) una excepción del almacén fuera de contrato se tomaba por «nada cambió», y la falta de memoria al instalar dejaba la sesión por detrás del archivo sin bloquearla; (5) solo se conservaban los campos desconocidos de la raíz del manifiesto; (6) un archivo corto ajeno se clasificaba como truncado; (7) el «0 KiB» del informe de medidas era una división entera. Sin cambios en la disposición del contenedor: los archivos v1 siguen siendo los mismos.
 
 ## 7. Plan de PR
 
@@ -123,4 +130,6 @@ Código en `3DS.Progressive.App/Services/Nds/Project/` (sin tocar motores, scrip
 - El PR 1 no escribe en disco: la durabilidad real (vaciado, reemplazo atómico, bloqueo del sistema) se acredita en el PR 2.
 - No hay mediciones de Blanco (España); se cubre con las de Negro y Blanco 2 (misma estructura).
 - Se midieron seis operaciones representativas; un uso con más módulos podría producir un estado mayor. La escala probada deja un margen de más de diez veces.
-- La variante «solo miembros NARC que cambian» no se investigó (la medición muestra 0 KiB en ediciones manuales, un artefacto sin explicar) y se descartó por innecesaria.
+- La variante «solo miembros NARC que cambian» se descartó por innecesaria. El «0 KiB» que mostraba en ediciones manuales era una división entera (son 50–84 bytes); está explicado y corregido en el informe de medidas.
+- Una tabla puede declarar hasta 256 MiB y el conjunto hasta 1 GiB: un archivo pequeño y hostil con sumas válidas puede hacer reservar esa memoria (acotada, no ilimitada). Los proyectos reales ocupan cientos de KiB.
+- Los bytes comprimidos dependen de la implementación de Brotli de .NET: la igualdad byte a byte entre documentos iguales se garantiza dentro de una misma compilación; la integridad no depende de ello (el SHA-256 de cada tabla es de los bytes sin comprimir).

@@ -16,6 +16,10 @@ internal enum NdsProjectStoreError
     VerificationFailed,
     /// <summary>The write may or may not have become durable: the caller must reload before doing anything else.</summary>
     OutcomeUnknown,
+    /// <summary>The main file was written by a newer build: it is neither written nor replaced by a recovery.</summary>
+    NewerFormat,
+    /// <summary>The durable file is another project or belongs to another ROM (it was replaced externally): it is never overwritten.</summary>
+    DifferentProject,
     ReadOnly,
     Disposed,
 }
@@ -61,11 +65,15 @@ internal interface INdsProjectStore : IDisposable
     NdsProjectLoadResult Load();
     /// <summary>
     /// Makes <paramref name="next"/> (generation = <paramref name="expectedGeneration"/> + 1) durable if and only if the durable generation is still
-    /// <paramref name="expectedGeneration"/> (0 when there is no project yet). Verified by reading it back. Throws <see cref="NdsProjectStoreException"/>; any error
-    /// other than <see cref="NdsProjectStoreError.OutcomeUnknown"/> guarantees nothing durable changed.
+    /// <paramref name="expectedGeneration"/> (0 when there is no project yet) AND the durable file is the same project of the same ROM. Verified by reading it back.
+    /// Throws only <see cref="NdsProjectStoreException"/>; any error other than <see cref="NdsProjectStoreError.OutcomeUnknown"/> guarantees nothing durable
+    /// changed. A store that lets any other exception escape has broken this contract, and the caller must treat the outcome as unknown.
     /// </summary>
     long Commit(NdsProjectDocument next, long expectedGeneration);
-    /// <summary>Preserves the damaged main file under a new name (never deleted) and installs the chosen valid backup as the main file. Returns its generation.</summary>
+    /// <summary>
+    /// Preserves the damaged main file under a new name (never deleted) and installs the chosen valid backup as the main file. Returns its generation. Refused when
+    /// the main file is valid or was written by a newer build, and when the candidate is no longer one of the backups of this project.
+    /// </summary>
     long Recover(NdsProjectRecoveryCandidate candidate);
 }
 
@@ -141,15 +149,22 @@ internal sealed class InMemoryNdsProjectStore : INdsProjectStore
             long durable = 0; bool hasMain = _medium.Main is not null;
             if (hasMain)
             {
-                var header = NdsProjectCodec.ReadHeader(_medium.Main!);
-                if (header is null || !NdsProjectCodec.Read(_medium.Main!).Ok) throw new NdsProjectStoreException(NdsProjectStoreError.MainDamaged, "El archivo principal está dañado: recupéralo antes de guardar.");
-                durable = header.Generation;
+                var current = NdsProjectCodec.Read(_medium.Main!);
+                if (current.Status == NdsProjectReadStatus.NewerFormat) throw new NdsProjectStoreException(NdsProjectStoreError.NewerFormat, "El proyecto lo escribió una versión más reciente: no se modifica. " + current.Message);
+                if (!current.Ok) throw new NdsProjectStoreException(NdsProjectStoreError.MainDamaged, "El archivo principal está dañado: recupéralo antes de guardar.");
+                durable = current.Document!.Generation;
+                if (durable != expectedGeneration) throw new NdsProjectStoreException(NdsProjectStoreError.StaleGeneration, $"El proyecto cambió fuera de esta sesión (generación {durable}, se esperaba {expectedGeneration}).");
+                // Same generation is not enough: the file must still be THIS project of THIS ROM (a copy of another project put in its place is never overwritten).
+                if (current.Document.Meta.ProjectId != next.Meta.ProjectId || !current.Document.Meta.Rom.SameRomAs(next.Meta.Rom))
+                    throw new NdsProjectStoreException(NdsProjectStoreError.DifferentProject, "El archivo guardado es otro proyecto o es de otra ROM: no se sobrescribe.");
             }
             else if (_medium.Backups.Count > 0) throw new NdsProjectStoreException(NdsProjectStoreError.MainDamaged, "Falta el archivo principal: recupéralo antes de guardar.");
             if (durable != expectedGeneration) throw new NdsProjectStoreException(NdsProjectStoreError.StaleGeneration, $"El proyecto cambió fuera de esta sesión (generación {durable}, se esperaba {expectedGeneration}).");
             var fault = Fault; Fault = NdsProjectFault.None;
             if (fault == NdsProjectFault.FailBeforeWrite) throw new NdsProjectStoreException(NdsProjectStoreError.WriteFailed, "No se pudo escribir el proyecto (fallo simulado).");
-            byte[] bytes = NdsProjectCodec.Serialize(next);
+            byte[] bytes;
+            try { bytes = NdsProjectCodec.Serialize(next); }
+            catch (InvalidDataException ex) { throw new NdsProjectStoreException(NdsProjectStoreError.WriteFailed, "El proyecto no se puede guardar: " + ex.Message, ex); }
             if (fault == NdsProjectFault.CorruptWrite) { bytes = (byte[])bytes.Clone(); bytes[bytes.Length / 2] ^= 0x5A; }
             // Read back what was "written" and compare it with what was meant to be written, before the previous file is touched.
             var check = NdsProjectCodec.Read(bytes);
@@ -168,7 +183,13 @@ internal sealed class InMemoryNdsProjectStore : INdsProjectStore
         {
             Live();
             if (!NdsProjectCodec.Read(candidate.Bytes).Ok) throw new NdsProjectStoreException(NdsProjectStoreError.WriteFailed, "La copia elegida no es válida.");
-            if (_medium.Main is not null && NdsProjectCodec.Read(_medium.Main).Ok) throw new NdsProjectStoreException(NdsProjectStoreError.WriteFailed, "El archivo principal es válido: no se recupera.");
+            if (!_medium.Backups.Any(b => b.AsSpan().SequenceEqual(candidate.Bytes))) throw new NdsProjectStoreException(NdsProjectStoreError.WriteFailed, "La copia elegida ya no es una de las copias de este proyecto.");
+            if (_medium.Main is not null)
+            {
+                var main = NdsProjectCodec.Read(_medium.Main);
+                if (main.Ok) throw new NdsProjectStoreException(NdsProjectStoreError.WriteFailed, "El archivo principal es válido: no se recupera.");
+                if (main.Status == NdsProjectReadStatus.NewerFormat) throw new NdsProjectStoreException(NdsProjectStoreError.NewerFormat, "El proyecto lo escribió una versión más reciente: no se sustituye por una copia anterior.");
+            }
             if (_medium.Main is not null) _medium.Damaged.Add((NdsProjectPaths.DamagedOf("proyecto", _clock()), _medium.Main));
             _medium.Main = candidate.Bytes;
             return candidate.Generation;

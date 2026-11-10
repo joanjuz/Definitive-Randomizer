@@ -22,6 +22,8 @@ internal static class NdsProjectMeasure
     private static T Field<T>(object o, string name) => (T)o.GetType().GetField(name, BindingFlags.NonPublic | BindingFlags.Instance)!.GetValue(o)!;
     private static byte[] Brotli(byte[] data, CompressionLevel level) { using var ms = new MemoryStream(); using (var b = new BrotliStream(ms, level, true)) b.Write(data); return ms.ToArray(); }
     private static byte[] Deflate(byte[] data) { using var ms = new MemoryStream(); using (var d = new DeflateStream(ms, CompressionLevel.Fastest, true)) d.Write(data); return ms.ToArray(); }
+    /// <summary>KiB, except below 1 KiB, where the whole-number division would print a misleading 0: those are given in bytes.</summary>
+    private static string Size(long bytes) => bytes is > 0 and < 1024 ? bytes + " B" : bytes / 1024 + " KiB";
     private static double Median(Func<double> run, int n = 5) { var times = Enumerable.Range(0, n).Select(_ => run()).Order().ToArray(); return times[n / 2]; }
 
     /// <summary>Changed state of a project: file path → bytes (files, then overlays as "overlay:N", then the ARM9).</summary>
@@ -89,7 +91,7 @@ internal static class NdsProjectMeasure
                 }
                 clock.Stop();
                 rows.Add(new(name, project.Game, label, touched.Length, raw, members, bf, bm, df, clock.Elapsed.TotalMilliseconds));
-                Console.WriteLine($"   + {label}: {touched.Length} archivos · {raw / 1024} KiB · miembros {members / 1024} KiB · brotli {bf / 1024} KiB (miembros {bm / 1024} KiB) · deflate {df / 1024} KiB · {clock.Elapsed.TotalMilliseconds:0} ms");
+                Console.WriteLine($"   + {label}: {touched.Length} archivos · {Size(raw)} · miembros {Size(members)} · brotli {Size(bf)} (miembros {Size(bm)}) · deflate {Size(df)} · {clock.Elapsed.TotalMilliseconds:0} ms");
             }
             // Full snapshot of the cumulative state vs. one incremental record, durable on this disk.
             var state = State(project); long rawAll = state.Values.Sum(v => (long)v.Length);
@@ -122,8 +124,8 @@ internal static class NdsProjectMeasure
             Console.WriteLine($"   = estado acumulado: {state.Count} archivos · {rawAll / 1024} KiB · brotli {brotliAll / 1024} KiB · instantánea completa {snapshotMs:0} ms · registro incremental {appendMs:0.0} ms · lectura+verificación {readMs:0} ms");
         }
         File.WriteAllText(Path.Combine(output, "medidas.json"), JsonSerializer.Serialize(new { rows, totals }, new JsonSerializerOptions { WriteIndented = true }));
-        var md = new StringBuilder("| ROM | Operación | Archivos | Bruto (KiB) | Miembros (KiB) | Brotli (KiB) | Brotli miembros (KiB) | Deflate (KiB) | Comprimir (ms) |\n|---|---|---|---|---|---|---|---|---|\n");
-        foreach (var r in rows) md.AppendLine($"| {r.Game} | {r.Operation} | {r.Files} | {r.RawFiles / 1024} | {r.RawMembers / 1024} | {r.BrotliFast / 1024} | {r.BrotliMembers / 1024} | {r.DeflateFast / 1024} | {r.CompressMs:0} |");
+        var md = new StringBuilder("| ROM | Operación | Archivos | Bruto | Miembros | Brotli | Brotli miembros | Deflate | Comprimir (ms) |\n|---|---|---|---|---|---|---|---|---|\n");
+        foreach (var r in rows) md.AppendLine($"| {r.Game} | {r.Operation} | {r.Files} | {Size(r.RawFiles)} | {Size(r.RawMembers)} | {Size(r.BrotliFast)} | {Size(r.BrotliMembers)} | {Size(r.DeflateFast)} | {r.CompressMs:0} |");
         md.AppendLine("\n| ROM | Archivos | Bruto (KiB) | Brotli (KiB) | Instantánea completa (ms) | Registro incremental (ms) | Lectura+verificación (ms) |\n|---|---|---|---|---|---|---|");
         foreach (var t in totals) md.AppendLine($"| {t.Game} | {t.Files} | {t.Raw / 1024} | {t.Brotli / 1024} | {t.SnapshotMs:0} | {t.AppendMs:0.0} | {t.ReadVerifyMs:0} |");
         File.WriteAllText(Path.Combine(output, "medidas.md"), md.ToString());

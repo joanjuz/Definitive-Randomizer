@@ -32,11 +32,16 @@ internal sealed class NdsProjectTransactor
         if (_fault is not null) throw new NdsProjectFaultedException("El proyecto está bloqueado hasta reconciliarlo con lo guardado: " + _fault);
         var prepared = prepare(_current);
         var next = prepared with { Meta = prepared.Meta with { Generation = _current.Generation + 1, SavedUtc = _clock() } };
+        if (prepared.Meta.ProjectId != _current.Meta.ProjectId || !prepared.Meta.Rom.SameRomAs(_current.Meta.Rom)) throw new InvalidOperationException("Una operación no puede cambiar el proyecto ni la ROM a la que pertenece.");
         try { _store.Commit(next, _current.Generation); }
-        catch (NdsProjectStoreException ex) when (ex.Kind == NdsProjectStoreError.OutcomeUnknown)
+        // A definite error: the store guarantees nothing durable changed, so nothing is published and the session stays as it was.
+        catch (NdsProjectStoreException ex) when (ex.Kind != NdsProjectStoreError.OutcomeUnknown) { throw; }
+        // An unknown outcome, or an exception the contract does not allow (the store cannot say what happened): either way it is not known what is durable.
+        catch (Exception ex)
         { _fault = "no se pudo confirmar si el último guardado terminó (" + ex.Message + ")"; throw new NdsProjectFaultedException(_fault, ex); }
+        // From here the operation IS durable. Whatever stops the installation in memory (running out of memory included) leaves the session behind what is saved.
         try { publish(next); }
-        catch (Exception ex) when (ex is not OutOfMemoryException)
+        catch (Exception ex)
         { _fault = "el guardado terminó pero no se pudo instalar en memoria (" + ex.Message + ")"; throw new NdsProjectFaultedException(_fault, ex); }
         _current = next;
         return next;
@@ -48,6 +53,8 @@ internal sealed class NdsProjectTransactor
         if (_fault is null) return _current;
         var load = _store.Load();
         if (load.Status != NdsProjectLoadStatus.Loaded) throw new NdsProjectFaultedException("No se puede reconciliar: el proyecto guardado no se puede leer (" + load.Status + "). " + load.Message);
+        if (load.Document!.Meta.ProjectId != _current.Meta.ProjectId || !load.Document.Meta.Rom.SameRomAs(_current.Meta.Rom))
+            throw new NdsProjectFaultedException("No se puede reconciliar: el archivo guardado es otro proyecto o es de otra ROM.");
         publish(load.Document!);
         _current = load.Document!; _fault = null;
         return _current;
