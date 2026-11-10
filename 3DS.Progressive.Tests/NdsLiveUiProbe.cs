@@ -150,6 +150,23 @@ internal static class NdsLiveUiProbe
         var placed = session.Data.Npc(411, session.Data.NpcCount(411) - 1);
         Log($"nurse saved and exported: NPC {placed.Index} id {placed.Id} at ({placed.X},{placed.Y}) script {placed.Script} -> {session.Data.ClassifyScript(411, placed.Script)?.Describe()}; ROM {nurseRom}");
         Shot("07-nurse-saved");
+        // 10. «Añadir enfermera» on Route 201 with the real keyboard (Ctrl+E, Esc) and mouse; keep the exported ROM for the emulator test
+        search.Text = ""; Wait(200); ClickCentre(search); Type("R201"); Wait(400);
+        var routeMap = maps.Items.Cast<PlatinumMap>().First(x => x.InternalName == "R201"); if ((maps.SelectedItem as PlatinumMap)?.Id != routeMap.Id) maps.SelectedItem = routeMap; Wait(400);
+        m = canvas.Model!; m.SetZoom(14, m.ViewportWidth / 2, m.ViewportHeight / 2); c = m.TileToPixel(122.5, 853.5); m.PanBy(c.X - m.ViewportWidth / 2, c.Y - m.ViewportHeight / 2); canvas.Invalidate(); Wait(300);
+        var nurseBtn = Find<Button>(view, "Eventos DS · añadir enfermera");
+        Click(canvas, Tile(118.5, 849.5)); Chord(0x45); bool placingByKey = canvas.Placing; Key(0x1B, false); Key(0x1B, true); Wait(250);
+        Log($"nurse button enabled={nurseBtn.IsEnabled} on screen={OnScreen(nurseBtn)}; Ctrl+E placing={placingByKey}; after Esc placing={canvas.Placing}");
+        ClickCentre(nurseBtn); MoveTo(canvas, Tile(122.5, 853.5)); Shot("08-nurse-placing"); Click(canvas, Tile(122.5, 853.5));
+        Log($"add-nurse form visible={form.IsVisible}, mode='{(modeBox.SelectedItem as System.Windows.Controls.ComboBoxItem)?.Content}', template='{Find<System.Windows.Controls.ComboBox>(view, "Eventos DS · nuevo NPC · plantilla").SelectedItem}'");
+        ClickCentre(previewNew); Log($"add-nurse pending={canvas.PendingAddition}, diff='{diff.Text.Replace("\n", " | ")}'"); Shot("09-nurse-pending");
+        var ta = view.SaveToAsync(Path.Combine(output, "nurse-route.ndsevents.json")); while (!ta.IsCompleted) Wait(50); m = canvas.Model!;
+        string routeRom = Path.Combine(output, "Platino-enfermeras-Hojaverde-Ruta201.nds");
+        var rr = new Dictionary<int, byte[]> { [rom.File(PlatinumEvents.EventPath).Id] = session.Replacement()! }; if (session.ScriptReplacement() is { } sr2) rr[rom.File(PlatinumEvents.ScriptPath).Id] = sr2;
+        rom.Save(routeRom, rr); session.VerifyExport(routeRom);
+        var routeNurse = session.Data.Npc(routeMap.Id, session.Data.NpcCount(routeMap.Id) - 1);
+        Log($"route nurse saved and exported: NPC {routeNurse.Index} id {routeNurse.Id} at ({routeNurse.X},{routeNurse.Y}) script {routeNurse.Script} -> {session.Data.ClassifyScript(routeMap.Id, routeNurse.Script)?.Describe()}; ROM {routeRom}");
+        Shot("10-nurse-route-saved");
         Log($"FINAL: session revision {session.Revision}, source untouched={File.ReadAllBytes(copy).AsSpan().SequenceEqual(File.ReadAllBytes(romPath))}");
         File.WriteAllLines(Path.Combine(output, "live-log.txt"), log);
         window.Close();

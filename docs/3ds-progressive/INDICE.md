@@ -16,6 +16,7 @@ Punto de entrada a `docs/3ds-progressive/`. Muchos documentos son **registros hi
 | Edición estructural de NPC DS, fase 5A (añadir, duplicar, copiar, pegar; checkpoint v2) | [NDS_NPC_STRUCTURAL_PHASE5A.md](NDS_NPC_STRUCTURAL_PHASE5A.md) |
 | Rediseño del editor DS: diagnóstico con entrada real, referencia DSPRE, copia entre mapas y plan del renderer | [NDS_EDITOR_REDESIGN_PLAN.md](NDS_EDITOR_REDESIGN_PLAN.md) |
 | NPC DS con comportamiento (enfermera, scripts compartidos), checkpoint v3 y diseño de entrenadores nuevos | [NDS_NPC_SCRIPTS_PHASE6.md](NDS_NPC_SCRIPTS_PHASE6.md) |
+| Editor DS A1: «Añadir enfermera» funcional desde una plantilla real de la ROM (Platino) | [NDS_ANADIR_ENFERMERA_A1.md](NDS_ANADIR_ENFERMERA_A1.md) |
 | Editor de eventos Nintendo DS, fase 1: Platino CPUE/1, checkpoints y restauración | [NDS_EVENT_EDITOR_PHASE1.md](NDS_EVENT_EDITOR_PHASE1.md) |
 | **Primera estable WPF (v1.0.0, en preparación, sin publicar):** guía para usuarios nuevos | [PRIMEROS_PASOS.md](PRIMEROS_PASOS.md) |
 | Estable WPF: respaldo, Deshacer, recuperación de guardados y qué enviar al reportar | [RESPALDO_Y_RECUPERACION.md](RESPALDO_Y_RECUPERACION.md) |

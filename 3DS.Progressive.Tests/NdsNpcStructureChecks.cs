@@ -313,7 +313,7 @@ internal static class NdsNpcStructureChecks
             Select(2); check(add.IsEnabled && !dup.IsEnabled && !copy.IsEnabled && !cut.IsEnabled && delete.IsEnabled, "NpcStructureUi_GroundObjectIsNotATemplateButAddStillWorks");
             tabs.SelectedIndex = 2; grids[2].SelectedItem = grids[2].Items.Cast<PlatinumEvent>().First();
             check(add.IsEnabled && !dup.IsEnabled && !copy.IsEnabled && !delete.IsEnabled, "NpcStructureUi_WarpSelectedOnlyAddIsOffered"); Select(0);
-            check(canvas.ContextMenu!.Items.OfType<MenuItem>().Count() == 9 && canvas.ContextMenu.Items.OfType<MenuItem>().All(i => AutomationProperties.GetName(i).StartsWith("Eventos DS · menú")), "NpcStructureUi_ContextMenuHasTheOperationsAndTheHereActions");
+            check(canvas.ContextMenu!.Items.OfType<MenuItem>().Count() == 11 && canvas.ContextMenu.Items.OfType<MenuItem>().All(i => AutomationProperties.GetName(i).StartsWith("Eventos DS · menú")), "NpcStructureUi_ContextMenuHasTheOperationsAndTheHereActions");
             check(new[] { add, dup, copy, cut, delete }.All(b => b.ToolTip is string { Length: > 0 }), "NpcStructureUi_ButtonsExplainThemselves");
             check(NdsMapCanvasChecks.Children<TextBlock>(view).Any(t => t.Text.Contains("añade, duplica y copia NPC")), "NpcStructureUi_HeaderNoLongerSaysNothingCanBeAdded");
 
