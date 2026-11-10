@@ -268,5 +268,74 @@ internal static class NdsMapCanvasChecks
         }
         finally { Directory.Delete(temp, true); }
     }
+    private static byte[] Pixels(FrameworkElement element, int width, int height)
+    {
+        Flush(); var bitmap = new System.Windows.Media.Imaging.RenderTargetBitmap(width, height, 96, 96, System.Windows.Media.PixelFormats.Pbgra32); bitmap.Render(element);
+        var pixels = new byte[width * height * 4]; bitmap.CopyPixels(pixels, width * 4, 0); return pixels;
+    }
+
+    internal static void RunTerrainUi(Action<bool, string> check)
+    {
+        string temp = Path.Combine(Path.GetTempPath(), "nds-terrain-ui-" + Guid.NewGuid().ToString("N")); Directory.CreateDirectory(temp);
+        try
+        {
+            var f = Make(); string source = Path.Combine(temp, "source.nds"); File.WriteAllBytes(source, f.Rom()); string sourceHash = Sha(source);
+            string outputDir = Path.Combine(temp, "out"); Directory.CreateDirectory(outputDir);
+            using var rom = NdsRom.Open(source); var session = new NdsEventSession(rom, f.Read()); byte[] eventsBefore = session.Data.Bytes();
+            var terrain = PlatinumTerrain.ParseNarc(NdsGen5RandomizerChecks.BuildNarc([PlatinumTerrainChecks.Land((x, z) => x == 2 && z == 21 || x >= 28 ? (ushort)0x8000 : x == 23 && z == 14 ? (ushort)0x0002 : (ushort)0)]));
+            var view = new NdsEventEditorView(session, terrain, null); var canvas = Children<NdsMapCanvasControl>(view).Single(); var maps = Children<ListBox>(view).Single(); var tabs = Children<TabControl>(view).Single();
+            TextBox Box(string name) => Children<TextBox>(view).Single(e => AutomationProperties.GetName(e) == "Eventos DS · " + name);
+            Button Action(string label) => Children<Button>(view).Single(b => AutomationProperties.GetName(b) == "Eventos DS · " + label);
+            Arrange(view, 1100, 760); maps.SelectedItem = maps.Items[1]; Arrange(view, 1100, 760);
+            var details = Children<TextBox>(view).Single(t => AutomationProperties.GetName(t).Contains("propiedades"));
+            var layer = Children<CheckBox>(view).Single(c => AutomationProperties.GetName(c).StartsWith("Eventos DS · capa Terreno"));
+            check(layer.IsEnabled && layer.IsChecked == true && canvas.Model!.HasTerrain && (canvas.Model.Layers & NdsMapLayers.Terrain) != 0, "TerrainUi_LayerCheckboxIsEnabledAndOnWithData");
+            var texts = Children<TextBlock>(view).Select(t => t.Text).ToList();
+            check(texts.Any(t => t.Contains("terreno bloqueado")) && texts.Any(t => t.Contains("sin colisión (no confirma paso)")) && texts.Any(t => t.Contains("sin datos (damero)")), "TerrainUi_LegendShowsTheThreeStates");
+            check(texts.Any(t => t.Contains("bit 15") && t.Contains("no confirma que se pueda pasar") && t.Contains("no los gráficos")) && texts.Contains(NdsMapCanvasControl.SchematicNotice), "TerrainUi_StatesTheLimitsOfTheTerrainLayer");
+
+            void Click(PlatinumEventKind kind, int index) { CenterOn(canvas, kind, index, 16); var mk = canvas.Model!.Find(kind, index)!; var (cx, cy) = canvas.Model.TileToPixel(mk.CenterX, mk.CenterY); canvas.ClickAt(new Point(cx, cy)); }
+            tabs.SelectedIndex = 0; Click(PlatinumEventKind.Npc, 0);
+            check(details.Text.Contains("Consulta espacial") && details.Text.Contains("Permitido según datos conocidos") && details.Text.Contains("comportamiento de tile 0x02") && details.Text.Contains("No evaluado:") && details.Text.Contains("Procedencia:"), "TerrainUi_Npc0Case411ShowsAssessmentProvenanceAndLimits");
+            Click(PlatinumEventKind.Npc, 2);
+            check(details.Text.Contains("Bloqueado según datos conocidos") && details.Text.Contains("colisión de terreno"), "TerrainUi_GroundObjectOnACollisionTileIsReportedBlocked");
+            Click(PlatinumEventKind.Npc, 1);
+            check(details.Text.Contains("Indeterminado") && details.Text.Contains("otra cabecera"), "TerrainUi_EventOutsideTheMaskIsIndeterminate");
+            check(canvas.Model!.Describe(130, 885).Contains("terreno: bloqueado") && canvas.Model.Describe(119, 878).Contains("no confirma paso"), "TerrainUi_HoverTextDistinguishesBlockedAndClear");
+
+            // Layer on/off really changes what is drawn; both states keep every other layer intact
+            CenterOn(canvas, PlatinumEventKind.Npc, 0, 16); canvas.Invalidate(); var withTerrain = Pixels(canvas, (int)canvas.ActualWidth, (int)canvas.ActualHeight);
+            layer.IsChecked = false; var without = Pixels(canvas, (int)canvas.ActualWidth, (int)canvas.ActualHeight);
+            check((canvas.Model.Layers & NdsMapLayers.Terrain) == 0 && (canvas.Model.Layers & NdsMapLayers.Npc) != 0 && !withTerrain.SequenceEqual(without), "TerrainUi_LayerToggleChangesTheDrawing");
+            layer.IsChecked = true; check(Pixels(canvas, (int)canvas.ActualWidth, (int)canvas.ActualHeight).SequenceEqual(withTerrain), "TerrainUi_LayerToggleIsReversibleAndDeterministic");
+            Capture(view, 1100, 760, "terrain-411like-zoom-1100");
+            canvas.FitEvents(); Flush(); Capture(view, 1100, 760, "terrain-411like-fit-1100");
+            Arrange(view, 760, 760); canvas.FitEvents(); Flush(); Capture(view, 760, 760, "terrain-411like-760");
+            check(canvas.ActualHeight >= 150 && view.DesiredSize.Width <= 760, "TerrainUi_CompactLayoutKeepsTheCanvas");
+            Arrange(view, 1100, 760);
+            var clock = System.Diagnostics.Stopwatch.StartNew();
+            for (int i = 0; i < 6; i++) { canvas.FitMatrix(); canvas.Model!.PanBy(7 * i, 3 * i); canvas.Invalidate(); Pixels(canvas, 1100, 700); }
+            for (int i = 0; i < 6; i++) { CenterOn(canvas, PlatinumEventKind.Npc, 0, 12 + i); Pixels(canvas, 1100, 700); }
+            check(clock.ElapsedMilliseconds / 12 < 900, "TerrainUi_960x960OverlayRendersFastAtFitAndZoom");
+
+            // A map or project without terrain data keeps working and never shows free tiles
+            var bare = new NdsEventEditorView(session, null, "land_data no acreditado"); var bareCanvas = Children<NdsMapCanvasControl>(bare).Single(); var bareMaps = Children<ListBox>(bare).Single();
+            Arrange(bare, 1100, 760); bareMaps.SelectedItem = bareMaps.Items[1]; Arrange(bare, 1100, 760);
+            var bareLayer = Children<CheckBox>(bare).Single(c => AutomationProperties.GetName(c).Contains("capa Terreno"));
+            var bareDetails = Children<TextBox>(bare).Single(t => AutomationProperties.GetName(t).Contains("propiedades"));
+            check(!bareLayer.IsEnabled && bareLayer.IsChecked == false && !bareCanvas.Model!.HasTerrain && Children<TextBlock>(bare).Any(t => t.Text.Contains("Terreno: no disponible") && t.Text.Contains("land_data no acreditado") && t.Text.Contains("libres ni bloqueadas")), "TerrainUi_WithoutDataTheLayerIsUnavailableAndSaysWhy");
+            check(bareCanvas.Model!.Markers.Count == 7 && bareCanvas.Model.Layout.Width == 30 && bareDetails.Text.Contains("Indeterminado") && bareDetails.Text.Contains("sin datos de terreno") && !Children<TextBlock>(bare).Any(t => t.Text.Contains("terreno bloqueado")), "TerrainUi_WithoutDataTheMapStillOpensWithEvents");
+            Capture(bare, 1100, 760, "terrain-unavailable-1100");
+
+            // Read-only and integrity
+            check(session.Revision == 0 && session.Data.Bytes().SequenceEqual(eventsBefore) && Sha(source) == sourceHash && Directory.GetFiles(temp).Length == 1 && Directory.GetFiles(outputDir).Length == 0, "TerrainUi_BrowsingTerrainDoesNotTouchSessionSourceOrDisk");
+            // Existing preview/save flow still works from a canvas selection, with terrain enabled
+            tabs.SelectedIndex = 0; Click(PlatinumEventKind.Npc, 0); Box("Coordenada X").Text = "120"; view.PreviewSelection();
+            check(Box("diferencias previstas").Text.Contains("Coordenada X: 119 → 120") && Action("Guardar cambios…").IsEnabled, "TerrainUi_PreviewStillShowsExactDifferences");
+            Pump(view.SaveToAsync(Path.Combine(outputDir, "saved.ndsevents.json")));
+            check(session.Revision == 1 && session.Data.Npc(1, 0).X == 120 && canvas.Model!.Find(PlatinumEventKind.Npc, 0)!.X == 120 && Sha(source) == sourceHash && canvas.Model.HasTerrain, "TerrainUi_SaveStillCreatesCheckpointAndKeepsTheTerrainLayer");
+        }
+        finally { Directory.Delete(temp, true); }
+    }
     private static bool IsFocusable(this UIElement element) => element.Focusable;
 }

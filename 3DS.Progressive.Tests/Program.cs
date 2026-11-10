@@ -215,6 +215,12 @@ if(args.Length==4&&args[0]=="--template-load-probe")
 if(args.Length>=2&&args[0]=="--story-probe"){Exception? failure=null;var thread=new Thread(()=>{try{var app=new ThreeDS.Progressive.App();app.InitializeComponent();WpfTestHost.SuppressStartup();ThreeDS.Progressive.StudioDialog.AutomatedChecks=true;TrainerStoryChecks.Probe(args[1..],Check);}catch(Exception ex){failure=ex;}});thread.SetApartmentState(ApartmentState.STA);thread.Start();thread.Join();if(failure is not null)throw failure;Console.WriteLine($"Completed {checks} story chronology checks (real data in memory; nothing written).");return;}
 if(args.Length==3&&args[0]=="--nds-ui-probe"){Exception? failure=null;var thread=new Thread(()=>{try{var app=new ThreeDS.Progressive.App();app.InitializeComponent();WpfTestHost.SuppressStartup();ThreeDS.Progressive.StudioDialog.AutomatedChecks=true;NdsUiChecks.Probe(args[1],args[2]);}catch(Exception ex){failure=ex;}});thread.SetApartmentState(ApartmentState.STA);thread.Start();thread.Join();if(failure is not null)throw failure;return;}
 if(args.Length==1&&args[0]=="--nds-map-layout-only"){PlatinumMapLayoutChecks.Run(Check);Console.WriteLine($"Completed {checks} Platinum map layout checks (synthetic).");return;}
+if(args.Length==3&&args[0]=="--nds-map-terrain-probe"){PlatinumTerrainChecks.Probe(args[2],args[1]);return;}
+if(args.Length==1&&args[0]=="--nds-map-terrain-only"){PlatinumTerrainChecks.Run(Check);Console.WriteLine($"Completed {checks} DS map terrain checks (synthetic).");return;}
+if(args.Length==1&&args[0]=="--nds-map-terrain-ui-only")
+{
+    Exception? failure=null;var thread=new Thread(()=>{try{var app=new ThreeDS.Progressive.App();app.InitializeComponent();WpfTestHost.SuppressStartup();ThreeDS.Progressive.StudioDialog.AutomatedChecks=true;NdsMapCanvasChecks.RunTerrainUi(Check);}catch(Exception ex){failure=ex;}});thread.SetApartmentState(ApartmentState.STA);thread.Start();thread.Join();if(failure is not null)System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(failure).Throw();Console.WriteLine($"Completed {checks} DS map terrain UI checks (off-screen).");return;
+}
 if(args.Length==1&&args[0]=="--nds-map-canvas-only"){NdsMapCanvasChecks.Run(Check);Console.WriteLine($"Completed {checks} DS map canvas model checks (synthetic).");return;}
 if(args.Length==1&&args[0]=="--nds-map-canvas-ui-only")
 {
