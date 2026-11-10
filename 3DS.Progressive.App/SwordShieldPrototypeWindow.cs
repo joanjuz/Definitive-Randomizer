@@ -30,6 +30,8 @@ internal sealed partial class SwordShieldPrototypeWindow : Window
     internal Task OpenEmbeddedAsync()=>OpenAsync();
     internal Task ExportEmbeddedAsync()=>ExportAsync();
     internal bool CanLeave()=>!_busy&&ConfirmDiscard();
+    /// <summary>Unsaved form or changes not exported yet (the same condition under which <see cref="ConfirmDiscard"/> asks).</summary>
+    internal bool HasUnsavedWork=>_formDirty||(_project?.HasChanges==true&&_project.RevisionHash!=_lastExportHash);
     internal void RefreshSession(){RefreshEntries();RefreshValue();}
     private SwordShieldProject? _project;
     private SwordShieldEditPreview? _preview;

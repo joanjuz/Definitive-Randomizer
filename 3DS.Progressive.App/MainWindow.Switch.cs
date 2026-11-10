@@ -15,7 +15,7 @@ public partial class MainWindow
     }
     private void RefreshSwitchHeader()
     {
-        if(SwitchHost.Visibility!=Visibility.Visible||_switchWorkspace is null)return;
+        if(SwitchHost.Visibility!=Visibility.Visible||_switchWorkspace is null||!ReferenceEquals(SwitchHost.Content,_switchWorkspace))return;
         var project=_switchWorkspace.Project;string? name=project is null?null:System.IO.Path.GetFileName(project.Root);ProjectNameText.Text=project is null?"Espada/Escudo":string.Equals(name,project.Identity.TitleId,StringComparison.OrdinalIgnoreCase)?project.Identity.Game:name;
         GameNameText.Text=project is null?"Switch · abre una extracción para comenzar":project.Identity.Game+(project.Identity.CanEdit?" · perfil 1.3.2 · mod":" · solo lectura");
         RebuildButton.IsEnabled=project?.HasChanges==true;

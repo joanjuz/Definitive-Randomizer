@@ -247,7 +247,8 @@ public partial class MainWindow : Window
         SetHomeVisible(false);_activeSection="Extraction";HighlightNavigation("Extraction");
         StatusText.Text="Extracción de ROM descifrada en una carpeta nueva.";
     }
-    private async void OpenProject_Click(object sender, RoutedEventArgs e)
+    /// <summary>The previous, per-platform way to open a project (kept as an alternative to the universal dialog): the platform on screen decides.</summary>
+    private async void OpenProjectByPlatform_Click(object sender, RoutedEventArgs e)
     {
         if(NdsVisible){await _ndsWorkspace!.OpenAsync();RefreshNdsHeader();return;}
         if(SwitchHost.Visibility==Visibility.Visible&&_switchWorkspace is not null){await _switchWorkspace.OpenAsync();return;}

@@ -34,7 +34,8 @@ internal static class StandaloneTransactions
         {
             string[] targets=RecoveryJournal.Targets(directory);
             if(!targets.Any(p=>Within(p,root)))continue;
-            if(!recover||targets.Any(p=>!Within(p,root)))
+            if(!recover)throw new InterruptedSaveException(Instructions(directory),directory);
+            if(targets.Any(p=>!Within(p,root)))
                 throw new IOException(Instructions(directory));
             try { RecoveryJournal.Recover(directory,root,Path.Combine(root,"unused-history.json")); }
             catch(Exception ex) when(ex is IOException or UnauthorizedAccessException)

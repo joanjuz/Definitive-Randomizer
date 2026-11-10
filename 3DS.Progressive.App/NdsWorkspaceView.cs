@@ -84,6 +84,33 @@ internal sealed class NdsWorkspaceView:UserControl
         if(picker.ShowDialog(_owner)==true)await LoadAsync(picker.FileName);
     }
 
+    /// <summary>The "Admitir romhacks" choice (shared with the universal "Abrir proyecto" dialog).</summary>
+    internal bool AllowRomhacks{get=>_romhacks.IsChecked==true;set=>_romhacks.IsChecked=value;}
+
+    /// <summary>
+    /// Installs a project already opened (and verified) by the engine, for the universal "Abrir proyecto". Returns the project it replaced, which the caller
+    /// disposes only after everything succeeded. If anything fails here the previous project, pages, route and status are restored and the error is thrown.
+    /// </summary>
+    internal async Task<NdsProject?> InstallAsync(NdsProject project,bool allowRomhacks,Action? fault=null)
+    {
+        if(_busy)throw new InvalidOperationException("El editor de Nintendo DS está ocupado.");
+        var previous=Project;var pages=new Dictionary<string,FrameworkElement>(_pages);var content=_page.Content;var route=CurrentRoute;var hacks=AllowRomhacks;var status=_status.Text;
+        try
+        {
+            Project=project;_pages.Clear();AllowRomhacks=allowRomhacks;_status.Text=project.Game+(project.IsRomhack?" · romhack":"");
+            fault?.Invoke();
+            await NavigateAsync("Home",force:true);
+            if(!ReferenceEquals(Project,project)||ReferenceEquals(_page.Content,content)||CurrentRoute!="Home")throw new InvalidOperationException("No se pudo mostrar el proyecto de Nintendo DS.");
+            return previous;
+        }
+        catch
+        {
+            Project=previous;_pages.Clear();foreach(var p in pages)_pages[p.Key]=p.Value;_page.Content=content;CurrentRoute=route;AllowRomhacks=hacks;_status.Text=status;
+            ContextChanged?.Invoke();
+            throw;
+        }
+    }
+
     internal async Task LoadAsync(string path)
     {
         if(_busy)return;SetBusy(true,"Leyendo y verificando la ROM…");

@@ -48,7 +48,7 @@ public sealed partial class ProjectHistory
             : new(1,_game,Path.GetFileName(_root),[]);}
     }
     internal void RecoverPending(){lock(_gate){StandaloneTransactions.RecoverPending(_root);RecoveryJournal.Recover(_path+".pending",_root,_path);}}
-    internal void RejectPending(){StandaloneTransactions.RecoverPending(_root,recover:false);if(Directory.Exists(_path+".pending"))throw new IOException("El proyecto tiene un guardado interrumpido. La lectura de diagnóstico no lo modifica; ábrelo en la aplicación para recuperarlo.");}
+    internal void RejectPending(){StandaloneTransactions.RecoverPending(_root,recover:false);if(Directory.Exists(_path+".pending"))throw new InterruptedSaveException("El proyecto tiene un guardado interrumpido. La lectura de diagnóstico no lo modifica; ábrelo en la aplicación para recuperarlo.",_path+".pending");}
     internal void Commit(IReadOnlyList<FileChange> files,string module,string action,
         IEnumerable<BatchChange> changes,IReadOnlyDictionary<string,string>? parameters=null,string? section=null)
     {

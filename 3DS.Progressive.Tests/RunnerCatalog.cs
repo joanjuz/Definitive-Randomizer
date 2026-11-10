@@ -47,6 +47,7 @@ internal static class RunnerCatalog
         new("--nds-map-layout-only","",RunnerCategory.Synthetic,false),
         new("--nds-map-layout-probe","<informe JSON nuevo> <Platino CPUE/1 privado>",RunnerCategory.Real,false),
         new("--project-detector-only","",RunnerCategory.Synthetic,true),
+        new("--universal-open-only","",RunnerCategory.Ui,true),
         new("--project-detector-probe","<carpeta nueva de informe> <ruta> [<ruta>…]",RunnerCategory.Real,false),
         new("--nds-npc-structure-only","",RunnerCategory.Synthetic,false),
         new("--nds-npc-script-only","",RunnerCategory.Synthetic,false),
