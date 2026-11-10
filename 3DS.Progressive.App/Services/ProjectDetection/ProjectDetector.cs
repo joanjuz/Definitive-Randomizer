@@ -33,8 +33,10 @@ internal enum DetectionStatus
 }
 
 internal sealed record ProjectDetection(DetectionStatus Status, DetectedPlatform Platform, DetectedKind Kind, string Path, string Game, string Message,
-    IReadOnlyList<string> Evidence, string? SourcePath = null)
+    IReadOnlyList<string> Evidence, string? SourcePath = null, string? Warning = null)
 {
+    /// <summary>Limited compatibility notice for a recognised, openable entry that is not an officially accredited game (a 3DS demo). Null otherwise.</summary>
+    internal bool HasWarning => Warning is not null;
     /// <summary>True only for a supported entry. The opening engine must still confirm it.</summary>
     internal bool IsCandidate => Status == DetectionStatus.Compatible;
     internal string PlatformName => Platform switch { DetectedPlatform.NintendoDS => "Nintendo DS", DetectedPlatform.Nintendo3DS => "Nintendo 3DS", DetectedPlatform.NintendoSwitch => "Nintendo Switch", _ => "" };
@@ -76,8 +78,8 @@ internal static class ProjectDetector
     }
 
     private static ProjectDetection Result(DetectionStatus status, string path, string message, DetectedPlatform platform = DetectedPlatform.None, DetectedKind kind = DetectedKind.None,
-        string game = "", IEnumerable<string>? evidence = null, string? source = null) =>
-        new(status, platform, kind, path, game, message, (evidence ?? []).ToList().AsReadOnly(), source);
+        string game = "", IEnumerable<string>? evidence = null, string? source = null, string? warning = null) =>
+        new(status, platform, kind, path, game, message, (evidence ?? []).ToList().AsReadOnly(), source, warning);
 
     // ------------------------------------------------------------------------------------------------------------ files
 
@@ -227,10 +229,17 @@ internal static class ProjectDetector
         {
             GameVersion.XY => "Pokémon X/Y", GameVersion.ORAS => "Pokémon Rubí Omega/Zafiro Alfa", GameVersion.SM => "Pokémon Sol/Luna", GameVersion.USUM => "Pokémon Ultrasol/Ultraluna", _ => null,
         };
+        // Demos are recognised by GameConfig and opened by the existing engine, so they stay candidates, but they are NOT accredited games:
+        // the public compatibility matrix does not list them and nothing here enables functions the engine does not support for them.
         if (version is GameVersion.ORASDEMO or GameVersion.SMDEMO)
-            return Result(DetectionStatus.Unsupported, root, $"Extracción de 3DS reconocida como demo ({(version == GameVersion.ORASDEMO ? "Rubí Omega/Zafiro Alfa" : "Sol/Luna")}, {count} archivos GARC). Las demos no están en la matriz de compatibilidad pública.", DetectedPlatform.Nintendo3DS, DetectedKind.Extracted3dsFolder, evidence: evidence);
+        {
+            string demo = version == GameVersion.ORASDEMO ? "Pokémon Rubí Omega/Zafiro Alfa (demo)" : "Pokémon Sol/Luna (demo)";
+            return Result(DetectionStatus.Compatible, root, $"Extracción descifrada de 3DS: {demo}.", DetectedPlatform.Nintendo3DS, DetectedKind.Extracted3dsFolder, demo,
+                evidence.Append($"Estructura de demo reconocida por su número de archivos GARC ({count})").Append("El motor 3DS carga los catálogos, comprueba guardados interrumpidos y valida el proyecto al abrir."),
+                warning: "Es una DEMO. No figura en la matriz pública de compatibilidad y no es un juego acreditado: se abre con el motor existente, que puede no soportar todas las funciones ni todos los datos de una demo. Trabaja siempre sobre una copia.");
+        }
         if (game is null)
-            return Result(DetectionStatus.Unsupported, root, $"Extracción de 3DS con una estructura RomFS no reconocida ({count} archivos GARC). Se admiten X/Y (271), OR/AS (299), Sol/Luna (311) y UltraSol/UltraLuna (333). ¿Es una extracción incompleta o de otro juego?", DetectedPlatform.Nintendo3DS, DetectedKind.Extracted3dsFolder, evidence: evidence);
+            return Result(DetectionStatus.Unsupported, root, $"Extracción de 3DS con una estructura RomFS no reconocida ({count} archivos GARC). Se admiten X/Y (271), OR/AS (299), Sol/Luna (311) y UltraSol/UltraLuna (333), y se reconocen las demos de OR/AS (301) y de Sol/Luna (239). ¿Es una extracción incompleta o de otro juego?", DetectedPlatform.Nintendo3DS, DetectedKind.Extracted3dsFolder, evidence: evidence);
         return Result(DetectionStatus.Compatible, root, $"Extracción descifrada de 3DS: {game}.", DetectedPlatform.Nintendo3DS, DetectedKind.Extracted3dsFolder, game,
             evidence.Append("El motor 3DS carga los catálogos, comprueba guardados interrumpidos y valida el proyecto al abrir."));
     }
