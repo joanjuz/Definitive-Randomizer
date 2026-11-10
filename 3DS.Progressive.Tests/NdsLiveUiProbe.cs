@@ -129,6 +129,27 @@ internal static class NdsLiveUiProbe
         // 8. Restore all
         while (session.CanUndo) { Find<Button>(view, "Eventos DS · Restaurar último cambio…").RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent)); var tu = view.SaveToAsync(Path.Combine(output, $"undo-{session.Revision}.ndsevents.json")); while (!tu.IsCompleted) Wait(50); }
         Log($"restored all: events equal original={session.Data.Bytes().AsSpan().SequenceEqual(data.Bytes())}");
+        // 9. Nurse Joy with behaviour, with real input: copy in Jubilife PC, paste into Twinleaf, keep the exported ROM for the emulator test
+        search.Text = ""; Wait(200); ClickCentre(search); Type("C01PC0101"); Wait(400);
+        var pcMap = maps.Items.Cast<PlatinumMap>().FirstOrDefault(x => x.InternalName == "C01PC0101"); if (pcMap is not null && (maps.SelectedItem as PlatinumMap)?.Id != pcMap.Id) maps.SelectedItem = pcMap; Wait(400);
+        var pm = canvas.Model!; var joy = pm.Markers.First(k => k.Kind == PlatinumEventKind.Npc && session.Data.ClassifyScript(pcMap!.Id, k.Event.Script)?.Pattern == PlatinumScriptPattern.PokecenterNurse);
+        pm.SetZoom(14, pm.ViewportWidth / 2, pm.ViewportHeight / 2); var jc = pm.TileToPixel(joy.CenterX, joy.CenterY); pm.PanBy(jc.X - pm.ViewportWidth / 2, jc.Y - pm.ViewportHeight / 2); canvas.Invalidate(); Wait(300);
+        jc = pm.TileToPixel(joy.CenterX, joy.CenterY); Click(canvas, new Point(jc.X, jc.Y)); Chord(0x43);
+        Log($"nurse selected {pm.Selected}, inspector: " + Find<TextBox>(view, "Eventos DS · propiedades y referencias (copiable)").Text.Split('\n').FirstOrDefault(l => l.StartsWith("Comportamiento")));
+        search.Text = ""; Wait(200); ClickCentre(search); Type("T01"); Wait(400); if ((maps.SelectedItem as PlatinumMap)?.Id != 411) maps.SelectedItem = maps.Items.Cast<PlatinumMap>().First(x => x.Id == 411); Wait(400);
+        m = canvas.Model!; m.SetZoom(14, m.ViewportWidth / 2, m.ViewportHeight / 2); c = m.TileToPixel(115.5, 876.5); m.PanBy(c.X - m.ViewportWidth / 2, c.Y - m.ViewportHeight / 2); canvas.Invalidate(); Wait(300);
+        ClickCentre(paste); MoveTo(canvas, Tile(115.5, 876.5)); Click(canvas, Tile(115.5, 876.5));
+        var modeBox = Find<System.Windows.Controls.ComboBox>(view, "Eventos DS · nuevo NPC · comportamiento");
+        Log($"nurse form visible={form.IsVisible}, mode='{(modeBox.SelectedItem as System.Windows.Controls.ComboBoxItem)?.Content}', preview on screen={OnScreen(previewNew)}");
+        Shot("06-nurse-form");
+        ClickCentre(previewNew); Log($"nurse diff='{diff.Text.Replace("\n", " | ")}'");
+        var tn = view.SaveToAsync(Path.Combine(output, "nurse.ndsevents.json")); while (!tn.IsCompleted) Wait(50); m = canvas.Model!;
+        string nurseRom = Path.Combine(output, "Platino-enfermera-Hojaverde.nds");
+        var replacements = new Dictionary<int, byte[]> { [rom.File(PlatinumEvents.EventPath).Id] = session.Replacement()! }; if (session.ScriptReplacement() is { } sr) replacements[rom.File(PlatinumEvents.ScriptPath).Id] = sr;
+        rom.Save(nurseRom, replacements); session.VerifyExport(nurseRom);
+        var placed = session.Data.Npc(411, session.Data.NpcCount(411) - 1);
+        Log($"nurse saved and exported: NPC {placed.Index} id {placed.Id} at ({placed.X},{placed.Y}) script {placed.Script} -> {session.Data.ClassifyScript(411, placed.Script)?.Describe()}; ROM {nurseRom}");
+        Shot("07-nurse-saved");
         Log($"FINAL: session revision {session.Revision}, source untouched={File.ReadAllBytes(copy).AsSpan().SequenceEqual(File.ReadAllBytes(romPath))}");
         File.WriteAllLines(Path.Combine(output, "live-log.txt"), log);
         window.Close();

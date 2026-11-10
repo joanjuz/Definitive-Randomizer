@@ -47,7 +47,7 @@ internal static class NdsNpcStructureChecks
         bool Has(byte[] r, string text) => data.ValidateNewNpc(1, r).Any(p => p.Contains(text));
         check(Has(Record(data, 1, 20, 120, 878), "ID 20 ya lo usa") && Has(Record(data, 1, 0xFFFF, 120, 878), "reservado"), "NpcStructure_DuplicateAndReservedIdsAreRejected");
         check(Has(Record(data, 1, 40, 120, 878, gfx: 999), "gráfico 999") && Has(Record(data, 1, 40, 120, 878, movement: 77), "movimiento 77"), "NpcStructure_OnlyAccreditedGraphicsAndMovementsAreOffered");
-        check(Has(Replace(rec, 6, [3, 0]), "tipo 0") && Has(Replace(rec, 10, [5, 0]), "script ni flag") && Has(Replace(rec, 8, [9, 0]), "script ni flag") && Has(Replace(rec, 12, [4, 0]), "dirección"), "NpcStructure_TypeScriptFlagAndDirectionRulesHold");
+        check(Has(Replace(rec, 6, [3, 0]), "tipo 0") && Has(Replace(rec, 10, [5, 0]), "el script que el editor acredita") && Has(Replace(rec, 8, [9, 0]), "no lleva flag") && data.ValidateNewNpc(1, Replace(rec, 10, [5, 0]), 5).Count == 0 && Has(Replace(rec, 12, [4, 0]), "dirección"), "NpcStructure_TypeScriptFlagAndDirectionRulesHold");
         check(Has(Record(data, 1, 40, 960, 878), "límites") && Has(Record(data, 1, 40, 120, 960), "límites") && data.ValidateNewNpc(1, new byte[31]).Count == 1, "NpcStructure_OutOfBoundsAndWrongLengthAreRejected");
         check(data.AccreditedGraphics.SequenceEqual([33]) && data.AccreditedMovements.SequenceEqual([0]) && PlatinumEvents.MaxVanillaNpcCount == 51, "NpcStructure_AccreditedSetsAndCapComeFromTheData");
 

@@ -99,3 +99,15 @@ La selección y el portapapeles ya son tipados; la **selección múltiple y copi
 | D | render cenital por bloque y capa «Gráficos del mapa» | comparación visual de Pueblo Hojaverde por el propietario |
 | E | selección múltiple y grupos (propuestas multi‑operación) | guardado atómico y restauración exacta |
 | F | sprites de NPC | tabla gráfico → sprite acreditada |
+
+## 8. Prioridades y decisiones del roadmap (actualizado)
+
+**Prioridad actual:** copiar NPC **con su comportamiento** y añadir **entrenadores nuevos** con equipos personalizables, antes del renderer. Primer paso entregado: enfermera con comportamiento y scripts compartidos ([NDS_NPC_SCRIPTS_PHASE6.md](NDS_NPC_SCRIPTS_PHASE6.md)). El PR #67 (estructuras) sigue pendiente de integración y el renderer espera a esta prioridad.
+
+Decisiones aprobadas por el propietario, **registradas sin implementar**:
+
+- **Abrir proyecto universal** con detección automática de Nintendo DS, 3DS o Switch.
+- **Exportar los Level Caps** configurados manualmente a Progressive Tracker y mostrar el límite de la etapa actual de la partida.
+- **Completar Nintendo DS Gen IV y Gen V** antes de extender el editor de mapas a 3DS.
+- **Paridad de las operaciones principales** entre plataformas, no igualdad de formatos internos.
+- El editor visual de mapas se limita por ahora a **escenarios y NPC existentes**; **añadir NPC y entrenadores nuevos sí forma parte del alcance**.

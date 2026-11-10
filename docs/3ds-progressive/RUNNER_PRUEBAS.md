@@ -67,6 +67,7 @@ dotnet .\3DS.Progressive.Tests\bin\Release\net10.0-windows\3DS.Progressive.Tests
 | `--native-wild7-only` | — |  |
 | `--nds-only` | — | sí |
 | `--nds-map-layout-only` | — | matrices sintéticas de solo lectura; ejecución focalizada independiente |
+| `--nds-npc-script-only` | — | lector/escritor mínimo de scripts, patrón de la enfermera, scripts compartidos, checkpoint v3; sintética |
 | `--nds-npc-structure-only` | — | operaciones estructurales de NPC (registro, NARC, checkpoint v2, política); sintética |
 | `--nds-npc-drag-only` | — | planificación y matemática del arrastre de NPC (sin WPF); sintética |
 | `--nds-map-terrain-only` | — | lector de terreno `land_data`, consulta espacial y superposición; sintética |
@@ -123,6 +124,7 @@ dotnet .\3DS.Progressive.Tests\bin\Release\net10.0-windows\3DS.Progressive.Tests
 | `--nds-map-terrain-ui-only` | — | sí |
 | `--nds-npc-drag-ui-only` | — | sí |
 | `--nds-npc-structure-ui-only` | — | sí |
+| `--nds-npc-script-ui-only` | — | sí |
 | `--requested-ui-only` | — | sí |
 | `--swsh-ui-only` | — | sí |
 | `--template-feedback-ui-only` | — | sí |
@@ -197,6 +199,7 @@ Necesitan extracciones, ROMs o carpetas de salida. Los argumentos concretos (ent
 | `--nds-map-layout-probe` | `<informe JSON nuevo> <ROM privada Platino CPUE/1>` | solo lectura; no copia ni exporta ROM |
 | `--nds-map-terrain-probe` | `<informe JSON nuevo> <ROM privada Platino CPUE/1>` | solo lectura; no copia ni exporta ROM |
 | `--nds-npc-structure-probe` | `<carpeta nueva> <ROM privada Platino CPUE/1>` | copia la fuente a la carpeta nueva; no modifica la original |
+| `--nds-npc-script-probe` | `<carpeta nueva> <ROM privada Platino CPUE/1>` | copia la fuente; copia la enfermera de Jubileo a Hojaverde, exporta, reabre y restaura |
 | `--nds-live-ui-probe` | `<ROM privada Platino CPUE/1> <carpeta nueva> <ancho> <alto>` | **interactiva y local**: abre una ventana real y usa ratón y teclado reales (SendInput) sobre una copia; requiere el escritorio desbloqueado; no se ejecuta en CI |
 | `--nds-events-probe` | `<salida nueva> <ROM privada Platino CPUE/1>` |  |
 | `--nds-gen5-items-probe` | 2 o más |  |
@@ -266,5 +269,7 @@ Terreno DS, fase visual 3: `--nds-map-terrain-only` valida el lector de `land_da
 Mover NPC DS, fase visual 4: `--nds-npc-drag-only` valida la política de bloqueo/advertencia (colisión, límites del editor, casilla ocupada, otra cabecera, rango de activador, sin datos), la conversión píxel→tile con distintos zoom y desplazamientos y que el arrastre no muta eventos. `--nds-npc-drag-ui-only` abre la vista con una ROM sintética tipo 411 y comprueba herramienta Seleccionar/Mover NPC, arrastre, fantasma, cancelación (Esc, herramienta, mapa, modo), propuesta antes/después, aceptación mediante la previsualización existente, checkpoint con la posición arrastrada, restauración de los bytes originales, archivos de eventos compartidos y que durante el arrastre no hay escrituras. Guarda capturas en `nds-map-canvas/`. No sustituye la prueba en el juego. Véase [NDS_NPC_DRAG_PHASE4.md](NDS_NPC_DRAG_PHASE4.md).
 
 NPC estructurales DS, fase 5A: `--nds-npc-structure-only` valida la construcción del registro de 32 bytes, las reglas (ID libre, gráfico y movimiento acreditados, límites, tope de 51), la reconstrucción del NARC con todos los demás miembros idénticos, el checkpoint versión 2 (y que la versión 1 no cambia), documentos inválidos, propuestas obsoletas, fallos de escritura, concurrencia, exportación con `NdsRom.Save` y la política de pegar/cortar/eliminar. `--nds-npc-structure-ui-only` abre la vista con una ROM sintética tipo 411 y recorre botones, colocación, formulario, propuesta, guardado y restauración, pegar/cortar, rechazo de eliminar, cancelaciones y archivo compartido; guarda capturas en `nds-map-canvas/`. `--nds-npc-structure-probe <carpeta nueva> <ROM privada Platino CPUE/1>` hace el recorrido real añadir → checkpoint v2 → exportar → reabrir → restaurar sobre una copia, compara cada archivo ajeno y el SHA-256 de la fuente. No sustituye la prueba en el juego. Véase [NDS_NPC_STRUCTURAL_PHASE5A.md](NDS_NPC_STRUCTURAL_PHASE5A.md).
+
+NPC con comportamiento: `--nds-npc-script-only` valida la lectura de la tabla de scripts (0xFD13), el reconocimiento exacto de la enfermera y de los mensajes simples, la ampliación de un archivo de scripts sin alterar los demás, el checkpoint versión 3, la exportación de eventos y scripts, la combinación con scripts de otros módulos y el rechazo de operaciones no acreditadas. `--nds-npc-script-ui-only` recorre en la vista el pegado de la enfermera en otro mapa (comportamiento preseleccionado y dependencias), la duplicación de un NPC de mensaje (script compartido) y la restauración. `--nds-npc-script-probe <carpeta nueva> <ROM privada>` hace el recorrido real con la enfermera de Jubileo en Pueblo Hojaverde. No sustituye la prueba en el juego. Véase [NDS_NPC_SCRIPTS_PHASE6.md](NDS_NPC_SCRIPTS_PHASE6.md).
 
 Corrección de NPC estructurales: `--nds-live-ui-probe <ROM privada> <carpeta nueva> <ancho> <alto>` reproduce con entrada real de Windows el flujo del propietario (buscar T01, duplicar con fantasma, menú contextual «Pegar aquí», copiar desde otro mapa, eliminar un NPC añadido con Supr, exportar y restaurarlo todo) sobre una copia de la ROM, guarda capturas y un registro en la carpeta nueva y comprueba que la fuente no cambia. Es una prueba de diagnóstico local; las comprobaciones automáticas siguen siendo `--nds-npc-structure-only` y `--nds-npc-structure-ui-only`.
