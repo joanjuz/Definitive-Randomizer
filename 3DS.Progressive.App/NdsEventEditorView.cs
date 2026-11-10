@@ -198,7 +198,7 @@ internal sealed class NdsEventEditorView : UserControl
             ? "Mover NPC: arrastra un NPC existente a otra casilla; Esc cancela. Para desplazar el mapa, arrastra el fondo o usa el botón central. Soltar solo crea una propuesta: no se guarda nada."
             : "Seleccionar: clic para elegir un evento; arrastra el fondo para desplazar el mapa.";
     }
-    /// <summary>Called before a drag starts: pending fields or a pending preview need the same authorization as changing the selection.</summary>
+    /// <summary>Called when a drag actually activates (after the movement threshold): pending fields or a pending preview need the same authorization as changing the selection.</summary>
     private bool BeginMoveGuard(PlatinumEvent npc)
     {
         if (_busy) return false;
@@ -207,7 +207,7 @@ internal sealed class NdsEventEditorView : UserControl
             if (!ConfirmLeave()) return false;
             _dirty = false; InvalidatePreview();
         }
-        HideProposal(); return true;
+        HideProposal(cancelDrag: false); return true;   // the drag that is activating must survive
     }
     private void OnDragChanged(NdsNpcDragSession? drag) { if (drag is { Active: true }) _hover.Text = drag.Plan.Live; else if (drag is null && _move is null) _hover.Text = ""; }
     private string PositionText(int x, int y) => _canvas.Model is { } m && x >= 0 && y >= 0 && x < m.Layout.TileWidth && y < m.Layout.TileHeight
@@ -233,10 +233,10 @@ internal sealed class NdsEventEditorView : UserControl
         _terrainNote.Visibility = visibility; _toolHelp.Visibility = visibility; if (_legend is not null) _legend.Visibility = visibility;
         if (_inspector is not null) Adapt();
     }
-    private void HideProposal()
+    private void HideProposal(bool cancelDrag = true)
     {
         _move = null; _moveMap = null; if (_moveBox.Visibility != Visibility.Collapsed) _moveBox.Visibility = Visibility.Collapsed;
-        SetFooterCompact(false); _canvas.CancelDrag();
+        SetFooterCompact(false); if (cancelDrag) _canvas.CancelDrag();
     }
     private void AcceptMove()
     {

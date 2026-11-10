@@ -162,8 +162,7 @@ internal static class NdsNpcDragChecks
             var modeTables = Find<RadioButton>(view, "Eventos DS · modo tablas"); var modeMap = Find<RadioButton>(view, "Eventos DS · modo mapa esquemático");
             check((box.Visibility == Visibility.Visible), "NpcDragUi_DropOpensAProposalWithoutSaving");
             modeTables.IsChecked = true; check((box.Visibility != Visibility.Visible) && canvas.Drag is null && Untouched(), "NpcDragUi_ChangingModeClosesTheProposal"); modeMap.IsChecked = true; NdsMapCanvasChecks.Arrange(view, 1100, 760);
-            canvas.DragGuard = _ => false; check(!canvas.BeginDragAt(Center(PlatinumEventKind.Npc, 0)) && canvas.DragDeclined && canvas.Drag is null, "NpcDragUi_ADeclinedGuardKeepsEverythingAsItWas"); canvas.DragGuard = null;
-            check(canvas.BeginDragAt(Center(PlatinumEventKind.Npc, 0)) && canvas.Drag is not null, "NpcDragUi_GuardDefaultAllowsTheDrag"); canvas.CancelDrag();
+            check(canvas.BeginDragAt(Center(PlatinumEventKind.Npc, 0)) && canvas.Drag is not null, "NpcDragUi_BeginningADragNeverNeedsTheGuard"); canvas.CancelDrag();
 
             // Click without dragging is a normal selection
             canvas.BeginDragAt(Center(PlatinumEventKind.Npc, 1)); canvas.DropAt(Center(PlatinumEventKind.Npc, 1));
@@ -195,7 +194,37 @@ internal static class NdsNpcDragChecks
             // Pending fields are respected (ConfirmLeave is auto-approved by the test host, so we assert what it protects)
             Box("Coordenada X").Text = "7";
             check(Btn("Previsualizar diferencias").IsEnabled, "NpcDragUi_FieldsCanBeEdited");
-            check(canvas.BeginDragAt(Center(PlatinumEventKind.Npc, 0)) && !Btn("Guardar cambios…").IsEnabled && Box("diferencias previstas").Text == "", "NpcDragUi_PendingFieldsGoThroughTheGuardBeforeADragStarts"); canvas.CancelDrag();
+            check(canvas.BeginDragAt(Center(PlatinumEventKind.Npc, 0)) && Box("Coordenada X").Text == "7", "NpcDragUi_MouseDownAloneKeepsPendingFields"); canvas.CancelDrag();
+            check(Box("Coordenada X").Text == "7", "NpcDragUi_CancelBeforeActivationKeepsPendingFields");
+            tabs.SelectedIndex = 0; npcTable.SelectedItem = npcTable.Items.Cast<PlatinumEvent>().First(e => e.Index == 0); Box("Coordenada X").Text = "125"; view.PreviewSelection();
+            string previewText = Box("diferencias previstas").Text;
+            check(previewText.Contains("119 → 125") && Btn("Guardar cambios…").IsEnabled, "NpcDragUi_AnExistingPreviewIsPending");
+            var realGuard = canvas.DragGuard; int calls = 0; canvas.DragGuard = e => { calls++; return realGuard!(e); };
+            var origin = Center(PlatinumEventKind.Npc, 0);
+            // A plain click on the selected NPC: no guard, nothing discarded, no re-selection
+            canvas.BeginDragAt(origin); canvas.DropAt(origin);
+            check(calls == 0 && Box("Coordenada X").Text == "125" && Box("diferencias previstas").Text == previewText && Btn("Guardar cambios…").IsEnabled && (box.Visibility != Visibility.Visible) && Untouched(), "NpcDragUi_ClickWithoutDraggingPreservesFieldsAndPreview");
+            // Movement under the threshold, then cancelled
+            canvas.BeginDragAt(origin); canvas.DragTo(new Point(origin.X + 2, origin.Y + 2)); canvas.CancelDrag();
+            check(calls == 0 && canvas.Drag is null && Box("Coordenada X").Text == "125" && Box("diferencias previstas").Text == previewText && Btn("Guardar cambios…").IsEnabled, "NpcDragUi_CancelledBeforeTheThresholdPreservesFieldsAndPreview");
+            // Movement under the threshold, released: still a click
+            canvas.BeginDragAt(origin); canvas.DragTo(new Point(origin.X + 3, origin.Y)); canvas.DropAt(new Point(origin.X + 3, origin.Y));
+            check(calls == 0 && Box("Coordenada X").Text == "125" && Box("diferencias previstas").Text == previewText && (box.Visibility != Visibility.Visible), "NpcDragUi_ReleaseUnderTheThresholdIsOnlyAClick");
+            // The guard is asked exactly when the drag activates; a refusal keeps everything and ends the drag
+            canvas.DragGuard = e => { calls++; return false; };
+            canvas.BeginDragAt(origin); int before = calls; canvas.DragTo(new Point(origin.X + 40, origin.Y));
+            check(before == 0 && calls == 1 && canvas.Drag is null && canvas.DragDeclined && Box("Coordenada X").Text == "125" && Box("diferencias previstas").Text == previewText && Btn("Guardar cambios…").IsEnabled && (box.Visibility != Visibility.Visible) && Untouched(), "NpcDragUi_RefusedConfirmationPreservesFieldsAndPreview");
+            canvas.DragTo(new Point(origin.X + 80, origin.Y)); canvas.DropAt(new Point(origin.X + 80, origin.Y));
+            check(calls == 1 && (box.Visibility != Visibility.Visible) && Box("diferencias previstas").Text == previewText && Untouched(), "NpcDragUi_AfterARefusalTheRestOfTheGestureDoesNothing");
+            canvas.BeginDragAt(origin); canvas.DragTo(new Point(origin.X + 40, origin.Y)); canvas.DropAt(new Point(origin.X + 40, origin.Y));
+            check(calls == 2 && (box.Visibility != Visibility.Visible) && Box("diferencias previstas").Text == previewText && Untouched(), "NpcDragUi_ARefusedDropOpensNoProposal");
+            // Activating at the drop itself (no intermediate move) also asks first
+            canvas.BeginDragAt(origin); canvas.DropAt(new Point(origin.X + 60, origin.Y));
+            check(calls == 3 && (box.Visibility != Visibility.Visible) && Box("diferencias previstas").Text == previewText && Untouched(), "NpcDragUi_ActivationAtTheDropAlsoAsksFirst");
+            // An accepted confirmation: asked once, then the user's authorization discards the old preview
+            canvas.DragGuard = e => { calls++; return realGuard!(e); }; calls = 0;
+            canvas.BeginDragAt(origin); canvas.DragTo(new Point(origin.X + 40, origin.Y)); canvas.DragTo(new Point(origin.X + 56, origin.Y));
+            check(calls == 1 && canvas.Drag is { Active: true } && !Btn("Guardar cambios…").IsEnabled && Box("diferencias previstas").Text == "", "NpcDragUi_AcceptedConfirmationIsAskedOnceAndThenDiscardsTheOldPreview"); canvas.CancelDrag(); canvas.DragGuard = realGuard;
 
             // Accept: fills X/Y and runs the existing Preview; nothing saved yet
             tabs.SelectedIndex = 0; npcTable.SelectedItem = npcTable.Items.Cast<PlatinumEvent>().First(e => e.Index == 0);

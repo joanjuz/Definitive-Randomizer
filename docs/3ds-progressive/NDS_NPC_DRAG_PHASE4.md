@@ -15,7 +15,7 @@ Barra de herramientas: **[Seleccionar] [Mover NPC]**.
 - Soltar en otra casilla **no guarda nada y no modifica la sesión**: abre un panel de **propuesta** con el antes/después (X/Y, bloque y posición local), el estado, los motivos exactos, lo no evaluado y, si procede, el aviso de archivo de eventos compartido. Botones: **[Aceptar propuesta]** / **[Cancelar]** (o **[Cerrar]** si está rechazada).
 - **Aceptar** selecciona el NPC en las tablas e inspector, copia X/Y a los campos existentes y ejecuta la **previsualización existente** (`NdsEventSession.Preview`). Después hay que **Guardar cambios…** (checkpoint nuevo), **Exportar ROM** y, si se quiere, **Restaurar último cambio…**. El lienzo muestra un fantasma «propuesta pendiente» hasta guardar o descartar, y se refresca desde la sesión real al guardar.
 
-Si hay campos o una propuesta sin guardar, empezar un arrastre pide la misma confirmación que cambiar de selección (`ConfirmLeave`).
+Si hay campos o una propuesta sin guardar, el arrastre pide la misma confirmación que cambiar de selección (`ConfirmLeave`) **cuando realmente se activa**, al superar el umbral de movimiento (4 px), no al pulsar el botón. Un simple clic, un arrastre cancelado antes del umbral o una confirmación rechazada conservan los campos y la previsualización existentes y no abren propuesta.
 
 ## Política de validación (`NdsNpcMovePlanner`, sobre `NdsSpatialQuery.Assess` con el NPC como evento ignorado)
 
@@ -43,7 +43,7 @@ Si varias cabeceras comparten el archivo de eventos del mapa, la propuesta lo ad
 ## Pruebas
 
 - `--nds-npc-drag-only` (29): política, conversión píxel→tile exacta con varios zoom y desplazamientos (también tiles negativos), umbral de arrastre, sin mutación de eventos, rendimiento.
-- `--nds-npc-drag-ui-only` (49): herramientas, inicio de arrastre, diferencia con el desplazamiento, fantasma y estados, DPI alto, cancelación (Esc/API, herramienta, mapa, modo), propuesta, cancelar sin cambios, rechazos, advertencias, aceptar → previsualización, checkpoint con la posición arrastrada, restauración idéntica de los bytes, archivos compartidos, ausencia de escrituras durante el arrastre y diseño a 1100 y 760.
+- `--nds-npc-drag-ui-only` (58): herramientas, inicio de arrastre, diferencia con el desplazamiento, fantasma y estados, DPI alto, cancelación (Esc/API, herramienta, mapa, modo), propuesta, cancelar sin cambios, rechazos, advertencias, aceptar → previsualización, checkpoint con la posición arrastrada, restauración idéntica de los bytes, archivos compartidos, ausencia de escrituras durante el arrastre y diseño a 1100 y 760.
 - Regresión: `--nds-map-canvas-*`, `--nds-map-terrain-*`, `--nds-map-layout-only`, `--nds-events-*`, `--nds-ui-only`.
 
 Son pruebas sintéticas y fuera de pantalla; no se simula el ratón real ni la tecla Esc a través de WPF (se prueban las rutas que invocan).

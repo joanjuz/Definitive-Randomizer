@@ -212,19 +212,30 @@ internal sealed class NdsMapCanvasControl : FrameworkElement
         if (_model is null || _tool != NdsMapTool.MoveNpc || _drag is not null) return false;
         var hit = _model.HitTest(point.X, point.Y);
         if (hit is null || !NdsNpcMovePlanner.IsDraggable(hit.Event)) return false;
-        if (DragGuard is not null && !DragGuard(hit.Event)) { DragDeclined = true; return false; }
         _drag = new NdsNpcDragSession(_model, hit.Event, point.X, point.Y); Cursor = Cursors.SizeAll; DragChanged?.Invoke(_drag); InvalidateVisual(); return true;
+    }
+    /// <summary>The guard (ConfirmLeave) runs once, when the drag really activates after the movement threshold; a click or an early cancel never reaches it.</summary>
+    private bool ActivationAllowed(NdsNpcDragSession drag, bool wasActive)
+    {
+        if (wasActive || !drag.Active || DragGuard is null || DragGuard(drag.Npc)) return true;
+        DragDeclined = true; CancelDrag(); return false;
     }
     internal void DragTo(Point point)
     {
         if (_drag is null) return;
-        if (_drag.Update(point.X, point.Y)) { DragChanged?.Invoke(_drag); InvalidateVisual(); }
+        bool wasActive = _drag.Active;
+        if (!_drag.Update(point.X, point.Y)) return;
+        if (!ActivationAllowed(_drag, wasActive)) return;
+        DragChanged?.Invoke(_drag); InvalidateVisual();
     }
     internal void DropAt(Point point)
     {
         var drag = _drag; if (drag is null || _model is null) return;
-        drag.Update(point.X, point.Y); _drag = null; Cursor = Cursors.Arrow; DragChanged?.Invoke(null);
-        if (!drag.Active) Pick(_model.Find(drag.Npc.Kind, drag.Npc.Index));   // a click without moving is a normal selection
+        bool wasActive = drag.Active; drag.Update(point.X, point.Y);
+        if (!ActivationAllowed(drag, wasActive)) return;
+        _drag = null; Cursor = Cursors.Arrow; DragChanged?.Invoke(null);
+        // A click without moving keeps pending fields and previews: only a NPC that is not already selected is picked (normal selection rules).
+        if (!drag.Active) { if (_model.Selected != (drag.Npc.Kind, drag.Npc.Index)) Pick(_model.Find(drag.Npc.Kind, drag.Npc.Index)); }
         else if (drag.Complete() is { } plan) MoveDropped?.Invoke(plan);
         InvalidateVisual();
     }
