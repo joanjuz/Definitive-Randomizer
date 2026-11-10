@@ -225,6 +225,8 @@ if(args.Length==5&&args[0]=="--nds-live-ui-probe")
 }
 if(args.Length>=3&&args[0]=="--universal-open-live-probe"){Exception? failure=null;var thread=new Thread(()=>{try{var app=new ThreeDS.Progressive.App();app.InitializeComponent();WpfTestHost.SuppressStartup();UniversalOpenLiveProbe.Run(args[1],args[2..]);}catch(Exception ex){failure=ex;}});thread.SetApartmentState(ApartmentState.STA);thread.Start();thread.Join();if(failure is not null)System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(failure).Throw();return;}
 if(args.Length==1&&args[0]=="--nds-project-format-only"){NdsProjectFormatChecks.Run(Check);Console.WriteLine($"Completed {checks} DS project format checks (synthetic).");return;}
+if(args.Length==1&&args[0]=="--nds-project-transactions-only"){NdsProjectTransactionChecks.Run(Check);Console.WriteLine($"Completed {checks} DS project transaction checks (synthetic ROMs, real file system).");return;}
+if(args.Length>=3&&args[0]=="--nds-project-transactions-probe"){NdsProjectTransactionChecks.Probe(args[1],args[2..]);return;}
 if(args.Length==1&&args[0]=="--nds-project-store-only"){NdsProjectStoreChecks.Run(Check);Console.WriteLine($"Completed {checks} DS project store checks (real file system, temporary folder).");return;}
 if(args.Length==2&&args[0]=="--nds-project-store-probe"){NdsProjectStoreChecks.Run(Check,args[1]);Console.WriteLine($"Completed {checks} DS project store checks (real file system, {args[1]}).");return;}
 if(args.Length>=3&&args[0]=="--nds-project-measure"){NdsProjectMeasure.Run(args[1],args[2..]);return;}

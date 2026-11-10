@@ -154,7 +154,37 @@ Resultados del 10/11/2026 en el equipo del propietario: 82 de 82 en un SSD NVMe 
 
 **Lo que no se ha demostrado.** No se ha cortado la corriente: que un archivo vaciado y un renombrado con escritura directa sobrevivan a un corte de luz es la garantía de Windows y NTFS, y depende de que el disco no mienta sobre su caché. Tampoco se ha probado un disco lleno real (solo fallos inyectados en los mismos puntos), unidades de red, FAT/exFAT ni carpetas sincronizadas con la nube. Entre la comprobación del paso 1 y el renombrado del paso 5 queda una ventana de milisegundos en la que un programa externo podría reescribir el principal sin ser detectado; el bloqueo solo coordina instancias de esta aplicación.
 
-## 8. Plan de PR
+## 8. PR 3: transacciones de las operaciones DS
+
+Código: `NdsProject.Persistence.cs`, y cambios acotados en `NdsProject.Apply`/`Reset` y `NdsEventSession`. **La aplicación todavía no asocia ningún proyecto** (lo hará la apertura B2 en el PR 4): una sesión abierta con `NdsProject.Open` sigue siendo solo memoria, igual que antes.
+
+- **Persistencia explícita.** `AttachPersistence(almacén, identidad, documento existente o nulo, …)` es la única forma de hacer persistente una sesión. Sin documento crea el proyecto (su primera generación, vacía, se escribe en ese momento); con documento lo instala tras comprobar que es de esa ROM. Batch, la repetición de Global Template sobre proyectos temporales y las pruebas no llaman a ese método y **no crean archivos junto a la ROM**.
+- **`Apply`.** Las tablas resultantes (archivos, overlays, ARM9, overlays por recomprimir) se construyen aparte, el documento se guarda y se verifica, y solo entonces se instalan en la sesión junto con la operación del historial (acción, semilla, receta, cambios). Si el guardado falla, la sesión queda exactamente como estaba y la misma vista previa sigue siendo válida.
+- **`Reset`.** Es una generación nueva y vacía; la anterior queda en los respaldos.
+- **Eventos.** `NdsEventSession.Save` se divide en `Stage` (decide el resultado sin escribir ni cambiar la sesión) e `Install`. `NdsProject.SaveEvent(propuesta)` guarda en el proyecto el historial de eventos, los bytes de eventos y el archivo de scripts cuando difieren del original, **sin escribir un checkpoint**, e instala después. Las sesiones no persistentes siguen guardando checkpoints `.ndsevents.json` como hasta ahora, y el historial guardado conserva la forma de los checkpoints v1–v3.
+- **Conflictos de scripts al confirmar.** Si una operación trae un archivo de scripts y el historial de eventos añadió scripts (o al revés), se comprueba al confirmar que no editan el mismo archivo de scripts, con la misma regla que usa la exportación; antes solo fallaba al exportar. Se aplica también a sesiones no persistentes cuando la operación general llega después de los eventos.
+- **Reanudar.** Instalar un documento es todo o nada: se rechaza si alguna tabla u overlay no existe en la ROM, si el modo romhack no coincide, si trae un ARM9 en un juego donde no se modifica, si trae eventos en un juego sin soporte, si los scripts de eventos y de otro módulo no combinan, o si el historial de eventos **no reproduce byte a byte** los datos guardados. En ese caso la sesión no cambia.
+- **Resultado desconocido.** `Apply`, `Reset` y `SaveEvent` lanzan `NdsProjectFaultedException` y la sesión no admite más operaciones hasta `ReconcilePersistence()`, que instala lo que haya en disco. Un conflicto (`StaleGeneration`, `DifferentProject`) rechaza la operación sin perder la sesión ni adoptar el otro contenido.
+- **Coste.** El guardado es síncrono (12 ms en SSD y 49 ms en el disco mecánico medidos en el PR 2, más la serialización de la operación nueva). Se ejecuta donde se llame a `Apply`; moverlo fuera del hilo de la interfaz, si hiciera falta, es del PR 5.
+
+**Cómo se acredita.** `--nds-project-transactions-only` (83 comprobaciones, en el CI), con ROM sintéticas de los seis perfiles abiertas como romhack (las tablas originales no son redistribuibles), y `--nds-project-transactions-probe <carpeta nueva> <ROM…>` con volcados privados en solo lectura (los archivos del proyecto se escriben en la carpeta de salida, nunca junto a la ROM).
+
+| Área | Qué se prueba |
+|---|---|
+| Equivalencia | tras **cada** operación (edición manual de entrenador y de especie, randomizar entrenadores y salvajes, equipos y reglas, datos, movimientos por nivel, ajustes del juego donde aplican, segunda edición y segunda randomización) la sesión viva, el proyecto reabierto desde disco y una sesión sin persistencia tienen los mismos bytes: tablas, overlays, ARM9, recompresión e historial |
+| Exportación | la ROM exportada por la sesión viva, por una sesión reanudada tras cerrar y por una sesión sin proyecto es idéntica byte a byte |
+| Continuidad | el trabajo sigue tras reanudar; una vista previa obsoleta se rechaza sin tocar el proyecto; descartar es una generación vacía y la anterior queda en el respaldo |
+| Fallos | escritura fallida y verificación fallida: la operación no se aplica y se puede reintentar; resultado desconocido: bloqueo, y reconciliar instala lo que quedó guardado; cambio externo: rechazo sin perder la sesión ni sobrescribir |
+| Rechazos al asociar | otro juego, otro volcado, modo romhack distinto, tabla u overlay inexistentes, eventos sin soporte, sesión con cambios, segundo proyecto |
+| Procesos temporales | Batch y las sesiones sin persistencia no crean `.drproj` ni bloqueos; un Global Template aplicado a un proyecto persistente da la misma ROM, una generación por operación, y la plantilla capturada es la misma tras cerrar y reabrir |
+| Eventos | guardar sin checkpoint, reapertura idéntica, operaciones generales y de eventos intercaladas, deshacer hasta el original, historial que no reproduce los bytes u operación desconocida rechazados sin instalar nada, regla de combinación de scripts |
+
+Resultados del 10/11/2026 con los volcados del propietario (Platino, Diamante, HeartGold, Negro y Blanco 2; Blanco no está disponible): 51 de 51. En los cinco se aplican los nueve tipos de operación. En Platino, además: una enfermera con su script añadido se guarda en el proyecto sin checkpoint; otra edición del mismo archivo de scripts se rechaza al confirmar, en los dos órdenes, sin guardar nada; la edición de otro archivo combina; la ROM exportada tras reanudar es idéntica; y deshacer devuelve los eventos y los scripts originales. Las ROM de origen no cambian y no aparece nada junto a ellas.
+
+**No probado.** Nada de esto se ha jugado: son comprobaciones de bytes. La jugabilidad de la ROM exportada depende de los motores, que este PR no modifica.
+
+## 9. Plan de PR
+
 
 1. **PR 1 (este).** Contrato, formato, identidad, almacén en memoria, transacción y mediciones.
 2. **PR 2. Almacén en disco.** `NdsProjectFileStore`: temporal en la misma carpeta, `Flush(true)`, relectura y verificación, `File.Replace` con rotación de respaldos, bloqueo con un archivo abierto sin compartir (el sistema lo libera si el proceso muere), detección de cambios externos por generación e identidad del archivo, carpetas sin permisos de escritura (alternativa explícita en `%LOCALAPPDATA%`, con consentimiento), recuperación y conservación del dañado. Pruebas con fallas inyectadas y con un proceso hijo que se interrumpe, como `RecoveryChecks`.
@@ -162,7 +192,7 @@ Resultados del 10/11/2026 en el equipo del propietario: 82 de 82 en un SSD NVMe 
 4. **PR 4. Apertura desde B2.** Nuevo tipo `DsProject` en el detector, creación y reanudación automáticas tras verificar la ROM, apertura desde el `.drproj` si la ROM cambió de sitio (volver a localizarla y comprobar la identidad), importación de checkpoints, y cambio de proyecto sin «descartar» porque el trabajo ya está guardado.
 5. **PR 5. Interfaz y resistencia.** Indicador (guardando, guardado, error, solo lectura, bloqueado por reconciliación), diálogos de recuperación y de conflicto, simulación de varios días con cierres forzados, sonda con entrada real, documentación y notas de 1.0.0.
 
-## 9. Limitaciones y riesgos abiertos
+## 10. Limitaciones y riesgos abiertos
 
 - El PR 1 no escribe en disco: el almacén real y lo que se ha demostrado y lo que no están en la sección 7.
 - No hay mediciones de Blanco (España); se cubre con las de Negro y Blanco 2 (misma estructura).
