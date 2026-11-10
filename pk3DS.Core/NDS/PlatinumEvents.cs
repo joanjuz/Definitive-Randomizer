@@ -200,7 +200,7 @@ public sealed class PlatinumEvents
     }
 
     /// <summary>Why a new NPC record cannot be added to a map; empty when every structural rule holds. Spatial rules (terrain, occupancy) are the caller's.</summary>
-    public IReadOnlyList<string> ValidateNewNpc(int mapId, byte[] record)
+    public IReadOnlyList<string> ValidateNewNpc(int mapId, byte[] record, int? allowedScript = null)
     {
         var problems = new List<string>(); var map = Map(mapId);
         if (record.Length != 32) { problems.Add("el registro de NPC debe medir 32 bytes"); return problems; }
@@ -212,7 +212,8 @@ public sealed class PlatinumEvents
         if (!_graphics.Contains(gfx)) problems.Add($"el gráfico {gfx} no aparece en los NPC del juego original");
         if (!_movements.Contains(movement)) problems.Add($"el tipo de movimiento {movement} no aparece en los NPC del juego original");
         if (type != 0) problems.Add("solo se crean NPC normales (tipo 0)");
-        if (flag != 0 || script != 0) problems.Add("un NPC nuevo no lleva script ni flag: no se copian referencias de otro NPC");
+        if (flag != 0) problems.Add("un NPC nuevo no lleva flag: no se copian referencias de otro NPC");
+        if (script != 0 && script != allowedScript) problems.Add("un NPC nuevo solo lleva el script que el editor acredita (copiado o compartido); no se copian referencias de otro NPC");
         if (direction > 3) problems.Add("la dirección debe estar entre 0 y 3");
         var bounds = Bounds(mapId);
         if (x < 0 || y < 0 || x >= bounds.Width || y >= bounds.Height) problems.Add("la posición está fuera de los límites que acepta el editor");
@@ -224,9 +225,9 @@ public sealed class PlatinumEvents
     /// header that uses them). The archive is rebuilt through Narc; every other member must stay byte-identical and the result is re-parsed and checked.
     /// This instance is not modified. The accredited-source hash does not apply to derived data: callers verify by replaying their operation list.
     /// </summary>
-    public PlatinumEvents AddNpc(int mapId, byte[] record)
+    public PlatinumEvents AddNpc(int mapId, byte[] record, int? allowedScript = null)
     {
-        var problems = ValidateNewNpc(mapId, record);
+        var problems = ValidateNewNpc(mapId, record, allowedScript);
         if (problems.Count > 0) throw new InvalidOperationException("No se puede añadir el NPC: " + string.Join("; ", problems) + ".");
         int file = Map(mapId).EventFile; var archive = Narc.Read(_events); byte[] member = archive.Files[file];
         var (offset, count) = _blocks[file][1]; int end = offset + count * 32;
@@ -269,6 +270,33 @@ public sealed class PlatinumEvents
     }
 
     public byte[] Bytes() => (byte[])_events.Clone();
+    /// <summary>The script archive this instance carries (the original one, or one with entries appended by <see cref="WithAppendedScript"/>).</summary>
+    public byte[] ScriptArchiveBytes() => (byte[])_scriptBytes.Clone();
+    public int ScriptEntryCount(int mapId) => PlatinumScriptFile.EntryOffsets(_scripts.Files[Map(mapId).ScriptFile]).Count;
+    public bool HasReadableScriptFile(int mapId) => PlatinumScriptFile.TryEntryCount(_scripts.Files[Map(mapId).ScriptFile], out _);
+    /// <summary>Recognises a LOCAL script (1…N) of the map's script file. Common and battle scripts are not local and return null.</summary>
+    public PlatinumScriptInfo? ClassifyScript(int mapId, int number)
+    {
+        var member = _scripts.Files[Map(mapId).ScriptFile];
+        // About half of scr_seq are level-script tables, not entry tables; a header pointing at one simply has no recognisable local scripts.
+        if (!PlatinumScriptFile.TryEntryCount(member, out int count)) return new(number, PlatinumScriptPattern.Unknown, null, null, null, "");
+        return number >= 1 && number <= count ? PlatinumScriptFile.Classify(member, number) : null;
+    }
+
+    /// <summary>
+    /// Returns a NEW instance whose script archive has <paramref name="code"/> appended as the last entry of the map's script file. Existing
+    /// script numbers keep their meaning; every other member of the archive stays byte-identical; the event archive is not touched.
+    /// </summary>
+    public PlatinumEvents WithAppendedScript(int mapId, byte[] code, out int number)
+    {
+        int file = Map(mapId).ScriptFile; var archive = Narc.Read(_scriptBytes); var before = archive.Files.Select(f => (byte[])f.Clone()).ToList();
+        archive.Files[file] = PlatinumScriptFile.AppendEntry(archive.Files[file], code, out number);
+        var next = new PlatinumEvents(_headers, _names, _events, _matrices, archive.Write(), _labels);
+        var after = Narc.Read(next._scriptBytes).Files;
+        if (after.Count != before.Count || !Enumerable.Range(0, before.Count).All(i => i == file || before[i].AsSpan().SequenceEqual(after[i])) || !next._events.AsSpan().SequenceEqual(_events))
+            throw new InvalidDataException("La ampliación del archivo de scripts alteró otros miembros; se descarta.");
+        return next;
+    }
     public PlatinumEvents WithEvents(byte[] events)
     {
         var next = new PlatinumEvents(_headers, _names, events, _matrices, _scriptBytes, _labels);
