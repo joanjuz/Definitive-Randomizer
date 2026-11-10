@@ -50,7 +50,7 @@ internal static class NdsProjectFormatChecks
     private static void Container(Action<bool, string> check)
     {
         var doc = Doc(); byte[] bytes = NdsProjectCodec.Serialize(doc); var read = NdsProjectCodec.Read(bytes);
-        check(read.Ok && SameDoc(doc, read.Document!) && read.Document!.Meta.Blobs!.Count == 6, "NdsProject_RoundTripKeepsEveryField");
+        check(read.Ok && SameDoc(doc, read.Document!) && read.Document!.Meta.Blobs!.Count == 7, "NdsProject_RoundTripKeepsEveryField");
         check(read.Header is { ContainerVersion: 1, Generation: 1, OperationCount: 4 } && read.Header.SavedUtc == doc.Meta.SavedUtc && read.Header.TotalLength == bytes.Length, "NdsProject_HeaderCarriesGenerationOperationsAndTime");
         check(NdsProjectCodec.Serialize(doc).AsSpan().SequenceEqual(bytes) && NdsProjectCodec.Serialize(read.Document!).AsSpan().SequenceEqual(bytes), "NdsProject_SerializationIsDeterministicAndStableAcrossReload");
         var empty = new NdsProjectDocument(doc.Meta with { Operations = [], Events = null, RecompressOverlays = [], Settings = null }, new NdsProjectState());
@@ -64,7 +64,8 @@ internal static class NdsProjectFormatChecks
         var again = NdsProjectCodec.Read(NdsProjectCodec.Serialize(NdsProjectCodec.Read(NdsProjectCodec.Serialize(extended)).Document!)).Document!;
         check(again.Meta.Extra is { Count: 1 } && again.Meta.Extra["Futuro"].GetRawText() == future.ToJsonString(), "NdsProject_UnknownFieldsOfANewerMinorVersionAreKept");
         // The same inside the ROM identity, an operation record and the event history (a newer build may extend those objects too).
-        var nested = NdsProjectCodec.Read(Remanifest(bytes, m => { m["Rom"]!["Region"] = "EUR"; m["Operations"]![0]!["Etiqueta"] = new JsonArray(1, 2); m["Events"]!["Mapa"] = new JsonObject { ["Z"] = 3 }; }));
+        var relabeled = (JsonArray)JsonNode.Parse(NdsProjectCodec.HistoryJson(doc.Meta.Operations))!; relabeled[0]!["Etiqueta"] = new JsonArray(1, 2);
+        var nested = NdsProjectCodec.Read(Remanifest(NdsProjectCodec.Assemble(doc, System.Text.Encoding.UTF8.GetBytes(relabeled.ToJsonString())), m => { m["Rom"]!["Region"] = "EUR"; m["Events"]!["Mapa"] = new JsonObject { ["Z"] = 3 }; }));
         var nestedAgain = nested.Ok ? NdsProjectCodec.Read(NdsProjectCodec.Serialize(nested.Document!)).Document! : null;
         check(nestedAgain is not null && nestedAgain.Meta.Rom.Extra!["Region"].GetString() == "EUR" && nestedAgain.Meta.Operations[0].Extra!["Etiqueta"].GetRawText() == "[1,2]" && nestedAgain.Meta.Events!.Extra!["Mapa"].GetRawText() == "{\"Z\":3}"
             && nestedAgain.Meta.Rom.SameRomAs(doc.Meta.Rom) && NdsProjectAssociation.Evaluate(nestedAgain.Meta.Rom, doc.Meta.Rom).IsMatch, "NdsProject_UnknownFieldsInsideTheRomOperationsAndEventsAreKept");
@@ -72,6 +73,14 @@ internal static class NdsProjectFormatChecks
         var reversed = new NdsProjectState { Arm9 = doc.State.Arm9, EventData = doc.State.EventData, EventScripts = doc.State.EventScripts };
         foreach (var (path, data) in doc.State.Files.Reverse()) reversed.Files[path] = data; foreach (var (id, data) in doc.State.Overlays) reversed.Overlays[id] = data;
         check(NdsProjectCodec.Serialize(new(doc.Meta, reversed)).AsSpan().SequenceEqual(bytes), "NdsProject_SerializationDoesNotDependOnInsertionOrder");
+        // The history is not in the manifest: it is a compressed table, so a randomization with thousands of changes costs kilobytes, not megabytes.
+        var heavy = Doc(ops: 0); heavy = new(heavy.Meta with { Operations = Enumerable.Range(0, 6).Select(o => new NdsProjectOperationRecord("Randomizar " + o, (uint)o, new JsonObject { ["Kind"] = "Species" },
+            Enumerable.Range(0, 3000).Select(i => new Gen5Change("Entrenador " + (i / 3) + " · Pokémon " + (i % 3), "Especie", (i * 7 + o) % 493, (i * 13 + o) % 493)).ToList())).ToList() }, heavy.State);
+        byte[] heavyBytes = NdsProjectCodec.Serialize(heavy); int heavyManifest = BitConverter.ToInt32(heavyBytes, 28); var heavyRead = NdsProjectCodec.Read(heavyBytes);
+        var historyEntry = heavyRead.Document?.Meta.Blobs!.SingleOrDefault(b => b.Kind == NdsProjectBlobKind.History);
+        check(heavyRead.Ok && SameDoc(heavy, heavyRead.Document!) && historyEntry is { Codec: "br", Name: NdsProjectCodec.HistoryName } && historyEntry.RawLength > 1_000_000 && historyEntry.StoredLength < historyEntry.RawLength / 4 && heavyManifest < 4096
+            && !System.Text.Encoding.UTF8.GetString(heavyBytes, NdsProjectCodec.HeaderSize, heavyManifest).Contains("\"Operations\":[{\"Action\"", StringComparison.Ordinal), $"NdsProject_HistoryIsACompressedTableNotPartOfTheManifest_{historyEntry?.RawLength / 1024}KiBTo{historyEntry?.StoredLength / 1024}KiB");
+        check(NdsProjectCodec.Read(NdsProjectCodec.Serialize(Doc(ops: 0, events: false))) is { Ok: true } none && none.Document!.Meta.Blobs!.All(b => b.Kind != NdsProjectBlobKind.History) && none.Document.Meta.Operations.Count == 0, "NdsProject_AProjectWithoutOperationsHasNoHistoryTable");
         var ninth = NdsProjectCodec.Read(NdsProjectCodec.Serialize(Doc(files: 40, fileSize: 300)));
         check(ninth.Ok && ninth.Document!.State.Files.Count == 40, "NdsProject_ManyTablesRoundTrip");
         var op = new NdsOperation("Manual", 5, [new Gen5Change("x", "y", 1, 2)], new JsonObject { ["Kind"] = "Edit" });
@@ -153,15 +162,12 @@ internal static class NdsProjectFormatChecks
     {
         check(NdsProjectCodec.Read(Remanifest(bytes, _ => { })).Ok, "NdsProject_RewrittenManifestWithValidChecksumsIsTheControlCase");
         static JsonObject Blob(JsonObject m, int i) => (JsonObject)m["Blobs"]![i]!;
-        static JsonObject Op(JsonObject m, int i) => (JsonObject)m["Operations"]![i]!;
         static JsonObject Ev(JsonObject m) => (JsonObject)m["Events"]!;
         var cases = new (string Name, Action<JsonObject> Patch)[]
         {
             ("BlobNameNull", m => Blob(m, 0)["Name"] = null), ("BlobCodecNull", m => Blob(m, 0)["Codec"] = null), ("BlobShaNull", m => Blob(m, 0)["Sha256"] = null), ("BlobEntryNull", m => ((JsonArray)m["Blobs"]!)[0] = null),
             ("BlobsNull", m => m["Blobs"] = null), ("RomNull", m => m["Rom"] = null), ("RomShaNull", m => m["Rom"]!["Sha256"] = null), ("RomSha1Null", m => m["Rom"]!["Sha1"] = null), ("RomCodeNull", m => m["Rom"]!["GameCode"] = null),
             ("RomGameNull", m => m["Rom"]!["Game"] = null), ("RomPathNull", m => m["Rom"]!["LastKnownPath"] = null), ("RomShaNotHex", m => m["Rom"]!["Sha256"] = "zz"), ("RomLengthNegative", m => m["Rom"]!["Length"] = -1),
-            ("OperationsNull", m => m["Operations"] = null), ("OperationNull", m => ((JsonArray)m["Operations"]!)[0] = null), ("OperationActionNull", m => Op(m, 0)["Action"] = null), ("OperationRecipeNull", m => Op(m, 0)["Recipe"] = null),
-            ("OperationChangesNull", m => Op(m, 0)["Changes"] = null), ("OperationChangeNull", m => ((JsonArray)Op(m, 0)["Changes"]!)[0] = null),
             ("EventsEmptyObject", m => m["Events"] = new JsonObject()), ("EventOperationsNull", m => Ev(m)["Operations"] = null), ("EventOperationNull", m => ((JsonArray)Ev(m)["Operations"]!)[0] = null), ("EventAuditNull", m => Ev(m)["Audit"] = null),
             ("EventAuditLineNull", m => ((JsonArray)Ev(m)["Audit"]!)[0] = null), ("EventKindNull", m => Ev(m)["Operations"]![0]!["Kind"] = null), ("EventMoveWithoutPayload", m => Ev(m)["Operations"]![0]!["Move"] = null),
             ("RecompressNull", m => m["RecompressOverlays"] = null), ("WriterNull", m => m["Writer"] = null), ("FormatVersionZero", m => m["FormatVersion"] = 0), ("ManifestMinReaderDiffersFromHeader", m => m["MinReaderVersion"] = 0),
@@ -173,6 +179,24 @@ internal static class NdsProjectFormatChecks
             try { var r = NdsProjectCodec.Read(Remanifest(bytes, patch)); outcome = r.Ok ? "accepted" : r.Status.ToString(); } catch (Exception ex) { outcome = "threw " + ex.GetType().Name; }
             check(outcome == nameof(NdsProjectReadStatus.Invalid), $"NdsProject_HostileManifest_{name}_IsInvalid" + (outcome == nameof(NdsProjectReadStatus.Invalid) ? "" : " [" + outcome + "]"));
         }
+        // The same for the history, which is a table of its own: valid checksums, incomplete or malformed content.
+        var doc = NdsProjectCodec.Read(bytes).Document!;
+        check(NdsProjectCodec.Read(NdsProjectCodec.Assemble(doc, NdsProjectCodec.HistoryJson(doc.Meta.Operations))).Ok, "NdsProject_ReassembledHistoryIsTheControlCase");
+        byte[] History(Action<JsonArray> patch) { var array = (JsonArray)JsonNode.Parse(NdsProjectCodec.HistoryJson(doc.Meta.Operations))!; patch(array); return System.Text.Encoding.UTF8.GetBytes(array.ToJsonString()); }
+        var histories = new (string Name, byte[] Bytes)[]
+        {
+            ("NullInsteadOfAList", "null"u8.ToArray()), ("AnObjectInsteadOfAList", "{}"u8.ToArray()), ("NotJson", "[{"u8.ToArray()), ("EmptyList", "[]"u8.ToArray()), ("Empty", []),
+            ("OperationNull", History(a => a[0] = null)), ("OperationActionNull", History(a => a[0]!["Action"] = null)), ("OperationRecipeNull", History(a => a[0]!["Recipe"] = null)), ("OperationRecipeIsAList", History(a => a[0]!["Recipe"] = new JsonArray())),
+            ("OperationChangesNull", History(a => a[0]!["Changes"] = null)), ("OperationChangeNull", History(a => ((JsonArray)a[0]!["Changes"]!)[0] = null)), ("OneOperationMissing", History(a => a.RemoveAt(0))), ("OneOperationTooMany", History(a => a.Add(a[0]!.DeepClone()))),
+        };
+        foreach (var (name, history) in histories)
+        {
+            string outcome;
+            try { var r = NdsProjectCodec.Read(NdsProjectCodec.Assemble(doc, history)); outcome = r.Ok ? "accepted" : r.Status.ToString(); } catch (Exception ex) { outcome = "threw " + ex.GetType().Name; }
+            check(outcome == nameof(NdsProjectReadStatus.Invalid), $"NdsProject_HostileHistory_{name}_IsInvalid" + (outcome == nameof(NdsProjectReadStatus.Invalid) ? "" : " [" + outcome + "]"));
+        }
+        // A project that says it has operations but carries no history table.
+        check(NdsProjectCodec.Read(NdsProjectCodec.Assemble(doc, null)).Status == NdsProjectReadStatus.Invalid, "NdsProject_OperationsCountedInTheHeaderButMissingAreInvalid");
         // A generation below 1 (0 means "no project yet") is never a stored project, even when the header and the manifest agree on it.
         foreach (long generation in new[] { 0L, -1L })
             check(NdsProjectCodec.Read(Remanifest(bytes, m => m["Generation"] = generation, h => BitConverter.TryWriteBytes(h.AsSpan(16), generation))).Status == NdsProjectReadStatus.Invalid, $"NdsProject_Generation{generation}_IsInvalid");
@@ -436,6 +460,17 @@ internal static class NdsProjectFormatChecks
     private static void Scale(Action<bool, string> check)
     {
         // A project several times larger than the measured real ones (≈ 400 KiB raw): 6 MiB of tables and 5000 operations still serialize and read in well under the CI budget.
+        // A long project: 2000 operations of which 40 are full randomizations (5000 changes each). The history is megabytes of JSON; it is compressed, and a save
+        // after one more operation does not serialize the earlier ones again.
+        var long_ = Doc(ops: 0, files: 4, fileSize: 64 * 1024); var records = new List<NdsProjectOperationRecord>();
+        for (int o = 0; o < 2000; o++) records.Add(new("Operación " + o, o % 50 == 0 ? (uint)o : null, new JsonObject { ["Kind"] = o % 50 == 0 ? "Species" : "Edit", ["I"] = o },
+            Enumerable.Range(0, o % 50 == 0 ? 5000 : 2).Select(i => new Gen5Change("Entrada " + i, "Especie", (i + o) % 493, (i * 3 + o) % 493)).ToList()));
+        long_ = new(long_.Meta with { Operations = records }, long_.State);
+        var clock = System.Diagnostics.Stopwatch.StartNew(); byte[] first = NdsProjectCodec.Serialize(long_); long cold = clock.ElapsedMilliseconds;
+        var grown = new NdsProjectDocument(long_.Meta with { Generation = 2, Operations = [.. records, new("Una más", null, new JsonObject { ["Kind"] = "Edit" }, [new("x", "y", 1, 2)])] }, long_.State);
+        clock.Restart(); byte[] second = NdsProjectCodec.Serialize(grown); long warm = clock.ElapsedMilliseconds; clock.Restart(); var longRead = NdsProjectCodec.Read(second); long longReadMs = clock.ElapsedMilliseconds;
+        Console.WriteLine($"   historial largo: 2001 operaciones, {grown.Meta.Operations.Sum(o => o.Changes.Count)} cambios → archivo {second.Length / 1024} KiB · primera serialización {cold} ms · siguiente guardado {warm} ms · leer y verificar {longReadMs} ms");
+        check(longRead.Ok && SameDoc(grown, longRead.Document!) && first.Length < 8 * 1024 * 1024 && warm < 4000 && longReadMs < 15000, "NdsProject_ALongHistoryWithFortyRandomizationsStaysSmallAndSavesWithinTheBudget");
         var big = Doc(ops: 5000, files: 12, fileSize: 512 * 1024); var sw = System.Diagnostics.Stopwatch.StartNew(); byte[] bytes = NdsProjectCodec.Serialize(big); long write = sw.ElapsedMilliseconds;
         sw.Restart(); var read = NdsProjectCodec.Read(bytes); long readMs = sw.ElapsedMilliseconds;
         Console.WriteLine($"   escala: {big.State.Files.Values.Sum(f => (long)f.Length) / 1024} KiB brutos → {bytes.Length / 1024} KiB · serializar {write} ms · leer y verificar {readMs} ms");

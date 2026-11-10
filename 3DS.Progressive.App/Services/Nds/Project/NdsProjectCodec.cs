@@ -55,15 +55,42 @@ internal static class NdsProjectCodec
     internal static string BlobName(NdsProjectBlobKind kind, string key) => kind switch
     {
         NdsProjectBlobKind.File => "file:" + key, NdsProjectBlobKind.Overlay => "overlay:" + key, NdsProjectBlobKind.Arm9 => "arm9",
-        NdsProjectBlobKind.EventData => "events:data", _ => "events:scripts",
+        NdsProjectBlobKind.EventData => "events:data", NdsProjectBlobKind.History => HistoryName, _ => "events:scripts",
     };
 
+    internal const string HistoryName = "history";
+
     // ------------------------------------------------------------------------------------------------------------------------------ write
+
+    /// <summary>
+    /// The JSON of one operation record, computed once. An operation is immutable after it is confirmed, and a project that grows keeps the same record objects,
+    /// so a save costs the new operation, not the whole history again (a single randomization records thousands of changes).
+    /// </summary>
+    private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<NdsProjectOperationRecord, byte[]> RecordJson = new();
+
+    /// <summary>The operations as one UTF-8 JSON array, in order. Stored as a compressed table (<see cref="HistoryName"/>), not in the manifest.</summary>
+    internal static byte[] HistoryJson(IReadOnlyList<NdsProjectOperationRecord> operations)
+    {
+        var parts = operations.Select(o => RecordJson.GetValue(o, record => JsonSerializer.SerializeToUtf8Bytes(record, Json))).ToArray();
+        var output = new byte[parts.Sum(p => (long)p.Length) + Math.Max(0, parts.Length - 1) + 2]; int at = 0; output[at++] = (byte)'[';
+        for (int i = 0; i < parts.Length; i++) { if (i > 0) output[at++] = (byte)','; parts[i].CopyTo(output, at); at += parts[i].Length; }
+        output[at] = (byte)']';
+        return output;
+    }
 
     /// <summary>Serializes the document. Blobs are ordered by name, so equal documents give equal manifests; the generation and operation count go in the header too.</summary>
     internal static byte[] Serialize(NdsProjectDocument document)
     {
+        // The writer refuses what the reader would refuse, so a file that cannot be read back is never produced.
+        if (Validate(document.Meta) is { } problem) throw new InvalidDataException("El proyecto no es válido: " + problem);
+        return Assemble(document, document.Meta.Operations.Count > 0 ? HistoryJson(document.Meta.Operations) : null);
+    }
+
+    /// <summary>Builds the container from the document and the given history bytes, with every checksum right. Apart from <see cref="Serialize"/>, only the tests call it (to write what a hostile or buggy writer could).</summary>
+    internal static byte[] Assemble(NdsProjectDocument document, byte[]? history)
+    {
         var raws = new List<(NdsProjectBlobKind Kind, string Name, byte[] Raw)>();
+        if (history is not null) raws.Add((NdsProjectBlobKind.History, HistoryName, history));
         foreach (var (path, data) in document.State.Files) raws.Add((NdsProjectBlobKind.File, BlobName(NdsProjectBlobKind.File, path), data));
         foreach (var (id, data) in document.State.Overlays) raws.Add((NdsProjectBlobKind.Overlay, BlobName(NdsProjectBlobKind.Overlay, id.ToString(System.Globalization.CultureInfo.InvariantCulture)), data));
         if (document.State.Arm9 is { } arm9) raws.Add((NdsProjectBlobKind.Arm9, BlobName(NdsProjectBlobKind.Arm9, ""), arm9));
@@ -71,18 +98,16 @@ internal static class NdsProjectCodec
         if (document.State.EventScripts is { } scripts) raws.Add((NdsProjectBlobKind.EventScripts, BlobName(NdsProjectBlobKind.EventScripts, ""), scripts));
         raws.Sort((a, b) => string.CompareOrdinal(a.Name, b.Name));
         if (raws.Count > MaxBlobs) throw new InvalidDataException("El proyecto tiene demasiadas tablas modificadas.");
-        // The writer refuses what the reader would refuse, so a file that cannot be read back is never produced.
-        if (document.Meta.MinReaderVersion > ushort.MaxValue) throw new InvalidDataException("Versión mínima de lector fuera de rango.");
-        if (Validate(document.Meta) is { } problem) throw new InvalidDataException("El proyecto no es válido: " + problem);
+        if (document.Meta.MinReaderVersion is < 0 or > ushort.MaxValue) throw new InvalidDataException("Versión mínima de lector fuera de rango.");
         var stored = new List<byte[]>(); var entries = new List<NdsProjectBlobEntry>();
         foreach (var (kind, name, raw) in raws)
         {
-            if (raw.Length > MaxBlobRawBytes) throw new InvalidDataException("Una tabla modificada supera el tamaño admitido: " + name);
+            if (raw.Length > MaxBlobRawBytes) throw new InvalidDataException(kind == NdsProjectBlobKind.History ? "El historial del proyecto supera el tamaño admitido." : "Una tabla modificada supera el tamaño admitido: " + name);
             byte[] packed = Compress(raw); bool smaller = packed.Length < raw.Length; byte[] bytes = smaller ? packed : raw;
             stored.Add(bytes); entries.Add(new(name, kind, raw.Length, bytes.Length, Convert.ToHexString(SHA256.HashData(raw)), smaller ? "br" : "raw"));
         }
         byte[] manifest = JsonSerializer.SerializeToUtf8Bytes(document.Meta with { Blobs = entries }, Json);
-        if (manifest.Length > MaxManifestBytes) throw new InvalidDataException("El historial del proyecto supera el tamaño admitido.");
+        if (manifest.Length > MaxManifestBytes) throw new InvalidDataException("El manifiesto del proyecto (historial de eventos y ajustes) supera el tamaño admitido.");
         long total = HeaderSize + manifest.Length + stored.Sum(b => 4L + b.Length) + FooterSize;
         if (total > MaxTotalBytes) throw new InvalidDataException("El proyecto supera el tamaño admitido.");
         var output = new byte[total]; var span = output.AsSpan();
@@ -134,11 +159,10 @@ internal static class NdsProjectCodec
         // Every checksum can be valid and the content still be incomplete (a hostile or a buggy writer): nothing below may assume a part exists before this.
         if (Validate(meta) is { } problem) return Fail(NdsProjectReadStatus.Invalid, "El manifiesto del proyecto no es válido: " + problem, header);
         if (meta.MinReaderVersion != header.MinReaderVersion) return Fail(NdsProjectReadStatus.Invalid, "La cabecera y el manifiesto no coinciden (versión mínima de lector).", header);
-        if (meta.Generation != header.Generation || meta.Operations.Count + (meta.Events?.Operations.Count ?? 0) != header.OperationCount || meta.Blobs.Count != blobCount)
-            return Fail(NdsProjectReadStatus.Invalid, "La cabecera y el manifiesto no coinciden (generación, operaciones o tablas).", header);
+        if (meta.Generation != header.Generation || meta.Blobs.Count != blobCount) return Fail(NdsProjectReadStatus.Invalid, "La cabecera y el manifiesto no coinciden (generación o tablas).", header);
         foreach (var blob in meta.Blobs)
             if (blob is null || blob.Name is null || blob.Sha256 is null || blob.Codec is null || !IsHex(blob.Sha256, 64)) return Fail(NdsProjectReadStatus.Invalid, "El índice de tablas está incompleto.", header);
-        var files = new Dictionary<string, byte[]>(StringComparer.Ordinal); var overlays = new Dictionary<int, byte[]>(); byte[]? arm9 = null, eventData = null, eventScripts = null;
+        var files = new Dictionary<string, byte[]>(StringComparer.Ordinal); var overlays = new Dictionary<int, byte[]>(); byte[]? arm9 = null, eventData = null, eventScripts = null, history = null;
         int at = HeaderSize + (int)manifestLength; var seen = new HashSet<string>(StringComparer.Ordinal); long budget = 0;
         foreach (var entry in meta.Blobs)
         {
@@ -158,10 +182,22 @@ internal static class NdsProjectCodec
                 case NdsProjectBlobKind.Arm9 when entry.Name == "arm9": arm9 = raw; break;
                 case NdsProjectBlobKind.EventData when entry.Name == "events:data": eventData = raw; break;
                 case NdsProjectBlobKind.EventScripts when entry.Name == "events:scripts": eventScripts = raw; break;
+                case NdsProjectBlobKind.History when entry.Name == HistoryName: history = raw; break;
                 default: return Fail(NdsProjectReadStatus.Invalid, $"Tabla con nombre o tipo no válido: «{entry.Name}».", header);
             }
         }
         if (at != end) return Fail(NdsProjectReadStatus.Invalid, "Quedan bytes sin describir antes del final del proyecto.", header);
+        // The operations travel as a table of their own (compressed): they complete the manifest, and the whole is validated again with them.
+        if (history is not null)
+        {
+            List<NdsProjectOperationRecord>? operations;
+            try { operations = JsonSerializer.Deserialize<List<NdsProjectOperationRecord>>(history, Json); }
+            catch (Exception ex) when (ex is JsonException or NotSupportedException or InvalidOperationException or FormatException) { return Fail(NdsProjectReadStatus.Invalid, "El historial del proyecto no es válido: " + ex.Message, header); }
+            if (operations is null || operations.Count == 0) return Fail(NdsProjectReadStatus.Invalid, "El historial del proyecto está vacío o no es una lista.", header);
+            meta = meta with { Operations = operations };
+            if (Validate(meta) is { } incomplete) return Fail(NdsProjectReadStatus.Invalid, "El historial del proyecto no es válido: " + incomplete, header);
+        }
+        if (meta.Operations.Count + (meta.Events?.Operations.Count ?? 0) != header.OperationCount) return Fail(NdsProjectReadStatus.Invalid, "La cabecera y el historial no coinciden (número de operaciones).", header);
         return new(NdsProjectReadStatus.Ok, "", new NdsProjectDocument(meta, new NdsProjectState { Files = files, Overlays = overlays, Arm9 = arm9, EventData = eventData, EventScripts = eventScripts }), header);
     }
 
