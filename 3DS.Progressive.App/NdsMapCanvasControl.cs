@@ -25,12 +25,14 @@ namespace ThreeDS.Progressive;
 /// </summary>
 internal sealed class NdsMapCanvasControl : FrameworkElement
 {
-    internal const string SchematicNotice = "Vista esquemática de eventos. No representa los gráficos ni las colisiones del juego.";
+    internal const string SchematicNotice = "Vista esquemática de eventos. Muestra colisiones estáticas de terreno cuando hay datos, pero no representa los gráficos, las alturas ni todas las reglas de movimiento del juego.";
     private static readonly Typeface Face = new(new FontFamily("Segoe UI"), FontStyles.Normal, FontWeights.Normal, FontStretches.Normal);
     private static readonly Brush ExplicitFill, ContextualFill, OtherFill, Surface, Inspect;
+    private static readonly Pen GlyphPen = new(new SolidColorBrush(Color.FromArgb(0xC0, 0x40, 0x10, 0x10)), 1.5);
     private static readonly Pen BlockPen, TilePen, MatrixPen, ExplicitPen, SelectionPen, HaloPen, WarnPen;
     private NdsMapCanvasModel? _model;
     private Point _down, _last; private bool _pressed, _panning;
+    private System.Windows.Media.Imaging.BitmapSource? _terrainBitmap;
 
     internal NdsMapCanvasModel? Model => _model;
     /// <summary>Raised only for user clicks/keys (not for programmatic selection) so tables stay the source of truth.</summary>
@@ -38,6 +40,15 @@ internal sealed class NdsMapCanvasControl : FrameworkElement
     internal event Action? ViewChanged;
     internal event Action<string>? Hover;
     internal int RenderedMarkers { get; private set; }
+    internal static Brush LegendTerrain(PlatinumTerrainStatus status)
+    {
+        if (status == PlatinumTerrainStatus.Blocked) return new SolidColorBrush(Color.FromArgb(0xB8, 0xE0, 0x3A, 0x3A));
+        if (status == PlatinumTerrainStatus.ClearOfCollision) return new SolidColorBrush(Color.FromArgb(0x60, 0x4F, 0xC9, 0xB5));
+        var group = new DrawingGroup();
+        group.Children.Add(new GeometryDrawing(new SolidColorBrush(Color.FromArgb(0x80, 0x20, 0x24, 0x2C)), null, new RectangleGeometry(new Rect(0, 0, 4, 4))));
+        group.Children.Add(new GeometryDrawing(new SolidColorBrush(Color.FromArgb(0xA0, 0xA0, 0xA8, 0xB4)), null, new GeometryGroup { Children = { new RectangleGeometry(new Rect(0, 0, 2, 2)), new RectangleGeometry(new Rect(2, 2, 2, 2)) } }));
+        return new DrawingBrush(group) { TileMode = TileMode.Tile, Viewport = new Rect(0, 0, 4, 4), ViewportUnits = BrushMappingMode.Absolute, Viewbox = new Rect(0, 0, 4, 4), ViewboxUnits = BrushMappingMode.Absolute };
+    }
     internal static Brush LegendBrush(NdsBlockOwnership kind) => kind switch { NdsBlockOwnership.Explicit => ExplicitFill, NdsBlockOwnership.Contextual => ContextualFill, _ => OtherFill };
     internal static Brush LegendStroke => BlockPen.Brush;
 
@@ -63,16 +74,21 @@ internal sealed class NdsMapCanvasControl : FrameworkElement
     internal NdsMapCanvasControl()
     {
         Focusable = true; ClipToBounds = true; SnapsToDevicePixels = true; FocusVisualStyle = null;
-        RenderOptions.SetEdgeMode(this, EdgeMode.Aliased); Cursor = Cursors.Arrow;
+        RenderOptions.SetEdgeMode(this, EdgeMode.Aliased); RenderOptions.SetBitmapScalingMode(this, BitmapScalingMode.NearestNeighbor); Cursor = Cursors.Arrow;
         AutomationProperties.SetName(this, "Eventos DS · mapa esquemático de eventos");
         AutomationProperties.SetHelpText(this, SchematicNotice + " Flechas: elegir el evento vecino. Ctrl+flechas: desplazar. + y −: zoom. F: ajustar a eventos. Re Pág y Av Pág: siguiente o anterior.");
         Unloaded += (_, _) => { if (IsMouseCaptured) ReleaseMouseCapture(); _pressed = _panning = false; };
     }
 
-    internal void SetMap(PlatinumMapLayout layout, IEnumerable<PlatinumEvent> events, (PlatinumEventKind Kind, int Index)? selected = null, NdsMapLayers? layers = null)
+    internal void SetMap(PlatinumMapLayout layout, IEnumerable<PlatinumEvent> events, PlatinumTerrain? terrain = null, (int Width, int Height)? editorBounds = null, (PlatinumEventKind Kind, int Index)? selected = null, NdsMapLayers? layers = null)
     {
         var previousLayers = layers ?? _model?.Layers ?? NdsMapLayers.All;
-        _model = new NdsMapCanvasModel(layout, events) { Layers = previousLayers };
+        _model = new NdsMapCanvasModel(layout, events, terrain, editorBounds) { Layers = previousLayers };
+        _terrainBitmap = null;
+        if (_model.TerrainPixels() is { } pixels)
+        {
+            var bitmap = System.Windows.Media.Imaging.BitmapSource.Create(layout.TileWidth, layout.TileHeight, 96, 96, PixelFormats.Pbgra32, null, pixels, layout.TileWidth * 4); bitmap.Freeze(); _terrainBitmap = bitmap;
+        }
         if (selected is { } key) _model.Select(key.Kind, key.Index);
         if (ActualWidth > 0 && ActualHeight > 0) _model.SetViewport(ActualWidth, ActualHeight);
         Refresh();
@@ -220,6 +236,8 @@ internal sealed class NdsMapCanvasControl : FrameworkElement
                     dc.DrawText(Text(label, 11, soft), new Point(px + 4, py + 3));
                 }
             }
+        if ((m.Layers & NdsMapLayers.Terrain) != 0 && _terrainBitmap is not null && x1 >= x0 && y1 >= y0)
+            DrawTerrain(dc, m, Math.Max(0, x0), Math.Max(0, y0), Math.Min(m.Layout.TileWidth - 1, x1), Math.Min(m.Layout.TileHeight - 1, y1));
         if ((m.Layers & NdsMapLayers.Tiles) != 0 && z >= 8)
             for (int tx = Math.Max(0, x0); tx <= Math.Min(m.Layout.TileWidth, x1 + 1); tx++)
             {
@@ -258,6 +276,28 @@ internal sealed class NdsMapCanvasControl : FrameworkElement
         }
         if (m.SelectedMarker is { } sel && m.IsLayerVisible(sel)) DrawSelection(dc, m, sel);
         if (IsKeyboardFocused) dc.DrawRectangle(null, new Pen(Themed(this, "Accent", Inspect), 2), new Rect(1, 1, Math.Max(0, w - 2), Math.Max(0, h - 2)));
+    }
+
+    /// <summary>Terrain collision overlay: one image brush over the visible tile rectangle, plus x glyphs on blocked tiles when zoomed in.</summary>
+    private void DrawTerrain(DrawingContext dc, NdsMapCanvasModel m, int tx0, int ty0, int tx1, int ty1)
+    {
+        if (tx1 < tx0 || ty1 < ty0) return;
+        var (px, py) = m.TileToPixel(tx0, ty0); var (qx, qy) = m.TileToPixel(tx1 + 1, ty1 + 1);
+        var brush = new ImageBrush(_terrainBitmap) { ViewboxUnits = BrushMappingMode.Absolute, Viewbox = new Rect(tx0, ty0, tx1 - tx0 + 1, ty1 - ty0 + 1), Stretch = Stretch.Fill };
+        RenderOptions.SetBitmapScalingMode(brush, BitmapScalingMode.NearestNeighbor);
+        dc.DrawRectangle(brush, null, new Rect(px, py, qx - px, qy - py));
+        if (m.Zoom < 10) return;
+        var geometry = new StreamGeometry();
+        using (var ctx = geometry.Open())
+            for (int ty = ty0; ty <= ty1; ty++)
+                for (int tx = tx0; tx <= tx1; tx++)
+                    if (m.TerrainStatus(tx, ty) == PlatinumTerrainStatus.Blocked)
+                    {
+                        var (a, b) = m.TileToPixel(tx, ty); double i = m.Zoom * 0.22, s = m.Zoom;
+                        ctx.BeginFigure(new Point(a + i, b + i), false, false); ctx.LineTo(new Point(a + s - i, b + s - i), true, false);
+                        ctx.BeginFigure(new Point(a + s - i, b + i), false, false); ctx.LineTo(new Point(a + i, b + s - i), true, false);
+                    }
+        geometry.Freeze(); dc.DrawGeometry(null, GlyphPen, geometry);
     }
 
     private void DrawMarker(DrawingContext dc, NdsMapCanvasModel model, NdsMapMarker marker, double px, double py)

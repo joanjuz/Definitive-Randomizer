@@ -24,6 +24,8 @@ namespace ThreeDS.Progressive;
 internal sealed class NdsEventEditorView : UserControl
 {
     private readonly NdsEventSession _session;
+    private readonly PlatinumTerrain? _terrain;
+    private readonly TextBlock _terrainNote = new() { TextWrapping = TextWrapping.Wrap, FontSize = 11.5, Margin = new Thickness(0, 2, 0, 0) };
     private readonly TextBox _search = new(), _x = new(), _y = new(), _direction = new();
     private readonly TextBox _details = new() { IsReadOnly = true, TextWrapping = TextWrapping.Wrap, AcceptsReturn = true, VerticalScrollBarVisibility = ScrollBarVisibility.Auto };
     private readonly TextBox _differences = new() { IsReadOnly = true, TextWrapping = TextWrapping.Wrap, MinHeight = 44, MaxHeight = 100, VerticalScrollBarVisibility = ScrollBarVisibility.Auto };
@@ -50,9 +52,12 @@ internal sealed class NdsEventEditorView : UserControl
     private DataGrid CurrentTable => _tables[Math.Clamp(_tabs.SelectedIndex, 0, 3)];
     internal event Action? Changed;
 
-    internal NdsEventEditorView(NdsEventSession session)
+    internal NdsEventEditorView(NdsEventSession session, PlatinumTerrain? terrain = null, string? terrainUnavailable = null)
     {
-        _session = session; Margin = new Thickness(12);
+        _session = session; _terrain = terrain;
+        _terrainNote.Text = terrain is null
+            ? "Terreno: no disponible" + (string.IsNullOrWhiteSpace(terrainUnavailable) ? "" : " (" + terrainUnavailable + ")") + ". Se muestran solo eventos y matriz; las casillas no se consideran libres ni bloqueadas."
+            : "Terreno: colisión leída de land_data (bit 15 de cada atributo). «Bloqueado» es un dato del juego; «sin colisión» no confirma que se pueda pasar; sin datos = desconocido. Son bloqueos abstractos, no los gráficos de casas o árboles."; Margin = new Thickness(12);
         SetResourceReference(BackgroundProperty, "Bg"); SetResourceReference(ForegroundProperty, "TextMain");
         var root = new DockPanel(); Content = root;
         var header = new StackPanel(); DockPanel.SetDock(header, Dock.Top); root.Children.Add(header);
@@ -131,9 +136,9 @@ internal sealed class NdsEventEditorView : UserControl
         foreach (var radio in new[] { _modeMap, _modeTables }) radio.SetResourceReference(ForegroundProperty, "TextMain");
         AccessibleName(_modeMap, "Eventos DS · modo mapa esquemático"); AccessibleName(_modeTables, "Eventos DS · modo tablas");
         _center.Children.Add(bar);
-        foreach (var (label, layer) in new[] { ("NPC", NdsMapLayers.Npc), ("Objetos", NdsMapLayers.Objects), ("Warps", NdsMapLayers.Warps), ("Activadores", NdsMapLayers.Triggers), ("Bloques", NdsMapLayers.Blocks), ("Tiles", NdsMapLayers.Tiles), ("Máscara", NdsMapLayers.Ownership) })
+        foreach (var (label, layer) in new[] { ("NPC", NdsMapLayers.Npc), ("Objetos", NdsMapLayers.Objects), ("Warps", NdsMapLayers.Warps), ("Activadores", NdsMapLayers.Triggers), ("Bloques", NdsMapLayers.Blocks), ("Tiles", NdsMapLayers.Tiles), ("Máscara", NdsMapLayers.Ownership), ("Terreno", NdsMapLayers.Terrain) })
         {
-            var box = new CheckBox { Content = label, IsChecked = true, Margin = new Thickness(0, 0, 10, 0), Tag = layer, FontSize = 12 }; AccessibleName(box, "Eventos DS · capa " + label + (layer == NdsMapLayers.Blocks ? " de 32×32 tiles" : layer == NdsMapLayers.Ownership ? " de cabecera (celdas de la cabecera, contextuales y ajenas)" : "")); box.ToolTip = (string)AutomationProperties.GetName(box).Substring(13);
+            var box = new CheckBox { Content = label, IsChecked = true, Margin = new Thickness(0, 0, 10, 0), Tag = layer, FontSize = 12 }; AccessibleName(box, "Eventos DS · capa " + label + (layer == NdsMapLayers.Blocks ? " de 32×32 tiles" : layer == NdsMapLayers.Ownership ? " de cabecera (celdas de la cabecera, contextuales y ajenas)" : layer == NdsMapLayers.Terrain ? " y obstáculos (colisión de terreno)" : "")); if (layer == NdsMapLayers.Terrain && _terrain is null) { box.IsChecked = false; box.IsEnabled = false; } box.ToolTip = (string)AutomationProperties.GetName(box).Substring(13);
             box.Checked += (_, _) => ApplyLayers(); box.Unchecked += (_, _) => ApplyLayers(); _layerBar.Children.Add(box);
         }
         Grid.SetRow(_layerBar, 1); _center.Children.Add(_layerBar);
@@ -141,7 +146,7 @@ internal sealed class NdsEventEditorView : UserControl
         Grid.SetRow(_canvasFrame, 2); _center.Children.Add(_canvasFrame); Grid.SetRow(_tabs, 2); _center.Children.Add(_tabs); _tabs.Visibility = Visibility.Collapsed;
         var notice = new TextBlock { Text = NdsMapCanvasControl.SchematicNotice, FontWeight = FontWeights.SemiBold, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 4, 0, 0) };
         AccessibleName(notice, "Eventos DS · aviso de vista esquemática"); AccessibleName(_hover, "Eventos DS · posición bajo el cursor"); AccessibleName(_scale, "Eventos DS · escala y dimensiones");
-        _mapFooter.Children.Add(notice); _mapFooter.Children.Add(_scale); _mapFooter.Children.Add(_hover); _mapFooter.Children.Add(BuildLegend());
+        _mapFooter.Children.Add(notice); _mapFooter.Children.Add(_terrainNote); _mapFooter.Children.Add(_scale); _mapFooter.Children.Add(_hover); _mapFooter.Children.Add(BuildLegend());
         Grid.SetRow(_mapFooter, 3); _center.Children.Add(_mapFooter);
         Grid.SetColumn(_center, 1); _body.Children.Add(_center);
         _modeMap.Checked += (_, _) => ApplyMode(); _modeTables.Checked += (_, _) => ApplyMode();
@@ -155,6 +160,9 @@ internal sealed class NdsEventEditorView : UserControl
             Item(new System.Windows.Shapes.Path { Width = 20, Height = 16, Data = NdsMapCanvasControl.ShapeGeometry(shape, new Point(10, 8), 5.5), Fill = new System.Windows.Media.SolidColorBrush(NdsMapCanvasControl.ColorOf(shape)), Stroke = System.Windows.Media.Brushes.Black, StrokeThickness = 1 }, text);
         foreach (var (kind, text) in new[] { (NdsBlockOwnership.Explicit, "celda asociada a esta cabecera"), (NdsBlockOwnership.Contextual, "cabecera contextual (sin IDs)"), (NdsBlockOwnership.Other, "celda de otra cabecera") })
             Item(new System.Windows.Shapes.Rectangle { Width = 16, Height = 12, Fill = NdsMapCanvasControl.LegendBrush(kind), Stroke = NdsMapCanvasControl.LegendStroke }, text);
+        if (_terrain is not null)
+            foreach (var (status, text) in new[] { (PlatinumTerrainStatus.Blocked, "terreno bloqueado (×)"), (PlatinumTerrainStatus.ClearOfCollision, "sin colisión (no confirma paso)"), (PlatinumTerrainStatus.Unknown, "sin datos (damero)") })
+                Item(new System.Windows.Shapes.Rectangle { Width = 16, Height = 12, Fill = NdsMapCanvasControl.LegendTerrain(status), Stroke = NdsMapCanvasControl.LegendStroke }, text);
         legend.Children.Add(new TextBlock { Text = "Anillo discontinuo: evento fuera de la máscara de la cabecera · Aspa: fuera de la matriz", FontSize = 11.5, TextWrapping = TextWrapping.Wrap });
         return legend;
     }
@@ -173,7 +181,7 @@ internal sealed class NdsEventEditorView : UserControl
     private void LoadCanvas(PlatinumMap? map, IReadOnlyList<PlatinumEvent> events)
     {
         if (map is null) { _canvas.Clear(); _scale.Text = ""; return; }
-        try { _canvas.SetMap(_session.Data.Layout(map.Id), events); }
+        try { _canvas.SetMap(_session.Data.Layout(map.Id), events, _terrain, _session.Data.Bounds(map.Id)); }
         catch (InvalidDataException ex) { _canvas.Clear(); _scale.Text = "No se pudo leer la matriz de este mapa: " + ex.Message; }
     }
     private void UpdateScale()
@@ -253,7 +261,10 @@ internal sealed class NdsEventEditorView : UserControl
             if (_session.Data.Maps.Count(m => m.EventFile == _map.EventFile) > 1) _details.Text += "\nArchivo compartido por varias cabeceras: el cambio afecta a todas sus referencias.";
         }
         if (item is not null && _canvas.Model?.Find(item.Kind, item.Index) is { } marker)
+        {
             _details.Text += $"\nPosición en el mapa esquemático: {_canvas.Model.Describe(item.X, item.Y)}\n{NdsMapCanvasModel.Describe(marker.Placement)}.";
+            _details.Text += "\n\nConsulta espacial (solo lectura, no es una validación de juego):\n" + _canvas.Model.Query.Assess(item.X, item.Y, (item.Kind, item.Index)).ToText();
+        }
         _canvas.SelectProgrammatic(item, true);
         _updating = false;
     }

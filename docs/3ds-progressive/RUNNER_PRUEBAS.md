@@ -67,6 +67,7 @@ dotnet .\3DS.Progressive.Tests\bin\Release\net10.0-windows\3DS.Progressive.Tests
 | `--native-wild7-only` | — |  |
 | `--nds-only` | — | sí |
 | `--nds-map-layout-only` | — | matrices sintéticas de solo lectura; ejecución focalizada independiente |
+| `--nds-map-terrain-only` | — | lector de terreno `land_data`, consulta espacial y superposición; sintética |
 | `--nds-map-canvas-only` | — | modelo espacial puro del lienzo DS de solo lectura; sin WPF |
 | `--nds-events-only` | — | incluida también en `--nds-only` |
 | `--performance-only` | — |  |
@@ -117,6 +118,7 @@ dotnet .\3DS.Progressive.Tests\bin\Release\net10.0-windows\3DS.Progressive.Tests
 | `--nds-ui-only` | — | sí |
 | `--nds-events-ui-only` | — | sí |
 | `--nds-map-canvas-ui-only` | — | sí |
+| `--nds-map-terrain-ui-only` | — | sí |
 | `--requested-ui-only` | — | sí |
 | `--swsh-ui-only` | — | sí |
 | `--template-feedback-ui-only` | — | sí |
@@ -189,6 +191,7 @@ Necesitan extracciones, ROMs o carpetas de salida. Los argumentos concretos (ent
 | `--nds-data-probe` | 2 o más |  |
 | `--nds-gen4-probe` | 2 o más |  |
 | `--nds-map-layout-probe` | `<informe JSON nuevo> <ROM privada Platino CPUE/1>` | solo lectura; no copia ni exporta ROM |
+| `--nds-map-terrain-probe` | `<informe JSON nuevo> <ROM privada Platino CPUE/1>` | solo lectura; no copia ni exporta ROM |
 | `--nds-events-probe` | `<salida nueva> <ROM privada Platino CPUE/1>` |  |
 | `--nds-gen5-items-probe` | 2 o más |  |
 | `--nds-gen5-random-probe` | 2 o más |  |
@@ -251,3 +254,5 @@ Eventos DS fase 1: `--nds-events-only` ejecuta los casos sintéticos de mapas, a
 Matrices DS, fase visual 1: `--nds-map-layout-only` valida secciones opcionales, propiedad de celdas, coordenadas de 32×32, límites y lectura inmutable. `--nds-map-layout-probe <informe JSON nuevo> <ROM privada Platino CPUE/1>` exige el perfil acreditado, lee las 289 matrices y 593 contextos de cabecera, comprueba el NPC 0 de T01 y compara el SHA-256 de la fuente y todos los bytes del archivo de eventos antes/después. El directorio padre del informe debe existir; el archivo debe ser nuevo. No crea sesiones, checkpoints ni ROMs. Véase [NDS_MAP_LAYOUT_PHASE1.md](NDS_MAP_LAYOUT_PHASE1.md).
 
 Lienzo DS de solo lectura, fase visual 2: `--nds-map-canvas-only` valida el modelo espacial (conversión tile/píxel, zoom, desplazamiento, ajuste, hit-test, selección, celdas explícitas/contextuales/ajenas y eventos fuera de la máscara o de la matriz). `--nds-map-canvas-ui-only` abre la vista Eventos con una ROM sintética tipo 411 (matriz 30×30, una celda explícita), comprueba sincronización tabla↔lienzo, cambio de mapa, modos, capas, accesibilidad, tiempo de dibujo, ausencia de cambios en la sesión y la fuente, y que previsualizar/guardar siguen funcionando; guarda capturas en `nds-map-canvas/` junto al ejecutable. Ninguna sustituye una prueba en el juego. Véase [NDS_MAP_CANVAS_PHASE2.md](NDS_MAP_CANVAS_PHASE2.md).
+
+Terreno DS, fase visual 3: `--nds-map-terrain-only` valida el lector de `land_data` (orden fila-mayor z×32+x, solo el bit 15 como colisión, validación estricta de cabeceras y longitudes, celdas vacías o fuera de tabla = desconocido, perfil CPUE/1 con CRC32), la consulta espacial (Permitido / Bloqueado / Indeterminado con procedencia y límites), matrices compartidas entre cabeceras, el caso 411 y el rendimiento. `--nds-map-terrain-ui-only` abre la vista con y sin datos de terreno, comprueba la capa, la leyenda, el inspector, el dibujo con la capa activada y desactivada, el tiempo de dibujo de 960×960 y que previsualizar y guardar siguen funcionando; guarda capturas en `nds-map-canvas/`. `--nds-map-terrain-probe <informe JSON nuevo> <ROM privada Platino CPUE/1>` exige el perfil, lee los 666 miembros de `land_data`, comprueba el caso 411 y la alineación con los eventos reales y el SHA-256 de la fuente antes y después. No crea sesiones, checkpoints ni ROMs. Véase [NDS_MAP_TERRAIN_PHASE3.md](NDS_MAP_TERRAIN_PHASE3.md).

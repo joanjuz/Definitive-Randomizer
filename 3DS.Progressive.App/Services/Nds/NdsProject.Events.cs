@@ -11,6 +11,18 @@ internal sealed partial class NdsProject
     internal NdsEventSession Events => _events ??= SupportsEventProfile
         ? new NdsEventSession(_rom, PlatinumEvents.Open(_rom, _gen4!.Text(433)))
         : throw new InvalidDataException("Eventos fase 1: solo Pokémon Platino CPUE/1, con tablas acreditadas.");
+    private PlatinumTerrain? _terrain; private string? _terrainNote; private bool _terrainRead;
+    /// <summary>Read-only land_data terrain attributes for the canvas. Missing or unaccredited data never blocks the event editor.</summary>
+    internal (PlatinumTerrain? Terrain, string? Note) LoadTerrain()
+    {
+        if (!_terrainRead)
+        {
+            try { _terrain = PlatinumTerrain.Open(_rom); }
+            catch (Exception ex) when (ex is InvalidDataException or FileNotFoundException or IOException) { _terrainNote = ex.Message; }
+            _terrainRead = true;
+        }
+        return (_terrain, _terrainNote);
+    }
     internal IReadOnlyList<string> EventHistory => _events?.Audit ?? Array.Empty<string>();
     internal int OperationCount => _history.Count + EventHistory.Count;
     internal void EventChanged() { Revision++; _gen4View = null; _gen5View = null; }

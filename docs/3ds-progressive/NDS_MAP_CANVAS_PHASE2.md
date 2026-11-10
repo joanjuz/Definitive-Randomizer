@@ -4,7 +4,7 @@ Vista **de solo lectura** para **Platino USA CPUE/1**, dentro de **Nintendo DS �
 
 ## Qué es y qué no es
 
-Es una **vista esquemática de eventos**: una rejilla con el tamaño de la matriz del mapa y marcadores en las coordenadas que el juego guarda para cada evento. La vista lo indica siempre: «Vista esquemática de eventos. No representa los gráficos ni las colisiones del juego».
+Es una **vista esquemática de eventos**: una rejilla con el tamaño de la matriz del mapa y marcadores en las coordenadas que el juego guarda para cada evento. La vista lo indica siempre: «Vista esquemática de eventos. Muestra colisiones estáticas de terreno cuando hay datos, pero no representa los gráficos, las alturas ni todas las reglas de movimiento del juego» (en la fase 2, sin capa de terreno, el aviso decía que no representaba las colisiones; se actualizó con la fase 3).
 
 No es un render auténtico. No lee ni dibuja terreno, modelos, texturas, colisiones, alturas ni permisos de paso (`land_data`, NSBMD/NSBTX, BDHC), y no los infiere. No hay edición: no arrastra, no mueve ni escribe nada desde el mapa. Las operaciones de previsualizar, guardar checkpoint y restaurar son las de la fase 1, sin cambios, y la vista las alimenta solo a través de la selección ya existente.
 
