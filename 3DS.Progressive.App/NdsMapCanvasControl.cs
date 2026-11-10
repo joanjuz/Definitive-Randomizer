@@ -25,7 +25,7 @@ namespace ThreeDS.Progressive;
 /// </summary>
 internal sealed class NdsMapCanvasControl : FrameworkElement
 {
-    internal const string SchematicNotice = "Vista esquemática de eventos. No representa los gráficos ni las colisiones del juego.";
+    internal const string SchematicNotice = "Vista esquemática de eventos. Muestra colisiones estáticas de terreno cuando hay datos, pero no representa los gráficos, las alturas ni todas las reglas de movimiento del juego.";
     private static readonly Typeface Face = new(new FontFamily("Segoe UI"), FontStyles.Normal, FontWeights.Normal, FontStretches.Normal);
     private static readonly Brush ExplicitFill, ContextualFill, OtherFill, Surface, Inspect;
     private static readonly Pen GlyphPen = new(new SolidColorBrush(Color.FromArgb(0xC0, 0x40, 0x10, 0x10)), 1.5);

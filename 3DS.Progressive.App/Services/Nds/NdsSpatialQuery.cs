@@ -53,7 +53,7 @@ internal sealed class NdsSpatialQuery
         var reasons = new List<string>(); var provenance = new List<string> { "matriz de la cabecera " + _layout.MapId };
         if (_terrain is not null) provenance.Add("land_data (bit 15 = colisión, pokeplatinum)");
         bool accepts = _editorBounds is not { } b || (x >= 0 && y >= 0 && x < b.Width && y < b.Height);
-        if (!accepts) reasons.Add("fuera de los límites que acepta el editor de eventos");
+        if (!accepts) reasons.Add("fuera de los límites que acepta el editor de eventos: no se puede guardar ahí, aunque no haya colisión de terreno");
         var here = _events.Where(e => e.X == x && e.Y == y && (ignore is not { } skip || e.Kind != skip.Kind || e.Index != skip.Index)).ToList();
         var overlapping = _events.Where(e => e.Kind == PlatinumEventKind.Trigger && (ignore is not { } s || e.Kind != s.Kind || e.Index != s.Index)
             && x >= e.X && y >= e.Y && x < e.X + Math.Max(1, e.RangeX) && y < e.Y + Math.Max(1, e.RangeY)).ToList();
@@ -64,7 +64,13 @@ internal sealed class NdsSpatialQuery
         else if (placement == NdsMarkerPlacement.OutsideOwnedBlocks) { verdict = NdsTileVerdict.Indeterminate; reasons.Add("sin colisión de terreno, pero la celda está asignada a otra cabecera: no hay evidencia de que pertenezca a este mapa"); }
         else if (occupants.Count > 0) { verdict = NdsTileVerdict.Indeterminate; reasons.Add("sin colisión de terreno, pero ocupada por " + string.Join(", ", occupants.Select(Name))); }
         else { verdict = NdsTileVerdict.Allowed; reasons.Add("sin colisión de terreno y sin otros eventos en la casilla"); if (placement == NdsMarkerPlacement.InsideContextualBlock) reasons.Add("la matriz no guarda cabeceras: la celda se toma como de esta cabecera por contexto"); }
-        if (overlapping.Count > 0) reasons.Add("dentro del rango declarado de " + string.Join(", ", overlapping.Select(Name)));
+        // Terrain blocks keep priority. Otherwise neither an out-of-bounds position nor a trigger range may be presented as safe.
+        if (verdict == NdsTileVerdict.Allowed && !accepts) verdict = NdsTileVerdict.Indeterminate;
+        if (overlapping.Count > 0)
+        {
+            reasons.Add("dentro del rango declarado de " + string.Join(", ", overlapping.Select(Name)) + " (campos de rango del registro, +6/+8; no se valida como geometría ni se sabe si el script se dispararía)");
+            if (verdict == NdsTileVerdict.Allowed) verdict = NdsTileVerdict.Indeterminate;
+        }
         if (terrain.Behavior is { } behavior && behavior != 0) reasons.Add($"comportamiento de tile 0x{behavior:X2} (sin interpretar)");
         return new(x, y, verdict, terrain, placement, reasons, provenance, [LimitationText], occupants, overlapping, accepts);
     }

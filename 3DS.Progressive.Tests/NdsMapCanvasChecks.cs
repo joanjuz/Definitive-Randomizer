@@ -293,6 +293,7 @@ internal static class NdsMapCanvasChecks
             var texts = Children<TextBlock>(view).Select(t => t.Text).ToList();
             check(texts.Any(t => t.Contains("terreno bloqueado")) && texts.Any(t => t.Contains("sin colisión (no confirma paso)")) && texts.Any(t => t.Contains("sin datos (damero)")), "TerrainUi_LegendShowsTheThreeStates");
             check(texts.Any(t => t.Contains("bit 15") && t.Contains("no confirma que se pueda pasar") && t.Contains("no los gráficos")) && texts.Contains(NdsMapCanvasControl.SchematicNotice), "TerrainUi_StatesTheLimitsOfTheTerrainLayer");
+            check(NdsMapCanvasControl.SchematicNotice.Contains("colisiones estáticas") && NdsMapCanvasControl.SchematicNotice.Contains("gráficos") && NdsMapCanvasControl.SchematicNotice.Contains("alturas") && NdsMapCanvasControl.SchematicNotice.Contains("reglas de movimiento") && !NdsMapCanvasControl.SchematicNotice.Contains("No representa los gráficos ni las colisiones"), "TerrainUi_NoticeAcknowledgesStaticCollisionsAndKeepsTheLimits");
 
             void Click(PlatinumEventKind kind, int index) { CenterOn(canvas, kind, index, 16); var mk = canvas.Model!.Find(kind, index)!; var (cx, cy) = canvas.Model.TileToPixel(mk.CenterX, mk.CenterY); canvas.ClickAt(new Point(cx, cy)); }
             tabs.SelectedIndex = 0; Click(PlatinumEventKind.Npc, 0);

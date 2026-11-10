@@ -50,9 +50,9 @@ Al pasar el cursor se indica X, Y, bloque, posición local, cabecera y estado de
 `NdsSpatialQuery.Assess(x, y, ignorar)` devuelve **Permitido / Bloqueado / Indeterminado según datos conocidos**, con motivos, procedencia, lo no evaluado y los ocupantes:
 
 - *Bloqueado*: colisión de terreno (también en celdas de otra cabecera).
-- *Indeterminado*: sin datos; celda de otra cabecera; casilla ocupada por otro NPC, objeto o warp; fuera de la matriz.
-- *Permitido*: sin colisión de terreno, celda de esta cabecera (o contextual, con nota) y sin otro evento. Siempre incluye «No evaluado: alturas y BDHC; comportamiento del tile; puertas y escaleras; scripts y movimiento del NPC; estado dinámico del juego». Los rangos de activadores y el byte de comportamiento se informan como avisos.
-- Informa además si el editor de eventos rechazaría la posición (límites de `Bounds`).
+- *Indeterminado*: sin datos; celda de otra cabecera; casilla ocupada por otro NPC, objeto o warp; fuera de la matriz; **fuera de los límites que acepta el editor** (p. ej. archivos de eventos compartidos); y **dentro del rango declarado de un activador**, siempre que no haya un bloqueo confirmado.
+- *Permitido*: sin colisión de terreno, celda de esta cabecera (o contextual, con nota), dentro de los límites del editor, sin otro evento y fuera de rangos de activadores. Siempre incluye «No evaluado: alturas y BDHC; comportamiento del tile; puertas y escaleras; scripts y movimiento del NPC; estado dinámico del juego». El rango del activador se informa como campos de rango del registro (+6/+8), sin validarlo como geometría; el byte de comportamiento se informa en bruto. Un bloqueo de terreno confirmado siempre tiene prioridad (veredicto Bloqueado).
+- Informa además (`EditorAccepts`) si el editor de eventos rechazaría la posición (límites de `Bounds`), con una razón explícita.
 
 Es solo lectura. Aún no hay arrastre y no debe presentarse «Permitido» como garantía de seguridad.
 
