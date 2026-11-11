@@ -65,3 +65,34 @@ Las tablas anteriores miden solo las tablas del juego. La sonda mide ahora tambi
 | Pokémon Negro (USA/EUR) | 36 | 192 098 | 1 KiB | 1710 KiB | 136 | 238 |
 
 Antes de mover el historial a una tabla comprimida, el mismo proyecto de seis operaciones de Platino tenía un manifiesto de 1847 KiB (archivo de 1891 KiB) y el de 36 operaciones no se podía escribir. «Serializar» es en frío (todo el historial de una vez, y la primera fila incluye el arranque del serializador); durante una sesión solo se serializa la operación nueva.
+
+## Coste de guardar con el historial creciente (11/11/2026)
+
+`--nds-project-save-bench` sobre los cinco volcados (Blanco no disponible), con los proyectos en el disco mecánico D: (donde están las ROM). Se aplican 40 randomizaciones completas seguidas, alternando especies (entrenadores y salvajes) y datos (estadísticas, tipos y habilidades); en cada punto se confirman cinco ediciones manuales de una especie y se da la mediana. «Serializar», «Verificar» y «Leer al abrir» son las funciones de `NdsProjectCodec` sobre el proyecto de ese punto, con la caché de la sesión caliente (mediana de tres). «Antes» es el diseño de los PR #74–#81 (una sola tabla `history` y relectura completa del principal en cada `Commit`); «después», bloques de historial y principal conocido.
+
+| ROM | Randomizaciones | Cambios | Archivo (KiB) | Bloques | Guardar edición manual (ms) antes → después | Serializar (ms) | Verificar (ms) | Leer al abrir (ms) | Primer guardado tras reabrir (ms) |
+|---|---|---|---|---|---|---|---|---|---|
+| Pokémon Platino (USA, rev. 1) | 1 | 8 683 | 119 | 2 | 84 → 42 | 4 → 1 | 3 → 1 | 24 → 29 |  |
+| Pokémon Platino (USA, rev. 1) | 10 | 65 418 | 650 | 6 | 185 → 71 | 16 → 2 | 15 → 1 | 82 → 79 |  |
+| Pokémon Platino (USA, rev. 1) | 20 | 130 488 | 1259 | 11 | 295 → 61 | 32 → 2 | 29 → 2 | 165 → 155 | 501 → 57 |
+| Pokémon Platino (USA, rev. 1) | 40 | 260 627 | 2474 | 21 | 510 → 121 | 62 → 3 | 53 → 4 | 324 → 314 | 896 → 125 |
+| Pokémon Diamante (USA, rev. 5) | 1 | 8 343 | 112 | 2 | 75 → 68 | 3 → 1 | 3 → 1 | 10 → 9 |  |
+| Pokémon Diamante (USA, rev. 5) | 10 | 63 822 | 627 | 6 | 164 → 50 | 16 → 2 | 14 → 2 | 80 → 108 |  |
+| Pokémon Diamante (USA, rev. 5) | 20 | 127 323 | 1215 | 11 | 282 → 67 | 30 → 2 | 26 → 2 | 146 → 151 | 501 → 68 |
+| Pokémon Diamante (USA, rev. 5) | 40 | 254 321 | 2389 | 21 | 507 → 115 | 64 → 2 | 54 → 3 | 306 → 301 | 895 → 104 |
+| Pokémon Oro HeartGold (USA) | 1 | 8 222 | 106 | 2 | 80 → 56 | 3 → 1 | 2 → 1 | 9 → 8 |  |
+| Pokémon Oro HeartGold (USA) | 10 | 63 186 | 598 | 6 | 145 → 47 | 15 → 1 | 14 → 1 | 72 → 75 |  |
+| Pokémon Oro HeartGold (USA) | 20 | 126 025 | 1159 | 11 | 257 → 64 | 30 → 1 | 26 → 2 | 155 → 156 | 558 → 57 |
+| Pokémon Oro HeartGold (USA) | 40 | 251 751 | 2278 | 21 | 471 → 76 | 58 → 2 | 51 → 3 | 302 → 323 | 817 → 78 |
+| Pokémon Blanco 2 (USA/EUR) | 1 | 7 268 | 117 | 1 | 67 → 54 | 3 → 1 | 2 → 1 | 8 → 10 |  |
+| Pokémon Blanco 2 (USA/EUR) | 10 | 68 908 | 680 | 6 | 166 → 45 | 21 → 1 | 18 → 1 | 83 → 117 |  |
+| Pokémon Blanco 2 (USA/EUR) | 20 | 137 507 | 1304 | 11 | 289 → 55 | 32 → 2 | 31 → 2 | 158 → 175 | 445 → 60 |
+| Pokémon Blanco 2 (USA/EUR) | 40 | 274 766 | 2549 | 21 | 529 → 138 | 65 → 3 | 57 → 3 | 340 → 337 | 966 → 104 |
+| Pokémon Negro (USA/EUR) | 1 | 5 367 | 88 | 1 | 50 → 63 | 2 → 1 | 2 → 1 | 6 → 6 |  |
+| Pokémon Negro (USA/EUR) | 10 | 59 915 | 582 | 6 | 148 → 42 | 14 → 1 | 16 → 1 | 79 → 74 |  |
+| Pokémon Negro (USA/EUR) | 20 | 119 709 | 1121 | 11 | 255 → 51 | 28 → 1 | 25 → 2 | 144 → 155 | 400 → 59 |
+| Pokémon Negro (USA/EUR) | 40 | 239 291 | 2196 | 21 | 453 → 71 | 55 → 2 | 50 → 3 | 315 → 305 | 788 → 82 |
+
+Con 0 randomizaciones, guardar una edición manual cuesta 38–60 ms en ambos diseños: es la escritura duradera en este disco (temporal con escritura directa, relectura, copia de seguridad y sustitución). Lo que queda después de la mejora crece con el tamaño del archivo a velocidad de disco, no con el trabajo de CPU sobre el historial; «Leer al abrir» se paga una vez por apertura. La variación entre filas de 40 randomizaciones (71–138 ms) es del disco: las mismas ROM dieron 47–76 ms entre 1 y 30 randomizaciones.
+
+Causa medida: antes de sustituir el archivo, `Commit` lo leía entero y reconstruía su historial para comprobar generación, proyecto y ROM (la columna «Leer al abrir» entra en cada guardado antes de la mejora). Comprimir y verificar el historial completo sumaban unos 60 ms con 20 randomizaciones.

@@ -32,6 +32,8 @@ internal sealed class NdsProjectFileStore : INdsProjectStore
     private readonly Func<DateTime> _clock;
     /// <summary>SHA-256 of the main file as this store last read or wrote it: the file must still be exactly that when the next commit replaces it.</summary>
     private byte[]? _seen;
+    /// <summary>What <see cref="_seen"/> is: its generation, project and ROM (it was fully read, or written and verified, by this store).</summary>
+    private (long Generation, Guid Project, NdsProjectRom Rom)? _seenAs;
     private bool _disposed;
 
     internal string ProjectPath { get; }
@@ -120,6 +122,8 @@ internal sealed class NdsProjectFileStore : INdsProjectStore
             catch (EndOfStreamException) when (attempt < Retries) { Thread.Sleep(RetryDelayMs); }
         }
     }
+    private void Saw(byte[] bytes, NdsProjectDocument document) { _seen = SHA256.HashData(bytes); _seenAs = (document.Generation, document.Meta.ProjectId, document.Meta.Rom); }
+
     private static readonly byte[] Oversized = new byte[NdsProjectCodec.HeaderSize];
 
     private static NdsProjectReadResult Parse(byte[] bytes) => ReferenceEquals(bytes, Oversized)
@@ -137,12 +141,12 @@ internal sealed class NdsProjectFileStore : INdsProjectStore
                 byte[]? main = ReadFile(ProjectPath);
                 if (main is null)
                 {
-                    _seen = null;
+                    _seen = null; _seenAs = null;
                     if (!BackupPaths().Any(b => File.Exists(b.Path))) return new(NdsProjectLoadStatus.Empty, null, null, "No hay proyecto.");
                     return new(NdsProjectLoadStatus.Damaged, null, Plan(null, "Falta el archivo principal del proyecto."), "Falta el archivo principal del proyecto.");
                 }
                 var read = Parse(main);
-                if (read.Ok) { _seen = SHA256.HashData(main); return new(NdsProjectLoadStatus.Loaded, read.Document, null, ""); }
+                if (read.Ok) { Saw(main, read.Document!); return new(NdsProjectLoadStatus.Loaded, read.Document, null, ""); }
                 if (read.Status == NdsProjectReadStatus.NewerFormat) return new(NdsProjectLoadStatus.NewerFormat, null, null, read.Message);
                 return new(NdsProjectLoadStatus.Damaged, null, Plan(read.Header, read.Message), read.Message);
             }
@@ -178,7 +182,12 @@ internal sealed class NdsProjectFileStore : INdsProjectStore
             try
             {
                 old = ReadFile(ProjectPath);
-                if (old is not null)
+                byte[]? oldHash = old is null ? null : SHA256.HashData(old);
+                // The main file is, byte for byte, the one this store last read in full or wrote and verified, at the generation the caller expects: everything the
+                // checks below would establish is already known, and reading the whole project again (its history included) would cost more than the save itself.
+                bool known = old is not null && _seen is not null && _seenAs is { } seenAs && oldHash!.AsSpan().SequenceEqual(_seen)
+                    && seenAs.Generation == expectedGeneration && seenAs.Project == next.Meta.ProjectId && seenAs.Rom.SameRomAs(next.Meta.Rom);
+                if (old is not null && !known)
                 {
                     var current = Parse(old);
                     if (current.Status == NdsProjectReadStatus.NewerFormat) throw new NdsProjectStoreException(NdsProjectStoreError.NewerFormat, "El proyecto lo escribió una versión más reciente: no se modifica. " + current.Message);
@@ -188,10 +197,10 @@ internal sealed class NdsProjectFileStore : INdsProjectStore
                     if (current.Document.Meta.ProjectId != next.Meta.ProjectId || !current.Document.Meta.Rom.SameRomAs(next.Meta.Rom))
                         throw new NdsProjectStoreException(NdsProjectStoreError.DifferentProject, "El archivo guardado es otro proyecto o es de otra ROM: no se sobrescribe.");
                     // Same generation and same project, but not the bytes this instance last saw: something rewrote the file.
-                    if (_seen is not null && !SHA256.HashData(old).AsSpan().SequenceEqual(_seen))
+                    if (_seen is not null && !oldHash!.AsSpan().SequenceEqual(_seen))
                         throw new NdsProjectStoreException(NdsProjectStoreError.StaleGeneration, "El archivo del proyecto se modificó fuera de esta sesión: no se sobrescribe.");
                 }
-                else
+                else if (old is null)
                 {
                     if (BackupPaths().Any(b => File.Exists(b.Path))) throw new NdsProjectStoreException(NdsProjectStoreError.MainDamaged, "Falta el archivo principal: recupéralo antes de guardar.");
                     if (expectedGeneration != 0) throw new NdsProjectStoreException(NdsProjectStoreError.StaleGeneration, $"El proyecto cambió fuera de esta sesión (no hay archivo, se esperaba la generación {expectedGeneration}).");
@@ -225,7 +234,7 @@ internal sealed class NdsProjectFileStore : INdsProjectStore
                 Probe?.Invoke(NdsProjectFileStep.AfterReplace);
                 byte[]? now = ReadFile(ProjectPath);
                 if (now is null || !now.AsSpan().SequenceEqual(bytes)) throw new IOException("El archivo principal no es el que se acaba de guardar.");
-                _seen = SHA256.HashData(bytes);
+                Saw(bytes, next);
                 return next.Generation;
             }
             catch (Exception ex)
@@ -344,7 +353,7 @@ internal sealed class NdsProjectFileStore : INdsProjectStore
                     File.Move(ProjectPath, damaged, false);
                 }
                 Replace(temp, ProjectPath);
-                _seen = SHA256.HashData(candidate.Bytes);
+                Saw(candidate.Bytes, candidate.Document);
                 return candidate.Generation;
             }
             catch (Exception ex) when (ex is (IOException or UnauthorizedAccessException) and not NdsProjectStoreException)
