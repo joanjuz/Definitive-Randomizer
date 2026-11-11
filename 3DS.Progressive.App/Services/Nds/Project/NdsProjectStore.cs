@@ -170,8 +170,8 @@ internal sealed class InMemoryNdsProjectStore : INdsProjectStore
             catch (InvalidDataException ex) { throw new NdsProjectStoreException(NdsProjectStoreError.WriteFailed, "El proyecto no se puede guardar: " + ex.Message, ex); }
             if (fault == NdsProjectFault.CorruptWrite) { bytes = (byte[])bytes.Clone(); bytes[bytes.Length / 2] ^= 0x5A; }
             // Read back what was "written" and compare it with what was meant to be written, before the previous file is touched.
-            var check = NdsProjectCodec.Read(bytes);
-            if (!check.Ok || check.Document!.Generation != next.Generation || check.Document.OperationCount != next.OperationCount || !check.Document.State.SameAs(next.State))
+            var check = NdsProjectCodec.Verify(bytes);
+            if (!check.Ok || check.Document!.Generation != next.Generation || check.Header!.OperationCount != next.OperationCount || !check.Document.State.SameAs(next.State))
                 throw new NdsProjectStoreException(NdsProjectStoreError.VerificationFailed, "El proyecto escrito no coincide al releerlo; se conserva el anterior. " + check.Message);
             if (hasMain) { _medium.Backups.Insert(0, _medium.Main!); while (_medium.Backups.Count > NdsProjectPaths.MaxBackups) _medium.Backups.RemoveAt(_medium.Backups.Count - 1); }
             _medium.Main = bytes; Commits++;
