@@ -104,7 +104,8 @@ Cada PR de C actualiza la matriz de la sección 3 con su evidencia. Solo se marc
 | PR | Contenido | Aceptación |
 |---|---|---|
 | B1 (**implementado en el PR de detector; ver [DETECTOR_PROYECTOS_B1.md](DETECTOR_PROYECTOS_B1.md)**) | Detector y pruebas: entradas sintéticas de cada tipo, entradas ambiguas, desconocidas, ROM con código no admitido y carpeta incompleta | suite nueva sin interfaz; sondas reales con los seis perfiles DS, una carpeta 3DS y las extracciones de Espada y Escudo, sin escribir nada |
-| B2 | Abrir proyecto universal en la ventana principal | suites de interfaz y sonda con entrada real; los proyectos y checkpoints antiguos abren igual; los cambios pendientes nunca se pierden al cambiar de plataforma |
+| B2 (**fusionado; ver [APERTURA_UNIVERSAL_B2.md](APERTURA_UNIVERSAL_B2.md)**) | Abrir proyecto universal en la ventana principal | suites de interfaz y sonda con entrada real; los proyectos y checkpoints antiguos abren igual; los cambios pendientes nunca se pierden al cambiar de plataforma |
+| B5 (**requisito de 1.0.0; ver [PROYECTOS_DS_PERSISTENTES.md](PROYECTOS_DS_PERSISTENTES.md)**) | Proyectos DS persistentes con autoguardado (`Juego.nds.drproj`) en cinco PR: formato y contrato, almacén en disco, integración en `NdsProject`, apertura y reanudación desde B2, interfaz y resistencia | un proyecto se cierra, se recupera y continúa exactamente donde se dejó, sin alterar la ROM original; fallos de guardado nunca se informan como guardados; recuperación tras cierre forzado probada |
 | B3 | Arrastrar y soltar | sonda con entrada real; rechazo claro de archivos no admitidos |
 | B4 | Documentación (primeros pasos, compatibilidad pública, notas de 1.0.0) | revisión del propietario |
 
@@ -130,7 +131,7 @@ Cada PR de C actualiza la matriz de la sección 3 con su evidencia. Solo se marc
 
 Criterios de aceptación de todo PR: compilación sin errores, suites propias y de regresión DS y visual, sonda real cuando toque archivos del juego (origen con SHA-256 intacto), CI aprobado, documentación e índice actualizados, sin ROMs ni extracciones en Git y **sin fusionar sin orden expresa**.
 
-**1.0.0** necesita la fase B completa (B1–B4), sin corrupción conocida, con la compatibilidad documentada y la recuperación probada. No espera a las fases C, D ni H. Los módulos experimentales, como el editor de eventos DS, siguen identificados como tales.
+**1.0.0** necesita la fase B completa (B1–B5), sin corrupción conocida, con la compatibilidad documentada y la recuperación probada. No espera a las fases C, D ni H. Los módulos experimentales, como el editor de eventos DS, siguen identificados como tales.
 
 ## 8. Ya implementado: no repetir
 

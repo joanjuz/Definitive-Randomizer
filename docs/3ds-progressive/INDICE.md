@@ -19,6 +19,7 @@ Punto de entrada a `docs/3ds-progressive/`. Muchos documentos son **registros hi
 | Editor DS A1: «Añadir enfermera» funcional desde una plantilla real de la ROM (Platino) | [NDS_ANADIR_ENFERMERA_A1.md](NDS_ANADIR_ENFERMERA_A1.md) |
 | Detector universal de proyectos (B1): plataforma, juego y compatibilidad de una ruta, sin abrir nada; plan de B2 | [DETECTOR_PROYECTOS_B1.md](DETECTOR_PROYECTOS_B1.md) |
 | Apertura universal de proyectos (B2): un único «Abrir proyecto» para DS, 3DS y Switch; conservación del proyecto anterior y recuperación 3DS tipada | [APERTURA_UNIVERSAL_B2.md](APERTURA_UNIVERSAL_B2.md) |
+| Proyectos DS persistentes con autoguardado (requisito de 1.0.0): auditoría, arquitectura, formato `.drproj`, contrato de persistencia, mediciones y plan por PR | [PROYECTOS_DS_PERSISTENTES.md](PROYECTOS_DS_PERSISTENTES.md), [mediciones](PROYECTOS_DS_PERSISTENTES_MEDIDAS.md) |
 | Editor de eventos Nintendo DS, fase 1: Platino CPUE/1, checkpoints y restauración | [NDS_EVENT_EDITOR_PHASE1.md](NDS_EVENT_EDITOR_PHASE1.md) |
 | **Primera estable WPF (v1.0.0, en preparación, sin publicar):** guía para usuarios nuevos | [PRIMEROS_PASOS.md](PRIMEROS_PASOS.md) |
 | Estable WPF: respaldo, Deshacer, recuperación de guardados y qué enviar al reportar | [RESPALDO_Y_RECUPERACION.md](RESPALDO_Y_RECUPERACION.md) |
