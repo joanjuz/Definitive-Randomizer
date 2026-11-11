@@ -1,6 +1,6 @@
 # Definitive Game Data v1
 
-Contrato de metadatos JSON de PokeJuz, independiente de clases C#/Python. El roadmap maestro permanece en [DefinitivePkm](https://github.com/joanjuz/DefinitivePkm/blob/main/docs/ROADMAP.md). Este documento es la referencia técnica del productor y del consumidor, con [JSON Schema](definitive-game-data-v1.schema.json) y [ejemplo sintético](examples/definitive-game-data-v1.synthetic.json).
+Contrato de metadatos JSON de PokeJuz, independiente de clases C#/Python. Este documento es la referencia técnica del productor y del consumidor, con [JSON Schema](definitive-game-data-v1.schema.json) y [ejemplo sintético](examples/definitive-game-data-v1.synthetic.json).
 
 ## Exportar y utilizar
 
