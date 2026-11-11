@@ -1,6 +1,6 @@
 # Apertura universal de proyectos (B2)
 
-Fase **B2** de la [hoja de ruta](HOJA_RUTA_EDITOR_Y_1_0.md), requisito de 1.0.0. Una **única acción «Abrir proyecto»** abre cualquier archivo o carpeta compatible sin que el usuario elija antes Nintendo DS, 3DS o Switch. Usa el [detector de B1](DETECTOR_PROYECTOS_B1.md) para identificar la entrada y el motor existente de cada plataforma para abrirla. No se modificó ningún parser ni ningún motor de randomización.
+Fase **B2** del plan del editor, requisito de 1.0.0. Una **única acción «Abrir proyecto»** abre cualquier archivo o carpeta compatible sin que el usuario elija antes Nintendo DS, 3DS o Switch. Usa el [detector de B1](DETECTOR_PROYECTOS_B1.md) para identificar la entrada y el motor existente de cada plataforma para abrirla. No se modificó ningún parser ni ningún motor de randomización.
 
 ## 1. Cómo funciona la interfaz
 
