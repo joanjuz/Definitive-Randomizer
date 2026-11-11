@@ -58,6 +58,7 @@ internal static class RunnerCatalog
         new("--nds-project-store-only","",RunnerCategory.Synthetic,true),
         new("--nds-project-store-probe","<carpeta nueva en el disco que se quiere probar>",RunnerCategory.Real,false),
         new("--nds-project-store-child","<modo> <proyecto> … (uso interno de --nds-project-store-only)",RunnerCategory.Real,false),
+        new("--nds-project-save-bench","<carpeta nueva de salida> <randomizaciones 1-200> <ROM DS> [<ROM DS>…]",RunnerCategory.Real,false),
         new("--nds-project-measure","<carpeta nueva de informe> <ROM DS> [<ROM DS>…]",RunnerCategory.Real,false),
         new("--project-detector-probe","<carpeta nueva de informe> <ruta> [<ruta>…]",RunnerCategory.Real,false),
         new("--nds-npc-structure-only","",RunnerCategory.Synthetic,false),

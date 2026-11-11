@@ -39,6 +39,9 @@ internal sealed record NdsProjectReadResult(NdsProjectReadStatus Status, string 
 /// blobs           [u32 stored length][stored bytes] ... in the order of the index (Brotli or raw; the SHA-256 of the RAW bytes is in the index)
 /// footer (40 B)   "DRDSEND1" + SHA-256 of every byte before it
 /// </code>
+/// The operation history is split into blocks (<c>history:000000</c>, <c>history:000001</c> …), each a JSON array of consecutive operations compressed on its own.
+/// Where one block ends is a pure function of the operations (<see cref="HistoryBlocks"/>), and a block that is full never changes again, so a save compresses
+/// only the last, open block: the blocks before it are reused exactly as they were stored.
 /// Reading never throws for bad input: every failure is a classified <see cref="NdsProjectReadResult"/>. Sizes are bounded before anything is allocated.
 /// </summary>
 internal static class NdsProjectCodec
@@ -55,67 +58,136 @@ internal static class NdsProjectCodec
     internal static string BlobName(NdsProjectBlobKind kind, string key) => kind switch
     {
         NdsProjectBlobKind.File => "file:" + key, NdsProjectBlobKind.Overlay => "overlay:" + key, NdsProjectBlobKind.Arm9 => "arm9",
-        NdsProjectBlobKind.EventData => "events:data", NdsProjectBlobKind.History => HistoryName, _ => "events:scripts",
+        NdsProjectBlobKind.EventData => "events:data", NdsProjectBlobKind.History => HistoryPrefix + key, _ => "events:scripts",
     };
 
-    internal const string HistoryName = "history";
+    internal const string HistoryPrefix = "history:";
+    /// <summary>A block closes once its operations weigh this much (one per operation plus one per recorded change) or once it holds this many operations.</summary>
+    internal const int HistoryBlockWeight = 8192, HistoryBlockOperations = 256;
+
+    /// <summary>The name of history block <paramref name="index"/>: fixed width, so ordering the tables by name keeps the blocks in the order of the operations.</summary>
+    internal static string HistoryBlockName(int index) => HistoryPrefix + index.ToString("D6", System.Globalization.CultureInfo.InvariantCulture);
+
+    /// <summary>
+    /// Where each history block starts and how many operations it has. Greedy from the first operation: a block closes as soon as it reaches
+    /// <see cref="HistoryBlockWeight"/> or <see cref="HistoryBlockOperations"/>. Appending operations therefore never moves an earlier boundary; only the last
+    /// block may still grow (it is open when it has not reached either limit).
+    /// </summary>
+    internal static List<(int Start, int Count, bool Closed)> HistoryBlocks(IReadOnlyList<NdsProjectOperationRecord> operations)
+    {
+        var blocks = new List<(int, int, bool)>(); int start = 0; long weight = 0;
+        for (int i = 0; i < operations.Count; i++)
+        {
+            weight += (operations[i].Changes?.Count ?? 0) + 1;
+            if (weight >= HistoryBlockWeight || i + 1 - start >= HistoryBlockOperations) { blocks.Add((start, i + 1 - start, true)); start = i + 1; weight = 0; }
+        }
+        if (start < operations.Count) blocks.Add((start, operations.Count - start, false));
+        return blocks;
+    }
 
     // ------------------------------------------------------------------------------------------------------------------------------ write
 
     /// <summary>
     /// The JSON of one operation record, computed once. An operation is immutable after it is confirmed, and a project that grows keeps the same record objects,
-    /// so a save costs the new operation, not the whole history again (a single randomization records thousands of changes).
+    /// so a save costs the new operation, not the whole history again (a single randomization records thousands of changes). Kept only while the record is in
+    /// the open block: once its block is full the block itself is kept (<see cref="StoredBlocks"/>) and this copy is released.
     /// </summary>
     private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<NdsProjectOperationRecord, byte[]> RecordJson = new();
 
-    /// <summary>The operations as one UTF-8 JSON array, in order. Stored as a compressed table (<see cref="HistoryName"/>), not in the manifest.</summary>
-    internal static byte[] HistoryJson(IReadOnlyList<NdsProjectOperationRecord> operations)
+    /// <summary>A history block exactly as it is stored: its operations (the same objects), its stored bytes and their description in the index.</summary>
+    private sealed record StoredBlock(NdsProjectOperationRecord[] Members, byte[] Stored, long RawLength, string Sha256, string Codec)
     {
-        var parts = operations.Select(o => RecordJson.GetValue(o, record =>
+        internal bool Holds(IReadOnlyList<NdsProjectOperationRecord> operations, int start, int count)
+        {
+            if (Members.Length != count) return false;
+            for (int i = 0; i < count; i++) if (!ReferenceEquals(Members[i], operations[start + i])) return false;
+            return true;
+        }
+    }
+
+    /// <summary>
+    /// The blocks already compressed, by their first operation. A block is reused only when it holds exactly the same operation objects (compared by reference,
+    /// so an equal-looking but different operation is never mistaken for it), and its stored bytes were proved to decompress to its SHA-256 when it was made or read.
+    /// </summary>
+    private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<NdsProjectOperationRecord, StoredBlock> StoredBlocks = new();
+
+    /// <summary>The operations as one UTF-8 JSON array, in order (the raw content of one history block).</summary>
+    internal static byte[] HistoryJson(IReadOnlyList<NdsProjectOperationRecord> operations) => HistoryJson(operations, 0, operations.Count);
+
+    private static byte[] HistoryJson(IReadOnlyList<NdsProjectOperationRecord> operations, int start, int count)
+    {
+        var parts = new byte[count][];
+        for (int i = 0; i < count; i++) parts[i] = RecordJson.GetValue(operations[start + i], record =>
         {
             // The one moment the JSON of an operation is produced is also when it is proved readable (a save later verifies the container, not every past operation again).
             byte[] json = JsonSerializer.SerializeToUtf8Bytes(record, Json);
             if (JsonSerializer.Deserialize<NdsProjectOperationRecord>(json, Json) is not { Action: not null, Recipe: not null, Changes: not null } back || back.Changes.Count != record.Changes.Count)
                 throw new InvalidDataException("Una operación del historial no se puede leer después de escribirla.");
             return json;
-        })).ToArray();
+        });
         var output = new byte[parts.Sum(p => (long)p.Length) + Math.Max(0, parts.Length - 1) + 2]; int at = 0; output[at++] = (byte)'[';
         for (int i = 0; i < parts.Length; i++) { if (i > 0) output[at++] = (byte)','; parts[i].CopyTo(output, at); at += parts[i].Length; }
         output[at] = (byte)']';
         return output;
     }
 
+    /// <summary>One history block, reused when it is already stored and built (and kept) otherwise.</summary>
+    private static Part HistoryBlock(IReadOnlyList<NdsProjectOperationRecord> operations, int index, int start, int count, bool closed)
+    {
+        var first = operations[start]; string name = HistoryBlockName(index);
+        if (StoredBlocks.TryGetValue(first, out var known) && known.Holds(operations, start, count)) return new(NdsProjectBlobKind.History, name, known.RawLength, known.Stored, known.Sha256, known.Codec);
+        var part = Pack(NdsProjectBlobKind.History, name, HistoryJson(operations, start, count));
+        // Proved once, here: these stored bytes give the raw block. Reusing them later needs no new proof (the save still verifies the whole container it writes).
+        var entry = new NdsProjectBlobEntry(name, NdsProjectBlobKind.History, part.RawLength, part.Stored.Length, part.Sha256, part.Codec);
+        if (!Convert.ToHexString(SHA256.HashData(Decode(part.Stored, entry))).Equals(part.Sha256, StringComparison.Ordinal)) throw new InvalidDataException("Un bloque del historial no se puede leer después de comprimirlo.");
+        Remember(operations.Skip(start).Take(count).ToArray(), part); Prove(part.Stored, entry);
+        // A full block never changes again: the JSON of its operations is not needed any more.
+        if (closed) for (int i = start; i < start + count; i++) RecordJson.Remove(operations[i]);
+        return part;
+    }
+
+    private static void Remember(NdsProjectOperationRecord[] members, Part part) => StoredBlocks.AddOrUpdate(members[0], new(members, part.Stored, part.RawLength, part.Sha256, part.Codec));
+
     /// <summary>Serializes the document. Blobs are ordered by name, so equal documents give equal manifests; the generation and operation count go in the header too.</summary>
     internal static byte[] Serialize(NdsProjectDocument document)
     {
         // The writer refuses what the reader would refuse, so a file that cannot be read back is never produced.
         if (Validate(document.Meta) is { } problem) throw new InvalidDataException("El proyecto no es válido: " + problem);
-        return Assemble(document, document.Meta.Operations.Count > 0 ? HistoryJson(document.Meta.Operations) : null);
+        var operations = document.Meta.Operations; var blocks = HistoryBlocks(operations);
+        return Build(document, blocks.Select((b, i) => HistoryBlock(operations, i, b.Start, b.Count, b.Closed)).ToList());
     }
 
-    /// <summary>Builds the container from the document and the given history bytes, with every checksum right. Apart from <see cref="Serialize"/>, only the tests call it (to write what a hostile or buggy writer could).</summary>
-    internal static byte[] Assemble(NdsProjectDocument document, byte[]? history)
+    /// <summary>
+    /// Builds the container from the document and the given raw history blocks (in order; null or empty for none), with every checksum right. Apart from
+    /// <see cref="Serialize"/>, only the tests call it (to write what a hostile or buggy writer could).
+    /// </summary>
+    internal static byte[] Assemble(NdsProjectDocument document, IReadOnlyList<byte[]>? history) =>
+        Build(document, (history ?? []).Select((raw, i) => Pack(NdsProjectBlobKind.History, HistoryBlockName(i), raw)).ToList());
+
+    /// <summary>One table as it is stored: Brotli when that is smaller, raw otherwise, described by the SHA-256 of the raw bytes.</summary>
+    private readonly record struct Part(NdsProjectBlobKind Kind, string Name, long RawLength, byte[] Stored, string Sha256, string Codec);
+
+    private static Part Pack(NdsProjectBlobKind kind, string name, byte[] raw)
     {
-        var raws = new List<(NdsProjectBlobKind Kind, string Name, byte[] Raw)>();
-        if (history is not null) raws.Add((NdsProjectBlobKind.History, HistoryName, history));
-        foreach (var (path, data) in document.State.Files) raws.Add((NdsProjectBlobKind.File, BlobName(NdsProjectBlobKind.File, path), data));
-        foreach (var (id, data) in document.State.Overlays) raws.Add((NdsProjectBlobKind.Overlay, BlobName(NdsProjectBlobKind.Overlay, id.ToString(System.Globalization.CultureInfo.InvariantCulture)), data));
-        if (document.State.Arm9 is { } arm9) raws.Add((NdsProjectBlobKind.Arm9, BlobName(NdsProjectBlobKind.Arm9, ""), arm9));
-        if (document.State.EventData is { } events) raws.Add((NdsProjectBlobKind.EventData, BlobName(NdsProjectBlobKind.EventData, ""), events));
-        if (document.State.EventScripts is { } scripts) raws.Add((NdsProjectBlobKind.EventScripts, BlobName(NdsProjectBlobKind.EventScripts, ""), scripts));
-        raws.Sort((a, b) => string.CompareOrdinal(a.Name, b.Name));
-        if (raws.Count > MaxBlobs) throw new InvalidDataException("El proyecto tiene demasiadas tablas modificadas.");
+        if (raw.Length > MaxBlobRawBytes) throw new InvalidDataException(kind == NdsProjectBlobKind.History ? "Un bloque del historial del proyecto supera el tamaño admitido." : "Una tabla modificada supera el tamaño admitido: " + name);
+        byte[] packed = Compress(raw); bool smaller = packed.Length < raw.Length;
+        return new(kind, name, raw.Length, smaller ? packed : raw, Convert.ToHexString(SHA256.HashData(raw)), smaller ? "br" : "raw");
+    }
+
+    private static byte[] Build(NdsProjectDocument document, List<Part> parts)
+    {
+        foreach (var (path, data) in document.State.Files) parts.Add(Pack(NdsProjectBlobKind.File, BlobName(NdsProjectBlobKind.File, path), data));
+        foreach (var (id, data) in document.State.Overlays) parts.Add(Pack(NdsProjectBlobKind.Overlay, BlobName(NdsProjectBlobKind.Overlay, id.ToString(System.Globalization.CultureInfo.InvariantCulture)), data));
+        if (document.State.Arm9 is { } arm9) parts.Add(Pack(NdsProjectBlobKind.Arm9, BlobName(NdsProjectBlobKind.Arm9, ""), arm9));
+        if (document.State.EventData is { } events) parts.Add(Pack(NdsProjectBlobKind.EventData, BlobName(NdsProjectBlobKind.EventData, ""), events));
+        if (document.State.EventScripts is { } scripts) parts.Add(Pack(NdsProjectBlobKind.EventScripts, BlobName(NdsProjectBlobKind.EventScripts, ""), scripts));
+        parts.Sort((a, b) => string.CompareOrdinal(a.Name, b.Name));
+        if (parts.Count > MaxBlobs) throw new InvalidDataException("El proyecto tiene demasiadas tablas modificadas o un historial demasiado largo.");
         if (document.Meta.MinReaderVersion is < 0 or > ushort.MaxValue) throw new InvalidDataException("Versión mínima de lector fuera de rango.");
-        var stored = new List<byte[]>(); var entries = new List<NdsProjectBlobEntry>();
-        foreach (var (kind, name, raw) in raws)
-        {
-            if (raw.Length > MaxBlobRawBytes) throw new InvalidDataException(kind == NdsProjectBlobKind.History ? "El historial del proyecto supera el tamaño admitido." : "Una tabla modificada supera el tamaño admitido: " + name);
-            byte[] packed = Compress(raw); bool smaller = packed.Length < raw.Length; byte[] bytes = smaller ? packed : raw;
-            stored.Add(bytes); entries.Add(new(name, kind, raw.Length, bytes.Length, Convert.ToHexString(SHA256.HashData(raw)), smaller ? "br" : "raw"));
-        }
+        var entries = parts.Select(p => new NdsProjectBlobEntry(p.Name, p.Kind, p.RawLength, p.Stored.Length, p.Sha256, p.Codec)).ToList();
         byte[] manifest = JsonSerializer.SerializeToUtf8Bytes(document.Meta with { Blobs = entries }, Json);
         if (manifest.Length > MaxManifestBytes) throw new InvalidDataException("El manifiesto del proyecto (historial de eventos y ajustes) supera el tamaño admitido.");
-        long total = HeaderSize + manifest.Length + stored.Sum(b => 4L + b.Length) + FooterSize;
+        long total = HeaderSize + manifest.Length + parts.Sum(p => 4L + p.Stored.Length) + FooterSize;
         if (total > MaxTotalBytes) throw new InvalidDataException("El proyecto supera el tamaño admitido.");
         var output = new byte[total]; var span = output.AsSpan();
         Magic.CopyTo(span);
@@ -125,7 +197,7 @@ internal static class NdsProjectCodec
         BinaryPrimitives.WriteInt64LittleEndian(span[40..], document.Meta.SavedUtc.Ticks); BinaryPrimitives.WriteUInt64LittleEndian(span[48..], (ulong)total);
         BinaryPrimitives.WriteUInt32LittleEndian(span[56..], Crc32(span[..56]));
         manifest.CopyTo(span[HeaderSize..]); int at = HeaderSize + manifest.Length;
-        foreach (byte[] bytes in stored) { BinaryPrimitives.WriteUInt32LittleEndian(span[at..], (uint)bytes.Length); bytes.CopyTo(span[(at + 4)..]); at += 4 + bytes.Length; }
+        foreach (var part in parts) { BinaryPrimitives.WriteUInt32LittleEndian(span[at..], (uint)part.Stored.Length); part.Stored.CopyTo(span[(at + 4)..]); at += 4 + part.Stored.Length; }
         EndMagic.CopyTo(span[at..]); SHA256.HashData(span[..at], span[(at + 8)..]);
         return output;
     }
@@ -178,7 +250,8 @@ internal static class NdsProjectCodec
         if (meta.Generation != header.Generation || meta.Blobs.Count != blobCount) return Fail(NdsProjectReadStatus.Invalid, "La cabecera y el manifiesto no coinciden (generación o tablas).", header);
         foreach (var blob in meta.Blobs)
             if (blob is null || blob.Name is null || blob.Sha256 is null || blob.Codec is null || !IsHex(blob.Sha256, 64)) return Fail(NdsProjectReadStatus.Invalid, "El índice de tablas está incompleto.", header);
-        var files = new Dictionary<string, byte[]>(StringComparer.Ordinal); var overlays = new Dictionary<int, byte[]>(); byte[]? arm9 = null, eventData = null, eventScripts = null, operationsJson = null;
+        var files = new Dictionary<string, byte[]>(StringComparer.Ordinal); var overlays = new Dictionary<int, byte[]>(); byte[]? arm9 = null, eventData = null, eventScripts = null;
+        var blocks = new List<(byte[] Raw, byte[] Stored, NdsProjectBlobEntry Entry)>();
         int at = HeaderSize + (int)manifestLength; var seen = new HashSet<string>(StringComparer.Ordinal); long budget = 0;
         foreach (var entry in meta.Blobs)
         {
@@ -186,10 +259,20 @@ internal static class NdsProjectCodec
             uint length = BinaryPrimitives.ReadUInt32LittleEndian(data[at..]); at += 4;
             if (entry is null || length != entry.StoredLength || at + (long)length > end || entry.RawLength is < 0 or > MaxBlobRawBytes || !seen.Add(entry.Name)) return Fail(NdsProjectReadStatus.Invalid, "El índice de tablas no coincide con su contenido.", header);
             if ((budget += entry.RawLength) > MaxTotalBytes) return Fail(NdsProjectReadStatus.Invalid, "Las tablas declaran más tamaño del admitido.", header);
+            // History blocks: block n must be the n-th one, so the operations can only be put back in the order they were written.
+            bool block = entry.Kind == NdsProjectBlobKind.History;
+            if (block && entry.Name != HistoryBlockName(blocks.Count)) return Fail(NdsProjectReadStatus.Invalid, $"Bloque del historial fuera de orden o con nombre no válido: «{entry.Name}».", header);
+            var stored = data.Slice(at, (int)length);
             byte[] raw;
-            try { raw = Decode(data.Slice(at, (int)length), entry); }
-            catch (Exception ex) when (ex is InvalidDataException or IOException) { return Fail(NdsProjectReadStatus.Corrupt, $"La tabla «{entry.Name}» no se puede descomprimir: {ex.Message}", header); }
-            if (!Convert.ToHexString(SHA256.HashData(raw)).Equals(entry.Sha256, StringComparison.OrdinalIgnoreCase)) return Fail(NdsProjectReadStatus.Corrupt, $"La tabla «{entry.Name}» no coincide con su SHA-256.", header);
+            // Checking a save just written: a block whose exact stored bytes were already proved to give this content needs no second decompression.
+            if (block && !history && Proven(stored, entry)) raw = [];
+            else
+            {
+                try { raw = Decode(stored, entry); }
+                // Brotli reports damaged input as InvalidOperationException ("Decoder ran into invalid data"): it is damaged content like the others, never an exception.
+                catch (Exception ex) when (ex is InvalidDataException or IOException or InvalidOperationException) { return Fail(NdsProjectReadStatus.Corrupt, $"La tabla «{entry.Name}» no se puede descomprimir: {ex.Message}", header); }
+                if (!Convert.ToHexString(SHA256.HashData(raw)).Equals(entry.Sha256, StringComparison.OrdinalIgnoreCase)) return Fail(NdsProjectReadStatus.Corrupt, $"La tabla «{entry.Name}» no coincide con su SHA-256.", header);
+            }
             at += (int)length;
             switch (entry.Kind)
             {
@@ -198,25 +281,57 @@ internal static class NdsProjectCodec
                 case NdsProjectBlobKind.Arm9 when entry.Name == "arm9": arm9 = raw; break;
                 case NdsProjectBlobKind.EventData when entry.Name == "events:data": eventData = raw; break;
                 case NdsProjectBlobKind.EventScripts when entry.Name == "events:scripts": eventScripts = raw; break;
-                case NdsProjectBlobKind.History when entry.Name == HistoryName: operationsJson = raw; break;
+                case NdsProjectBlobKind.History: blocks.Add((raw, history ? stored.ToArray() : [], entry)); break;
                 default: return Fail(NdsProjectReadStatus.Invalid, $"Tabla con nombre o tipo no válido: «{entry.Name}».", header);
             }
         }
         if (at != end) return Fail(NdsProjectReadStatus.Invalid, "Quedan bytes sin describir antes del final del proyecto.", header);
-        // The operations travel as a table of their own (compressed): they complete the manifest, and the whole is validated again with them.
+        // The operations travel as tables of their own (compressed blocks): they complete the manifest, and the whole is validated again with them.
         if (!history) return new(NdsProjectReadStatus.Ok, "", new NdsProjectDocument(meta, new NdsProjectState { Files = files, Overlays = overlays, Arm9 = arm9, EventData = eventData, EventScripts = eventScripts }), header);
-        if (operationsJson is not null)
+        if (blocks.Count > 0)
         {
-            List<NdsProjectOperationRecord>? operations;
-            try { operations = JsonSerializer.Deserialize<List<NdsProjectOperationRecord>>(operationsJson, Json); }
-            catch (Exception ex) when (ex is JsonException or NotSupportedException or InvalidOperationException or FormatException) { return Fail(NdsProjectReadStatus.Invalid, "El historial del proyecto no es válido: " + ex.Message, header); }
-            if (operations is null || operations.Count == 0) return Fail(NdsProjectReadStatus.Invalid, "El historial del proyecto está vacío o no es una lista.", header);
+            var operations = new List<NdsProjectOperationRecord>(); var spans = new List<(int Start, int Count)>();
+            foreach (var (raw, _, entry) in blocks)
+            {
+                List<NdsProjectOperationRecord>? part;
+                try { part = JsonSerializer.Deserialize<List<NdsProjectOperationRecord>>(raw, Json); }
+                catch (Exception ex) when (ex is JsonException or NotSupportedException or InvalidOperationException or FormatException) { return Fail(NdsProjectReadStatus.Invalid, $"El historial del proyecto no es válido ({entry.Name}): " + ex.Message, header); }
+                if (part is null || part.Count == 0) return Fail(NdsProjectReadStatus.Invalid, $"Un bloque del historial está vacío o no es una lista ({entry.Name}).", header);
+                if (operations.Count + (long)part.Count > MaxOperations) return Fail(NdsProjectReadStatus.Invalid, "El historial del proyecto tiene demasiadas operaciones.", header);
+                spans.Add((operations.Count, part.Count)); operations.AddRange(part);
+            }
             meta = meta with { Operations = operations };
             if (Validate(meta) is { } incomplete) return Fail(NdsProjectReadStatus.Invalid, "El historial del proyecto no es válido: " + incomplete, header);
+            // The blocks of a file this rule wrote are kept as they are stored, so the next save does not compress them again. Other boundaries are simply rebuilt then.
+            var canonical = HistoryBlocks(operations);
+            if (canonical.Count == spans.Count && canonical.Select(b => (b.Start, b.Count)).SequenceEqual(spans))
+                for (int i = 0; i < blocks.Count; i++)
+                {
+                    var (_, stored, entry) = blocks[i]; var part = new Part(NdsProjectBlobKind.History, entry.Name, entry.RawLength, stored, entry.Sha256.ToUpperInvariant(), entry.Codec);
+                    if (part.Sha256 != entry.Sha256) continue; // only the form this writer produces, so a reused block is byte-identical to a rebuilt one
+                    Remember(operations.Skip(spans[i].Start).Take(spans[i].Count).ToArray(), part); Prove(stored, entry);
+                }
         }
         if (meta.Operations.Count + (meta.Events?.Operations.Count ?? 0) != header.OperationCount) return Fail(NdsProjectReadStatus.Invalid, "La cabecera y el historial no coinciden (número de operaciones).", header);
         return new(NdsProjectReadStatus.Ok, "", new NdsProjectDocument(meta, new NdsProjectState { Files = files, Overlays = overlays, Arm9 = arm9, EventData = eventData, EventScripts = eventScripts }), header);
     }
+
+    /// <summary>
+    /// Stored history blocks known to decompress to the content their index entry describes, by the SHA-256 of the stored bytes. A fact about the bytes, true
+    /// whoever asks; it only spares the second decompression when a save checks the container it has just written (opening a project always decompresses).
+    /// </summary>
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, string> ProvenBlocks = new(StringComparer.Ordinal);
+
+    private static string Described(NdsProjectBlobEntry entry) => entry.Codec + ":" + entry.RawLength.ToString(System.Globalization.CultureInfo.InvariantCulture) + ":" + entry.Sha256.ToUpperInvariant();
+
+    private static void Prove(ReadOnlySpan<byte> stored, NdsProjectBlobEntry entry)
+    {
+        if (ProvenBlocks.Count > 65_536) ProvenBlocks.Clear();
+        ProvenBlocks[Convert.ToHexString(SHA256.HashData(stored))] = Described(entry);
+    }
+
+    private static bool Proven(ReadOnlySpan<byte> stored, NdsProjectBlobEntry entry) =>
+        ProvenBlocks.TryGetValue(Convert.ToHexString(SHA256.HashData(stored)), out var described) && described == Described(entry);
 
     // -------------------------------------------------------------------------------------------------------------------------- validation
 
