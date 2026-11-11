@@ -71,7 +71,14 @@ internal static class NdsProjectCodec
     /// <summary>The operations as one UTF-8 JSON array, in order. Stored as a compressed table (<see cref="HistoryName"/>), not in the manifest.</summary>
     internal static byte[] HistoryJson(IReadOnlyList<NdsProjectOperationRecord> operations)
     {
-        var parts = operations.Select(o => RecordJson.GetValue(o, record => JsonSerializer.SerializeToUtf8Bytes(record, Json))).ToArray();
+        var parts = operations.Select(o => RecordJson.GetValue(o, record =>
+        {
+            // The one moment the JSON of an operation is produced is also when it is proved readable (a save later verifies the container, not every past operation again).
+            byte[] json = JsonSerializer.SerializeToUtf8Bytes(record, Json);
+            if (JsonSerializer.Deserialize<NdsProjectOperationRecord>(json, Json) is not { Action: not null, Recipe: not null, Changes: not null } back || back.Changes.Count != record.Changes.Count)
+                throw new InvalidDataException("Una operación del historial no se puede leer después de escribirla.");
+            return json;
+        })).ToArray();
         var output = new byte[parts.Sum(p => (long)p.Length) + Math.Max(0, parts.Length - 1) + 2]; int at = 0; output[at++] = (byte)'[';
         for (int i = 0; i < parts.Length; i++) { if (i > 0) output[at++] = (byte)','; parts[i].CopyTo(output, at); at += parts[i].Length; }
         output[at] = (byte)']';
@@ -134,7 +141,16 @@ internal static class NdsProjectCodec
             (int)Math.Min(BinaryPrimitives.ReadUInt32LittleEndian(data[24..]), int.MaxValue), ticks is >= 0 and <= 3155378975999999999 ? new DateTime(ticks, DateTimeKind.Utc) : DateTime.MinValue, (long)BinaryPrimitives.ReadUInt64LittleEndian(data[48..]));
     }
 
-    internal static NdsProjectReadResult Read(ReadOnlySpan<byte> data)
+    /// <summary>
+    /// Checks a container that this build has just written, without rebuilding its history: the header, the digest of the file, the manifest, and every table
+    /// (the history included) decompressed and compared with its SHA-256. The operations are NOT deserialized again (each one was proved readable when its
+    /// JSON was produced), so verifying a save does not cost the whole history. The document returned has no operations; use <see cref="Read"/> to open a project.
+    /// </summary>
+    internal static NdsProjectReadResult Verify(ReadOnlySpan<byte> data) => Read(data, history: false);
+
+    internal static NdsProjectReadResult Read(ReadOnlySpan<byte> data) => Read(data, history: true);
+
+    private static NdsProjectReadResult Read(ReadOnlySpan<byte> data, bool history)
     {
         NdsProjectReadResult Fail(NdsProjectReadStatus status, string message, NdsProjectHeader? header = null) => new(status, message, null, header);
         // Truncated only when what there is could be the start of a project (an empty file included); any other content is simply not a project, whatever its length.
@@ -162,7 +178,7 @@ internal static class NdsProjectCodec
         if (meta.Generation != header.Generation || meta.Blobs.Count != blobCount) return Fail(NdsProjectReadStatus.Invalid, "La cabecera y el manifiesto no coinciden (generación o tablas).", header);
         foreach (var blob in meta.Blobs)
             if (blob is null || blob.Name is null || blob.Sha256 is null || blob.Codec is null || !IsHex(blob.Sha256, 64)) return Fail(NdsProjectReadStatus.Invalid, "El índice de tablas está incompleto.", header);
-        var files = new Dictionary<string, byte[]>(StringComparer.Ordinal); var overlays = new Dictionary<int, byte[]>(); byte[]? arm9 = null, eventData = null, eventScripts = null, history = null;
+        var files = new Dictionary<string, byte[]>(StringComparer.Ordinal); var overlays = new Dictionary<int, byte[]>(); byte[]? arm9 = null, eventData = null, eventScripts = null, operationsJson = null;
         int at = HeaderSize + (int)manifestLength; var seen = new HashSet<string>(StringComparer.Ordinal); long budget = 0;
         foreach (var entry in meta.Blobs)
         {
@@ -182,16 +198,17 @@ internal static class NdsProjectCodec
                 case NdsProjectBlobKind.Arm9 when entry.Name == "arm9": arm9 = raw; break;
                 case NdsProjectBlobKind.EventData when entry.Name == "events:data": eventData = raw; break;
                 case NdsProjectBlobKind.EventScripts when entry.Name == "events:scripts": eventScripts = raw; break;
-                case NdsProjectBlobKind.History when entry.Name == HistoryName: history = raw; break;
+                case NdsProjectBlobKind.History when entry.Name == HistoryName: operationsJson = raw; break;
                 default: return Fail(NdsProjectReadStatus.Invalid, $"Tabla con nombre o tipo no válido: «{entry.Name}».", header);
             }
         }
         if (at != end) return Fail(NdsProjectReadStatus.Invalid, "Quedan bytes sin describir antes del final del proyecto.", header);
         // The operations travel as a table of their own (compressed): they complete the manifest, and the whole is validated again with them.
-        if (history is not null)
+        if (!history) return new(NdsProjectReadStatus.Ok, "", new NdsProjectDocument(meta, new NdsProjectState { Files = files, Overlays = overlays, Arm9 = arm9, EventData = eventData, EventScripts = eventScripts }), header);
+        if (operationsJson is not null)
         {
             List<NdsProjectOperationRecord>? operations;
-            try { operations = JsonSerializer.Deserialize<List<NdsProjectOperationRecord>>(history, Json); }
+            try { operations = JsonSerializer.Deserialize<List<NdsProjectOperationRecord>>(operationsJson, Json); }
             catch (Exception ex) when (ex is JsonException or NotSupportedException or InvalidOperationException or FormatException) { return Fail(NdsProjectReadStatus.Invalid, "El historial del proyecto no es válido: " + ex.Message, header); }
             if (operations is null || operations.Count == 0) return Fail(NdsProjectReadStatus.Invalid, "El historial del proyecto está vacío o no es una lista.", header);
             meta = meta with { Operations = operations };
