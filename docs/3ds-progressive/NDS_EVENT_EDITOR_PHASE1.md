@@ -83,3 +83,22 @@ Validación focalizada de la integración: build Release del runner, WPF, Core y
 Se reutilizó la fuente privada CPUE/1 identificada arriba, con nuevas salidas aisladas: tres verificaciones integrales del probe de eventos (593 mapas, checkpoint/reapertura/rebuild/restauración y archivos ajenos intactos) y **28** comprobaciones reales de entrenadores, incluidas exportación/reapertura, recetas y conservación de datos. La fuente conservó su SHA-256 y la restauración de eventos produjo una ROM con SHA-256 idéntico. Los checkpoints y las salidas anteriores no se sobrescribieron. No se amplía esta evidencia a otros juegos ni a ejecución en emulador.
 
 El resultado del CI del HEAD actualizado se registra en el [PR #55](https://github.com/joanjuz/Definitive-Randomizer/pull/55). Para la comprobación jugable siguen vigentes los cinco pasos anteriores: mapa 411/T01, NPC 0, dirección 2 → 3, checkpoint nuevo, exportación a otra ROM y restauración. Usar la compilación de la rama actualizada, no asumir que un ZIP estable anterior incluye este editor. La prueba jugable continúa pendiente del propietario; esta integración no publica un paquete ni fusiona el PR.
+
+## Ventanas pequeñas (A3)
+
+Cambio exclusivamente de disposición: no toca reglas de NPC, datos binarios, sesiones ni proyectos, y conserva los nombres de los controles.
+
+**El problema, medido.** La ventana principal tiene un mínimo de 900×480 unidades lógicas. A 1024×640 el editor de eventos dispone de unos 776×449, y en el mínimo de unos 652×289. La escala de Windows (150 % incluido) cambia los píxeles, no esta disposición, así que el caso es el mismo a 100 % y a 150 %. En esos tamaños las dos líneas de explicación, las barras de herramientas y el pie ocupaban casi toda la altura: el mapa conservaba sus 180 de alto mínimo, pero quedaba empujado fuera de la vista y tapado por el pie (a 683×427 empezaba en y=286; a 450×330 quedaba entero fuera).
+
+**La solución.**
+- El **área de trabajo** (lista de mapas, barras, mapa e inspector) es desplazable como un todo cuando no cabe; la cabecera y el pie con **Previsualizar, Guardar y Restaurar quedan fuera del desplazamiento** y siempre visibles.
+- En ventanas de menos de 620 de alto: las dos líneas de explicación pasan al título (descripción emergente y texto de ayuda accesible), la caja de diferencias vacía cede su sitio, la leyenda y la ayuda de la herramienta se ocultan como ya hacían al abrir una propuesta, y el mapa tiene un alto útil de hasta 240 que nunca supera el del área visible, de modo que siempre se puede traer entero a la vista.
+- En una ventana normal nada cambia: no hay desplazamiento, la explicación está en pantalla y el mapa ocupa el espacio disponible.
+
+| Ventana | Área del editor | Mapa | Comprobado |
+|---|---|---|---|
+| 1024×640 | 776×449 | 592×350 | el mapa entero se puede traer a la vista; Guardar y el estado quedan dentro de la ventana y fuera del área desplazable; render a 100 % y 150 % |
+| 900×480 (mínimo) | 652×289 | 468×192 | lo mismo |
+| 1100×760 y mayores | sin cambios | ocupa lo disponible | no hay desplazamiento |
+
+`--nds-events-ui-only` pasa de 16 a 29 comprobaciones. Son fuera de pantalla: **la sensación real con ratón y rueda (la rueda sobre el mapa hace zoom; fuera de él desplaza) no está probada** y conviene una mirada manual a 1024×640 con la escala al 150 %.
