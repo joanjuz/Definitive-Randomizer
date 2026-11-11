@@ -45,6 +45,13 @@ internal static class NdsProjectOpener
     internal static string Writer => "Definitive Randomizer " + (typeof(NdsProjectOpener).Assembly.GetName().Version?.ToString(3) ?? "");
     private const long MaxSiblingBytes = 256L * 1024 * 1024; private const int MaxSiblings = 64;
 
+    /// <summary>Whether a project file records that its ROM was opened as a romhack (false when the file cannot be read: the opening then fails with its own message).</summary>
+    internal static bool WasMadeOnARomhack(string projectPath)
+    {
+        try { return new FileInfo(projectPath).Length <= NdsProjectCodec.MaxTotalBytes && NdsProjectCodec.Verify(File.ReadAllBytes(projectPath)) is { Ok: true } read && read.Document!.Meta.Rom.IsRomhack; }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { return false; }
+    }
+
     internal static NdsProject Open(NdsProjectOpenRequest request)
     {
         var project = NdsProject.Open(request.RomPath, request.AllowRomhack); NdsProjectFileStore? store = null;

@@ -101,7 +101,7 @@ pie (40 B)       «DRDSEND1» + SHA-256 de todo lo anterior
 
 ## 6. PR 1: qué incluye y cómo se acredita
 
-Código en `3DS.Progressive.App/Services/Nds/Project/` (sin tocar motores, scripts ni el renderer): `NdsProjectModel`, `NdsProjectCodec`, `NdsProjectIdentity`, `NdsProjectStore` (contrato y almacén en memoria) y `NdsProjectTransactor`. Pruebas: `--nds-project-format-only` (133 comprobaciones sintéticas, en el CI) y la sonda `--nds-project-measure` (real, solo lectura).
+Código en `3DS.Progressive.App/Services/Nds/Project/` (sin tocar motores, scripts ni el renderer): `NdsProjectModel`, `NdsProjectCodec`, `NdsProjectIdentity`, `NdsProjectStore` (contrato y almacén en memoria) y `NdsProjectTransactor`. Pruebas: `--nds-project-format-only` (134 comprobaciones sintéticas, en el CI) y la sonda `--nds-project-measure` (real, solo lectura).
 
 | Área | Qué se prueba |
 |---|---|
@@ -225,7 +225,42 @@ Si no hay ninguno se crea junto a la ROM. La ROM de origen no se modifica en nin
 
 **Pendiente de comprobar a mano.** Nada de lo anterior sustituye abrir la aplicación: conviene ver en una ROM real que aparece `Juego.nds.drproj` junto a ella, que al cerrar y reabrir se continúa, y los textos de los dos diálogos nuevos (ubicación alternativa y recuperación).
 
-## 10. Plan de PR
+## 10. PR 5: estado visible y resistencia
+
+**Estado del proyecto.** `NdsProject.PersistenceState` resume en un valor lo que el usuario necesita saber, y el editor DS lo muestra siempre en la barra lateral («Estado del proyecto DS», con nombre accesible y anuncio no intrusivo). Solo aparece un botón cuando hay algo que decidir.
+
+| Estado | Cuándo | Texto | Acción |
+|---|---|---|---|
+| Sin proyecto | Sesión solo en memoria | «Sin proyecto: los cambios solo están en memoria hasta exportar.» | — |
+| Guardado | Toda operación confirmada está en disco | «Proyecto guardado · generación N» | — |
+| Guardando | Mientras el almacén trabaja | «Guardando el proyecto…» | — |
+| Error | El último guardado falló y el cambio no se aplicó | «Error al guardar: el último cambio no se aplicó…» | Repetir la operación |
+| Solo lectura | El proyecto no se puede escribir | «Proyecto de solo lectura…» | — |
+| Conflicto de escritura | El archivo cambió fuera, es otro proyecto o está dañado | «Conflicto de escritura: … no se sobrescribe.» | «Recargar el proyecto guardado» |
+| Recuperación pendiente | No se sabe si el último guardado terminó | «Recuperación pendiente…» | «Reconciliar con lo guardado» |
+
+«Recargar» muestra lo que hay en disco, sin sobrescribirlo, y solo si sigue siendo el mismo proyecto de la misma ROM (la sesión solo contenía operaciones ya guardadas antes del cambio externo); pide confirmación. «Reconciliar» instala lo guardado, llegara o no la operación interrumpida. «Guardando» se informa desde dentro del guardado; como el guardado es síncrono, en pantalla solo se llega a ver cuando la operación se ejecuta fuera del hilo de la interfaz (el editor de eventos).
+
+**Resistencia.** `--nds-project-resilience-only` (50 comprobaciones, en el CI) aplica 300 operaciones por perfil en los seis perfiles (ediciones manuales de entrenadores y especies sobre celdas distintas, una randomización cada diez y una randomización de datos cada diez), cierra y reanuda desde disco cada 20 y hace fallar uno de cada nueve guardados en un paso al azar. Una sesión de control sin proyecto aplica solo las operaciones confirmadas.
+
+| Qué se exige | Resultado (10/11/2026, por perfil) |
+|---|---|
+| Solo quedan las operaciones confirmadas | 207 confirmadas, 22 rechazadas, 4 de resultado desconocido reconciliadas, 16 sesiones (71 de las 300 no son aplicables a la ROM sintética) |
+| Cada sesión reanudada es idéntica byte a byte a una que nunca se cerró | 15 reanudaciones por perfil, 0 diferencias |
+| La ROM exportada tras la última reapertura es idéntica | sesión viva = reanudada = sin proyecto |
+| El estado mostrado sigue cada fallo y cada recuperación | Guardado / Error / Recuperación pendiente en cada paso |
+| Los tres respaldos son generaciones completas y consecutivas, sin temporales | sí |
+| Tamaño del proyecto | 434–863 KiB con 50 000–83 000 cambios registrados |
+| Guardar una operación | mediana 51–84 ms, máximo 146–276 ms (SSD) |
+
+Los seis estados se comprueban además sobre el editor DS real fuera de pantalla: texto, botón visible solo cuando procede, reconciliar, recargar, y que otro proyecto puesto en su lugar no se carga.
+
+`--nds-project-resilience-probe <carpeta nueva> <operaciones> <ROM…>` repite la resistencia con volcados privados en solo lectura. Con los cinco volcados del propietario y 200 operaciones por ROM (10/11/2026): 35 de 35; 135–143 operaciones confirmadas, 16 guardados fallidos y 11 sesiones por ROM; proyectos de 1,4–1,7 MiB con 145 000–171 000 cambios registrados (veinte randomizaciones completas cada uno); guardar una operación: mediana 140–174 ms, máximo 399–453 ms. Las ROM de origen no cambian y no aparece nada junto a ellas.
+
+**Coste de guardar a medida que crece el proyecto.** Verificar un guardado ya no reconstruye el historial (`NdsProjectCodec.Verify`: 25 ms frente a 406 ms con 204 000 cambios), y el JSON de cada operación se calcula una vez. Lo que sigue creciendo con el proyecto es comprimir y descomprimir el historial entero en cada guardado: unos 50 ms con 50 000 cambios, 85 ms con 83 000 y 140–175 ms con 145 000–171 000 (ROM reales tras veinte randomizaciones completas). Es decir, después de muchas randomizaciones cada edición manual tarda del orden de 0,15 s en confirmarse. Es utilizable, pero es lineal. Eliminarlo exige dividir el historial en bloques cerrados que no se vuelvan a comprimir, que es un cambio de formato: conviene decidirlo antes de publicar la versión 1 del formato, porque después requeriría subir `MinReaderVersion`.
+
+## 11. Plan de PR
+
 
 
 
@@ -235,7 +270,7 @@ Si no hay ninguno se crea junto a la ROM. La ROM de origen no se modifica en nin
 4. **PR 4. Apertura desde B2.** Nuevo tipo `DsProject` en el detector, creación y reanudación automáticas tras verificar la ROM, apertura desde el `.drproj` si la ROM cambió de sitio (volver a localizarla y comprobar la identidad), importación de checkpoints, y cambio de proyecto sin «descartar» porque el trabajo ya está guardado.
 5. **PR 5. Interfaz y resistencia.** Indicador (guardando, guardado, error, solo lectura, bloqueado por reconciliación), diálogos de recuperación y de conflicto, simulación de varios días con cierres forzados, sonda con entrada real, documentación y notas de 1.0.0.
 
-## 11. Limitaciones y riesgos abiertos
+## 12. Limitaciones y riesgos abiertos
 
 - El PR 1 no escribe en disco: el almacén real y lo que se ha demostrado y lo que no están en la sección 7.
 - No hay mediciones de Blanco (España); se cubre con las de Negro y Blanco 2 (misma estructura).
