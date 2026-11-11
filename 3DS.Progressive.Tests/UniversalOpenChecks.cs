@@ -378,6 +378,33 @@ internal static class UniversalOpenChecks
             asked.Clear(); r = OpenWith(main, dsB, romhacks: true);
             check(r.Opened && !asked.Any(a => a.StartsWith("replace")), "UniversalOpenWindow_DsReplacedByDs_NoQuestionWithoutPendingChanges");
 
+            // Drag and drop (B3): what is dropped goes through the same detector, engines and confirmations as the dialog.
+            OpenResult Drop(params string[] paths) { var task = main.HandleDropAsync(paths); Wait(task); return task.Result; }
+            var dsBefore = Ds(); string dropRom = RomFile(temp, "soltada.nds"); main.NdsWorkspace!.AllowRomhacks = true;
+            r = Drop(dropRom);
+            check(r.Opened && NdsOn() && Ds() != dsBefore && Ds().SourcePath == dropRom && Ds().IsPersistent && File.Exists(dropRom + ".drproj") && main.AllowDrop, "UniversalOpenDrop_ADsRomDroppedOnTheWindowOpensWithItsProject");
+            var edited = new NdsRecordEditor(Ds(), NdsSection.Trainers); var editedValues = edited.Read(1).SelectMany(g => g.Fields).ToDictionary(f => f.Key, f => f.Value); editedValues["P0.Level"] = 41; edited.Save(1, editedValues); int dropOps = Ds().OperationCount;
+            r = Drop(dsB);
+            check(r.Opened && Ds().SourcePath.EndsWith("B.nds"), "UniversalOpenDrop_AnotherRomReplacesTheSavedProjectWithoutAsking");
+            r = Drop(dropRom + ".drproj");
+            check(r.Opened && Ds().SourcePath == dropRom && Ds().OperationCount == dropOps && Ds().IsRomhack, "UniversalOpenDrop_AProjectFileDroppedResumesItsWork");
+            r = Drop(g1);
+            check(r.Opened && main.Session is not null && main.Session != s2 && !NdsOn(), "UniversalOpenDrop_A3dsFolderDroppedOpensThe3dsProject");
+            var s3 = main.Session; r = Drop(shield);
+            check(r.Opened && main.SwitchWorkspace!.Project!.Identity.Game.Contains("Escudo") && main.Session == s3, "UniversalOpenDrop_ASwitchExtractionDroppedOpensIt");
+            // What cannot be opened changes nothing and says why.
+            string screen = main.HostDescription(); var dsKept = Ds(); var swKept = main.SwitchWorkspace!.Project; string note = Path.Combine(temp, "notas.txt"); File.WriteAllText(note, "no es un proyecto");
+            r = Drop(dsA, dsB);
+            check(r.Outcome == OpenOutcome.Rejected && r.Message.Contains("un solo archivo") && main.HostDescription().Replace(r.Message, "") == screen.Replace(r.Message, "") && Ds() == dsKept, "UniversalOpenDrop_SeveralItemsAreRefusedAndNothingChanges");
+            r = Drop(note);
+            check(r.Outcome == OpenOutcome.Rejected && Ds() == dsKept && main.SwitchWorkspace!.Project == swKept && main.Session == s3, "UniversalOpenDrop_AnUnrecognisedFileIsRefusedAndNothingChanges");
+            r = Drop(Path.Combine(temp, "no-existe.nds"));
+            check(r.Outcome == OpenOutcome.Rejected && Ds() == dsKept, "UniversalOpenDrop_AMissingPathIsRefused");
+            r = Drop();
+            check(r.Outcome == OpenOutcome.Rejected && Ds() == dsKept, "UniversalOpenDrop_AnEmptyDropIsRefused");
+            using (UiProgress.BlockInteraction()) { r = Drop(dsA); check(r.Outcome == OpenOutcome.Blocked && Ds() == dsKept && main.DropProblem([dsA]) is not null, "UniversalOpenDrop_NothingIsOpenedWhileAnOperationIsRunning"); }
+            check(main.DropProblem([dsA]) is null && main.DropProblem([dsA, dsB]) is not null && main.DropProblem(null) is not null, "UniversalOpenDrop_TheCursorShowsWhetherTheDropWillBeAccepted");
+
             // Rejections never disturb the previous projects or the screen.
             var dsNow = Ds(); var sessionNow = main.Session; var switchNow = main.SwitchWorkspace!.Project; before = main.HostDescription();
             string fakeRom = Path.Combine(temp, "fake.nds"); File.WriteAllBytes(fakeRom, NdsGen5RandomizerChecks.BuildRom(new Dictionary<string, byte[]> { ["a/0/0/2"] = NdsGen5RandomizerChecks.BuildNarc([]) }, "IRBO"));

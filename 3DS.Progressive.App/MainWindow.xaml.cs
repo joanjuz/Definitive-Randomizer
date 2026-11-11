@@ -79,6 +79,7 @@ public partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
+        InitializeDrop();
         Closed+=OnWindowClosed;
         _interactionProgress=blocked=>
         {

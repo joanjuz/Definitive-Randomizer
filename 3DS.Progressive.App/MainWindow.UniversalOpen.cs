@@ -67,6 +67,37 @@ public partial class MainWindow
         return result;
     }
 
+    // Drag and drop (phase B3): one file or folder dropped on the window is opened exactly like a path chosen in "Abrir proyecto". Nothing is decided here:
+    // the detector says what it is, the engines open it, and the same confirmations are asked.
+    private void InitializeDrop()
+    {
+        AllowDrop = true;
+        PreviewDragOver += (_, e) => { if (!e.Data.GetDataPresent(System.Windows.DataFormats.FileDrop)) return; e.Effects = DropProblem(e.Data.GetData(System.Windows.DataFormats.FileDrop) as string[]) is null ? System.Windows.DragDropEffects.Copy : System.Windows.DragDropEffects.None; e.Handled = true; };
+        PreviewDrop += async (_, e) => { if (!e.Data.GetDataPresent(System.Windows.DataFormats.FileDrop)) return; e.Handled = true; await HandleDropAsync(e.Data.GetData(System.Windows.DataFormats.FileDrop) as string[]); };
+    }
+
+    /// <summary>Why what is being dragged cannot be dropped now, or null. Only what can be known without reading anything: the detector judges the content after the drop.</summary>
+    internal string? DropProblem(string[]? paths)
+    {
+        if (_closed) return "La aplicación se está cerrando.";
+        if (UiProgress.IsInteractionBlocked) return "Hay una operación en curso. Espera a que termine para abrir otro proyecto.";
+        if (_openDialog is not null) return "Ya hay un diálogo «Abrir proyecto» abierto: usa ese diálogo.";
+        if (paths is null || paths.Length == 0) return "No se soltó ningún archivo ni carpeta.";
+        if (paths.Length > 1) return "Suelta un solo archivo o una sola carpeta: se abre un proyecto cada vez.";
+        return null;
+    }
+
+    /// <summary>Opens what was dropped through the universal flow. A drop that cannot be opened changes nothing and says why.</summary>
+    internal async Task<OpenResult> HandleDropAsync(string[]? paths)
+    {
+        if (DropProblem(paths) is { } problem)
+        {
+            StatusText.Text = problem;
+            return new(UiProgress.IsInteractionBlocked || _closed || _openDialog is not null ? OpenOutcome.Blocked : OpenOutcome.Rejected, problem);
+        }
+        return await OpenPathAsync(paths![0]);
+    }
+
     private void OpenProject_Click(object sender, RoutedEventArgs e) => OpenUniversalProject();
 
     private bool Ask(Window? owner, string kind, string title, string message, string? details = null) =>

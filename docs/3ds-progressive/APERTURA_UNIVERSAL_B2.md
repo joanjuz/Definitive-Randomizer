@@ -83,3 +83,13 @@ ORASDEMO (301 GARC) y SMDEMO (239) son candidatas **con advertencia**: la aplica
 La suite sintética cubre: DS→3DS, DS→Switch, 3DS→DS, 3DS→Switch, Switch→DS, Switch→3DS; sustitución en la misma plataforma (DS, 3DS y Switch); cancelar con cambios pendientes; ROM DS con tablas distintas, demo rechazada por el motor y extracción Switch dañada; carpeta incompleta, ambigua y ruta inexistente; demos con y sin aceptar la advertencia; checkpoints v1, v2 y v3 (por su propia ruta); recuperación 3DS (con y sin permiso, por el registro del historial y por el individual, sin tocar otro proyecto); rutas modificadas durante una detección; cancelar, cerrar con el botón ✕ y cerrar la ventana durante una apertura; excepciones al preparar y al instalar (inyectadas en el cambio de vista y en el cambio de proyecto, para las tres plataformas).
 
 Limitación: no hay un Platino sintético que supere las tablas del perfil, por lo que los checkpoints reales solo se abren con motor en la sonda con archivos privados; en la suite sintética se comprueba su detección y el enrutado al motor DS con su propia ruta.
+
+## Arrastrar y soltar (B3)
+
+Soltar **un** archivo o **una** carpeta sobre la ventana principal lo abre con el mismo flujo que «Abrir proyecto»: `MainWindow.HandleDropAsync` llama a `OpenPathAsync`, que usa el mismo detector, los mismos motores y las mismas confirmaciones (`ProjectOpenCoordinator`). No hay lógica de apertura propia.
+
+- Se admite lo mismo que el diálogo: ROM `.nds`, proyecto `.drproj`, checkpoint `.ndsevents.json`, carpeta 3DS extraída y extracción de Espada/Escudo. El contenido lo juzga el detector después de soltar, nunca el nombre.
+- Mientras se arrastra, el cursor indica si se aceptará: no se acepta con una operación en curso, con el diálogo «Abrir proyecto» abierto, al cerrar la aplicación ni con más de un elemento.
+- Lo que no se puede abrir no cambia nada y explica el motivo (barra de estado y, salvo cancelación, un aviso).
+
+Comprobaciones en `--universal-open-only` (113): ROM DS soltada abre con su proyecto, otro ROM reemplaza sin preguntar a un proyecto guardado, un `.drproj` soltado reanuda su trabajo, carpeta 3DS y extracción de Switch, varios elementos, archivo no reconocido, ruta inexistente, soltar vacío y bloqueo durante una operación. Son fuera de pantalla: **el gesto real con el ratón no está probado** y conviene comprobarlo a mano.
