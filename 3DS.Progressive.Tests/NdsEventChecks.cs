@@ -180,6 +180,21 @@ internal static class NdsEventChecks
                 string captures = Path.Combine(AppContext.BaseDirectory, "nds-events-ui"); Directory.CreateDirectory(captures);
                 using var stream = File.Create(Path.Combine(captures, "events-" + width + ".png")); png.Save(stream);
             }
+            // The same editor on a ROM with a persistent project: saving goes to the project, no checkpoint file is asked for or written.
+            string platinum = Path.Combine(temp, "platino.nds"); File.WriteAllBytes(platinum, NdsGen4Checks.SyntheticRom(pk3DS.Core.NDS.Gen4Profile.All.Single(p => p.GameCode == "CPUE"), true));
+            using var project = NdsProject.Open(platinum, true); var own = new NdsEventSession(rom, f.Read()); project.AdoptEventSession(own);
+            var store = new ThreeDS.Progressive.Services.Nds.Project.InMemoryNdsProjectStore(new()); project.AttachPersistence(store, ThreeDS.Progressive.Services.Nds.Project.NdsProjectRomIdentity.Compute(platinum, true), null, "comprobaciones");
+            var saved = new NdsEventEditorView(own) { ProjectSave = project.SaveEvent }; int checkpoints = Directory.GetFiles(temp, "*.ndsevents.json").Length;
+            TextBox Field(string name) => Children<TextBox>(saved).Single(e => AutomationProperties.GetName(e) == "Eventos DS · " + name);
+            string Status() => Children<TextBlock>(saved).Single(t => AutomationProperties.GetName(t) == "Eventos DS · estado").Text;
+            check(Children<TextBlock>(saved).Any(t => t.Text.Contains("lo guarda en el proyecto de la ROM")) && !Children<TextBlock>(saved).Any(t => t.Text.Contains("crea un checkpoint nuevo")) && Status() == "Sin cambios de eventos.", "NdsEventsUi_Project_TheEditorExplainsThatSavingGoesToTheProject");
+            Field("Coordenada X").Text = "9"; saved.PreviewSelection(); NdsUiChecksPump(saved.SaveToProjectAsync());
+            check(own.Data.Npc(0, 0).X == 9 && project.SavedGeneration == 2 && own.LastCheckpoint is null && Directory.GetFiles(temp, "*.ndsevents.json").Length == checkpoints && Status().Contains("guardados en el proyecto"), "NdsEventsUi_Project_SaveGoesToTheProjectWithoutACheckpointFile");
+            // The project cannot be written: the change is not applied, the editor says so, and the same proposal can be saved again afterwards.
+            Field("Coordenada X").Text = "11"; saved.PreviewSelection(); store.Fault = ThreeDS.Progressive.Services.Nds.Project.NdsProjectFault.FailBeforeWrite; NdsUiChecksPump(saved.SaveToProjectAsync());
+            check(own.Data.Npc(0, 0).X == 9 && project.SavedGeneration == 2 && Status().StartsWith("No se guardó"), "NdsEventsUi_Project_AFailedSaveChangesNothingAndIsReported");
+            Field("Coordenada X").Text = "11"; saved.PreviewSelection(); NdsUiChecksPump(saved.SaveToProjectAsync());
+            check(own.Data.Npc(0, 0).X == 11 && project.SavedGeneration == 3, "NdsEventsUi_Project_TheNextSaveSucceeds");
         }
         finally { Directory.Delete(temp, true); }
     }

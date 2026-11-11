@@ -183,7 +183,50 @@ Resultados del 10/11/2026 con los volcados del propietario (Platino, Diamante, H
 
 **No probado.** Nada de esto se ha jugado: son comprobaciones de bytes. La jugabilidad de la ROM exportada depende de los motores, que este PR no modifica.
 
-## 9. Plan de PR
+## 9. PR 4: apertura con proyecto (B2)
+
+Desde este PR la aplicación **sí crea y reanuda proyectos**: abrir una ROM DS desde «Abrir proyecto» (o desde el botón de apertura del editor DS, que ahora usa el mismo flujo) devuelve una sesión persistente. Código: `NdsProjectOpener`, `ProjectDetector` (tipo `DsProject`), `ProjectOpenCoordinator` y los puntos de la interfaz que preguntaban por cambios sin guardar.
+
+**Qué ocurre al abrir una ROM DS.** El motor la abre y la verifica como siempre (ninguna comprobación cambia; un romhack sigue necesitando «Admitir romhacks»). Se calcula su identidad (SHA-256 y SHA-1 completos) y se busca su proyecto, **siempre por la identidad de la ROM que el proyecto registra y nunca por el nombre**:
+
+1. `Juego.nds.drproj` junto a la ROM.
+2. Otro `.drproj` de la misma carpeta que registre esta ROM y cuya propia ROM ya no esté a su lado (la ROM se renombró y el proyecto no).
+3. La ruta alternativa derivada del SHA-256 (sección 7).
+
+Si no hay ninguno se crea junto a la ROM. La ROM de origen no se modifica en ningún caso.
+
+| Situación | Resultado |
+|---|---|
+| Hay un proyecto y es de esta ROM | Se reanuda: tablas, overlays, ARM9, historial y eventos |
+| ROM y proyecto movidos o renombrados juntos | Se reanuda; el siguiente guardado anota la ruta nueva |
+| Solo se renombró la ROM | Se encuentra su proyecto por contenido; no se crea un segundo proyecto |
+| Una copia de la ROM junto a la original, que conserva su proyecto | La copia recibe su propio proyecto |
+| El proyecto es de otro juego, otra revisión u otro volcado | Se rechaza; el proyecto no se toca y no se crea nada |
+| Dos proyectos reclaman la misma ROM | Se rechaza sin elegir; el usuario abre el `.drproj` que quiera |
+| Proyecto de una versión más reciente | Se rechaza sin tocarlo |
+| Principal dañado, con copia válida | Se pregunta, indicando la copia, su fecha y cuántas operaciones se perderían; si se acepta se instala y el dañado se conserva |
+| Principal dañado, sin copias | Se rechaza; nunca lo sustituye un proyecto nuevo |
+| La carpeta de la ROM no admite archivos y no hay proyecto | Se pide consentimiento para guardarlo en la carpeta de usuario; sin él no se abre nada |
+| El proyecto existe en una carpeta que ya no admite escritura | Se abre para lectura; las operaciones se rechazan con un mensaje, no se pierden en silencio |
+| La misma ROM ya está abierta | Se rechaza («ya está abierto en esta ventana», o qué proceso lo tiene) y la sesión abierta sigue igual |
+
+**Abrir un `.drproj`.** El detector lo reconoce por su firma y solo lo considera abrible si está entero y encuentra su ROM: en la ruta que usó por última vez, con el nombre del proyecto, o como otro `.nds` del mismo juego, revisión y tamaño en la carpeta del proyecto. El motor compara después el SHA-256 completo, así que una ROM parecida se rechaza sin tocar el proyecto. Si la ROM no aparece, el mensaje indica abrir directamente la ROM.
+
+**Checkpoints antiguos.** Abrir un `.ndsevents.json` abre la ROM con su proyecto e importa el historial del checkpoint (v1, v2 o v3), tras validarlo y reproducirlo con las reglas de siempre. El archivo solo se lee. Importar el mismo historial otra vez no cambia nada; un checkpoint con un historial distinto del que ya tiene el proyecto se rechaza (no se mezclan). El historial importado se puede volver a exportar como el mismo documento.
+
+**Interfaz.**
+- El editor de eventos, con proyecto, guarda en él sin pedir un archivo de checkpoint; el texto de ayuda y el estado lo indican. Sin proyecto se comporta como antes.
+- Cambiar de ROM o cerrar la aplicación ya no pregunta por «cambios sin exportar» cuando la sesión DS tiene proyecto, porque el trabajo está guardado. Una sesión sin proyecto (la carga directa en memoria que usan las pruebas) sigue preguntando.
+- La pantalla de inicio del editor DS indica si la sesión tiene proyecto y su generación.
+- Un guardado que falla llega a los editores como `NdsProjectSaveException` (una `InvalidOperationException`, como el resto de rechazos de una operación), de modo que cada vista lo muestra con su mensaje habitual y el cambio no se aplica. «Descartar cambios» también se guarda y, si no puede, no descarta.
+- Si la apertura falla en cualquier punto, la sesión anterior se conserva: el proyecto preparado se libera con su bloqueo.
+
+**Cómo se acredita.** `--nds-project-open-only` (43 comprobaciones, en el CI): cada fila de la tabla anterior con ROM sintéticas y archivos reales, una regla de acceso real para las carpetas sin permiso, el detector, la entrada del motor universal y la importación de checkpoints. `--universal-open-only` (102) cubre la ventana real: una ROM DS abre con su proyecto, reemplazarla no pregunta y no pierde nada, **reabrirla reanuda el trabajo**, y una sesión sin proyecto sigue pidiendo confirmación. `--nds-events-ui-only` (16) cubre el editor de eventos en modo proyecto, incluido un guardado fallido. La sonda con Platino real importa un checkpoint v3 (enfermera con script) y reanuda después sin él.
+
+**Pendiente de comprobar a mano.** Nada de lo anterior sustituye abrir la aplicación: conviene ver en una ROM real que aparece `Juego.nds.drproj` junto a ella, que al cerrar y reabrir se continúa, y los textos de los dos diálogos nuevos (ubicación alternativa y recuperación).
+
+## 10. Plan de PR
+
 
 
 1. **PR 1 (este).** Contrato, formato, identidad, almacén en memoria, transacción y mediciones.
@@ -192,7 +235,7 @@ Resultados del 10/11/2026 con los volcados del propietario (Platino, Diamante, H
 4. **PR 4. Apertura desde B2.** Nuevo tipo `DsProject` en el detector, creación y reanudación automáticas tras verificar la ROM, apertura desde el `.drproj` si la ROM cambió de sitio (volver a localizarla y comprobar la identidad), importación de checkpoints, y cambio de proyecto sin «descartar» porque el trabajo ya está guardado.
 5. **PR 5. Interfaz y resistencia.** Indicador (guardando, guardado, error, solo lectura, bloqueado por reconciliación), diálogos de recuperación y de conflicto, simulación de varios días con cierres forzados, sonda con entrada real, documentación y notas de 1.0.0.
 
-## 10. Limitaciones y riesgos abiertos
+## 11. Limitaciones y riesgos abiertos
 
 - El PR 1 no escribe en disco: el almacén real y lo que se ha demostrado y lo que no están en la sección 7.
 - No hay mediciones de Blanco (España); se cubre con las de Negro y Blanco 2 (misma estructura).

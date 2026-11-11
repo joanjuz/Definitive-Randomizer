@@ -347,7 +347,7 @@ internal sealed partial class NdsProject : IDisposable
         var files = new Dictionary<string, byte[]>(_files, StringComparer.Ordinal); foreach (var (path, data) in preview.Result.Files) files[path] = data;
         var overlays = new Dictionary<int, byte[]>(_overlays); foreach (var (id, data) in preview.Result.Overlays) overlays[id] = data;
         var recompress = _recompress.Union(preview.Result.RecompressOverlays).ToArray(); var record = Project.NdsProjectOperationRecord.Of(operation);
-        _tx.Run(current => Compose(current, files, overlays, recompress, preview.Result.Arm9 ?? _arm9, [.. current.Meta.Operations, record], current.Meta.Events, current.State.EventData, current.State.EventScripts), _ => Install());
+        Commit(current => Compose(current, files, overlays, recompress, preview.Result.Arm9 ?? _arm9, [.. current.Meta.Operations, record], current.Meta.Events, current.State.EventData, current.State.EventScripts), _ => Install());
     }
 
     /// <summary>Discards every pending change.</summary>
@@ -367,7 +367,7 @@ internal sealed partial class NdsProject : IDisposable
         }
         if (_tx is null) { Install(); return; }
         // Persistent project: discarding is a new generation with nothing in it; the previous one stays in the backups.
-        _tx.Run(current => Compose(current, new(StringComparer.Ordinal), new(), [], null, [], current.Meta.Events is { Extra: not null } events ? events with { Operations = [], Audit = [], ImportedFrom = null } : null, null, null), _ => Install());
+        Commit(current => Compose(current, new(StringComparer.Ordinal), new(), [], null, [], current.Meta.Events is { Extra: not null } events ? events with { Operations = [], Audit = [], ImportedFrom = null } : null, null, null), _ => Install());
     }
 
     /// <summary>Writes the new ROM and its change log, then re-reads the ROM to confirm the tables still parse.</summary>

@@ -336,7 +336,8 @@ internal static class UniversalOpenChecks
             check(r.Opened && NdsOn() && Ds() is { IsRomhack: true }, "UniversalOpenWindow_OpensDsFromAnEmptyApplicationWithoutChoosingAPlatform");
             var trainers = new NdsRecordEditor(Ds(), NdsSection.Trainers); var values = trainers.Read(1).SelectMany(g => g.Fields).ToDictionary(f => f.Key, f => f.Value); values["P0.Species"] = 25; values["P0.Level"] = 33; trainers.Save(1, values);
             var dsFirst = Ds(); int ops = dsFirst.OperationCount;
-            check(dsFirst.HasChanges && main.InspectForChecks(DetectedPlatform.NintendoDS) is { HasSession: true, HasPendingChanges: true }, "UniversalOpenWindow_HostReportsThePendingChangesOfTheDsSession");
+            // The universal flow opens a DS ROM with its persistent project: the work is already saved, so there is nothing pending to lose.
+            check(dsFirst is { HasChanges: true, IsPersistent: true, SavedGeneration: 2 } && File.Exists(dsA + ".drproj") && main.InspectForChecks(DetectedPlatform.NintendoDS) is { HasSession: true, HasPendingChanges: false }, "UniversalOpenWindow_ADsRomOpensWithItsSavedProjectAndHasNothingPendingToLose");
 
             // DS → 3DS: the DS project and its changes stay.
             r = OpenWith(main, g1);
@@ -346,12 +347,17 @@ internal static class UniversalOpenChecks
             r = OpenWith(main, sword);
             var swordProject = main.SwitchWorkspace?.Project;
             check(r.Opened && swordProject is not null && swordProject.Identity.Game.Contains("Espada") && main.Session == session1 && Ds() == dsFirst, "UniversalOpenWindow_3dsToSwitch_KeepsThe3dsAndDsProjects");
-            // Switch → DS: cancelling with pending DS changes keeps everything exactly.
+            // Switch → DS: the DS project on screen is saved, so replacing it asks nothing (answering "no" to anything would cancel) and loses nothing.
             string before = main.HostDescription(); asked.Clear(); answer = false;
             r = OpenWith(main, dsB, romhacks: true);
-            check(r.Outcome == OpenOutcome.Cancelled && Ds() == dsFirst && dsFirst.OperationCount == ops && dsFirst.HasChanges && main.HostDescription() == before && asked.Any(a => a.StartsWith("replace")) && main.SwitchWorkspace!.Project == swordProject, "UniversalOpenWindow_SwitchToDs_CancelWithPendingChangesKeepsEverything");
+            check(r.Opened && Ds() != dsFirst && Ds().SourcePath.EndsWith("B.nds") && Ds().IsPersistent && File.Exists(dsB + ".drproj") && NdsOn() && !asked.Any(a => a.StartsWith("replace")) && main.SwitchWorkspace!.Project == swordProject && main.Session == session1, "UniversalOpenWindow_SwitchToDs_ASavedDsProjectIsReplacedWithoutAskingAndTheOthersStay");
+            // A DS session WITHOUT a project (the direct, in-memory load) still has changes that would be lost: cancelling keeps everything exactly.
+            Wait(main.NdsWorkspace!.LoadAsync(RomFile(temp, "memoria.nds")));
+            var unsaved = Ds(); var memory = new NdsRecordEditor(unsaved, NdsSection.Trainers); var memoryValues = memory.Read(1).SelectMany(g => g.Fields).ToDictionary(f => f.Key, f => f.Value); memoryValues["P0.Level"] = 44; memory.Save(1, memoryValues);
+            before = main.HostDescription(); asked.Clear(); answer = false; r = OpenWith(main, dsB, romhacks: true);
+            check(!unsaved.IsPersistent && main.InspectForChecks(DetectedPlatform.NintendoDS) is { HasPendingChanges: true } && r.Outcome == OpenOutcome.Cancelled && Ds() == unsaved && unsaved.HasChanges && main.HostDescription() == before && asked.Any(a => a.StartsWith("replace")), "UniversalOpenWindow_ADsSessionWithoutAProject_CancelWithPendingChangesKeepsEverything");
             answer = true; r = OpenWith(main, dsB, romhacks: true);
-            check(r.Opened && Ds() != dsFirst && Ds().SourcePath.EndsWith("B.nds") && NdsOn() && main.SwitchWorkspace!.Project == swordProject && main.Session == session1, "UniversalOpenWindow_SwitchToDs_ConfirmedReplacementInstallsTheNewDsAndKeepsTheOthers");
+            check(r.Opened && Ds() != unsaved && Ds().SourcePath.EndsWith("B.nds") && NdsOn() && main.SwitchWorkspace!.Project == swordProject && main.Session == session1, "UniversalOpenWindow_SwitchToDs_ConfirmedReplacementInstallsTheNewDsAndKeepsTheOthers");
             // Same platform: Switch → Switch (no pending changes: no question).
             asked.Clear(); r = OpenWith(main, shield);
             check(r.Opened && main.SwitchWorkspace!.Project!.Identity.Game.Contains("Escudo") && main.SwitchWorkspace.Project != swordProject && !asked.Any(a => a.StartsWith("replace")), "UniversalOpenWindow_SwitchReplacedBySwitch_NoQuestionWithoutPendingChanges");
@@ -366,6 +372,8 @@ internal static class UniversalOpenChecks
             // 3DS → DS.
             r = OpenWith(main, dsA, romhacks: true);
             check(r.Opened && NdsOn() && Ds().SourcePath.EndsWith("A.nds") && main.Session == s2 && main.SwitchWorkspace!.Project!.Identity.Game.Contains("Escudo"), "UniversalOpenWindow_3dsToDs_KeepsThe3dsAndSwitchProjects");
+            // The ROM opened first comes back with the work that was done on it: it was resumed from its project, not opened empty.
+            check(Ds() != dsFirst && Ds() is { IsPersistent: true, HasChanges: true, SavedGeneration: 2 } && Ds().OperationCount == ops && new NdsRecordEditor(Ds(), NdsSection.Trainers).Read(1).SelectMany(g => g.Fields).ToDictionary(f => f.Key, f => f.Value) is var resumed && resumed["P0.Species"] == 25 && resumed["P0.Level"] == 33, "UniversalOpenWindow_ReopeningADsRomResumesItsSavedWork");
             // DS → DS with no pending changes, and 3DS → 3DS, Switch → Switch were covered above.
             asked.Clear(); r = OpenWith(main, dsB, romhacks: true);
             check(r.Opened && !asked.Any(a => a.StartsWith("replace")), "UniversalOpenWindow_DsReplacedByDs_NoQuestionWithoutPendingChanges");

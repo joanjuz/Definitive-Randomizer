@@ -23,7 +23,9 @@ internal sealed record OpenResult(OpenOutcome Outcome, string Message, DetectedP
 
 /// <param name="AllowRomhacks">Nintendo DS only: accept modified tables (the engine's own "Admitir romhacks" mode; its checks are unchanged).</param>
 /// <param name="RecoverInterrupted3ds">Nintendo 3DS only: recover an interrupted save of the NEW project. Only set after the user confirmed it.</param>
-internal sealed record OpenOptions(bool AllowRomhacks = false, bool RecoverInterrupted3ds = false);
+/// <param name="AcceptAlternativeDsProject">Nintendo DS only: create the persistent project away from the ROM. Only set after the user accepted it.</param>
+/// <param name="RecoverDamagedDsProject">Nintendo DS only: install the offered backup of a damaged project. Only set after the user accepted it.</param>
+internal sealed record OpenOptions(bool AllowRomhacks = false, bool RecoverInterrupted3ds = false, bool AcceptAlternativeDsProject = false, bool RecoverDamagedDsProject = false);
 
 /// <summary>
 /// A project opened by its engine into a temporary variable, not installed yet. It owns the project until <see cref="Release"/> transfers it to the
@@ -63,6 +65,11 @@ internal interface IProjectOpenHost
     bool ConfirmWarning(ProjectDetection detection);
     /// <summary>A NEW 3DS project has an interrupted save: explain what will be recovered and ask. False opens nothing.</summary>
     bool ConfirmRecovery(ProjectDetection detection, InterruptedSaveException pending);
+    /// <summary>
+    /// A decision about the persistent project of a DS ROM that only the user can take: <paramref name="kind"/> is "ds-alternative" (create the project away
+    /// from the ROM, whose folder cannot be written) or "ds-recover" (install the offered backup of a damaged project). False opens nothing and changes nothing.
+    /// </summary>
+    bool ConfirmDsProject(ProjectDetection detection, string kind, string message, string details) => false;
     /// <summary>
     /// Installs the prepared project. It must either complete or leave the previous state exactly as it was (and throw or return false). On success it
     /// calls <see cref="PreparedProject.Release"/> and disposes whatever it replaced.
@@ -109,6 +116,21 @@ internal sealed class ProjectOpenCoordinator
         try
         {
             try { prepared = await Task.Run(() => _prepare(detection, options)); }
+            catch (Nds.Project.NdsProjectNeedsConsentException consent) when (!options.AcceptAlternativeDsProject)
+            {
+                if (cancel.IsCancellationRequested) return new(OpenOutcome.Cancelled, "Apertura cancelada.", platform);
+                if (!_host.ConfirmDsProject(detection, "ds-alternative", "La carpeta de la ROM no admite archivos nuevos, así que el proyecto con tu trabajo no se puede guardar junto a ella.",
+                    $"Carpeta de la ROM: {consent.RomFolder}\nSi aceptas, el proyecto se guardará en tu carpeta de usuario:\n{consent.AlternativePath}\nLa ROM no se modifica. Si no aceptas, no se abre nada.")) return new(OpenOutcome.Cancelled, "Apertura cancelada: no se aceptó guardar el proyecto fuera de la carpeta de la ROM.", platform);
+                options = options with { AcceptAlternativeDsProject = true };
+                prepared = await Task.Run(() => _prepare(detection, options));
+            }
+            catch (Nds.Project.NdsProjectDamagedException damaged) when (!options.RecoverDamagedDsProject && damaged.Plan.Recommended is not null)
+            {
+                if (cancel.IsCancellationRequested) return new(OpenOutcome.Cancelled, "Apertura cancelada.", platform);
+                if (!_host.ConfirmDsProject(detection, "ds-recover", damaged.Message, damaged.Describe() + "\nProyecto: " + damaged.ProjectPath + "\n¿Recuperar esa copia y abrir?")) return new(OpenOutcome.Cancelled, "Apertura cancelada: el proyecto dañado no se modificó.", platform);
+                options = options with { RecoverDamagedDsProject = true };
+                prepared = await Task.Run(() => _prepare(detection, options));
+            }
             catch (InterruptedSaveException pending) when (platform == DetectedPlatform.Nintendo3DS && !options.RecoverInterrupted3ds)
             {
                 // The typed state of the engine: ask, and only then recover the NEW project.
@@ -147,7 +169,7 @@ internal sealed class ProjectOpenCoordinator
 
     private static string Explain(ProjectDetection detection, Exception ex)
     {
-        string text = ex.Message;
+        string text = ex is Nds.Project.NdsProjectDamagedException damaged ? damaged.Message + " " + damaged.Describe() : ex.Message;
         if (detection.Platform == DetectedPlatform.Nintendo3DS && ex is InvalidDataException or IOException && detection.HasWarning)
             text += " (Es una demo: el motor existente puede rechazar sus datos; no se fuerza la apertura.)";
         return text;
@@ -160,7 +182,14 @@ internal sealed class ProjectOpenCoordinator
         {
             case DetectedPlatform.NintendoDS:
             {
-                var project = NdsProject.Open(detection.Path, options.AllowRomhacks);
+                // The ROM is opened by the engine as always, and with it the persistent project that belongs to it (created, or resumed).
+                var request = detection.Kind switch
+                {
+                    DetectedKind.DsProject => new Nds.Project.NdsProjectOpenRequest(detection.SourcePath!, options.AllowRomhacks, ProjectPath: detection.Path),
+                    DetectedKind.DsEventCheckpoint => new Nds.Project.NdsProjectOpenRequest(detection.SourcePath!, options.AllowRomhacks, CheckpointPath: detection.Path),
+                    _ => new Nds.Project.NdsProjectOpenRequest(detection.Path, options.AllowRomhacks),
+                };
+                var project = Nds.Project.NdsProjectOpener.Open(request with { AcceptAlternativeLocation = options.AcceptAlternativeDsProject, RecoverDamaged = options.RecoverDamagedDsProject });
                 return new(DetectedPlatform.NintendoDS, detection, project, project.Game, project.Dispose);
             }
             case DetectedPlatform.Nintendo3DS:

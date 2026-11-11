@@ -9,6 +9,12 @@ namespace ThreeDS.Progressive.Services.Nds;
 // tests keep working in memory and never create files next to a ROM. Persistence starts only when a store is attached, and from then on every confirmed
 // operation (Apply, Reset, an event save) goes through the transaction: the resulting project is made durable and verified first, and only then does the
 // session change. Previews never touch the store.
+/// <summary>A confirmed operation could not be saved in the persistent project, so it was not applied. The session is exactly as it was.</summary>
+internal sealed class NdsProjectSaveException(NdsProjectStoreError kind, string message, Exception inner) : InvalidOperationException(message, inner)
+{
+    internal NdsProjectStoreError Kind { get; } = kind;
+}
+
 internal sealed partial class NdsProject
 {
     private NdsProjectTransactor? _tx;
@@ -55,6 +61,23 @@ internal sealed partial class NdsProject
             _tx = new NdsProjectTransactor(store, existing, clock);
         }
         _store = store;
+    }
+
+    /// <summary>The kind of the last save that failed with a definite error (nothing was applied), or null after a save that succeeded.</summary>
+    internal NdsProjectStoreError? LastSaveError { get; private set; }
+
+    /// <summary>
+    /// Runs one operation through the transaction. A definite failure of the store reaches the editors as <see cref="NdsProjectSaveException"/>, an
+    /// <see cref="InvalidOperationException"/> like the other reasons an operation is refused, so every view that applies a change already reports it.
+    /// </summary>
+    private void Commit(Func<NdsProjectDocument, NdsProjectDocument> prepare, Action<NdsProjectDocument> publish)
+    {
+        try { _tx!.Run(prepare, publish); LastSaveError = null; }
+        catch (NdsProjectStoreException ex)
+        {
+            LastSaveError = ex.Kind;
+            throw new NdsProjectSaveException(ex.Kind, "El cambio no se aplicó porque no se pudo guardar en el proyecto. " + ex.Message, ex);
+        }
     }
 
     /// <summary>After an unknown save outcome: reads what is on disk and makes it the session, whether or not the interrupted operation got there.</summary>
@@ -109,6 +132,26 @@ internal sealed partial class NdsProject
     }
 
     /// <summary>
+    /// Brings the history of an event checkpoint (v1, v2 or v3) into the persistent project. The checkpoint file is only read. It is refused when the project
+    /// already has a different event history (two histories are never merged); importing the history the project already has changes nothing.
+    /// </summary>
+    internal void ImportEventCheckpoint(NdsEventDocument document)
+    {
+        if (_tx is null) throw new InvalidOperationException("La sesión no tiene un proyecto asociado.");
+        var session = Events; var stage = session.Stage(document);
+        if (session.HasHistory)
+        {
+            if (System.Text.Json.JsonSerializer.Serialize(session.History()) == System.Text.Json.JsonSerializer.Serialize(stage.Operations) && session.Data.Bytes().AsSpan().SequenceEqual(stage.Next.Bytes())) return;
+            throw new InvalidOperationException("El proyecto de esta ROM ya tiene su propio historial de eventos y el checkpoint tiene otro: no se mezclan. Abre la ROM (o su proyecto) para continuar con el historial guardado.");
+        }
+        RequireCompatibleScripts(_files, stage.Next);
+        byte[]? data = session.EventBytesIfChanged(stage.Next), scripts = session.ScriptBytesIfChanged(stage.Next); var imported = NdsProjectEvents.FromCheckpoint(document);
+        Commit(current => Compose(current, new(_files, StringComparer.Ordinal), new(_overlays), _recompress, _arm9, current.Meta.Operations,
+                current.Meta.Events is { } existing ? existing with { Operations = imported.Operations, Audit = imported.Audit, ImportedFrom = imported.ImportedFrom } : imported, data, scripts),
+            _ => { session.Install(stage); EventChanged(); });
+    }
+
+    /// <summary>
     /// A script archive written by another DS module must combine with the scripts the event history appended. Checked when the operation is confirmed, not
     /// only when exporting: a conflict found days later, at export time, could not be undone.
     /// </summary>
@@ -129,7 +172,7 @@ internal sealed partial class NdsProject
         var session = Events; var stage = session.Stage(proposal);
         RequireCompatibleScripts(_files, stage.Next);
         byte[]? data = session.EventBytesIfChanged(stage.Next), scripts = session.ScriptBytesIfChanged(stage.Next);
-        _tx.Run(current => Compose(current, new(_files, StringComparer.Ordinal), new(_overlays), _recompress, _arm9, current.Meta.Operations,
+        Commit(current => Compose(current, new(_files, StringComparer.Ordinal), new(_overlays), _recompress, _arm9, current.Meta.Operations,
                 (current.Meta.Events ?? new NdsProjectEvents([], [])) with { Operations = stage.Operations.AsReadOnly(), Audit = stage.Audit.AsReadOnly() }, data, scripts),
             _ => { session.Install(stage); EventChanged(); });
     }

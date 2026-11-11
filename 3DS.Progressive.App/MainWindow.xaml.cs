@@ -1300,7 +1300,7 @@ public partial class MainWindow : Window
     protected override void OnClosing(CancelEventArgs e)
     {
         if(_backupRunning||_switchWorkspace is not null&&!_switchWorkspace.CanLeave()||_ndsWorkspace is not null&&!_ndsWorkspace.CanLeave()){e.Cancel=true;base.OnClosing(e);return;}
-        if(_ndsWorkspace?.Project is {HasChanges:true} nds&&!StudioDialog.AutomatedChecks&&!StudioDialog.Confirm(this,"Nintendo DS","Hay cambios sin exportar en "+nds.Game+". ¿Cerrar y descartarlos?")){e.Cancel=true;base.OnClosing(e);return;}
+        if(_ndsWorkspace?.Project is {HasChanges:true,IsPersistent:false} nds&&!StudioDialog.AutomatedChecks&&!StudioDialog.Confirm(this,"Nintendo DS","Hay cambios sin exportar en "+nds.Game+". ¿Cerrar y descartarlos?")){e.Cancel=true;base.OnClosing(e);return;}
         if (!ConfirmDiscard() || !ConfirmAuxiliaryLeave())
             e.Cancel = true;
         if (!e.Cancel)

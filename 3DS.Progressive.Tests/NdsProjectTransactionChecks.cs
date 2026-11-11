@@ -147,6 +147,15 @@ internal static class NdsProjectTransactionChecks
             resumed.SaveEvent(resumed.Events.PreviewUndo());
             check(resumed.SavedDocument is { State.EventScripts: null, State.EventData: null } && resumed.Events.Data.ScriptArchiveBytes().AsSpan().SequenceEqual(originalScripts), "Events_UndoingTheNurseRestoresTheOriginalEventsAndScripts");
         }
+        // A checkpoint written by a session without a project (the previous way of working) is imported by the opener into a project; the file is only read.
+        string checkpoint = Path.Combine(folder, "antiguo.ndsevents.json"); byte[] eventsOfCheckpoint, scriptsOfCheckpoint;
+        using (var plain = NdsProject.Open(rom, false)) { plain.Events.Save(Nurse(plain, out _), checkpoint); eventsOfCheckpoint = plain.Events.Data.Bytes(); scriptsOfCheckpoint = plain.Events.Data.ScriptArchiveBytes(); }
+        byte[] checkpointBytes = File.ReadAllBytes(checkpoint); string imported = Path.Combine(folder, "importado.nds.drproj");
+        using (var opened = NdsProjectOpener.Open(new(rom, false, imported, checkpoint)))
+            check(opened is { IsPersistent: true, SavedGeneration: 2 } && opened.Events.Data.Bytes().AsSpan().SequenceEqual(eventsOfCheckpoint) && opened.Events.Data.ScriptArchiveBytes().AsSpan().SequenceEqual(scriptsOfCheckpoint)
+                && opened.SavedDocument!.Meta.Events is { ImportedFrom: 3 } && File.ReadAllBytes(checkpoint).AsSpan().SequenceEqual(checkpointBytes), "Events_AV3CheckpointIsImportedIntoAProjectByTheOpenerAndTheFileIsNotAltered");
+        using (var opened = NdsProjectOpener.Open(new(rom, false, imported)))
+            check(opened.SavedGeneration == 2 && opened.Events.CanUndo && opened.Events.Data.Bytes().AsSpan().SequenceEqual(eventsOfCheckpoint), "Events_TheImportedProjectResumesWithoutTheCheckpoint");
         // The other order: the script file is edited first, then the nurse that needs it is refused when her save is confirmed.
         string second = Path.Combine(folder, "eventos-2.nds.drproj");
         using (var live = OpenPersistent(rom, second, false))
@@ -205,8 +214,8 @@ internal static class NdsProjectTransactionChecks
         foreach (var (fault, expected) in new[] { (NdsProjectFault.FailBeforeWrite, NdsProjectStoreError.WriteFailed), (NdsProjectFault.CorruptWrite, NdsProjectStoreError.VerificationFailed) })
         {
             var preview = scenarios[0].Make(project); string before = Fingerprint(project); int revision = project.Revision; long saved = project.SavedGeneration; store.Fault = fault; NdsProjectStoreError? kind = null;
-            try { project.Apply(preview); } catch (NdsProjectStoreException ex) { kind = ex.Kind; }
-            bool untouched = kind == expected && Fingerprint(project) == before && project.Revision == revision && project.SavedGeneration == saved && project.History.Count == 0 && project.PersistenceFault is null;
+            try { project.Apply(preview); } catch (NdsProjectSaveException ex) { kind = ex.Kind; }
+            bool untouched = kind == expected && project.LastSaveError == expected && Fingerprint(project) == before && project.Revision == revision && project.SavedGeneration == saved && project.History.Count == 0 && project.PersistenceFault is null;
             // The same preview is still valid (nothing changed) and can be confirmed again.
             project.Apply(preview); bool retried = project.SavedGeneration == saved + 1 && project.History.Count == 1; project.Reset();
             check(untouched && retried && project.SavedGeneration == saved + 2, $"NdsProjectTx_{fault}_TheOperationIsNotAppliedAndCanBeRetried");
@@ -223,7 +232,7 @@ internal static class NdsProjectTransactionChecks
         check(Fingerprint(project) == Fingerprint(twin), "NdsProjectTx_WorkContinuesAfterReconciling");
         // The file changes outside the session: the operation is refused, the session keeps its state and does not adopt the other content.
         string mine = Fingerprint(project); long generation = project.SavedGeneration; byte[] theirs = NdsProjectCodec.Serialize(new NdsProjectDocument(project.SavedDocument!.Meta with { Generation = generation + 4 }, new NdsProjectState())); medium.Main = theirs;
-        NdsProjectStoreError? conflict = null; try { project.Apply(scenarios[1].Make(project)); } catch (NdsProjectStoreException ex) { conflict = ex.Kind; }
+        NdsProjectStoreError? conflict = null; try { project.Apply(scenarios[1].Make(project)); } catch (NdsProjectSaveException ex) { conflict = ex.Kind; }
         check(conflict == NdsProjectStoreError.StaleGeneration && Fingerprint(project) == mine && project.SavedGeneration == generation && medium.Main.AsSpan().SequenceEqual(theirs) && project.PersistenceFault is null, "NdsProjectTx_ExternalChange_IsRefusedWithoutLosingTheSessionOrOverwritingTheFile");
     }
 
