@@ -59,6 +59,7 @@ public partial class MainWindow
         var result = detection.IsCandidate
             ? await new ProjectOpenCoordinator(new WpfProjectOpenHost(this)).OpenAsync(detection, new OpenOptions(_ndsWorkspace?.AllowRomhacks == true), CancellationToken.None)
             : new OpenResult(OpenOutcome.Rejected, detection.Message, detection.Platform);
+        if (result.Opened) RecentProjects.Record(detection.Path, detection.Game, detection.PlatformName);
         if (!result.Opened)
         {
             StatusText.Text = result.Message;
