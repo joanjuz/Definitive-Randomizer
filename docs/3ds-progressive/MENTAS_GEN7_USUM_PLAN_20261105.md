@@ -1,6 +1,6 @@
 # Mentas Gen7 para USUM: investigación y plan de implementación
 
-Fecha: 5/11/2026, America/Guatemala. Estado: **plan técnico; no instalado ni implementado**. Alcance: Ultra Sol y Ultra Luna, sin port a Sol/Luna, Gen6, DS o Switch. El [roadmap maestro](https://github.com/joanjuz/DefinitivePkm/blob/main/docs/ROADMAP.md) sigue siendo la planificación del producto; este documento resuelve el siguiente bloque técnico.
+Fecha: 5/11/2026, America/Guatemala. Estado: **plan técnico; no instalado ni implementado**. Alcance: Ultra Sol y Ultra Luna, sin port a Sol/Luna, Gen6, DS o Switch. Este documento resuelve el siguiente bloque técnico.
 
 ## Base integrada y cierre de DGD
 
