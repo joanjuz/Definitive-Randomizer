@@ -16,13 +16,13 @@ using TabControl = System.Windows.Controls.TabControl;
 
 internal static class NdsEventChecks
 {
-    private sealed record Fixture(byte[] Headers, byte[] Names, byte[] Events, byte[] Matrices, byte[] Scripts)
+    internal sealed record Fixture(byte[] Headers, byte[] Names, byte[] Events, byte[] Matrices, byte[] Scripts)
     {
         internal PlatinumEvents Read() => PlatinumEvents.Parse(Headers, Names, Events, Matrices, Scripts, ["Zona A", "Zona B"]);
         internal byte[] Rom(string code = "CPUE", byte revision = 1) => NdsGen5RandomizerChecks.BuildRom(new Dictionary<string, byte[]>
         { [PlatinumEvents.EventPath] = Events, [PlatinumEvents.NamesPath] = Names, [PlatinumEvents.MatrixPath] = Matrices, [PlatinumEvents.ScriptPath] = Scripts, ["untouched.bin"] = [7, 1, 99, 18] }, code, revision);
     }
-    private static Fixture Make()
+    internal static Fixture Make()
     {
         byte[] Npc(int id, int x, int y, int type, int script)
         {

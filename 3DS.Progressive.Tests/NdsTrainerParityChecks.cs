@@ -25,7 +25,7 @@ internal static class NdsTrainerParityChecks
         finally { Directory.Delete(temp, true); }
     }
 
-    private static byte[] SyntheticGen5(Gen5Profile profile,string source)
+    internal static byte[] SyntheticGen5(Gen5Profile profile,string source)
     {
         using var rom=NdsRom.Open(source);
         var original=Gen5Profile.All.Single(p=>p.GameCode=="IRBO");

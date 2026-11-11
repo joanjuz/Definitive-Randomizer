@@ -35,6 +35,8 @@ internal sealed record NdsEventOperation(string Kind, NdsNpcEdit? Move, NdsNpcAd
 /// </summary>
 internal sealed record NdsEventDocument(string Format, int Version, string Game, int Revision, string SourcePath, string SourceSha256,
     IReadOnlyList<NdsNpcEdit> Edits, IReadOnlyList<string> Audit, IReadOnlyList<NdsEventOperation>? Operations = null);
+/// <summary>A save that has been decided but not installed (see <c>NdsEventSession.Stage</c>).</summary>
+internal sealed record NdsEventStage(Guid Owner, int Revision, List<NdsEventOperation> Operations, List<string> Audit, PlatinumEvents Next);
 internal sealed record NdsEventProposal(Guid Owner, int Revision, NdsEventOperation Operation, bool Undo, IReadOnlyList<Gen5Change> Changes, IReadOnlyList<string>? Lines = null)
 {
     internal bool IsStructural => Operation.Kind is NdsEventOperation.AddKind or NdsEventOperation.RemoveKind;
@@ -164,7 +166,11 @@ internal sealed class NdsEventSession
             default: throw new InvalidOperationException("Modo de script desconocido: " + b.Mode);
         }
     }
-    internal void Save(NdsEventProposal proposal, string checkpoint)
+    /// <summary>
+    /// Everything a save decides, without writing anything and without changing the session: the resulting operations, the audit and the replayed data.
+    /// It is installed with <see cref="Install"/> once it has been made durable (a checkpoint, or the persistent project).
+    /// </summary>
+    internal NdsEventStage Stage(NdsEventProposal proposal)
     {
         lock (_gate)
         {
@@ -194,7 +200,15 @@ internal sealed class NdsEventSession
                 : string.Join("; ", proposal.Changes.Select(c => $"{c.Field} {c.Before} → {c.After}"));
             string verb = proposal.Undo ? "Restaurar" : proposal.Operation.Kind switch { NdsEventOperation.AddKind => "Añadir", NdsEventOperation.RemoveKind => "Eliminar", _ => "Guardar" };
             var audit = new List<string>(_audit) { verb + $" mapa {proposal.Operation.Map} {what}: " + detail };
-            var document = Build(ops, audit);
+            return new(_owner, Revision, ops, audit, next);
+        }
+    }
+    internal void Save(NdsEventProposal proposal, string checkpoint)
+    {
+        lock (_gate)
+        {
+            var stage = Stage(proposal); var next = stage.Next;
+            var document = Build(stage.Operations, stage.Audit);
             CheckSource();
             WriteNew(checkpoint, JsonSerializer.SerializeToUtf8Bytes(document, Json), path =>
             {
@@ -203,7 +217,38 @@ internal sealed class NdsEventSession
                 if (!Replay(Operations(reread)).Bytes().SequenceEqual(next.Bytes())) throw new InvalidDataException("La relectura del checkpoint no coincide.");
             });
             // Commit memory only after a complete, verified checkpoint has been published.
-            _ops = ops; _audit = audit; Data = next; LastCheckpoint = Path.GetFullPath(checkpoint); Revision++;
+            Install(stage, checkpoint);
+        }
+    }
+    /// <summary>Makes a staged save the state of the session. The stage must come from this session at its current revision.</summary>
+    internal void Install(NdsEventStage stage, string? checkpoint = null)
+    {
+        lock (_gate)
+        {
+            if (stage.Owner != _owner || stage.Revision != Revision) throw new InvalidOperationException("El guardado preparado es de otra sesión o quedó desactualizado.");
+            _ops = stage.Operations; _audit = stage.Audit; Data = stage.Next; LastCheckpoint = checkpoint is null ? null : Path.GetFullPath(checkpoint); Revision++;
+        }
+    }
+    internal IReadOnlyList<NdsEventOperation> History() { lock (_gate) return _ops.ToList().AsReadOnly(); }
+    /// <summary>The event data of a state when it differs from the original (what a persistent project stores), without re-reading the ROM.</summary>
+    internal byte[]? EventBytesIfChanged(PlatinumEvents data) { byte[] bytes = data.Bytes(); return bytes.AsSpan().SequenceEqual(_original.Bytes()) ? null : bytes; }
+    internal byte[]? ScriptBytesIfChanged(PlatinumEvents data) { byte[] bytes = data.ScriptArchiveBytes(); return bytes.AsSpan().SequenceEqual(_original.ScriptArchiveBytes()) ? null : bytes; }
+    /// <summary>
+    /// Installs a history read from a persistent project. It is replayed on the original data with every rule, and the result must be, byte for byte, the event
+    /// data and the script archive the project stored (null means "the original"); otherwise nothing is installed.
+    /// </summary>
+    internal void Restore(IReadOnlyList<NdsEventOperation> operations, IReadOnlyList<string> audit, byte[]? eventData, byte[]? scripts)
+    {
+        lock (_gate)
+        {
+            if (operations.Count > 10000 || audit.Count > 20000 || audit.Any(s => s is null || s.Length > 2048)) throw new InvalidDataException("El historial de eventos del proyecto supera los límites admitidos.");
+            PlatinumEvents next;
+            // Whatever stops the replay (a record that is not the expected one, a coordinate out of range) means the same: this history is not of this data.
+            try { next = Replay(operations); }
+            catch (Exception ex) when (ex is InvalidOperationException or ArgumentException) { throw new InvalidDataException("El historial de eventos del proyecto no se puede reproducir: " + ex.Message, ex); }
+            if (!next.Bytes().AsSpan().SequenceEqual(eventData ?? _original.Bytes()) || !next.ScriptArchiveBytes().AsSpan().SequenceEqual(scripts ?? _original.ScriptArchiveBytes()))
+                throw new InvalidDataException("El historial de eventos del proyecto no reproduce los datos guardados; no se abre para no alterar el trabajo.");
+            _ops = operations.ToList(); _audit = audit.ToList(); Data = next; LastCheckpoint = null; Revision++;
         }
     }
     private NdsEventDocument Build(List<NdsEventOperation> ops, List<string> audit) =>
@@ -287,11 +332,11 @@ internal sealed class NdsEventSession
     /// Combines the scripts appended by this history with a script archive written by another DS module (randomizer options also edit scr_seq).
     /// A member changed by both is refused: the two edits are never mixed blindly.
     /// </summary>
-    internal byte[] MergeScriptArchive(byte[] theirs)
+    internal byte[] MergeScriptArchive(byte[] theirs, PlatinumEvents? state = null)
     {
         lock (_gate)
         {
-            var original = Narc.Read(_original.ScriptArchiveBytes()).Files; var mine = Narc.Read(Data.ScriptArchiveBytes()).Files; var merged = Narc.Read(theirs);
+            var original = Narc.Read(_original.ScriptArchiveBytes()).Files; var mine = Narc.Read((state ?? Data).ScriptArchiveBytes()).Files; var merged = Narc.Read(theirs);
             if (merged.Files.Count != original.Count) throw new InvalidOperationException("El archivo de scripts de otro módulo no tiene el mismo número de miembros.");
             for (int i = 0; i < original.Count; i++)
             {
@@ -301,6 +346,14 @@ internal sealed class NdsEventSession
             }
             return merged.Write();
         }
+    }
+    /// <summary>The same rule as <see cref="MergeScriptArchive"/>, for two archives that are not installed yet: no script file changed by both.</summary>
+    internal void RequireMergeable(byte[] mineArchive, byte[] theirs)
+    {
+        var original = Narc.Read(_original.ScriptArchiveBytes()).Files; var mine = Narc.Read(mineArchive).Files; var other = Narc.Read(theirs).Files;
+        if (mine.Count != original.Count || other.Count != original.Count) throw new InvalidOperationException("El archivo de scripts no tiene el mismo número de miembros.");
+        for (int i = 0; i < original.Count; i++)
+            if (!mine[i].AsSpan().SequenceEqual(original[i]) && !other[i].AsSpan().SequenceEqual(original[i])) throw new InvalidOperationException($"Otro módulo DS también modificó el archivo de scripts {i}; no se combinan dos ediciones del mismo archivo.");
     }
     internal void VerifyExport(string path)
     {

@@ -11,6 +11,8 @@ internal sealed partial class NdsProject
     internal NdsEventSession Events => _events ??= SupportsEventProfile
         ? new NdsEventSession(_rom, PlatinumEvents.Open(_rom, _gen4!.Text(433)))
         : throw new InvalidDataException("Eventos fase 1: solo Pokémon Platino CPUE/1, con tablas acreditadas.");
+    /// <summary>Uses an event session built elsewhere instead of opening the one of the ROM. Only the checks need it: a synthetic ROM has no accredited event tables.</summary>
+    internal void AdoptEventSession(NdsEventSession session) => _events = _events is null ? session : throw new InvalidOperationException("La sesión de eventos ya está abierta.");
     private PlatinumTerrain? _terrain; private string? _terrainNote; private bool _terrainRead;
     /// <summary>Read-only land_data terrain attributes for the canvas. Missing or unaccredited data never blocks the event editor.</summary>
     internal (PlatinumTerrain? Terrain, string? Note) LoadTerrain()
