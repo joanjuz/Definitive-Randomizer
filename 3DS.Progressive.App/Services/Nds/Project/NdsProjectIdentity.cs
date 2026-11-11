@@ -40,6 +40,8 @@ internal static class NdsProjectPaths
     internal static string ProjectOf(string romPath) => romPath + Extension;
     internal static string BackupOf(string projectPath, int number) => number is >= 1 and <= MaxBackups ? projectPath + ".bak" + number : throw new ArgumentOutOfRangeException(nameof(number));
     internal static string LockOf(string projectPath) => projectPath + ".lock";
+    /// <summary>Name of a save in progress, in the same folder as the project so that putting it in place is a rename within one volume.</summary>
+    internal static string TempOf(string projectPath, string token) => projectPath + ".tmp-" + token;
     /// <summary>Name under which a damaged main file is preserved for diagnosis (never deleted or overwritten).</summary>
     internal static string DamagedOf(string projectPath, DateTime utc) => projectPath + ".damaged-" + utc.ToString("yyyyMMddTHHmmssfff'Z'", System.Globalization.CultureInfo.InvariantCulture);
 }

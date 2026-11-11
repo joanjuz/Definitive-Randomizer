@@ -20,7 +20,10 @@ internal enum NdsProjectStoreError
     NewerFormat,
     /// <summary>The durable file is another project or belongs to another ROM (it was replaced externally): it is never overwritten.</summary>
     DifferentProject,
+    /// <summary>The folder or the file cannot be written (no permission), or the project was opened only to be read.</summary>
     ReadOnly,
+    /// <summary>The file could not be read at all (an input/output error, not bad content): nothing is known about the project and nothing was changed.</summary>
+    Unreadable,
     Disposed,
 }
 

@@ -11,9 +11,9 @@ using ThreeDS.Progressive.Services.ProjectDetection;
 internal static class NdsProjectFormatChecks
 {
     private static readonly DateTime T0 = new(2026, 11, 12, 8, 0, 0, DateTimeKind.Utc);
-    private static NdsProjectRom Rom(string sha = "AA", string code = "CPUE", int rev = 1) => new(sha.PadRight(64, '0'), "BB".PadRight(40, '0'), code, rev, "Pokémon Platino (USA, rev. 1)", 134217728, false, @"D:\Roms\Platino.nds");
+    internal static NdsProjectRom Rom(string sha = "AA", string code = "CPUE", int rev = 1) => new(sha.PadRight(64, '0'), "BB".PadRight(40, '0'), code, rev, "Pokémon Platino (USA, rev. 1)", 134217728, false, @"D:\Roms\Platino.nds");
 
-    private static NdsProjectDocument Doc(int ops = 3, int files = 2, int fileSize = 4096, long generation = 1, int seed = 1, bool events = true, bool arm9 = true)
+    internal static NdsProjectDocument Doc(int ops = 3, int files = 2, int fileSize = 4096, long generation = 1, int seed = 1, bool events = true, bool arm9 = true)
     {
         var rng = new Random(seed); byte[] Bytes(int n, bool noise) { var b = new byte[n]; if (noise) rng.NextBytes(b); else for (int i = 0; i < n; i++) b[i] = (byte)(i / 64); return b; }
         var operations = Enumerable.Range(0, ops).Select(i => new NdsProjectOperationRecord("Operación " + i, i % 2 == 0 ? (uint)(1000 + i) : null,
@@ -30,7 +30,7 @@ internal static class NdsProjectFormatChecks
         return new(meta, state);
     }
 
-    private static bool SameDoc(NdsProjectDocument a, NdsProjectDocument b) =>
+    internal static bool SameDoc(NdsProjectDocument a, NdsProjectDocument b) =>
         a.State.SameAs(b.State) && a.Generation == b.Generation && a.Meta.Rom == b.Meta.Rom && a.Meta.ProjectId == b.Meta.ProjectId && a.Meta.SavedUtc == b.Meta.SavedUtc &&
         a.Meta.Operations.Count == b.Meta.Operations.Count && a.Meta.Operations.Zip(b.Meta.Operations).All(p => p.First.Action == p.Second.Action && p.First.Seed == p.Second.Seed && p.First.Recipe.ToJsonString() == p.Second.Recipe.ToJsonString() && p.First.Changes.SequenceEqual(p.Second.Changes)) &&
         a.Meta.RecompressOverlays.SequenceEqual(b.Meta.RecompressOverlays) && a.Meta.Settings?.ToJsonString() == b.Meta.Settings?.ToJsonString() &&
@@ -223,10 +223,10 @@ internal static class NdsProjectFormatChecks
 
     // ------------------------------------------------------------------------------------------------------------------------------------ store
 
-    private static NdsProjectDocument Next(NdsProjectDocument current, int tweak) =>
+    internal static NdsProjectDocument Next(NdsProjectDocument current, int tweak) =>
         new(current.Meta with { Generation = current.Generation + 1, SavedUtc = current.Meta.SavedUtc.AddMinutes(1), Operations = [.. current.Meta.Operations, new NdsProjectOperationRecord("op " + tweak, null, new JsonObject { ["Kind"] = "Edit" }, [new("l", "f", 0, tweak)])] },
             new NdsProjectState { Files = new(current.State.Files) { ["a/0/0/1"] = BitConverter.GetBytes(tweak) } });
-    private static NdsProjectStoreError? Fails(Action action) { try { action(); return null; } catch (NdsProjectStoreException ex) { return ex.Kind; } }
+    internal static NdsProjectStoreError? Fails(Action action) { try { action(); return null; } catch (NdsProjectStoreException ex) { return ex.Kind; } }
 
     private static void Store(Action<bool, string> check)
     {
