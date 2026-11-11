@@ -88,3 +88,6 @@ __pycache__/
 # Story chronology tool: WikiDex cache and trainer dumps (game data) stay local
 tools/story-chronology/cache/
 tools/story-chronology/dumps/
+
+# Planificacion interna (catalogo, videos, roadmaps): nunca en este repositorio publico
+/docs/Catalogo/

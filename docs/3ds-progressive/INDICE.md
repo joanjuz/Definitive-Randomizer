@@ -41,7 +41,7 @@ Punto de entrada a `docs/3ds-progressive/`. Muchos documentos son **registros hi
 | Corrección de carreras H2/H3 en transacciones de archivos | [CORRECCION_H2_H3_20261104.md](CORRECCION_H2_H3_20261104.md) |
 | Reproducción determinista de carreras H2/H3 (registro histórico) | [REPRODUCCION_H2_H3_20261104.md](REPRODUCCION_H2_H3_20261104.md) |
 | Última preview publicada (3DS, Espada/Escudo y Nintendo DS) | [RELEASE_0.14.0_PREVIEW_1.md](RELEASE_0.14.0_PREVIEW_1.md) |
-| Estado de Espada/Escudo | [SWITCH_ESCUDO_VALIDACION_Y_COMBATES_DOBLES.md](SWITCH_ESCUDO_VALIDACION_Y_COMBATES_DOBLES.md) (estado más reciente) y [HOJA_RUTA_SWITCH.md](HOJA_RUTA_SWITCH.md) (planificación) |
+| Estado de Espada/Escudo | [SWITCH_ESCUDO_VALIDACION_Y_COMBATES_DOBLES.md](SWITCH_ESCUDO_VALIDACION_Y_COMBATES_DOBLES.md) (estado más reciente) |
 | Matriz de familias 3DS | [ESTADO_CANDIDATO_71.md](ESTADO_CANDIDATO_71.md) (histórico; contrastar con el código) |
 | Rediseño visual WPF | [AUDITORIA_VISUAL_WPF.md](AUDITORIA_VISUAL_WPF.md) |
 | Tablas: centrado, edición, secciones de estáticos y tablas verticales | [TABLAS_CENTRADO_EDICION_SECCIONES.md](TABLAS_CENTRADO_EDICION_SECCIONES.md) |
