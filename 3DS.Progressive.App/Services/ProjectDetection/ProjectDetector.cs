@@ -159,13 +159,14 @@ internal static class ProjectDetector
     {
         const DetectedPlatform ds = DetectedPlatform.NintendoDS; const DetectedKind kind = DetectedKind.DsProject;
         if (length > Nds.Project.NdsProjectCodec.MaxTotalBytes) return Result(DetectionStatus.Unsupported, path, "El archivo tiene la firma de un proyecto DS pero es mayor de lo que puede ocupar uno.", ds, kind);
-        var read = Nds.Project.NdsProjectCodec.Read(File.ReadAllBytes(path));
+        // Every checksum and table is checked, but the history is not rebuilt (opening the project does that once, when it is loaded): the header has its size.
+        var read = Nds.Project.NdsProjectCodec.Verify(File.ReadAllBytes(path));
         if (!read.Ok)
             return read.Status == Nds.Project.NdsProjectReadStatus.NewerFormat
                 ? Result(DetectionStatus.Unsupported, path, "Proyecto DS de una versión más reciente de Definitive Randomizer; esta versión no lo abre ni lo modifica. " + read.Message, ds, kind)
                 : Result(DetectionStatus.Incomplete, path, "El proyecto DS está dañado o incompleto: " + read.Message + " Abre la ROM a la que pertenece: si hay una copia anterior válida se ofrecerá recuperarla.", ds, kind);
         var rom = read.Document!.Meta.Rom; string folder = Path.GetDirectoryName(path)!;
-        var evidence = new List<string> { $"Proyecto DS · generación {read.Document.Generation} · {read.Document.OperationCount} operaciones · {rom.Game} ({rom.GameCode}/{rom.Revision})" };
+        var evidence = new List<string> { $"Proyecto DS · generación {read.Document.Generation} · {read.Header!.OperationCount} operaciones · {rom.Game} ({rom.GameCode}/{rom.Revision})" };
         bool Fits(string candidate)
         {
             try
