@@ -136,7 +136,7 @@ internal sealed class OpenProjectDialog : Window
 
     private string? PickFile()
     {
-        var picker = new Microsoft.Win32.OpenFileDialog { Filter = "ROM o checkpoint de Nintendo DS|*.nds;*.ndsevents.json|Todos los archivos|*.*", Title = "Elegir el archivo del proyecto" };
+        var picker = new Microsoft.Win32.OpenFileDialog { Filter = "ROM, proyecto o checkpoint de Nintendo DS|*.nds;*.drproj;*.ndsevents.json|Todos los archivos|*.*", Title = "Elegir el archivo del proyecto" };
         return picker.ShowDialog(this) == true ? picker.FileName : null;
     }
 

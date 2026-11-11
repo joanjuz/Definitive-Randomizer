@@ -13,7 +13,7 @@ public partial class MainWindow
     {
         if(_closed||UiProgress.IsInteractionBlocked||_switchWorkspace?.Busy==true||_ndsWorkspace?.Busy==true)return;
         if(!leaveConfirmed&&SwitchHost.Visibility==Visibility.Visible&&SwitchHost.Content is SwitchWorkspaceView current&&!current.CanLeave())return;
-        if(_ndsWorkspace is null){_ndsWorkspace=new NdsWorkspaceView(this);_ndsWorkspace.ContextChanged+=RefreshNdsHeader;}
+        if(_ndsWorkspace is null){_ndsWorkspace=new NdsWorkspaceView(this);_ndsWorkspace.ContextChanged+=RefreshNdsHeader;_ndsWorkspace.OpenRequested=path=>OpenPathAsync(path);}
         HomeHost.Visibility=Visibility.Collapsed;EditorShell.Visibility=Visibility.Collapsed;
         SwitchHost.Content=_ndsWorkspace;SwitchHost.Visibility=Visibility.Visible;
         if(_switchHeader is null){_switchRebuildLabel=RebuildButton.Content;_switchProjectLabel=ProjectNameText.Text;_switchGameLabel=GameNameText.Text;_switchHeader=new[]{BackupButton,RebuildButton,ExtractRomButton,RestoreBackupButton,OpenProjectButton}.ToDictionary(b=>b,b=>b.IsEnabled);}

@@ -203,6 +203,15 @@ internal sealed class NdsEventSession
             return new(_owner, Revision, ops, audit, next);
         }
     }
+    /// <summary>A checkpoint document as a staged save: validated against this ROM and replayed, with nothing written and nothing changed.</summary>
+    internal NdsEventStage Stage(NdsEventDocument document)
+    {
+        lock (_gate)
+        {
+            ValidateDocument(document); CheckSource(); var operations = Operations(document);
+            return new(_owner, Revision, operations.ToList(), document.Audit.ToList(), Replay(operations));
+        }
+    }
     internal void Save(NdsEventProposal proposal, string checkpoint)
     {
         lock (_gate)

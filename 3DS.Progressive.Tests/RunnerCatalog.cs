@@ -50,6 +50,7 @@ internal static class RunnerCatalog
         new("--universal-open-only","",RunnerCategory.Ui,true),
         new("--universal-open-live-probe","<carpeta nueva de informe> <ruta> [<ruta>…]",RunnerCategory.Real,false),
         new("--nds-project-format-only","",RunnerCategory.Synthetic,true),
+        new("--nds-project-open-only","",RunnerCategory.Synthetic,true),
         new("--nds-project-transactions-only","",RunnerCategory.Synthetic,true),
         new("--nds-project-transactions-probe","<carpeta nueva de salida> <ROM DS> [<ROM DS>…]",RunnerCategory.Real,false),
         new("--nds-project-store-only","",RunnerCategory.Synthetic,true),

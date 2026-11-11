@@ -10,7 +10,7 @@ namespace ThreeDS.Progressive.Services.ProjectDetection;
 
 internal enum DetectedPlatform { None, NintendoDS, Nintendo3DS, NintendoSwitch }
 
-internal enum DetectedKind { None, DsRom, DsEventCheckpoint, Extracted3dsFolder, SwitchExtraction }
+internal enum DetectedKind { None, DsRom, DsEventCheckpoint, Extracted3dsFolder, SwitchExtraction, DsProject }
 
 /// <summary>
 /// Outcome classes of the detector. Only <see cref="Compatible"/> is a candidate: the engine of the platform still verifies everything
@@ -91,6 +91,7 @@ internal static class ProjectDetector
         bool nameIsCheckpoint = path.EndsWith(CheckpointSuffix, StringComparison.OrdinalIgnoreCase);
         // Container signatures that are recognised but never opened: the project needs an extracted, decrypted tree or a plain .nds.
         if (Container(head) is { } container) return Result(DetectionStatus.Unsupported, path, container);
+        if (AtBytes(head, 0, Nds.Project.NdsProjectCodec.Magic)) return DetectDsProject(path, info.Length);
         if (LooksLikeJson(head)) return DetectCheckpoint(path, info.Length, nameIsCheckpoint);
         // Everything else is judged as a Nintendo DS ROM by its header, whatever the extension says.
         var ds = DetectDsRom(path, nameIsCheckpoint);
@@ -148,6 +149,40 @@ internal static class ProjectDetector
             return Result(DetectionStatus.Compatible, path, $"ROM de Nintendo DS: {profile.Game}.", DetectedPlatform.NintendoDS, DetectedKind.DsRom, profile.Game,
                 evidence.Append("Perfil acreditado: " + profile.GameCode + "/" + profile.Version).Append("El SHA-1 y las tablas del juego los verifica el motor DS al abrir; las tablas modificadas solo abren con «Admitir romhacks»."));
         }
+    }
+
+    /// <summary>
+    /// A persistent DS project (.drproj). It is a candidate only when the file is whole and the ROM it belongs to can be found: at the path it recorded, under
+    /// the name of the project, or as another .nds of the same game, revision and size in the folder of the project. The engine then compares the full SHA-256.
+    /// </summary>
+    private static ProjectDetection DetectDsProject(string path, long length)
+    {
+        const DetectedPlatform ds = DetectedPlatform.NintendoDS; const DetectedKind kind = DetectedKind.DsProject;
+        if (length > Nds.Project.NdsProjectCodec.MaxTotalBytes) return Result(DetectionStatus.Unsupported, path, "El archivo tiene la firma de un proyecto DS pero es mayor de lo que puede ocupar uno.", ds, kind);
+        var read = Nds.Project.NdsProjectCodec.Read(File.ReadAllBytes(path));
+        if (!read.Ok)
+            return read.Status == Nds.Project.NdsProjectReadStatus.NewerFormat
+                ? Result(DetectionStatus.Unsupported, path, "Proyecto DS de una versión más reciente de Definitive Randomizer; esta versión no lo abre ni lo modifica. " + read.Message, ds, kind)
+                : Result(DetectionStatus.Incomplete, path, "El proyecto DS está dañado o incompleto: " + read.Message + " Abre la ROM a la que pertenece: si hay una copia anterior válida se ofrecerá recuperarla.", ds, kind);
+        var rom = read.Document!.Meta.Rom; string folder = Path.GetDirectoryName(path)!;
+        var evidence = new List<string> { $"Proyecto DS · generación {read.Document.Generation} · {read.Document.OperationCount} operaciones · {rom.Game} ({rom.GameCode}/{rom.Revision})" };
+        bool Fits(string candidate)
+        {
+            try
+            {
+                if (!File.Exists(candidate) || new FileInfo(candidate).Length != rom.Length) return false;
+                using var header = NdsRom.Open(candidate); return header.Header.GameCode == rom.GameCode && header.Header.Version == rom.Revision;
+            }
+            catch (Exception ex) when (ex is InvalidDataException or IOException or UnauthorizedAccessException) { return false; }
+        }
+        var candidates = new List<string> { rom.LastKnownPath };
+        if (path.EndsWith(Nds.Project.NdsProjectPaths.Extension, StringComparison.OrdinalIgnoreCase)) candidates.Add(path[..^Nds.Project.NdsProjectPaths.Extension.Length]);
+        try { candidates.AddRange(Directory.EnumerateFiles(folder, "*.nds").Take(64)); } catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { }
+        string? source = candidates.Where(c => !string.IsNullOrWhiteSpace(c)).FirstOrDefault(Fits);
+        if (source is null)
+            return Result(DetectionStatus.Incomplete, path, $"El proyecto es de {rom.Game}, pero su ROM no está donde se usó por última vez ({rom.LastKnownPath}) ni junto al proyecto. Abre directamente la ROM: el proyecto se reconoce por el contenido de la ROM, no por su nombre.", ds, kind, rom.Game, evidence, rom.LastKnownPath);
+        evidence.Add("ROM encontrada: " + source); evidence.Add("El SHA-256 completo de la ROM lo compara el motor DS al abrir; un proyecto nunca se usa con otra ROM.");
+        return Result(DetectionStatus.Compatible, path, $"Proyecto de Nintendo DS: {rom.Game}.", ds, kind, rom.Game, evidence, source);
     }
 
     private static ProjectDetection DetectCheckpoint(string path, long length, bool nameIsCheckpoint)
