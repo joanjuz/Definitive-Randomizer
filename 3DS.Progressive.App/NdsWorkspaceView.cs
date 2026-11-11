@@ -39,7 +39,43 @@ internal sealed class NdsWorkspaceView:UserControl
         .Select(p=>new PaletteEntry(System.Windows.Automation.AutomationProperties.GetName(p.Value) is string name&&name.Length>0?StripSuffix(name):p.Value.Content as string??p.Key,location,"Sección de "+location+".",p.Key,()=>_=NavigateAsync(p.Key)))
         .ToArray();
     private static string StripSuffix(string name)=>name.Replace("Sección DS · ","").Replace(" · Espada/Escudo","");
-    internal NdsProject? Project {get;private set;}
+    private NdsProject? _project;
+    internal NdsProject? Project
+    {
+        get=>_project;
+        private set
+        {
+            if(_project is not null)_project.PersistenceChanged-=OnPersistenceChanged;
+            _project=value;
+            if(value is not null)value.PersistenceChanged+=OnPersistenceChanged;
+            RefreshProjectState();
+        }
+    }
+    // State of the persistent project, always visible in the sidebar; the action appears only when the user has something to decide.
+    private readonly TextBlock _projectState=new(){TextWrapping=TextWrapping.Wrap,Margin=new Thickness(4,10,0,0),FontSize=12};
+    private readonly Button _projectAction=new(){Margin=new Thickness(4,6,0,0),HorizontalAlignment=HorizontalAlignment.Left,Visibility=Visibility.Collapsed};
+    internal string ProjectStateText=>_projectState.Text;
+    internal Button ProjectActionButton=>_projectAction;
+    private void OnPersistenceChanged(){if(Dispatcher.CheckAccess())RefreshProjectState();else Dispatcher.BeginInvoke(RefreshProjectState);}
+    private void RefreshProjectState()
+    {
+        var state=_project?.PersistenceState;
+        _projectState.Text=_project is null?"":_project.PersistenceSummary;
+        _projectState.Visibility=_project is null?Visibility.Collapsed:Visibility.Visible;
+        _projectState.SetResourceReference(TextBlock.ForegroundProperty,state is NdsProjectPersistenceState.Error or NdsProjectPersistenceState.Conflict or NdsProjectPersistenceState.RecoveryPending?"TextMain":"TextSoft");
+        _projectState.FontWeight=state is NdsProjectPersistenceState.Error or NdsProjectPersistenceState.Conflict or NdsProjectPersistenceState.RecoveryPending or NdsProjectPersistenceState.ReadOnly?FontWeights.SemiBold:FontWeights.Normal;
+        _projectAction.Content=state==NdsProjectPersistenceState.RecoveryPending?"Reconciliar con lo guardado":"Recargar el proyecto guardado";
+        _projectAction.Visibility=state is NdsProjectPersistenceState.RecoveryPending or NdsProjectPersistenceState.Conflict?Visibility.Visible:Visibility.Collapsed;
+        AutomationProperties.SetName(_projectAction,"Proyecto DS · "+_projectAction.Content);
+    }
+    private void ResolveProjectState()
+    {
+        if(_busy||_project is not {} project)return;
+        if(project.PersistenceState==NdsProjectPersistenceState.Conflict&&!StudioDialog.AutomatedChecks&&!StudioDialog.Confirm(_owner,"Proyecto de Nintendo DS","El archivo del proyecto cambió fuera de esta sesión. ¿Cargar lo que hay guardado en el disco?","Esta sesión solo contiene operaciones que ya se habían guardado. Se mostrará el contenido actual del archivo; no se sobrescribe nada."))return;
+        try{project.ReloadPersistence();}
+        catch(InvalidOperationException ex){_status.Text="No se pudo cargar el proyecto guardado: "+ex.Message;if(!StudioDialog.AutomatedChecks)StudioDialog.Error(_owner,"Proyecto de Nintendo DS",ex.Message);RefreshProjectState();return;}
+        _pages.Clear();UpdateStatus();ContextChanged?.Invoke();_ = NavigateAsync("Home",force:true);
+    }
     internal bool Busy=>_busy;
     internal event Action? ContextChanged;
     internal string? CurrentRoute {get;private set;}
@@ -64,6 +100,8 @@ internal sealed class NdsWorkspaceView:UserControl
         Add("Events","Eventos");
         Group("SISTEMAS");Add("Tweaks","Ajustes del juego");Add("Template","Global Template y Batch");Add("History","Historial de cambios");
         _status.Margin=new Thickness(4,15,0,0);_status.SetResourceReference(TextBlock.ForegroundProperty,"TextSoft");nav.Children.Add(_status);
+        AutomationProperties.SetName(_projectState,"Estado del proyecto DS");AutomationProperties.SetLiveSetting(_projectState,AutomationLiveSetting.Polite);
+        nav.Children.Add(_projectState);EditorPresentation.StyleAction(_projectAction,EditorPresentation.ActionRole.Secondary);_projectAction.Click+=(_,_)=>ResolveProjectState();nav.Children.Add(_projectAction);RefreshProjectState();
         Grid.SetColumn(_page,1);root.Children.Add(_page);
         AutomationProperties.SetName(_romhacks,"Admitir romhacks");AutomationProperties.SetName(_history,"Cambios pendientes");AutomationProperties.SetName(_discard,"Descartar cambios pendientes");
         _discard.Click+=(_,_)=>Discard();
@@ -79,10 +117,20 @@ internal sealed class NdsWorkspaceView:UserControl
     internal async Task OpenAsync()
     {
         if(_busy)return;
-        if(Project?.HasChanges==true&&!StudioDialog.AutomatedChecks&&!StudioDialog.Confirm(_owner,"Nintendo DS","Hay cambios sin exportar en "+Project.Game+". ¿Descartarlos y abrir otra ROM?"))return;
+        // The window opens it through the universal flow (detector, engine, persistent project); that flow asks what has to be asked.
+        if(OpenRequested is {} open)
+        {
+            var chosen=new Microsoft.Win32.OpenFileDialog{Filter="ROM, proyecto o checkpoint de Nintendo DS|*.nds;*.drproj;*.ndsevents.json|ROM de Nintendo DS (*.nds)|*.nds|Proyecto DS (*.drproj)|*.drproj|Checkpoint de eventos DS|*.ndsevents.json",Title="Abrir ROM, proyecto o checkpoint de eventos de Nintendo DS"};
+            if(chosen.ShowDialog(_owner)==true)await open(chosen.FileName);
+            return;
+        }
+        if(Project is {HasChanges:true,IsPersistent:false}&&!StudioDialog.AutomatedChecks&&!StudioDialog.Confirm(_owner,"Nintendo DS","Hay cambios sin exportar en "+Project.Game+". ¿Descartarlos y abrir otra ROM?"))return;
         var picker=new Microsoft.Win32.OpenFileDialog{Filter="ROM o checkpoint de eventos DS|*.nds;*.ndsevents.json|ROM de Nintendo DS (*.nds)|*.nds|Checkpoint de eventos DS|*.ndsevents.json",Title="Abrir ROM o checkpoint de eventos de Nintendo DS"};
         if(picker.ShowDialog(_owner)==true)await LoadAsync(picker.FileName);
     }
+
+    /// <summary>Set by the window: opens a chosen file through the universal "Abrir proyecto" flow instead of the direct, in-memory load of this view.</summary>
+    internal Func<string,Task>? OpenRequested{get;set;}
 
     /// <summary>The "Admitir romhacks" choice (shared with the universal "Abrir proyecto" dialog).</summary>
     internal bool AllowRomhacks{get=>_romhacks.IsChecked==true;set=>_romhacks.IsChecked=value;}
@@ -182,7 +230,7 @@ internal sealed class NdsWorkspaceView:UserControl
                     try
                     {
                         var project=Project;var (session,terrain)=await Task.Run(()=>(project.Events,project.LoadTerrain()));
-                        var view=new NdsEventEditorView(session,terrain.Terrain,terrain.Note);view.Changed+=()=>{project.EventChanged();UpdateStatus();ContextChanged?.Invoke();};content=view;
+                        var view=new NdsEventEditorView(session,terrain.Terrain,terrain.Note);if(project.IsPersistent)view.ProjectSave=project.SaveEvent;view.Changed+=()=>{project.EventChanged();UpdateStatus();ContextChanged?.Invoke();};content=view;
                     }
                     finally{SetBusy(false,null);}
                 }
@@ -245,7 +293,8 @@ internal sealed class NdsWorkspaceView:UserControl
         _summary.Text=Project is null?"Ninguna ROM abierta.":
             $"{Project.Game} · {(Project.IsRomhack?"romhack (tablas modificadas)":Project.Identity.KnownDump?"volcado original verificado":"código reconocido, volcado no verificado")}\n{Project.SourcePath}"+
             string.Concat(Project.Unavailable.Select(u=>$"\nNo disponible · {u.Key}: {u.Value}."))+
-            $"\n{(Project.HasChanges?Project.OperationCount+" operaciones pendientes de exportar.":"Sin cambios pendientes.")}";
+            $"\n{(Project.HasChanges?Project.OperationCount+" operaciones pendientes de exportar.":"Sin cambios pendientes.")}"+
+            "\n"+Project.PersistenceSummary;
         panel.Children.Add(_summary.Parent is Panel s?Detach(s,_summary):_summary);
         _discard.IsEnabled=Project?.HasChanges==true;panel.Children.Add(_discard.Parent is Panel d?Detach(d,_discard):_discard);
         return new ScrollViewer{Content=panel,VerticalScrollBarVisibility=ScrollBarVisibility.Auto};
@@ -374,11 +423,15 @@ internal sealed class NdsWorkspaceView:UserControl
     {
         if(Project is not {HasChanges:true} project||_busy)return;
         if(!StudioDialog.AutomatedChecks&&!StudioDialog.Confirm(_owner,"Nintendo DS","¿Descartar todos los cambios pendientes de "+project.Game+"?"))return;
-        project.Reset();_pages.Clear();UpdateStatus();ContextChanged?.Invoke();_ = NavigateAsync("Home",force:true);
+        // On a persistent project discarding is saved too (the previous generation stays in its backups); if that save fails nothing is discarded.
+        try{project.Reset();}
+        catch(InvalidOperationException ex){_status.Text="No se descartó: "+ex.Message;if(!StudioDialog.AutomatedChecks)StudioDialog.Error(_owner,"Nintendo DS",ex.Message);return;}
+        _pages.Clear();UpdateStatus();ContextChanged?.Invoke();_ = NavigateAsync("Home",force:true);
     }
 
     private void UpdateStatus()
     {
+        RefreshProjectState();
         if(Project is null)return;
         _status.Text=Project.Game+(Project.IsRomhack?" · romhack":"")+" · "+(Project.HasChanges?Project.OperationCount+" operaciones pendientes":"sin cambios pendientes");
     }

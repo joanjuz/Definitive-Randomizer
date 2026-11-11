@@ -48,6 +48,57 @@ public partial class MainWindow
         dialog.ShowDialog();
     }
 
+    /// <summary>
+    /// Opens one path through the universal flow without showing the dialog: the same detector, the same engines and the same confirmations. Used by the
+    /// per-platform "open" of the DS workspace, so that a ROM opened from there gets its persistent project exactly like one opened from the dialog.
+    /// </summary>
+    internal async Task<OpenResult> OpenPathAsync(string path)
+    {
+        if (_closed) return new(OpenOutcome.Blocked, "La aplicación se está cerrando.");
+        var detection = await Task.Run(() => ProjectDetector.Detect(path));
+        var result = detection.IsCandidate
+            ? await new ProjectOpenCoordinator(new WpfProjectOpenHost(this)).OpenAsync(detection, new OpenOptions(_ndsWorkspace?.AllowRomhacks == true), CancellationToken.None)
+            : new OpenResult(OpenOutcome.Rejected, detection.Message, detection.Platform);
+        if (result.Opened) RecentProjects.Record(detection.Path, detection.Game, detection.PlatformName);
+        if (!result.Opened)
+        {
+            StatusText.Text = result.Message;
+            if (result.Outcome != OpenOutcome.Cancelled && !StudioDialog.AutomatedChecks) StudioDialog.Error(this, "Abrir proyecto", result.Message);
+        }
+        return result;
+    }
+
+    // Drag and drop (phase B3): one file or folder dropped on the window is opened exactly like a path chosen in "Abrir proyecto". Nothing is decided here:
+    // the detector says what it is, the engines open it, and the same confirmations are asked.
+    private void InitializeDrop()
+    {
+        AllowDrop = true;
+        PreviewDragOver += (_, e) => { if (!e.Data.GetDataPresent(System.Windows.DataFormats.FileDrop)) return; e.Effects = DropProblem(e.Data.GetData(System.Windows.DataFormats.FileDrop) as string[]) is null ? System.Windows.DragDropEffects.Copy : System.Windows.DragDropEffects.None; e.Handled = true; };
+        PreviewDrop += async (_, e) => { if (!e.Data.GetDataPresent(System.Windows.DataFormats.FileDrop)) return; e.Handled = true; await HandleDropAsync(e.Data.GetData(System.Windows.DataFormats.FileDrop) as string[]); };
+    }
+
+    /// <summary>Why what is being dragged cannot be dropped now, or null. Only what can be known without reading anything: the detector judges the content after the drop.</summary>
+    internal string? DropProblem(string[]? paths)
+    {
+        if (_closed) return "La aplicación se está cerrando.";
+        if (UiProgress.IsInteractionBlocked) return "Hay una operación en curso. Espera a que termine para abrir otro proyecto.";
+        if (_openDialog is not null) return "Ya hay un diálogo «Abrir proyecto» abierto: usa ese diálogo.";
+        if (paths is null || paths.Length == 0) return "No se soltó ningún archivo ni carpeta.";
+        if (paths.Length > 1) return "Suelta un solo archivo o una sola carpeta: se abre un proyecto cada vez.";
+        return null;
+    }
+
+    /// <summary>Opens what was dropped through the universal flow. A drop that cannot be opened changes nothing and says why.</summary>
+    internal async Task<OpenResult> HandleDropAsync(string[]? paths)
+    {
+        if (DropProblem(paths) is { } problem)
+        {
+            StatusText.Text = problem;
+            return new(UiProgress.IsInteractionBlocked || _closed || _openDialog is not null ? OpenOutcome.Blocked : OpenOutcome.Rejected, problem);
+        }
+        return await OpenPathAsync(paths![0]);
+    }
+
     private void OpenProject_Click(object sender, RoutedEventArgs e) => OpenUniversalProject();
 
     private bool Ask(Window? owner, string kind, string title, string message, string? details = null) =>
@@ -148,7 +199,8 @@ public partial class MainWindow
         public ReplacementInfo Inspect(DetectedPlatform target) => target switch
         {
             DetectedPlatform.NintendoDS => window._ndsWorkspace?.Project is { } nds
-                ? new(true, nds.HasChanges, $"{nds.Game}" + (nds.HasChanges ? $" ({nds.OperationCount} operaciones sin exportar)" : "")) : new(false, false, ""),
+                // A persistent project is already saved: replacing it loses nothing, so there is nothing to confirm.
+                ? new(true, nds.HasChanges && !nds.IsPersistent, $"{nds.Game}" + (nds.HasChanges ? $" ({nds.OperationCount} operaciones sin exportar)" : "")) : new(false, false, ""),
             DetectedPlatform.NintendoSwitch => window._switchWorkspace?.Project is { } sw
                 ? new(true, window._switchWorkspace.HasUnsavedWork, sw.Identity.Game) : new(false, false, ""),
             DetectedPlatform.Nintendo3DS => window._session is { } session ? new(true, window.HasUnsavedChanges(), session.GameName) : new(false, false, ""),
@@ -189,6 +241,9 @@ public partial class MainWindow
         public bool ConfirmRecovery(ProjectDetection detection, InterruptedSaveException pending) =>
             window.Ask(PromptOwner, "recovery", "Guardado interrumpido", $"El proyecto «{Path.GetFileName(Path.TrimEndingDirectorySeparator(detection.Path))}» tiene un guardado interrumpido (registro: {pending.PendingPath}). Para abrirlo hay que recuperarlo primero.",
                 "La recuperación restablece los archivos de ese proyecto que quedaron a medio escribir a su estado anterior al guardado interrumpido y limpia el registro (si el guardado ya había terminado, solo limpia el registro). Solo toca esa carpeta; los demás proyectos abiertos no se modifican. Haz antes una copia si el proyecto es importante. ¿Recuperar y abrir?");
+
+        public bool ConfirmDsProject(ProjectDetection detection, string kind, string message, string details) =>
+            window.Ask(PromptOwner, kind, kind == "ds-recover" ? "Proyecto dañado" : "Proyecto de Nintendo DS", $"«{detection.Game}»: {message}", details);
 
         public async Task<bool> InstallAsync(PreparedProject prepared, OpenOptions options)
         {

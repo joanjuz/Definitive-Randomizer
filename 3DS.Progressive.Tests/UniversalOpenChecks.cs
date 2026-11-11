@@ -336,7 +336,8 @@ internal static class UniversalOpenChecks
             check(r.Opened && NdsOn() && Ds() is { IsRomhack: true }, "UniversalOpenWindow_OpensDsFromAnEmptyApplicationWithoutChoosingAPlatform");
             var trainers = new NdsRecordEditor(Ds(), NdsSection.Trainers); var values = trainers.Read(1).SelectMany(g => g.Fields).ToDictionary(f => f.Key, f => f.Value); values["P0.Species"] = 25; values["P0.Level"] = 33; trainers.Save(1, values);
             var dsFirst = Ds(); int ops = dsFirst.OperationCount;
-            check(dsFirst.HasChanges && main.InspectForChecks(DetectedPlatform.NintendoDS) is { HasSession: true, HasPendingChanges: true }, "UniversalOpenWindow_HostReportsThePendingChangesOfTheDsSession");
+            // The universal flow opens a DS ROM with its persistent project: the work is already saved, so there is nothing pending to lose.
+            check(dsFirst is { HasChanges: true, IsPersistent: true, SavedGeneration: 2 } && File.Exists(dsA + ".drproj") && main.InspectForChecks(DetectedPlatform.NintendoDS) is { HasSession: true, HasPendingChanges: false }, "UniversalOpenWindow_ADsRomOpensWithItsSavedProjectAndHasNothingPendingToLose");
 
             // DS → 3DS: the DS project and its changes stay.
             r = OpenWith(main, g1);
@@ -346,12 +347,17 @@ internal static class UniversalOpenChecks
             r = OpenWith(main, sword);
             var swordProject = main.SwitchWorkspace?.Project;
             check(r.Opened && swordProject is not null && swordProject.Identity.Game.Contains("Espada") && main.Session == session1 && Ds() == dsFirst, "UniversalOpenWindow_3dsToSwitch_KeepsThe3dsAndDsProjects");
-            // Switch → DS: cancelling with pending DS changes keeps everything exactly.
+            // Switch → DS: the DS project on screen is saved, so replacing it asks nothing (answering "no" to anything would cancel) and loses nothing.
             string before = main.HostDescription(); asked.Clear(); answer = false;
             r = OpenWith(main, dsB, romhacks: true);
-            check(r.Outcome == OpenOutcome.Cancelled && Ds() == dsFirst && dsFirst.OperationCount == ops && dsFirst.HasChanges && main.HostDescription() == before && asked.Any(a => a.StartsWith("replace")) && main.SwitchWorkspace!.Project == swordProject, "UniversalOpenWindow_SwitchToDs_CancelWithPendingChangesKeepsEverything");
+            check(r.Opened && Ds() != dsFirst && Ds().SourcePath.EndsWith("B.nds") && Ds().IsPersistent && File.Exists(dsB + ".drproj") && NdsOn() && !asked.Any(a => a.StartsWith("replace")) && main.SwitchWorkspace!.Project == swordProject && main.Session == session1, "UniversalOpenWindow_SwitchToDs_ASavedDsProjectIsReplacedWithoutAskingAndTheOthersStay");
+            // A DS session WITHOUT a project (the direct, in-memory load) still has changes that would be lost: cancelling keeps everything exactly.
+            Wait(main.NdsWorkspace!.LoadAsync(RomFile(temp, "memoria.nds")));
+            var unsaved = Ds(); var memory = new NdsRecordEditor(unsaved, NdsSection.Trainers); var memoryValues = memory.Read(1).SelectMany(g => g.Fields).ToDictionary(f => f.Key, f => f.Value); memoryValues["P0.Level"] = 44; memory.Save(1, memoryValues);
+            before = main.HostDescription(); asked.Clear(); answer = false; r = OpenWith(main, dsB, romhacks: true);
+            check(!unsaved.IsPersistent && main.InspectForChecks(DetectedPlatform.NintendoDS) is { HasPendingChanges: true } && r.Outcome == OpenOutcome.Cancelled && Ds() == unsaved && unsaved.HasChanges && main.HostDescription() == before && asked.Any(a => a.StartsWith("replace")), "UniversalOpenWindow_ADsSessionWithoutAProject_CancelWithPendingChangesKeepsEverything");
             answer = true; r = OpenWith(main, dsB, romhacks: true);
-            check(r.Opened && Ds() != dsFirst && Ds().SourcePath.EndsWith("B.nds") && NdsOn() && main.SwitchWorkspace!.Project == swordProject && main.Session == session1, "UniversalOpenWindow_SwitchToDs_ConfirmedReplacementInstallsTheNewDsAndKeepsTheOthers");
+            check(r.Opened && Ds() != unsaved && Ds().SourcePath.EndsWith("B.nds") && NdsOn() && main.SwitchWorkspace!.Project == swordProject && main.Session == session1, "UniversalOpenWindow_SwitchToDs_ConfirmedReplacementInstallsTheNewDsAndKeepsTheOthers");
             // Same platform: Switch → Switch (no pending changes: no question).
             asked.Clear(); r = OpenWith(main, shield);
             check(r.Opened && main.SwitchWorkspace!.Project!.Identity.Game.Contains("Escudo") && main.SwitchWorkspace.Project != swordProject && !asked.Any(a => a.StartsWith("replace")), "UniversalOpenWindow_SwitchReplacedBySwitch_NoQuestionWithoutPendingChanges");
@@ -366,9 +372,63 @@ internal static class UniversalOpenChecks
             // 3DS → DS.
             r = OpenWith(main, dsA, romhacks: true);
             check(r.Opened && NdsOn() && Ds().SourcePath.EndsWith("A.nds") && main.Session == s2 && main.SwitchWorkspace!.Project!.Identity.Game.Contains("Escudo"), "UniversalOpenWindow_3dsToDs_KeepsThe3dsAndSwitchProjects");
+            // The ROM opened first comes back with the work that was done on it: it was resumed from its project, not opened empty.
+            check(Ds() != dsFirst && Ds() is { IsPersistent: true, HasChanges: true, SavedGeneration: 2 } && Ds().OperationCount == ops && new NdsRecordEditor(Ds(), NdsSection.Trainers).Read(1).SelectMany(g => g.Fields).ToDictionary(f => f.Key, f => f.Value) is var resumed && resumed["P0.Species"] == 25 && resumed["P0.Level"] == 33, "UniversalOpenWindow_ReopeningADsRomResumesItsSavedWork");
             // DS → DS with no pending changes, and 3DS → 3DS, Switch → Switch were covered above.
             asked.Clear(); r = OpenWith(main, dsB, romhacks: true);
             check(r.Opened && !asked.Any(a => a.StartsWith("replace")), "UniversalOpenWindow_DsReplacedByDs_NoQuestionWithoutPendingChanges");
+
+            // Drag and drop (B3): what is dropped goes through the same detector, engines and confirmations as the dialog.
+            OpenResult Drop(params string[] paths) { var task = main.HandleDropAsync(paths); Wait(task); return task.Result; }
+            var dsBefore = Ds(); string dropRom = RomFile(temp, "soltada.nds"); main.NdsWorkspace!.AllowRomhacks = true;
+            r = Drop(dropRom);
+            check(r.Opened && NdsOn() && Ds() != dsBefore && Ds().SourcePath == dropRom && Ds().IsPersistent && File.Exists(dropRom + ".drproj") && main.AllowDrop, "UniversalOpenDrop_ADsRomDroppedOnTheWindowOpensWithItsProject");
+            var edited = new NdsRecordEditor(Ds(), NdsSection.Trainers); var editedValues = edited.Read(1).SelectMany(g => g.Fields).ToDictionary(f => f.Key, f => f.Value); editedValues["P0.Level"] = 41; edited.Save(1, editedValues); int dropOps = Ds().OperationCount;
+            r = Drop(dsB);
+            check(r.Opened && Ds().SourcePath.EndsWith("B.nds"), "UniversalOpenDrop_AnotherRomReplacesTheSavedProjectWithoutAsking");
+            r = Drop(dropRom + ".drproj");
+            check(r.Opened && Ds().SourcePath == dropRom && Ds().OperationCount == dropOps && Ds().IsRomhack, "UniversalOpenDrop_AProjectFileDroppedResumesItsWork");
+            r = Drop(g1);
+            check(r.Opened && main.Session is not null && main.Session != s2 && !NdsOn(), "UniversalOpenDrop_A3dsFolderDroppedOpensThe3dsProject");
+            var s3 = main.Session; r = Drop(shield);
+            check(r.Opened && main.SwitchWorkspace!.Project!.Identity.Game.Contains("Escudo") && main.Session == s3, "UniversalOpenDrop_ASwitchExtractionDroppedOpensIt");
+            // What cannot be opened changes nothing and says why.
+            string screen = main.HostDescription(); var dsKept = Ds(); var swKept = main.SwitchWorkspace!.Project; string note = Path.Combine(temp, "notas.txt"); File.WriteAllText(note, "no es un proyecto");
+            r = Drop(dsA, dsB);
+            check(r.Outcome == OpenOutcome.Rejected && r.Message.Contains("un solo archivo") && main.HostDescription().Replace(r.Message, "") == screen.Replace(r.Message, "") && Ds() == dsKept, "UniversalOpenDrop_SeveralItemsAreRefusedAndNothingChanges");
+            r = Drop(note);
+            check(r.Outcome == OpenOutcome.Rejected && Ds() == dsKept && main.SwitchWorkspace!.Project == swKept && main.Session == s3, "UniversalOpenDrop_AnUnrecognisedFileIsRefusedAndNothingChanges");
+            r = Drop(Path.Combine(temp, "no-existe.nds"));
+            check(r.Outcome == OpenOutcome.Rejected && Ds() == dsKept, "UniversalOpenDrop_AMissingPathIsRefused");
+            r = Drop();
+            check(r.Outcome == OpenOutcome.Rejected && Ds() == dsKept, "UniversalOpenDrop_AnEmptyDropIsRefused");
+            using (UiProgress.BlockInteraction()) { r = Drop(dsA); check(r.Outcome == OpenOutcome.Blocked && Ds() == dsKept && main.DropProblem([dsA]) is not null, "UniversalOpenDrop_NothingIsOpenedWhileAnOperationIsRunning"); }
+            check(main.DropProblem([dsA]) is null && main.DropProblem([dsA, dsB]) is not null && main.DropProblem(null) is not null, "UniversalOpenDrop_TheCursorShowsWhetherTheDropWillBeAccepted");
+
+            // Recent projects (A4): what was opened is listed newest first, once each; an entry is resumed through the same flow, and removing one only edits the list.
+            var recent = RecentProjects.Load();
+            check(recent.Count is > 3 and <= RecentProjects.Max && recent[0].Path == shield && recent.Select(e => e.Path).Distinct(StringComparer.OrdinalIgnoreCase).Count() == recent.Count && recent.Any(e => e.Path == dropRom + ".drproj" && e.Platform == "Nintendo DS")
+                && recent.All(e => e.Available) && File.Exists(Path.Combine(state, "recent-projects.json")), "UniversalOpenRecent_OpenedProjectsAreListedNewestFirstWithoutRepeats");
+            string gone = Path.Combine(temp, "ya-no-esta.nds"); RecentProjects.Record(gone, "Pokémon Negro (USA/EUR)", "Nintendo DS"); int filesBefore = Directory.GetFiles(temp, "*", SearchOption.AllDirectories).Length;
+            var recentDialog = Show(new OpenProjectDialog(main, main.CreateOpenCoordinator()));
+            try
+            {
+                check(recentDialog.RecentVisible && recentDialog.RecentItems[0].Path == gone && !recentDialog.RecentItems[0].Available && !recentDialog.CanForget, "UniversalOpenRecent_TheDialogShowsTheListAndMarksWhatIsNoLongerThere");
+                recentDialog.SelectRecent(0); Wait(recentDialog.DetectionTask);
+                check(!recentDialog.IsOpenEnabled && recentDialog.CanForget && recentDialog.MessageText.Contains("No accesible"), "UniversalOpenRecent_AMissingEntryCannotBeOpenedOnlyRemoved");
+                recentDialog.ForgetSelected();
+                check(recentDialog.RecentItems.All(e => e.Path != gone) && RecentProjects.Load().All(e => e.Path != gone) && Directory.GetFiles(temp, "*", SearchOption.AllDirectories).Length == filesBefore, "UniversalOpenRecent_RemovingAnEntryEditsOnlyTheListAndDeletesNoFile");
+                int index = recentDialog.RecentItems.ToList().FindIndex(e => e.Path == dsB); recentDialog.AllowRomhacks = true; recentDialog.SelectRecent(index); Wait(recentDialog.DetectionTask);
+                check(index >= 0 && recentDialog.PathText == dsB && recentDialog.IsOpenEnabled && recentDialog.GameText.Contains("Negro"), "UniversalOpenRecent_SelectingAnEntryRunsTheSameDetector");
+                Click((Button)ById(recentDialog, "OpenProjectOpen")); Wait(recentDialog.OpeningTask);
+                check(recentDialog.LastResult is { Opened: true } && Ds().SourcePath == dsB && Ds().IsPersistent && RecentProjects.Load()[0].Path == dsB && RecentProjects.Load().Count(e => e.Path == dsB) == 1, "UniversalOpenRecent_ARecentProjectIsResumedAndMovesToTheTop");
+            }
+            finally { recentDialog.Close(); }
+            // The list tolerates a damaged file and never grows beyond its limit.
+            File.WriteAllText(Path.Combine(state, "recent-projects.json"), "{ esto no es una lista");
+            check(RecentProjects.Load().Count == 0, "UniversalOpenRecent_ADamagedListIsAnEmptyList");
+            for (int n = 0; n < RecentProjects.Max + 5; n++) RecentProjects.Record(Path.Combine(temp, "muchos-" + n + ".nds"), "Juego", "Nintendo DS"); RecentProjects.Record(Path.Combine(temp, "MUCHOS-3.NDS"), "Juego", "Nintendo DS");
+            check(RecentProjects.Load() is { Count: RecentProjects.Max } capped && capped[0].Path.EndsWith("MUCHOS-3.NDS") && capped.Count(e => e.Path.EndsWith("muchos-3.nds", StringComparison.OrdinalIgnoreCase)) == 1, "UniversalOpenRecent_TheListIsCappedAndIgnoresCaseWhenDeduplicating");
 
             // Rejections never disturb the previous projects or the screen.
             var dsNow = Ds(); var sessionNow = main.Session; var switchNow = main.SwitchWorkspace!.Project; before = main.HostDescription();

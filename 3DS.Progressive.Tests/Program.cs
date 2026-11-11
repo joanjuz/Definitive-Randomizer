@@ -41,6 +41,7 @@ if(args.Length is 2 or 3&&args[0]=="--interrupt-transaction-races")
     {RunnerCatalog.RejectUnknown(args);return;}
     TransactionRaceChecks.InterruptChild(args[1],args.Length==3?args[2]:"commit");return;
 }
+if(args.Length>=3&&args[0]=="--nds-project-store-child"){Environment.Exit(NdsProjectStoreChecks.ChildMain(args[1..]));return;}
 if(args.Length==2&&args[0]=="--interrupt-save-check"){RecoveryChecks.InterruptChild(args[1]);return;}
 if(args.Length>1&&args[0]=="--read-tm6-compatibility"){Tm6CompatibilityChecks.RunReal(args.Skip(1));return;}
 if(args.Length>2&&args[0]=="--check-catch-batch-real-copies"){CatchZoneRealCopyChecks.Run(args[1],args.Skip(2),batch:true);return;}
@@ -223,6 +224,16 @@ if(args.Length==5&&args[0]=="--nds-live-ui-probe")
     Exception? failure=null;var thread=new Thread(()=>{try{var app=new ThreeDS.Progressive.App();app.InitializeComponent();WpfTestHost.SuppressStartup();ThreeDS.Progressive.StudioDialog.AutomatedChecks=true;NdsLiveUiProbe.Run(args[1],args[2],int.Parse(args[3]),int.Parse(args[4]));}catch(Exception ex){failure=ex;}});thread.SetApartmentState(ApartmentState.STA);thread.Start();thread.Join();if(failure is not null)System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(failure).Throw();return;
 }
 if(args.Length>=3&&args[0]=="--universal-open-live-probe"){Exception? failure=null;var thread=new Thread(()=>{try{var app=new ThreeDS.Progressive.App();app.InitializeComponent();WpfTestHost.SuppressStartup();UniversalOpenLiveProbe.Run(args[1],args[2..]);}catch(Exception ex){failure=ex;}});thread.SetApartmentState(ApartmentState.STA);thread.Start();thread.Join();if(failure is not null)System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(failure).Throw();return;}
+if(args.Length==1&&args[0]=="--nds-project-format-only"){NdsProjectFormatChecks.Run(Check);Console.WriteLine($"Completed {checks} DS project format checks (synthetic).");return;}
+if(args.Length==1&&args[0]=="--nds-project-resilience-only"){Exception? failure=null;var thread=new Thread(()=>{try{var app=new ThreeDS.Progressive.App();app.InitializeComponent();WpfTestHost.SuppressStartup();ThreeDS.Progressive.StudioDialog.AutomatedChecks=true;NdsProjectResilienceChecks.Run(Check);}catch(Exception ex){failure=ex;}});thread.SetApartmentState(ApartmentState.STA);thread.Start();thread.Join();if(failure is not null)System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(failure).Throw();Console.WriteLine($"Completed {checks} DS project resilience checks (synthetic ROMs, real file system; UI off-screen).");return;}
+if(args.Length>=4&&args[0]=="--nds-project-resilience-probe"&&int.TryParse(args[2],out int resilienceOperations)&&resilienceOperations is >=20 and <=5000){NdsProjectResilienceChecks.Probe(args[1],resilienceOperations,args[3..]);return;}
+if(args.Length==1&&args[0]=="--nds-project-open-only"){NdsProjectOpenChecks.Run(Check);Console.WriteLine($"Completed {checks} DS project opening checks (synthetic ROMs, real file system).");return;}
+if(args.Length==1&&args[0]=="--nds-project-transactions-only"){NdsProjectTransactionChecks.Run(Check);Console.WriteLine($"Completed {checks} DS project transaction checks (synthetic ROMs, real file system).");return;}
+if(args.Length>=3&&args[0]=="--nds-project-transactions-probe"){NdsProjectTransactionChecks.Probe(args[1],args[2..]);return;}
+if(args.Length==1&&args[0]=="--nds-project-store-only"){NdsProjectStoreChecks.Run(Check);Console.WriteLine($"Completed {checks} DS project store checks (real file system, temporary folder).");return;}
+if(args.Length==2&&args[0]=="--nds-project-store-probe"){NdsProjectStoreChecks.Run(Check,args[1]);Console.WriteLine($"Completed {checks} DS project store checks (real file system, {args[1]}).");return;}
+if(args.Length>=4&&args[0]=="--nds-project-save-bench"&&int.TryParse(args[2],out int benchRandomizations)&&benchRandomizations is >=1 and <=200){NdsProjectSaveBench.Run(args[1],benchRandomizations,args[3..]);return;}
+if(args.Length>=3&&args[0]=="--nds-project-measure"){NdsProjectMeasure.Run(args[1],args[2..]);return;}
 if(args.Length==1&&args[0]=="--universal-open-only"){Exception? failure=null;var thread=new Thread(()=>{try{var app=new ThreeDS.Progressive.App();app.InitializeComponent();WpfTestHost.SuppressStartup();ThreeDS.Progressive.StudioDialog.AutomatedChecks=true;UniversalOpenChecks.Run(Check);UniversalOpenChecks.RunUi(Check);}catch(Exception ex){failure=ex;}});thread.SetApartmentState(ApartmentState.STA);thread.Start();thread.Join();if(failure is not null)throw failure;Console.WriteLine($"Completed {checks} universal open checks (synthetic and off-screen; not interactive).");return;}
 if(args.Length==1&&args[0]=="--project-detector-only"){ProjectDetectorChecks.Run(Check);Console.WriteLine($"Completed {checks} project detector checks (synthetic).");return;}
 if(args.Length>=3&&args[0]=="--project-detector-probe"){ProjectDetectorChecks.Probe(args[1],args[2..]);return;}

@@ -325,31 +325,49 @@ internal sealed partial class NdsProject : IDisposable
     {
         if (preview.Owner != _id || preview.Revision != Revision)
             throw new InvalidOperationException("La vista previa pertenece a otra ROM o quedó desactualizada. Genérala de nuevo.");
-        foreach (var (path, data) in preview.Result.Files)
-            _files[path] = data;
-        foreach (var (id, data) in preview.Result.Overlays)
-            _overlays[id] = data;
-        _recompress.UnionWith(preview.Result.RecompressOverlays);
-        if (preview.Result.Arm9 is not null)
-            _arm9 = preview.Result.Arm9;
-        _history.Add(new NdsOperation(preview.Action, preview.Seed, preview.Result.Changes, preview.Recipe));
-        Revision++;
-        _gen5View = null;
-        _gen4View = null;
+        // A script archive of this operation must combine with the scripts the events appended; refused now, not when exporting.
+        if (preview.Result.Files.ContainsKey(PlatinumEvents.ScriptPath)) RequireCompatibleScripts(preview.Result.Files);
+        var operation = new NdsOperation(preview.Action, preview.Seed, preview.Result.Changes, preview.Recipe);
+        void Install()
+        {
+            foreach (var (path, data) in preview.Result.Files)
+                _files[path] = data;
+            foreach (var (id, data) in preview.Result.Overlays)
+                _overlays[id] = data;
+            _recompress.UnionWith(preview.Result.RecompressOverlays);
+            if (preview.Result.Arm9 is not null)
+                _arm9 = preview.Result.Arm9;
+            _history.Add(operation);
+            Revision++;
+            _gen5View = null;
+            _gen4View = null;
+        }
+        if (_tx is null) { Install(); return; }
+        // Persistent project: the resulting tables are built apart, made durable and verified, and only then installed in the session.
+        var files = new Dictionary<string, byte[]>(_files, StringComparer.Ordinal); foreach (var (path, data) in preview.Result.Files) files[path] = data;
+        var overlays = new Dictionary<int, byte[]>(_overlays); foreach (var (id, data) in preview.Result.Overlays) overlays[id] = data;
+        var recompress = _recompress.Union(preview.Result.RecompressOverlays).ToArray(); var record = Project.NdsProjectOperationRecord.Of(operation);
+        Commit(current => Compose(current, files, overlays, recompress, preview.Result.Arm9 ?? _arm9, [.. current.Meta.Operations, record], current.Meta.Events, current.State.EventData, current.State.EventScripts), _ => Install());
     }
 
     /// <summary>Discards every pending change.</summary>
     internal void Reset()
     {
-        _events?.Reset();
-        _files.Clear();
-        _overlays.Clear();
-        _recompress.Clear();
-        _history.Clear();
-        _arm9 = null;
-        Revision++;
-        _gen5View = null;
-        _gen4View = null;
+        void Install()
+        {
+            _events?.Reset();
+            _files.Clear();
+            _overlays.Clear();
+            _recompress.Clear();
+            _history.Clear();
+            _arm9 = null;
+            Revision++;
+            _gen5View = null;
+            _gen4View = null;
+        }
+        if (_tx is null) { Install(); return; }
+        // Persistent project: discarding is a new generation with nothing in it; the previous one stays in the backups.
+        Commit(current => Compose(current, new(StringComparer.Ordinal), new(), [], null, [], current.Meta.Events is { Extra: not null } events ? events with { Operations = [], Audit = [], ImportedFrom = null } : null, null, null), _ => Install());
     }
 
     /// <summary>Writes the new ROM and its change log, then re-reads the ROM to confirm the tables still parse.</summary>
@@ -405,7 +423,7 @@ internal sealed partial class NdsProject : IDisposable
         {
             text.AppendLine("\n== Eventos CPUE/1 · checkpoints independientes de Global/Batch");
             foreach (string entry in _events.Audit) text.AppendLine(entry);
-            text.AppendLine("Checkpoint: " + _events.LastCheckpoint);
+            text.AppendLine(_events.LastCheckpoint is { } checkpoint ? "Checkpoint: " + checkpoint : "Proyecto persistente, generación " + SavedGeneration);
         }
         File.WriteAllText(log, text.ToString(), new UTF8Encoding(true));
         return log;
@@ -461,5 +479,5 @@ internal sealed partial class NdsProject : IDisposable
         _ => "Tiendas",
     };
 
-    public void Dispose() => _rom.Dispose();
+    public void Dispose() { _store?.Dispose(); _rom.Dispose(); }
 }

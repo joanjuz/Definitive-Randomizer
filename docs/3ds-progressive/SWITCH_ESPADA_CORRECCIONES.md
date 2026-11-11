@@ -57,7 +57,7 @@ Una ejecución intermedia de la suite completa falló en «SM Batch original exe
 | Conservar cantidades y probabilidades | `Swsh_Game_ItemsPreserveQuantitiesWeightsRespawnAndEvents` |
 | No alterar entrenadores validados | comparación byte a byte de 436 recursos entre mods |
 
-Archivos modificados en esta corrección: `pk3DS.Core/NX/SwordShieldGameplay.cs`, `3DS.Progressive.App/SwordShieldGameplayWindow.cs`, `3DS.Progressive.Tests/SwordShieldGameplayChecks.cs`, `docs/3ds-progressive/HOJA_RUTA_SWITCH.md`, `SWITCH_SWSH_PRIORIDADES.md` y este informe. Se preservó el resto del trabajo pendiente de la rama.
+Archivos modificados en esta corrección: `pk3DS.Core/NX/SwordShieldGameplay.cs`, `3DS.Progressive.App/SwordShieldGameplayWindow.cs`, `3DS.Progressive.Tests/SwordShieldGameplayChecks.cs`, `SWITCH_SWSH_PRIORIDADES.md` y este informe. Se preservó el resto del trabajo pendiente de la rama.
 
 ## Investigación del combate sorpresa: pendiente de implementación
 

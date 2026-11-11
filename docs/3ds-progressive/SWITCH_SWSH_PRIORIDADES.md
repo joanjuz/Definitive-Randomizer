@@ -66,7 +66,7 @@ Core: `pk3DS.Core/NX/SwitchBinaryResources.cs`, `SwordShieldGameplay.cs`, `Sword
 
 App: `3DS.Progressive.App/Services/Switch/SwordShieldProject.cs`, `SwordShieldProject.Gameplay.cs`, `SwordShieldPrototypeWindow.cs`, `SwordShieldPrototypeWindow.Randomization.cs`, `SwordShieldPrototypeWindow.Gameplay.cs`, `SwordShieldGameplayWindow.cs`.
 
-Pruebas: `3DS.Progressive.Tests/SwordShieldGameplayChecks.cs`, `Program.cs`. Documentación: este informe, `HOJA_RUTA_SWITCH.md`, `SWITCH_SWSH_RANDOMIZACION.md`. Se conservaron los demás cambios pendientes del prototipo anterior.
+Pruebas: `3DS.Progressive.Tests/SwordShieldGameplayChecks.cs`, `Program.cs`. Documentación: este informe, `SWITCH_SWSH_RANDOMIZACION.md`. Se conservaron los demás cambios pendientes del prototipo anterior.
 
 ## Referencias
 

@@ -84,9 +84,8 @@ internal sealed class NdsEventEditorView : UserControl
         SetResourceReference(BackgroundProperty, "Bg"); SetResourceReference(ForegroundProperty, "TextMain");
         var root = new DockPanel(); Content = root;
         var header = new StackPanel(); DockPanel.SetDock(header, Dock.Top); root.Children.Add(header);
-        header.Children.Add(new TextBlock { Text = "Eventos · Platino CPUE/1", FontSize = 23, FontWeight = FontWeights.SemiBold });
-        header.Children.Add(new TextBlock { Text = "Mueve, añade, duplica y copia NPC (también entre mapas, como copia básica). Objetos de fondo, warps y scripts: consulta. Los NPC del juego original no se eliminan.", TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 6, 0, 4) });
-        header.Children.Add(new TextBlock { Text = "Guardar crea un checkpoint nuevo .ndsevents.json y actualiza el borrador de la ROM. Reabre ese checkpoint para continuar; Exportar ROM reconstruye una copia nueva. Otras ediciones DS no se guardan en el checkpoint.", TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 8) });
+        header.Children.Add(_title); header.Children.Add(_intro);
+        header.Children.Add(_saveHelp);
         var footer = new StackPanel(); DockPanel.SetDock(footer, Dock.Bottom); root.Children.Add(footer);
         var actions = new WrapPanel(); footer.Children.Add(actions);
         foreach (var button in new[] { _preview, _save, _undo }) { button.Margin = new Thickness(0, 6, 8, 6); actions.Children.Add(button); }
@@ -94,7 +93,10 @@ internal sealed class NdsEventEditorView : UserControl
         EditorPresentation.StyleAction(_preview, EditorPresentation.ActionRole.Secondary);
         EditorPresentation.StyleAction(_undo, EditorPresentation.ActionRole.Tertiary);
         footer.Children.Add(_differences); footer.Children.Add(_status);
-        root.Children.Add(_body);
+        // The working area scrolls as a whole when the window is too short for it, so the map keeps a usable size instead of being pushed out of view; the
+        // header and the footer (with the save actions) stay outside the scrolled area.
+        _bodyScroll.Content = _body; root.Children.Add(_bodyScroll); _bodyScroll.SizeChanged += (_, _) => Adapt();
+        AccessibleName(_bodyScroll, "Eventos DS · área de trabajo (desplazable en ventanas pequeñas)");
         _body.ColumnDefinitions.Add(new() { Width = new GridLength(205) });
         _body.ColumnDefinitions.Add(new() { Width = new GridLength(1, GridUnitType.Star) });
         _body.ColumnDefinitions.Add(new() { Width = new GridLength(280) });
@@ -137,13 +139,15 @@ internal sealed class NdsEventEditorView : UserControl
         _save.Click += async (_, _) =>
         {
             if (_pending is null) return;
+            // With a persistent project the change is saved in it (with the rest of the work on the ROM); no checkpoint file is asked for.
+            if (ProjectSave is not null) { await SaveToProjectAsync(); return; }
             var picker = new Microsoft.Win32.SaveFileDialog { Filter = "Checkpoint DS (*.ndsevents.json)|*.ndsevents.json", DefaultExt = ".ndsevents.json", AddExtension = true, FileName = Path.GetFileNameWithoutExtension(_session.SourcePath) + "-eventos-" + (_session.Revision + 1) + ".ndsevents.json", Title = "Guardar checkpoint nuevo; no sobrescribe versiones anteriores" };
             if (picker.ShowDialog(Window.GetWindow(this)) == true) await SaveToAsync(picker.FileName);
         };
-        _undo.Click += (_, _) => { try { ShowProposal(_session.PreviewUndo()); _status.Text = "Restauración preparada. Guarda en un checkpoint nuevo para aplicarla."; } catch (Exception ex) when (Known(ex)) { Fail(ex); } };
+        _undo.Click += (_, _) => { try { ShowProposal(_session.PreviewUndo()); _status.Text = ProjectSave is null ? "Restauración preparada. Guarda en un checkpoint nuevo para aplicarla." : "Restauración preparada. Guarda para aplicarla en el proyecto."; } catch (Exception ex) when (Known(ex)) { Fail(ex); } };
         _warp.Click += (_, _) => { if (_event is { Kind: PlatinumEventKind.Warp } warp && CanNavigate(warp)) { _search.Text = ""; _maps.SelectedItem = _session.Data.Map(warp.Destination); _tabs.SelectedIndex = 2; _tables[2].SelectedItem = _tables[2].Items.Cast<PlatinumEvent>().First(e => e.Index == warp.Anchor); } };
         _script.Click += (_, _) => { var selected = _event; if (selected is null) return; _tabs.SelectedIndex = 3; _tables[3].SelectedItem = _tables[3].Items.Cast<PlatinumEvent>().FirstOrDefault(e => e.Kind == selected.Kind && e.Index == selected.Index); _details.Focus(); };
-        SizeChanged += (_, _) => Adapt(); FilterMaps(); RefreshStatus();
+        SizeChanged += (_, _) => Adapt(); _differences.TextChanged += (_, _) => { if (_brief) Adapt(); }; FilterMaps(); RefreshStatus();
     }
     private void BuildCenter()
     {
@@ -247,8 +251,7 @@ internal sealed class NdsEventEditorView : UserControl
     }
     private void SetFooterCompact(bool compact)
     {
-        var visibility = compact ? Visibility.Collapsed : Visibility.Visible;
-        _terrainNote.Visibility = visibility; _toolHelp.Visibility = visibility; if (_legend is not null) _legend.Visibility = visibility;
+        _proposalOpen = compact; ApplyFooterDetail();
         if (_inspector is not null) Adapt();
     }
     private void HideProposal(bool cancelDrag = true)
@@ -569,14 +572,57 @@ internal sealed class NdsEventEditorView : UserControl
         SelectEvent(item);
     }
     private static void AccessibleName(DependencyObject control, string name) => AutomationProperties.SetName(control, name);
+    /// <summary>Smallest height of the working area that still gives the map a useful size; below it the area scrolls instead of shrinking the map.</summary>
+    internal const double UsefulMapHeight = 240, MinimumMapHeight = 180, ShortWindowHeight = 620, CompactWidth = 850;
+    private bool _brief, _adapting;
+    private readonly ScrollViewer _bodyScroll = new() { VerticalScrollBarVisibility = ScrollBarVisibility.Auto, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled, Focusable = false };
+    private readonly TextBlock _title = new() { Text = "Eventos · Platino CPUE/1", FontSize = 23, FontWeight = FontWeights.SemiBold };
+    private readonly TextBlock _intro = new() { Text = "Mueve, añade, duplica y copia NPC (también entre mapas, como copia básica). Objetos de fondo, warps y scripts: consulta. Los NPC del juego original no se eliminan.", TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 6, 0, 4) };
+    internal ScrollViewer WorkingArea => _bodyScroll;
     private void Adapt()
     {
-        bool compact = ActualWidth < 850;
+        // Short window: the two explanatory paragraphs give their room to the map and stay available as the tooltip of the title.
+        if (_adapting) return;
+        bool brief = _brief = ActualHeight > 0 && ActualHeight < ShortWindowHeight;
+        _intro.Visibility = _saveHelp.Visibility = brief ? Visibility.Collapsed : Visibility.Visible;
+        _title.FontSize = brief ? 17 : 23; _title.ToolTip = brief ? _intro.Text + "\n\n" + _saveHelp.Text : null;
+        AutomationProperties.SetHelpText(_title, brief ? _intro.Text + " " + _saveHelp.Text : "");
+        bool compact = ActualWidth < CompactWidth;
         _body.ColumnDefinitions[0].Width = new GridLength(compact ? 165 : 205);
         _body.ColumnDefinitions[2].Width = compact ? new GridLength(0) : new GridLength(280);
         Grid.SetRow(_inspector, compact ? 1 : 0); Grid.SetColumn(_inspector, compact ? 0 : 2); Grid.SetColumnSpan(_inspector, compact ? 2 : 1);
         _inspector.Visibility = compact && _moveBox.Visibility == Visibility.Visible ? Visibility.Collapsed : Visibility.Visible;   // compact layout: give the canvas the room while a proposal is open
-        _inspector.MaxHeight = compact ? 170 : double.PositiveInfinity;
+        _inspector.MaxHeight = compact ? (brief ? 120 : 170) : double.PositiveInfinity;
+        // A short window keeps only the essential lines under the map (the legend and the help come back when there is room).
+        ApplyFooterDetail();
+        // In a short window the empty box of differences gives its room to the map; it comes back as soon as there is something to show.
+        _differences.Visibility = brief && _differences.Text.Length == 0 ? Visibility.Collapsed : Visibility.Visible;
+        // The working area is as tall as its viewport, but never shorter than the map column needs with the map at a useful height: then it scrolls,
+        // instead of pushing the map out of view. The useful height never exceeds the viewport, so the whole map can always be brought into view.
+        double viewport = _bodyScroll.ActualHeight, width = _bodyScroll.ActualWidth;
+        if (viewport <= 0 || width <= 0) return;
+        double map = brief ? Math.Max(MinimumMapHeight, Math.Min(UsefulMapHeight, viewport - 8)) : MinimumMapHeight;
+        if (_canvasFrame is not null)
+        {
+            _canvasFrame.MinHeight = _canvas.MinHeight = map;
+            // In a short window the map is never taller than the viewport either, so that scrolling can show all of it at once.
+            _canvasFrame.MaxHeight = brief ? Math.Max(map, viewport - 8) : double.PositiveInfinity; _canvasFrame.VerticalAlignment = brief ? VerticalAlignment.Top : VerticalAlignment.Stretch;
+        }
+        _adapting = true;
+        try
+        {
+            double column = Math.Max(0, width - SystemParameters.VerticalScrollBarWidth - _body.ColumnDefinitions[0].Width.Value - _body.ColumnDefinitions[2].Width.Value);
+            _center.Measure(new System.Windows.Size(column, double.PositiveInfinity));
+            double needed = Math.Ceiling(_center.DesiredSize.Height) + (compact && _inspector.Visibility == Visibility.Visible ? _inspector.MaxHeight : 0);
+            _body.Height = Math.Max(viewport, needed); _center.InvalidateMeasure();
+        }
+        finally { _adapting = false; }
+    }
+    private bool _proposalOpen;
+    private void ApplyFooterDetail()
+    {
+        var visibility = _proposalOpen || _brief ? Visibility.Collapsed : Visibility.Visible;
+        _terrainNote.Visibility = visibility; _toolHelp.Visibility = visibility; if (_legend is not null) _legend.Visibility = visibility;
     }
     private void FilterMaps()
     {
@@ -664,20 +710,36 @@ internal sealed class NdsEventEditorView : UserControl
         _pending = proposal; _save.IsEnabled = proposal.Changes.Count > 0;
         _differences.Text = proposal.Lines is { Count: > 0 } lines ? string.Join("\n", lines) : string.Join("\n", proposal.Changes.Select(c => $"{c.Location} · {c.Field}: {c.Before} → {c.After}"));
     }
-    internal async Task SaveToAsync(string path)
+    private const string CheckpointHelp = "Guardar crea un checkpoint nuevo .ndsevents.json y actualiza el borrador de la ROM. Reabre ese checkpoint para continuar; Exportar ROM reconstruye una copia nueva. Otras ediciones DS no se guardan en el checkpoint.";
+    private const string ProjectHelp = "Guardar aplica el cambio y lo guarda en el proyecto de la ROM, junto con el resto de tu trabajo; al reabrir la ROM se continúa donde lo dejaste. Exportar ROM reconstruye una copia nueva. La ROM de origen no se modifica.";
+    private readonly TextBlock _saveHelp = new() { Text = CheckpointHelp, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 8) };
+    private Action<NdsEventProposal>? _projectSave;
+    /// <summary>
+    /// Set when the ROM has a persistent project: saving a proposal goes through it (durable before the session changes) instead of writing a checkpoint.
+    /// It runs off the UI thread, like the checkpoint save.
+    /// </summary>
+    internal Action<NdsEventProposal>? ProjectSave { get => _projectSave; set { _projectSave = value; _saveHelp.Text = value is null ? CheckpointHelp : ProjectHelp; RefreshStatus(); } }
+    internal Task SaveToProjectAsync() => SaveAsync(proposal => ProjectSave!(proposal));
+    internal Task SaveToAsync(string path) => SaveAsync(proposal => _session.Save(proposal, path));
+    private async Task SaveAsync(Action<NdsEventProposal> save)
     {
         if (_busy || _pending is null || _pending.Changes.Count == 0) return;
         _busy = true; _body.IsEnabled = false;
         using var interaction = UiProgress.BlockInteraction();
         try
         {
-            var proposal = _pending; await Task.Run(() => _session.Save(proposal, path));
+            var proposal = _pending; await Task.Run(() => save(proposal));
             _dirty = false; InvalidatePreview(); SelectMap(_map is null ? null : _session.Data.Map(_map.Id), confirm: false); RefreshStatus(); Changed?.Invoke();
         }
         catch (Exception ex) when (Known(ex)) { Fail(ex); }
         finally { _busy = false; _body.IsEnabled = true; }
     }
-    private void RefreshStatus() { _undo.IsEnabled = _session.CanUndo; _status.Text = _session.LastCheckpoint is null ? "Sin checkpoint guardado." : "Checkpoint verificado: " + _session.LastCheckpoint + " · Exportar ROM para generar la copia jugable."; }
+    private void RefreshStatus()
+    {
+        _undo.IsEnabled = _session.CanUndo;
+        _status.Text = ProjectSave is not null ? (_session.CanUndo ? "Cambios de eventos guardados en el proyecto · Exportar ROM para generar la copia jugable." : "Sin cambios de eventos.")
+            : _session.LastCheckpoint is null ? "Sin checkpoint guardado." : "Checkpoint verificado: " + _session.LastCheckpoint + " · Exportar ROM para generar la copia jugable.";
+    }
     private void Fail(Exception ex) { _status.Text = "No se guardó: " + ex.Message; InvalidatePreview(); }
     private static bool Known(Exception ex) => ex is IOException or InvalidDataException or InvalidOperationException or ArgumentException or UnauthorizedAccessException or System.Text.Json.JsonException;
 }
