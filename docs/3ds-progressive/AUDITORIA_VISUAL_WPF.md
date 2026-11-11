@@ -183,3 +183,7 @@ Desde el 01/11/2026 la auditoría cubre X/Y, ORAS, Sol/Luna y USUM a cuatro tama
 ## Seguimiento 2026-11-02: navegación y jerarquía
 
 Barra lateral por grupos plegables, buscador de secciones y herramientas (Ctrl+K), miga de pan en las herramientas de los hubs, marcas de cambios guardados, estado del proyecto en Inicio, cabecera según haya proyecto o no, Inspector por grupos, indicador de pasos de randomización, formularios sin filas estiradas, pestañas que no cambian de fila, hubs en cuadrícula con detalles técnicos plegados y textos en tuteo. Se conservan nombres de controles, manejadores, rutas y terminología. Detalle, pruebas y límites: [REDISENO_NAVEGACION_JERARQUIA.md](REDISENO_NAVEGACION_JERARQUIA.md).
+
+## Seguimiento 2026-11-11: tiendas 3DS
+
+Los editores de tiendas Gen6 y Gen7 pasan a tres columnas (lista de tiendas, inventario y acciones en vertical) con disposiciones ancha, media, estrecha y compacta según el ancho, y alto mínimo con desplazamiento de página. Se conservan nombres de controles, manejadores, receta y terminología. Detalle, pruebas (`--mart-layout-ui-only`) y límites: [TIENDAS_3DS_DISPOSICION_VERTICAL.md](TIENDAS_3DS_DISPOSICION_VERTICAL.md).

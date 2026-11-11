@@ -44,6 +44,7 @@ Punto de entrada a `docs/3ds-progressive/`. Muchos documentos son **registros hi
 | Matriz de familias 3DS | [ESTADO_CANDIDATO_71.md](ESTADO_CANDIDATO_71.md) (histórico; contrastar con el código) |
 | Rediseño visual WPF | [AUDITORIA_VISUAL_WPF.md](AUDITORIA_VISUAL_WPF.md) |
 | Tablas: centrado, edición, secciones de estáticos y tablas verticales | [TABLAS_CENTRADO_EDICION_SECCIONES.md](TABLAS_CENTRADO_EDICION_SECCIONES.md) |
+| Tiendas 3DS: lista de tiendas, inventario y acciones en tres columnas | [TIENDAS_3DS_DISPOSICION_VERTICAL.md](TIENDAS_3DS_DISPOSICION_VERTICAL.md) |
 - Auditoría visual ampliada (4 juegos, 4 tamaños, herramientas, ventanas y diálogos) y arreglos: [AUDITORIA_VISUAL_AMPLIADA.md](AUDITORIA_VISUAL_AMPLIADA.md)
 - Navegación y jerarquía: barra por grupos, buscador Ctrl+K, miga de pan, marcas de cambios, estado del proyecto en Inicio, Inspector por grupos, pasos de randomización, hubs en cuadrícula y tuteo: [REDISENO_NAVEGACION_JERARQUIA.md](REDISENO_NAVEGACION_JERARQUIA.md)
 - Mejoras de la auditoría: Historial legible con filtros, deshacer con puntos de restauración, registro del randomizado, Evoluciones/Level Up/estáticos con nombres (y corrección de la naturaleza de los estáticos), primeros pasos, catálogo único de secciones y auditoría visual en el CI: [AUDITORIA_MEJORAS_20261103.md](AUDITORIA_MEJORAS_20261103.md)

@@ -66,7 +66,7 @@ internal static class MartSelectorChecks
                 string kind=bp?"BP":"Regular";
                 Field<TabControl>(view,"_tabs").SelectedIndex=bp?1:0;Pump();
                 var grid=Field<DataGrid>(view,bp?"_bpGrid":"_regularGrid");
-                var picker=Field<ComboBox>(view,bp?"_bpPicker":"_regularPicker");
+                var picker=Field<System.Windows.Controls.Primitives.Selector>(view,bp?"_bpPicker":"_regularPicker");
                 var row=((MartShop)picker.SelectedItem).Rows[0];
                 grid.ScrollIntoView(row);grid.CurrentCell=new DataGridCellInfo(row,grid.Columns[1]);grid.BeginEdit();Pump();
                 var combo=Child<ComboBox>(grid.Columns[1].GetCellContent(row))!;
@@ -102,7 +102,7 @@ internal static class MartSelectorChecks
             Field<Button>(view,"_apply").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));Pump();
             check(File.ReadAllBytes(path).SequenceEqual(preview.Output)&&project.History.Read().Entries.Count==1,"Apply writes exact preview with one history transaction");
             var reopened=new MartEditorView(project);
-            check(((MartShop)Field<ComboBox>(reopened,"_regularPicker").SelectedItem).Rows[0].ItemId==114&&((MartShop)Field<ComboBox>(reopened,"_bpPicker").SelectedItem).Rows[0] is {ItemId:114} saved&&saved.Price==bpPrice,"Reopening editor preserves both mints and BP price");
+            check(((MartShop)Field<System.Windows.Controls.Primitives.Selector>(reopened,"_regularPicker").SelectedItem).Rows[0].ItemId==114&&((MartShop)Field<System.Windows.Controls.Primitives.Selector>(reopened,"_bpPicker").SelectedItem).Rows[0] is {ItemId:114} saved&&saved.Price==bpPrice,"Reopening editor preserves both mints and BP price");
             var reopenedProject=Fixture.CreateSession(f.Game,f.Root,f.PersonalPath);
             var savedService=new GameMartService(reopenedProject);
             check(savedService.RegularShops[0].Rows[0].ItemId==114&&savedService.BpShops[0].Rows[0].ItemId==114,"Fresh project session reloads saved selections from disk");
