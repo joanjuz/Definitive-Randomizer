@@ -203,7 +203,8 @@ internal sealed class NdsProjectFileStore : INdsProjectStore
                 WriteDurable(temp, bytes);
                 Probe?.Invoke(NdsProjectFileStep.TempWritten);
                 // Read back from the disk what was written, and compare it with what was meant to be written, before the previous file is touched.
-                byte[]? back = ReadFile(temp); var check = back is null ? null : NdsProjectCodec.Read(back);
+                // (The container and every table are checked; the operations are not deserialized again: see NdsProjectCodec.Verify.)
+                byte[]? back = ReadFile(temp); var check = back is null ? null : NdsProjectCodec.Verify(back);
                 if (back is null || !back.AsSpan().SequenceEqual(bytes) || check is not { Ok: true } || check.Document!.Generation != next.Generation || !check.Document.State.SameAs(next.State))
                     throw new NdsProjectStoreException(NdsProjectStoreError.VerificationFailed, "El proyecto escrito no coincide al releerlo; se conserva el anterior. " + check?.Message);
                 Probe?.Invoke(NdsProjectFileStep.TempVerified);
