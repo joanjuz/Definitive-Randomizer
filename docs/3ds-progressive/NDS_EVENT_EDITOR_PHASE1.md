@@ -101,4 +101,4 @@ Cambio exclusivamente de disposición: no toca reglas de NPC, datos binarios, se
 | 900×480 (mínimo) | 652×289 | 468×192 | lo mismo |
 | 1100×760 y mayores | sin cambios | ocupa lo disponible | no hay desplazamiento |
 
-`--nds-events-ui-only` pasa de 16 a 29 comprobaciones. Son fuera de pantalla: **la sensación real con ratón y rueda (la rueda sobre el mapa hace zoom; fuera de él desplaza) no está probada** y conviene una mirada manual a 1024×640 con la escala al 150 %.
+`--nds-events-ui-only` pasa de 16 a 29 comprobaciones. Son fuera de pantalla; la prueba manual a 1024×640 con la escala al 150 % la superó el propietario el 11/11/2026 con Platino ([aceptación manual](PROYECTOS_DS_PERSISTENTES.md#13-aceptación-manual-11112026)).

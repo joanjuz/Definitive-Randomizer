@@ -92,7 +92,7 @@ Soltar **un** archivo o **una** carpeta sobre la ventana principal lo abre con e
 - Mientras se arrastra, el cursor indica si se aceptará: no se acepta con una operación en curso, con el diálogo «Abrir proyecto» abierto, al cerrar la aplicación ni con más de un elemento.
 - Lo que no se puede abrir no cambia nada y explica el motivo (barra de estado y, salvo cancelación, un aviso).
 
-Comprobaciones en `--universal-open-only` (113): ROM DS soltada abre con su proyecto, otro ROM reemplaza sin preguntar a un proyecto guardado, un `.drproj` soltado reanuda su trabajo, carpeta 3DS y extracción de Switch, varios elementos, archivo no reconocido, ruta inexistente, soltar vacío y bloqueo durante una operación. Son fuera de pantalla: **el gesto real con el ratón no está probado** y conviene comprobarlo a mano.
+Comprobaciones en `--universal-open-only` (113): ROM DS soltada abre con su proyecto, otro ROM reemplaza sin preguntar a un proyecto guardado, un `.drproj` soltado reanuda su trabajo, carpeta 3DS y extracción de Switch, varios elementos, archivo no reconocido, ruta inexistente, soltar vacío y bloqueo durante una operación. Son fuera de pantalla; el gesto real con el ratón (una ROM y un `.drproj` de Platino) lo confirmó el propietario a mano el 11/11/2026 ([aceptación manual](PROYECTOS_DS_PERSISTENTES.md#13-aceptación-manual-11112026)).
 
 ## Proyectos recientes (A4)
 
@@ -103,4 +103,4 @@ El diálogo «Abrir proyecto» muestra, cuando hay alguno, los últimos proyecto
 - **Dónde se guarda:** `recent-projects.json` en los datos locales del usuario (`%LOCALAPPDATA%\3DS-Progressive`), en un archivo propio. Contiene ruta, juego, plataforma y fecha; nada del contenido. No se escribe en registros, informes, proyectos ni ROM, y no sale del equipo. Un archivo dañado o ilegible equivale a una lista vacía; si no se puede escribir, se ignora.
 - Las comprobaciones automáticas solo usan la carpeta de estado que se les indica (`PROGRESSIVE_STATE_DIR`) y nunca la lista real de quien las ejecuta.
 
-Se registra al abrir con el diálogo, con el botón de apertura del editor DS y al soltar un archivo. Comprobaciones en `--universal-open-only` (121): orden y ausencia de repetidos, entrada inexistente marcada y no abrible, quitar una entrada sin borrar archivos, reanudar un proyecto reciente (sube al principio), lista dañada, límite y comparación sin distinguir mayúsculas.
+Se registra al abrir con el diálogo, con el botón de apertura del editor DS y al soltar un archivo. Comprobaciones en `--universal-open-only` (121): orden y ausencia de repetidos, entrada inexistente marcada y no abrible, quitar una entrada sin borrar archivos, reanudar un proyecto reciente (sube al principio), lista dañada, límite y comparación sin distinguir mayúsculas. La lista real, con entradas de archivos que ya no existen, la confirmó el propietario a mano el 11/11/2026.

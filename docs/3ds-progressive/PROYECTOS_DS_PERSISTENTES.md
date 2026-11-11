@@ -226,7 +226,7 @@ Si no hay ninguno se crea junto a la ROM. La ROM de origen no se modifica en nin
 
 **Cómo se acredita.** `--nds-project-open-only` (43 comprobaciones, en el CI): cada fila de la tabla anterior con ROM sintéticas y archivos reales, una regla de acceso real para las carpetas sin permiso, el detector, la entrada del motor universal y la importación de checkpoints. `--universal-open-only` (102) cubre la ventana real: una ROM DS abre con su proyecto, reemplazarla no pregunta y no pierde nada, **reabrirla reanuda el trabajo**, y una sesión sin proyecto sigue pidiendo confirmación. `--nds-events-ui-only` (16) cubre el editor de eventos en modo proyecto, incluido un guardado fallido. La sonda con Platino real importa un checkpoint v3 (enfermera con script) y reanuda después sin él.
 
-**Pendiente de comprobar a mano.** Nada de lo anterior sustituye abrir la aplicación: conviene ver en una ROM real que aparece `Juego.nds.drproj` junto a ella, que al cerrar y reabrir se continúa, y los textos de los dos diálogos nuevos (ubicación alternativa y recuperación).
+**Pendiente de comprobar a mano.** Nada de lo anterior sustituye abrir la aplicación: conviene ver en una ROM real que aparece `Juego.nds.drproj` junto a ella, que al cerrar y reabrir se continúa, y los textos de los dos diálogos nuevos (ubicación alternativa y recuperación). Lo primero quedó confirmado en la [aceptación manual](#13-aceptación-manual-11112026); los dos diálogos siguen sin revisión manual.
 
 ## 10. PR 5: estado visible y resistencia
 
@@ -281,3 +281,20 @@ Los seis estados se comprueban además sobre el editor DS real fuera de pantalla
 - La variante «solo miembros NARC que cambian» se descartó por innecesaria. El «0 KiB» que mostraba en ediciones manuales era una división entera (son 50–84 bytes); está explicado y corregido en el informe de medidas.
 - Una tabla puede declarar hasta 256 MiB y el conjunto hasta 1 GiB: un archivo pequeño y hostil con sumas válidas puede hacer reservar esa memoria (acotada, no ilimitada). Los proyectos reales ocupan cientos de KiB.
 - Los bytes comprimidos dependen de la implementación de Brotli de .NET: la igualdad byte a byte entre documentos iguales se garantiza dentro de una misma compilación; la integridad no depende de ello (el SHA-256 de cada tabla es de los bytes sin comprimir).
+
+## 13. Aceptación manual (11/11/2026)
+
+El propietario probó a mano el paquete privado compilado desde `8df5dc2` (último commit de la pila #74–#83, idéntico al árbol fusionado en `main`) con una ROM de Platino. Resultado de las nueve pruebas manuales: **todas satisfactorias**. Quedó confirmado:
+
+| Comprobación | Resultado |
+|---|---|
+| Al abrir la ROM se crea `Juego.nds.drproj` junto a ella | Correcto |
+| Randomizar entrenadores y editar otro módulo se guardan solos | Correcto |
+| Cerrar y reabrir retoma el proyecto | Correcto |
+| Los cambios se conservan exactamente tras reabrir | Correcto |
+| La ROM exportada funciona en el emulador | Correcto |
+| Arrastrar y soltar una ROM y un `.drproj` sobre la ventana principal | Correcto |
+| Proyectos recientes, incluidas las entradas de archivos que ya no existen | Correcto |
+| Editor de eventos a 1024×640 con la escala al 150 % | Correcto |
+
+**Alcance.** Cubre Platino en Windows con el gesto real del ratón y la ventana real. No cubre los diálogos de ubicación alternativa y de recuperación de un principal dañado, el resto de perfiles DS (acreditados con pruebas automáticas y sondas con volcados privados) ni una partida completa.
