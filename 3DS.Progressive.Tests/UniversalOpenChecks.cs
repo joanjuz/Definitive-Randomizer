@@ -405,6 +405,31 @@ internal static class UniversalOpenChecks
             using (UiProgress.BlockInteraction()) { r = Drop(dsA); check(r.Outcome == OpenOutcome.Blocked && Ds() == dsKept && main.DropProblem([dsA]) is not null, "UniversalOpenDrop_NothingIsOpenedWhileAnOperationIsRunning"); }
             check(main.DropProblem([dsA]) is null && main.DropProblem([dsA, dsB]) is not null && main.DropProblem(null) is not null, "UniversalOpenDrop_TheCursorShowsWhetherTheDropWillBeAccepted");
 
+            // Recent projects (A4): what was opened is listed newest first, once each; an entry is resumed through the same flow, and removing one only edits the list.
+            var recent = RecentProjects.Load();
+            check(recent.Count is > 3 and <= RecentProjects.Max && recent[0].Path == shield && recent.Select(e => e.Path).Distinct(StringComparer.OrdinalIgnoreCase).Count() == recent.Count && recent.Any(e => e.Path == dropRom + ".drproj" && e.Platform == "Nintendo DS")
+                && recent.All(e => e.Available) && File.Exists(Path.Combine(state, "recent-projects.json")), "UniversalOpenRecent_OpenedProjectsAreListedNewestFirstWithoutRepeats");
+            string gone = Path.Combine(temp, "ya-no-esta.nds"); RecentProjects.Record(gone, "Pokémon Negro (USA/EUR)", "Nintendo DS"); int filesBefore = Directory.GetFiles(temp, "*", SearchOption.AllDirectories).Length;
+            var recentDialog = Show(new OpenProjectDialog(main, main.CreateOpenCoordinator()));
+            try
+            {
+                check(recentDialog.RecentVisible && recentDialog.RecentItems[0].Path == gone && !recentDialog.RecentItems[0].Available && !recentDialog.CanForget, "UniversalOpenRecent_TheDialogShowsTheListAndMarksWhatIsNoLongerThere");
+                recentDialog.SelectRecent(0); Wait(recentDialog.DetectionTask);
+                check(!recentDialog.IsOpenEnabled && recentDialog.CanForget && recentDialog.MessageText.Contains("No accesible"), "UniversalOpenRecent_AMissingEntryCannotBeOpenedOnlyRemoved");
+                recentDialog.ForgetSelected();
+                check(recentDialog.RecentItems.All(e => e.Path != gone) && RecentProjects.Load().All(e => e.Path != gone) && Directory.GetFiles(temp, "*", SearchOption.AllDirectories).Length == filesBefore, "UniversalOpenRecent_RemovingAnEntryEditsOnlyTheListAndDeletesNoFile");
+                int index = recentDialog.RecentItems.ToList().FindIndex(e => e.Path == dsB); recentDialog.AllowRomhacks = true; recentDialog.SelectRecent(index); Wait(recentDialog.DetectionTask);
+                check(index >= 0 && recentDialog.PathText == dsB && recentDialog.IsOpenEnabled && recentDialog.GameText.Contains("Negro"), "UniversalOpenRecent_SelectingAnEntryRunsTheSameDetector");
+                Click((Button)ById(recentDialog, "OpenProjectOpen")); Wait(recentDialog.OpeningTask);
+                check(recentDialog.LastResult is { Opened: true } && Ds().SourcePath == dsB && Ds().IsPersistent && RecentProjects.Load()[0].Path == dsB && RecentProjects.Load().Count(e => e.Path == dsB) == 1, "UniversalOpenRecent_ARecentProjectIsResumedAndMovesToTheTop");
+            }
+            finally { recentDialog.Close(); }
+            // The list tolerates a damaged file and never grows beyond its limit.
+            File.WriteAllText(Path.Combine(state, "recent-projects.json"), "{ esto no es una lista");
+            check(RecentProjects.Load().Count == 0, "UniversalOpenRecent_ADamagedListIsAnEmptyList");
+            for (int n = 0; n < RecentProjects.Max + 5; n++) RecentProjects.Record(Path.Combine(temp, "muchos-" + n + ".nds"), "Juego", "Nintendo DS"); RecentProjects.Record(Path.Combine(temp, "MUCHOS-3.NDS"), "Juego", "Nintendo DS");
+            check(RecentProjects.Load() is { Count: RecentProjects.Max } capped && capped[0].Path.EndsWith("MUCHOS-3.NDS") && capped.Count(e => e.Path.EndsWith("muchos-3.nds", StringComparison.OrdinalIgnoreCase)) == 1, "UniversalOpenRecent_TheListIsCappedAndIgnoresCaseWhenDeduplicating");
+
             // Rejections never disturb the previous projects or the screen.
             var dsNow = Ds(); var sessionNow = main.Session; var switchNow = main.SwitchWorkspace!.Project; before = main.HostDescription();
             string fakeRom = Path.Combine(temp, "fake.nds"); File.WriteAllBytes(fakeRom, NdsGen5RandomizerChecks.BuildRom(new Dictionary<string, byte[]> { ["a/0/0/2"] = NdsGen5RandomizerChecks.BuildNarc([]) }, "IRBO"));

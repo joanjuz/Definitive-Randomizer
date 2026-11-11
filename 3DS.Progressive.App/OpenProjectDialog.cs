@@ -35,6 +35,36 @@ internal sealed class OpenProjectDialog : Window
     private readonly TextBlock _warning = new() { TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 10, 0, 0), FontWeight = FontWeights.SemiBold, Visibility = Visibility.Collapsed };
     private readonly TextBlock _result = new() { TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 10, 0, 0), FontWeight = FontWeights.SemiBold, Visibility = Visibility.Collapsed };
     private readonly ProgressBar _progress = new() { IsIndeterminate = true, Height = 4, Margin = new Thickness(0, 12, 0, 0), Visibility = Visibility.Collapsed };
+    private readonly System.Windows.Controls.ListBox _recent = new() { MaxHeight = 132, Margin = new Thickness(0, 4, 0, 0) };
+    private readonly Button _forget = new() { Content = "Quitar de la lista", Margin = new Thickness(0, 8, 0, 0), HorizontalAlignment = HorizontalAlignment.Left, IsEnabled = false, ToolTip = "Quita la entrada seleccionada de esta lista. No borra ningún archivo." };
+    private readonly StackPanel _recentPanel = new() { Margin = new Thickness(0, 14, 0, 0) };
+    private IReadOnlyList<RecentProject> _recentItems = [];
+    /// <summary>The recent projects shown (newest first).</summary>
+    internal IReadOnlyList<RecentProject> RecentItems => _recentItems;
+    internal bool RecentVisible => _recentPanel.Visibility == Visibility.Visible;
+    internal bool CanForget => _forget.IsEnabled;
+    internal void SelectRecent(int index) => _recent.SelectedIndex = index;
+    internal void ForgetSelected() { if (_recent.SelectedItem is ListBoxItem { Tag: RecentProject entry } && !_busy) { RecentProjects.Remove(entry.Path); LoadRecent(); } }
+    private void LoadRecent()
+    {
+        _recentItems = RecentProjects.Load(); _recent.Items.Clear();
+        foreach (var entry in _recentItems)
+        {
+            bool available = entry.Available;
+            var item = new ListBoxItem { Content = (available ? "" : "No disponible · ") + (entry.Game.Length > 0 ? entry.Game + " · " : "") + entry.Name, ToolTip = entry.Path, Tag = entry };
+            AutomationProperties.SetName(item, (available ? "" : "No disponible: ") + entry.Game + ", " + entry.Path);
+            if (!available) item.SetResourceReference(ForegroundProperty, "TextSoft");
+            _recent.Items.Add(item);
+        }
+        _recentPanel.Visibility = _recentItems.Count > 0 ? Visibility.Visible : Visibility.Collapsed; _forget.IsEnabled = false;
+    }
+    private void RecentSelected()
+    {
+        if (_busy || _recent.SelectedItem is not ListBoxItem { Tag: RecentProject entry }) { _forget.IsEnabled = false; return; }
+        _forget.IsEnabled = true;
+        // The path goes through the same detector as a typed one: a recent entry never opens anything by itself.
+        SetPicked(entry.Path);
+    }
     private int _version;
     private CancellationTokenSource? _detectCancel, _openCancel;
     private ProjectDetection? _current;
@@ -76,7 +106,8 @@ internal sealed class OpenProjectDialog : Window
         Closing += (_, _) => { _closing = true; _openCancel?.Cancel(); _detectCancel?.Cancel(); };
         Closed += (_, _) => _closed = true;
         Loaded += (_, _) => _path.Focus();
-        Reset();
+        _recent.SelectionChanged += (_, _) => RecentSelected(); _forget.Click += (_, _) => ForgetSelected();
+        Reset(); LoadRecent();
     }
 
     private void Build()
@@ -102,6 +133,10 @@ internal sealed class OpenProjectDialog : Window
         Describe(_file, "OpenProjectChooseFile", "Elegir archivo"); Describe(_folder, "OpenProjectChooseFolder", "Elegir carpeta");
         EditorPresentation.StyleAction(_file); EditorPresentation.StyleAction(_folder); pickers.Children.Add(_file); pickers.Children.Add(_folder); body.Children.Add(pickers);
 
+        var recentLabel = new Label { Content = "Proyectos _recientes", Target = _recent, Padding = new Thickness(0, 0, 0, 2) };
+        Describe(_recent, "OpenProjectRecent", "Proyectos recientes"); Describe(_forget, "OpenProjectForgetRecent", "Quitar el proyecto seleccionado de la lista de recientes");
+        EditorPresentation.StyleAction(_forget, EditorPresentation.ActionRole.Tertiary);
+        _recentPanel.Children.Add(recentLabel); _recentPanel.Children.Add(_recent); _recentPanel.Children.Add(_forget); body.Children.Add(_recentPanel);
         var info = new Border { Margin = new Thickness(0, 16, 0, 0), Padding = new Thickness(14, 10, 14, 12), BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(8) };
         info.SetResourceReference(Border.BorderBrushProperty, "Stroke"); info.SetResourceReference(Border.BackgroundProperty, "Surface");
         var rows = new Grid(); rows.ColumnDefinitions.Add(new() { Width = new GridLength(96) }); rows.ColumnDefinitions.Add(new() { Width = new GridLength(1, GridUnitType.Star) });
@@ -203,7 +238,7 @@ internal sealed class OpenProjectDialog : Window
     private void RefreshButtons()
     {
         _open.IsEnabled = !_busy && _current is { IsCandidate: true };
-        _path.IsEnabled = _file.IsEnabled = _folder.IsEnabled = _romhacks.IsEnabled = !_busy;
+        _path.IsEnabled = _file.IsEnabled = _folder.IsEnabled = _romhacks.IsEnabled = _recent.IsEnabled = !_busy; if (_busy) _forget.IsEnabled = false;
         _progress.Visibility = _busy ? Visibility.Visible : Visibility.Collapsed;
     }
 
@@ -217,7 +252,7 @@ internal sealed class OpenProjectDialog : Window
         _busy = false;
         if (_closing || _closed) { LastResult = result; return; }
         LastResult = result;
-        if (result.Opened) { Succeeded = true; Close(); return; }
+        if (result.Opened) { RecentProjects.Record(candidate.Path, candidate.Game, candidate.PlatformName); Succeeded = true; Close(); return; }
         _message.Text = "✔ Compatible. " + candidate.Message; RefreshButtons();
         _result.Text = (result.Outcome == OpenOutcome.Cancelled ? "ℹ " : "✖ ") + result.Message; _result.Visibility = Visibility.Visible;
         _path.Focus();
