@@ -180,7 +180,37 @@ internal static class NdsEventChecks
                 string captures = Path.Combine(AppContext.BaseDirectory, "nds-events-ui"); Directory.CreateDirectory(captures);
                 using var stream = File.Create(Path.Combine(captures, "events-" + width + ".png")); png.Save(stream);
             }
-            // The same editor on a ROM with a persistent project: saving goes to the project, no checkpoint file is asked for or written.
+            // Small windows (A3). The main window is at least 900×480; at 1024×640 the event editor gets about 776×449 and at the minimum about 652×289
+            // (logical units: the Windows scale, 150 % included, changes the pixels, not this layout). The map must keep a useful size and be reachable
+            // whole by scrolling, and the save actions must stay outside the scrolled area and inside the window.
+            foreach (var (w, h, minimumMap, label) in new[] { (776, 449, 240, "1024x640"), (652, 289, 180, "MinimumWindow900x480") })
+            {
+                view.Width = w; view.Height = h; view.Measure(new Size(w, h)); view.Arrange(new Rect(0, 0, w, h)); view.UpdateLayout(); view.UpdateLayout();
+                var canvas = Children<FrameworkElement>(view).First(e => e is NdsMapCanvasControl); var area = view.WorkingArea; var save = Action("Guardar cambios…");
+                double areaTop = area.TranslatePoint(new Point(0, 0), view).Y, areaBottom = areaTop + area.ActualHeight;
+                check(canvas.ActualHeight >= minimumMap && canvas.ActualWidth >= 400 && canvas.ActualHeight <= area.ActualHeight && view.DesiredSize.Width <= w, $"NdsEventsUi_SmallWindow_{label}_TheMapKeepsAUsefulSize_{canvas.ActualWidth:0}x{canvas.ActualHeight:0}");
+                area.ScrollToVerticalOffset(canvas.TranslatePoint(new Point(0, 0), (UIElement)area.Content).Y - 2); view.UpdateLayout();
+                double top = canvas.TranslatePoint(new Point(0, 0), view).Y, bottom = top + canvas.ActualHeight;
+                check(top >= areaTop - 0.5 && bottom <= areaBottom + 0.5, $"NdsEventsUi_SmallWindow_{label}_TheWholeMapCanBeScrolledIntoView");
+                double saveTop = save.TranslatePoint(new Point(0, 0), view).Y, statusBottom = Children<TextBlock>(view).Single(t => AutomationProperties.GetName(t) == "Eventos DS · estado") is var st ? st.TranslatePoint(new Point(0, st.ActualHeight), view).Y : 0;
+                check(save.ActualHeight > 0 && saveTop >= areaBottom - 0.5 && saveTop + save.ActualHeight <= h + 0.5 && statusBottom <= h + 0.5 && st.ActualHeight > 0, $"NdsEventsUi_SmallWindow_{label}_SaveAndStatusStayVisibleOutsideTheScrolledArea");
+                var title = Children<TextBlock>(view).First(t => t.Text == "Eventos · Platino CPUE/1");
+                check(!Children<TextBlock>(view).Any(t => t.Text.StartsWith("Mueve, añade, duplica") && t.Visibility == Visibility.Visible) && title.ToolTip is string help && help.Contains("Mueve, añade, duplica") && AutomationProperties.GetHelpText(title).Length > 0 && maps.ActualHeight > 60, $"NdsEventsUi_SmallWindow_{label}_TheExplanationMovesToTheTitleAndTheMapListStays");
+                area.ScrollToVerticalOffset(0); view.UpdateLayout();
+                // The same layout rendered at 150 % (144 dpi) and at 100 %.
+                foreach (int dpi in new[] { 96, 144 })
+                {
+                    var image = new System.Windows.Media.Imaging.RenderTargetBitmap(w * dpi / 96, h * dpi / 96, dpi, dpi, System.Windows.Media.PixelFormats.Pbgra32); image.Render(view);
+                    var encoder = new System.Windows.Media.Imaging.PngBitmapEncoder(); encoder.Frames.Add(System.Windows.Media.Imaging.BitmapFrame.Create(image));
+                    string folder = Path.Combine(AppContext.BaseDirectory, "nds-events-ui"); Directory.CreateDirectory(folder);
+                    using var output = File.Create(Path.Combine(folder, $"events-small-{w}x{h}-{dpi}dpi.png")); encoder.Save(output);
+                    check(image.PixelWidth == w * dpi / 96, $"NdsEventsUi_SmallWindow_{label}_RendersAt{dpi * 100 / 96}Percent");
+                }
+            }
+            // A normal window is as before: nothing scrolls, the explanation is on screen and the map fills the room there is.
+            view.Width = 1100; view.Height = 760; view.Measure(new Size(1100, 760)); view.Arrange(new Rect(0, 0, 1100, 760)); view.UpdateLayout(); view.UpdateLayout();
+            check(view.WorkingArea.ScrollableHeight < 1 && Children<TextBlock>(view).Any(t => t.Text.StartsWith("Mueve, añade, duplica") && t.Visibility == Visibility.Visible) && Children<FrameworkElement>(view).First(e => e is NdsMapCanvasControl).ActualHeight >= 180
+                && Children<TextBlock>(view).First(t => t.Text == "Eventos · Platino CPUE/1").ToolTip is null, "NdsEventsUi_NormalWindow_NothingScrollsAndTheExplanationIsOnScreen");            // The same editor on a ROM with a persistent project: saving goes to the project, no checkpoint file is asked for or written.
             string platinum = Path.Combine(temp, "platino.nds"); File.WriteAllBytes(platinum, NdsGen4Checks.SyntheticRom(pk3DS.Core.NDS.Gen4Profile.All.Single(p => p.GameCode == "CPUE"), true));
             using var project = NdsProject.Open(platinum, true); var own = new NdsEventSession(rom, f.Read()); project.AdoptEventSession(own);
             var store = new ThreeDS.Progressive.Services.Nds.Project.InMemoryNdsProjectStore(new()); project.AttachPersistence(store, ThreeDS.Progressive.Services.Nds.Project.NdsProjectRomIdentity.Compute(platinum, true), null, "comprobaciones");
