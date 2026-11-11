@@ -61,7 +61,7 @@ jobs:
             'visual-redesign-only', 'interaction-lock-only', 'requested-ui-only',
             'template-studio-ui-only', 'template-latest-ui-only', 'template-feedback-ui-only',
             'text-classification-ui-only', 'text-commands-ui-only', 'global-options-only',
-            'guidance-only', 'global-apply-only', 'rebuild-marts-ui-only',
+            'guidance-only', 'global-apply-only', 'rebuild-marts-ui-only', 'mart-layout-ui-only',
             'history-inspection-only', 'transaction-races-only', 'undo-toctou-only', 'undo-template-regression-only', 'rebuild-stability-only', 'swsh-only', 'swsh-ui-only',
             'swsh-parity-only', 'legacy-parity-only', 'nds-only',
             'nds-ui-only', 'nds-events-ui-only', 'project-detector-only', 'universal-open-only', 'nds-project-format-only', 'nds-project-store-only', 'nds-project-transactions-only', 'nds-project-open-only', 'nds-project-resilience-only', 'usum-mints-only', 'usum-mints-ui-only', 'usum-mint-icons-only', 'usum-mints-distribution-only'

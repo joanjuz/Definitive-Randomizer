@@ -36,17 +36,21 @@ internal sealed class MartEditorView : UserControl
     private GameMartService _service;
     private MartShopPreview? _pending;
     private GameMartService? _preparedService;
-    private readonly ComboBox _regularPicker = new() { MinWidth = 310, Margin = new Thickness(0, 0, 10, 10) };
-    private readonly ComboBox _bpPicker = new() { MinWidth = 310, Margin = new Thickness(0, 0, 10, 10) };
+    // Shop selectors: one vertical list per kind in the left column. _tabs keeps choosing which table is shown.
+    private readonly ListBox _regularPicker = new();
+    private readonly ListBox _bpPicker = new();
     private readonly DataGrid _regularGrid;
     private readonly DataGrid _bpGrid;
     private readonly ListBox _changes = new() { Height = 126 };
     private readonly TextBlock _status;
+    private readonly TextBlock _shopTitle = new() { FontSize = 16, FontWeight = FontWeights.SemiBold, TextWrapping = TextWrapping.Wrap };
+    private readonly TextBlock _shopDetail = new() { TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 2, 0, 8) };
     private readonly Button _apply;
     private readonly Button _add, _delete;
-    private readonly CheckBox _specialOnly = new() { Content = "Solo tiendas especiales", Margin = new Thickness(0, 5, 16, 10) };
-    private readonly CheckBox _protectX = new() { Content = "Conservar objetos X", IsChecked = true, Margin = new Thickness(0, 5, 16, 10) };
+    private readonly CheckBox _specialOnly = new() { Content = "Solo tiendas especiales" };
+    private readonly CheckBox _protectX = new() { Content = "Conservar objetos X", IsChecked = true };
     private readonly TabControl _tabs = new();
+    private readonly MartWorkspace _workspace;
     private readonly IReadOnlyList<MoveChoice> _items;
     private bool _dirty, _loading;
 
@@ -58,6 +62,8 @@ internal sealed class MartEditorView : UserControl
         _items = project.ItemNames.Select((name, id) =>
             new MoveChoice(id, string.IsNullOrWhiteSpace(name) ? $"Objeto #{id}" : name)).ToArray();
         Background = (Brush)FindResource("Bg");
+        // Below this height the editor scrolls as a page (main window) instead of crushing the table.
+        MinHeight = MartWorkspace.MinimumHeight;
         var foreground = (Brush)FindResource("TextMain");
         var soft = (Brush)FindResource("TextSoft");
         var root = new DockPanel { Margin = new Thickness(20) };
@@ -70,58 +76,120 @@ internal sealed class MartEditorView : UserControl
             Text = project.GameConfiguration.USUM?"Tiendas y BP · Ultra Sol / Ultra Luna":"Tiendas y BP · Sol / Luna",
             FontSize = 23, FontWeight = FontWeights.SemiBold, Foreground = foreground
         });
-        heading.Children.Add(new TextBlock
+        TextBlock description;
+        heading.Children.Add(description = new TextBlock
         {
             Text = project.GameConfiguration.USUM?"28 tiendas normales con ranuras ampliables y 7 tiendas BP con precios editables. " +
                    "Lectura real de Shop.cro mediante relocaciones; cambios aislados hasta confirmar.":"24 tiendas normales y 6 tiendas BP con ranuras fijas y precios editables. Cambios aislados hasta confirmar.",
-            Foreground = soft, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 4, 0, 10)
+            Foreground = soft, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 4, 0, 0)
         });
-        heading.Children.Add(new TextBlock{Text="Opciones de la vista previa y de Global/Batch",Foreground=soft});
-        var recipes=new WrapPanel();string[] labels=["Randomizar tiendas","Randomizar BP","Caramelos raros",project.GameConfiguration.USUM?"Vitaminas 252 EV":"Objetos de entrenamiento EV","Megapiedras gratis (en BP)","Prohibir Cápsula Habilidad","Solo un objeto en tiendas especiales","21 mentas en stocks generales (0–7)"];
+        MartWorkspace.FitDescription(this, description);
+
+        // Right column: actions on the selected shop, recipe options grouped by purpose, and the preview/apply
+        // pair pinned at the bottom so it never scrolls out of reach.
+        var options = new StackPanel();
+        var inventory = new StackPanel();
+        options.Children.Add(inventory);
+        MartWorkspace.Heading(inventory, "Inventario de la tienda", first: true);
+        _add = MartWorkspace.Action(inventory, "+ Añadir ranura", AddSlot);
+        _delete = MartWorkspace.Action(inventory, "− Eliminar ranura", DeleteSlot);
+        foreach (var slotButton in new[] { _add, _delete })
+        {
+            slotButton.ToolTip = "Solo en tiendas normales. Las tiendas BP tienen ranuras fijas.";
+            ToolTipService.SetShowOnDisabled(slotButton, true);
+        }
+        if(!_service.SupportsExpansion)inventory.Visibility=_add.Visibility=_delete.Visibility=Visibility.Collapsed;
+        // One panel for every recipe option (and «Restablecer opciones»), with group headings between them.
+        var recipes=new StackPanel();options.Children.Add(recipes);
+        MartWorkspace.Heading(recipes, "Opciones de la vista previa y de Global/Batch", first: !_service.SupportsExpansion);
+        string[] labels=["Randomizar tiendas","Randomizar BP","Caramelos raros",project.GameConfiguration.USUM?"Vitaminas 252 EV":"Objetos de entrenamiento EV","Megapiedras gratis (en BP)","Prohibir Cápsula Habilidad","Solo un objeto en tiendas especiales","21 mentas en stocks generales (0–7)"];
         for(int i=0;i<_recipeFlags.Length;i++)
         {
-            int index=i;var button=_recipeFlags[i];button.Content=labels[i];button.Margin=new Thickness(0,4,8,8);
+            int index=i;var button=_recipeFlags[i];button.Content=labels[i];MartWorkspace.Stack(button);
+            System.Windows.Automation.AutomationProperties.SetName(button,labels[i]);
             button.Click+=(_,_)=>{SetRecipeSelection(index,true);Dirty();Preview();};
             var remove=new MenuItem{Header="Quitar de la vista previa y de Global/Batch"};
             remove.Click+=(_,_)=>{SetRecipeSelection(index,false);Dirty();Preview();};
             button.ContextMenu=new ContextMenu{Items={remove}};
             SetRecipeSelection(i,i==6&&_service.HasSinglePurchase);
             if(i==7)button.Visibility=project.GameConfiguration.USUM?Visibility.Visible:Visibility.Collapsed;
-            if(i==6){button.Visibility=project.GameConfiguration.USUM?Visibility.Visible:Visibility.Collapsed;System.Windows.Automation.AutomationProperties.SetName(button,labels[i]);button.ToolTip="USUM: una unidad de cada objeto por tienda especial. No afecta a tiendas por pruebas ni BP. Se conserva al guardar y reiniciar; Global/Batch lo aplica a los inventarios finales.";}
-            recipes.Children.Add(button);
+            if(i==6){button.Visibility=project.GameConfiguration.USUM?Visibility.Visible:Visibility.Collapsed;button.ToolTip="USUM: una unidad de cada objeto por tienda especial. No afecta a tiendas por pruebas ni BP. Se conserva al guardar y reiniciar; Global/Batch lo aplica a los inventarios finales.";}
         }
-        heading.Children.Add(new UsumMintPoolControl(project,Dirty));
-        heading.Children.Add(recipes);
-        var whitelist=Add(recipes,"Lista blanca de compra única…",EditWhitelist);
-        whitelist.Margin=new Thickness(0,4,8,8);whitelist.Visibility=project.GameConfiguration.USUM?Visibility.Visible:Visibility.Collapsed;
+        MartWorkspace.Caption(recipes, "Pulsa para incluir; botón derecho para quitar.");
+        MartWorkspace.Heading(recipes, "Randomización");
+        recipes.Children.Add(_recipeFlags[0]);
+        recipes.Children.Add(_recipeFlags[1]);
+        foreach (var check in new[] { _specialOnly, _protectX })
+        {
+            check.Margin = new Thickness(0, 2, 0, 6);
+            recipes.Children.Add(check);
+        }
+        MartWorkspace.Heading(recipes, "Objetos especiales");
+        foreach (int i in new[] { 2, 3, 4, 7 }) recipes.Children.Add(_recipeFlags[i]);
+        recipes.Children.Add(new UsumMintPoolControl(project,Dirty));
+        MartWorkspace.Heading(recipes, "Restricciones");
+        recipes.Children.Add(_recipeFlags[5]);
+        recipes.Children.Add(_recipeFlags[6]);
+        var whitelist=MartWorkspace.Action(recipes,"Lista blanca de compra única…",EditWhitelist);
+        whitelist.Visibility=project.GameConfiguration.USUM?Visibility.Visible:Visibility.Collapsed;
         whitelist.ToolTip="Objetos que se pueden comprar sin límite aunque esté activa la compra única. Se guarda en Shop.cro y en Global/Batch.";
-        Add(recipes,"Restablecer opciones",()=>{for(int i=0;i<_recipeSelected.Length;i++)SetRecipeSelection(i,false);Dirty();Preview();});
-        var actions = new WrapPanel();
-        heading.Children.Add(actions);
-        _add = Add(actions, "+ Añadir ranura", AddSlot);
-        _delete = Add(actions, "− Eliminar ranura", DeleteSlot);
-        if(!_service.SupportsExpansion)_add.Visibility=_delete.Visibility=Visibility.Collapsed;
-        heading.Children.Add(new WrapPanel { Children = { _specialOnly, _protectX } });
-        Add(actions, "Generar vista previa", RegeneratePreview);
-        _apply = Add(actions, "Aplicar y verificar", Apply);
+        var reset=MartWorkspace.Action(recipes,"Restablecer opciones",()=>{for(int i=0;i<_recipeSelected.Length;i++)SetRecipeSelection(i,false);Dirty();Preview();});
+        reset.Margin=new Thickness(0,8,0,6);reset.SetResourceReference(StyleProperty,"TertiaryButton");
+        var commit = new StackPanel { Margin = new Thickness(0, 10, 0, 0) };
+        MartWorkspace.Heading(commit, "Vista previa y guardado", first: true);
+        MartWorkspace.Action(commit, "Generar vista previa", RegeneratePreview);
+        _apply = MartWorkspace.Action(commit, "Aplicar y verificar", Apply);
+        _apply.SetResourceReference(StyleProperty, "PrimaryButton");
+        _apply.HorizontalContentAlignment = System.Windows.HorizontalAlignment.Center;
         _apply.IsEnabled = false;
+        var actionsPane = new DockPanel();
+        var commitFrame = new Border { BorderThickness = new Thickness(0, 1, 0, 0), Child = commit };
+        commitFrame.SetResourceReference(Border.BorderBrushProperty, "Stroke");
+        DockPanel.SetDock(commitFrame, Dock.Bottom);
+        actionsPane.Children.Add(commitFrame);
+        actionsPane.Children.Add(MartWorkspace.Scroll(options, gutter: 4));
 
         _regularGrid = CreateGrid(false);
         _bpGrid = CreateGrid(true);
         _regularGrid.SelectionChanged += (_, _) => UpdateButtons();
-        _tabs.Items.Add(new TabItem { Header = "Tiendas normales", Content = Pane(false) });
-        _tabs.Items.Add(new TabItem { Header = "Tiendas BP", Content = Pane(true) });
+        // The tab headers are not shown: the shop lists choose the table. Keeping the TabControl preserves its
+        // selection (normal/BP) as the single source of truth for the add/delete actions.
+        var tabsTemplate = new ControlTemplate(typeof(TabControl));
+        var selectedContent = new FrameworkElementFactory(typeof(ContentPresenter));
+        selectedContent.SetValue(ContentPresenter.ContentSourceProperty, "SelectedContent");
+        tabsTemplate.VisualTree = selectedContent;
+        _tabs.Template = tabsTemplate;
+        _tabs.Focusable = false;
+        _tabs.Items.Add(new TabItem { Header = "Tiendas normales", Content = _regularGrid });
+        _tabs.Items.Add(new TabItem { Header = "Tiendas BP", Content = _bpGrid });
+        // Without a tab strip no container is generated, so the first table is not selected automatically.
+        _tabs.SelectedIndex = 0;
         _tabs.SelectionChanged += (_, e) =>
         {
             if (e.Source == _tabs) UpdateButtons();
         };
-        root.Children.Add(_tabs);
 
+        // Left column: every shop in one vertical list, normal shops first and BP shops after their own heading.
+        var shopsContent = new StackPanel();
+        MartWorkspace.Heading(shopsContent, $"Tiendas normales · {_service.RegularShops.Count}", first: true);
+        shopsContent.Children.Add(_regularPicker);
+        MartWorkspace.Heading(shopsContent, $"Tiendas BP · {_service.BpShops.Count}");
+        shopsContent.Children.Add(_bpPicker);
+        ConfigurePicker(false, "Tiendas normales");
+        ConfigurePicker(true, "Tiendas BP");
+        var shopsPane = MartWorkspace.Card(MartWorkspace.Scroll(shopsContent));
+
+        // Centre column: the inventory of the selected shop, then the proposed changes and the status.
+        var center = new DockPanel();
+        _shopTitle.Foreground = foreground;
+        _shopDetail.Foreground = soft;
+        var shopHeading = MartWorkspace.ShopHeading(_shopTitle, _shopDetail);
+        DockPanel.SetDock(shopHeading, Dock.Top);
+        center.Children.Add(shopHeading);
         var bottom = new StackPanel { Margin = new Thickness(0, 12, 0, 0) };
         DockPanel.SetDock(bottom, Dock.Bottom);
-        root.Children.Remove(_tabs);
-        root.Children.Add(bottom);
-        root.Children.Add(_tabs);
+        center.Children.Add(bottom);
+        center.Children.Add(_tabs);
         bottom.Children.Add(new TextBlock
         {
             Text = "CAMBIOS PROPUESTOS · Antes → Después",
@@ -137,6 +205,10 @@ internal sealed class MartEditorView : UserControl
             Foreground = soft, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 7, 0, 0)
         };
         bottom.Children.Add(_status);
+
+        _workspace = new MartWorkspace(shopsPane, center, MartWorkspace.Card(actionsPane)) { Margin = new Thickness(0, 14, 0, 0) };
+        _workspace.FitChanges(_changes, 126);
+        root.Children.Add(_workspace);
         BindShops();
         _specialOnly.Checked+=(_,_)=>Dirty();_specialOnly.Unchecked+=(_,_)=>Dirty();
         _protectX.Checked+=(_,_)=>Dirty();_protectX.Unchecked+=(_,_)=>Dirty();
@@ -147,17 +219,10 @@ internal sealed class MartEditorView : UserControl
         _recipeSelected[index]=selected;
         var button=_recipeFlags[index];
         button.SetResourceReference(StyleProperty,selected?"PrimaryButton":"SecondaryButton");
+        MartWorkspace.ShowIncluded(button,selected);
         button.ToolTip=selected?"Incluido en la vista previa y en Global/Batch. Botón derecho para quitarlo.":"Añadir a la vista previa sin quitar las otras acciones.";
         if(index==6)button.ToolTip+=" USUM: una unidad de cada objeto por tienda especial, independiente de otras tiendas. No afecta a tiendas por pruebas ni BP. Una política ya guardada en la ROM permanece instalada.";
         System.Windows.Automation.AutomationProperties.SetItemStatus(button,selected?"Incluido":"Sin incluir");
-    }
-
-    private static Button Add(Panel parent, string label, Action action)
-    {
-        var button = new Button { Content = label, Margin = new Thickness(0, 0, 8, 8) };
-        button.Click += (_, _) => action();
-        parent.Children.Add(button);
-        return button;
     }
 
     private DataGrid CreateGrid(bool bp)
@@ -184,7 +249,7 @@ internal sealed class MartEditorView : UserControl
         grid.ColumnHeaderStyle = header;
         grid.Columns.Add(new DataGridTextColumn
         {
-            Header = "#", Width = 60, IsReadOnly = true,
+            Header = "#", Width = 48, IsReadOnly = true,
             Binding = new Binding(nameof(MartSlotRow.Number))
         });
         // A search popup takes keyboard focus outside the DataGrid. An editing-only
@@ -222,7 +287,7 @@ internal sealed class MartEditorView : UserControl
             }));
             grid.Columns.Add(new DataGridTemplateColumn
             {
-                Header = "Acción", Width = 90,
+                Header = "Acción", Width = 84,
                 CellTemplate = new DataTemplate { VisualTree = removeButton }
             });
         }
@@ -237,31 +302,42 @@ internal sealed class MartEditorView : UserControl
         return grid;
     }
 
-    private DockPanel Pane(bool bp)
+    private void ConfigurePicker(bool bp, string name)
     {
-        var root = new DockPanel { Margin = new Thickness(8) };
-        var top = new StackPanel();
-        DockPanel.SetDock(top, Dock.Top);
-        root.Children.Add(top);
-        top.Children.Add(new TextBlock
-        {
-            Text = bp ? "Sede BP" : "Ubicación / progreso en historia",
-            Foreground = (Brush)FindResource("TextSoft"),
-            Margin = new Thickness(0, 0, 0, 5)
-        });
         var picker = bp ? _bpPicker : _regularPicker;
-        picker.DisplayMemberPath = nameof(MartShop.Name);
-        picker.HorizontalAlignment = System.Windows.HorizontalAlignment.Left;
-        picker.SelectionChanged += (_, _) =>
+        MartWorkspace.ConfigureShopList(picker, name);
+        picker.SelectionChanged += (_, e) =>
         {
-            if (_loading) return;
+            if (_loading || e.Source != picker) return;
             if (bp) { CommitGrid(_bpGrid); _bpGrid.ItemsSource = (picker.SelectedItem as MartShop)?.Rows; }
             else { CommitGrid(_regularGrid); _regularGrid.ItemsSource = (picker.SelectedItem as MartShop)?.Rows; }
+            Show(bp);
             UpdateButtons();
         };
-        top.Children.Add(picker);
-        root.Children.Add(bp ? _bpGrid : _regularGrid);
-        return root;
+        // Clicking or tabbing into a list shows its table, even when its selected shop does not change.
+        picker.GotKeyboardFocus += (_, _) => { if (!_loading) Show(bp); };
+    }
+
+    private void Show(bool bp)
+    {
+        int index = bp ? 1 : 0;
+        if (_tabs.SelectedIndex == index) return;
+        CommitBoth();
+        _tabs.SelectedIndex = index;
+    }
+
+    /// <summary>Title of the shown table and which list reads as the active one.</summary>
+    private void UpdateShopHeading()
+    {
+        bool bp = _tabs.SelectedIndex == 1;
+        MartWorkspace.SetListActive(_regularPicker, !bp);
+        MartWorkspace.SetListActive(_bpPicker, bp);
+        var shop = (bp ? _bpPicker : _regularPicker).SelectedItem as MartShop;
+        _shopTitle.Text = shop?.Name ?? (bp ? "Tiendas BP" : "Tiendas normales");
+        _shopDetail.Text = shop is null ? "" : bp
+            ? $"Sede BP · {shop.Rows.Count} objetos · el precio en BP se edita en la tabla"
+            : $"Ubicación / progreso en historia · {shop.Rows.Count} ranuras" +
+              (_service.SupportsExpansion ? $" (máximo {pk3DS.Core.Modding.Research.Gen7ExpandedMartTable.MaximumSlotsPerMart})" : "");
     }
 
     private void BindShops()
@@ -293,6 +369,7 @@ internal sealed class MartEditorView : UserControl
         if (e.NewItems is not null)
             foreach (MartSlotRow row in e.NewItems) row.PropertyChanged += SlotChanged;
         Dirty();
+        if (!_loading) UpdateShopHeading();
     }
     private void SlotChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e) => Dirty();
     private void EditWhitelist()
@@ -325,6 +402,7 @@ internal sealed class MartEditorView : UserControl
         _add.IsEnabled = regular;
         _delete.IsEnabled = regular && _regularPicker.SelectedItem is MartShop shop &&
             shop.Rows.Count > 1 && _regularGrid.SelectedItem is MartSlotRow;
+        UpdateShopHeading();
     }
     private void AddSlot()
     {

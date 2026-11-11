@@ -112,6 +112,7 @@ internal static class RunnerCatalog
         new("--global-apply-ui-only","",RunnerCategory.Ui,false),
         new("--interaction-lock-only","",RunnerCategory.Ui,true),
         new("--rebuild-marts-ui-only","",RunnerCategory.Ui,true),
+        new("--mart-layout-ui-only","0 a 2 (carpeta de capturas, extracción USUM opcional)",RunnerCategory.Ui,true),
         new("--nds-ui-only","",RunnerCategory.Ui,true),
         new("--requested-ui-only","",RunnerCategory.Ui,true),
         new("--swsh-ui-only","",RunnerCategory.Ui,true),

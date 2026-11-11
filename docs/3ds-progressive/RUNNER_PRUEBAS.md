@@ -115,6 +115,8 @@ dotnet .\3DS.Progressive.Tests\bin\Release\net10.0-windows\3DS.Progressive.Tests
 
 `RestorePoints.Undo` compara con `AfterSha256` los mismos bytes capturados que entrega a `FileChange`, antes de llamar a `ProjectHistory.Commit`. Una discrepancia durante esa preparación rechaza el conjunto sin escribir archivos ni historial. Esto cierra la ventana entre el preflight `WhyNot` y la captura. Después, `FileTransaction.Commit` retiene todos los destinos, comprueba el fingerprint por ese mismo handle y los reemplaza sin soltarlos, con relectura y rollback; las garantías y sus límites están en [CORRECCION_H2_H3_20261104.md](CORRECCION_H2_H3_20261104.md). La regresión de esta opción verifica solo la ventana de preparación de Undo.
 
+`--mart-layout-ui-only [carpeta de capturas] [extracción USUM]` abre Tiendas en la ventana principal real, fuera de pantalla, para Sol/Luna (Shop.cro sintético), X/Y (tabla ampliada) y ORAS (tabla fija), y para Ultra Sol/Ultra Luna si se pasa una extracción (solo se lee su `Shop.cro`). Con los tamaños lógicos de 1920×1080 al 100, 125 y 150 %, 1366×768 al 100 y 125 %, 1024×640 y la ventana mínima (900×480), comprueba la disposición en tres columnas (lista de tiendas, inventario y acciones) o la compacta, que ningún control salga por la derecha, que la tabla conserve alto y no necesite desplazamiento horizontal, que «Generar vista previa» y «Aplicar y verificar» queden fijos y visibles, y que elegir una tienda normal o BP en la lista muestre su tabla. Con carpeta de capturas guarda una imagen por juego y tamaño, renderizada a la escala correspondiente. No sustituye la comprobación interactiva de foco, contraste y DPI.
+
 `--rebuild-marts-ui-only` incluye la regresión de HistoryView: habilitar «Deshacer este cambio» tras la comprobación automática/manual, deshabilitarlo durante bloqueos anidados o ante cambios externos y retirar suscripciones al descargar la vista. Usa un HwndSource WPF fuera de pantalla y archivos sintéticos. Casos y resultados: [HISTORY_UNDO_BUTTON_20261105.md](HISTORY_UNDO_BUTTON_20261105.md).
 
 ## Suites de interfaz WPF fuera de pantalla (sin argumentos)
@@ -125,6 +127,7 @@ dotnet .\3DS.Progressive.Tests\bin\Release\net10.0-windows\3DS.Progressive.Tests
 | `--global-apply-ui-only` | — |  |
 | `--interaction-lock-only` | — | sí |
 | `--rebuild-marts-ui-only` | — | sí |
+| `--mart-layout-ui-only` | 0 a 2 (carpeta de capturas, extracción USUM opcional) | sí |
 | `--nds-ui-only` | — | sí |
 | `--nds-events-ui-only` | — | sí |
 | `--nds-map-canvas-ui-only` | — | sí |
