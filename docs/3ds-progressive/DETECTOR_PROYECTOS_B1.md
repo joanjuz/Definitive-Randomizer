@@ -1,6 +1,6 @@
 # Detector universal de proyectos (B1)
 
-Fase **B1** de la [hoja de ruta](HOJA_RUTA_EDITOR_Y_1_0.md), requisito de 1.0.0. Es un **servicio sin interfaz** que, a partir de una ruta, dice qué es la entrada (Nintendo DS, Nintendo 3DS o Switch), qué juego es y si es candidata a abrirse. **No abre nada ni lo escribe**: el cambio de la interfaz y el botón único «Abrir proyecto» son B2 (sección 7). Hasta B2 la aplicación sigue abriéndose igual que antes.
+Fase **B1** del plan del editor, requisito de 1.0.0. Es un **servicio sin interfaz** que, a partir de una ruta, dice qué es la entrada (Nintendo DS, Nintendo 3DS o Switch), qué juego es y si es candidata a abrirse. **No abre nada ni lo escribe**: el cambio de la interfaz y el botón único «Abrir proyecto» son B2 (sección 7). Hasta B2 la aplicación sigue abriéndose igual que antes.
 
 ## 1. Arquitectura
 

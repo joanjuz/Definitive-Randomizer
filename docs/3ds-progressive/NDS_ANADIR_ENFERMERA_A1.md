@@ -1,6 +1,6 @@
 # Nintendo DS — A1: «Añadir enfermera» en el editor de mapas (Platino CPUE/1)
 
-Entrega A1 de la [hoja de ruta del editor](HOJA_RUTA_EDITOR_Y_1_0.md). Permite colocar una **Enfermera Joy funcional** en cualquier casilla de cualquier mapa con tabla de scripts, sin tener que ir antes a un Centro Pokémon para copiarla. Se apoya en el PR #69 ([NDS_NPC_SCRIPTS_PHASE6.md](NDS_NPC_SCRIPTS_PHASE6.md)): el mismo script reconocido, el mismo enlace `AppendScript`, el checkpoint v3, la exportación y la restauración. **Sin prueba jugable de esta entrega** hasta que el propietario la confirme en el emulador.
+Entrega A1 del plan del editor. Permite colocar una **Enfermera Joy funcional** en cualquier casilla de cualquier mapa con tabla de scripts, sin tener que ir antes a un Centro Pokémon para copiarla. Se apoya en el PR #69 ([NDS_NPC_SCRIPTS_PHASE6.md](NDS_NPC_SCRIPTS_PHASE6.md)): el mismo script reconocido, el mismo enlace `AppendScript`, el checkpoint v3, la exportación y la restauración. **Sin prueba jugable de esta entrega** hasta que el propietario la confirme en el emulador.
 
 ## Uso
 
