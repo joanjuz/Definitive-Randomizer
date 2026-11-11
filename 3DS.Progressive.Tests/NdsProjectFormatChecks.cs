@@ -470,6 +470,11 @@ internal static class NdsProjectFormatChecks
         var grown = new NdsProjectDocument(long_.Meta with { Generation = 2, Operations = [.. records, new("Una más", null, new JsonObject { ["Kind"] = "Edit" }, [new("x", "y", 1, 2)])] }, long_.State);
         clock.Restart(); byte[] second = NdsProjectCodec.Serialize(grown); long warm = clock.ElapsedMilliseconds; clock.Restart(); var longRead = NdsProjectCodec.Read(second); long longReadMs = clock.ElapsedMilliseconds;
         Console.WriteLine($"   historial largo: 2001 operaciones, {grown.Meta.Operations.Sum(o => o.Changes.Count)} cambios → archivo {second.Length / 1024} KiB · primera serialización {cold} ms · siguiente guardado {warm} ms · leer y verificar {longReadMs} ms");
+        // Verifying a save checks the container and every table without rebuilding the history, so it does not cost what opening the project costs.
+        clock.Restart(); var verified = NdsProjectCodec.Verify(second); long verifyMs = clock.ElapsedMilliseconds; var broken = (byte[])second.Clone(); broken[NdsProjectCodec.HeaderSize + BitConverter.ToInt32(second, 28) + 400] ^= 1;
+        Console.WriteLine($"   verificar ese guardado sin reconstruir el historial: {verifyMs} ms");
+        check(verified.Ok && verified.Document!.Meta.Operations.Count == 0 && verified.Header!.OperationCount == grown.OperationCount && verified.Document.State.SameAs(grown.State) && verified.Document.Generation == 2 && !NdsProjectCodec.Verify(broken).Ok
+            && !NdsProjectCodec.Verify(second.AsSpan(0, second.Length - 1)).Ok && verifyMs <= Math.Max(100, longReadMs), "NdsProject_VerifyingASaveChecksEveryTableWithoutRebuildingTheHistory");
         check(longRead.Ok && SameDoc(grown, longRead.Document!) && first.Length < 8 * 1024 * 1024 && warm < 4000 && longReadMs < 15000, "NdsProject_ALongHistoryWithFortyRandomizationsStaysSmallAndSavesWithinTheBudget");
         var big = Doc(ops: 5000, files: 12, fileSize: 512 * 1024); var sw = System.Diagnostics.Stopwatch.StartNew(); byte[] bytes = NdsProjectCodec.Serialize(big); long write = sw.ElapsedMilliseconds;
         sw.Restart(); var read = NdsProjectCodec.Read(bytes); long readMs = sw.ElapsedMilliseconds;
