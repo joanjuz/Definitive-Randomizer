@@ -15,6 +15,25 @@ internal sealed class NdsProjectSaveException(NdsProjectStoreError kind, string 
     internal NdsProjectStoreError Kind { get; } = kind;
 }
 
+/// <summary>What the interface shows about the persistent project of a DS session.</summary>
+internal enum NdsProjectPersistenceState
+{
+    /// <summary>The session has no project: its changes exist only in memory until a ROM is exported.</summary>
+    None,
+    /// <summary>Every confirmed operation is on disk.</summary>
+    Saved,
+    /// <summary>An operation is being made durable right now.</summary>
+    Saving,
+    /// <summary>The last operation could not be saved and was not applied; the project on disk is the previous, valid one.</summary>
+    Error,
+    /// <summary>The project can be read but not written (the folder does not allow it): operations are refused.</summary>
+    ReadOnly,
+    /// <summary>The file on disk is not the one this session was working on (it changed outside, is another project, or is damaged): nothing is overwritten.</summary>
+    Conflict,
+    /// <summary>It is not known whether the last save finished: the session takes no operations until it is reconciled with what is on disk.</summary>
+    RecoveryPending,
+}
+
 internal sealed partial class NdsProject
 {
     private NdsProjectTransactor? _tx;
@@ -72,19 +91,63 @@ internal sealed partial class NdsProject
     /// </summary>
     private void Commit(Func<NdsProjectDocument, NdsProjectDocument> prepare, Action<NdsProjectDocument> publish)
     {
+        _saving = true; PersistenceChanged?.Invoke();
         try { _tx!.Run(prepare, publish); LastSaveError = null; }
         catch (NdsProjectStoreException ex)
         {
             LastSaveError = ex.Kind;
             throw new NdsProjectSaveException(ex.Kind, "El cambio no se aplicó porque no se pudo guardar en el proyecto. " + ex.Message, ex);
         }
+        finally { _saving = false; PersistenceChanged?.Invoke(); }
+    }
+
+    private bool _saving;
+    /// <summary>Raised when <see cref="PersistenceState"/> may have changed, on the thread that is saving (the interface marshals it).</summary>
+    internal event Action? PersistenceChanged;
+
+    internal NdsProjectPersistenceState PersistenceState =>
+        _tx is null ? NdsProjectPersistenceState.None
+        : _tx.Faulted ? NdsProjectPersistenceState.RecoveryPending
+        : _saving ? NdsProjectPersistenceState.Saving
+        : _store is NdsProjectFileStore { IsReadOnly: true } || LastSaveError == NdsProjectStoreError.ReadOnly ? NdsProjectPersistenceState.ReadOnly
+        : LastSaveError is NdsProjectStoreError.StaleGeneration or NdsProjectStoreError.DifferentProject or NdsProjectStoreError.MainDamaged or NdsProjectStoreError.NewerFormat or NdsProjectStoreError.AlreadyInUse ? NdsProjectPersistenceState.Conflict
+        : LastSaveError is not null ? NdsProjectPersistenceState.Error
+        : NdsProjectPersistenceState.Saved;
+
+    /// <summary>One line for the interface: the state and what it means for the work.</summary>
+    internal string PersistenceSummary => PersistenceState switch
+    {
+        NdsProjectPersistenceState.None => "Sin proyecto: los cambios solo están en memoria hasta exportar.",
+        NdsProjectPersistenceState.Saved => $"Proyecto guardado · generación {SavedGeneration}",
+        NdsProjectPersistenceState.Saving => "Guardando el proyecto…",
+        NdsProjectPersistenceState.Error => "Error al guardar: el último cambio no se aplicó. El proyecto guardado sigue siendo el anterior; vuelve a intentarlo.",
+        NdsProjectPersistenceState.ReadOnly => "Proyecto de solo lectura: la carpeta no admite escritura y los cambios se rechazan.",
+        NdsProjectPersistenceState.Conflict => "Conflicto de escritura: el archivo del proyecto cambió fuera de esta sesión y no se sobrescribe. Puedes recargar lo guardado.",
+        _ => "Recuperación pendiente: no se sabe si el último guardado terminó. Reconcilia con lo guardado para continuar.",
+    };
+
+    /// <summary>
+    /// After a conflict: makes what is on disk the session (the session only held confirmed operations, and those were already on disk before the file
+    /// changed outside). Refused when the file is not readable as this project of this ROM; nothing is installed then.
+    /// </summary>
+    internal void ReloadPersistence()
+    {
+        if (_tx is null || _store is null) throw new InvalidOperationException("La sesión no tiene un proyecto asociado.");
+        if (_tx.Faulted) { ReconcilePersistence(); PersistenceChanged?.Invoke(); return; }
+        NdsProjectLoadResult load;
+        try { load = _store.Load(); } catch (NdsProjectStoreException ex) { throw new InvalidOperationException("No se pudo leer el proyecto guardado: " + ex.Message, ex); }
+        if (load.Status != NdsProjectLoadStatus.Loaded) throw new InvalidOperationException("El proyecto guardado no se puede leer (" + load.Message + "). Cierra y vuelve a abrir la ROM para recuperarlo.");
+        var current = _tx.Current.Meta;
+        if (load.Document!.Meta.ProjectId != current.ProjectId || !load.Document.Meta.Rom.SameRomAs(current.Rom)) throw new InvalidOperationException("El archivo guardado es otro proyecto o es de otra ROM: no se carga en esta sesión.");
+        try { Install(load.Document); } catch (InvalidDataException ex) { throw new InvalidOperationException(ex.Message, ex); }
+        _tx = new NdsProjectTransactor(_store, load.Document); LastSaveError = null; PersistenceChanged?.Invoke();
     }
 
     /// <summary>After an unknown save outcome: reads what is on disk and makes it the session, whether or not the interrupted operation got there.</summary>
     internal void ReconcilePersistence()
     {
         if (_tx is null) throw new InvalidOperationException("La sesión no tiene un proyecto asociado.");
-        _tx.Reconcile(Install);
+        _tx.Reconcile(Install); LastSaveError = null; PersistenceChanged?.Invoke();
     }
 
     /// <summary>

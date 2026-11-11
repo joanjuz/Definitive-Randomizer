@@ -185,7 +185,8 @@ internal sealed class ProjectOpenCoordinator
                 // The ROM is opened by the engine as always, and with it the persistent project that belongs to it (created, or resumed).
                 var request = detection.Kind switch
                 {
-                    DetectedKind.DsProject => new Nds.Project.NdsProjectOpenRequest(detection.SourcePath!, options.AllowRomhacks, ProjectPath: detection.Path),
+                    // A project made on a romhack reopens in romhack mode: that was chosen when it was created, and the dialog offers the option only for ROMs.
+                    DetectedKind.DsProject => new Nds.Project.NdsProjectOpenRequest(detection.SourcePath!, options.AllowRomhacks || Nds.Project.NdsProjectOpener.WasMadeOnARomhack(detection.Path), ProjectPath: detection.Path),
                     DetectedKind.DsEventCheckpoint => new Nds.Project.NdsProjectOpenRequest(detection.SourcePath!, options.AllowRomhacks, CheckpointPath: detection.Path),
                     _ => new Nds.Project.NdsProjectOpenRequest(detection.Path, options.AllowRomhacks),
                 };

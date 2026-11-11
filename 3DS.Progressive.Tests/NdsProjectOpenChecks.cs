@@ -197,6 +197,10 @@ internal static class NdsProjectOpenChecks
         check(!Directory.GetFiles(folder, "*.lock").Any(), "NdsProjectOpen_APreparedProjectThatIsNotInstalledReleasesItsProject");
         using (var prepared = ProjectOpenCoordinator.PrepareWithEngine(ProjectDetector.Detect(source + ".drproj"), options))
             check(NdsProjectTransactionChecks.Fingerprint((NdsProject)prepared.Project) == print, "NdsProjectOpen_TheUniversalEngineOpensAProjectFileWithTheSameWork");
+        // The dialog offers "Admitir romhacks" only for ROMs: a project made on a romhack reopens in that mode by itself, and the ROM alone still needs the option.
+        using (var prepared = ProjectOpenCoordinator.PrepareWithEngine(ProjectDetector.Detect(source + ".drproj"), new OpenOptions()))
+            check(prepared.Project is NdsProject { IsRomhack: true } reopened && NdsProjectTransactionChecks.Fingerprint(reopened) == print, "NdsProjectOpen_AProjectMadeOnARomhackReopensInRomhackModeByItself");
+        check(Throws(() => ProjectOpenCoordinator.PrepareWithEngine(ProjectDetector.Detect(source), new OpenOptions()).Dispose()) == nameof(InvalidDataException), "NdsProjectOpen_TheRomAloneStillNeedsTheRomhackOption");
     }
 
     /// <summary>Importing a checkpoint into the project of its ROM (synthetic event tables; the real ones are in the probe).</summary>
