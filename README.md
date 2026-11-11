@@ -45,7 +45,7 @@ Current limits:
 - Pokédex animations are temporarily disabled.
 - Console/Atmosphère and DLC are not validated.
 
-See [HOJA_RUTA_SWITCH.md](docs/3ds-progressive/HOJA_RUTA_SWITCH.md) and [SWITCH_ESCUDO_VALIDACION_Y_COMBATES_DOBLES.md](docs/3ds-progressive/SWITCH_ESCUDO_VALIDACION_Y_COMBATES_DOBLES.md) (Spanish).
+See [SWITCH_ESCUDO_VALIDACION_Y_COMBATES_DOBLES.md](docs/3ds-progressive/SWITCH_ESCUDO_VALIDACION_Y_COMBATES_DOBLES.md) (Spanish).
 
 ## Nintendo DS
 

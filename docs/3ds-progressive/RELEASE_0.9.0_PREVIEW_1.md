@@ -40,4 +40,4 @@ Publicación reproducible con Windows, SDK .NET 10, Git y dependencias Mobipeg d
 ./tools/Publish-Preview.ps1 -OutputDirectory D:/Releases -Version 0.9.0-preview.1
 ```
 
-Detalles de Switch: `HOJA_RUTA_SWITCH.md` y `SWITCH_ESCUDO_VALIDACION_Y_COMBATES_DOBLES.md`. Catálogo del runner: `RUNNER_PRUEBAS.md`.
+Detalles de Switch: `SWITCH_ESCUDO_VALIDACION_Y_COMBATES_DOBLES.md`. Catálogo del runner: `RUNNER_PRUEBAS.md`.

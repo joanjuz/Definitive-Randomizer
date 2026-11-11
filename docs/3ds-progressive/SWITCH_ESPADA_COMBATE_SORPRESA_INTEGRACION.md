@@ -18,7 +18,7 @@ El modelo visible se conserva. Un spawn básico aprobado recibe otra especie bas
 - `3DS.Progressive.App/Services/Switch/SwordShieldProject.Surprise.cs`, `SwordShieldProject.cs`, `SwordShieldProject.Gameplay.cs`: revisión de sesión, rechazo de previsualizaciones ajenas/desactualizadas, protección de subsdk9 existente, historial, reset y exportación combinada. Reset restablece todos los cambios de sesión; no existe botón individual para retirar solo este módulo.
 - `3DS.Progressive.App/SwordSurpriseWindow.cs`, `SwordShieldGameplayWindow.cs`, `SwordShieldPrototypeWindow.cs`: botón experimental, semilla accesible, propuesta de solo lectura, aplicación explícita y diario. Exportación restringida a Ryujinx mientras haya módulo nativo.
 - `3DS.Progressive.Tests/SwordSurpriseIntegrationChecks.cs`, `Program.cs`: pruebas sintéticas, componentes WPF y probe de extracción real.
-- Documentación: este informe, README nativo, aviso histórico en `SWITCH_ESPADA_COMBATE_SORPRESA.md` y actualización de `HOJA_RUTA_SWITCH.md`.
+- Documentación: este informe, README nativo, aviso histórico en `SWITCH_ESPADA_COMBATE_SORPRESA.md`.
 
 El resto de los archivos pendientes de Switch pertenecen al trabajo previo de esta rama; no se descartaron ni restauraron.
 

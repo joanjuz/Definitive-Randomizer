@@ -116,4 +116,4 @@ Siguiente hito propuesto: ampliar el prototipo con randomización de tipos y hab
 
 ## Siguiente entrega implementada
 
-Se añadió [randomización de tipos y habilidades](SWITCH_SWSH_RANDOMIZACION.md), con semilla reproducible, alcance, protección de mecánicas de formas y exportación directa Ryujinx/Atmosphère. Este documento conserva el estado histórico del primer prototipo. El objetivo de ampliar hacia la mayoría de herramientas 3DS se desarrolla en [la hoja de ruta](HOJA_RUTA_SWITCH.md). La validación del cambio de tipo por el usuario no debe confundirse con la validación jugable de las nuevas habilidades aleatorias.
+Se añadió [randomización de tipos y habilidades](SWITCH_SWSH_RANDOMIZACION.md), con semilla reproducible, alcance, protección de mecánicas de formas y exportación directa Ryujinx/Atmosphère. Este documento conserva el estado histórico del primer prototipo. El avance posterior está en los documentos `SWITCH_*` del índice. La validación del cambio de tipo por el usuario no debe confundirse con la validación jugable de las nuevas habilidades aleatorias.
