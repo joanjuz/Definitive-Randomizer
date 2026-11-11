@@ -160,6 +160,15 @@ internal static class NdsProjectOpenChecks
             try { Work(project, 2); } catch (NdsProjectSaveException ex) { refused = ex.Kind; }
             check(NdsProjectTransactionChecks.Fingerprint(project) == saved && refused == NdsProjectStoreError.ReadOnly && project.History.Count == 1 && Names(locked).SequenceEqual(lockedFiles) && File.ReadAllBytes(lockedRom + ".drproj").AsSpan().SequenceEqual(lockedProject), "NdsProjectOpen_AProjectInAReadOnlyFolderOpensToBeReadAndRefusesOperations");
         });
+        // The same folder with the main file damaged: a valid copy exists, but it cannot be installed where nothing can be written. Say so at once (no
+        // recovery is offered that would then fail the same way), and touch nothing.
+        File.WriteAllBytes(lockedRom + ".drproj", lockedProject[..(lockedProject.Length / 2)]); var damagedFiles = Names(locked);
+        WithoutWriteAccess(locked, () =>
+        {
+            Exception? refusal = null; try { Open(lockedRom, recover: true, alternative: Path.Combine(folder("alternativa-3"), "proyectos")).Dispose(); } catch (Exception ex) { refusal = ex; }
+            check(refusal is IOException and not NdsProjectDamagedException && refusal.Message.Contains("no admite escritura", StringComparison.Ordinal) && Names(locked).SequenceEqual(damagedFiles)
+                && File.ReadAllBytes(lockedRom + ".drproj").Length == lockedProject.Length / 2, "NdsProjectOpen_ADamagedProjectInAReadOnlyFolderIsNotOfferedARecoveryThatCannotBeWritten");
+        });
     }
 
     private static void Detector(Func<string, string> folder, Func<string, string, byte[]?, string> rom, Action<bool, string> check)

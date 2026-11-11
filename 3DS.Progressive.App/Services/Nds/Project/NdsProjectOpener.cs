@@ -71,7 +71,11 @@ internal static class NdsProjectOpener
                     throw new InvalidDataException("El proyecto guardado lo escribió una versión más reciente de Definitive Randomizer y no se modifica: " + load.Message);
                 default:
                     var plan = load.Plan!;
-                    if (!request.RecoverDamaged || plan.Recommended is null || store.IsReadOnly) throw new NdsProjectDamagedException(path, plan);
+                    // Where nothing can be written a copy cannot be installed either: say so now, instead of offering a recovery that would fail the same way.
+                    if (store.IsReadOnly && plan.Recommended is not null)
+                        throw new IOException("El proyecto guardado está dañado y su carpeta no admite escritura, así que la copia anterior válida no se puede instalar aquí: " + plan.DamageMessage +
+                            " Copia la ROM y sus archivos .drproj a una carpeta con permiso de escritura y ábrela desde allí. No se ha modificado nada.");
+                    if (!request.RecoverDamaged || plan.Recommended is null) throw new NdsProjectDamagedException(path, plan);
                     store.Recover(plan.Recommended); load = store.Load();
                     if (load.Status != NdsProjectLoadStatus.Loaded) throw new InvalidDataException("La copia recuperada no se pudo leer: " + load.Message);
                     break;
