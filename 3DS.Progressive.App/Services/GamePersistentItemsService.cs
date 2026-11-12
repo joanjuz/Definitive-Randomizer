@@ -2,6 +2,7 @@ using System.IO;
 using System.Security.Cryptography;
 using System.Text;
 using ThreeDS.Progressive.Models;
+using pk3DS.Core.Modding.Research;
 namespace ThreeDS.Progressive.Services;
 /// <summary>Native transaction for the previously validated USUM persistent-consumables patch.</summary>
 public sealed class GamePersistentItemsService:IProjectEditor
@@ -11,7 +12,41 @@ public sealed class GamePersistentItemsService:IProjectEditor
     public IReadOnlyList<RecordEntry> Entries=>[new(1,"Restaurar consumibles equipados después de combates salvajes y contra entrenadores")];
     public IReadOnlyList<EditorGroup> RandomOptions=>[new("Consumibles persistentes",[new("Enable","Restaurar objetos tras el combate · no afecta instalaciones ni PvP",1,0,1)])];
     public GamePersistentItemsService(GameProjectSession project)
-    {if(!project.GameConfiguration.USUM)throw new NotSupportedException("Persistent Items solo está validado para Ultra Sol/Ultra Luna.");_project=project;_path=new[]{Path.Combine(project.GameConfiguration.RomFS,"Battle.cro"),Path.Combine(project.GameConfiguration.RomFS,"dll","Battle.cro")}.FirstOrDefault(File.Exists)??throw new FileNotFoundException("Battle.cro ausente.");_hash=SHA256.HashData(File.ReadAllBytes(_path));_=Patch(File.ReadAllBytes(_path));}
+    {if(!project.GameConfiguration.USUM)throw new NotSupportedException("Persistent Items solo está validado para Ultra Sol/Ultra Luna.");_project=project;_path=new[]{Path.Combine(project.GameConfiguration.RomFS,"Battle.cro"),Path.Combine(project.GameConfiguration.RomFS,"dll","Battle.cro")}.FirstOrDefault(File.Exists)??throw new FileNotFoundException("Battle.cro ausente.");_hash=SHA256.HashData(File.ReadAllBytes(_path));var capability=InspectCapability(File.ReadAllBytes(_path));if(!capability.CanApply)throw new InvalidDataException("No se modificó ningún archivo. "+GamePlayerLevelCapService.Describe(capability));_=Patch(File.ReadAllBytes(_path));}
+    internal const string CapabilityId="usum.persistent-items";
+    /// <summary>
+    /// Read-only capability report. This patch has no fixed offsets: each of its two points is located by a masked
+    /// signature that must appear exactly once, so the best level it reports is «compatible by adaptation». The patch is
+    /// simulated on a copy; the input is never modified.
+    /// </summary>
+    internal static PatchCapabilityReport InspectCapability(byte[]? cro)
+    {
+        const string battleName="Battle.cro · tipo de combate",itemName="Battle.cro · restauración del objeto";
+        PatchCapabilityReport Report(PatchCapabilityLevel level,string summary,PatchResourceReport[] resources,IReadOnlyList<PatchChangedRange>? changes=null)=>new(CapabilityId,level,resources,changes??[],[],summary);
+        if(cro is null)return Report(PatchCapabilityLevel.NotAccredited,"Datos insuficientes: falta Battle.cro.",[new(battleName,"Comprobación del tipo de combate",PatchResourceState.Missing,null,"No se encontró el archivo."),new(itemName,"Restauración del objeto equipado",PatchResourceState.Missing,null,"No se encontró el archivo.")]);
+        if(!IsExpectedCro(cro))return Report(PatchCapabilityLevel.NotAccredited,"Datos insuficientes: Battle.cro no tiene la cabecera CRO0 esperada.",[new(battleName,"Comprobación del tipo de combate",PatchResourceState.Truncated,null,"Sin cabecera CRO0."),new(itemName,"Restauración del objeto equipado",PatchResourceState.Truncated,null,"Sin cabecera CRO0.")]);
+        static PatchResourceReport Gate(byte[] data,string name,string role,byte[] signature,byte[] mask,int conditionOffset,byte stockCondition,byte patchedCondition)
+        {
+            int[] stock=FindMatches(data,signature,mask,conditionOffset,stockCondition),patched=FindMatches(data,signature,mask,conditionOffset,patchedCondition);
+            if(stock.Length==1&&patched.Length==0)return new(name,role,PatchResourceState.Original,(uint)stock[0],$"Código original localizado por su firma en 0x{stock[0]:X6}.");
+            if(stock.Length==0&&patched.Length==1)return new(name,role,PatchResourceState.OwnInstall,(uint)patched[0],$"Parche localizado por su firma en 0x{patched[0]:X6}.");
+            return stock.Length+patched.Length==0
+                ?new(name,role,PatchResourceState.ExternalModification,null,"No se encuentra el código que este parche modifica: otra revisión o una modificación lo cambió.")
+                :new(name,role,PatchResourceState.ExternalModification,null,$"La firma aparece {stock.Length+patched.Length} veces; debe ser única para saber dónde escribir.");
+        }
+        PatchResourceReport[] gates=[Gate(cro,battleName,"Comprobación del tipo de combate",BattleTypeGateSignature,BattleTypeGateMask,BattleTypeConditionOffset,BattleTypeStockCondition,BattleTypePatchedCondition),
+            Gate(cro,itemName,"Restauración del objeto equipado",ItemRestoreSignature,ItemRestoreMask,ItemRestoreConditionOffset,ItemRestoreStockCondition,ItemRestorePatchedCondition)];
+        if(gates.Any(g=>g.State==PatchResourceState.ExternalModification))return Report(PatchCapabilityLevel.NotAccredited,"No se pueden localizar de forma única los dos puntos del parche.",gates);
+        byte[] output;
+        try{output=Patch(cro).Bytes;if(Patch(output).Changes!=0)return Report(PatchCapabilityLevel.NotAccredited,"La instalación simulada no se pudo leer de vuelta.",gates);}
+        catch(Exception e) when(e is InvalidDataException or ArgumentException or IndexOutOfRangeException){return Report(PatchCapabilityLevel.NotAccredited,"No se pudo simular la instalación: "+e.Message,gates);}
+        var changes=new List<PatchChangedRange>();
+        for(int i=0;i<cro.Length&&i<output.Length;i++){if(cro[i]==output[i])continue;int start=i;while(i<cro.Length&&cro[i]!=output[i])i++;changes.Add(new("Battle.cro",(uint)start,i-start));}
+        int installed=gates.Count(g=>g.State==PatchResourceState.OwnInstall);
+        string state=installed==2?"El parche está instalado.":installed==1?"El parche está en uno solo de sus dos puntos; instalarlo completa el otro.":"Los dos puntos tienen el código original.";
+        return Report(PatchCapabilityLevel.CompatibleByAdaptation,state+" Se localizaron por su firma única, no por una posición fija; la revisión del archivo no se comprueba.",gates,changes);
+    }
+
     internal static (byte[] Bytes,int Changes) Patch(byte[] data)
     {
         if(!IsExpectedCro(data)||!TryGetGateState(data,BattleTypeGateSignature,BattleTypeGateMask,BattleTypeConditionOffset,BattleTypeStockCondition,BattleTypePatchedCondition,out int battle,out bool b)||!TryGetGateState(data,ItemRestoreSignature,ItemRestoreMask,ItemRestoreConditionOffset,ItemRestoreStockCondition,ItemRestorePatchedCondition,out int item,out bool i))throw new InvalidDataException("Battle.cro no contiene las dos firmas USUM únicas compatibles. No se modificó ningún archivo.");

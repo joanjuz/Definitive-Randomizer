@@ -86,11 +86,22 @@ internal static class ShareableProfileChecks
         reject(() => ShareableProfile.Create(origin.Session, Recipe(origin), "   ", "", ""), "Profile_ExportNeedsAName");
         using (var empty = DefinitiveGameDataChecks.Create())
             reject(() => ShareableProfile.Create(empty.Session, GlobalTemplateDocument.Empty("USUM", 7), "x", "", ""), "Profile_NothingToShareIsRefused");
+        // The other 3DS families: a profile belongs to one game and is only usable in that game.
         foreach (var version in new[] { GameVersion.SM, GameVersion.ORAS, GameVersion.XY })
         {
             using var other = new Fixture(version);
-            string game = ShareableProfile.GameOf(other.Session);
-            reject(() => ShareableProfile.Create(other.Session, GlobalTemplateDocument.Empty(game, other.Session.Generation), "x", "", ""), "Profile_ExportOnlyForUsum_" + version);
+            string game = ShareableProfile.GameOf(other.Session); int generation = other.Session.Generation;
+            var doc = GlobalTemplateDocument.Empty(game, generation);
+            doc.SetSection("Actions", new JsonArray(new JsonObject { ["Id"] = "trainers.randomize", ["Parameters"] = new JsonObject() }));
+            var own = ShareableProfile.Parse(ShareableProfile.Create(other.Session, doc, "Perfil " + game, "", "").ToJson());
+            check(own.Game == game && own.Generation == generation && own.Sections.Single().Requires.SequenceEqual(["game:" + game.ToLowerInvariant()]) &&
+                own.Evaluate(other.Session) is { SameGame: true } fits && fits.Sections.Single().Status == ProfileSectionStatus.Compatible, "Profile_ExportAndImportInItsOwnGame_" + version);
+            var elsewhere = own.Evaluate(origin.Session);
+            check(!elsewhere.SameGame && elsewhere.Sections.All(r => !r.Selectable) && !profile.Evaluate(other.Session).SameGame, "Profile_NeverUsableInAnotherGame_" + version);
+            reject(() => ShareableProfile.Create(other.Session, GlobalTemplateDocument.Empty(game, generation), "x", "", ""), "Profile_NothingToShareIsRefused_" + version);
+            // A profile of one game dressed up as another keeps the requirement of its real game and stays blocked.
+            var disguised = ShareableProfile.Parse(Edited(own, r => r["sections"]![0]!["requires"]!.AsArray().Add("game:usum"))).Evaluate(other.Session);
+            check(disguised.Sections.Single().Status == ProfileSectionStatus.Incompatible, "Profile_ExtraGameRequirementBlocksTheSection_" + version);
         }
 
         // ---- file round trip ----
@@ -126,7 +137,8 @@ internal static class ShareableProfileChecks
             ("NoTarget", Edited(profile, r => r.Remove("target"))),
             ("DsPlatform", Edited(profile, r => r["target"]!["platform"] = "nds")),
             ("SwitchPlatform", Edited(profile, r => r["target"]!["platform"] = "switch")),
-            ("OtherGame", Edited(profile, r => { r["target"]!["game"] = "SM"; r["recipe"]!["Game"] = "SM"; })),
+            ("UnknownGame", Edited(profile, r => { r["target"]!["game"] = "BW"; r["recipe"]!["Game"] = "BW"; })),
+            ("GameAndGenerationDisagree", Edited(profile, r => { r["target"]!["game"] = "XY"; r["recipe"]!["Game"] = "XY"; })),
             ("OtherGeneration", Edited(profile, r => r["target"]!["generation"] = 6)),
             ("RecipeOfAnotherGame", Edited(profile, r => r["recipe"]!["Game"] = "SM")),
             ("NoRecipe", Edited(profile, r => r.Remove("recipe"))),
@@ -224,11 +236,17 @@ internal static class ShareableProfileChecks
     internal static async Task RunExecutor(Action<bool, string> check)
     {
         using var state = new TestState();
-        using var f = new Fixture(GameVersion.USUM);
+        foreach (var version in new[] { GameVersion.USUM, GameVersion.ORAS }) await RunExecutor(check, version);
+    }
+    private static async Task RunExecutor(Action<bool, string> report, GameVersion version)
+    {
+        void check(bool ok, string name) => report(ok, name + "_" + version);
+        using var f = new Fixture(version);
         ModuleChecks.CreateArchives(f); GlobalApplicationChecks.PrepareOpenable(f);
-        var doc = GlobalTemplateDocument.Empty("USUM", 7);
-        NativeMasterBatchBridge.Capture(doc, new MasterBatchState(BatchAction.PersonalRandomize, new() { Abilities = true }, 0), 7);
-        NativeMasterBatchBridge.Capture(doc, new MasterBatchState(BatchAction.MoveRandomize, new() { MoveTypes = true }, 0), 7);
+        int generation = f.Session.Generation;
+        var doc = GlobalTemplateDocument.Empty(ShareableProfile.GameOf(f.Session), generation);
+        NativeMasterBatchBridge.Capture(doc, new MasterBatchState(BatchAction.PersonalRandomize, new() { Abilities = true }, 0), generation);
+        NativeMasterBatchBridge.Capture(doc, new MasterBatchState(BatchAction.MoveRandomize, new() { MoveTypes = true }, 0), generation);
         doc.SetSection("Actions", new JsonArray(new JsonObject { ["Id"] = "personal.randomize", ["Parameters"] = new JsonObject() },
             new JsonObject { ["Id"] = "moves.randomize", ["Parameters"] = new JsonObject() }));
         var profile = ShareableProfile.Parse(ShareableProfile.Create(f.Session, doc, "Perfil del ejecutor", "", "").ToJson());
@@ -304,8 +322,8 @@ internal static class ShareableProfileChecks
 
         using var sunMoon = new Fixture(GameVersion.SM);
         var otherView = new ThreeDS.Progressive.GlobalTemplateView(sunMoon.Session);
-        try { otherView.ProfileDraft("x"); check(false, "ProfileUi_OtherGamesExplainTheLimit"); }
-        catch (InvalidOperationException e) { check(e.Message.Contains("Ultra Sol"), "ProfileUi_OtherGamesExplainTheLimit"); }
+        try { otherView.ProfileDraft("x"); check(false, "ProfileUi_EmptyProjectExplainsThereIsNothingToShare"); }
+        catch (InvalidDataException e) { check(e.Message.Contains("nada que se pueda compartir"), "ProfileUi_EmptyProjectExplainsThereIsNothingToShare"); }
     }
     private static IEnumerable<T> Descendants<T>(DependencyObject parent) where T : DependencyObject
     {

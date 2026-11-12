@@ -2,7 +2,7 @@
 
 Un perfil compartible es un archivo JSON local (`*.drprofile.json`) que lleva **configuración** de Definitive Randomizer para reutilizarla en otra copia del mismo juego. No es un instalador ni una ROM: importarlo solo carga secciones en Global Template, que es quien previsualiza, confirma, aplica, registra en el historial y permite deshacer.
 
-Alcance del formato 1: **Ultra Sol y Ultra Luna** (`USUM`, generación 7). Los perfiles de DS, 3DS y Switch no se mezclan. Definitive Game Data es otro contrato (datos exportados) y no se usa como receta.
+Alcance del formato 1: las cuatro familias de 3DS — `XY` y `ORAS` (generación 6), `SM` y `USUM` (generación 7). Un perfil pertenece a un solo juego y solo se usa en ese juego. Los perfiles de DS, 3DS y Switch no se mezclan. Definitive Game Data es otro contrato (datos exportados) y no se usa como receta.
 
 ## Documento
 
@@ -13,7 +13,7 @@ Alcance del formato 1: **Ultra Sol y Ultra Luna** (`USUM`, generación 7). Los p
 | `name` | sí | Texto, 1–120 caracteres |
 | `author`, `description` | no | Texto que escribe quien exporta (80 y 2000 caracteres). Procedencia declarada, no verificada |
 | `createdUtc`, `generator` | no | Fecha y aplicación que lo creó (`name`, `version`) |
-| `target` | sí | `platform` = `3ds`, `game` = `USUM`, `generation` = `7` |
+| `target` | sí | `platform` = `3ds`, `game` = `XY`, `ORAS`, `SM` o `USUM`, y su `generation` (6 o 7) |
 | `sections` | sí | Lista de secciones (máximo 64): `id`, `kind`, `title`, `summary`, `requires` |
 | `dependencies` | no | Copia de `Assets` de la receta: archivos externos por nombre y SHA-256. No se incrustan |
 | `omitted` | no | Lo que el autor no pudo incluir: `what`, `count`, `reason` |
@@ -31,9 +31,9 @@ Se derivan de la receta; la lista del archivo debe coincidir con ellas (mismos `
 | `actions/<módulo>` | `actions` | Acciones de la receta con ese prefijo (`trainers.randomize` → `actions/trainers`) |
 | `manual/<tipo>` | `manual-operations` | Operaciones manuales de ese tipo |
 | `manual/personal-fields` | `manual-values` | Valores exactos de Pokémon |
-| `options/nature-mints` | `option` | Incluir las mentas Gen7 entre los objetos disponibles |
+| `options/nature-mints` | `option` | Incluir las mentas Gen7 entre los objetos disponibles (solo USUM) |
 
-Operaciones manuales admitidas: `record`, `move`, `learnset`, `personal-flags`, `typechart`, `shiny`, `playercaps`, `crointegrity`, `shops7`, `pickup`, `machines7`, `tutors7`.
+Operaciones manuales admitidas: `record`, `move`, `learnset`, `personal-flags`, `typechart`, `shiny`, `playercaps`, `crointegrity`, `shops6`, `shops7`, `pickup`, `machines7`, `tutors7`.
 
 **Nunca viajan en un perfil:** recursos reemplazados (`resources`), templates creados (`authored-template`), textos del juego y cualquier ruta local. Al exportar se retiran y se informan en `omitted`; si la receta contiene una ruta local, la exportación se rechaza. Un perfil que los contenga se rechaza al importarlo.
 
@@ -41,7 +41,7 @@ Operaciones manuales admitidas: `record`, `move`, `learnset`, `personal-flags`, 
 
 | Requisito | Significado |
 | --- | --- |
-| `game:usum` | Proyecto de Ultra Sol o Ultra Luna |
+| `game:xy`, `game:oras`, `game:sm`, `game:usum` | El proyecto abierto es de ese juego. Cada sección lleva el de su perfil |
 | `patch:player-level-caps` | El informe de capacidades de Player Level Caps permite instalar (verificada o compatible por adaptación) |
 | `patch:nature-mints` | Parche de mentas instalado y reconocido |
 
@@ -68,4 +68,4 @@ Elegir secciones produce una receta Global Template con solo ese contenido y la 
 
 ## Evolución
 
-Los cambios compatibles (campos opcionales nuevos, requisitos nuevos, más juegos) se hacen dentro de la versión 1: una aplicación anterior los rechaza con el mensaje de juego no admitido o bloquea la sección por requisito desconocido. Un cambio incompatible exige `version` 2.
+Los cambios compatibles (campos opcionales nuevos, requisitos nuevos, más juegos) se hacen dentro de la versión 1: una aplicación anterior los rechaza con el mensaje de juego no admitido o bloquea la sección por requisito desconocido. Así se añadieron XY, ORAS y SM a los perfiles, que al principio solo admitían USUM. Un cambio incompatible exige `version` 2.
