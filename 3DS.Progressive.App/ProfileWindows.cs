@@ -54,7 +54,7 @@ internal sealed class ProfileExportWindow : ProfileWindow
         _name = Field("Nombre del perfil", draft.Name, 120, false);
         _author = Field("Autor (opcional; se guarda en el archivo)", draft.Author, 80, false);
         _description = Field("Descripción (opcional)", draft.Description, 2000, true);
-        Line($"Juego: Ultra Sol / Ultra Luna · {draft.Sections.Count} secciones", strong: true);
+        Line($"Juego: {ShareableProfile.GameTitle(draft.Game)} · {draft.Sections.Count} secciones", strong: true);
         foreach (var section in draft.Sections) Line("• " + section.Title + " — " + section.Summary);
         if (draft.Omitted.Count > 0)
         {
@@ -96,7 +96,7 @@ internal sealed class ProfileImportWindow : ProfileWindow
         Line(profile.Name, strong: true).FontSize = 17;
         string origin = string.Join(" · ", new[] { profile.Author.Length > 0 ? "Autor: " + profile.Author : "Autor no indicado",
             profile.Generator.Length > 0 ? "Creado con " + profile.Generator : "", profile.CreatedUtc.Length > 0 ? profile.CreatedUtc : "" }.Where(t => t.Length > 0));
-        Line(origin + " · Huella " + profile.RecipeSha256[..12] + "…", soft: true);
+        Line("Juego: " + ShareableProfile.GameTitle(profile.Game) + " · " + origin + " · Huella " + profile.RecipeSha256[..12] + "…", soft: true);
         Line("La procedencia la declara el archivo: comprueba que confías en quien te lo dio.", soft: true);
         if (profile.Description.Length > 0) Line(profile.Description);
         Line(compatibility.Verdict, strong: true).Margin = new Thickness(0, 8, 0, 8);

@@ -26,18 +26,23 @@ internal sealed record ProfileCompatibility(bool SameGame, string Verdict, IRead
 /// Shareable profile, format 1 (docs/contracts/SHAREABLE_PROFILE_V1.md): a versioned envelope around a Global Template
 /// recipe. It carries configuration only: no ROM, no extracted resource, no game text and no local path. It is not an
 /// installer: importing it only loads the chosen sections into Global Template, whose preview, confirmation, history
-/// and undo apply them. Format 1 is limited to Ultra Sun / Ultra Moon.
+/// and undo apply them. Format 1 covers the four 3DS families (XY, ORAS, SM, USUM); a profile belongs to exactly one.
 /// </summary>
 internal sealed class ShareableProfile
 {
     internal const string Format = "definitive-randomizer-profile", Extension = ".drprofile.json";
     internal const int Version = 1, MaxBytes = 2 * 1024 * 1024, MaxSections = 64;
     private const string ManualPrefix = "manual/", ActionPrefix = "actions/", PersonalFields = "manual/personal-fields", Mints = "options/nature-mints";
-    private const string UsumOnly = "game:usum", CapsPatch = "patch:player-level-caps", MintPatch = "patch:nature-mints";
+    private const string GamePrefix = "game:", CapsPatch = "patch:player-level-caps", MintPatch = "patch:nature-mints";
+    /// <summary>The games a profile can target, each with its generation. Recipes of different games are never mixed.</summary>
+    internal static readonly IReadOnlyDictionary<string, int> Games = new Dictionary<string, int> { ["XY"] = 6, ["ORAS"] = 6, ["SM"] = 7, ["USUM"] = 7 };
+    internal static string GameTitle(string game) => game switch
+    { "USUM" => "Ultra Sol / Ultra Luna", "SM" => "Sol / Luna", "ORAS" => "Rubí Omega / Zafiro Alfa", "XY" => "X / Y", _ => game };
+    private static string GameRequirement(string game) => GamePrefix + game.ToLowerInvariant();
 
     /// <summary>Manual operations a profile may carry: final values chosen by the author, never bytes or text of the game.</summary>
     internal static readonly IReadOnlySet<string> ShareableOperations = new HashSet<string>
-        { "record", "move", "learnset", "personal-flags", "typechart", "shiny", "playercaps", "crointegrity", "shops7", "pickup", "machines7", "tutors7" };
+        { "record", "move", "learnset", "personal-flags", "typechart", "shiny", "playercaps", "crointegrity", "shops6", "shops7", "pickup", "machines7", "tutors7" };
 
     private static readonly (string Prefix, string Title)[] Titles =
     [
@@ -51,7 +56,7 @@ internal sealed class ShareableProfile
     {
         ["record"] = "Entradas editadas a mano", ["move"] = "Movimientos editados a mano", ["learnset"] = "Movimientos por nivel editados", ["personal-flags"] = "Compatibilidades MT/tutores",
         ["typechart"] = "Tabla de tipos", ["shiny"] = "Probabilidad shiny (parche)", ["playercaps"] = "Player Level Caps", ["crointegrity"] = "Integridad CRO/CRR",
-        ["shops7"] = "Tiendas editadas a mano", ["pickup"] = "Recogida editada a mano", ["machines7"] = "MT editadas a mano", ["tutors7"] = "Tutores editados a mano",
+["shops6"] = "Tiendas editadas a mano", ["shops7"] = "Tiendas editadas a mano", ["pickup"] = "Recogida editada a mano", ["machines7"] = "MT editadas a mano", ["tutors7"] = "Tutores editados a mano",
     };
 
     private readonly JsonObject _root;
@@ -79,15 +84,15 @@ internal sealed class ShareableProfile
     /// <summary>Builds a profile from the recipe that «Guardar template global» would write. Nothing is written here.</summary>
     internal static ShareableProfile Create(GameProjectSession project, GlobalTemplateDocument export, string name, string author, string description)
     {
-        if (!project.GameConfiguration.USUM)
-            throw new InvalidOperationException("Los perfiles compartibles admiten por ahora solo proyectos de Ultra Sol y Ultra Luna.");
+        string game = GameOf(project); int generation = Games[game];
+        if (project.Generation != generation) throw new InvalidOperationException("Los perfiles compartibles admiten proyectos de X/Y, Rubí Omega/Zafiro Alfa, Sol/Luna y Ultra Sol/Ultra Luna.");
         name = Clean(name, 120); author = Clean(author, 80); description = Clean(description, 2000);
         if (name.Length == 0) throw new ArgumentException("El perfil necesita un nombre.");
         var recipe = export.Clone();
-        if (recipe.Game.Equals("ANY", StringComparison.OrdinalIgnoreCase)) recipe.SetSection("Game", JsonValue.Create("USUM"));
-        recipe.Validate("USUM", 7);
+        if (recipe.Game.Equals("ANY", StringComparison.OrdinalIgnoreCase)) recipe.SetSection("Game", JsonValue.Create(game));
+        recipe.Validate(game, generation);
         var omitted = Strip(recipe);
-        recipe.Validate("USUM", 7);
+        recipe.Validate(game, generation);
         var node = JsonNode.Parse(recipe.ToJson())!.AsObject();
         RejectLocalPaths(node, "recipe", project.ProjectRoot);
         var sections = SectionsOf(recipe);
@@ -98,7 +103,7 @@ internal sealed class ShareableProfile
             ["format"] = Format, ["version"] = Version, ["name"] = name, ["author"] = author, ["description"] = description,
             ["createdUtc"] = DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ssZ"),
             ["generator"] = new JsonObject { ["name"] = "Definitive Randomizer", ["version"] = typeof(ShareableProfile).Assembly.GetName().Version?.ToString() ?? "" },
-            ["target"] = new JsonObject { ["platform"] = "3ds", ["game"] = "USUM", ["generation"] = 7 },
+            ["target"] = new JsonObject { ["platform"] = "3ds", ["game"] = game, ["generation"] = generation },
             ["sections"] = new JsonArray(sections.Select(s => (JsonNode)new JsonObject
             {
                 ["id"] = s.Id, ["kind"] = s.Kind, ["title"] = s.Title, ["summary"] = s.Summary, ["requires"] = new JsonArray(s.Requires.Select(r => (JsonNode)JsonValue.Create(r)!).ToArray()),
@@ -189,12 +194,13 @@ internal sealed class ShareableProfile
     private static List<ProfileSection> SectionsOf(GlobalTemplateDocument recipe)
     {
         var sections = new List<ProfileSection>();
+        string only = GameRequirement(recipe.Game);
         foreach (var group in recipe.Actions.Where(id => !id.Equals(ManualEditTemplate.ActionId, StringComparison.OrdinalIgnoreCase))
                      .GroupBy(id => id.Contains('.') ? id[..id.IndexOf('.')] : id, StringComparer.OrdinalIgnoreCase))
         {
             string prefix = group.Key.ToLowerInvariant();
             string title = Titles.FirstOrDefault(t => t.Prefix == prefix).Title ?? prefix;
-            sections.Add(new(ActionPrefix + prefix, "actions", title, string.Join(", ", group), [UsumOnly]));
+            sections.Add(new(ActionPrefix + prefix, "actions", title, string.Join(", ", group), [only]));
         }
         foreach (var group in Operations(recipe).GroupBy(o => o["Kind"]!.GetValue<string>()))
         {
@@ -205,12 +211,12 @@ internal sealed class ShareableProfile
                 summary = $"{table.Entries.Count} puntos; límites de Nv. {table.Entries.Min(e => e.Cap)} a Nv. {table.Entries.Max(e => e.Cap)}";
             }
             sections.Add(new(ManualPrefix + group.Key, "manual-operations", OperationTitles.GetValueOrDefault(group.Key, group.Key), summary,
-                group.Key == "playercaps" ? [UsumOnly, CapsPatch] : [UsumOnly]));
+                group.Key == "playercaps" ? [only, CapsPatch] : [only]));
         }
         if (PersonalEntries(recipe) is > 0 and var fields)
-            sections.Add(new(PersonalFields, "manual-values", "Valores exactos de Pokémon", fields == 1 ? "1 valor" : fields + " valores", [UsumOnly]));
+            sections.Add(new(PersonalFields, "manual-values", "Valores exactos de Pokémon", fields == 1 ? "1 valor" : fields + " valores", [only]));
         if (UsumMintItemPolicy.Read(recipe))
-            sections.Add(new(Mints, "option", "Mentas Gen7 en tiendas, objetos y Recogida", "Añade las mentas a los objetos disponibles", [UsumOnly, MintPatch]));
+            sections.Add(new(Mints, "option", "Mentas Gen7 en tiendas, objetos y Recogida", "Añade las mentas a los objetos disponibles", [only, MintPatch]));
         return sections;
     }
 
@@ -254,7 +260,8 @@ internal sealed class ShareableProfile
         if (root["target"] is not JsonObject target) throw new InvalidDataException("Al perfil le falta el juego de destino.");
         if (Text(target, "platform", 16, true) != "3ds") throw new InvalidDataException("El perfil es de otra plataforma; las recetas de DS, 3DS y Switch no se mezclan.");
         string game = Text(target, "game", 16, true); int generation = Whole(target, "generation");
-        if (game != "USUM" || generation != 7) throw new InvalidDataException($"El perfil es de {game} (generación {generation}). Esta versión solo importa perfiles de Ultra Sol y Ultra Luna.");
+        if (!Games.TryGetValue(game, out int expected) || generation != expected)
+            throw new InvalidDataException($"El perfil es de {game} (generación {generation}). Esta versión importa perfiles de X/Y, Rubí Omega/Zafiro Alfa, Sol/Luna y Ultra Sol/Ultra Luna.");
         if (root["recipe"] is not JsonObject recipeNode) throw new InvalidDataException("Al perfil le falta la receta.");
         if (!Text(root, "recipeSha256", 64, true).Equals(Sha(recipeNode), StringComparison.OrdinalIgnoreCase))
             throw new InvalidDataException("El perfil está dañado o se modificó: la receta no coincide con su huella.");
@@ -329,9 +336,13 @@ internal sealed class ShareableProfile
 
     private (bool Ok, bool Known, string Why) Requirement(GameProjectSession project, string requirement)
     {
+        if (requirement.StartsWith(GamePrefix, StringComparison.Ordinal))
+        {
+            string wanted = Games.Keys.FirstOrDefault(g => GameRequirement(g) == requirement) ?? "";
+            return (wanted == GameOf(project), wanted.Length > 0, "Solo " + GameTitle(wanted) + ".");
+        }
         switch (requirement)
         {
-            case UsumOnly: return (project.GameConfiguration.USUM, true, "Solo Ultra Sol y Ultra Luna.");
             case MintPatch:
                 var (available, report) = new UsumMintItemPolicy(project).Inspect();
                 return (available, true, "Requiere el parche de mentas instalado. " + report);

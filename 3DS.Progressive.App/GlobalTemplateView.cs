@@ -202,7 +202,7 @@ internal sealed class GlobalTemplateView : UserControl
         if(window.ShowDialog()!=true)return;
         var profile=ProfileDraft(window.ProfileName,window.Author,window.Description);
         var dialog=new Microsoft.Win32.SaveFileDialog{Filter="Perfil compartible de Definitive Randomizer|*"+ShareableProfile.Extension,
-            FileName="perfil_usum"+ShareableProfile.Extension,OverwritePrompt=true};
+            FileName="perfil_"+Game.ToLowerInvariant()+ShareableProfile.Extension,OverwritePrompt=true};
         if(dialog.ShowDialog(Window.GetWindow(this))!=true)return;
         profile.Save(dialog.FileName);
         _status.Text=$"Perfil «{profile.Name}» exportado: {profile.Sections.Count} secciones"+(profile.Omitted.Count>0?$"; {profile.Omitted.Sum(o=>o.Count)} elementos no compartibles quedaron fuera":"")+". El proyecto no cambió.";

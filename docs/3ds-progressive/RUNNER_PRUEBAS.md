@@ -30,7 +30,7 @@
 
 `--patch-capability-only` verifica el informe de capacidades de Player Level Caps (solo lectura): estado de cada punto de enganche, nivel (verificada, compatible por adaptación, conflicto, no acreditada), simulación de la instalación, acuerdo con el instalador, transacción fallida, deshacer y la vista WPF fuera de pantalla.
 
-`--profiles-only` verifica los perfiles compartibles de Ultra Sol y Ultra Luna (formato 1): exportación y exclusiones, ausencia de rutas locales, lectura estricta, compatibilidad y conflictos con el proyecto, selección de secciones, aplicación por la reproducción existente y por el ejecutor real de Global Template sobre un proyecto sintético, historial, deshacer y los diálogos WPF fuera de pantalla.
+`--profiles-only` verifica los perfiles compartibles de los juegos 3DS (formato 1; XY, ORAS, SM y USUM): exportación y exclusiones, ausencia de rutas locales, lectura estricta, compatibilidad y conflictos con el proyecto, selección de secciones, aplicación por la reproducción existente y por el ejecutor real de Global Template sobre un proyecto sintético, historial, deshacer y los diálogos WPF fuera de pantalla.
 
 `--player-caps-recipe-only` verifica, con binarios sintéticos de Ultra Sol y Ultra Luna, las recetas de Global Template que llevan una instalación manual de Player Level Caps: formato grabado, lectura, guardado y recarga de la receta, validación sin escritura, reproducción en otro proyecto (solo cambian Battle.cro y code.bin), reapertura, deshacer, reemplazo de una tabla instalada y rechazo sin escritura de recetas no válidas o de proyectos incompatibles.
 
