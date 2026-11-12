@@ -23,6 +23,7 @@ internal static class RunnerCatalog
         new("--usum-mints-rebuild","<proyecto con mentas> <imagen 3DS nueva> <carpeta nueva de reextracción>",RunnerCategory.Real,false),
         new("--definitive-game-data-only","",RunnerCategory.Ui,false),
         new("--definitive-game-data-fixture","<archivo JSON nuevo fuera del proyecto>",RunnerCategory.Synthetic,false),
+        new("--definitive-game-data-caps-fixtures","<carpeta nueva o vacía fuera del proyecto>",RunnerCategory.Synthetic,false),
         new("--batch-gen6-only","",RunnerCategory.Synthetic,false),
         new("--batch80-only","",RunnerCategory.Synthetic,false),
         new("--catch-batch-only","",RunnerCategory.Synthetic,false),

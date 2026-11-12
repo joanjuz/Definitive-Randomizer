@@ -26,6 +26,7 @@ if(args.Length==4&&args[0]=="--usum-mints-rebuild"){
     if(hasMintIcons&&new UsumMintIconService(reopened).Inspect().State!=pk3DS.Core.Modding.Research.UsumMintState.Installed)throw new InvalidDataException("Mint icons did not persist after rebuild/extraction.");
     Console.WriteLine("PASS MintRebuildRoundtrip recognized after full rebuild and byte-exact extraction; gameplay NOT tested.");return;
 }
+if(args.Length==2&&args[0]=="--definitive-game-data-caps-fixtures"){DefinitiveGameDataCapsChecks.WriteFixtures(args[1]);Console.WriteLine("Exported synthetic DGD playerLevelCaps fixtures.");return;}
 if(args.Length==2&&args[0]=="--definitive-game-data-fixture"){DefinitiveGameDataChecks.WriteInteropFixture(args[1]);Console.WriteLine("Exported synthetic DGD interop fixture.");return;}
 if(args.Length==3&&args[0]=="--extract-independent-image"){var extraction=new GameRomExtractionService().ExtractAsync(args[1],args[2]).GetAwaiter().GetResult();Console.WriteLine($"PASS EXTRACTION: {extraction.Files} files; source SHA256 {extraction.SourceSha256}; {extraction.Folder}");return;}
 if(args.Length==3&&args[0]=="--audit-catch-templates"){CatchZoneReferenceAudit.Run(args[1],args[2]);return;}

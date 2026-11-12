@@ -90,7 +90,8 @@ jobs:
           & $mintPython native/3ds/nature-mints/verify_arm.py validation-logs/mints-arm
           if ($LASTEXITCODE -ne 0) { throw 'Mint ARM execution failed' }
       # Definitive Game Data contract: JSON Schema, playerLevelCaps status rules and the import service of the
-      # published Progressive Tracker 1.4.0 (pinned commit), which must keep accepting the extended examples.
+      # published Progressive Tracker 1.4.0 (pinned commit), which must keep accepting the extended examples and
+      # the documents the real exporter writes for every playerLevelCaps status (synthetic binaries).
       - name: Contrato Definitive Game Data y compatibilidad con Tracker 1.4.0
         shell: pwsh
         run: |
@@ -105,7 +106,10 @@ jobs:
           $contractPython = Join-Path $contractVenv 'Scripts/python.exe'
           & $contractPython -m pip install --only-binary=:all: -r tools/contracts/requirements.txt
           if ($LASTEXITCODE -ne 0) { throw 'Contract dependencies failed' }
-          & $contractPython -I tools/contracts/check_definitive_game_data.py --tracker $tracker 2>&1 | Tee-Object -FilePath validation-logs/dgd-contract.log
+          $capsFixtures = Join-Path $env:RUNNER_TEMP 'dgd-caps-fixtures'
+          dotnet ./3DS.Progressive.Tests/bin/Release/net10.0-windows/3DS.Progressive.Tests.dll --definitive-game-data-caps-fixtures $capsFixtures
+          if ($LASTEXITCODE -ne 0) { throw 'playerLevelCaps fixtures failed' }
+          & $contractPython -I tools/contracts/check_definitive_game_data.py --tracker $tracker --producer $capsFixtures 2>&1 | Tee-Object -FilePath validation-logs/dgd-contract.log
           if ($LASTEXITCODE -ne 0) { throw 'Definitive Game Data contract checks failed' }
       - name: Regresiones con datos sinteticos XY, ORAS, SM y USUM
         env:

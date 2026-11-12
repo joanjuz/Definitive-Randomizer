@@ -287,7 +287,7 @@ internal sealed class SystemsView : UserControl
         {
             var tracker=Card("Progressive Tracker · Datos del juego",
                 "Exporta los datos guardados de Ultra Sol o Ultra Luna para consultar tus cambios en una partida del Tracker.",
-                "Incluye especies y formas, estadísticas base, tipos, habilidades, movimientos y evoluciones. La revisión de una extracción no se da por conocida; el Tracker pide confirmarla. Las ediciones sin guardar quedan fuera.");
+                "Incluye especies y formas, estadísticas base, tipos, habilidades, movimientos, evoluciones y el estado guardado de Player Level Caps. La revisión de una extracción no se da por conocida; el Tracker pide confirmarla. Las ediciones sin guardar quedan fuera.");
             AddButton((StackPanel)tracker.Child,"Exportar datos para Progressive Tracker",()=>_=ExportTrackerDataAsync(Window.GetWindow(this),_project,text=>_status.Text=text));
             stack.Children.Add(tracker);
         }
