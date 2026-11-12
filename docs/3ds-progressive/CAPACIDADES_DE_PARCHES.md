@@ -50,6 +50,17 @@ Este parche no usa posiciones fijas: cada uno de sus dos puntos de `Battle.cro` 
 
 Al abrir el editor con un archivo no acreditado, el mensaje explica qué punto no se pudo localizar.
 
+## Interacción entre parches
+
+Player Level Caps y Persistent Items escriben los dos en `Battle.cro`. La suite los instala en los dos órdenes sobre dos módulos sintéticos: uno con espacio libre y otro que obliga a ampliar el segmento de código.
+
+- Cada parche sigue reconociendo su instalación y la del otro después de instalar el segundo.
+- El orden no cambia el resultado: los dos órdenes dan el mismo módulo, byte a byte.
+- Ampliar el segmento desplaza los puntos de Persistent Items, que se siguen localizando por su firma.
+- Reemplazar la tabla de Player Level Caps conserva Persistent Items.
+
+**Comportamiento observado, sin corregir:** con espacio libre, reinstalar la misma tabla no cambia nada. Cuando la primera instalación tuvo que ampliar el segmento, la primera reinstalación vuelve a mover la rutina (del segmento ampliado al relleno de página) y solo la siguiente deja de cambiar. El resultado sigue siendo válido y conserva el otro parche, pero esa reinstalación no es neutra y el informe de capacidades la muestra como cambios. No se ha modificado el instalador: hacerlo exige evidencia con un módulo real.
+
 ## Dónde se usa
 
 - **Vista de Player Level Caps**: la línea de estado muestra el nivel y la evidencia de cada archivo, en lugar de dos palabras técnicas.
@@ -66,7 +77,7 @@ Al abrir el editor con un archivo no acreditado, el mensaje explica qué punto n
 
 ## Validación
 
-`--patch-capability-only`: 86 comprobaciones con binarios sintéticos (65 de Player Level Caps y 21 de Persistent Items). Cubre original, instalación propia, reinstalación idempotente, parche en un solo archivo, tablas distintas, enganche editado, salto a código ajeno, firma desplazada, firma ambigua, archivo truncado, archivo ausente, rutina dañada, rutina sin enganchar, formatos anteriores, falta de espacio, ampliación del segmento (adaptación), acuerdo con el instalador, transacción fallida sin instalación parcial, deshacer y la vista WPF fuera de pantalla.
+`--patch-capability-only`: 106 comprobaciones con binarios sintéticos (65 de Player Level Caps, 21 de Persistent Items y 20 de interacción entre ambos). Cubre original, instalación propia, reinstalación idempotente, parche en un solo archivo, tablas distintas, enganche editado, salto a código ajeno, firma desplazada, firma ambigua, archivo truncado, archivo ausente, rutina dañada, rutina sin enganchar, formatos anteriores, falta de espacio, ampliación del segmento (adaptación), acuerdo con el instalador, transacción fallida sin instalación parcial, deshacer y la vista WPF fuera de pantalla.
 
 No se ha comprobado con ROMs reales ni con romhacks: los niveles describen los archivos sintéticos de la suite. No se declara compatibilidad general con ROMs modificadas.
 
