@@ -1,6 +1,6 @@
 # Definitive Game Data v1
 
-Contrato de metadatos JSON de PokeJuz, independiente de clases C#/Python. Este documento es la referencia técnica del productor y del consumidor, con [JSON Schema](definitive-game-data-v1.schema.json) y [ejemplo sintético](examples/definitive-game-data-v1.synthetic.json).
+Contrato de metadatos JSON de PokeJuz, independiente de clases C#/Python. Este documento es la referencia técnica del productor y del consumidor, con [JSON Schema](definitive-game-data-v1.schema.json), [ejemplo sintético](examples/definitive-game-data-v1.synthetic.json) y [ejemplo sintético con `playerLevelCaps`](examples/definitive-game-data-v1.player-level-caps.synthetic.json).
 
 ## Exportar y utilizar
 
@@ -42,7 +42,52 @@ Evolución: `method` es el ID nativo Gen7 de pk3DS (1..42; el slot inactivo 0 se
 
 `source.kind = saved-project`; `fingerprintAlgorithm = SHA-256`; `scope = personal,moves,evolutions,gametext`. El fingerprint es SHA-256 UTF-8 de Title ID + LF + las entradas `clave:SHA256` ordenadas ordinalmente y unidas por LF. Las cuatro claves de recursos son `personal`, `move`, `evolution`, `gametext`; se añaden los nombres abstractos `ncchheader.bin`/`exheader.bin` si están disponibles y verificados. Hexadecimal mayúsculo sin rutas. Su alcance son estos recursos guardados, **no una ROM reconstruida completa**, el guardado del jugador ni el proceso del emulador.
 
-No incluye binarios, imágenes, textos de historia, rutas locales, historial privado, partidas, tokens ni configuración SD. Los nombres y metadatos del juego se usan localmente; el formato no otorga permiso para redistribuir contenido de terceros. El ejemplo publicado es enteramente sintético.
+No incluye binarios, imágenes, textos de historia, rutas locales, historial privado, partidas, tokens ni configuración SD. Los nombres y metadatos del juego se usan localmente; el formato no otorga permiso para redistribuir contenido de terceros. Los ejemplos publicados son enteramente sintéticos.
+
+## Extensión opcional `playerLevelCaps`
+
+Campo raíz **opcional** que describe el parche Player Level Caps de Ultra Sol/Ultra Luna tal como está en los archivos guardados del proyecto. No cambia `schemaVersion = 1`, los campos obligatorios, `source.scope` ni el fingerprint raíz: si el campo falta, el documento significa exactamente lo mismo que antes y un consumidor que no lo conoce lo ignora. **El exportador actual todavía no lo genera**; esta sección fija el contrato que tendrá que cumplir.
+
+Es una **restricción mecánica** de la ROM exportada, no una lista de gimnasios ni de etapas del Tracker. La rutina recorre los puntos en orden y se detiene en el **primero cuya condición no se cumple**: el límite de ese punto es el vigente (`evaluation = ordered-first-incomplete`). Cada límite se aplica, por tanto, *hasta* completar su punto. Con todos cumplidos rige el techo `ceiling = 100`. Bloquea la ganancia de EXP (hook de Battle.cro) y el Caramelo Raro (hook de code.bin); no impide capturar, recibir ni intercambiar Pokémon de nivel superior. El documento **no indica en qué punto está el jugador**: eso depende de su partida y DGD no la lee.
+
+### Versión del bloque
+
+`version` es la versión del bloque, independiente de `schemaVersion`. Solo está definida la 1. Un consumidor que encuentre otra versión ignora el bloque (sin propuesta) y conserva el resto del DGD; el esquema solo valida estrictamente el bloque cuando `version = 1`.
+
+### Estado
+
+`hooks` informa cada copia por separado: `stock` (código original), `applied` (rutina y tabla de este formato), `applied-legacy` (rutina de un formato anterior), `unrecognized` (ni original ni de este parche, o archivo no utilizable, por ejemplo code.bin comprimido) o `missing` (archivo ausente). `status` resume ambas con esta precedencia:
+
+| `status` | Condición | Campos |
+|---|---|---|
+| `unsupported` | Alguna copia es `unrecognized` o `missing` | `hooks`; `source` opcional (solo si se leyeron los dos archivos); `detail` opcional |
+| `legacy-format` | Alguna copia es `applied-legacy` | `hooks`, `source`; `detail` opcional |
+| `inconsistent` | Una copia `applied` y la otra `stock`, o ambas `applied` con tablas distintas | `hooks`, `source`; `detail` opcional |
+| `installed` | Ambas `applied` y tablas idénticas byte a byte | Todos: `evaluation`, `enforcement = ["exp-gain", "rare-candy"]`, `ceiling`, `source` con `tableSha256`, `checkpoints` (1–128) |
+| `not-detected` | Ambas `stock` | `hooks`, `source` |
+
+Solo `installed` lleva `evaluation`, `enforcement`, `ceiling`, `checkpoints` y `source.tableSha256`; el esquema los **prohíbe** en los demás estados, de modo que un estado no instalado nunca contiene una lista utilizable. `not-detected` significa que no se encontró **este** parche, no que la ROM carezca de cualquier sistema de límites: un romhack puede traer el suyo y DGD no lo ve. `legacy-format` conserva el diagnóstico pero no exporta puntos: los formatos anteriores no se reinterpretan. `inconsistent` no ofrece lista importable. `detail` es texto técnico del productor (hasta 500 caracteres), sin rutas locales ni datos binarios.
+
+### Origen
+
+`source` es independiente del `source` raíz: `fingerprintAlgorithm = SHA-256`, `scope = battle.cro,code.bin`, `fingerprint` = SHA-256 UTF-8 de Title ID + LF + `battle.cro:SHA256` + LF + `code.bin:SHA256` (los hashes de los archivos guardados completos), hexadecimal mayúsculo sin rutas. `tableSha256` (solo `installed`) es el SHA-256 de la tabla de runtime: 6 bytes por punto (`u8` tipo 0/1, `u8` límite, `u16` LE argumento 0, `u16` LE argumento 1) seguidos del terminador `FF 64 00 00 00 00`. El consumidor puede recalcularlo a partir de `checkpoints`. Como el fingerprint raíz, no acredita la ROM que ejecuta el emulador ni una revisión concreta del juego.
+
+### Puntos
+
+Cada elemento de `checkpoints` tiene `order` (1..n en el orden del array), `cap` (1–100) y `condition`:
+
+- `{"kind": "event-flag-set", "byte": 0–619, "mask": 1–255}`: se cumple si algún bit de `mask` está activo en ese byte de Event Flags.
+- `{"kind": "event-work-at-least", "index": 0–999, "minimum": 1–65535}`: se cumple si el Event Work `index` vale al menos `minimum`.
+
+`label` (1–60 caracteres, sin caracteres de control ni espacios en los extremos) y `labelSource = randomizer-catalog` van siempre juntos y solo aparecen cuando la condición coincide exactamente con una del catálogo investigado de Randomizer (`LevelCapTable.KnownFlags`). Son nombres de ese catálogo, no texto del juego ni traducciones, y no se deducen de la etiqueta que mostrara la vista: se obtienen de la condición leída. Una condición fuera del catálogo va **sin** etiqueta; el consumidor la muestra por su condición y no inventa un nombre.
+
+### Reglas del productor
+
+Lee el estado instalado en los archivos guardados (Battle.cro y code.bin descomprimido) y compara las dos copias. Nunca exporta como aplicado el contenido de la tabla de la vista, una vista previa, un template sin aplicar ni un cambio deshecho: deshacer y guardar se reflejan porque cambia el archivo leído. Un fallo al leer el parche se informa en `status` y no impide exportar el resto del DGD. No añade revisión, región ni ROM ejecutada que no estén acreditadas. El bloque serializado no supera 64 KiB, dentro del límite de 5 MB del documento.
+
+### Reglas del consumidor
+
+Además del esquema, para `installed` comprobar que `order` va de 1 a n en el orden del array, que los límites nunca bajan, que cada condición aparece una sola vez y que `tableSha256` coincide con los puntos; si algo falla, el bloque se ignora (sin propuesta) y el resto del DGD sigue siendo válido. Solo `installed` puede generar una propuesta. El bloque nunca se aplica automáticamente: cualquier uso como límites propios requiere previsualización y confirmación explícita, y no sustituye límites existentes sin esa confirmación. Un consumidor con un máximo de etapas menor que 128 (Progressive Tracker admite 64) rechaza la propuesta completa; **nunca la trunca**. Ninguna propuesta elige un punto vigente.
 
 ## Validación y compatibilidad
 
@@ -54,10 +99,12 @@ Precedencia para la misma partida y juego: **DGD → CSV pk3DS → referencia or
 
 ## Fuera de esta entrega
 
-No incluye XY/ORAS/Sol/Luna/DS/Switch, nuevos perfiles de memoria, efectos avanzados/flags de movimientos, tabla de tipos modificada en runtime, learnsets, entrenadores, encounters, shiny, objetos de partida ni reproducción de parches. Exportar habilidad/nombre o estadística no instala mecánicas. Se distinguen pruebas sintéticas, el recorrido entre lenguajes y la comprobación jugable con datos reales; ninguna se presenta como otra.
+No incluye XY/ORAS/Sol/Luna/DS/Switch, nuevos perfiles de memoria, efectos avanzados/flags de movimientos, tabla de tipos modificada en runtime, learnsets, entrenadores, encounters, shiny, objetos de partida ni reproducción de parches. `playerLevelCaps` describe el estado de un parche, pero no lo instala ni permite reproducirlo, y todavía no lo genera el exportador. Exportar habilidad/nombre o estadística no instala mecánicas. Se distinguen pruebas sintéticas, el recorrido entre lenguajes y la comprobación jugable con datos reales; ninguna se presenta como otra.
 
 ## Validación de esta implementación
 
 Randomizer: compilación Release del proyecto de pruebas y referencias, no incremental, sin errores ni advertencias; 37 comprobaciones dirigidas DGD y 4546 de la regresión general, con datos sintéticos y UI WPF. Incluyen guardado real del editor, deshacer, lectura desde disco con caché anterior, formas, cambios de movimientos/evoluciones, destinos, fuentes intactas y disponibilidad solo USUM.
 
 Interoperabilidad: un JSON generado por el exportador C# sobre GARC sintéticos se importó en el servicio Python de Tracker: PS base 123, Ataque 141, tipo Fuego, movimiento de potencia 137 y prioridad -2, evolución a especie 3/nivel 27. Se comprobó persistencia al reabrir, aislamiento de otra partida y retirada con vuelta al CSV. El ejemplo reducido publicado también es sintético. No se usaron ROMs reales, partidas ni memoria del emulador para estas pruebas.
+
+Contrato `playerLevelCaps`: `tools/contracts/check_definitive_game_data.py` (dependencias fijadas en `tools/contracts/requirements.txt`) valida los dos ejemplos con el esquema (Draft 2020-12), los estados válidos e inválidos, las reglas del consumidor que el esquema no expresa, el límite de 64 etapas sin truncar, el tamaño máximo y la ausencia de rutas. Con `--tracker <carpeta>` importa los ejemplos con el validador y el servicio DGD de esa copia de Progressive Tracker. El CI lo ejecuta contra Tracker 1.4.0 fijado por commit y comprueba que acepta el ejemplo ampliado, conserva el bloque sin cambios, mantiene vista previa, estado, consultas, fingerprint raíz y retirada idénticos a los del ejemplo original. En C#, `--definitive-game-data-only` comprueba que el exportador actual no emite el bloque ni cambia `source.scope`, que las etiquetas del ejemplo salen exactamente de `LevelCapTable.KnownFlags`, que su tabla pasa la validación del runtime y que `tableSha256` coincide con `LevelCapTable.ToBytes()`.
