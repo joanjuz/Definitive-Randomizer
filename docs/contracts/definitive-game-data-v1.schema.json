@@ -38,9 +38,64 @@
       "type": "object", "required": ["speciesId", "formId", "routes"], "properties": {"speciesId": {"$ref": "#/$defs/speciesId"}, "formId": {"$ref": "#/$defs/formId"}, "routes": {
         "type": "array", "maxItems": 8, "items": {"type": "object", "required": ["method", "argument", "targetSpeciesId", "targetFormId", "level"], "properties": {"method": {"type": "integer", "minimum": 1, "maximum": 42}, "argument": {"type": "integer", "minimum": 0, "maximum": 65535}, "targetSpeciesId": {"$ref": "#/$defs/speciesId"}, "targetFormId": {"type": "integer", "minimum": -1, "maximum": 127}, "level": {"type": "integer", "minimum": 0, "maximum": 100}}}
       }}
-    }}
+    }},
+    "playerLevelCaps": {"$ref": "#/$defs/playerLevelCaps"}
   },
   "$defs": {
+    "playerLevelCaps": {
+      "description": "Optional. Player Level Caps patch state read from the saved Battle.cro and code.bin. Only block version 1 is defined; a consumer ignores other versions.",
+      "type": "object", "required": ["version"], "properties": {"version": {"type": "integer", "minimum": 1}},
+      "if": {"properties": {"version": {"const": 1}}}, "then": {"$ref": "#/$defs/playerLevelCapsV1"}
+    },
+    "playerLevelCapsV1": {
+      "type": "object", "additionalProperties": false, "required": ["version", "status", "hooks"],
+      "properties": {
+        "version": {"const": 1},
+        "status": {"enum": ["installed", "not-detected", "unsupported", "inconsistent", "legacy-format"]},
+        "hooks": {"type": "object", "additionalProperties": false, "required": ["battleCro", "codeBin"], "properties": {"battleCro": {"$ref": "#/$defs/levelCapHook"}, "codeBin": {"$ref": "#/$defs/levelCapHook"}}},
+        "detail": {"type": "string", "minLength": 1, "maxLength": 500},
+        "evaluation": {"const": "ordered-first-incomplete"},
+        "enforcement": {"const": ["exp-gain", "rare-candy"]},
+        "ceiling": {"const": 100},
+        "source": {"$ref": "#/$defs/levelCapSource"},
+        "checkpoints": {"type": "array", "minItems": 1, "maxItems": 128, "items": {"$ref": "#/$defs/levelCapCheckpoint"}}
+      },
+      "allOf": [
+        {"if": {"properties": {"status": {"const": "installed"}}},
+         "then": {"required": ["evaluation", "enforcement", "ceiling", "source", "checkpoints"], "properties": {"source": {"required": ["tableSha256"]}, "hooks": {"properties": {"battleCro": {"const": "applied"}, "codeBin": {"const": "applied"}}}}},
+         "else": {"properties": {"evaluation": false, "enforcement": false, "ceiling": false, "checkpoints": false, "source": {"properties": {"tableSha256": false}}}}},
+        {"if": {"properties": {"status": {"enum": ["installed", "not-detected", "inconsistent", "legacy-format"]}}}, "then": {"required": ["source"]}},
+        {"if": {"properties": {"status": {"const": "not-detected"}}}, "then": {"properties": {"hooks": {"properties": {"battleCro": {"const": "stock"}, "codeBin": {"const": "stock"}}}}}},
+        {"if": {"properties": {"status": {"const": "inconsistent"}}}, "then": {"properties": {"hooks": {
+          "properties": {"battleCro": {"enum": ["stock", "applied"]}, "codeBin": {"enum": ["stock", "applied"]}},
+          "not": {"properties": {"battleCro": {"const": "stock"}, "codeBin": {"const": "stock"}}}}}}},
+        {"if": {"properties": {"status": {"const": "legacy-format"}}}, "then": {"properties": {"hooks": {
+          "properties": {"battleCro": {"enum": ["stock", "applied", "applied-legacy"]}, "codeBin": {"enum": ["stock", "applied", "applied-legacy"]}},
+          "anyOf": [{"properties": {"battleCro": {"const": "applied-legacy"}}}, {"properties": {"codeBin": {"const": "applied-legacy"}}}]}}}},
+        {"if": {"properties": {"status": {"const": "unsupported"}}}, "then": {"properties": {"hooks": {
+          "anyOf": [{"properties": {"battleCro": {"enum": ["unrecognized", "missing"]}}}, {"properties": {"codeBin": {"enum": ["unrecognized", "missing"]}}}]}}}}
+      ]
+    },
+    "levelCapHook": {"enum": ["stock", "applied", "applied-legacy", "unrecognized", "missing"]},
+    "levelCapSource": {
+      "type": "object", "additionalProperties": false, "required": ["fingerprintAlgorithm", "scope", "fingerprint"],
+      "properties": {"fingerprintAlgorithm": {"const": "SHA-256"}, "scope": {"const": "battle.cro,code.bin"}, "fingerprint": {"$ref": "#/$defs/sha256"}, "tableSha256": {"$ref": "#/$defs/sha256"}}
+    },
+    "levelCapCheckpoint": {
+      "type": "object", "additionalProperties": false, "required": ["order", "cap", "condition"],
+      "properties": {
+        "order": {"type": "integer", "minimum": 1, "maximum": 128},
+        "cap": {"type": "integer", "minimum": 1, "maximum": 100},
+        "condition": {"oneOf": [
+          {"type": "object", "additionalProperties": false, "required": ["kind", "byte", "mask"], "properties": {"kind": {"const": "event-flag-set"}, "byte": {"type": "integer", "minimum": 0, "maximum": 619}, "mask": {"type": "integer", "minimum": 1, "maximum": 255}}},
+          {"type": "object", "additionalProperties": false, "required": ["kind", "index", "minimum"], "properties": {"kind": {"const": "event-work-at-least"}, "index": {"type": "integer", "minimum": 0, "maximum": 999}, "minimum": {"type": "integer", "minimum": 1, "maximum": 65535}}}
+        ]},
+        "label": {"type": "string", "minLength": 1, "maxLength": 60, "pattern": "^[^\\s\\u0000-\\u001F\\u007F](?:[^\\u0000-\\u001F\\u007F]*[^\\s\\u0000-\\u001F\\u007F])?$"},
+        "labelSource": {"const": "randomizer-catalog"}
+      },
+      "dependentRequired": {"label": ["labelSource"], "labelSource": ["label"]}
+    },
+    "sha256": {"type": "string", "pattern": "^[0-9A-F]{64}$"},
     "label": {"type": "string", "minLength": 1, "maxLength": 200},
     "speciesId": {"type": "integer", "minimum": 1, "maximum": 807},
     "formId": {"type": "integer", "minimum": 0, "maximum": 31},

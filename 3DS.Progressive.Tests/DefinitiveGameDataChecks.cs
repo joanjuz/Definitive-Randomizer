@@ -5,6 +5,7 @@ using System.Windows;
 using System.Windows.Controls;
 using pk3DS.Core;
 using pk3DS.Core.CTR;
+using pk3DS.Core.Modding.Research;
 using pk3DS.Core.Structures.PersonalInfo;
 using ThreeDS.Progressive.Models;
 using ThreeDS.Progressive.Services;
@@ -113,6 +114,49 @@ internal static class DefinitiveGameDataChecks
         }
         using var other = new Fixture(GameVersion.SM);
         reject(() => DefinitiveGameData.Build(other.Session), "Dgd_SunMoonUnsupported");
+        RunPlayerLevelCapsContract(check);
+    }
+    /// <summary>The optional playerLevelCaps block of the contract agrees with the C# catalog and runtime table format.
+    /// The producer does not emit the block yet; these checks pin the contract it will have to follow.</summary>
+    private static void RunPlayerLevelCapsContract(Action<bool,string> check)
+    {
+        using (var f = Create())
+        {
+            var exported = DefinitiveGameData.Build(f.Session);
+            check(!exported.ContainsKey("playerLevelCaps") && exported["source"]!["scope"]!.GetValue<string>() == "personal,moves,evolutions,gametext",
+                "DgdCaps_CurrentExportUnchanged");
+        }
+        var catalog = LevelCapTable.KnownFlags;
+        check(catalog.All(k => k.Label.Length is >= 1 and <= 60 && k.Label == k.Label.Trim() && !k.Label.Any(char.IsControl)),
+            "DgdCaps_CatalogLabelsFitTrackerStageNames");
+        check(catalog.Select(k => (k.Kind, k.Offset, k.Bit)).Distinct().Count() == catalog.Length &&
+            catalog.Select(k => k.Label).Distinct().Count() == catalog.Length, "DgdCaps_CatalogConditionsAndLabelsUnique");
+        check(LevelCapTable.MaxEntries == 128 && LevelCapTable.HardCeiling == 100 && LevelCapTable.EntrySize == 6 &&
+            LevelCapTable.EventFlagByteCount == 620 && LevelCapTable.EventWorkCount == 1000, "DgdCaps_SchemaLimitsMatchRuntimeTable");
+        var dir = new DirectoryInfo(AppContext.BaseDirectory);
+        while (dir is not null && !Directory.Exists(Path.Combine(dir.FullName, "docs", "contracts", "examples"))) dir = dir.Parent;
+        string example = Path.Combine(dir?.FullName ?? "", "docs", "contracts", "examples", "definitive-game-data-v1.player-level-caps.synthetic.json");
+        check(File.Exists(example), "DgdCaps_ExampleFound");
+        if (!File.Exists(example)) return;
+        var block = JsonNode.Parse(File.ReadAllText(example))!["playerLevelCaps"]!;
+        var entries = new List<LevelCapEntry>();
+        bool labelsFromCatalog = true;
+        foreach (var point in block["checkpoints"]!.AsArray())
+        {
+            var condition = point!["condition"]!;
+            bool flag = condition["kind"]!.GetValue<string>() == "event-flag-set";
+            var kind = flag ? LevelCapConditionKind.EventFlagSet : LevelCapConditionKind.EventWorkAtLeast;
+            ushort a0 = condition[flag ? "byte" : "index"]!.GetValue<ushort>(), a1 = condition[flag ? "mask" : "minimum"]!.GetValue<ushort>();
+            var known = catalog.SingleOrDefault(k => k.Kind == kind && k.Offset == a0 && k.Bit == a1);
+            string? label = point["label"]?.GetValue<string>();
+            labelsFromCatalog &= label is null ? known is null : known?.Label == label && point["labelSource"]!.GetValue<string>() == "randomizer-catalog";
+            entries.Add(new LevelCapEntry(label ?? "", kind, a0, a1, point["cap"]!.GetValue<byte>()));
+        }
+        check(labelsFromCatalog, "DgdCaps_ExampleLabelsComeFromCatalogExactly");
+        var table = new LevelCapTable { Entries = entries };
+        check(table.Validate().Count == 0, "DgdCaps_ExampleTablePassesRuntimeValidation");
+        check(Convert.ToHexString(SHA256.HashData(table.ToBytes())) == block["source"]!["tableSha256"]!.GetValue<string>(),
+            "DgdCaps_TableSha256MatchesRuntimeBytes");
     }
     internal static void RunUi(Action<bool,string> check)
     {

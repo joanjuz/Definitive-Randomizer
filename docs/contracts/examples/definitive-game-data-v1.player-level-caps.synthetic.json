@@ -1,0 +1,43 @@
+{
+  "format": "PokeJuz.DefinitiveGameData",
+  "schemaVersion": 1,
+  "producer": {"id": "DefinitiveRandomizer", "version": "synthetic-example"},
+  "game": {"id": "ultra-sun", "generation": 7, "titleId": "00040000001B5000", "revision": null, "revisionStatus": "unknown"},
+  "source": {"kind": "saved-project", "fingerprintAlgorithm": "SHA-256", "fingerprint": "0000000000000000000000000000000000000000000000000000000000000000", "scope": "personal,moves,evolutions,gametext"},
+  "coverage": "exported-records",
+  "types": [
+    {"id": 0, "name": "Normal"}, {"id": 1, "name": "Lucha"}, {"id": 2, "name": "Volador"},
+    {"id": 3, "name": "Veneno"}, {"id": 4, "name": "Tierra"}, {"id": 5, "name": "Roca"},
+    {"id": 6, "name": "Bicho"}, {"id": 7, "name": "Fantasma"}, {"id": 8, "name": "Acero"},
+    {"id": 9, "name": "Fuego"}, {"id": 10, "name": "Agua"}, {"id": 11, "name": "Planta"},
+    {"id": 12, "name": "Eléctrico"}, {"id": 13, "name": "Psíquico"}, {"id": 14, "name": "Hielo"},
+    {"id": 15, "name": "Dragón"}, {"id": 16, "name": "Siniestro"}, {"id": 17, "name": "Hada"}
+  ],
+  "abilities": [{"id": 0, "name": "Sin habilidad"}, {"id": 1, "name": "Habilidad sintética"}],
+  "species": [
+    {"speciesId": 1, "formId": 0, "personalIndex": 1, "name": "Especie sintética A", "types": [9, 9], "abilities": [1, 1, 0], "baseStats": {"hp": 123, "attack": 141, "defense": 70, "specialAttack": 65, "specialDefense": 70, "speed": 75}},
+    {"speciesId": 2, "formId": 0, "personalIndex": 2, "name": "Especie sintética B", "types": [10, 10], "abilities": [1, 1, 0], "baseStats": {"hp": 80, "attack": 80, "defense": 80, "specialAttack": 80, "specialDefense": 80, "speed": 80}}
+  ],
+  "moves": [{"id": 1, "name": "Movimiento sintético", "typeId": 9, "category": 1, "power": 137, "accuracy": 100, "pp": 15, "priority": -2}],
+  "evolutions": [
+    {"speciesId": 1, "formId": 0, "routes": [{"method": 4, "argument": 0, "targetSpeciesId": 2, "targetFormId": 0, "level": 27}]},
+    {"speciesId": 2, "formId": 0, "routes": []}
+  ],
+  "playerLevelCaps": {
+    "version": 1,
+    "status": "installed",
+    "hooks": {"battleCro": "applied", "codeBin": "applied"},
+    "evaluation": "ordered-first-incomplete",
+    "enforcement": ["exp-gain", "rare-candy"],
+    "ceiling": 100,
+    "source": {"fingerprintAlgorithm": "SHA-256", "scope": "battle.cro,code.bin", "fingerprint": "0000000000000000000000000000000000000000000000000000000000000000", "tableSha256": "DB4F7E23BFEF829A084F64E015B6C9C963E7CF30A665E94B5BCA57B82B4E3F9A"},
+    "checkpoints": [
+      {"order": 1, "cap": 15, "condition": {"kind": "event-flag-set", "byte": 16, "mask": 8}, "label": "Clear Normal Trial - Ilima (1dom)", "labelSource": "randomizer-catalog"},
+      {"order": 2, "cap": 20, "condition": {"kind": "event-flag-set", "byte": 17, "mask": 8}, "label": "Defeat Kahuna Hala", "labelSource": "randomizer-catalog"},
+      {"order": 3, "cap": 45, "condition": {"kind": "event-flag-set", "byte": 408, "mask": 128}, "label": "Defeat Guzma", "labelSource": "randomizer-catalog"},
+      {"order": 4, "cap": 50, "condition": {"kind": "event-flag-set", "byte": 336, "mask": 4}},
+      {"order": 5, "cap": 60, "condition": {"kind": "event-work-at-least", "index": 68, "minimum": 1796}, "label": "Defeat Ultra Necrozma", "labelSource": "randomizer-catalog"},
+      {"order": 6, "cap": 70, "condition": {"kind": "event-work-at-least", "index": 68, "minimum": 2000}, "label": "Defeat Champion Hau (Tilo)", "labelSource": "randomizer-catalog"}
+    ]
+  }
+}
