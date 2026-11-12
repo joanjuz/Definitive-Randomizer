@@ -3,13 +3,17 @@
 Usage:
     python tools/contracts/check_definitive_game_data.py [--tracker <NuzlockeTracker checkout>]
                                                          [--producer <folder of exported documents>]
+                                                         [--consumer <NuzlockeTracker checkout with proposals>]
 
 Validates the published examples against the JSON Schema, checks the playerLevelCaps
 status rules with valid and invalid variants, applies the semantic rules the schema cannot
 express, and with --tracker imports the examples through that Tracker's own DGD validator
 and import service. With --producer it applies the same rules to documents written by the real
-exporter (one per status, named after it). Reads only those files; it writes nothing outside a
-temporary folder.
+exporter (one per status, named after it). With --consumer and --producer it takes those documents
+through the import service and the level-caps proposal flow of a Tracker that understands the block
+(preview, accept, reject, keep, provenance, reopening, isolation and limits), and with --tracker it
+also checks that the published Tracker opens the run folders that version writes. Reads only those
+files; it writes nothing outside a temporary folder.
 """
 from __future__ import annotations
 
@@ -307,11 +311,241 @@ def check_producer(folder: Path, validator, tracker: Path | None) -> None:
     check(len(roots) == 1, 'Producer_RootDocumentIndependentOfPatchState')
 
 
+# Runs inside a separate interpreter with the published Tracker on sys.path: the two Tracker
+# versions never share a process. Prints one JSON line with what that version sees in a run folder.
+LEGACY_PROBE = r'''
+import json, sys
+sys.path.insert(0, sys.argv[1])
+from tracker import __version__
+from tracker.profiles import PROFILES
+from tracker.progress import RunProgress, level_caps_view
+from tracker.service import TrackerService
+service = TrackerService(sys.argv[2])
+game = sys.argv[3]
+service.profile = PROFILES[game]
+service.progress = RunProgress(service.output.with_name(service.output.stem + service.progress_suffix(game) + '-progress.json'))
+service.update(game=game, stale=True)
+service._refresh_game_data()
+if len(sys.argv) > 4:
+    preview = service.preview_game_data(open(sys.argv[4], encoding='utf-8').read(), game)
+    service.apply_game_data(preview['previewToken'], game, True)
+state = service.snapshot()
+caps = state['level_caps']
+print(json.dumps({'version': __version__, 'status': caps['status'], 'current': caps['current'], 'show': caps['show'],
+                  'stages': [[s['name'], s['cap']] for s in caps['stages']],
+                  'gameData': {k: state['game_data'][k] for k in ('loaded', 'active', 'fingerprint', 'error')},
+                  'species': service.game_data.species(1, 0, game),
+                  'warning': state.get('persist_warning')}))
+'''
+
+
+def check_consumer(tracker: Path, producer: Path, legacy: Path | None) -> None:
+    """Real exporter documents through the import service and the proposal flow of a Tracker checkout.
+
+    ``tracker`` must be a version that understands playerLevelCaps. ``legacy`` (optional) is the
+    published Tracker 1.4.0: it must open the run folders the new version writes, and the new
+    version must open the ones it wrote.
+    """
+    import subprocess
+    sys.path.insert(0, str(tracker))
+    from companion.snapshot import snapshot as soul_link_snapshot  # noqa: E402
+    from tracker import __version__ as tracker_version  # noqa: E402
+    from tracker.profiles import PROFILES  # noqa: E402
+    from tracker.service import TrackerService  # noqa: E402
+    print(f'Consumer under test: {tracker_version}')
+    documents = {path.stem: path.read_text(encoding='utf-8') for path in sorted(producer.glob('*.json'))}
+    installed = json.loads(documents['installed'])
+    game = {'ultra-sun': 'Ultra Sun 1.0', 'ultra-moon': 'Ultra Moon 1.0'}[installed['game']['id']]
+    other_game = 'Ultra Moon 1.0' if game == 'Ultra Sun 1.0' else 'Ultra Sun 1.0'
+    block = installed['playerLevelCaps']
+
+    def open_run(folder: Path, selected: str = game):
+        service = TrackerService(folder / 'state.json')
+        # What connect() does when the selected game changes, without an emulator.
+        service.profile = PROFILES[selected]
+        service.open_progress(service.progress_suffix(selected))
+        service.update(game=selected, stale=True)
+        service._refresh_game_data()
+        return service
+
+    def load(service, raw: str) -> None:
+        preview = service.preview_game_data(raw, game)
+        service.apply_game_data(preview['previewToken'], game, True)
+
+    def command(service, action='level_caps_accept_proposal', **extra):
+        state = service.snapshot()
+        caps = state['game_data']['levelCaps'] or {}
+        base = {'action': action, 'game': state['game'], 'dataFingerprint': state['game_data']['fingerprint'],
+                'capsFingerprint': caps.get('fingerprint'), 'tableSha256': caps.get('tableSha256')}
+        if action == 'level_caps_accept_proposal':
+            base.update(finalStage=False, replace=False, listRevision=state['level_caps']['revision'])
+        return {**base, **extra}
+
+    def refused(service, cmd) -> bool:
+        try:
+            service.validate_level_caps(cmd)
+        except ValueError:
+            return True
+        return False
+
+    def legacy_view(folder: Path, selected: str = game, document: Path | None = None):
+        result = subprocess.run([sys.executable, '-I', '-c', LEGACY_PROBE, str(legacy), str(folder / 'state.json'), selected,
+                                 *([str(document)] if document else [])], capture_output=True, text=True, encoding='utf-8', timeout=120)
+        if result.returncode != 0:
+            print(result.stderr[-2000:])
+            return None
+        return json.loads(result.stdout.strip().splitlines()[-1])
+
+    with tempfile.TemporaryDirectory() as temp:
+        root = Path(temp)
+        run_a = open_run(root / 'run-a')
+        run_a.handle_command({'action': 'level_caps_show', 'show': False})
+        before = run_a.snapshot()
+        load(run_a, documents['installed'])
+        state = run_a.snapshot()
+        proposal = state['game_data']['levelCaps']
+        # Preview: the real exporter document becomes a proposal and nothing else changes.
+        check(proposal['state'] == 'proposal' and proposal['count'] == len(block['checkpoints'])
+              and proposal['tableSha256'] == block['source']['tableSha256'] and proposal['fingerprint'] == block['source']['fingerprint']
+              and state['game_data']['fingerprint'] == installed['source']['fingerprint'], 'Consumer_ProposalMatchesExportedBlock')
+        check([(s['name'], s['cap']) for s in proposal['stages']] == [(p['label'], p['cap']) for p in block['checkpoints']],
+              'Consumer_StageNamesAreCatalogLabels')
+        check(state['level_caps'] == before['level_caps'] and state['level_caps_source']['accepted'] is None
+              and state['progress'] == before['progress'], 'Consumer_ImportAloneChangesNoCaps')
+        # Soul Link shares a live reading only: the same state, marked as a current one.
+        def shared(snapshot):
+            return soul_link_snapshot({**snapshot, 'stale': False, 'connection': {'status': 'connected'}})
+        shared_before = shared(state)
+
+        # Keep and reject: the list is untouched; only the decision is remembered.
+        run_a.handle_command(command(run_a, 'level_caps_dismiss_proposal', dismissed=True))
+        state = run_a.snapshot()
+        check(state['level_caps'] == before['level_caps'] and state['level_caps_source']['dismissed']['tableSha256'] == proposal['tableSha256'],
+              'Consumer_RejectKeepsCurrentCaps')
+        run_a.handle_command(command(run_a, 'level_caps_dismiss_proposal', dismissed=False))
+        check(run_a.snapshot()['level_caps_source'] == before['level_caps_source'], 'Consumer_RejectionCanBeUndone')
+
+        # Accept: stages copied in order, no current stage, display option kept, provenance apart.
+        run_a.handle_command(command(run_a))
+        state = run_a.snapshot()
+        caps, source = state['level_caps'], state['level_caps_source']
+        check('last_command_error' not in state and [(s['name'], s['cap']) for s in caps['stages']] == [(p['label'], p['cap']) for p in block['checkpoints']]
+              and caps['current'] is None and caps['current_cap'] is None and caps['show'] is False, 'Consumer_AcceptCopiesStagesWithoutCurrent')
+        accepted = source['accepted'] or {}
+        check(accepted.get('tableSha256') == block['source']['tableSha256'] and accepted.get('capsFingerprint') == block['source']['fingerprint']
+              and accepted.get('dataFingerprint') == installed['source']['fingerprint'] and accepted.get('producer') == installed['producer']
+              and accepted.get('game') == game and accepted.get('checkpoints') == len(block['checkpoints']) and accepted.get('finalStage') is False
+              and source['matchesCurrent'], 'Consumer_ProvenanceRecordsFingerprints')
+        stored = json.loads((root / 'run-a' / f'state{run_a.progress_suffix(game)}-progress.json').read_text(encoding='utf-8'))['level_caps']
+        check(set(stored) == {'version', 'stages', 'current', 'show', 'updated_at', 'removed_current'} and stored['version'] == 1
+              and all(set(s) == {'id', 'name', 'cap'} for s in stored['stages']), 'Consumer_LevelCapsBlockKeepsVersion1Shape')
+        source_file = root / 'run-a' / f'state{run_a.progress_suffix(game)}-level-caps-source.json'
+        check(source_file.is_file() and not any(privacy_findings(text) for text in strings(json.loads(source_file.read_text(encoding='utf-8')))),
+              'Consumer_ProvenanceInSeparateFileWithoutPaths')
+        after = dict(state['progress'])
+        after.pop('level_caps', None)
+        plain = dict(before['progress'])
+        plain.pop('level_caps', None)
+        check(after == plain and shared(state) == shared_before and 'level_caps' not in json.dumps(shared(state)), 'Consumer_DeathsEncountersAndSoulLinkPayloadUnchanged')
+        current_species = run_a.game_data.species(1, 0, game)
+        check(current_species is not None and current_species == next(r for r in installed['species'] if r['speciesId'] == 1 and r['formId'] == 0),
+              'Consumer_GameDataLookupsUnchanged')
+
+        # Close and reopen.
+        run_a.flush_state(force=True)
+        reopened = open_run(root / 'run-a')
+        again = reopened.snapshot()
+        check(again['level_caps']['stages'] == caps['stages'] and again['level_caps']['current'] is None
+              and again['level_caps_source']['accepted'] == accepted and again['level_caps_source']['matchesCurrent']
+              and again['game_data']['levelCaps']['state'] == 'proposal', 'Consumer_ReopenKeepsStagesProvenanceAndProposal')
+
+        # Isolation between runs and between games of one run.
+        run_b = open_run(root / 'run-b')
+        isolated = run_b.snapshot()
+        check(isolated['level_caps']['total'] == 0 and isolated['level_caps_source']['accepted'] is None
+              and isolated['game_data']['levelCaps'] is None and refused(run_b, {**command(reopened, replace=True), 'listRevision': isolated['level_caps']['revision']}),
+              'Consumer_OtherRunIsIsolated')
+        other = open_run(root / 'run-a', other_game).snapshot()
+        check(other['level_caps']['total'] == 0 and other['level_caps_source']['accepted'] is None and other['game_data']['levelCaps'] is None
+              and other['game_data']['active'] is False, 'Consumer_OtherGameOfTheRunIsIsolated')
+
+        # Replacement needs confirmation; the optional final stage is only added on request.
+        check(refused(reopened, command(reopened)) and refused(reopened, command(reopened, replace=True, listRevision='0' * 16))
+              and refused(reopened, command(reopened, replace=True, tableSha256='0' * 64)), 'Consumer_StaleOrUnconfirmedAcceptRefused')
+        reopened.handle_command(command(reopened, replace=True, finalStage=True))
+        final = reopened.snapshot()['level_caps']
+        check(final['total'] == len(block['checkpoints']) + 1 and final['stages'][-1]['cap'] == 100 and final['current'] is None,
+              'Consumer_FinalStageOnlyOnRequest')
+
+        # Every status that is not installed, and a customised table with an unlabelled condition.
+        for name, raw in documents.items():
+            status = json.loads(raw)['playerLevelCaps']['status']
+            run = open_run(root / ('status-' + name))
+            load(run, raw)
+            summary = run.snapshot()['game_data']['levelCaps']
+            if status == 'installed':
+                custom = json.loads(raw)['playerLevelCaps']['checkpoints']
+                check(summary['state'] == 'proposal' and [s['cap'] for s in summary['stages']] == [p['cap'] for p in custom]
+                      and all(('label' in p) == (c['label'] is not None) for p, c in zip(custom, summary['checkpoints'])),
+                      f'Consumer_{name}_IsProposal')
+            else:
+                check(summary['state'] == 'unavailable' and summary['status'] == status and not summary['stages']
+                      and refused(run, command(run, replace=True)) and run.snapshot()['level_caps']['total'] == 0,
+                      f'Consumer_{name}_NoProposalAndAcceptRefused')
+
+        # More than 64 checkpoints: a valid table for the Randomizer, refused whole by the Tracker.
+        many = copy.deepcopy(installed)
+        many['playerLevelCaps']['checkpoints'] = [{'order': i + 1, 'cap': min(100, 10 + i), 'condition': {'kind': 'event-flag-set', 'byte': i, 'mask': 1}}
+                                                  for i in range(TRACKER_MAX_STAGES + 1)]
+        many['playerLevelCaps']['source']['tableSha256'] = table_sha256(many['playerLevelCaps']['checkpoints'])
+        run_many = open_run(root / 'run-many')
+        load(run_many, json.dumps(many, ensure_ascii=False))
+        rejected = run_many.snapshot()['game_data']['levelCaps']
+        check(rejected['state'] == 'rejected' and not rejected['stages'] and rejected['count'] == TRACKER_MAX_STAGES + 1
+              and refused(run_many, command(run_many)) and run_many.snapshot()['level_caps']['total'] == 0,
+              'Consumer_MoreThan64RefusedNotTruncated')
+
+        # Withdrawing the imported data keeps what was accepted.
+        reopened.remove_game_data()
+        kept = reopened.snapshot()
+        check(kept['game_data']['loaded'] is False and kept['level_caps']['stages'] == final['stages']
+              and kept['level_caps_source']['accepted']['checkpoints'] == len(block['checkpoints']), 'Consumer_WithdrawKeepsAcceptedStages')
+        reopened.flush_state(force=True)
+
+        if legacy:
+            # The published Tracker opens the run folder the new version wrote (stages, display option, imported data).
+            load(reopened, documents['installed'])
+            reopened.flush_state(force=True)
+            old = legacy_view(root / 'run-a')
+            check(old is not None and old['status'] == 'ok' and old['stages'] == [[s['name'], s['cap']] for s in final['stages']]
+                  and old['current'] is None and old['show'] is False and old['gameData']['loaded'] and old['gameData']['active']
+                  and old['gameData']['error'] is None and old['gameData']['fingerprint'] == installed['source']['fingerprint']
+                  and old['species'] == current_species, f"Legacy_{'' if old is None else old['version']}_OpensRunWrittenByNewTracker")
+            # And a folder written by the published Tracker (block stored verbatim) opens as a proposal in the new one.
+            document = root / 'installed.json'
+            document.write_text(documents['installed'], encoding='utf-8')
+            written = legacy_view(root / 'run-legacy', document=document)
+            upgraded = open_run(root / 'run-legacy').snapshot()
+            check(written is not None and written['gameData']['loaded'] and upgraded['game_data']['levelCaps']['state'] == 'proposal'
+                  and upgraded['game_data']['levelCaps']['tableSha256'] == block['source']['tableSha256']
+                  and upgraded['level_caps']['total'] == 0, 'Legacy_RunWrittenByPublishedTrackerOpensAsProposal')
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument('--tracker', type=Path, help='checkout of NuzlockeTracker whose DGD importer is exercised')
     parser.add_argument('--producer', type=Path, help='folder of documents written by the exporter, one per status')
+    parser.add_argument('--consumer', type=Path, help='checkout of a NuzlockeTracker that offers playerLevelCaps as a proposal')
+    parser.add_argument('--consumer-only', action='store_true', help=argparse.SUPPRESS)
     args = parser.parse_args()
+    if args.consumer and not args.producer:
+        parser.error('--consumer needs --producer')
+    if args.consumer_only:
+        check_consumer(args.consumer.resolve(), args.producer.resolve(), args.tracker.resolve() if args.tracker else None)
+        print(f'Completed {passed} consumer checks; {len(failures)} failed.')
+        for name in failures:
+            print('  failed: ' + name)
+        return 1 if failures else 0
 
     schema = load(SCHEMA)
     Draft202012Validator.check_schema(schema)
@@ -374,6 +608,13 @@ def main() -> int:
         check_tracker(args.tracker.resolve(), original, extended)
     if args.producer:
         check_producer(args.producer.resolve(), validator, args.tracker.resolve() if args.tracker else None)
+    if args.consumer:
+        # Two Tracker versions cannot share an interpreter (same package name): the consumer runs in its own.
+        import subprocess
+        child = subprocess.run([sys.executable, '-I', str(Path(__file__).resolve()), '--consumer-only',
+                                '--producer', str(args.producer.resolve()), '--consumer', str(args.consumer.resolve()),
+                                *(['--tracker', str(args.tracker.resolve())] if args.tracker else [])])
+        check(child.returncode == 0, 'Consumer_ChecksPassedInTheirOwnInterpreter')
 
     print(f'Completed {passed} Definitive Game Data contract checks; {len(failures)} failed.')
     for name in failures:

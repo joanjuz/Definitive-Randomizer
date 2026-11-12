@@ -109,7 +109,14 @@ jobs:
           $capsFixtures = Join-Path $env:RUNNER_TEMP 'dgd-caps-fixtures'
           dotnet ./3DS.Progressive.Tests/bin/Release/net10.0-windows/3DS.Progressive.Tests.dll --definitive-game-data-caps-fixtures $capsFixtures
           if ($LASTEXITCODE -ne 0) { throw 'playerLevelCaps fixtures failed' }
-          & $contractPython -I tools/contracts/check_definitive_game_data.py --tracker $tracker --producer $capsFixtures 2>&1 | Tee-Object -FilePath validation-logs/dgd-contract.log
+          # Progressive Tracker with the level-caps proposal (pinned commit): the exported documents go through its
+          # import service and proposal flow, and Tracker 1.4.0 must open the run folders that version writes.
+          $consumer = Join-Path $env:RUNNER_TEMP 'tracker-level-caps-proposal'
+          git clone --quiet https://github.com/joanjuz/NuzlockeTracker.git $consumer
+          if ($LASTEXITCODE -ne 0) { throw 'Tracker checkout failed' }
+          git -C $consumer checkout --quiet --detach f42b5d676c5389d8f040293851d36a83d063b845
+          if ($LASTEXITCODE -ne 0) { throw 'Tracker consumer commit not found' }
+          & $contractPython -I tools/contracts/check_definitive_game_data.py --tracker $tracker --producer $capsFixtures --consumer $consumer 2>&1 | Tee-Object -FilePath validation-logs/dgd-contract.log
           if ($LASTEXITCODE -ne 0) { throw 'Definitive Game Data contract checks failed' }
       - name: Regresiones con datos sinteticos XY, ORAS, SM y USUM
         env:
