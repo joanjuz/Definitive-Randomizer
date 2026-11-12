@@ -40,7 +40,7 @@ En la misma tarjeta, **Comparar con otro jugador…** pide dos archivos de «Exp
 - cuántas formas de Pokémon tienen habilidades distintas entre los dos juegos;
 - las megaevoluciones cuyas tres habilidades difieren, con las de cada juego.
 
-No necesita ninguna ROM ni el proyecto del otro jugador: solo los dos archivos JSON. Sirve para las hipótesis 2 y 5 de los pasos de abajo; no demuestra la causa.
+No necesita ninguna ROM ni el proyecto del otro jugador: solo los dos archivos JSON. Sirve para la hipótesis 2 (pasos 4 y 5 de abajo); no demuestra la causa.
 
 Archivos: `3DS.Progressive.App/Services/MegaAbilityDiagnostics.cs`, `MegaAbilityComparison.cs`, botones en `SystemsView.cs`, suite `--mega-diagnostic-only` (43 comprobaciones con datos sintéticos; la comparación usa exportaciones del exportador real sobre proyectos sintéticos).
 
