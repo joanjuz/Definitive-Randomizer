@@ -11,6 +11,17 @@ public enum LevelCapHookState
     Unsupported,
 }
 
+/// <summary>
+/// Read-only classification of one installed copy of the routine (Battle.cro or code.bin).
+/// </summary>
+public enum LevelCapCopyState
+{
+    Stock,
+    Applied,
+    AppliedLegacy,
+    Unrecognized,
+}
+
 public sealed record LevelCapSite(
     string Binary,
     bool Success,
@@ -282,12 +293,102 @@ public static class LevelCapPatch
     {
         table = null;
 
-        if (GetBattleState(
+        return GetBattleState(
+                   cro,
+                   out uint blockOffset) == LevelCapHookState.Applied &&
+               TryReadInstalledTable(
+                   cro,
+                   blockOffset,
+                   out table);
+    }
+
+    /// <summary>
+    /// Read-only: the table installed next to the Rare Candy routine of code.bin.
+    /// </summary>
+    public static bool TryReadInstalledCandyTable(
+        byte[] code,
+        out LevelCapTable table)
+    {
+        table = null;
+
+        return GetCandyState(
+                   code,
+                   out uint blockOffset) == LevelCapHookState.Applied &&
+               TryReadInstalledTable(
+                   code,
+                   blockOffset,
+                   out table);
+    }
+
+    /// <summary>
+    /// Read-only classification of the Battle.cro copy. <paramref name="table"/> is set only for
+    /// <see cref="LevelCapCopyState.Applied"/> (current routine and a table that passes validation).
+    /// </summary>
+    public static LevelCapCopyState InspectBattle(
+        byte[] cro,
+        out LevelCapTable table) =>
+        Inspect(
+            cro,
+            GetBattleState(
                 cro,
-                out uint blockOffset) != LevelCapHookState.Applied)
+                out uint blockOffset),
+            blockOffset,
+            out table);
+
+    /// <summary>
+    /// Read-only classification of the code.bin (Rare Candy) copy.
+    /// </summary>
+    public static LevelCapCopyState InspectCandy(
+        byte[] code,
+        out LevelCapTable table) =>
+        Inspect(
+            code,
+            GetCandyState(
+                code,
+                out uint blockOffset),
+            blockOffset,
+            out table);
+
+    private static LevelCapCopyState Inspect(
+        byte[] bin,
+        LevelCapHookState state,
+        uint blockOffset,
+        out LevelCapTable table)
+    {
+        table = null;
+
+        if (state == LevelCapHookState.Stock)
+            return LevelCapCopyState.Stock;
+
+        if (state != LevelCapHookState.Applied ||
+            !TryGetInstalledTableFormat(
+                bin,
+                blockOffset,
+                out InstalledTableFormat format,
+                out _,
+                out _))
         {
-            return false;
+            return LevelCapCopyState.Unrecognized;
         }
+
+        // Earlier table formats are reported, never reinterpreted as the current one.
+        if (format != InstalledTableFormat.CurrentMixed)
+            return LevelCapCopyState.AppliedLegacy;
+
+        return TryReadInstalledTable(
+            bin,
+            blockOffset,
+            out table)
+            ? LevelCapCopyState.Applied
+            : LevelCapCopyState.Unrecognized;
+    }
+
+    private static bool TryReadInstalledTable(
+        byte[] cro,
+        uint blockOffset,
+        out LevelCapTable table)
+    {
+        table = null;
 
         if (!TryGetInstalledTableFormat(
                 cro,

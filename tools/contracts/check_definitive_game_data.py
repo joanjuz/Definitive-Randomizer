@@ -2,11 +2,14 @@
 
 Usage:
     python tools/contracts/check_definitive_game_data.py [--tracker <NuzlockeTracker checkout>]
+                                                         [--producer <folder of exported documents>]
 
 Validates the published examples against the JSON Schema, checks the playerLevelCaps
 status rules with valid and invalid variants, applies the semantic rules the schema cannot
 express, and with --tracker imports the examples through that Tracker's own DGD validator
-and import service. Reads only repository files; it writes nothing outside a temporary folder.
+and import service. With --producer it applies the same rules to documents written by the real
+exporter (one per status, named after it). Reads only those files; it writes nothing outside a
+temporary folder.
 """
 from __future__ import annotations
 
@@ -267,9 +270,47 @@ def check_tracker(tracker: Path, original, extended) -> None:
         check(e[2]['fingerprint'] == original['source']['fingerprint'], 'Tracker_RootFingerprintUnchanged')
 
 
+STATUSES = ('installed', 'not-detected', 'unsupported', 'inconsistent', 'legacy-format')
+
+
+def check_producer(folder: Path, validator, tracker: Path | None) -> None:
+    """Documents written by the real exporter: '<status>.json' or '<status>-<variant>.json'."""
+    validate_document = None
+    if tracker:
+        sys.path.insert(0, str(tracker))
+        from tracker.game_data import validate_document  # noqa: E402
+    seen, roots = set(), set()
+    for path in sorted(folder.glob('*.json')):
+        name = path.stem
+        expected = next(s for s in sorted(STATUSES, key=len, reverse=True) if name == s or name.startswith(s + '-'))
+        raw = path.read_text(encoding='utf-8')
+        doc = json.loads(raw)
+        block = doc.get('playerLevelCaps')
+        check(not list(validator.iter_errors(doc)), f'Producer_{name}_SchemaValid')
+        check(isinstance(block, dict) and block.get('version') == 1 and block.get('status') == expected, f'Producer_{name}_Status')
+        if not isinstance(block, dict):
+            continue
+        seen.add(block.get('status'))
+        roots.add(json.dumps({k: v for k, v in doc.items() if k != 'playerLevelCaps'}, sort_keys=True))
+        check(doc['source']['scope'] == ROOT_SCOPE and doc['schemaVersion'] == 1, f'Producer_{name}_RootScopeAndVersion')
+        check(len(json.dumps(block, ensure_ascii=False, separators=(',', ':')).encode('utf-8')) <= BLOCK_MAX_BYTES,
+              f'Producer_{name}_BlockWithinLimit')
+        check(not any(privacy_findings(text) for text in strings(block)), f'Producer_{name}_NoLocalPaths')
+        if expected == 'installed':
+            check(not semantic_problems(block) and proposal_allowed(block), f'Producer_{name}_ConsumerRulesHold')
+        else:
+            check('checkpoints' not in block and not proposal_allowed(block), f'Producer_{name}_NoUsableList')
+        if validate_document:
+            accepted = validate_document(raw)
+            check(accepted.get('playerLevelCaps') == block, f'Producer_{name}_AcceptedByTracker')
+    check(seen == set(STATUSES), 'Producer_EveryStatusExported')
+    check(len(roots) == 1, 'Producer_RootDocumentIndependentOfPatchState')
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument('--tracker', type=Path, help='checkout of NuzlockeTracker whose DGD importer is exercised')
+    parser.add_argument('--producer', type=Path, help='folder of documents written by the exporter, one per status')
     args = parser.parse_args()
 
     schema = load(SCHEMA)
@@ -331,6 +372,8 @@ def main() -> int:
 
     if args.tracker:
         check_tracker(args.tracker.resolve(), original, extended)
+    if args.producer:
+        check_producer(args.producer.resolve(), validator, args.tracker.resolve() if args.tracker else None)
 
     print(f'Completed {passed} Definitive Game Data contract checks; {len(failures)} failed.')
     for name in failures:

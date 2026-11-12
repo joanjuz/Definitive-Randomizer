@@ -131,6 +131,8 @@ internal static class DefinitiveGameData
                 .Select(id => (JsonNode?)new JsonObject { ["id"] = id, ["name"] = Label(labels, id) }).ToArray());
             string fingerprint = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(titleId + "\n" +
                 string.Join("\n", hashes.Select(p => p.Key + ":" + p.Value)))));
+            // Optional block with its own fingerprint: neither the root fingerprint nor source.scope include these files.
+            var playerLevelCaps = DefinitivePlayerLevelCaps.Build(config, titleId, streams);
             project.History.RejectPending();
             return new JsonObject
             {
@@ -143,7 +145,8 @@ internal static class DefinitiveGameData
                 ["source"] = new JsonObject { ["kind"] = "saved-project", ["fingerprintAlgorithm"] = "SHA-256",
                     ["fingerprint"] = fingerprint, ["scope"] = "personal,moves,evolutions,gametext" },
                 ["coverage"] = "exported-records", ["types"] = Catalog(typeNames, 18), ["abilities"] = Catalog(abilityNames, 234),
-                ["species"] = species, ["moves"] = moveRows, ["evolutions"] = evolutions
+                ["species"] = species, ["moves"] = moveRows, ["evolutions"] = evolutions,
+                ["playerLevelCaps"] = playerLevelCaps
             };
         }
         finally { foreach (var stream in streams) stream.Dispose(); }

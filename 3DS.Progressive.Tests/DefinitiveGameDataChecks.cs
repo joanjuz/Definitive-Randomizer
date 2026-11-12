@@ -12,7 +12,7 @@ using ThreeDS.Progressive.Services;
 
 internal static class DefinitiveGameDataChecks
 {
-    private static Fixture Create(bool moon = false)
+    internal static Fixture Create(bool moon = false)
     {
         var f = new Fixture(GameVersion.USUM);
         ModuleChecks.CreateArchives(f);
@@ -115,17 +115,12 @@ internal static class DefinitiveGameDataChecks
         using var other = new Fixture(GameVersion.SM);
         reject(() => DefinitiveGameData.Build(other.Session), "Dgd_SunMoonUnsupported");
         RunPlayerLevelCapsContract(check);
+        DefinitiveGameDataCapsChecks.Run(check, reject);
     }
     /// <summary>The optional playerLevelCaps block of the contract agrees with the C# catalog and runtime table format.
-    /// The producer does not emit the block yet; these checks pin the contract it will have to follow.</summary>
+    /// The producer itself is covered by <see cref="DefinitiveGameDataCapsChecks"/>.</summary>
     private static void RunPlayerLevelCapsContract(Action<bool,string> check)
     {
-        using (var f = Create())
-        {
-            var exported = DefinitiveGameData.Build(f.Session);
-            check(!exported.ContainsKey("playerLevelCaps") && exported["source"]!["scope"]!.GetValue<string>() == "personal,moves,evolutions,gametext",
-                "DgdCaps_CurrentExportUnchanged");
-        }
         var catalog = LevelCapTable.KnownFlags;
         check(catalog.All(k => k.Label.Length is >= 1 and <= 60 && k.Label == k.Label.Trim() && !k.Label.Any(char.IsControl)),
             "DgdCaps_CatalogLabelsFitTrackerStageNames");

@@ -27,7 +27,7 @@ internal sealed class GamePlayerLevelCapService
         _codeHash=File.Exists(_codePath)?SHA256.HashData(File.ReadAllBytes(_codePath)):[];
         RefreshState();
     }
-    private static string Find(string root,string filename,bool nested)
+    internal static string Find(string root,string filename,bool nested)
     {
         if(!Directory.Exists(root))return Path.Combine(root,filename);
         var direct=nested?new[]{Path.Combine(root,filename),Path.Combine(root,"dll",filename)}:
