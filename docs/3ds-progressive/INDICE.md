@@ -12,6 +12,8 @@ Punto de entrada a `docs/3ds-progressive/`. Muchos documentos son **registros hi
 | Terreno y obstáculos DS, fase visual 3 (colisión de `land_data`, solo lectura) | [NDS_MAP_TERRAIN_PHASE3.md](NDS_MAP_TERRAIN_PHASE3.md) |
 | Mover NPC DS con el ratón, fase visual 4 (propuesta → previsualización → checkpoint) | [NDS_NPC_DRAG_PHASE4.md](NDS_NPC_DRAG_PHASE4.md) |
 | Edición estructural de NPC DS, fase 5A (añadir, duplicar, copiar, pegar; checkpoint v2) | [NDS_NPC_STRUCTURAL_PHASE5A.md](NDS_NPC_STRUCTURAL_PHASE5A.md) |
+| Estructuras DS, fase 5B (map props de `land_data`: posición e ID de modelo, solo lectura) | [NDS_MAP_PROPS_PHASE5B.md](NDS_MAP_PROPS_PHASE5B.md) |
+| Edición de sectores DS, fase 5C (informe de factibilidad, sin código) | [NDS_SECTOR_EDIT_FEASIBILITY.md](NDS_SECTOR_EDIT_FEASIBILITY.md) |
 | Rediseño del editor DS: diagnóstico con entrada real, referencia DSPRE, copia entre mapas y plan del renderer | [NDS_EDITOR_REDESIGN_PLAN.md](NDS_EDITOR_REDESIGN_PLAN.md) |
 | NPC DS con comportamiento (enfermera, scripts compartidos), checkpoint v3 y diseño de entrenadores nuevos | [NDS_NPC_SCRIPTS_PHASE6.md](NDS_NPC_SCRIPTS_PHASE6.md) |
 | Editor DS A1: «Añadir enfermera» funcional desde una plantilla real de la ROM (Platino) | [NDS_ANADIR_ENFERMERA_A1.md](NDS_ANADIR_ENFERMERA_A1.md) |

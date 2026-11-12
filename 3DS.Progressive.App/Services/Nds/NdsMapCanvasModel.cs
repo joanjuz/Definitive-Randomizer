@@ -5,7 +5,7 @@ namespace ThreeDS.Progressive.Services.Nds;
 internal enum NdsMarkerShape { Npc, GroundObject, BackgroundObject, Warp, Trigger }
 
 [Flags]
-internal enum NdsMapLayers { None = 0, Npc = 1, Objects = 2, Warps = 4, Triggers = 8, Blocks = 16, Tiles = 32, Ownership = 64, Terrain = 128, All = 255 }
+internal enum NdsMapLayers { None = 0, Npc = 1, Objects = 2, Warps = 4, Triggers = 8, Blocks = 16, Tiles = 32, Ownership = 64, Terrain = 128, Structures = 256, All = 511 }
 
 /// <summary>How a 32×32 block relates to the selected header. Never implies geometry, collisions or walkability.</summary>
 internal enum NdsBlockOwnership { Explicit, Contextual, Other }
@@ -41,6 +41,10 @@ internal sealed class NdsMapCanvasModel
 
     internal PlatinumMapLayout Layout { get; }
     internal NdsSpatialQuery Query { get; }
+    /// <summary>Map props (structures) of every cell of the matrix, in tile space. Positions and model ids only: no geometry.</summary>
+    internal IReadOnlyList<PlatinumPlacedProp> Props { get; }
+    internal bool HasProps => Props.Count > 0;
+    internal PlatinumPlacedProp? SelectedProp { get; private set; }
     internal bool HasTerrain => Query.HasTerrain;
     internal IReadOnlyList<NdsMapMarker> Markers => _markers;
     internal int WorldMinX { get; }
@@ -57,8 +61,9 @@ internal sealed class NdsMapCanvasModel
     internal int OwnedBlockCount => Layout.OwnedCells.Count;
     internal int OutsideMaskCount => _markers.Count(m => m.Placement is NdsMarkerPlacement.OutsideOwnedBlocks or NdsMarkerPlacement.OutsideMatrix);
 
-    internal NdsMapCanvasModel(PlatinumMapLayout layout, IEnumerable<PlatinumEvent> events, PlatinumTerrain? terrain = null, (int Width, int Height)? editorBounds = null)
+    internal NdsMapCanvasModel(PlatinumMapLayout layout, IEnumerable<PlatinumEvent> events, PlatinumTerrain? terrain = null, (int Width, int Height)? editorBounds = null, PlatinumLandProps? props = null)
     {
+        Props = props is null ? Array.Empty<PlatinumPlacedProp>() : props.Place(layout);
         Layout = layout ?? throw new ArgumentNullException(nameof(layout));
         var list = events.ToList(); _markers = list.Select(e => Build(layout, e)).ToList();
         Query = new NdsSpatialQuery(layout, terrain, list, editorBounds);
@@ -234,6 +239,36 @@ internal sealed class NdsMapCanvasModel
         Selected = (kind, index); return true;
     }
     internal void ClearSelection() => Selected = null;
+
+    internal const double PropHitPixels = 9;
+    /// <summary>Structure under a pixel (nearest within a small radius). Events are tested first by callers.</summary>
+    internal PlatinumPlacedProp? HitProp(double pixelX, double pixelY)
+    {
+        if ((Layers & NdsMapLayers.Structures) == 0) return null;
+        PlatinumPlacedProp? best = null; double bestDistance = double.MaxValue;
+        foreach (var p in Props)
+        {
+            var (px, py) = TileToPixel(p.TileX, p.TileZ); double d = (pixelX - px) * (pixelX - px) + (pixelY - py) * (pixelY - py);
+            if (d <= PropHitPixels * PropHitPixels && d < bestDistance) { best = p; bestDistance = d; }
+        }
+        return best;
+    }
+    /// <summary>A selected structure replaces the event selection: the canvas never highlights both.</summary>
+    internal void SelectProp(PlatinumPlacedProp? prop) { SelectedProp = prop; if (prop is not null) Selected = null; }
+
+    /// <summary>Provenance and limits of a structure, for the inspector and tooltips. States what is NOT known as plainly as what is.</summary>
+    internal string DescribeProp(PlatinumPlacedProp p)
+    {
+        static string F(double v) => v.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture);
+        string header = !Layout.HasStoredHeaders ? "cabecera contextual (sin cabeceras almacenadas)" : p.InOwnedBlock ? $"celda asociada explícitamente a la cabecera {Layout.MapId}" : $"celda de otra cabecera ({Layout.Cell(p.BlockX, p.BlockY).HeaderId})";
+        var r = p.Prop;
+        return $"Estructura (map prop) · modelo {r.ModelId} · entrada #{r.Index}\n" +
+               $"Procedencia: land_data {p.LandDataId}, sección de map props (48 bytes por entrada), bloque ({p.BlockX},{p.BlockY}) · {header}.\n" +
+               $"Posición en el mapa: X {F(p.TileX)}, Z {F(p.TileZ)} tiles (origen en el centro del bloque; local {F(r.LocalTileX)}, {F(r.LocalTileZ)}) · altura {F(r.Y)} unidades.\n" +
+               $"Valores crudos: posición ({r.RawX}, {r.RawY}, {r.RawZ}) · rotación ({r.RawRotationX}, {r.RawRotationY}, {r.RawRotationZ}){(r.HasRotation ? "" : " (sin rotación)")} · escala ({r.RawScaleX}, {r.RawScaleY}, {r.RawScaleZ}){(r.HasUnitScale ? " (1,0)" : "")} · sin uso {r.Unused:X}.\n" +
+               "Interpretación: la posición proviene de los datos y se contrastó con las huellas de colisión del juego. El modelo NSBMD y sus texturas NO se leen: no se conoce la forma, el tamaño ni la orientación real, y esto no sustituye a la colisión.\n" +
+               "Solo lectura: las estructuras no se mueven, copian ni eliminan desde el editor.";
+    }
 
     private double HalfSize(NdsMapMarker marker) => Math.Max(Zoom * 0.5, MinMarkerPixels / 2);
 

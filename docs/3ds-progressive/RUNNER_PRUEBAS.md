@@ -78,6 +78,7 @@ dotnet .\3DS.Progressive.Tests\bin\Release\net10.0-windows\3DS.Progressive.Tests
 | `--nds-npc-structure-only` | — | operaciones estructurales de NPC (registro, NARC, checkpoint v2, política); sintética |
 | `--nds-npc-drag-only` | — | planificación y matemática del arrastre de NPC (sin WPF); sintética |
 | `--nds-map-terrain-only` | — | lector de terreno `land_data`, consulta espacial y superposición; sintética |
+| `--nds-map-props-only` | — | lector de map props (posición e ID de modelo) y modelo de la capa; sintética; sí |
 | `--nds-map-canvas-only` | — | modelo espacial puro del lienzo DS de solo lectura; sin WPF |
 | `--nds-events-only` | — | incluida también en `--nds-only` |
 | `--performance-only` | — |  |
@@ -132,6 +133,7 @@ dotnet .\3DS.Progressive.Tests\bin\Release\net10.0-windows\3DS.Progressive.Tests
 | `--nds-events-ui-only` | — | sí |
 | `--nds-map-canvas-ui-only` | — | sí |
 | `--nds-map-terrain-ui-only` | — | sí |
+| `--nds-map-props-ui-only` | — | sí |
 | `--nds-npc-drag-ui-only` | — | sí |
 | `--nds-npc-structure-ui-only` | — | sí |
 | `--nds-npc-script-ui-only` | — | sí |
@@ -208,6 +210,8 @@ Necesitan extracciones, ROMs o carpetas de salida. Los argumentos concretos (ent
 | `--nds-gen4-probe` | 2 o más |  |
 | `--nds-map-layout-probe` | `<informe JSON nuevo> <ROM privada Platino CPUE/1>` | solo lectura; no copia ni exporta ROM |
 | `--nds-map-terrain-probe` | `<informe JSON nuevo> <ROM privada Platino CPUE/1>` | solo lectura; no copia ni exporta ROM |
+| `--nds-map-props-probe` | `<informe JSON nuevo> <ROM privada Platino CPUE/1>` | solo lectura; no copia ni exporta ROM |
+| `--nds-map-props-ui-probe` | `<carpeta nueva> <ROM privada Platino CPUE/1>` | editor de eventos real fuera de pantalla sobre una copia; capturas; sin escrituras |
 | `--nds-npc-structure-probe` | `<carpeta nueva> <ROM privada Platino CPUE/1>` | copia la fuente a la carpeta nueva; no modifica la original |
 | `--project-detector-probe` | `<carpeta nueva de informe> <ruta> [<ruta>…]` | detecta cada archivo o carpeta, comprueba que no cambia (SHA-256 o instantánea) y abre los candidatos DS y Switch con su motor; solo lectura; documentación: [DETECTOR_PROYECTOS_B1.md](DETECTOR_PROYECTOS_B1.md) |
 | `--universal-open-live-probe` | `<carpeta nueva de informe> <ruta> [<ruta>…]` | **interactiva**: abre cada ruta, en orden, desde el botón único «Abrir proyecto» con ratón y teclado reales (SendInput); necesita un escritorio desbloqueado; solo lee las entradas y comprueba que no cambian |
@@ -291,3 +295,5 @@ NPC estructurales DS, fase 5A: `--nds-npc-structure-only` valida la construcció
 NPC con comportamiento: `--nds-npc-script-only` valida la lectura de la tabla de scripts (0xFD13), el reconocimiento exacto de la enfermera y de los mensajes simples, la ampliación de un archivo de scripts sin alterar los demás, el checkpoint versión 3, la exportación de eventos y scripts, la combinación con scripts de otros módulos y el rechazo de operaciones no acreditadas. `--nds-npc-script-ui-only` recorre en la vista el pegado de la enfermera en otro mapa (comportamiento preseleccionado y dependencias), la duplicación de un NPC de mensaje (script compartido) y la restauración. `--nds-npc-script-probe <carpeta nueva> <ROM privada>` hace el recorrido real con la enfermera de Jubileo en Pueblo Hojaverde y con «Añadir enfermera» en la Ruta 201 ([NDS_ANADIR_ENFERMERA_A1.md](NDS_ANADIR_ENFERMERA_A1.md)). No sustituye la prueba en el juego. Véase [NDS_NPC_SCRIPTS_PHASE6.md](NDS_NPC_SCRIPTS_PHASE6.md).
 
 Corrección de NPC estructurales: `--nds-live-ui-probe <ROM privada> <carpeta nueva> <ancho> <alto>` reproduce con entrada real de Windows el flujo del propietario (buscar T01, duplicar con fantasma, menú contextual «Pegar aquí», copiar desde otro mapa, eliminar un NPC añadido con Supr, exportar y restaurarlo todo) sobre una copia de la ROM, guarda capturas y un registro en la carpeta nueva y comprueba que la fuente no cambia. Es una prueba de diagnóstico local; las comprobaciones automáticas siguen siendo `--nds-npc-structure-only` y `--nds-npc-structure-ui-only`.
+
+Estructuras DS, fase 5B: `--nds-map-props-only` valida el lector de la sección de *map props* de `land_data` (48 bytes por entrada, coma fija 20.12, origen en el centro del bloque), la entrada parcial que el motor ignora, la validación estricta de archivos, el perfil CPUE/1, la colocación en una matriz (celdas vacías, bloques compartidos, cabeceras) y la capa del modelo. `--nds-map-props-ui-only` comprueba la capa «Estructuras» (y que «Modelos/texturas» figura como no disponible), la selección con procedencia y límites, que al seleccionar una estructura el evento deja de estar seleccionado y Copiar/Cortar/Duplicar/Eliminar no pueden actuar sobre él, la prioridad de los eventos, la ausencia de datos y el rendimiento. `--nds-map-props-probe <informe JSON nuevo> <ROM privada Platino CPUE/1>` analiza los 666 miembros reales, contrasta el origen y los ejes con la colisión y comprueba el caso 411; compara el SHA-256 de la fuente. `--nds-map-props-ui-probe <carpeta nueva> <ROM privada Platino CPUE/1>` abre el editor de eventos real, fuera de pantalla, sobre una copia en esa carpeta: capa en 411 · T01, clic en una estructura del bloque (3,27), operaciones de NPC desactivadas, Supr sin efecto, capturas a 1280, 1100 y 760 y SHA-256 de la fuente y de la copia sin cambios. No lee modelos NSBMD ni texturas. Véase [NDS_MAP_PROPS_PHASE5B.md](NDS_MAP_PROPS_PHASE5B.md).
