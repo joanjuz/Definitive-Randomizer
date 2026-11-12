@@ -104,27 +104,32 @@ internal sealed class GamePlayerLevelCapService
         RefreshState();
     }
     // Only trainer fights whose save-derived checkpoint is researched in Progressive.
-    private static readonly (int Trainer,string Label)[] ProvenTrainers=
+    // Each label must match a checkpoint label of LevelCapTable exactly; otherwise that fight is silently skipped.
+    internal static readonly (int Trainer,string Label)[] ProvenTrainers=
     [
         (23,"Defeat Kahuna Hala"),(90,"Defeat Olivia - Mayla"),
         (235,"Defeat Guzma"),(154,"Defeat Nanu - Denio"),(131,"Defeat Lusamine"),
         (497,"Defeat Hapu - Hela"),(416,"Defeat Gladion - Mount Lanakila"),
         (156,"Elite Four - Kahili"),(489,"Elite Four - Molayne (Lario)"),
-        (153,"Elite Four - Olivia (Mayla"),(149,"Elite Four - Acerola (Zarala)"),
+        (153,"Elite Four - Olivia (Mayla)"),(149,"Elite Four - Acerola (Zarala)"),
         (496,"Defeat Champion Hau (Tilo)")
     ];
     internal LevelCapTable SyncFromTrainerRules(LevelCapTable current,out int updated)
     {
         var trainers=new GameTrainerService(_project).GetRuleRows()
-            .Where(x=>x.CapUse).ToDictionary(x=>x.Id);
+            .Where(x=>x.CapUse).ToDictionary(x=>x.Id,x=>x.Cap>0?x.Cap:x.Ace);
+        return ApplyTrainerLevels(current,trainers,out updated);
+    }
+    /// <summary>Copies the level of each proven trainer (trainer ID → level) into its checkpoint; caps never go backwards.</summary>
+    internal static LevelCapTable ApplyTrainerLevels(LevelCapTable current,IReadOnlyDictionary<int,int> trainers,out int updated)
+    {
         var result=current.Entries.ToList();
         updated=0;
         foreach(var (trainer,label) in ProvenTrainers)
         {
-            if(!trainers.TryGetValue(trainer,out var row))continue;
+            if(!trainers.TryGetValue(trainer,out int level))continue;
             int i=result.FindIndex(x=>x.Label==label);
             if(i<0)continue;
-            int level=row.Cap>0?row.Cap:row.Ace;
             if(level is <1 or >100)continue;
             if(result[i].Cap==level)continue;
             result[i]=result[i] with {Cap=(byte)level};updated++;
