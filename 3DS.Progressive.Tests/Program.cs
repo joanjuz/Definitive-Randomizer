@@ -386,6 +386,19 @@ foreach (var version in new[] { GameVersion.XY, GameVersion.ORAS, GameVersion.SM
     Check(Equal(f.PersonalRecords, baseline), tag + " preview does not mutate live config");
     Check(Equal(preview.CopyRecords(), f.Session.PreviewPersonal(BatchAction.PersonalRandomize, options, all).CopyRecords()), tag + " same seed identical bytes");
     Check(!Equal(preview.CopyRecords(), f.Session.PreviewPersonal(BatchAction.PersonalRandomize, options with { Seed = 9821 }, all).CopyRecords()), tag + " different seeds change results");
+    {
+        // Files of the working directory never change the result (nor make it fail).
+        string previous = Environment.CurrentDirectory, folder = Path.Combine(Path.GetTempPath(), "personal-cwd-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(folder);
+        try
+        {
+            File.WriteAllLines(Path.Combine(folder, "bannedabilites.txt"), ["1", "2", "3"]);
+            File.WriteAllLines(Path.Combine(folder, "bannedabilities.txt"), Enumerable.Range(1, 60).Select(i => i.ToString()));
+            Environment.CurrentDirectory = folder;
+            Check(Equal(preview.CopyRecords(), f.Session.PreviewPersonal(BatchAction.PersonalRandomize, options, all).CopyRecords()), tag + " working-directory files do not change the result");
+        }
+        finally { Environment.CurrentDirectory = previous; Directory.Delete(folder, true); }
+    }
     var expected = new PersonalTable((byte[])baseline[^1].Clone(), version).Table;
     Util.ReseedRand(options.Seed);
     var original = new PersonalRandomizer(expected, f.Game)
