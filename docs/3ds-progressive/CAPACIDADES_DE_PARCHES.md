@@ -2,7 +2,7 @@
 
 Primer paso hacia un motor de parches que dependa menos de offsets fijos: antes de instalar, cada parche puede decir **qué ve** en los archivos y **hasta dónde está acreditado**. No existe un botón de forzar.
 
-Este incremento cubre un parche: **Player Level Caps** (Ultra Sol / Ultra Luna). El instalador no cambia.
+Cubre dos parches de Ultra Sol / Ultra Luna: **Player Level Caps** y **Persistent Items**. Los instaladores no cambian.
 
 ## Niveles
 
@@ -38,6 +38,18 @@ Un recurso es un punto de enganche en un archivo (`Battle.cro`: EXP en combate; 
 
 El informe incluye las regiones que cambiarían en cada archivo (o el cambio de tamaño) y una explicación por recurso. Nunca promete más ni menos que el instalador: una prueba lo compara con el instalador en todos los casos.
 
+## Persistent Items
+
+Este parche no usa posiciones fijas: cada uno de sus dos puntos de `Battle.cro` se localiza por una firma con máscara que debe aparecer **exactamente una vez**. Por eso su mejor nivel es «compatible por adaptación»: la estructura se reconoce y la instalación simulada se relee, pero la revisión del archivo no se comprueba.
+
+| Situación | Nivel |
+| --- | --- |
+| Los dos puntos localizados (originales, instalados o uno de cada) | Compatible por adaptación |
+| Una firma no aparece o aparece más de una vez | No acreditada |
+| Falta el archivo o no es un CRO | No acreditada |
+
+Al abrir el editor con un archivo no acreditado, el mensaje explica qué punto no se pudo localizar.
+
 ## Dónde se usa
 
 - **Vista de Player Level Caps**: la línea de estado muestra el nivel y la evidencia de cada archivo, en lugar de dos palabras técnicas.
@@ -49,14 +61,15 @@ El informe incluye las regiones que cambiarían en cada archivo (o el cambio de 
 - `pk3DS.Core/Modding/Research/PatchCapability.cs`: modelo común (niveles, estados, informe).
 - `pk3DS.Core/Modding/Research/LevelCapPatch.Capability.cs`: informe de Player Level Caps.
 - `3DS.Progressive.App/Services/GamePlayerLevelCapService.cs`: informe del proyecto, estado y mensaje de rechazo.
+- `3DS.Progressive.App/Services/GamePersistentItemsService.cs`: informe de Persistent Items.
 - `3DS.Progressive.Tests/PatchCapabilityChecks.cs`: suite `--patch-capability-only`.
 
 ## Validación
 
-`--patch-capability-only`: 65 comprobaciones con binarios sintéticos. Cubre original, instalación propia, reinstalación idempotente, parche en un solo archivo, tablas distintas, enganche editado, salto a código ajeno, firma desplazada, firma ambigua, archivo truncado, archivo ausente, rutina dañada, rutina sin enganchar, formatos anteriores, falta de espacio, ampliación del segmento (adaptación), acuerdo con el instalador, transacción fallida sin instalación parcial, deshacer y la vista WPF fuera de pantalla.
+`--patch-capability-only`: 86 comprobaciones con binarios sintéticos (65 de Player Level Caps y 21 de Persistent Items). Cubre original, instalación propia, reinstalación idempotente, parche en un solo archivo, tablas distintas, enganche editado, salto a código ajeno, firma desplazada, firma ambigua, archivo truncado, archivo ausente, rutina dañada, rutina sin enganchar, formatos anteriores, falta de espacio, ampliación del segmento (adaptación), acuerdo con el instalador, transacción fallida sin instalación parcial, deshacer y la vista WPF fuera de pantalla.
 
 No se ha comprobado con ROMs reales ni con romhacks: los niveles describen los archivos sintéticos de la suite. No se declara compatibilidad general con ROMs modificadas.
 
 ## Siguiente
 
-Adoptar el mismo modelo en un segundo parche cuando las pruebas lo respalden. El modelo no localiza enganches por firma para escribir: eso exigiría evidencia adicional por parche.
+Llevar el modelo a más parches (Shiny Rate, mentas cuando se integren sus cambios pendientes). Player Level Caps sigue sin localizar enganches por firma para escribir: eso exigiría evidencia adicional.

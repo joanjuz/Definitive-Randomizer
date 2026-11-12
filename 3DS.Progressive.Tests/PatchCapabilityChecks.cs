@@ -184,6 +184,50 @@ internal static class PatchCapabilityChecks
         check(new GamePlayerLevelCapService(f.Session).Capability().Resource("Battle.cro").State == State.Missing, "Capability_ServiceReportsAMissingFileInsteadOfFailing");
     }
 
+    /// <summary>Second patch on the same model: Persistent Items, located by unique masked signatures instead of fixed offsets.</summary>
+    internal static void RunPersistentItems(Action<bool, string> check, Action<Action, string> reject)
+    {
+        byte[] cro = Review73Checks.Cro();
+        var cases = new List<(string Name, byte[] Cro)>();
+        PatchCapabilityReport Inspect(string name, byte[] data)
+        {
+            cases.Add((name, data)); string hash = Sha(data);
+            var report = GamePersistentItemsService.InspectCapability(data);
+            check(Sha(data) == hash, "PersistentCapability_InspectionNeverModifiesItsInput_" + name);
+            return report;
+        }
+        var stock = Inspect("Original", cro);
+        check(stock.Level == Level.CompatibleByAdaptation && stock.CanApply && stock.PatchId == "usum.persistent-items" && stock.Resources.Count == 2 &&
+            stock.Resources.All(r => r.State == State.Original && r.Offset is not null) && stock.Changes.Any(c => c.Offset <= 0x18B && 0x18B < c.Offset + c.Length) &&
+            stock.Summary.Contains("firma única"), "PersistentCapability_OriginalIsLocatedBySignatureAndPreviewed");
+        byte[] patched = GamePersistentItemsService.Patch(cro).Bytes;
+        var own = Inspect("Installed", patched);
+        check(own.Level == Level.CompatibleByAdaptation && own.Resources.All(r => r.State == State.OwnInstall) && own.Changes.Count == 0 && own.Summary.StartsWith("El parche está instalado.", StringComparison.Ordinal),
+            "PersistentCapability_OwnInstallationChangesNothing");
+        var half = Inspect("OnePointOnly", With(cro, b => b[0x18B] = 0x8A));
+        check(half.CanApply && half.Resources.Count(r => r.State == State.OwnInstall) == 1 && half.Summary.Contains("uno solo"), "PersistentCapability_PartialInstallationIsRepairable");
+        var twice = Inspect("SignatureTwice", With(cro, b => cro.AsSpan(0x180, 24).CopyTo(b.AsSpan(0x1C0))));
+        check(twice.Level == Level.NotAccredited && !twice.CanApply && twice.Resources.Any(r => r.State == State.ExternalModification && r.Evidence.Contains("veces")), "PersistentCapability_AmbiguousSignatureIsNotAccredited");
+        var gone = Inspect("SignatureGone", With(cro, b => Array.Clear(b, 0x180, 24)));
+        check(gone.Level == Level.NotAccredited && !gone.CanApply && gone.Resources.Any(r => r.State == State.ExternalModification && r.Offset is null) && gone.Changes.Count == 0,
+            "PersistentCapability_MissingSignatureIsNotAccredited");
+        var notCro = Inspect("NotACro", new byte[0x400]);
+        check(notCro.Level == Level.NotAccredited && notCro.Resources.All(r => r.State == State.Truncated), "PersistentCapability_FileWithoutCroHeaderIsInsufficientData");
+        check(GamePersistentItemsService.InspectCapability(null) is { Level: Level.NotAccredited } none && none.Resources.All(r => r.State == State.Missing), "PersistentCapability_MissingFileIsInsufficientData");
+        foreach (var (name, data) in cases)
+        {
+            bool installs; try { _ = GamePersistentItemsService.Patch(data); installs = true; } catch (InvalidDataException) { installs = false; }
+            check(GamePersistentItemsService.InspectCapability(data).CanApply == installs, "PersistentCapability_AgreesWithTheInstaller_" + name);
+        }
+        using var state = new TestState();
+        using var f = new Fixture(pk3DS.Core.GameVersion.USUM);
+        string path = Path.Combine(f.Game.RomFS, "Battle.cro");
+        File.WriteAllBytes(path, With(cro, b => Array.Clear(b, 0x180, 24)));
+        try { _ = new GamePersistentItemsService(f.Session); check(false, "PersistentCapability_ServiceRefusesWithItsExplanation"); }
+        catch (InvalidDataException e) { check(e.Message.Contains("No se modificó ningún archivo") && e.Message.Contains("no acreditada") && e.Message.Contains("No se encuentra el código"), "PersistentCapability_ServiceRefusesWithItsExplanation"); }
+        check(File.ReadAllBytes(path).SequenceEqual(With(cro, b => Array.Clear(b, 0x180, 24))), "PersistentCapability_RefusalWritesNothing");
+    }
+
     internal static void RunUi(Action<bool, string> check)
     {
         if (Application.Current is null) { var app = new ThreeDS.Progressive.App(); app.InitializeComponent(); }
