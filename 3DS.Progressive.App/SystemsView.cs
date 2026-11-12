@@ -297,6 +297,27 @@ internal sealed class SystemsView : UserControl
         {StudioDialog.Error(owner,"Diagnóstico de megaevoluciones",ex.Message);}
         finally{UiProgress.End();}
     }
+    internal static async Task CompareMegaExportsAsync(Window? owner,Action<string>? status=null)
+    {
+        const string filter="Datos exportados para Progressive Tracker (JSON)|*.json";
+        var first=new Microsoft.Win32.OpenFileDialog{Filter=filter,Title="Primer juego · datos exportados"};
+        if(first.ShowDialog(owner)!=true)return;
+        var second=new Microsoft.Win32.OpenFileDialog{Filter=filter,Title="Segundo juego · datos exportados"};
+        if(second.ShowDialog(owner)!=true)return;
+        var output=new Microsoft.Win32.SaveFileDialog{Filter="Informe de texto|*.txt",FileName="megaevoluciones-comparacion.txt"};
+        if(output.ShowDialog(owner)!=true)return;
+        UiProgress.Begin("Megaevoluciones · comparando las dos exportaciones…");
+        try
+        {
+            var report=await Task.Run(()=>MegaAbilityComparison.CompareFiles(first.FileName,second.FileName));
+            await File.WriteAllTextAsync(output.FileName,MegaAbilityComparison.Describe(report),new System.Text.UTF8Encoding(false));
+            status?.Invoke("Comparación exportada: "+output.FileName);
+            StudioDialog.Notice(owner,"Comparación exportada",$"{report.MegasCompared} megaevoluciones comparadas; {report.MegaDifferences.Count} tienen habilidades distintas entre los dos juegos. No se modificó nada.",output.FileName);
+        }
+        catch(Exception ex) when(ex is IOException or UnauthorizedAccessException or InvalidOperationException or ArgumentException)
+        {StudioDialog.Error(owner,"Comparación de megaevoluciones",ex.Message);}
+        finally{UiProgress.End();}
+    }
     private void BuildRomTools(Panel stack)
     {
         if(DefinitiveGameData.Supports(_project))
@@ -311,8 +332,9 @@ internal sealed class SystemsView : UserControl
         {
             var megas=Card("Megaevoluciones · Diagnóstico de habilidades",
                 "Revisa las habilidades de las megaevoluciones guardadas y exporta un informe para comparar con otro jugador.",
-                "Solo lee el proyecto. Indica qué megaevoluciones tienen una habilidad distinta según la ranura del Pokémon e incluye la huella de la tabla Personal. No reproduce un combate ni corrige nada.");
+                "Solo lee el proyecto. Indica qué megaevoluciones tienen una habilidad distinta según la ranura del Pokémon e incluye la huella de la tabla Personal. «Comparar con otro jugador» lee dos archivos de «Exportar datos para Progressive Tracker» y dice qué megaevoluciones difieren. No reproduce un combate ni corrige nada.");
             AddButton((StackPanel)megas.Child,"Exportar diagnóstico de megaevoluciones…",()=>_=ExportMegaDiagnosisAsync(Window.GetWindow(this),_project,text=>_status.Text=text));
+            AddButton((StackPanel)megas.Child,"Comparar con otro jugador…",()=>_=CompareMegaExportsAsync(Window.GetWindow(this),text=>_status.Text=text));
             stack.Children.Add(megas);
         }
         var log=Card("Registro del randomizado","Exporta un archivo de texto con lo que tiene ahora el juego: regalos y estáticos, equipos de entrenadores, encuentros salvajes y los cambios guardados.",
