@@ -33,7 +33,8 @@ internal static class ManualOperations
                 case "learnset":_=p["Rows"]!.Deserialize<LevelUpMoveEntry[]>()??throw new InvalidDataException("Aprendizaje vacío.");break;
                 case "personal-flags":if(p["Bits"] is not JsonArray)throw new InvalidDataException("Faltan compatibilidades manuales.");break;
                 case "resources":if(p["Files"] is not JsonArray)throw new InvalidDataException("Recursos manuales incompletos.");break;
-                case "shops6":case "crointegrity":case "shiny":case "playercaps":case "typechart":break;
+                case "shops6":case "crointegrity":case "shiny":case "typechart":break;
+                case "playercaps":_=PlayerLevelCapRecipe.Read(p);break;
                 case "shops7":if(p["Shops"] is not JsonArray)throw new InvalidDataException("Tiendas incompletas.");break;
                 case "pickup":_=p["Rows"]!.Deserialize<PickupRow[]>()??throw new InvalidDataException("Pickup vacío.");break;
                 case "machines7":case "tutors7":if(p["Rows"] is not JsonArray)throw new InvalidDataException("Tabla MT/tutores vacía.");break;
@@ -101,7 +102,7 @@ internal static class ManualOperations
                     case "resources":ManualResourceReplay.Apply(project,doc,p,validateOnly);break;
                     case "typechart":var chart=new GameTypeChartService(project);var chartPreview=chart.Preview(p["Values"]!.Deserialize<byte[]>()!,project.Generation==6);if(!validateOnly&&chartPreview.Changes.Count>0)chart.Apply(chartPreview.File,chartPreview.Changes);break;
                     case "shiny":var shiny=new GameShinyRateService(project);var shinyPreview=shiny.Preview(p["Rerolls"]!.GetValue<int>(),p["Everything"]!.GetValue<bool>(),p["Restore"]!.GetValue<bool>());if(!validateOnly&&shinyPreview.Changes.Count>0)shiny.Apply(shinyPreview.File,shinyPreview.Changes,p["Restore"]!.GetValue<bool>());break;
-                    case "playercaps":var caps=new GamePlayerLevelCapService(project);var capPreview=caps.Preview(p["Table"]!.Deserialize<LevelCapTable>()!);if(!validateOnly)caps.Apply(capPreview);break;
+                    case "playercaps":var caps=new GamePlayerLevelCapService(project);var capPreview=caps.Preview(PlayerLevelCapRecipe.Read(p));if(!validateOnly)caps.Apply(capPreview);break;
                     case "crointegrity":var integrity=new GameCroIntegrityService(project);var hashes=integrity.Preview(p["UpdateCRR"]!.GetValue<bool>());if(!validateOnly&&hashes.Changes.Count>0){using var scope=ManualOperationScope.Begin(kind,op["Key"]!.GetValue<string>(),p);integrity.Apply(hashes);}break;
                     case "shops6":
                         var mart6=new GameMart6Service(project);var inventory=mart6.ReadAllItems();foreach(var shop in p["Shops"]!.AsArray()){int shopId=shop!["Id"]!.GetValue<int>();if(shopId<1||shopId>inventory.Length)throw new InvalidDataException("Tienda Gen6 manual inexistente.");inventory[shopId-1]=shop["Items"]!.Deserialize<int[]>()!;}

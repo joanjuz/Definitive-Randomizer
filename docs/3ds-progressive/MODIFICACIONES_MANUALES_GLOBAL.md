@@ -74,3 +74,16 @@ La casilla «Randomizar MT en Global/Batch» se elimina. Al capturar una receta 
 Para fijar una MT en todas las ROMs, editar su movimiento y guardar MT. El historial conserva únicamente las asignaciones manuales; su reproducción final prevalece sobre la randomización sin fijar las demás MT.
 
 Validación: build Release de App y Tests sin errores (90 advertencias existentes); --tm7-text-only: 76 comprobaciones; --tm-default-ui-only: 32 comprobaciones de componentes WPF fuera de pantalla. Incluye SM/USUM, captura sin abrir editor, recuperación de opciones antiguas, ausencia de escrituras al capturar, y prioridad de MT manual con dos semillas. No se hizo una prueba interactiva ni se publicó un ejecutable actualizado.
+
+## Reproducción de Player Level Caps desde una receta — 12/11/2026
+
+Una receta con la operación manual `playercaps` no se podía reproducir: la validación la aceptaba sin leerla y, al aplicarla, la lectura de la tabla fallaba (`LevelCapEntry` tiene dos constructores y el serializador no puede construirlo). La instalación desde la vista no estaba afectada.
+
+La tabla de la receta se lee ahora de forma explícita (`PlayerLevelCapRecipe`). El formato grabado no cambia: `{"Table":{"Entries":[{"Label","Kind","FlagOffset","FlagBit","Cap"}]}}`, con `Kind` numérico (0 = flag de evento, 1 = event work). Las recetas e historiales ya guardados sirven tal cual.
+
+- Se rechazan al cargar y al aplicar, sin escribir nada: tabla ausente o vacía, más de 128 puntos, tipo de condición desconocido o ausente, números con decimales, exponente, signo o escritos como texto, valores fuera de rango y cualquier punto que la validación de la tabla no admita.
+- Se toleran los nodos desconocidos y un punto sin nombre (el nombre no forma parte de la tabla instalada).
+- La reproducción usa el mismo servicio que la vista: mismas comprobaciones de firma, mismo registro en el historial y mismo deshacer. Solo cambian `Battle.cro` y `code.bin`.
+- No cambian el instalador, el formato de la tabla, la sección `LevelCaps` de Batch, Definitive Game Data ni ningún otro motor.
+
+Validación: `--player-caps-recipe-only`, 130 comprobaciones con binarios sintéticos (Ultra Sol y Ultra Luna). No se usaron ROMs ni proyectos reales: falta reproducir una receta real en una copia de un proyecto USUM y comprobarla en juego.
