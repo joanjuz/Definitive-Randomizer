@@ -64,13 +64,9 @@ public class PersonalRandomizer : IRandomizer
     {
         Game = game;
         Table = table;
-        if (File.Exists("bannedabilites.txt"))
-        {
-            var data = File.ReadAllLines("bannedabilities.txt");
-            var list = new List<int>(BannedAbilities);
-            list.AddRange(data.Select(z => Convert.ToInt32(z)));
-            BannedAbilities = list;
-        }
+        // No file of the working directory takes part in the randomization: the same seed and options must give the
+        // same result on every machine and in every process. The earlier lookup of a list of banned abilities there
+        // never worked (it tested one file name and read another, failing when the first one existed).
     }
 
     public void Execute()
