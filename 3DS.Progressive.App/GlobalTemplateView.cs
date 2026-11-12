@@ -62,6 +62,8 @@ internal sealed class GlobalTemplateView : UserControl
         _save=Add(controls,"Guardar template global…",Save,EditorPresentation.ActionRole.Primary);
         Add(controls,"Crear desde historial",FromHistory);
         if(project.Generation is 6 or 7)Add(controls,"Nueva receta nativa Gen"+project.Generation,()=>Use(NativeRecipeFactory.Create(_project,_captureOptions),"Receta creada sin aplicar cambios. Revisa las opciones en los editores y desmarca las acciones que no quieras incluir antes de guardar."));
+        Add(controls,"Exportar perfil compartible…",ExportProfile);
+        Add(controls,"Importar perfil compartible…",ImportProfile);
         _previewButton=Add(controls,"Previsualizar cambios",()=>_ = PreviewChangesAsync());
         _applyButton=Add(controls,"Aplicar cambios",()=>_ = ApplyChangesAsync(),EditorPresentation.ActionRole.Primary);
         _previewButton.IsEnabled=_applyButton.IsEnabled=false;
@@ -186,6 +188,41 @@ internal sealed class GlobalTemplateView : UserControl
         Use(GlobalTemplateDocument.Load(dialog.FileName,Game,_project.Generation));
         _status.Text=$"Guardado compatible v1: {export.Actions.Count} acciones; " +
             "opciones actualizadas, parámetros y assets conservados. Archivo fuente intacto.";
+    }
+    /// <summary>The profile that would be exported now: the recipe «Guardar» would write, without what a profile cannot carry.</summary>
+    internal ShareableProfile ProfileDraft(string name,string author="",string description="")
+    {
+        if(_loaded is null)FromHistory();
+        return ShareableProfile.Create(_project,ExportSnapshot(),name,author,description);
+    }
+    private void ExportProfile()
+    {
+        var draft=ProfileDraft(string.IsNullOrWhiteSpace(_name.Text)?"Perfil":_name.Text);
+        var window=new ProfileExportWindow(draft){Owner=Window.GetWindow(this)};
+        if(window.ShowDialog()!=true)return;
+        var profile=ProfileDraft(window.ProfileName,window.Author,window.Description);
+        var dialog=new Microsoft.Win32.SaveFileDialog{Filter="Perfil compartible de Definitive Randomizer|*"+ShareableProfile.Extension,
+            FileName="perfil_usum"+ShareableProfile.Extension,OverwritePrompt=true};
+        if(dialog.ShowDialog(Window.GetWindow(this))!=true)return;
+        profile.Save(dialog.FileName);
+        _status.Text=$"Perfil «{profile.Name}» exportado: {profile.Sections.Count} secciones"+(profile.Omitted.Count>0?$"; {profile.Omitted.Sum(o=>o.Count)} elementos no compartibles quedaron fuera":"")+". El proyecto no cambió.";
+    }
+    private void ImportProfile()
+    {
+        var dialog=new Microsoft.Win32.OpenFileDialog{Filter="Perfil compartible de Definitive Randomizer|*"+ShareableProfile.Extension+"|JSON|*.json"};
+        if(dialog.ShowDialog(Window.GetWindow(this))!=true)return;
+        var profile=ShareableProfile.Load(dialog.FileName);
+        var compatibility=profile.Evaluate(_project);
+        var window=new ProfileImportWindow(profile,compatibility){Owner=Window.GetWindow(this)};
+        if(window.ShowDialog()!=true){_status.Text="Importación del perfil cancelada. Nada cambió.";return;}
+        UseProfile(profile,compatibility,window.Chosen);
+    }
+    /// <summary>Loads the chosen sections as the current recipe. Nothing is written to the project.</summary>
+    internal void UseProfile(ShareableProfile profile,ProfileCompatibility compatibility,IReadOnlyCollection<string> chosen)
+    {
+        var recipe=profile.Select(compatibility,chosen);
+        _restoreOptions?.Invoke(recipe);
+        Use(recipe,$"Perfil «{profile.Name}» cargado: {chosen.Count} de {profile.Sections.Count} secciones. El proyecto no cambió. Previsualiza los cambios y aplícalos cuando quieras.");
     }
     internal GlobalTemplateDocument ExportSnapshot()
     {

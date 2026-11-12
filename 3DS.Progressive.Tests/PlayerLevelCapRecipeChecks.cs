@@ -17,7 +17,7 @@ internal static class PlayerLevelCapRecipeChecks
         "{\"Label\":\"Clear Normal Trial - Ilima (1dom)\",\"Kind\":0,\"FlagOffset\":16,\"FlagBit\":8,\"Cap\":15}," +
         "{\"Label\":\"punto propio\",\"Kind\":0,\"FlagOffset\":336,\"FlagBit\":4,\"Cap\":50}," +
         "{\"Label\":\"\",\"Kind\":1,\"FlagOffset\":68,\"FlagBit\":2000,\"Cap\":80}]}}";
-    private static LevelCapTable Table() => new()
+    internal static LevelCapTable Table() => new()
     {
         Entries =
         [
@@ -26,25 +26,25 @@ internal static class PlayerLevelCapRecipeChecks
             new("", LevelCapConditionKind.EventWorkAtLeast, 0x0044, 2000, 80),
         ],
     };
-    private static string BattlePath(Fixture f) => Path.Combine(f.Game.RomFS, "Battle.cro");
-    private static string CodePath(Fixture f) => Path.Combine(f.Game.ExeFS, "code.bin");
-    private static void WriteStock(Fixture f)
+    internal static string BattlePath(Fixture f) => Path.Combine(f.Game.RomFS, "Battle.cro");
+    internal static string CodePath(Fixture f) => Path.Combine(f.Game.ExeFS, "code.bin");
+    internal static void WriteStock(Fixture f)
     { File.WriteAllBytes(BattlePath(f), DefinitiveGameDataCapsChecks.StockBattle()); File.WriteAllBytes(CodePath(f), DefinitiveGameDataCapsChecks.StockCode()); }
-    private static void Install(Fixture f, LevelCapTable table) { var service = new GamePlayerLevelCapService(f.Session); service.Apply(service.Preview(table)); }
+    internal static void Install(Fixture f, LevelCapTable table) { var service = new GamePlayerLevelCapService(f.Session); service.Apply(service.Preview(table)); }
     /// <summary>Every file of the project folder with its hash. History and restore points live outside it in these checks.</summary>
-    private static Dictionary<string, string> Files(Fixture f) => Directory.EnumerateFiles(f.Root, "*", SearchOption.AllDirectories)
+    internal static Dictionary<string, string> Files(Fixture f) => Directory.EnumerateFiles(f.Root, "*", SearchOption.AllDirectories)
         .ToDictionary(p => Path.GetRelativePath(f.Root, p), p => Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(p))), StringComparer.OrdinalIgnoreCase);
-    private static string[] Changed(Dictionary<string, string> before, Dictionary<string, string> after) =>
+    internal static string[] Changed(Dictionary<string, string> before, Dictionary<string, string> after) =>
         before.Keys.Union(after.Keys, StringComparer.OrdinalIgnoreCase).Where(k => before.GetValueOrDefault(k) != after.GetValueOrDefault(k))
             .Select(k => k.Replace('\\', '/')).Order(StringComparer.Ordinal).ToArray();
-    private static bool Same(Dictionary<string, string> a, Dictionary<string, string> b) => Changed(a, b).Length == 0;
+    internal static bool Same(Dictionary<string, string> a, Dictionary<string, string> b) => Changed(a, b).Length == 0;
     private static JsonObject? Operation(GlobalTemplateDocument doc) =>
         ManualOperations.Read(doc).SingleOrDefault(o => o["Kind"]!.GetValue<string>() == "playercaps");
-    private static bool Installed(Fixture f, LevelCapTable table) =>
+    internal static bool Installed(Fixture f, LevelCapTable table) =>
         LevelCapPatch.InspectBattle(File.ReadAllBytes(BattlePath(f)), out var battle) == LevelCapCopyState.Applied &&
         LevelCapPatch.InspectCandy(File.ReadAllBytes(CodePath(f)), out var candy) == LevelCapCopyState.Applied &&
         battle.ToBytes().SequenceEqual(table.ToBytes()) && candy.ToBytes().SequenceEqual(table.ToBytes());
-    private static bool IsStock(Fixture f) =>
+    internal static bool IsStock(Fixture f) =>
         File.ReadAllBytes(BattlePath(f)).SequenceEqual(DefinitiveGameDataCapsChecks.StockBattle()) &&
         File.ReadAllBytes(CodePath(f)).SequenceEqual(DefinitiveGameDataCapsChecks.StockCode());
     /// <summary>The recipe with the payload of its playercaps operation replaced.</summary>
