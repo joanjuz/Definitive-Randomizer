@@ -228,6 +228,71 @@ internal static class PatchCapabilityChecks
         check(File.ReadAllBytes(path).SequenceEqual(With(cro, b => Array.Clear(b, 0x180, 24))), "PersistentCapability_RefusalWritesNothing");
     }
 
+    /// <summary>Third patch on the same model: Shiny Rate (Gen 6 and Gen 7), located by the signature of the PID routine.</summary>
+    internal static void RunShinyRate(Action<bool, string> check, Action<Action, string> reject)
+    {
+        byte[] code = new byte[0x4000];
+        new byte[] { 0x23, 0x00, 0xD4, 0xE5, 0x01, 0x50, 0x85, 0xE2, 0x05, 0x00, 0x50, 0xE1, 0xDE, 0xFF, 0xFF, 0xCA }.CopyTo(code, 0x1000);
+        new byte[] { 0x00, 0x20, 0x22, 0xE0, 0x02, 0x30, 0x21, 0xE2, 0x03, 0x20, 0x92, 0xE1, 0x1C, 0x00, 0x00, 0x0A }.CopyTo(code, 0x2000);
+        using var state = new TestState();
+        using var f = new Fixture(pk3DS.Core.GameVersion.USUM);
+        string path = Path.Combine(f.Game.ExeFS, "code.bin");
+        var cases = new List<(string Name, byte[] Code)>();
+        PatchCapabilityReport Inspect(string name, byte[] data)
+        {
+            cases.Add((name, data)); string hash = Sha(data);
+            var report = GameShinyRateService.InspectCapability(data);
+            check(Sha(data) == hash, "ShinyCapability_InspectionNeverModifiesItsInput_" + name);
+            return report;
+        }
+        var stock = Inspect("Original", code);
+        check(stock.Level == Level.CompatibleByAdaptation && stock.CanApply && stock.PatchId == "3ds.shiny-rate" && stock.Resources.All(r => r.State == State.Original) &&
+            stock.Resources[0].Offset == 0x1000 && stock.Changes.Single() is { Offset: 0x1000, Length: 4 } && stock.Summary.Contains("firma única"), "ShinyCapability_OriginalIsLocatedBySignatureAndPreviewed");
+        File.WriteAllBytes(path, code);
+        var service = new GameShinyRateService(f.Session);
+        var preview = service.Preview(300, true);
+        byte[] patched = preview.File.Proposed();
+        var own = Inspect("Modified", patched);
+        check(own.CanApply && own.Resources.All(r => r.State == State.OwnInstall) && own.Summary.StartsWith("Los rerolls ya están modificados.", StringComparison.Ordinal), "ShinyCapability_ModifiedRerollsAndOptionAreRecognised");
+        var noOption = Inspect("NoEverythingShiny", With(code, c => Array.Clear(c, 0x2000, 16)));
+        check(noOption.CanApply && noOption.Resources[1].State == State.ExternalModification && noOption.Resources[0].State == State.Original && noOption.Summary.Contains("no está disponible"),
+            "ShinyCapability_MissingOptionDoesNotBlockTheRerolls");
+        var twice = Inspect("TwoRoutines", With(code, c => code.AsSpan(0x1000, 16).CopyTo(c.AsSpan(0x3000))));
+        check(twice.Level == Level.NotAccredited && !twice.CanApply && twice.Resources[0].Evidence.Contains("2 rutinas"), "ShinyCapability_AmbiguousRoutineIsNotAccredited");
+        var gone = Inspect("RoutineGone", With(code, c => Array.Clear(c, 0x1000, 16)));
+        check(gone.Level == Level.NotAccredited && !gone.CanApply && gone.Resources[0] is { State: State.ExternalModification, Offset: null } && gone.Changes.Count == 0, "ShinyCapability_MissingRoutineIsNotAccredited");
+        var unknown = Inspect("UnknownInstruction", With(code, c => { c[0x1000] = 0x77; c[0x1001] = 0x77; c[0x1002] = 0xA0; c[0x1003] = 0xE3; }));
+        check(!unknown.CanApply, "ShinyCapability_UnknownRerollInstructionIsNotAccredited");
+        check(GameShinyRateService.InspectCapability(new byte[0x1FF]) is { Level: Level.NotAccredited } cut && cut.Resources.All(r => r.State == State.Truncated) &&
+            GameShinyRateService.InspectCapability(null) is { Level: Level.NotAccredited } none && none.Resources.All(r => r.State == State.Missing), "ShinyCapability_TruncatedOrMissingFileIsInsufficientData");
+        foreach (var (name, data) in cases)
+        {
+            File.WriteAllBytes(path, data);
+            bool opens; try { _ = new GameShinyRateService(f.Session); opens = true; } catch (InvalidDataException) { opens = false; }
+            check(GameShinyRateService.InspectCapability(data).CanApply == opens, "ShinyCapability_AgreesWithTheService_" + name);
+        }
+        File.WriteAllBytes(path, With(code, c => Array.Clear(c, 0x1000, 16)));
+        try { _ = new GameShinyRateService(f.Session); check(false, "ShinyCapability_ServiceRefusesWithItsExplanation"); }
+        catch (InvalidDataException e) { check(e.Message.Contains("No se modificó ningún archivo") && e.Message.Contains("no acreditada") && e.Message.Contains("rutina PID"), "ShinyCapability_ServiceRefusesWithItsExplanation"); }
+
+        // Shiny Rate and Player Level Caps both write to code.bin: installed in both orders, each still recognises both.
+        byte[] shared = DefinitiveGameDataCapsChecks.StockCode();
+        // Away from page starts: the caps installer reads a non-zero page start after padding as the end of the code.
+        code.AsSpan(0x1000, 16).CopyTo(shared.AsSpan(0x1010)); code.AsSpan(0x2000, 16).CopyTo(shared.AsSpan(0x2010));
+        byte[] battle = DefinitiveGameDataCapsChecks.StockBattle();
+        var table = Caps.Table();
+        byte[] Shiny(byte[] data) { File.WriteAllBytes(path, data); var s = new GameShinyRateService(f.Session); return s.Preview(300, true).File.Proposed(); }
+        bool ShinyOwn(byte[] data) => GameShinyRateService.InspectCapability(data) is { CanApply: true } r && r.Resources.All(x => x.State == State.OwnInstall);
+        bool CapsOwn(byte[] data) => LevelCapPatch.InspectCandy(data, out var installed) == LevelCapCopyState.Applied && installed.ToBytes().SequenceEqual(table.ToBytes());
+        var capsFirst = LevelCapPatch.InstallManaged(battle, shared, table);
+        byte[] capsThenShiny = Shiny(capsFirst.CodeBin);
+        var shinyThenCaps = LevelCapPatch.InstallManaged(battle, Shiny(shared), table);
+        check(capsFirst.Success && shinyThenCaps.Success && ShinyOwn(capsThenShiny) && CapsOwn(capsThenShiny) && ShinyOwn(shinyThenCaps.CodeBin) && CapsOwn(shinyThenCaps.CodeBin),
+            "ShinyInteraction_BothPatchesStayInstalledInEitherOrder");
+        check(capsThenShiny.SequenceEqual(shinyThenCaps.CodeBin), "ShinyInteraction_OrderDoesNotChangeCodeBin");
+        check(LevelCapPatch.InspectCapability(capsFirst.BattleCro, capsThenShiny).Level == Level.Verified, "ShinyInteraction_CapsRemainVerifiedAfterShiny");
+    }
+
     internal static void RunUi(Action<bool, string> check)
     {
         if (Application.Current is null) { var app = new ThreeDS.Progressive.App(); app.InitializeComponent(); }

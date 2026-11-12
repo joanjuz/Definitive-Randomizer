@@ -1,5 +1,6 @@
 using System.IO;
 using System.Security.Cryptography;
+using pk3DS.Core.Modding.Research;
 using pk3DS.Core.Properties;
 using ThreeDS.Progressive.Models;
 
@@ -25,7 +26,67 @@ internal sealed class GameShinyRateService
         byte[] source=File.ReadAllBytes(_codePath);
         if(source.Length%0x200!=0)throw new InvalidDataException("code.bin no está descomprimido.");
         _sha=SHA256.HashData(source);
+        var capability=InspectCapability(source);
+        if(!capability.CanApply)throw new InvalidDataException("No se modificó ningún archivo. "+GamePlayerLevelCapService.Describe(capability));
         _=Decode(source);
+    }
+    internal const string CapabilityId="3ds.shiny-rate";
+    /// <summary>
+    /// Read-only capability report. Shiny Rate has no fixed offsets: the PID routine is located by its signature and must
+    /// be the only candidate, so its best level is «compatible by adaptation». «Everything Shiny» is optional: when its
+    /// signature is absent the rerolls remain available and the report says so. The input is never modified.
+    /// </summary>
+    internal static PatchCapabilityReport InspectCapability(byte[]? code)
+    {
+        const string pidName="code.bin · rerolls del PID",shinyName="code.bin · Everything Shiny";
+        PatchCapabilityReport Report(PatchCapabilityLevel level,string summary,PatchResourceReport[] resources,IReadOnlyList<PatchChangedRange>? changes=null)=>new(CapabilityId,level,resources,changes??[],[],summary);
+        PatchResourceReport[] Both(PatchResourceState state,string evidence)=>[new(pidName,"Cantidad de rerolls",state,null,evidence),new(shinyName,"Todos shiny",state,null,evidence)];
+        if(code is null)return Report(PatchCapabilityLevel.NotAccredited,"Datos insuficientes: falta code.bin.",Both(PatchResourceState.Missing,"No se encontró el archivo."));
+        if(code.Length==0||code.Length%0x200!=0)return Report(PatchCapabilityLevel.NotAccredited,"Datos insuficientes: code.bin no está descomprimido o está incompleto.",Both(PatchResourceState.Truncated,"El tamaño no es múltiplo de 0x200."));
+        var candidates=Candidates(code);
+        PatchResourceReport pid=candidates.Count switch
+        {
+            1 when code.AsSpan(candidates[0],4).SequenceEqual(VanillaReroll)=>new(pidName,"Cantidad de rerolls",PatchResourceState.Original,(uint)candidates[0],$"Rutina PID original localizada por su firma en 0x{candidates[0]:X6}."),
+            1=>new(pidName,"Cantidad de rerolls",PatchResourceState.OwnInstall,(uint)candidates[0],$"Rutina PID con rerolls modificados localizada por su firma en 0x{candidates[0]:X6}."),
+            0=>new(pidName,"Cantidad de rerolls",PatchResourceState.ExternalModification,null,"No se encuentra la rutina PID con una instrucción de rerolls reconocida: otra revisión o una modificación la cambió."),
+            _=>new(pidName,"Cantidad de rerolls",PatchResourceState.ExternalModification,null,$"Hay {candidates.Count} rutinas candidatas; debe ser única para saber dónde escribir."),
+        };
+        int shinyAt=code.AsSpan().IndexOf(ShinySignature);
+        bool option=shinyAt>=0&&shinyAt+ShinySignature.Length<code.Length&&code[shinyAt+ShinySignature.Length] is 0x0A or 0xEA;
+        PatchResourceReport shiny=option
+            ?new(shinyName,"Todos shiny",code[shinyAt+ShinySignature.Length]==0xEA?PatchResourceState.OwnInstall:PatchResourceState.Original,(uint)(shinyAt+ShinySignature.Length),$"Condición localizada por su firma en 0x{shinyAt+ShinySignature.Length:X6}.")
+            :new(shinyName,"Todos shiny",PatchResourceState.ExternalModification,null,"Firma no encontrada: la opción «Everything Shiny» no está disponible; los rerolls no dependen de ella.");
+        PatchResourceReport[] resources=[pid,shiny];
+        if(candidates.Count!=1)return Report(PatchCapabilityLevel.NotAccredited,"No se puede localizar de forma única la rutina de rerolls.",resources);
+        byte[] trial=(byte[])code.Clone();
+        try
+        {
+            _=Decode(code);
+            var row=Instructions.First(x=>x.Count>=125);
+            BitConverter.GetBytes(row.Instr).CopyTo(trial,candidates[0]);trial[candidates[0]+2]=0xA0;trial[candidates[0]+3]=0xE3;
+            if(Decode(trial).State is not {Vanilla:false} read||read.Rerolls!=row.Count)return Report(PatchCapabilityLevel.NotAccredited,"La escritura simulada de los rerolls no se pudo leer de vuelta.",resources);
+        }
+        catch(Exception e) when(e is InvalidDataException or InvalidOperationException or ArgumentException or IndexOutOfRangeException)
+        {return Report(PatchCapabilityLevel.NotAccredited,"No se pudo simular el cambio de rerolls: "+e.Message,resources);}
+        var changes=new List<PatchChangedRange>();
+        if(!trial.AsSpan(candidates[0],4).SequenceEqual(code.AsSpan(candidates[0],4)))changes.Add(new("code.bin",(uint)candidates[0],4));
+        return Report(PatchCapabilityLevel.CompatibleByAdaptation,
+            (pid.State==PatchResourceState.OwnInstall?"Los rerolls ya están modificados.":"Los rerolls tienen el valor original.")+
+            " La rutina se localizó por su firma única, no por una posición fija; la revisión del archivo no se comprueba."+(option?"":" «Everything Shiny» no está disponible en este archivo."),resources,changes);
+    }
+    /// <summary>Offsets of the reroll instruction of every routine that looks like the PID loop.</summary>
+    private static List<int> Candidates(byte[] raw)
+    {
+        var candidates=new List<int>();int search=0;
+        while(search<=raw.Length-PidSignature.Length)
+        {
+            int found=raw.AsSpan(search).IndexOf(PidSignature);if(found<0)break;
+            int sig=search+found;search=sig+1;if(sig<4)continue;
+            int at=sig-4;
+            if(raw.AsSpan(at,4).SequenceEqual(VanillaReroll)||
+               raw[at+2]==0xA0&&raw[at+3]==0xE3&&Instructions.Any(row=>row.Instr==BitConverter.ToUInt16(raw,at)))candidates.Add(at);
+        }
+        return candidates;
     }
     private static (int Count,ushort Instr)[] ParseInstructions()
     {
@@ -40,15 +101,7 @@ internal sealed class GameShinyRateService
     {
         // ORAS has other loops sharing this suffix. Identify the PID loop by
         // its original LDRB instruction or a supported MOV reroll replacement.
-        var candidates=new List<int>();int search=0;
-        while(search<=raw.Length-PidSignature.Length)
-        {
-            int found=raw.AsSpan(search).IndexOf(PidSignature);if(found<0)break;
-            int sig=search+found;search=sig+1;if(sig<4)continue;
-            int at=sig-4;
-            if(raw.AsSpan(at,4).SequenceEqual(VanillaReroll)||
-               raw[at+2]==0xA0&&raw[at+3]==0xE3&&Instructions.Any(row=>row.Instr==BitConverter.ToUInt16(raw,at)))candidates.Add(at);
-        }
+        var candidates=Candidates(raw);
         if(candidates.Count!=1)throw new InvalidDataException("No se encontró una rutina PID única con instrucción de rerolls compatible.");
         int offset=candidates[0];
         bool vanilla=raw.AsSpan(offset,4).SequenceEqual(VanillaReroll);

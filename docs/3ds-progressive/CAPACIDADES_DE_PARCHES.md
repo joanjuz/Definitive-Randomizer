@@ -2,7 +2,7 @@
 
 Primer paso hacia un motor de parches que dependa menos de offsets fijos: antes de instalar, cada parche puede decir **qué ve** en los archivos y **hasta dónde está acreditado**. No existe un botón de forzar.
 
-Cubre dos parches de Ultra Sol / Ultra Luna: **Player Level Caps** y **Persistent Items**. Los instaladores no cambian.
+Cubre tres parches: **Player Level Caps** y **Persistent Items** (Ultra Sol / Ultra Luna) y **Shiny Rate** (sexta y séptima generación). Los instaladores no cambian.
 
 ## Niveles
 
@@ -50,6 +50,18 @@ Este parche no usa posiciones fijas: cada uno de sus dos puntos de `Battle.cro` 
 
 Al abrir el editor con un archivo no acreditado, el mensaje explica qué punto no se pudo localizar.
 
+## Shiny Rate
+
+Tampoco usa posiciones fijas: la rutina PID de `code.bin` se localiza por su firma y debe ser la única candidata, así que su mejor nivel es «compatible por adaptación».
+
+| Situación | Nivel |
+| --- | --- |
+| Una sola rutina, con la instrucción original o con rerolls reconocidos | Compatible por adaptación |
+| Ninguna rutina, varias candidatas o una instrucción de rerolls desconocida | No acreditada |
+| Falta el archivo o no está descomprimido | No acreditada |
+
+«Everything Shiny» es opcional: si su firma no aparece, los rerolls siguen disponibles y el informe lo dice. Al abrir el editor con un archivo no acreditado, el mensaje explica el motivo.
+
 ## Interacción entre parches
 
 Player Level Caps y Persistent Items escriben los dos en `Battle.cro`. La suite los instala en los dos órdenes sobre dos módulos sintéticos: uno con espacio libre y otro que obliga a ampliar el segmento de código.
@@ -58,6 +70,8 @@ Player Level Caps y Persistent Items escriben los dos en `Battle.cro`. La suite 
 - El orden no cambia el resultado: los dos órdenes dan el mismo módulo, byte a byte.
 - Ampliar el segmento desplaza los puntos de Persistent Items, que se siguen localizando por su firma.
 - Reemplazar la tabla de Player Level Caps conserva Persistent Items.
+
+Shiny Rate y Player Level Caps escriben los dos en `code.bin`: instalados en los dos órdenes, ambos siguen reconocidos y el archivo resultante es el mismo.
 
 **Comportamiento observado, sin corregir:** con espacio libre, reinstalar la misma tabla no cambia nada. Cuando la primera instalación tuvo que ampliar el segmento, la primera reinstalación vuelve a mover la rutina (del segmento ampliado al relleno de página) y solo la siguiente deja de cambiar. El resultado sigue siendo válido y conserva el otro parche, pero esa reinstalación no es neutra y el informe de capacidades la muestra como cambios. No se ha modificado el instalador: hacerlo exige evidencia con un módulo real.
 
@@ -77,10 +91,10 @@ Player Level Caps y Persistent Items escriben los dos en `Battle.cro`. La suite 
 
 ## Validación
 
-`--patch-capability-only`: 106 comprobaciones con binarios sintéticos (65 de Player Level Caps, 21 de Persistent Items y 20 de interacción entre ambos). Cubre original, instalación propia, reinstalación idempotente, parche en un solo archivo, tablas distintas, enganche editado, salto a código ajeno, firma desplazada, firma ambigua, archivo truncado, archivo ausente, rutina dañada, rutina sin enganchar, formatos anteriores, falta de espacio, ampliación del segmento (adaptación), acuerdo con el instalador, transacción fallida sin instalación parcial, deshacer y la vista WPF fuera de pantalla.
+`--patch-capability-only`: 129 comprobaciones con binarios sintéticos (65 de Player Level Caps, 21 de Persistent Items, 20 de interacción entre ambos y 23 de Shiny Rate, incluida su convivencia con Player Level Caps). Cubre original, instalación propia, reinstalación idempotente, parche en un solo archivo, tablas distintas, enganche editado, salto a código ajeno, firma desplazada, firma ambigua, archivo truncado, archivo ausente, rutina dañada, rutina sin enganchar, formatos anteriores, falta de espacio, ampliación del segmento (adaptación), acuerdo con el instalador, transacción fallida sin instalación parcial, deshacer y la vista WPF fuera de pantalla.
 
 No se ha comprobado con ROMs reales ni con romhacks: los niveles describen los archivos sintéticos de la suite. No se declara compatibilidad general con ROMs modificadas.
 
 ## Siguiente
 
-Llevar el modelo a más parches (Shiny Rate, mentas cuando se integren sus cambios pendientes). Player Level Caps sigue sin localizar enganches por firma para escribir: eso exigiría evidencia adicional.
+Llevar el modelo a más parches (mentas cuando se integren sus cambios pendientes, compra única, obediencia). Player Level Caps sigue sin localizar enganches por firma para escribir: eso exigiría evidencia adicional.

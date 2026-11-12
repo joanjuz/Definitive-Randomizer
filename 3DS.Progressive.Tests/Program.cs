@@ -146,6 +146,7 @@ if(args.Length==1&&args[0]=="--patch-capability-only")
     PatchCapabilityChecks.Run(Check,Reject);
     PatchCapabilityChecks.RunPersistentItems(Check,Reject);
     PatchInteractionChecks.Run(Check,Reject);
+    PatchCapabilityChecks.RunShinyRate(Check,Reject);
     Exception? failure=null;var ui=new Thread(()=>{try{ThreeDS.Progressive.StudioDialog.AutomatedChecks=true;PatchCapabilityChecks.RunUi(Check);}catch(Exception ex){failure=ex;}});
     ui.SetApartmentState(ApartmentState.STA);ui.Start();ui.Join();if(failure is not null)System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(failure).Throw();
     Console.WriteLine($"Completed {checks} patch capability checks.");return;
