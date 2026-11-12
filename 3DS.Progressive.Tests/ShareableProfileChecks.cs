@@ -154,7 +154,7 @@ internal static class ShareableProfileChecks
         var targetFiles = Caps.Files(target); int entries = target.Session.History.Read().Entries.Count;
         var fresh = profile.Evaluate(target.Session);
         check(fresh.SameGame && Report(fresh, "actions/rng").Status == ProfileSectionStatus.Compatible && Report(fresh, "actions/trainers").Status == ProfileSectionStatus.Compatible &&
-            Report(fresh, "manual/playercaps").Status == ProfileSectionStatus.Compatible && Report(fresh, "manual/playercaps").Detail.Contains("se instalaría") &&
+            Report(fresh, "manual/playercaps").Status == ProfileSectionStatus.Compatible && Report(fresh, "manual/playercaps").Detail.Contains("Se instalaría") &&
             Report(fresh, "manual/personal-fields").Status == ProfileSectionStatus.Compatible, "Profile_CompatibleSectionsOnAStockProject");
         check(Report(fresh, "options/nature-mints").Status == ProfileSectionStatus.Incompatible && !Report(fresh, "options/nature-mints").Selectable &&
             fresh.Verdict == "4 de 5 secciones se pueden usar en este proyecto.", "Profile_MintsNeedTheirPatchInstalled");
@@ -210,9 +210,9 @@ internal static class ShareableProfileChecks
         byte[] foreignHook = DefinitiveGameDataCapsChecks.StockBattle(); foreignHook[(int)LevelCapPatch.BattleHook] ^= 0x5A;
         File.WriteAllBytes(Caps.BattlePath(target), foreignHook);
         var modified = profile.Evaluate(target.Session);
-        check(Report(modified, "manual/playercaps") is { Status: ProfileSectionStatus.Incompatible, Selectable: false } blocked && blocked.Detail.Contains("no acreditada"),
-            "Profile_UnrecognizedHookIsNotAccredited");
-        reject(() => profile.Select(modified, ["manual/playercaps"]), "Profile_UnaccreditedPatchCannotBeForced");
+        check(Report(modified, "manual/playercaps") is { Status: ProfileSectionStatus.Incompatible, Selectable: false } blocked && blocked.Detail.Contains("conflicto"),
+            "Profile_HookTakenByAnotherModificationIsAConflictThatCannotBeChosen");
+        reject(() => profile.Select(modified, ["manual/playercaps"]), "Profile_ConflictingPatchCannotBeForced");
         File.Delete(Caps.BattlePath(target));
         check(Report(profile.Evaluate(target.Session), "manual/playercaps").Status == ProfileSectionStatus.Incompatible, "Profile_MissingPatchFileIsNotAccredited");
     }

@@ -42,7 +42,7 @@ Operaciones manuales admitidas: `record`, `move`, `learnset`, `personal-flags`, 
 | Requisito | Significado |
 | --- | --- |
 | `game:usum` | Proyecto de Ultra Sol o Ultra Luna |
-| `patch:player-level-caps` | `Battle.cro` y `code.bin` en su estado original o con el parche actual, y de acuerdo entre sí |
+| `patch:player-level-caps` | El informe de capacidades de Player Level Caps permite instalar (verificada o compatible por adaptación) |
 | `patch:nature-mints` | Parche de mentas instalado y reconocido |
 
 Un requisito que la aplicación no conoce bloquea su sección («no reconocida»): no hay forma de forzarla.

@@ -44,7 +44,7 @@ internal static class DefinitiveGameDataCapsChecks
     private static void WriteStock(Fixture f) { File.WriteAllBytes(BattlePath(f), StockBattle()); File.WriteAllBytes(CodePath(f), StockCode()); }
     private static uint Bl(int from, int to) => 0xEB000000u | ((uint)((to - (from + 8)) >> 2) & 0x00FFFFFF);
     /// <summary>Writes a routine of an earlier table format and its hook, as an older build would have left it.</summary>
-    private static byte[] WithEarlierFormat(byte[] stock, bool battle, bool directFlags)
+    internal static byte[] WithEarlierFormat(byte[] stock, bool battle, bool directFlags)
     {
         byte[] data = (byte[])stock.Clone();
         int at = battle ? 0x20000 : 0x225C00;
