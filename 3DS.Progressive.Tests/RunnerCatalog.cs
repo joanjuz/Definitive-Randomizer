@@ -25,6 +25,7 @@ internal static class RunnerCatalog
         new("--player-caps-recipe-only","",RunnerCategory.Synthetic,true),
         new("--profiles-only","",RunnerCategory.Ui,true),
         new("--patch-capability-only","",RunnerCategory.Ui,true),
+        new("--mega-diagnostic-only","",RunnerCategory.Ui,true),
         new("--definitive-game-data-fixture","<archivo JSON nuevo fuera del proyecto>",RunnerCategory.Synthetic,false),
         new("--definitive-game-data-caps-fixtures","<carpeta nueva o vacía fuera del proyecto>",RunnerCategory.Synthetic,false),
         new("--batch-gen6-only","",RunnerCategory.Synthetic,false),

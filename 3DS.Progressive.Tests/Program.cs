@@ -133,6 +133,13 @@ if(args.Length==1&&args[0]=="--requested-ui-only")
 if(args.Length is 2 or 3&&args[0]=="--visual-audit"){Exception? failure=null;var ui=new Thread(()=>{try{VisualAudit.Run(args[1],args.Length==3?args[2]:null,Check);}catch(Exception ex){failure=ex;}});ui.SetApartmentState(ApartmentState.STA);ui.Start();ui.Join();if(failure is not null)System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(failure).Throw();Console.WriteLine($"Completed {checks} visual audit checks.");return;}
 if(args.Length>=3&&args[0]=="--visual-audit-ds"){Exception? failure=null;var ui=new Thread(()=>{try{VisualAudit.RunDs(args[1],args.Skip(2).ToArray(),Check);}catch(Exception ex){failure=ex;}});ui.SetApartmentState(ApartmentState.STA);ui.Start();ui.Join();if(failure is not null)System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(failure).Throw();Console.WriteLine($"Completed {checks} DS visual audit checks.");return;}
 if(args.Length==1&&args[0]=="--all-ui-only"){Exception? failure=null;var ui=new Thread(()=>{try{UiSmoke.Run(Check);RequestedIntegrationChecks.RunUi(Check);Review73Checks.RunUi(Check); UtilityCompletionUiChecks.Run(Check);TitleScreenChecks.RunUi(Check);TitleMovieChecks.RunUi(Check); Tutor6CompatibilityChecks.RunUi(Check); RomToolUiChecks.Run(Check); GlobalEditorBridgeChecks.RunUi(Check); FieldItems6Checks.RunUi(Check); FeatureVisibilityChecks.Run(Check);MasterBatchChecks.RunUi(Check); Tm6CompatibilityChecks.RunUi(Check); GlobalCompletionChecks.RunUi(Check); BattleFacilityChecks.RunUi(Check); BatchGen6Checks.RunUi(Check);}catch(Exception ex){failure=ex;}});ui.SetApartmentState(ApartmentState.STA);ui.Start();ui.Join();if(failure is not null)throw failure;Console.WriteLine($"Completed {checks} UI checks.");return;}
+if(args.Length==1&&args[0]=="--mega-diagnostic-only")
+{
+    MegaAbilityDiagnosticChecks.Run(Check,Reject);
+    Exception? failure=null;var ui=new Thread(()=>{try{ThreeDS.Progressive.StudioDialog.AutomatedChecks=true;MegaAbilityDiagnosticChecks.RunUi(Check);}catch(Exception ex){failure=ex;}});
+    ui.SetApartmentState(ApartmentState.STA);ui.Start();ui.Join();if(failure is not null)System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(failure).Throw();
+    Console.WriteLine($"Completed {checks} Mega Evolution ability diagnosis checks.");return;
+}
 if(args.Length==1&&args[0]=="--patch-capability-only")
 {
     PatchCapabilityChecks.Run(Check,Reject);

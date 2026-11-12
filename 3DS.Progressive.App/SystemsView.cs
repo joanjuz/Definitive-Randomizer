@@ -281,6 +281,22 @@ internal sealed class SystemsView : UserControl
         {StudioDialog.Error(owner,"Exportar datos para Progressive Tracker",ex.Message);}
         finally{UiProgress.End();}
     }
+    internal static async Task ExportMegaDiagnosisAsync(Window? owner,GameProjectSession project,Action<string>? status=null)
+    {
+        var picker=new Microsoft.Win32.SaveFileDialog{Filter="Informe de texto|*.txt",FileName=$"megaevoluciones-habilidades-{System.IO.Path.GetFileName(project.ProjectRoot)}.txt"};
+        if(picker.ShowDialog(owner)!=true)return;
+        UiProgress.Begin("Megaevoluciones · leyendo la tabla Personal guardada…");
+        try
+        {
+            var (report,text)=await Task.Run(()=>{var r=MegaAbilityDiagnostics.Inspect(project);return(r,MegaAbilityDiagnostics.Describe(project,r));});
+            await File.WriteAllTextAsync(picker.FileName,text,new System.Text.UTF8Encoding(false));
+            status?.Invoke("Diagnóstico exportado: "+picker.FileName);
+            StudioDialog.Notice(owner,"Diagnóstico exportado",$"{report.Rows.Count} formas revisadas; {report.SlotDependent} tienen una habilidad distinta según la ranura. No se modificó el proyecto.",picker.FileName);
+        }
+        catch(Exception ex) when(ex is IOException or UnauthorizedAccessException or InvalidOperationException or ArgumentException or IndexOutOfRangeException)
+        {StudioDialog.Error(owner,"Diagnóstico de megaevoluciones",ex.Message);}
+        finally{UiProgress.End();}
+    }
     private void BuildRomTools(Panel stack)
     {
         if(DefinitiveGameData.Supports(_project))
@@ -290,6 +306,14 @@ internal sealed class SystemsView : UserControl
                 "Incluye especies y formas, estadísticas base, tipos, habilidades, movimientos, evoluciones y el estado guardado de Player Level Caps. La revisión de una extracción no se da por conocida; el Tracker pide confirmarla. Las ediciones sin guardar quedan fuera.");
             AddButton((StackPanel)tracker.Child,"Exportar datos para Progressive Tracker",()=>_=ExportTrackerDataAsync(Window.GetWindow(this),_project,text=>_status.Text=text));
             stack.Children.Add(tracker);
+        }
+        if(MegaAbilityDiagnostics.Supports(_project))
+        {
+            var megas=Card("Megaevoluciones · Diagnóstico de habilidades",
+                "Revisa las habilidades de las megaevoluciones guardadas y exporta un informe para comparar con otro jugador.",
+                "Solo lee el proyecto. Indica qué megaevoluciones tienen una habilidad distinta según la ranura del Pokémon e incluye la huella de la tabla Personal. No reproduce un combate ni corrige nada.");
+            AddButton((StackPanel)megas.Child,"Exportar diagnóstico de megaevoluciones…",()=>_=ExportMegaDiagnosisAsync(Window.GetWindow(this),_project,text=>_status.Text=text));
+            stack.Children.Add(megas);
         }
         var log=Card("Registro del randomizado","Exporta un archivo de texto con lo que tiene ahora el juego: regalos y estáticos, equipos de entrenadores, encuentros salvajes y los cambios guardados.",
             "Solo lee el proyecto. Cada parte se lee con su editor; si una no está disponible en este juego, el registro lo indica y sigue con las demás.","Spoiler");

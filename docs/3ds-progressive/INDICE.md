@@ -58,6 +58,7 @@ Punto de entrada a `docs/3ds-progressive/`. Muchos documentos son **registros hi
 
 ## Contratos y formatos (consultar antes de tocar el módulo)
 
+- Megaevoluciones y habilidades en USUM (diagnóstico, investigación abierta): [MEGAS_HABILIDADES_USUM_DIAGNOSTICO.md](MEGAS_HABILIDADES_USUM_DIAGNOSTICO.md).
 - Capacidades de parches (informe de solo lectura): [CAPACIDADES_DE_PARCHES.md](CAPACIDADES_DE_PARCHES.md).
 - Perfiles compartibles (USUM): [PERFILES_COMPARTIBLES.md](PERFILES_COMPARTIBLES.md) y su contrato [SHAREABLE_PROFILE_V1.md](../contracts/SHAREABLE_PROFILE_V1.md).
 - Global Template y Batch 3DS: [HITO_16_GLOBAL_TEMPLATE_BATCH.md](HITO_16_GLOBAL_TEMPLATE_BATCH.md), [GLOBAL_TEMPLATE_APLICACION_20261020.md](GLOBAL_TEMPLATE_APLICACION_20261020.md), [MODIFICACIONES_MANUALES_GLOBAL.md](MODIFICACIONES_MANUALES_GLOBAL.md)
