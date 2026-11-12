@@ -637,6 +637,17 @@ internal static class ModuleChecks
                     version+" missing CRO patch falls back safely to canonical Player Caps");
                 reject(()=>playerCaps.Preview(defaults),
                     "Player Caps refuses install when Battle.cro / decompressed code.bin missing");
+                check(GamePlayerLevelCapService.ProvenTrainers.All(t=>defaults.Entries.Count(e=>e.Label==t.Label)==1),
+                    version+" every Sync Trainer Caps label matches exactly one researched checkpoint");
+                var olivia=GamePlayerLevelCapService.ApplyTrainerLevels(defaults,
+                    new Dictionary<int,int>{{153,69}},out int oliviaUpdated);
+                LevelCapEntry Cap(LevelCapTable t,string label)=>t.Entries.Single(e=>e.Label==label);
+                check(oliviaUpdated==1&&Cap(olivia,"Elite Four - Olivia (Mayla)").Cap==69
+                    &&Cap(olivia,"Elite Four - Molayne (Lario)").Cap==68
+                    &&Cap(olivia,"Elite Four - Acerola (Zarala)").Cap==69
+                    &&Cap(olivia,"Defeat Champion Hau (Tilo)").Cap==70
+                    &&olivia.Entries.Count==21&&olivia.Validate().Count==0,
+                    version+" Sync Trainer Caps updates Elite Four Olivia (153) and later caps never go backwards");
             }
             var item=new GameItemService(f.Session);
             var iv=EditorValues.Flatten(item.Read(1));
