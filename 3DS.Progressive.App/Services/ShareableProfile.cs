@@ -336,30 +336,22 @@ internal sealed class ShareableProfile
                 var (available, report) = new UsumMintItemPolicy(project).Inspect();
                 return (available, true, "Requiere el parche de mentas instalado. " + report);
             case CapsPatch:
-                var (battle, code, _) = InstalledCaps(project);
-                bool accredited = battle is LevelCapCopyState.Stock or LevelCapCopyState.Applied && battle == code;
-                return (accredited, true, $"Compatibilidad no acreditada: Battle.cro ({Describe(battle)}) y code.bin ({Describe(code)}) no están los dos en su estado original ni con el parche actual.");
+                var capability = new GamePlayerLevelCapService(project).Capability();
+                return (capability.CanApply, true, GamePlayerLevelCapService.Describe(capability));
             default: return (false, false, "");
         }
     }
-    private static string Describe(LevelCapCopyState? state) => state switch
-    {
-        null => "no encontrado", LevelCapCopyState.Stock => "original", LevelCapCopyState.Applied => "parche instalado",
-        LevelCapCopyState.AppliedLegacy => "formato anterior del parche", _ => "modificado o no reconocido",
-    };
-    private static (LevelCapCopyState? Battle, LevelCapCopyState? Code, LevelCapTable? Table) InstalledCaps(GameProjectSession project)
+    /// <summary>The table installed in both files, when both carry the current patch with the same table.</summary>
+    private static LevelCapTable? InstalledCaps(GameProjectSession project)
     {
         try
         {
             string battlePath = GamePlayerLevelCapService.Find(project.GameConfiguration.RomFS, "Battle.cro", true), codePath = GamePlayerLevelCapService.Find(project.GameConfiguration.ExeFS, "code.bin", false);
-            if (!File.Exists(battlePath) || !File.Exists(codePath)) return (File.Exists(battlePath) ? LevelCapCopyState.Unrecognized : null, File.Exists(codePath) ? LevelCapCopyState.Unrecognized : null, null);
-            var battle = LevelCapPatch.InspectBattle(File.ReadAllBytes(battlePath), out var first);
-            var code = LevelCapPatch.InspectCandy(File.ReadAllBytes(codePath), out var second);
-            if (battle == LevelCapCopyState.Applied && code == LevelCapCopyState.Applied && !first.ToBytes().SequenceEqual(second.ToBytes())) return (battle, LevelCapCopyState.Unrecognized, null);
-            return (battle, code, battle == LevelCapCopyState.Applied ? first : null);
+            if (!File.Exists(battlePath) || !File.Exists(codePath)) return null;
+            return LevelCapPatch.InspectBattle(File.ReadAllBytes(battlePath), out var first) == LevelCapCopyState.Applied &&
+                LevelCapPatch.InspectCandy(File.ReadAllBytes(codePath), out var second) == LevelCapCopyState.Applied && first.ToBytes().SequenceEqual(second.ToBytes()) ? first : null;
         }
-        catch (Exception e) when (e is IOException or UnauthorizedAccessException or InvalidDataException or ArgumentException or IndexOutOfRangeException)
-        { return (LevelCapCopyState.Unrecognized, LevelCapCopyState.Unrecognized, null); }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException) { return null; }
     }
 
     private (ProfileSectionStatus, string)? Conflict(GameProjectSession project, ProfileSection section, HashSet<string> applied, Dictionary<string, string> current)
@@ -376,8 +368,8 @@ internal sealed class ShareableProfile
         string kind = section.Id[ManualPrefix.Length..];
         if (kind == "playercaps")
         {
-            var installed = InstalledCaps(project).Table;
-            if (installed is null) return (ProfileSectionStatus.Compatible, "El parche no está instalado: se instalaría con la tabla del perfil.");
+            var installed = InstalledCaps(project);
+            if (installed is null) return (ProfileSectionStatus.Compatible, "Se instalaría con la tabla del perfil. " + new GamePlayerLevelCapService(project).Capability().Summary);
             var table = PlayerLevelCapRecipe.Read(Operations(_recipe).Last(o => o["Kind"]!.GetValue<string>() == kind)["Payload"]!.AsObject());
             return installed.ToBytes().SequenceEqual(table.ToBytes()) ? (ProfileSectionStatus.Compatible, "El proyecto ya tiene instalada esta misma tabla.") :
                 (ProfileSectionStatus.Conflict, $"Sustituiría la tabla instalada ({installed.Entries.Count} puntos) por la del perfil ({table.Entries.Count} puntos).");

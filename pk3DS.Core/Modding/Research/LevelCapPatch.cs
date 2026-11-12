@@ -63,7 +63,7 @@ public sealed record LevelCapInstallResult(
 /// in the mapped image. The managed path allocates relocation-safe Battle.cro space and can grow
 /// segment 0 automatically when the existing executable padding is insufficient.
 /// </summary>
-public static class LevelCapPatch
+public static partial class LevelCapPatch
 {
     // Global byte-zero base of the USUM Event Flags bitfield in RAM.
     //

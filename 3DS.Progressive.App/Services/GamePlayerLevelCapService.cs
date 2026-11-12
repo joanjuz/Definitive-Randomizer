@@ -55,13 +55,24 @@ internal sealed class GamePlayerLevelCapService
         if(!Supported){Status="Solo disponible para USUM.";return;}
         try
         {
-            var (battle,code)=Read();
-            var a=LevelCapPatch.GetBattleState(battle,out _);
-            var b=LevelCapPatch.GetCandyState(code,out _);
-            Status=$"Battle.cro: {a} · Rare Candy/code.bin: {b}";
+            _=Read();
+            Status=Describe(Capability());
         }
         catch(Exception ex){Status="Sin parche disponible: "+ex.Message;}
     }
+    /// <summary>Read-only capability report of the saved files. A file that is missing is reported, not thrown.</summary>
+    internal PatchCapabilityReport Capability()
+    {
+        static byte[]? Bytes(string path){try{return File.Exists(path)?File.ReadAllBytes(path):null;}catch(IOException){return null;}catch(UnauthorizedAccessException){return null;}}
+        return LevelCapPatch.InspectCapability(Bytes(_battlePath)!,Bytes(_codePath)!);
+    }
+    internal static string LevelName(PatchCapabilityLevel level)=>level switch
+    {
+        PatchCapabilityLevel.Verified=>"verificada",PatchCapabilityLevel.CompatibleByAdaptation=>"compatible por adaptación",
+        PatchCapabilityLevel.Conflict=>"conflicto",_=>"no acreditada"
+    };
+    internal static string Describe(PatchCapabilityReport report)=>
+        "Compatibilidad "+LevelName(report.Level)+". "+report.Summary+" "+string.Join(" ",report.Resources.Select(r=>r.Resource+": "+r.Evidence));
     internal LevelCapTable StartingTable()
     {
         if(Supported)
@@ -82,7 +93,7 @@ internal sealed class GamePlayerLevelCapService
         var (battle,code)=Read();
         var install=LevelCapPatch.InstallManaged(battle,code,table);
         if(!install.Success)
-            throw new InvalidDataException("Firma/hook incompatible: no se escribirá nada. "+
+            throw new InvalidDataException("No se escribirá nada. "+Describe(LevelCapPatch.InspectCapability(battle,code))+" · "+
                 string.Join(" | ",install.Sites.Select(s=>s.ToString())));
         return new(_owner,table,[new FileChange(_battlePath,battle,install.BattleCro),
             new FileChange(_codePath,code,install.CodeBin)],
