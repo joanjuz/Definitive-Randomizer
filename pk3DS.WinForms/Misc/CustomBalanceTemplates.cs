@@ -101,7 +101,23 @@ internal static class CustomBalanceTemplates
 
     internal static MovePatchRow[] LoadMovePatches(int generation, string[] moveNames)
     {
-        string path = GetMoveTemplatePath(generation);
+        var rows = LoadMovePatchesFrom(GetMoveTemplatePath(generation), generation, moveNames);
+        // The shared defaults no longer carry the Eris-Ultranova balance. A recipe that requests the
+        // legacy balance action keeps reading it from the optional package installed next to the program.
+        if (rows.Length == 0 && generation == 7 && OptionalBalancePath($"moves_gen{generation}.csv") is { } optional)
+            rows = LoadMovePatchesFrom(optional, generation, moveNames);
+        return rows;
+    }
+
+    internal static string OptionalBalancePath(string fileName)
+    {
+        string root = Path.GetDirectoryName(Path.GetFullPath(GetTemplateRoot()));
+        string path = root is null ? null : Path.Combine(root, "plantillas-opcionales", "eris-ultranova", fileName);
+        return path is not null && File.Exists(path) ? path : null;
+    }
+
+    private static MovePatchRow[] LoadMovePatchesFrom(string path, int generation, string[] moveNames)
+    {
         if (!File.Exists(path))
             return [];
 
@@ -263,7 +279,14 @@ internal static class CustomBalanceTemplates
 
     internal static PokemonStatPatchRow[] LoadPokemonStatPatches(int generation, string[] entryNames)
     {
-        string path = GetPokemonStatsTemplatePath(generation);
+        var rows = LoadPokemonStatPatchesFrom(GetPokemonStatsTemplatePath(generation), entryNames);
+        if (rows.Length == 0 && generation == 7 && OptionalBalancePath($"pokemon_stats_gen{generation}.csv") is { } optional)
+            rows = LoadPokemonStatPatchesFrom(optional, entryNames);
+        return rows;
+    }
+
+    private static PokemonStatPatchRow[] LoadPokemonStatPatchesFrom(string path, string[] entryNames)
+    {
         if (!File.Exists(path))
             return [];
 
@@ -374,34 +397,29 @@ internal static class CustomBalanceTemplates
 
         WriteIfMissing(Path.Combine(root, "moves_gen6.csv"), ExampleMoves());
         WriteIfMissing(gen7Moves, ExampleMoves());
+        // Only the description column is ensured. Battle-mechanic rows are no longer injected into a
+        // user's template: they live in the optional Eris-Ultranova package and are chosen explicitly.
         EnsureGen7InGameDescriptionColumn(gen7Moves);
-        EnsureGen7NightmareSleepV76TemplateRow(gen7Moves);
-        EnsureGen7WishPivotTemplateRow(gen7Moves);
-        Gen7MeditateV73Patcher.EnsureTemplateRow(gen7Moves);
-        Gen7MistOwnerActivePatcher.EnsureTemplateRow(gen7Moves);
-        Gen7FairyLockV11Patcher.EnsureTemplateRow(gen7Moves);
         WriteIfMissing(Path.Combine(root, "evolutions_gen6.csv"), ExampleEvolutions());
         WriteIfMissing(Path.Combine(root, "evolutions_gen7.csv"), ExampleEvolutions());
         WriteIfMissing(Path.Combine(root, "pokemon_stats_gen6.csv"), ExamplePokemonStats());
         WriteIfMissing(Path.Combine(root, "pokemon_stats_gen7.csv"), ExamplePokemonStats());
-    
-        Gen7LuckyChantCritPatcher.EnsureTemplateRow(
-            Path.Combine(root, "moves_gen7.csv"));}
+    }
 
     private static string ExampleMoves() =>
         "Move,Type,Category,Quality,Power,Accuracy,PP,Priority,HitMin,HitMax,CriticalStage,Flinch,Effect,Param0x0B,Inflict,InflictChance,Heal,Recoil,TurnMin,TurnMax,Targeting,ClearStatEffects,UserStat,UserStatChange,UserStatChance,TargetStat,TargetStatChange,TargetStatChance,Stat1,Stat1Change,Stat1Chance,Stat2,Stat2Change,Stat2Chance,Stat3,Stat3Change,Stat3Chance,ClearFlags,SetFlags,UnsetFlags,KingShieldAttackMinusOne,BattlePatch,Notes,ZEffect,InGameDescription" + Environment.NewLine +
-        "# Move can be an ID or exact move name. Empty cells keep the current value." + Environment.NewLine +
+        "# Move can be an ID or exact move name. Empty cells keep the current value. Example rows are commented out." + Environment.NewLine +
         "# Type/Category/Targeting/Inflict/Stats accept IDs or names. Flags accept enum names, numeric masks, or tokens separated by ; | ," + Environment.NewLine +
-        "15,Grass,Physical,,70,100,15,,,,1,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,Cut / Corte" + Environment.NewLine +
-        "249,Fighting,Physical,,60,100,,,,,,,,,,,,,,,,,,,Defense,-1,100,,,,,,,,,,,,Rock Smash / Golpe Roca" + Environment.NewLine +
-        "19,Flying,Physical,,130,100,,,,,,,,,,,,33,,,,,,,,,,,,,,,,,,,,,Fly / Vuelo" + Environment.NewLine +
-        "147,,Status,,,80,,,,,,,,Sleep,100,,,,,,,,,,,,,,,,,,,,,,,,Spore / Espora" + Environment.NewLine +
-        "79,,Status,,,70,,,,,,,,Sleep,100,,,,,,,,,,,,,,,,,,,,,,,,Sleep Powder / Somnifero" + Environment.NewLine +
-        "601,,Status,,,,,-1,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,Geomancy / Geocontrol priority -1" + Environment.NewLine +
-        "6,,Physical,,25,,40,,,,,40,,,,,,,,,,,,,,,,,,,,,,,,,,,,,Pay Day / Dia de Pago" + Environment.NewLine +
-        "594,Water,Special,,30,100,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,Water Shuriken / Shuriken de Agua" + Environment.NewLine +
-        "273,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,Gen7WishPivot,Deseo / Wish: delayed heal + immediate pivot switch" + Environment.NewLine +
-        "588,,Status,,,5,,,,,,,,,,,,,,,,true,,,,,,,,,,,,,,,,,,true,King's Shield PP 5 and -1 Attack" + Environment.NewLine;
+        "# 15,Grass,Physical,,70,100,15,,,,1,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,Cut / Corte" + Environment.NewLine +
+        "# 249,Fighting,Physical,,60,100,,,,,,,,,,,,,,,,,,,Defense,-1,100,,,,,,,,,,,,Rock Smash / Golpe Roca" + Environment.NewLine +
+        "# 19,Flying,Physical,,130,100,,,,,,,,,,,,33,,,,,,,,,,,,,,,,,,,,,Fly / Vuelo" + Environment.NewLine +
+        "# 147,,Status,,,80,,,,,,,,Sleep,100,,,,,,,,,,,,,,,,,,,,,,,,Spore / Espora" + Environment.NewLine +
+        "# 79,,Status,,,70,,,,,,,,Sleep,100,,,,,,,,,,,,,,,,,,,,,,,,Sleep Powder / Somnifero" + Environment.NewLine +
+        "# 601,,Status,,,,,-1,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,Geomancy / Geocontrol priority -1" + Environment.NewLine +
+        "# 6,,Physical,,25,,40,,,,,40,,,,,,,,,,,,,,,,,,,,,,,,,,,,,Pay Day / Dia de Pago" + Environment.NewLine +
+        "# 594,Water,Special,,30,100,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,Water Shuriken / Shuriken de Agua" + Environment.NewLine +
+        "# 273,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,Gen7WishPivot,Deseo / Wish: delayed heal + immediate pivot switch" + Environment.NewLine +
+        "# 588,,Status,,,5,,,,,,,,,,,,,,,,true,,,,,,,,,,,,,,,,,,true,King's Shield PP 5 and -1 Attack" + Environment.NewLine;
 
     private static string ExampleEvolutions() =>
         "Source,Target,Method,Level,Argument,Form,ItemName,AltItemName" + Environment.NewLine +

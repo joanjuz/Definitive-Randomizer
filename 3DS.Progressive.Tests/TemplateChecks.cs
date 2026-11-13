@@ -21,12 +21,13 @@ internal static class TemplateChecks
                 check(File.ReadAllBytes(f.MovePath).SequenceEqual(before),"SM unsupported balance preserves source");continue;
             }
             var saved=f.MoveRecords;
-            byte[] csv=File.ReadAllBytes(moves.DefaultTemplatePath);
+            // A recipe recorded before the optional package (TemplatePath null) replays the Eris balance.
+            byte[] csv=File.ReadAllBytes(moves.LegacyTemplatePath);
             int[] all=moves.Entries.Select(m=>m.Id).ToArray();
             var dataOnly=new BatchSettings {BattlePatches=false,MoveDescriptions=false};
             var balance=moves.PreviewMoves(BatchAction.MoveBalance,dataOnly,all);
             check(f.MoveRecords.SelectMany(r=>r).SequenceEqual(saved.SelectMany(r=>r)),version+" template preview preserves disk and config");
-            check(balance.ChangedCount>0 && balance.Changes.Any(c=>c.Field=="Potencia"),version+" complete bundled/default balance loads");
+            check(balance.ChangedCount>0 && balance.Changes.Any(c=>c.Field=="Potencia"),version+" legacy recipe without a CSV replays the optional balance");
             byte[] spore=balance.CopyRecords()[f.Game.Generation==7?147:15];
             check(f.Game.Generation==7?spore[4]==80:spore[3]==70&&spore[4]==100&&spore[5]==15,version+" reference CSV/default move values");
             check(balance.CopyRecords()[1].SequenceEqual(saved[1]),version+" template leaves unlisted move bytes intact");
@@ -42,7 +43,7 @@ internal static class TemplateChecks
             check(f.MoveRecords.SelectMany(r=>r).SequenceEqual(balance.CopyRecords().SelectMany(r=>r)),version+" template apply reloads exact proposed records");
             var twice=moves.PreviewMoves(BatchAction.MoveBalance,dataOnly,all);
             check(twice.Changes.Count==0,version+" repeated template is idempotent including stat slots");
-            check(File.ReadAllBytes(moves.DefaultTemplatePath).SequenceEqual(csv),version+" template file never rewritten");
+            check(File.ReadAllBytes(moves.LegacyTemplatePath).SequenceEqual(csv),version+" template file never rewritten");
             // CSV aliases, stat replacement, flag removal, reserved/Z bytes and integer formats.
             string path=Path.Combine(f.Root,"custom.csv");
             File.WriteAllText(path,"Move,Type,Category,Power,Priority,Effect,UserStat,UserStatChange,TargetStat,TargetStatChange,SetFlags,UnsetFlags,Param0x0B\nEntry1,Hielo,Especial,91,-2,0x123,Ataque,2,Defensa,-1,1,2,0x0B\n");

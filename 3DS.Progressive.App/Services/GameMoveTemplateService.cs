@@ -11,7 +11,8 @@ namespace ThreeDS.Progressive.Services;
 public sealed partial class GameMoveService
 {
     public bool SupportsProgressiveBalance=>_config.Generation==6||_config.USUM;
-    public string DefaultTemplatePath => Path.Combine(AppContext.BaseDirectory, "custom_balance_templates", $"moves_gen{_config.Generation}.csv");
+    // Without a CSV chosen by the user this resolves only for recipes recorded before the optional package.
+    public string LegacyTemplatePath => OptionalTemplates.LegacyMoveTemplate(_config.Generation);
 
     private BatchPreview PreviewMoveTemplate(BatchSettings settings, IReadOnlyList<int> scope)
     {
@@ -23,7 +24,7 @@ public sealed partial class GameMoveService
         byte[][] records = _config.XY ? outer : Mini.UnpackMini(outer[0], "WD");
         if (records is null || ids.Length == 0 || ids.Any(i => i < 1 || i >= records.Length))
             throw new ArgumentException("El alcance no contiene movimientos válidos.");
-        string templatePath = Path.GetFullPath(settings.TemplatePath ?? DefaultTemplatePath);
+        string templatePath = Path.GetFullPath(settings.TemplatePath ?? LegacyTemplatePath);
         byte[] templateHash = SHA256.HashData(File.ReadAllBytes(templatePath));
         var rows = MoveTemplates.LoadMovePatches(templatePath, _config.GetText(TextName.MoveNames));
         if (rows.Length == 0 && settings.TemplatePath is null) rows = BuiltInMoveBalance.ForGeneration(_config.Generation);
