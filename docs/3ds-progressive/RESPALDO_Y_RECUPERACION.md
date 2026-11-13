@@ -48,7 +48,7 @@ Deshacer es conservador a propósito:
 
 El sistema de puntos de restauración y «Deshacer» descrito arriba es el de **3DS**; no asumas que existe igual en las otras plataformas.
 
-- **Nintendo DS:** abrir un proyecto **no modifica la ROM original**. Las ediciones y randomizaciones se acumulan en el proyecto y «Exportar ROM…» escribe una ROM **nueva** más un `.cambios.txt` con las operaciones y semillas. DS tiene Historial, Global Template y Batch, pero **esta guía no documenta un «Deshacer» con puntos de restauración como el de 3DS**. Para volver atrás antes de exportar usa «Descartar cambios pendientes». Si exportaste algo que no te gusta, borra esa ROM y vuelve a exportar desde el original.
+- **Nintendo DS:** abrir un proyecto **no modifica la ROM original**. Las ediciones y randomizaciones se guardan solas en el proyecto persistente `Juego.nds.drproj` (junto a la ROM, con respaldos `.drproj.bak1`–`.bak3`; un archivo dañado se conserva aparte y el proyecto se abre en solo lectura), y «Exportar ROM…» escribe una ROM **nueva** más un `.cambios.txt` con las operaciones y semillas. DS tiene Historial, Global Template y Batch, pero **no tiene un «Deshacer» general de tablas con puntos de restauración como el de 3DS**; el editor de eventos de Platino sí permite restaurar sus propios cambios. Si exportaste algo que no te gusta, borra esa ROM y vuelve a exportar.
 - **Espada/Escudo:** tiene su propio Historial (paginado y exportable), Global Template y Batch de mods. Se exporta un **mod**; la extracción de origen se abre en solo lectura y no se genera historial dentro de su RomFS/ExeFS. Para quitar un mod, desactívalo o bórralo en la carpeta de mods del emulador. Eso restaura los recursos originales del juego.
 
 ## Si falla un guardado

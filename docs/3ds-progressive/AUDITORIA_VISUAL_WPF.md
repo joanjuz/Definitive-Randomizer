@@ -187,3 +187,7 @@ Barra lateral por grupos plegables, buscador de secciones y herramientas (Ctrl+K
 ## Seguimiento 2026-11-11: tiendas 3DS
 
 Los editores de tiendas Gen6 y Gen7 pasan a tres columnas (lista de tiendas, inventario y acciones en vertical) con disposiciones ancha, media, estrecha y compacta según el ancho, y alto mínimo con desplazamiento de página. Se conservan nombres de controles, manejadores, receta y terminología. Detalle, pruebas (`--mart-layout-ui-only`) y límites: [TIENDAS_3DS_DISPOSICION_VERTICAL.md](TIENDAS_3DS_DISPOSICION_VERTICAL.md).
+
+## Seguimiento 2026-11-13: estable 1.0.0
+
+Estilos implícitos de tema para `Label`, `RadioButton` y `GroupBox` en `App.xaml`: sin ellos usaban el texto negro del sistema (diálogo «Abrir proyecto», ventanas de Espada/Escudo). La auditoría visual no llegaba a Inicio (la entrada lateral «Inicio» está colapsada) e inspeccionaba la sección de debajo: ahora entra por el logo, inspecciona Inicio y vuelve al editor (582 vistas en la ejecución local del 13/11/2026, 0 problemas). El diálogo «Abrir proyecto» lo mide `--stable-polish-only`. Detalle en [PULIDO_ESTABLE_1.0.0.md](PULIDO_ESTABLE_1.0.0.md).

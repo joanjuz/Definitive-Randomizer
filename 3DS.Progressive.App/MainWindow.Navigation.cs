@@ -154,12 +154,18 @@ public partial class MainWindow
             _=>$"{100-(value+1)*100.0/256:0.#} % macho · {(value+1)*100.0/256:0.#} % hembra"
         };
     }
-    /// <summary>After «Deshacer» the project is read again, so every editor shows the restored files.</summary>
+    /// <summary>
+    /// After «Deshacer» the project is read again from disk, so every editor shows the restored files (no editor or recipe state survives), and the
+    /// History is reopened with the new entry instead of returning to Inicio.
+    /// </summary>
     private async Task ReloadAfterUndoAsync()
     {
         if(_session is null)return;string root=_session.ProjectRoot;
-        var restored=await Task.Run(()=>GameProjectSession.Open(root,recoverInterruptedSave:false));LoadProject(restored);
-        StatusText.Text="Cambio deshecho, verificado y registrado en el historial.";
+        var restored=await Task.Run(()=>GameProjectSession.Open(root,recoverInterruptedSave:false));
+        if(_closed)return;
+        LoadProject(restored,keepWorkspace:true);
+        await OpenSectionAsync("History");
+        KeepStatus("Cambio deshecho, verificado y registrado en el historial.");
     }
     /// <summary>«Deshacer el último cambio» (search palette): the newest change that still can be undone.</summary>
     internal async Task UndoLatestAsync()

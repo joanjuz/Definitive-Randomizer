@@ -24,7 +24,8 @@ Punto de entrada a `docs/3ds-progressive/`. Muchos documentos son **registros hi
 | **Primera estable WPF (v1.0.0, en preparación, sin publicar):** guía para usuarios nuevos | [PRIMEROS_PASOS.md](PRIMEROS_PASOS.md) |
 | Estable WPF: respaldo, Deshacer, recuperación de guardados y qué enviar al reportar | [RESPALDO_Y_RECUPERACION.md](RESPALDO_Y_RECUPERACION.md) |
 | Estable WPF: matriz pública por juego (implementado, automático, archivos reales, en juego, no comprobado) | [COMPATIBILIDAD_PUBLICA.md](COMPATIBILIDAD_PUBLICA.md) |
-| Estable WPF: limitaciones públicas y alcance excluido (incluye el editor de eventos DS, PR #55) | [LIMITACIONES_ESTABLE.md](LIMITACIONES_ESTABLE.md) |
+| Estable WPF: limitaciones públicas y alcance excluido | [LIMITACIONES_ESTABLE.md](LIMITACIONES_ESTABLE.md) |
+| Estable WPF: pulido de interfaz (tutores, modo recordado, contraste, Inicio, Deshacer, Mega Ability Sync) | [PULIDO_ESTABLE_1.0.0.md](PULIDO_ESTABLE_1.0.0.md) |
 | Estable WPF: notas v1.0.0 preparada, todavía no publicada | [RELEASE_1.0.0.md](RELEASE_1.0.0.md) |
 | Empaquetado: modos PRIVATE/PUBLIC y confirmación del commit del operador | [EMPAQUETADO_PRIVATE_PUBLIC.md](EMPAQUETADO_PRIVATE_PUBLIC.md) |
 | Entrenadores DS: tarjetas, formatos explícitos, derivados y comparación con 3DS | [NDS_ENTRENADORES_PARIDAD.md](NDS_ENTRENADORES_PARIDAD.md) |

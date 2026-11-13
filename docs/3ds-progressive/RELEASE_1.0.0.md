@@ -15,9 +15,22 @@ Primera versión **estable** de la aplicación WPF para Windows x64. Reúne la e
 - **Nintendo 3DS:** X/Y, Omega Ruby/Alpha Sapphire, Sol/Luna y Ultra Sol/Ultra Luna. Editores y randomizadores de Pokémon, movimientos, evoluciones, entrenadores, encuentros, objetos y tiendas; funciones Progressive (sobre todo en Ultra Sol/Ultra Luna); Global Template y Batch; historial con Deshacer; extracción y reconstrucción.
 - **Mentas Gen7** en Ultra Sol y Ultra Luna: 21 mentas funcionales con instalación segura, historial y Deshacer, distribución opcional en tiendas y pools, iconos opcionales, Global Template y Batch. La instalación se basa en dependencias nativas concretas del parche (PR #57), no en hashes completos de `code.bin`.
 - **Nintendo DS:** Diamante, Platino, HeartGold, Negro, Blanco (ES) y Blanco 2 (perfiles exactos de ROM original). Entrenadores, con tarjetas y edición de equipo compartidas con 3DS (PR #56), encuentros, iniciales, objetos y tiendas, datos, evoluciones, estáticos e intercambios, movimientos huevo y tutores, ajustes, Global y Batch. Modo romhack en beta.
+- **Proyectos DS persistentes:** al abrir una ROM se crea o se retoma `Juego.nds.drproj`, que se guarda solo tras cada operación confirmada, con respaldos y apertura en solo lectura de un proyecto dañado (PR #74–#83).
+- **Editor de eventos y mapas DS (Platino CPUE/1):** mover NPC (campos o ratón), añadir, duplicar, copiar y pegar NPC, copiar una Enfermera Joy con su comportamiento y compartir el script de un NPC de mensaje, con checkpoints y restauración; lienzo de matrices, terreno y estructuras de solo lectura (PR #62–#71, #89).
+- **Apertura universal:** un único «Abrir proyecto…» detecta DS, 3DS o Espada/Escudo y abre su editor; proyectos recientes y arrastrar y soltar (PR #72, #73, #79, #80).
+- **Ultra Sol/Ultra Luna:** **Mega Ability Sync** para combates entre dos juegos con el parche (PR #104, #105; confirmado en un combate real, #106); Player Level Caps con Sync Trainer Caps corregido para Olivia (#90) y reproducible desde Global Template (#94); diagnóstico y comparador de megaevoluciones (#97, #100); informes de capacidades de solo lectura de Player Level Caps, Persistent Items y Shiny Rate (#96, #98, #100).
+- **Perfiles compartibles** para los cuatro juegos 3DS (formato 1, PR #95, #98).
+- **Tiendas 3DS en tres columnas** (lista, inventario y acciones; PR #88).
 - **Espada y Escudo 1.3.2:** editores de datos, entrenadores, encuentros, objetos, tiendas, movimientos/Level Up/evoluciones, compatibilidad MT/TR y tutores, Global/Batch de mods y runtime propio por juego. Exporta un mod en formato Ryujinx.
 - **Seguridad de guardado:** escritura transaccional con recuperación de guardados interrumpidos, historial legible y Deshacer (3DS), registro del randomizado.
-- **Definitive Game Data v1** (Ultra Sol/Ultra Luna) para Progressive Tracker.
+- **Definitive Game Data v1** (Ultra Sol/Ultra Luna) para Progressive Tracker, con los bloques opcionales `playerLevelCaps` (#91–#93) y `profileProvenance` (#101–#103).
+- **Pulido de interfaz para la estable** (detalle en [PULIDO_ESTABLE_1.0.0.md](PULIDO_ESTABLE_1.0.0.md)):
+  - MT y tutores separa «Acciones para el proyecto actual» de «Opciones para Global Template / Batch».
+  - El modo de trabajo elegido (simplificado o completo) se recuerda y se aplica al abrir proyectos.
+  - Textos de etiquetas legibles sobre el tema oscuro (por ejemplo, en «Abrir proyecto»).
+  - Inicio usa solo la apertura universal (sin accesos separados a DS y Switch, que siguen en Ctrl+K).
+  - Deshacer permanece en Historial con el resultado visible.
+  - Tarjeta propia de Mega Ability Sync en Mecánicas y CRO con su estado.
 - **Documentación nueva:**
   - [Primeros pasos](PRIMEROS_PASOS.md)
   - [Respaldo y recuperación](RESPALDO_Y_RECUPERACION.md)
@@ -26,20 +39,20 @@ Primera versión **estable** de la aplicación WPF para Windows x64. Reúne la e
 
 ## Qué no incluye
 
-Editor de eventos y mapas de DS (PR #55 excluido) · mentas fuera de Ultra Sol/Ultra Luna · caramelos raros y repelentes infinitos · perfiles de ROM hacks y biblioteca comunitaria · Negro 2, SoulSilver y Perla · consola real, Atmosphère y DLC en Switch. Detalle en `LIMITACIONES_ESTABLE.md`, incluida en la carpeta `docs` del paquete y junto a estas notas en el repositorio.
+Editor de eventos DS fuera de Platino CPUE/1, y edición de scripts arbitrarios, warps, geometría o entrenadores nuevos · parches de estabilidad en combates en línea (en investigación) · mentas fuera de Ultra Sol/Ultra Luna · caramelos raros y repelentes infinitos · perfiles de ROM hacks y biblioteca comunitaria · Negro 2, SoulSilver y Perla · consola real, Atmosphère y DLC en Switch. Detalle en `LIMITACIONES_ESTABLE.md`, incluida en la carpeta `docs` del paquete y junto a estas notas en el repositorio.
 
 ## Cómo se comprobó
 
 Tres niveles de evidencia, indicados por separado en `COMPATIBILIDAD_PUBLICA.md`:
 
-- **Automática:** suites del repositorio y CI. Se reutilizan las 200 comprobaciones focalizadas aprobadas para RC.1 (13 de paridad LegacyBatch y 187 de interfaz WPF); esta preparación no cambia los motores ni repite la aceptación funcional. El CI del PR final se registra por separado en ese PR.
+- **Automática:** suites del repositorio y CI (`build-wpf`) sobre el commit compilado, incluida la suite `--stable-polish-only` de las correcciones de interfaz y la auditoría visual de las cuatro familias 3DS. El CI del PR final se registra por separado en ese PR.
 - **Con archivos reales:** copias de juegos del propietario, sin modificar los originales.
 - **Dentro del juego**, por el propietario y limitada a lo indicado:
-  - DS: fases 0–14 (31/10/2026) y edición de entrenadores en Platino.
-  - 3DS: mentas en Ultra Sol con ROM randomizada.
+  - DS: fases 0–14 (31/10/2026), edición de entrenadores en Platino, eventos de Platino (mover/intercambiar NPC y una Enfermera Joy copiada) y proyecto persistente (Platino).
+  - 3DS: mentas en Ultra Sol con ROM randomizada; Mega Ability Sync en un combate real por enlace entre dos Ultra Luna con el parche (caso principal).
   - Switch: Espada y Escudo en Ryujinx.
 
-Ultra Luna, consola real de Switch, Atmosphère, DLC y una partida completa de cualquier juego **no** están comprobados jugando.
+Las mentas en Ultra Luna, la consola real de Switch, Atmosphère, DLC y una partida completa de cualquier juego **no** están comprobados jugando. Las correcciones de interfaz de esta versión se comprobaron con pruebas automáticas fuera de pantalla y con el arranque del paquete; no son una prueba en juego.
 
 RC.1 tuvo 525 hashes verificados y arranque WPF del ZIP exacto con cierre normal. Esas cifras pertenecen a RC.1: para cada distribución 1.0.0 se verifican compilación, contenido, dependencias, hashes y arranque desde una extracción independiente. El informe de validación de esa entrega identifica sus resultados y SHA-256. Ni las pruebas sintéticas ni el arranque sustituyen la validación dentro del juego.
 
@@ -66,7 +79,9 @@ Los ejecutables **no tienen firma digital**: Windows o SmartScreen pueden mostra
 
 ## Limitaciones principales
 
-- Mentas solo en Ultra Sol/Ultra Luna; Ultra Luna sin prueba jugable.
+- Mentas solo en Ultra Sol/Ultra Luna; Ultra Luna sin prueba jugable de mentas.
+- Mega Ability Sync necesita el parche en los dos juegos; sin aviso si el otro no lo tiene; varios casos sin confirmar en combate. La estabilidad en línea entre ROM randomizadas de forma distinta no está garantizada.
+- Editor de eventos DS solo en Platino CPUE/1.
 - Incidencias USUM sin resolver: cuelgue al entregar los pétalos (causa sin determinar, sin reproducción nueva; se espera una partida previa) y diagnóstico del movimiento Z en el primer combate de Tilo.
 - Deshacer solo en 3DS, solo los 8 últimos cambios, y no revierte partidas guardadas ni ROM ya generadas.
 - La recuperación de guardados no cubre todo fallo físico ni toda edición externa posterior.

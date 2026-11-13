@@ -166,12 +166,14 @@ internal static class SwordShieldChecks
             var export = (System.Windows.Controls.Button)window.FindName("SwitchExport");
             var journal = (System.Windows.Controls.TextBox)window.FindName("SwitchChanges");
             check(!preview.IsEnabled && !apply.IsEnabled && !export.IsEnabled, "Swsh_UI_NoProjectDisablesEditing");
-            bool openSwitch = false;
-            var start = new ThreeDS.Progressive.StartView(null, false, _ => { }, () => { }, () => { }, () => { }, () => openSwitch = true);
+            // Inicio has one universal «Abrir proyecto» (it detects Espada/Escudo); the per-platform entry stays only in the search (Ctrl+K).
+            bool opened = false;
+            var start = new ThreeDS.Progressive.StartView(null, false, _ => { }, () => opened = true, () => { }, () => { });
             start.Measure(new System.Windows.Size(900, 700)); start.Arrange(new System.Windows.Rect(0, 0, 900, 700)); start.UpdateLayout();
-            var switchEntry = Descendants<System.Windows.Controls.Button>(start).Single(b => b.Content?.ToString()?.Contains("editor Switch") == true);
-            switchEntry.RaiseEvent(new System.Windows.RoutedEventArgs(System.Windows.Controls.Button.ClickEvent));
-            check(openSwitch && System.Windows.Automation.AutomationProperties.GetName(switchEntry).Contains("Espada/Escudo"), "Swsh_UI_InicioInvokesSwitchEditor");
+            var startButtons = Descendants<System.Windows.Controls.Button>(start).ToArray();
+            var universal = startButtons.First(b => b.Content?.ToString() == "Abrir proyecto…");
+            universal.RaiseEvent(new System.Windows.RoutedEventArgs(System.Windows.Controls.Button.ClickEvent));
+            check(opened && !startButtons.Any(b => b.Content?.ToString()?.Contains("editor Switch") == true || b.Content?.ToString()?.StartsWith("Nintendo DS") == true), "Swsh_UI_InicioUsesTheUniversalOpen");
             var project = SwordShieldProject.Open(Fixture(scratch, "ui")); window.PresentProject(project);
             check(entries.Items.Count == 3 && preview.IsEnabled && !apply.IsEnabled && !export.IsEnabled && !field.IsEditable, "Swsh_UI_ProjectLoadsEditableEntries");
             check(System.Windows.Automation.AutomationProperties.GetLabeledBy(field) is System.Windows.Controls.Label && System.Windows.Automation.AutomationProperties.GetLabeledBy(value) is System.Windows.Controls.Label, "Swsh_UI_LabelsAssociatedWithControls");

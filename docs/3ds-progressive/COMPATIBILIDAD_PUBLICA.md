@@ -1,6 +1,6 @@
 # Matriz pública de compatibilidad
 
-Qué juegos admite Definitive Randomizer (WPF) y **qué nivel de comprobación tiene cada uno**. Estado a 2026-11-09, sobre `main` con los PR #56 (entrenadores DS) y #57 (compatibilidad de mentas) ya integrados. Las versiones preliminares publicadas son anteriores o salieron de ramas de release; esta matriz describe el estado de `main`. Es un resumen para usuarios: el detalle técnico de cada módulo está en el [índice](INDICE.md).
+Qué juegos admite Definitive Randomizer (WPF) y **qué nivel de comprobación tiene cada uno**. Estado a 2026-11-13, sobre `main` con todo lo integrado hasta el PR #106 (Mega Ability Sync confirmado) y las correcciones de interfaz de la estable. Las versiones preliminares publicadas son anteriores o salieron de ramas de release; esta matriz describe el estado de `main`. Es un resumen para usuarios: el detalle técnico de cada módulo está en el [índice](INDICE.md).
 
 > **Cómo leer esta matriz.** «Implementado» no significa «probado en el juego». Cada columna es una evidencia distinta y ninguna sustituye a las demás. Donde no hay confirmación documentada, la celda lo dice; no se interpreta como que funciona ni como que falla.
 
@@ -24,7 +24,7 @@ Requiere una extracción **ya descifrada** (la aplicación no descifra ROMs come
 | **Omega Ruby / Alpha Sapphire** | Igual que X/Y, más tutores BP y herramientas Gen6 propias | Sí | **Sí, en ambos.** Históricas: 60 tutores/precios exactos en copias de OR y AS sin cambiar las fuentes; Catch + Wild en ambos; en **OR**, flujo WPF → backend → reconstrucción → extracción con 658 archivos preservados. Reciente: guardar → reabrir → Deshacer **solo en Omega Ruby**, 9 comprobaciones, 661 archivos | Sin prueba jugable documentada en esta línea | La prueba reciente y la reconstrucción no se atribuyen a Alpha Sapphire. |
 | **Sol / Luna** | Editores y randomizadores; Global/Batch | Sí | **Sí, en ambos.** Históricas: ocho extracciones reales, con ambas de Sol/Luna; en Sol y en Luna, preflight WPF → backend → reconstrucción → extracción con un cambio exacto y 668 archivos iguales; tiendas de Luna con reextracción exacta. Reciente: guardar → reabrir → Deshacer **solo en Sol**, 9 comprobaciones, 671 archivos | Sin prueba jugable documentada en esta línea | La prueba reciente no se atribuye a Luna. El balance de movimientos y las mecánicas Progressive están **excluidos a propósito**. Sin mentas. |
 | **Ultra Sol** | Todo lo anterior, más las extensiones Progressive (level caps, Relearner, tutores, Megas, distribución de mentas) | Sí | Sí: reconstrucción Full3DS con reextracción exacta de 750 archivos; instalación, reapertura y Deshacer exacto (14 archivos); regresión sobre una copia randomizada real | **Mentas, iconos, distribución, Global Template, Batch y ROM generada** (propietario, emulador); además, el propietario comprobó las mentas con una ROM previamente randomizada | Resto de funciones de USUM: ver la lista de pendientes en [LIMITACIONES_ESTABLE.md](LIMITACIONES_ESTABLE.md). |
-| **Ultra Luna** | Igual que Ultra Sol | Sí | Sí: instalación, reapertura y Deshacer exacto (14 archivos) en copia real; reconocimiento de una copia con mentas instaladas | **No comprobado** jugando | Mentas con perfil propio; no se extiende la confirmación de Ultra Sol. |
+| **Ultra Luna** | Igual que Ultra Sol | Sí | Sí: instalación, reapertura y Deshacer exacto (14 archivos) en copia real; reconocimiento de una copia con mentas instaladas | **Mega Ability Sync** en un combate real por enlace entre dos Ultra Luna randomizadas de forma distinta, con el parche en ambas (propietario, 13/11/2026, caso principal). Mentas: **no comprobadas** jugando | Mentas con perfil propio; no se extiende la confirmación de Ultra Sol. |
 
 Región y revisión en 3DS: la aplicación identifica el título por la cabecera NCCH. Para las **mentas**, la instalación **no exige que `code.bin` ni sus segmentos completos coincidan con una referencia**: comprueba la identidad del título, el tamaño y el mapa del ejecutable, las **dependencias nativas concretas** que usa el parche (62 rangos por perfil) y la integridad de Bag, objetos, textos y CRO/CRR. Un cambio ajeno a esas dependencias no bloquea las mentas; un cambio en una dependencia necesaria se rechaza con un diagnóstico que indica cuál. No se anuncia soporte de «todas las revisiones» ni de cualquier ROM hack, y no hay instalación forzada. Detalle en [MENTAS_GEN7_USUM_COMPATIBILIDAD.md](MENTAS_GEN7_USUM_COMPATIBILIDAD.md). **La aceptación técnica no fijó regiones ni revisiones concretas de las copias 3DS usadas**, así que esta matriz no las enumera.
 
@@ -41,7 +41,7 @@ Seis perfiles de **ROM original** identificados por código de juego, revisión 
 | Juego | Código / rev. | Implementado | Automático | Archivos reales | En juego |
 |---|---|---|---|---|---|
 | **Diamante** (USA) | `ADAE` / 5 | Entrenadores, encuentros, iniciales, objetos y tiendas, datos, evoluciones, estáticos/intercambios, movimientos huevo y tutores, ajustes, Global y Batch | Sí | Sí (volcado del propietario) | Sí: fases 0–14 (propietario, 31/10/2026) |
-| **Platino** (USA) | `CPUE` / 1 | Igual, más el editor de entrenadores compartido con 3DS | Sí | Sí | Sí: fases 0–14 y, tras integrar el PR #56, **la edición de un entrenador (un Pokémon, cuatro movimientos y objeto) comprobada en combate** por el propietario |
+| **Platino** (USA) | `CPUE` / 1 | Igual, más el editor de entrenadores compartido con 3DS y el **editor de eventos y mapas** (NPC, Enfermera Joy, checkpoints; lienzo de solo lectura) | Sí | Sí | Sí: fases 0–14; **la edición de un entrenador (un Pokémon, cuatro movimientos y objeto) comprobada en combate**; mover NPC por campos e intercambiarlos; una Enfermera Joy copiada a Pueblo Hojaverde (10/11/2026); proyecto persistente (nueve pruebas manuales, 11/11/2026) |
 | **HeartGold** (USA) | `IPKE` / 0 | Igual que Diamante | Sí | Sí | Sí: fases 0–14 |
 | **Negro** | `IRBO` / 0 | Igual que Diamante (Gen5) | Sí | Sí | Sí: fases 0–14 |
 | **Blanco** (España) | `IRAS` / 0 | Igual que Diamante (Gen5) | Sí | Sí | Sí: fases 0–14 |
@@ -53,7 +53,8 @@ Qué **no** se acredita en DS:
 - **Modo romhack:** es **beta**. Admite ROM modificadas de los seis juegos sin exigir las huellas de las tablas, pero solo parchea el código del juego (overlays, ARM9) si es el original. Se probaron Renegade Platinum y Volt White 2 con resultado satisfactorio; no es soporte general de romhacks.
 - **Negro, Blanco y Blanco 2** son DSi-enhanced: su ARM9 no se modifica.
 - La edición de entrenadores comprobada en combate se confirmó en **Platino**; no se extiende a otros juegos DS ni a controles no probados.
-- **El editor de eventos y mapas de DS no forma parte de esta versión.**
+- **El editor de eventos y mapas solo existe para Platino CPUE/1** y con el alcance de [LIMITACIONES_ESTABLE.md](LIMITACIONES_ESTABLE.md); arrastrar NPC con el ratón y «compartir script» no tienen prueba jugable propia.
+- **Proyectos persistentes (`.drproj`)** en los seis juegos; la aceptación manual del propietario se hizo con Platino.
 
 ## Nintendo Switch: Espada y Escudo
 
@@ -78,13 +79,18 @@ Notas DS: los seis perfiles tienen contenedor y exportación reales comprobados.
 
 | Función | Alcance | Estado |
 |---|---|---|
-| **Definitive Game Data v1** | Exporta el estado guardado de Ultra Sol/Ultra Moon (especies, estadísticas, tipos, habilidades, movimientos básicos, evoluciones) para Progressive Tracker | Implementado, publicado en preview y con interoperabilidad comprobada con Tracker. No identifica la ROM que ejecuta el emulador ni cubre DS/Switch. |
+| **Definitive Game Data v1** | Exporta el estado guardado de Ultra Sol/Ultra Moon (especies, estadísticas, tipos, habilidades, movimientos básicos, evoluciones) para Progressive Tracker, con los bloques opcionales `playerLevelCaps` y `profileProvenance` | Implementado; interoperabilidad comprobada en CI con Tracker 1.4.0 y con los consumidores fijados. No identifica la ROM que ejecuta el emulador ni cubre DS/Switch. |
 | **Historial y Deshacer** | 3DS (puntos de restauración). DS y Switch tienen su propio historial pero no el mismo contrato de restauración | Ver [RESPALDO_Y_RECUPERACION.md](RESPALDO_Y_RECUPERACION.md). |
-| **Global Template y Batch** | Cada plataforma tiene el suyo; no se mezclan recetas 3DS, DS y Switch | Implementado. |
+| **Global Template y Batch** | Cada plataforma tiene el suyo; no se mezclan recetas 3DS, DS y Switch | Implementado. Las recetas 3DS reproducen la instalación de Player Level Caps. |
+| **Perfiles compartibles** (formato 1) | X/Y, OR/AS, Sol/Luna y Ultra Sol/Ultra Luna: la receta de Global Template de un juego, sin recursos ni rutas | Implementado y automático; sin prueba manual documentada del recorrido exportar/importar. |
+| **Informes de capacidades de parches** | Player Level Caps, Persistent Items, Shiny Rate y Mega Ability Sync (solo lectura; simulan la instalación en una copia) | Implementado y automático. |
+| **Mega Ability Sync** | Ultra Sol/Ultra Luna, los dos juegos con el parche | En juego: caso principal (ver Ultra Luna). Ver límites en [MEGA_ABILITY_SYNC_USUM.md](MEGA_ABILITY_SYNC_USUM.md). |
+| **Diagnóstico y comparador de megaevoluciones** | Ultra Sol/Ultra Luna, solo lectura | Implementado y automático. |
+| **Apertura universal** | Un único «Abrir proyecto» para DS, 3DS y Switch, recientes y arrastrar y soltar | Implementado y automático; aceptación manual con Platino. |
 
 ## No incluido en esta versión
 
-Editor de eventos y mapas de DS · mentas en Gen6, Sol/Luna, DS o Switch · caramelos raros o repelentes infinitos · perfiles de ROM hacks populares y biblioteca comunitaria (Hub) · Negro 2, SoulSilver y Perla · soporte de DLC, consola real o Atmosphère en Switch.
+Editor de eventos DS fuera de Platino CPUE/1 · parches de estabilidad en línea · mentas en Gen6, Sol/Luna, DS o Switch · caramelos raros o repelentes infinitos · perfiles de ROM hacks populares y biblioteca comunitaria (Hub) · Negro 2, SoulSilver y Perla · soporte de DLC, consola real o Atmosphère en Switch.
 
 ## Pendiente de documentar
 
