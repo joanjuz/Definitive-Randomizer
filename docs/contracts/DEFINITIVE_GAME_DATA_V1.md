@@ -89,6 +89,27 @@ Lee el estado instalado en los archivos guardados (Battle.cro y code.bin descomp
 
 Además del esquema, para `installed` comprobar que `order` va de 1 a n en el orden del array, que los límites nunca bajan, que cada condición aparece una sola vez y que `tableSha256` coincide con los puntos; si algo falla, el bloque se ignora (sin propuesta) y el resto del DGD sigue siendo válido. Solo `installed` puede generar una propuesta. El bloque nunca se aplica automáticamente: cualquier uso como límites propios requiere previsualización y confirmación explícita, y no sustituye límites existentes sin esa confirmación. Un consumidor con un máximo de etapas menor que 128 (Progressive Tracker admite 64) rechaza la propuesta completa; **nunca la trunca**. Ninguna propuesta elige un punto vigente.
 
+## Extensión opcional `profileProvenance`
+
+Describe **procedencia histórica declarada en una receta aplicada**, no identidad exacta con un perfil ni con una ROM. [Ejemplo sintético](examples/definitive-game-data-v1.profile-provenance.synthetic.json), junto con `playerLevelCaps`. No cambia los obligatorios de DGD v1, `source.scope` ni el fingerprint raíz. Consumidores anteriores ignoran el campo y conservan el resto.
+
+Versión interna `version = 1`; versiones futuras se ignoran aisladamente. V1 tiene forma cerrada y ocupa como máximo **16 KiB UTF-8**. Profundidad del bloque como máximo 4 contenedores (raíz del bloque, perfil o lista, sus valores); no admite datos anidados adicionales. No contiene rutas, receta completa, recursos, historial privado ni binarios. Nombre (1–120) y autor opcional (1–80) son textos recortados, sin controles, `/`, `\` ni `:`. Se omite el autor vacío. Las claves y versiones numéricas no aceptan booleanos.
+
+| Campo | Semántica |
+| --- | --- |
+| `status = historical` | El productor encontró una aplicación efectiva confirmada con metadatos de perfil en el historial guardado. No indica autenticidad del autor |
+| `currentMatch = not-verified` | **Siempre**: ni el historial ni la huella de receta certifican que el estado actual reproduzca exactamente el perfil original. No existe un estado «ROM verificada» en v1 |
+| `subsequentChanges` | `recorded`: existen entradas efectivas posteriores fuera del mismo grupo de aplicación. `none-recorded`: no constan; NO descarta cambios externos ni diferencias antes de aplicar |
+| `gameId` | Misma edición USUM que `game.id` raíz; no confundir con el destino de familia `USUM` del perfil compartible |
+| `profile` | `format = definitive-randomizer-profile`, `version = 1`, `name`, `author` opcional y `recipeSha256` (64 hex mayúsculos) registrados en la receta. Nombre/autor/huella son **declaraciones**, no firma ni identidad acreditada |
+| `sections` | 1–64 IDs únicos, ordenados ordinalmente: `actions/…`, `manual/…`, `options/…`, sufijo minúsculo alfanumérico/guiones (1–80), longitud total máxima 90. Intersección de secciones declaradas con las presentes en la receta efectivamente confirmada; describe la selección aplicada, nunca garantiza perfil completo |
+
+El productor no exporta una importación ni una vista previa sin aplicar. Reutiliza la transacción de Global Template y la lógica de deshacer. Solo considera la aplicación efectiva más reciente de Global Template; si esa receta no tiene perfil, es inválida o no permite justificar secciones, **omite el bloque**, sin rescatar un perfil más antiguo. Aplicar parcialmente una selección es válido; fallar una transacción no lo es. Si la procedencia no se puede leer/validar, el resto del DGD sigue exportándose. Un proyecto antiguo o sin perfil omite el campo. Lectura sin recuperación ni escrituras de historial durante la exportación. Metadatos invariables producen salida invariable.
+
+El consumidor valida forma, límites, orden único y `gameId` aparte. Ausencia, bloque inválido y versión futura se distinguen en su presentación; invalidez aislada no invalida datos base ni `playerLevelCaps`. La persistencia usa el DGD confirmado de cada partida, con el mismo flujo de vista previa/confirmación/reemplazo/retirada. No ejecutar recetas/parches, no cambiar límites aceptados, RAM, Soul Link ni OBS. No mezclar procedencia de importaciones previas cuando el nuevo documento no trae el bloque.
+
+Un hash de receta registrado sirve para comparar esa declaración, no para recalcularla sin la receta original, demostrar lo aplicado, autenticar al autor o acreditar la ROM que ejecuta el emulador.
+
 ## Validación y compatibilidad
 
 El JSON Schema describe forma/rangos; el consumidor también debe comprobar claves duplicadas y relaciones entre registros. Los IDs de especie/forma, movimiento y catálogos no se repiten. Cada referencia de tipo/habilidad debe existir. Cada origen de evolución debe corresponder a una especie exportada. Límites v1: JSON hasta 5 MB, 4096 registros de especie/evolución, 729 movimientos, 234 habilidades, 18 tipos y ocho rutas por origen; nombres no vacíos hasta 200 caracteres. Booleanos no son IDs enteros. Rechazar JSON malformado, valores no finitos y versiones mayores antes de persistir.
