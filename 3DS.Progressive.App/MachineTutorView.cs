@@ -23,7 +23,7 @@ namespace ThreeDS.Progressive;
 internal sealed class MachineTutorView : UserControl
 {
     private readonly GameProjectSession _project;
-    private readonly CheckBox _recipeTutors=new(){Content="Randomizar tutores en Global/Batch"},_recipeFree=new(){Content="Tutores gratis en Global/Batch"};
+    private readonly CheckBox _recipeTutors=new(){Content="Randomizar tutores al aplicar una receta",Name="RecipeRandomTutors",ToolTip="Se guarda en la receta de Global Template / Batch. No modifica el proyecto ahora."},_recipeFree=new(){Content="Hacer gratuitos los tutores al aplicar una receta",Name="RecipeFreeTutors",ToolTip="Se guarda en la receta de Global Template / Batch. No modifica el proyecto ahora."};
     private CheckBox _tmSanity=null!,_tmFollow=null!,_tutorSanity=null!,_tutorFollow=null!;
     internal Gen7MachineState RememberRecipe()=>new(true,_tmSanity.IsChecked==true,_tmFollow.IsChecked==true,_recipeTutors.IsChecked==true,_recipeFree.IsChecked==true,_tutorSanity.IsChecked==true,_tutorFollow.IsChecked==true);
     internal void RestoreRecipe(Gen7MachineState s){_tmSanity.IsChecked=s.MachineSanity;_tmFollow.IsChecked=s.MachineFollow;_recipeTutors.IsChecked=s.RandomTutors;_recipeFree.IsChecked=s.FreeTutors;_tutorSanity.IsChecked=s.TutorSanity;_tutorFollow.IsChecked=s.TutorFollow;}
@@ -214,17 +214,27 @@ internal sealed class MachineTutorView : UserControl
         });
         var tutorActions=new WrapPanel();
         tutorHeader.Children.Add(tutorActions);
-        var free=new Button {Content="Todos gratis (0 BP)",Margin=new Thickness(0,0,8,0)};
-        free.Click+=(_,_)=>{foreach(var row in _service.Tutors)row.Price=0;_dirtyPrices=true;_tutorPreview=null;UpdateState();foreach(var t in _tutorColumns)t.Items.Refresh();};
-        var randomTutors=new Button {Content="Randomizar tutores",Margin=new Thickness(0,0,8,0),IsEnabled=_service.CanEditTutorMoves};
+        // Immediate actions only prepare rows in this editor; nothing is written until preview + apply.
+        var free=new Button {Content="Poner todos los precios en 0 BP",Name="TutorFreeNow",Margin=new Thickness(0,0,8,0),IsEnabled=_service.CanEditTutorPrices,
+            ToolTip="Cambia solo los precios del editor a 0 BP; los movimientos no cambian."};
+        free.Click+=(_,_)=>
+        {
+            CommitTutorGrids();
+            int changed=_service.Tutors.Count(row=>row.Price!=0);
+            foreach(var row in _service.Tutors)row.Price=0;
+            _dirtyPrices=true;_tutorPreview=null;UpdateState();foreach(var t in _tutorColumns)t.Items.Refresh();
+            _status.Text=$"{changed} precios puestos en 0 BP; los movimientos no cambian. Genera la vista previa antes de aplicar.";
+        };
+        var randomTutors=new Button {Content="Randomizar movimientos de tutores",Name="TutorRandomizeNow",Margin=new Thickness(0,0,8,0),IsEnabled=_service.CanEditTutorMoves,
+            ToolTip="Prepara una nueva asignación de movimientos en el editor; los precios no cambian."};
         randomTutors.Click+=(_,_)=>TryAction(()=>
         {
             int changed=_service.RandomizeTutorMoves();
             _dirtyPrices=true;_tutorPreview=null;UpdateState();
             foreach(var t in _tutorColumns)t.Items.Refresh();
-            _status.Text=$"{changed} movimientos de tutores preparados. Genera vista previa antes de aplicar.";
+            _status.Text=$"{changed} movimientos de tutores preparados; los precios no cambian. Genera la vista previa antes de aplicar.";
         });
-        _savePrices=new Button {Content="Vista previa tutores",IsEnabled=false};
+        _savePrices=new Button {Content="Vista previa tutores",Name="TutorPreview",IsEnabled=false};
         _savePrices.Click+=(_,_)=>TryAction(()=>
         {
             CommitTutorGrids();
@@ -241,7 +251,7 @@ internal sealed class MachineTutorView : UserControl
                 return;
             }
             _tutorPreview=_service.PreviewTutorEdits();
-            _applyTutorChanges!.IsEnabled=_tutorPreview.Changes.Count>0;
+            UpdateState();
             string details=string.Join(Environment.NewLine,_tutorPreview.Changes.Take(12)
                 .Select(d=>$"{d.Name}: {d.Field} {d.Before} → {d.After}"));
             _status.Text=$"{_tutorPreview.Changes.Count} cambios · " +
@@ -251,7 +261,7 @@ internal sealed class MachineTutorView : UserControl
                 $"{_tutorPreview.Changes.Count} diferencias y {_tutorPreview.CodeSlotsChanged} sincronizaciones en code.bin.",
                 details+(_tutorPreview.Changes.Count>12?Environment.NewLine+"…":""));
         });
-        _applyTutorChanges=new Button {Content="Aplicar tutores y verificar",IsEnabled=false};
+        _applyTutorChanges=new Button {Content="Aplicar tutores y verificar",Name="TutorApply",IsEnabled=false};
         _applyTutorChanges.Click+=(_,_)=>TryAction(()=>
         {
             CommitTutorGrids();
@@ -265,7 +275,7 @@ internal sealed class MachineTutorView : UserControl
             Rebind();UpdateState();
             _status.Text="Tutores USUM guardados; Shop.cro y code.bin sincronizados y verificados.";
         });
-        foreach(var recipeOption in new[]{_recipeTutors,_recipeFree}){recipeOption.Foreground=text;recipeOption.Margin=new Thickness(8,4,0,0);recipeOption.Visibility=project.GameConfiguration.USUM?Visibility.Visible:Visibility.Collapsed;tutorActions.Children.Add(recipeOption);}
+        foreach(var recipeOption in new[]{_recipeTutors,_recipeFree}){recipeOption.SetResourceReference(ForegroundProperty,"TextMain");recipeOption.Margin=new Thickness(0,4,0,4);}
         tutorActions.Children.Add(free);
         tutorActions.Children.Add(randomTutors);
         tutorActions.Children.Add(_savePrices);
@@ -381,8 +391,18 @@ internal sealed class MachineTutorView : UserControl
         }
         _tutorGrid=_tutorColumns[0];
         var tutorItems=tutorHeader.Children.Cast<UIElement>().ToArray();
+        // Two clearly separated groups: edits of the current project versus options stored in a Global Template / Batch recipe.
+        var recipeCard=OptionCards.Card("Opciones para Global Template / Batch",
+            "No modifican este proyecto ahora: se guardan en la receta y se ejecutan cuando se aplique Global Template o Batch.",
+            _recipeTutors,_recipeFree);
+        recipeCard.Name="TutorRecipeOptionsCard";
+        recipeCard.Visibility=project.GameConfiguration.USUM?Visibility.Visible:Visibility.Collapsed;
+        var currentCard=OptionCards.Card("Acciones para el proyecto actual",
+            "Preparan cambios en el editor. No se escribe nada hasta «Vista previa tutores» y «Aplicar tutores y verificar».",
+            tutorItems.Take(2).ToArray());
+        currentCard.Name="TutorProjectActionsCard";
         tutoring.Children.Add(TableWithOptions(_tutorGrid,OptionCards.Column(
-            OptionCards.Card("Movimientos y precios",null,tutorItems.Take(2).ToArray()),
+            currentCard,recipeCard,
             OptionCards.Card("Compatibilidad de tutores",null,tutorItems.Skip(2).ToArray()))));
         OptionCards.Primary(_applyTutorChanges);
         tabs.Items.Add(new TabItem {Header="Tutores · movimientos y BP",Content=tutoring});

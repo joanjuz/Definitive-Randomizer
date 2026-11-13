@@ -163,6 +163,23 @@ internal sealed class SystemsView : UserControl
         open.IsEnabled=_project.GameConfiguration.USUM;
         if(!_project.GameConfiguration.USUM)open.ToolTip="Solo validado para Ultra Sun y Ultra Moon.";
         if(ProjectFeatureAvailability.Supports(_project,"PlayerCaps"))stack.Children.Add(cap);
+        if(ProjectFeatureAvailability.Supports(_project,"MegaAbilitySync"))
+        {
+            // Own card (USUM only): the state is read without writing; install, update and removal stay in the editor with its checks and history.
+            var (syncState,syncText)=GameMegaAbilitySyncService.InspectProject(_project);
+            var sync=Card("Mega Ability Sync · USUM",
+                "En combates entre dos juegos de Ultra Sol / Ultra Luna, cada megaevolución usa la habilidad del juego de su dueño. Los dos participantes deben tener instalada una versión compatible del parche.",
+                "Si solo uno tiene el parche, los dos juegos se comportan como el original, sin aviso en pantalla. No cambia los combates sin conexión. Instalar, actualizar o retirar se hace en el editor, con vista previa e historial; después hay que reconstruir la ROM.","Parche de código");
+            sync.Name="MegaAbilitySyncCard";
+            var syncBox=(StackPanel)sync.Child;
+            var syncStatus=new TextBlock{Text=syncText,TextWrapping=TextWrapping.Wrap,Margin=new Thickness(0,0,0,8),FontWeight=syncState==GameMegaAbilitySyncService.CardState.EarlierRoutine?FontWeights.SemiBold:FontWeights.Normal};
+            syncStatus.SetResourceReference(TextBlock.ForegroundProperty,syncState==GameMegaAbilitySyncService.CardState.EarlierRoutine?"TextMain":"TextSoft");
+            System.Windows.Automation.AutomationProperties.SetName(syncStatus,"Estado de Mega Ability Sync: "+syncText);
+            syncBox.Children.Insert(Math.Min(2,syncBox.Children.Count),syncStatus);
+            var openSync=AddButton(syncBox,syncState==GameMegaAbilitySyncService.CardState.EarlierRoutine?"Actualizar Mega Ability Sync":"Abrir Mega Ability Sync",()=>_navigate("MegaAbilitySync"));
+            openSync.IsEnabled=syncState!=GameMegaAbilitySyncService.CardState.Unavailable;
+            stack.Children.Add(sync);
+        }
         var patches=Card("USUM Relearner · Cafeterías y aprendizaje",
             "Permite recordar movimientos desde las cafeterías Pokémon de Ultra Sol y Ultra Luna.",
             "Parche original CAFE.asm + Learn.asm en Ultra Sun / Ultra Moon. Copia aislada, vista previa de code.bin y StoryText, verificación de firmas e historial conjunto.","Parche de código");

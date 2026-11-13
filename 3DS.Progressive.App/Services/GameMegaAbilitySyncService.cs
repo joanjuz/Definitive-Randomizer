@@ -32,6 +32,33 @@ public sealed class GameMegaAbilitySyncService:IProjectEditor
     }
     private static byte[]? ReadOptional(string path)=>File.Exists(path)?File.ReadAllBytes(path):null;
 
+    /// <summary>Read-only state shown on the «Mecánicas y CRO» card. Nothing is written; the editor keeps the install/update/remove flow.</summary>
+    internal enum CardState{Unavailable,NotInstalled,Installed,EarlierRoutine}
+    internal static (CardState State,string Text) InspectProject(GameProjectSession project,MegaAbilitySyncProfile? profile=null)
+    {
+        if(!project.GameConfiguration.USUM)return(CardState.Unavailable,"Solo para Ultra Sol / Ultra Luna.");
+        profile??=MegaAbilitySyncProfile.Usum;
+        try
+        {
+            var config=project.GameConfiguration;
+            string croPath=GamePlayerLevelCapService.Find(config.RomFS,"Battle.cro",true);
+            if(!File.Exists(croPath))return(CardState.Unavailable,"No disponible: falta Battle.cro.");
+            byte[] cro=File.ReadAllBytes(croPath);
+            byte[]? crs=ReadOptional(Path.Combine(config.RomFS,"static.crs")),code=ReadOptional(GamePlayerLevelCapService.Find(config.ExeFS,"code.bin",false));
+            var capability=InspectCapability(cro,crs,code,profile);
+            if(!capability.CanApply||crs is null||code is null||!MegaAbilitySyncPatch.TryResolveCodeAddresses(crs,code,out var addresses,out _))
+                return(CardState.Unavailable,"No compatible con este proyecto: "+capability.Summary);
+            return MegaAbilitySyncPatch.Inspect(cro,addresses,profile).State switch
+            {
+                MegaAbilitySyncState.Installed=>(CardState.Installed,"Estado: instalado (rutina actual)."),
+                MegaAbilitySyncState.InstalledEarlierFormat=>(CardState.EarlierRoutine,"Estado: instalado con la rutina anterior, que no sincroniza en los combates por enlace. Ábrelo y guarda con 1 para actualizarlo; después reconstruye la ROM."),
+                _=>(CardState.NotInstalled,"Estado: sin instalar."),
+            };
+        }
+        catch(Exception e) when(e is IOException or UnauthorizedAccessException or InvalidDataException)
+        {return(CardState.Unavailable,"No se pudo leer el estado: "+e.Message);}
+    }
+
     /// <summary>
     /// Read-only capability report. The installation is simulated on a copy with the real installer, so the report and
     /// the installer always agree. The input is never modified.

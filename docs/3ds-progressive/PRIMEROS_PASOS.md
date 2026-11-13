@@ -25,11 +25,13 @@ La preparación depende de la plataforma.
 
 | Plataforma | Qué necesitas | Cómo se abre |
 |---|---|---|
-| **3DS** (X/Y, OR/AS, Sol/Luna, UltraSol/UltraLuna) | Una extracción **ya descifrada** del juego (RomFS, ExeFS y cabeceras). La aplicación no descifra ROMs comerciales. | Inicio → abre la carpeta extraída. |
-| **Nintendo DS** (Gen4 y Gen5) | Un volcado `.nds` de un juego con perfil admitido. | Inicio → «Nintendo DS · Gen4/Gen5 (beta)» → «Abrir proyecto». |
-| **Espada/Escudo** (Switch) | Una extracción de la versión **1.3.2** con `exefs/main.npdm`, `exefs/main` y la carpeta `romfs`. | Inicio → Espada/Escudo → abrir la extracción. |
+| **3DS** (X/Y, OR/AS, Sol/Luna, UltraSol/UltraLuna) | Una extracción **ya descifrada** del juego (RomFS, ExeFS y cabeceras). La aplicación no descifra ROMs comerciales. | «Abrir proyecto…» → la carpeta extraída. |
+| **Nintendo DS** (Gen4 y Gen5) | Un volcado `.nds` de un juego con perfil admitido. | «Abrir proyecto…» → el archivo `.nds`. |
+| **Espada/Escudo** (Switch) | Una extracción de la versión **1.3.2** con `exefs/main.npdm`, `exefs/main` y la carpeta `romfs`. | «Abrir proyecto…» → la carpeta de la extracción. |
 
-Si el juego o la revisión no están admitidos, la aplicación lo rechaza en lugar de editarlo a ciegas. Eso es intencionado.
+Hay un único **«Abrir proyecto…»** para las tres plataformas (en Inicio y en la cabecera): la aplicación detecta el juego y abre su editor. También puedes **arrastrar** el archivo o la carpeta a la ventana (o sobre `DefinitiveRandomizer.exe`, o usar «Abrir con…» de Windows), o elegirlo en **Proyectos recientes** del mismo diálogo. Si el juego o la revisión no están admitidos, la aplicación lo rechaza en lugar de editarlo a ciegas. Eso es intencionado.
+
+**Modo de trabajo (3DS).** La primera vez que abres un proyecto 3DS, Inicio pregunta si quieres el **Modo simplificado** (secciones principales) o el **Modo completo** (todas las herramientas). Tu elección se recuerda en tu usuario de Windows —no en el proyecto ni en la ROM—, así que los siguientes proyectos, también tras reiniciar la aplicación, se abren directamente en ese modo. Para cambiarlo, pulsa «Modo … · Cambiar» en la barra lateral (vuelve a Inicio) o busca «modo» con **Ctrl+K**; cambiar de modo no descarta cambios pendientes.
 
 ## 3. Haz copias de seguridad antes de editar
 
@@ -53,7 +55,7 @@ No todas las funciones existen en todos los juegos. Si una opción aparece desac
 ## 5. Guardar y reconstruir
 
 - **3DS:** guarda los cambios en el proyecto y reconstruye con la herramienta de reconstrucción de la aplicación. Es un paso aparte: guardar no genera por sí solo una ROM jugable.
-- **Nintendo DS:** las ediciones se acumulan en memoria. «Exportar ROM…» escribe una ROM **nueva** y un archivo `.cambios.txt` con las operaciones y semillas. La ROM original no se modifica. «Descartar cambios pendientes» vuelve al estado en que abriste el proyecto.
+- **Nintendo DS:** al abrir una ROM se crea o se retoma su proyecto persistente (`Juego.nds.drproj`, junto a la ROM), que se guarda solo después de cada operación confirmada; puedes cerrar la aplicación y continuar otro día. «Exportar ROM…» escribe una ROM **nueva** y un archivo `.cambios.txt` con las operaciones y semillas, solo cuando lo pides. La ROM original no se modifica.
 - **Espada/Escudo:** no se reconstruye una ROM. Se **exporta un mod** en formato Ryujinx (carpeta con `romfs` y, si procede, el runtime). Cópialo a la carpeta de mods del emulador. Si ya usas otro mod que reemplaza los mismos archivos, desactívalo durante la prueba.
 
 Guarda siempre y espera a que termine antes de reconstruir o exportar. No cierres la aplicación ni apagues el equipo mientras se guarda.

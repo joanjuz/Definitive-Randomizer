@@ -7,14 +7,18 @@ using UserControl=System.Windows.Controls.UserControl;
 namespace ThreeDS.Progressive;
 internal sealed class StartView:UserControl
 {
-    internal StartView(GameProjectSession? project,bool simplified,Action<bool> chooseMode,Action open,Action guided,Action tour,Action? openSwitch=null,Action? openNds=null,
+    /// <summary>
+    /// Inicio. A single «Abrir proyecto» opens every platform (DS, 3DS, Espada/Escudo): the universal detector chooses the editor, so there are no
+    /// per-platform entries here (they stay in the search, Ctrl+K, as specialised tools).
+    /// </summary>
+    internal StartView(GameProjectSession? project,bool simplified,Action<bool> chooseMode,Action open,Action guided,Action tour,
         Action<string>? navigate=null,Action? backup=null,Action? extract=null)
     {
         SetResourceReference(BackgroundProperty,"Bg");
         var scroll=new ScrollViewer{VerticalScrollBarVisibility=ScrollBarVisibility.Auto,HorizontalScrollBarVisibility=ScrollBarVisibility.Disabled};Content=scroll;
         var body=new StackPanel{Margin=new Thickness(30),MaxWidth=950,HorizontalAlignment=System.Windows.HorizontalAlignment.Center};scroll.Content=body;
         body.Children.Add(new TextBlock{Text="¿Cómo quieres trabajar?",FontSize=28,FontWeight=FontWeights.SemiBold,TextWrapping=TextWrapping.Wrap});
-        var intro=new TextBlock{Text=project is null?"Abre un proyecto extraído para editar o generar tu randomizado.":"Proyecto: "+System.IO.Path.GetFileName(project.ProjectRoot)+" · "+project.GameName,TextWrapping=TextWrapping.Wrap,Margin=new Thickness(0,10,0,20)};intro.SetResourceReference(TextBlock.ForegroundProperty,"TextSoft");body.Children.Add(intro);
+        var intro=new TextBlock{Text=project is null?"Abre un proyecto de Nintendo DS, 3DS o Espada/Escudo: la aplicación detecta la plataforma y abre su editor.":"Proyecto: "+System.IO.Path.GetFileName(project.ProjectRoot)+" · "+project.GameName,TextWrapping=TextWrapping.Wrap,Margin=new Thickness(0,10,0,20)};intro.SetResourceReference(TextBlock.ForegroundProperty,"TextSoft");body.Children.Add(intro);
         if(project is not null)body.Children.Add(ProjectStatus(project,navigate,backup));
         else body.Children.Add(FirstSteps(open,extract));
         var cards=new UniformGrid{Columns=2};body.Children.Add(cards);
@@ -32,18 +36,6 @@ internal sealed class StartView:UserControl
         var actions=new WrapPanel();body.Children.Add(actions);
         var load=new Button{Content=project is null?"Abrir proyecto…":"Abrir otro proyecto…",Margin=new Thickness(0,0,8,8)};load.Click+=(_,_)=>open();actions.Children.Add(load);
         var help=new Button{Content="Vista guiada · conocer la aplicación",Margin=new Thickness(0,0,8,8)};help.Click+=(_,_)=>tour();actions.Children.Add(help);
-        if(openSwitch is not null)
-        {
-            var swsh=new Button{Content="Espada/Escudo · editor Switch",Margin=new Thickness(0,0,8,8)};
-            System.Windows.Automation.AutomationProperties.SetName(swsh,"Abrir editor de Espada/Escudo para exportar mods");
-            swsh.Click+=(_,_)=>openSwitch();actions.Children.Add(swsh);
-        }
-        if(openNds is not null)
-        {
-            var nds=new Button{Content="Nintendo DS · Gen4/Gen5 (beta)",Margin=new Thickness(0,0,8,8)};
-            System.Windows.Automation.AutomationProperties.SetName(nds,"Abrir el espacio de trabajo de Nintendo DS para Pokémon Diamante, Platino, HeartGold, Negro, Blanco y Blanco 2");
-            nds.Click+=(_,_)=>openNds();actions.Children.Add(nds);
-        }
         body.Children.Add(new TextBlock{Text="Ayuda breve y opcional · F1 abre la guía de la sección actual · Ctrl+K busca cualquier sección o herramienta.",TextWrapping=TextWrapping.Wrap,Margin=new Thickness(0,5,0,0)});
         SizeChanged+=(_,_)=>cards.Columns=ActualWidth<670?1:2;
     }

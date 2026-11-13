@@ -13,6 +13,7 @@ public partial class MainWindow
     private Button[] AdvancedNavigation=>[ItemsButton,GameTextButton,StoryTextButton,MechanicsButton,PokemonToolsButton,RomToolsButton,TemplateStudioButton,GlobalTemplateButton,BatchRomButton];
     private void InitializeGuidance()
     {
+        if(WorkModePreference.Load() is bool remembered){_simplified=remembered;ApplyExperienceNavigation();}
         RefreshStart();SetHomeVisible(true);SessionMilestones.Changed+=OnMilestonesChanged;
         PreviewKeyDown+=(_,e)=>{if(e.Key==Key.F1&&!UiProgress.IsInteractionBlocked){e.Handled=true;_palette?.Close();OpenTour();}
             else if(e.Key==Key.K&&Keyboard.Modifiers==ModifierKeys.Control&&!UiProgress.IsInteractionBlocked){e.Handled=true;OpenCommandPalette();}};
@@ -25,7 +26,7 @@ public partial class MainWindow
         if(changed&&IsActive)Dispatcher.BeginInvoke(()=>{if(!_closed)(visible?(UIElement)HomeHost:EditorShell).MoveFocus(new TraversalRequest(FocusNavigationDirection.First));});
     }
     private void RefreshStart()=>HomeHost.Content=new StartView(_session,_simplified,ChooseExperience,
-        ()=>OpenProject_Click(OpenProjectButton,new RoutedEventArgs()),OpenGuided,()=>OpenTour("Home"),OpenSwitchPrototype,OpenNdsRandomizer,
+        ()=>OpenProject_Click(OpenProjectButton,new RoutedEventArgs()),OpenGuided,()=>OpenTour("Home"),
         route=>NavigateTo(route),()=>Backup_Click(BackupButton,new RoutedEventArgs()),()=>ExtractRom_Click(ExtractRomButton,new RoutedEventArgs()));
     private void Home_Click(object sender,RoutedEventArgs e)
     {
@@ -33,9 +34,11 @@ public partial class MainWindow
         if(_switchWorkspace?.Busy==true||_ndsWorkspace?.Busy==true)return;if(NdsVisible&&!_ndsWorkspace!.CanLeave())return;HideSwitchWorkspace();
         RefreshStart();SetHomeVisible(true);
     }
-    internal void ChooseExperience(bool simplified)
+    /// <summary>Applies a work mode. An explicit choice (Inicio, search) is remembered for the next projects; the guided tour's temporary switch is not.</summary>
+    internal void ChooseExperience(bool simplified)=>ChooseExperience(simplified,remember:true);
+    private void ChooseExperience(bool simplified,bool remember)
     {
-        _simplified=simplified;ApplyExperienceNavigation();
+        _simplified=simplified;if(remember)WorkModePreference.Save(simplified);ApplyExperienceNavigation();
         if(_session is not null)SetHomeVisible(false);else RefreshStart();
     }
     private void ApplyExperienceNavigation()
@@ -108,7 +111,7 @@ public partial class MainWindow
     {
         if(route=="Home"){Home_Click(HomeButton,new RoutedEventArgs());return;}
         if(_session is null&&route!="Extraction")return;
-        if(fullModeForAdvanced&&!GuidanceCatalog.SimpleRoutes.Contains(route))ChooseExperience(false);
+        if(fullModeForAdvanced&&!GuidanceCatalog.SimpleRoutes.Contains(route))ChooseExperience(false,remember:false);
         SetHomeVisible(false);
         if(route=="Pokemon"){Pokemon_Click(PokemonNavButton,new RoutedEventArgs());return;}
         if(route=="Moves"){Moves_Click(MovesButton,new RoutedEventArgs());return;}
