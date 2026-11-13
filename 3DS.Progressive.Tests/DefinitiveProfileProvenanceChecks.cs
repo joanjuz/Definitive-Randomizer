@@ -101,6 +101,8 @@ internal static class DefinitiveProfileProvenanceChecks
         Mutate(app => app["Profile"]!["Sections"] = new JsonArray("actions/personal", "actions/missing"));
         check(Block(other)!["sections"]!.AsArray().Select(s => s!.GetValue<string>()).SequenceEqual(["actions/personal"]),
             "DgdProfile_EditedSelectionOnlyClaimsPresentSections");
+        Mutate(app => app["ManualEdits"] = new JsonObject { ["Operations"] = new JsonArray(new JsonObject()) });
+        check(Block(other) is null, "DgdProfile_MalformedNestedRecipeIgnored" );
         Mutate(app => app["Profile"]!["Name"] = "C:\\private");
         check(Block(other) is null, "DgdProfile_PrivatePathRejectedInMetadata");
         Mutate(app => app["Profile"]!["Version"] = 2);

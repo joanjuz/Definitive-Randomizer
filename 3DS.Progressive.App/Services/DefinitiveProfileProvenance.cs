@@ -54,7 +54,7 @@ internal static class DefinitiveProfileProvenance
                 ["profile"] = metadata, ["sections"] = new JsonArray(selected.Select(s => (JsonNode)JsonValue.Create(s)!).ToArray()) };
             return Encoding.UTF8.GetByteCount(result.ToJsonString()) <= 16 * 1024 ? result : null;
         }
-        catch (Exception e) when (e is InvalidDataException or IOException or UnauthorizedAccessException or JsonException or InvalidOperationException or ArgumentException or KeyNotFoundException or NotSupportedException)
+        catch (Exception e) when (e is InvalidDataException or IOException or UnauthorizedAccessException or JsonException or InvalidOperationException or ArgumentException or KeyNotFoundException or NotSupportedException or NullReferenceException)
         { return null; }
     }
 }
