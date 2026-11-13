@@ -107,6 +107,10 @@ internal static class DefinitiveProfileProvenanceChecks
         check(Block(other) is null, "DgdProfile_PrivatePathRejectedInMetadata");
         Mutate(app => app["Profile"]!["Version"] = 2);
         check(Block(other) is null, "DgdProfile_FutureProfileIgnored");
+        Mutate(app => app["Profile"]!["Version"] = long.MaxValue);
+        check(Block(other) is null, "DgdProfile_OversizedNumericVersionIgnored");
+        Mutate(app => app["Profile"]!["Version"] = true);
+        check(Block(other) is null, "DgdProfile_BooleanVersionIgnored");
         Mutate(app => app["Profile"]!.AsObject().Remove("RecipeSha256"));
         check(Block(other) is null, "DgdProfile_IncompleteMetadataIgnored");
         Mutate(app => app["Profile"]!["Sections"] = new JsonArray("actions/missing"));
