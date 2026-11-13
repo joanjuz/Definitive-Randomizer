@@ -40,3 +40,7 @@ En **Global Template**:
 `--profiles-only`: 105 comprobaciones con binarios sintéticos, el ejecutor real de Global Template sobre un proyecto sintético y ventanas WPF fuera de pantalla. Cubre exportación, exclusiones y privacidad, guardado y recarga, 30 archivos rechazados, tolerancia a campos desconocidos, compatibilidad, requisito desconocido, otro juego, selección, aplicación de Player Level Caps por la reproducción existente, historial, deshacer, conflictos y los diálogos. El recorrido con el ejecutor (USUM y ORAS) comprueba vista previa sin escritura, aplicación del resultado previsualizado, registro solo de la sección elegida, procedencia del perfil en el historial y deshacer.
 
 No se ha probado con un proyecto real ni en la interfaz en pantalla.
+
+## Procedencia en Definitive Game Data
+
+Al exportar DGD desde un proyecto USUM guardado, se puede incluir la procedencia histórica declarada de la última receta de perfil confirmada y no deshecha. Importar o previsualizar no basta. Nombre, autor y huella son declaraciones; las secciones se limitan a las presentes en la receta aplicada. Siempre se indica que no se acredita coincidencia exacta con el perfil original ni con la ROM actual. Cambios posteriores registrados se señalan; los externos no se pueden excluir. Un historial inválido omite solo la procedencia. La exportación no recupera ni escribe el historial. Ver el contrato profileProvenance v1 en docs/contracts/DEFINITIVE_GAME_DATA_V1.md.

@@ -39,9 +39,109 @@
         "type": "array", "maxItems": 8, "items": {"type": "object", "required": ["method", "argument", "targetSpeciesId", "targetFormId", "level"], "properties": {"method": {"type": "integer", "minimum": 1, "maximum": 42}, "argument": {"type": "integer", "minimum": 0, "maximum": 65535}, "targetSpeciesId": {"$ref": "#/$defs/speciesId"}, "targetFormId": {"type": "integer", "minimum": -1, "maximum": 127}, "level": {"type": "integer", "minimum": 0, "maximum": 100}}}
       }}
     }},
-    "playerLevelCaps": {"$ref": "#/$defs/playerLevelCaps"}
+    "playerLevelCaps": {"$ref": "#/$defs/playerLevelCaps"},
+    "profileProvenance": {"$ref": "#/$defs/profileProvenance"}
   },
   "$defs": {
+    "profileProvenance": {
+      "type": "object",
+      "required": [
+        "version"
+      ],
+      "properties": {
+        "version": {
+          "type": "integer",
+          "minimum": 1
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "version": {
+                "const": 1
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "status",
+              "currentMatch",
+              "subsequentChanges",
+              "gameId",
+              "profile",
+              "sections"
+            ],
+            "properties": {
+              "version": {},
+              "status": {
+                "const": "historical"
+              },
+              "currentMatch": {
+                "const": "not-verified"
+              },
+              "subsequentChanges": {
+                "enum": [
+                  "none-recorded",
+                  "recorded"
+                ]
+              },
+              "gameId": {
+                "enum": [
+                  "ultra-sun",
+                  "ultra-moon"
+                ]
+              },
+              "profile": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "format",
+                  "version",
+                  "name",
+                  "recipeSha256"
+                ],
+                "properties": {
+                  "format": {
+                    "const": "definitive-randomizer-profile"
+                  },
+                  "version": {
+                    "const": 1
+                  },
+                  "name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 120,
+                    "pattern": "^[^\\u0000-\\u001F\\u007F/\\\\:]+$(?![\\s\\S])"
+                  },
+                  "author": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 80,
+                    "pattern": "^[^\\u0000-\\u001F\\u007F/\\\\:]+$(?![\\s\\S])"
+                  },
+                  "recipeSha256": {
+                    "$ref": "#/$defs/sha256"
+                  }
+                }
+              },
+              "sections": {
+                "type": "array",
+                "minItems": 1,
+                "maxItems": 64,
+                "uniqueItems": true,
+                "items": {
+                  "type": "string",
+                  "maxLength": 90,
+                  "pattern": "^(actions|manual|options)/[a-z0-9-]{1,80}$(?![\\s\\S])"
+                }
+              }
+            },
+            "additionalProperties": false
+          }
+        }
+      ]
+    },
     "playerLevelCaps": {
       "description": "Optional. Player Level Caps patch state read from the saved Battle.cro and code.bin. Only block version 1 is defined; a consumer ignores other versions.",
       "type": "object", "required": ["version"], "properties": {"version": {"type": "integer", "minimum": 1}},

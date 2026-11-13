@@ -68,7 +68,7 @@ jobs:
             'guidance-only', 'global-apply-only', 'rebuild-marts-ui-only', 'mart-layout-ui-only',
             'history-inspection-only', 'transaction-races-only', 'undo-toctou-only', 'undo-template-regression-only', 'rebuild-stability-only', 'swsh-only', 'swsh-ui-only',
             'swsh-parity-only', 'legacy-parity-only', 'nds-only',
-            'nds-ui-only', 'nds-events-ui-only', 'nds-map-props-only', 'nds-map-props-ui-only', 'project-detector-only', 'universal-open-only', 'nds-project-format-only', 'nds-project-store-only', 'nds-project-transactions-only', 'nds-project-open-only', 'nds-project-resilience-only', 'usum-mints-only', 'usum-mints-ui-only', 'usum-mint-icons-only', 'usum-mints-distribution-only', 'player-caps-recipe-only', 'profiles-only', 'patch-capability-only', 'mega-diagnostic-only', 'mega-ability-sync-only'
+            'nds-ui-only', 'nds-events-ui-only', 'nds-map-props-only', 'nds-map-props-ui-only', 'project-detector-only', 'universal-open-only', 'nds-project-format-only', 'nds-project-store-only', 'nds-project-transactions-only', 'nds-project-open-only', 'nds-project-resilience-only', 'usum-mints-only', 'usum-mints-ui-only', 'usum-mint-icons-only', 'usum-mints-distribution-only', 'player-caps-recipe-only', 'profiles-only', 'patch-capability-only', 'mega-diagnostic-only', 'mega-ability-sync-only', 'definitive-game-data-only'
           )
           foreach ($suite in $suites) {
             & dotnet $runner "--$suite" 2>&1 | Tee-Object -FilePath "validation-logs/$suite.log"
@@ -118,6 +118,22 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'Tracker consumer commit not found' }
           & $contractPython -I tools/contracts/check_definitive_game_data.py --tracker $tracker --producer $capsFixtures --consumer $consumer 2>&1 | Tee-Object -FilePath validation-logs/dgd-contract.log
           if ($LASTEXITCODE -ne 0) { throw 'Definitive Game Data contract checks failed' }
+          & $contractPython -I tools/contracts/check_profile_provenance.py --tracker $tracker --consumer $consumer
+          if ($LASTEXITCODE -ne 0) { throw 'Profile provenance contract checks failed' }
+          $profileConsumer = Join-Path $env:RUNNER_TEMP 'tracker-profile-provenance'
+          git clone --quiet https://github.com/joanjuz/NuzlockeTracker.git $profileConsumer
+          if ($LASTEXITCODE -ne 0) { throw 'Profile consumer checkout failed' }
+          git -C $profileConsumer checkout --quiet --detach f1e41f3ff667e743f9647772713c33253484e71b
+          if ($LASTEXITCODE -ne 0) { throw 'Pinned profile consumer not found' }
+          $profileFixtures = Join-Path $env:RUNNER_TEMP 'dgd-profile-fixtures'
+          dotnet ./3DS.Progressive.Tests/bin/Release/net10.0-windows/3DS.Progressive.Tests.dll --definitive-game-data-profile-fixtures $profileFixtures
+          if ($LASTEXITCODE -ne 0) { throw 'Profile producer fixtures failed' }
+          & $contractPython -m pip install --require-hashes -r "$profileConsumer/requirements-e2e.txt"
+          if ($LASTEXITCODE -ne 0) { throw 'Profile browser dependencies failed' }
+          & $contractPython -m playwright install chromium
+          if ($LASTEXITCODE -ne 0) { throw 'Profile Chromium install failed' }
+          & $contractPython -I tools/contracts/check_profile_interop.py --producer $profileFixtures --consumer $profileConsumer --legacy $tracker --legacy $consumer --browser --artifacts validation-logs/profile-browser 2>&1 | Tee-Object -FilePath validation-logs/profile-interop.log
+          if ($LASTEXITCODE -ne 0) { throw 'Real profile interoperability failed' }
       - name: Regresiones con datos sinteticos XY, ORAS, SM y USUM
         env:
           PROGRESSIVE_UI_CAPTURE_DIR: ${{ github.workspace }}/ui-captures
