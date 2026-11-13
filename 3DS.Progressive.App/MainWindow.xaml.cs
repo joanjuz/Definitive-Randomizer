@@ -98,14 +98,14 @@ public partial class MainWindow : Window
                     OperationProgress.Visibility=busy?Visibility.Visible:Visibility.Collapsed;
                     OperationProgress.IsIndeterminate=true;
                     OperationPercent.Visibility=Visibility.Collapsed;
-                    if(busy)StatusText.Text=message;
+                    if(busy)StatusText.Text=message;else ShowStatusAfterOperation();
                 });
                 return;
             }
             OperationProgress.Visibility=busy?Visibility.Visible:Visibility.Collapsed;
             OperationProgress.IsIndeterminate=true;
             OperationPercent.Visibility=Visibility.Collapsed;
-            if(busy)StatusText.Text=message;
+            if(busy)StatusText.Text=message;else ShowStatusAfterOperation();
         };
         _reportedProgress=(message,percentage)=>
         {
@@ -335,7 +335,20 @@ public partial class MainWindow : Window
     private CancellationTokenSource? _sectionLoadCancellation;
     private async void Section_Click(object sender,RoutedEventArgs e)
     {
-        if(_closed||_session is null||sender is not Button {Tag:string section})return;
+        if(sender is Button {Tag:string section})await OpenSectionAsync(section);
+    }
+    /// <summary>
+    /// A result to keep on the status bar (e.g. «Cambio deshecho…»): the section just opened may start its own check (History verifies the files),
+    /// whose progress message would otherwise replace it. Shown again when that operation ends; cleared by the next navigation.
+    /// </summary>
+    private string? _statusAfterOperation;
+    private void ShowStatusAfterOperation(){if(_statusAfterOperation is { } text){StatusText.Text=text;_statusAfterOperation=null;}}
+    private void KeepStatus(string text){StatusText.Text=text;_statusAfterOperation=text;}
+    /// <summary>Opens one section of the editor; awaitable so that a caller can report a result after the section is on screen.</summary>
+    private async Task OpenSectionAsync(string section)
+    {
+        _statusAfterOperation=null;
+        if(_closed||_session is null)return;
         if(!ProjectFeatureAvailability.Supports(_session,section))return;
         // The applied options of the project are being read: open the randomizer with them, not with the defaults.
         if(_appliedOptionsTask is {IsCompleted:false} pending){try{await pending;}catch(Exception){}if(_closed||_session is null)return;}
@@ -620,8 +633,9 @@ public partial class MainWindow : Window
     private async Task ReloadAfterSelectedRestore()
     {
         if(_session is null)return;string root=_session.ProjectRoot;
-        var restored=await Task.Run(()=>GameProjectSession.Open(root,recoverInterruptedSave:false));LoadProject(restored);
-        StatusText.Text="Archivos seleccionados restaurados, verificados y registrados en el historial.";
+        var restored=await Task.Run(()=>GameProjectSession.Open(root,recoverInterruptedSave:false));LoadProject(restored,keepWorkspace:true);
+        await OpenSectionAsync("RestoreSelected");
+        KeepStatus("Archivos seleccionados restaurados, verificados y registrados en el historial.");
     }
     private async void Rebuild_Click(object sender,RoutedEventArgs e){if(NdsVisible){await _ndsWorkspace!.ExportAsync();RefreshNdsHeader();return;}if(SwitchHost.Visibility==Visibility.Visible&&_switchWorkspace is not null){await _switchWorkspace.ExportAsync();return;}NavigateSystem("Rebuild");}
 
@@ -686,7 +700,11 @@ public partial class MainWindow : Window
         }
         finally{UiProgress.End();}
     }
-    internal void LoadProject(GameProjectSession candidate)
+    /// <summary>
+    /// Shows <paramref name="candidate"/>. With <paramref name="keepWorkspace"/> (reload after «Deshacer» or a selected restore) the start screen is
+    /// not shown again: the caller reopens its section. Otherwise the remembered work mode opens the editor directly; without one, Inicio asks.
+    /// </summary>
+    internal void LoadProject(GameProjectSession candidate,bool keepWorkspace=false)
     {
         if(_closed)return;
         _sectionLoadCancellation?.Cancel();++_sectionLoadVersion;
@@ -767,7 +785,11 @@ public partial class MainWindow : Window
         PokemonList.SelectedIndex = 0;
         StatusText.Text = "Proyecto abierto en modo lectura. Guardar requiere confirmación.";
         _optionSources.Clear();_appliedOptionsTask=RestoreAppliedOptionsAsync(candidate);
-        GuidedButton.IsEnabled=true;WatchHistory(candidate);RefreshHeaderEmphasis();RefreshStart();SetHomeVisible(true);ApplyExperienceNavigation();
+        GuidedButton.IsEnabled=true;WatchHistory(candidate);RefreshHeaderEmphasis();
+        bool? remembered=keepWorkspace?null:WorkModePreference.Load();
+        if(remembered is bool mode)_simplified=mode;
+        RefreshStart();SetHomeVisible(!keepWorkspace&&remembered is null);ApplyExperienceNavigation();
+        if(remembered is bool chosen)StatusText.Text=$"Proyecto abierto en {(chosen?"modo simplificado":"modo completo")} (tu modo recordado). Puedes cambiarlo desde Inicio.";
     }
 
     private void SearchBox_TextChanged(object sender, TextChangedEventArgs e)

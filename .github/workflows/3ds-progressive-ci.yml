@@ -68,7 +68,7 @@ jobs:
             'guidance-only', 'global-apply-only', 'rebuild-marts-ui-only', 'mart-layout-ui-only',
             'history-inspection-only', 'transaction-races-only', 'undo-toctou-only', 'undo-template-regression-only', 'rebuild-stability-only', 'swsh-only', 'swsh-ui-only',
             'swsh-parity-only', 'legacy-parity-only', 'nds-only',
-            'nds-ui-only', 'nds-events-ui-only', 'nds-map-props-only', 'nds-map-props-ui-only', 'project-detector-only', 'universal-open-only', 'nds-project-format-only', 'nds-project-store-only', 'nds-project-transactions-only', 'nds-project-open-only', 'nds-project-resilience-only', 'usum-mints-only', 'usum-mints-ui-only', 'usum-mint-icons-only', 'usum-mints-distribution-only', 'player-caps-recipe-only', 'profiles-only', 'patch-capability-only', 'mega-diagnostic-only', 'mega-ability-sync-only', 'definitive-game-data-only'
+            'nds-ui-only', 'nds-events-ui-only', 'nds-map-props-only', 'nds-map-props-ui-only', 'project-detector-only', 'universal-open-only', 'nds-project-format-only', 'nds-project-store-only', 'nds-project-transactions-only', 'nds-project-open-only', 'nds-project-resilience-only', 'usum-mints-only', 'usum-mints-ui-only', 'usum-mint-icons-only', 'usum-mints-distribution-only', 'player-caps-recipe-only', 'profiles-only', 'patch-capability-only', 'mega-diagnostic-only', 'mega-ability-sync-only', 'stable-polish-only', 'definitive-game-data-only'
           )
           foreach ($suite in $suites) {
             & dotnet $runner "--$suite" 2>&1 | Tee-Object -FilePath "validation-logs/$suite.log"
