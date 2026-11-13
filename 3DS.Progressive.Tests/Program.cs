@@ -142,6 +142,18 @@ if(args.Length==1&&args[0]=="--mega-diagnostic-only")
     ui.SetApartmentState(ApartmentState.STA);ui.Start();ui.Join();if(failure is not null)System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(failure).Throw();
     Console.WriteLine($"Completed {checks} Mega Evolution ability diagnosis checks.");return;
 }
+if(args.Length==1&&args[0]=="--mega-ability-sync-only")
+{
+    MegaAbilitySyncChecks.Run(Check,Reject);
+    MegaAbilitySyncChecks.RunBinary(Check,Reject);
+    MegaAbilitySyncChecks.RunService(Check);
+    Console.WriteLine($"Completed {checks} Mega Ability Sync checks.");return;
+}
+if(args.Length==3&&args[0]=="--mega-ability-sync-real")
+{
+    MegaAbilitySyncChecks.RunReal(args[1],args[2],Check);
+    Console.WriteLine($"Completed {checks} Mega Ability Sync checks on real files (read only).");return;
+}
 if(args.Length==1&&args[0]=="--patch-capability-only")
 {
     PatchCapabilityChecks.Run(Check,Reject);

@@ -1,6 +1,6 @@
 # Megaevoluciones y habilidades en Ultra Sol / Ultra Luna: diagnóstico
 
-Estado: **investigación abierta**. Hay un informe de solo lectura; no hay corrección. La causa del problema reportado no está demostrada.
+Estado: **causa identificada en el código del juego; corrección instalable en [MEGA_ABILITY_SYNC_USUM.md](MEGA_ABILITY_SYNC_USUM.md), pendiente de prueba en combate real.** Este documento describe el informe de solo lectura.
 
 ## Problema reportado
 
@@ -55,10 +55,10 @@ Con participantes que consientan y sin servicios oficiales:
 5. Entre dos juegos con huellas **distintas**: repetir. Si aquí falla y en el paso 4 no, apunta a la hipótesis 2.
 6. Si la habilidad que actúa es la correcta pero el mensaje no, apunta a la hipótesis 3.
 
-## Corrección posible (no implementada)
+## Corrección
 
-La dirección de solución es Mega Ability Sync bilateral: conservar las habilidades randomizadas distintas de cada jugador y sincronizar la habilidad efectiva según los datos del propietario del Pokémon. Ambos juegos USUM deben llevar un parche compatible, con identificación y versión de protocolo comprobables antes de usarlo. Si esa compatibilidad no se acredita, el protocolo experimental no debe activarse; la forma concreta de rechazo o aviso sigue por investigar.
+El análisis del código de combate confirmó la hipótesis 2: al megaevolucionar, cada juego lee la habilidad de su propia tabla, y en un combate entre dos juegos solo uno hace los cálculos. La corrección es Mega Ability Sync, descrita en [MEGA_ABILITY_SYNC_USUM.md](MEGA_ABILITY_SYNC_USUM.md): los dos juegos llevan el parche y cada megaevolución usa la habilidad del juego de su dueño, sin igualar tablas, ranuras ni semillas. Está instalable y probada con pruebas automáticas y archivos reales; falta la prueba en un combate real, con los pasos de ese documento.
 
-No se ofrece igualar las tres ranuras de una Mega ni exigir tablas o semillas comunes como solución. No está demostrado quién tiene autoridad durante el combate, si el transporte actual comunica el ID efectivo ni dónde integrar el parche. Primero hay que investigar el protocolo y el motor reales, distinguir efectos mecánicos de presentación y verificar los dos roles de anfitrión e invitado; no se implementan hooks ni paquetes supuestos. El diagnóstico y el comparador no acreditan sincronización ni compatibilidad bilateral.
+La hipótesis 1 (dependencia de la ranura) sigue siendo cierta y no es un defecto: ocurre también sin conexión. El diagnóstico y el comparador siguen siendo de solo lectura.
 
 Alcance: solo Ultra Sol / Ultra Luna. No se extiende a Sol/Luna ni a la sexta generación.

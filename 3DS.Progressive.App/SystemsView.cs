@@ -335,6 +335,7 @@ internal sealed class SystemsView : UserControl
                 "Solo lee el proyecto. Indica qué megaevoluciones tienen una habilidad distinta según la ranura del Pokémon e incluye la huella de la tabla Personal. «Comparar con otro jugador» lee dos archivos de «Exportar datos para Progressive Tracker» y dice qué megaevoluciones difieren. No reproduce un combate ni corrige nada.");
             AddButton((StackPanel)megas.Child,"Exportar diagnóstico de megaevoluciones…",()=>_=ExportMegaDiagnosisAsync(Window.GetWindow(this),_project,text=>_status.Text=text));
             AddButton((StackPanel)megas.Child,"Comparar con otro jugador…",()=>_=CompareMegaExportsAsync(Window.GetWindow(this),text=>_status.Text=text));
+            AddButton((StackPanel)megas.Child,"Abrir Mega Ability Sync",()=>_navigate("MegaAbilitySync"));
             stack.Children.Add(megas);
         }
         var log=Card("Registro del randomizado","Exporta un archivo de texto con lo que tiene ahora el juego: regalos y estáticos, equipos de entrenadores, encuentros salvajes y los cambios guardados.",
