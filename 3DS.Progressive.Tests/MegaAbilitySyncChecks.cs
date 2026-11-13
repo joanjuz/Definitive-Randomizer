@@ -243,7 +243,7 @@ internal static class MegaAbilitySyncChecks
         "_ZNK3pml8pokepara9CoreParam9GetFormNoEv", "_ZNK3pml8pokepara9CoreParam9GetMonsNoEv", "_ZN3pml8pokepara9CoreParam11SetMemoriesENS0_8MemoriesEj",
         "_ZN3pml8pokepara9CoreParam10MegaEvolveEv", "_ZN3pml8personal16LoadPersonalDataE6MonsNoh", "_ZN3pml8personal16GetPersonalParamENS0_7ParamIDE",
     ];
-    private const int StubBase = 0x200, SizeSite = 0x2010, SendSite = 0x2020, ReceiveSite = 0x2110, MegaSite = 0x2210, NetLiteral = 0x2300, Helper = 0x2400;
+    private const int StubBase = 0x200, SizeSite = 0x2010, SendSite = 0x2020, ReceiveSite = 0x2110, MegaSite = 0x2210, NetLiteral = 0x2300, Helper = 0x2400, ClientBuffer = 0x2500;
     private static void Set32(byte[] data, int at, uint value) => BitConverter.GetBytes(value).CopyTo(data, at);
     private static uint Get32(byte[] data, int at) => BitConverter.ToUInt32(data, at);
     private static uint Bl(int from, int to, uint op = 0xEB000000) => op | ((uint)((to - (from + 8)) >> 2) & 0x00FFFFFF);
@@ -283,10 +283,10 @@ internal static class MegaAbilitySyncChecks
         }
         return CroIntegrity.Rebuild(cro); // valid integrity hashes, as a real module has
     }
-    private static readonly (uint Start, uint End)[] Ranges = [(0x2000, 0x2040), (0x2100, 0x2120), (0x2200, 0x2220), (0x2400, 0x2420)];
+    private static readonly (uint Start, uint End)[] Ranges = [(0x2000, 0x2040), (0x2100, 0x2120), (0x2200, 0x2220), (0x2400, 0x2420), (0x2500, 0x2520)];
     internal static MegaAbilitySyncProfile Profile()
     {
-        var profile = new MegaAbilitySyncProfile("Synthetic", SizeSite, SendSite, ReceiveSite, MegaSite, NetLiteral, 0x3DF8, Helper, Ranges, "");
+        var profile = new MegaAbilitySyncProfile("Synthetic", SizeSite, SendSite, ReceiveSite, MegaSite, NetLiteral, 0x3DF8, Helper, ClientBuffer, Ranges, "");
         return profile with { DependencySha256 = profile.ComputeDependencySha256(Module()) };
     }
 
@@ -351,11 +351,16 @@ internal static class MegaAbilitySyncChecks
         };
         var ultraSun = new MegaAbilitySyncCodeAddresses(0x66F0D0, 0x4ABE34, 0x4AE80C, 0x4AE1EC, 0x321758);
         var ultraMoon = new MegaAbilitySyncCodeAddresses(0x66F0D0, 0x4ABE3C, 0x4AE814, 0x4AE1F4, 0x321758);
-        check(Sha(Sync.BuildPayload(0xFC974, ultraSun, MegaAbilitySyncProfile.Usum, stubs)) == "A822A148F7472FD276011ECB43F040F2C0C0383A78A28D1189626CF4A9EC839C" &&
-            Sha(Sync.BuildPayload(0x100000, ultraSun, MegaAbilitySyncProfile.Usum, stubs)) == "515E958E3EB44291F64768A615950FE491C252EB6557F5B9FF2993A96F85595E", "MegaSyncBinary_BlockMatchesTheReference_UltraSun");
-        check(Sha(Sync.BuildPayload(0xFC974, ultraMoon, MegaAbilitySyncProfile.Usum, stubs)) == "DC34481869BEFC5F6E44E2CFDC1203E08F74198F7B6F8C0306AF13B2C801B1C3" &&
-            Sha(Sync.BuildPayload(0x100000, ultraMoon, MegaAbilitySyncProfile.Usum, stubs)) == "3B2357912FA934B4331D24C4175E8A5C1CB7108F91D148E518EC1709FC1BA3BD", "MegaSyncBinary_BlockMatchesTheReference_UltraMoon");
-        check(Sync.PayloadBytes == 636 && Sync.PacketBytes == 0x624, "MegaSyncBinary_Sizes");
+        check(Sha(Sync.BuildPayload(0xFC974, ultraSun, MegaAbilitySyncProfile.Usum, stubs)) == "7BD8F5BD80C96523E11DCA64CFE29AD8E461E08916024EA8BD594CEABA41EE37" &&
+            Sha(Sync.BuildPayload(0x100000, ultraSun, MegaAbilitySyncProfile.Usum, stubs)) == "5BC0E7E638B52FD6D56ACA0ED9C290E04230F98EE179085F70E38E2D4519CF02", "MegaSyncBinary_BlockMatchesTheReference_UltraSun");
+        check(Sha(Sync.BuildPayload(0xFC974, ultraMoon, MegaAbilitySyncProfile.Usum, stubs)) == "157F7DBD9CC1F793569E859E149C6EC5BFA280A9427FB8A176C82C66F7ED737E" &&
+            Sha(Sync.BuildPayload(0x100000, ultraMoon, MegaAbilitySyncProfile.Usum, stubs)) == "A980C0F4F404304CE9937D9460160D1B7DE1F855303ACC11967644B2EC8822A4", "MegaSyncBinary_BlockMatchesTheReference_UltraMoon");
+        // The first published routine is still recognised exactly as it was installed.
+        check(Sha(Sync.BuildPayload(0xFC974, ultraSun, MegaAbilitySyncProfile.Usum, stubs, earlierFormat: true)) == "A822A148F7472FD276011ECB43F040F2C0C0383A78A28D1189626CF4A9EC839C" &&
+            Sha(Sync.BuildPayload(0x100000, ultraSun, MegaAbilitySyncProfile.Usum, stubs, earlierFormat: true)) == "515E958E3EB44291F64768A615950FE491C252EB6557F5B9FF2993A96F85595E" &&
+            Sha(Sync.BuildPayload(0xFC974, ultraMoon, MegaAbilitySyncProfile.Usum, stubs, earlierFormat: true)) == "DC34481869BEFC5F6E44E2CFDC1203E08F74198F7B6F8C0306AF13B2C801B1C3" &&
+            Sha(Sync.BuildPayload(0x100000, ultraMoon, MegaAbilitySyncProfile.Usum, stubs, earlierFormat: true)) == "3B2357912FA934B4331D24C4175E8A5C1CB7108F91D148E518EC1709FC1BA3BD", "MegaSyncBinary_EarlierBlockMatchesWhatWasPublished");
+        check(Sync.PayloadBytes == 624 && Sync.PayloadFormat == 2 && Sync.ProtocolVersion == 1 && Sync.PacketBytes == 0x624, "MegaSyncBinary_Sizes");
 
         foreach (bool tight in new[] { false, true })
         {
@@ -381,6 +386,33 @@ internal static class MegaAbilitySyncChecks
             check(Sync.TryUninstall(stock, addresses, profile, out byte[] untouched, out _) && untouched.SequenceEqual(stock), "MegaSyncBinary_UninstallingTheOriginalChangesNothing_" + name);
             check(Sync.TryInstall(removed, addresses, profile, out byte[] back, out _) && Sync.Inspect(back, addresses, profile).State == MegaAbilitySyncState.Installed &&
                 (tight || back.SequenceEqual(installed)), "MegaSyncBinary_ReinstallAfterUninstall_" + name);
+
+            // The routine published first: recognised byte for byte, replaced in place by installing again, and removable.
+            const int earlierBytes = 636;
+            check(installed.AsSpan((int)after.PayloadOffset!.Value + Sync.PayloadBytes, earlierBytes - Sync.PayloadBytes).IndexOfAnyExcept((byte)0) < 0, "MegaSyncEarlier_FixtureHasRoom_" + name);
+            byte[] earlier = (byte[])installed.Clone();
+            uint earlierAt = after.PayloadOffset!.Value;
+            Sync.BuildPayload(earlierAt, addresses, profile, read, earlierFormat: true).CopyTo(earlier, (int)earlierAt);
+            foreach (var (site, entry) in new[] { (SizeSite, 2), (SendSite, 5), (ReceiveSite, 70), (MegaSite, 135) })
+                Set32(earlier, site, Bl(site, (int)earlierAt + entry * 4));
+            earlier = CroIntegrity.Rebuild(earlier);
+            string earlierHash = Sha(earlier);
+            var old = Sync.Inspect(earlier, addresses, profile);
+            check(old.State == MegaAbilitySyncState.InstalledEarlierFormat && old.PayloadOffset == earlierAt && old.Sites.All(s => s.State == State.OwnInstallEarlierFormat) &&
+                Sync.Inspect(earlier, null, profile).State == MegaAbilitySyncState.InstalledEarlierFormat, "MegaSyncEarlier_IsRecognised_" + name);
+            check(Sync.TryInstall(earlier, addresses, profile, out byte[] replaced, out string replaceError) && replaceError.Length == 0 && replaced.SequenceEqual(installed) && Sha(earlier) == earlierHash,
+                "MegaSyncEarlier_InstallingAgainLeavesExactlyTheCurrentInstallation_" + name);
+            check(Sync.TryUninstall(earlier, addresses, profile, out byte[] earlierRemoved, out _) && earlierRemoved.SequenceEqual(removed), "MegaSyncEarlier_CanBeRemoved_" + name);
+            byte[] earlierDamaged = (byte[])earlier.Clone(); earlierDamaged[(int)earlierAt + 0x150] ^= 1;
+            check(Sync.Inspect(earlierDamaged, addresses, profile).State == MegaAbilitySyncState.Partial && !Sync.TryInstall(earlierDamaged, addresses, profile, out _, out _) &&
+                !Sync.TryUninstall(earlierDamaged, addresses, profile, out _, out _), "MegaSyncEarlier_ChangedBlockIsNotAccepted_" + name);
+            check(Sync.Inspect(earlier, shifted, profile).State == MegaAbilitySyncState.Partial, "MegaSyncEarlier_BlockOfAnotherGameIsNotAccepted_" + name);
+            byte[] mixed2 = (byte[])earlier.Clone(); Set32(mixed2, MegaSite, Get32(installed, MegaSite));
+            check(Sync.Inspect(mixed2, addresses, profile).State == MegaAbilitySyncState.Partial && !Sync.TryInstall(mixed2, addresses, profile, out _, out _), "MegaSyncEarlier_MixedLayoutsAreRefused_" + name);
+            check(GameMegaAbilitySyncService.InspectCapability(earlier, crs, code, profile) is { CanApply: true, Level: Level.Verified } upgrade && upgrade.Changes.Count >= 2 &&
+                upgrade.Resources.All(r => r.State == State.OwnInstallEarlierFormat) && upgrade.Summary.Contains("rutina anterior", StringComparison.Ordinal), "MegaSyncEarlier_CapabilityExplainsTheReplacement_" + name);
+            check(GameMegaAbilitySyncService.Patch(earlier, crs, code, true, profile) is { Changed: true, Installed: true } upgraded && upgraded.Bytes.SequenceEqual(installed) &&
+                GameMegaAbilitySyncService.Patch(earlier, crs, code, false, profile) is { Changed: true, Installed: false }, "MegaSyncEarlier_EditorReplacesOrRemoves_" + name);
 
             // Another game's addresses in the installed block: not this installation.
             check(Sync.Inspect(installed, shifted, profile).State == MegaAbilitySyncState.Partial && !Sync.TryInstall(installed, shifted, profile, out _, out _), "MegaSyncBinary_BlockOfAnotherGameIsNotAccepted_" + name);
@@ -471,6 +503,23 @@ internal static class MegaAbilitySyncChecks
             check(same.Changes.Count == 0 && f.Session.History.Read().Entries.Count == 1, "MegaSyncService_InstallingAgainIsNotAnOperation");
             service.Save(1, new Dictionary<string, int> { ["Enable"] = 0 });
             check(EditorValues.Flatten(service.Read(1))["Enable"] == 0 && File.ReadAllBytes(battle).SequenceEqual(Module()) && f.Session.History.Read().Entries.Count == 2, "MegaSyncService_RemovingRestoresTheOriginalFile");
+            // A project that still carries the routine published first: shown as installed, replaced by applying 1.
+            {
+                byte[] current = Module(); check(Sync.TryResolveCodeAddresses(crs, code, out var resolved, out _) && Sync.TryInstall(current, resolved, profile, out current, out _), "MegaSyncService_EarlierFixture");
+                uint at = Sync.Inspect(current, resolved, profile).PayloadOffset!.Value; Sync.TryReadImportStubs(current, out var veneers, out _);
+                byte[] earlier = (byte[])current.Clone(); Sync.BuildPayload(at, resolved, profile, veneers, earlierFormat: true).CopyTo(earlier, (int)at);
+                foreach (var (site, entry) in new[] { (SizeSite, 2), (SendSite, 5), (ReceiveSite, 70), (MegaSite, 135) }) Set32(earlier, site, Bl(site, (int)at + entry * 4));
+                File.WriteAllBytes(battle, CroIntegrity.Rebuild(earlier));
+                var old = new GameMegaAbilitySyncService(f.Session, profile);
+                int entries = f.Session.History.Read().Entries.Count;
+                var replace = old.Preview(new Dictionary<string, int> { ["Enable"] = 1 }, [1]);
+                check(EditorValues.Flatten(old.Read(1))["Enable"] == 1 && replace.Action == "Actualizar Mega Ability Sync" && replace.Changes.Count == 1, "MegaSyncService_EarlierRoutineIsOfferedForReplacement");
+                old.Apply(replace);
+                check(File.ReadAllBytes(battle).SequenceEqual(current) && f.Session.History.Read().Entries.Count == entries + 1 &&
+                    old.Preview(new Dictionary<string, int> { ["Enable"] = 1 }, [1]).Changes.Count == 0, "MegaSyncService_EarlierRoutineIsReplacedAndRecorded");
+                new GameMegaAbilitySyncService(f.Session, profile).Save(1, new Dictionary<string, int> { ["Enable"] = 0 });
+                check(File.ReadAllBytes(battle).SequenceEqual(Module()), "MegaSyncService_RemovingAfterTheReplacementRestoresTheOriginalFile");
+            }
             var reopened = new GameMegaAbilitySyncService(f.Session, profile);
             reopened.Save(1, new Dictionary<string, int> { ["Enable"] = 1 });
             check(EditorValues.Flatten(new GameMegaAbilitySyncService(f.Session, profile).Read(1))["Enable"] == 1, "MegaSyncService_StateSurvivesReopening");
@@ -519,7 +568,7 @@ internal static class MegaAbilitySyncChecks
         Console.WriteLine("REAL " + GamePlayerLevelCapService.Describe(capability));
         check(capability.CanApply, "MegaSyncReal_Accredited");
         var before = Sync.Inspect(battle, addresses);
-        check(before.State is MegaAbilitySyncState.Original or MegaAbilitySyncState.Installed, "MegaSyncReal_KnownState_" + before.State);
+        check(before.State is MegaAbilitySyncState.Original or MegaAbilitySyncState.Installed or MegaAbilitySyncState.InstalledEarlierFormat, "MegaSyncReal_KnownState_" + before.State);
         check(Sync.TryInstall(battle, addresses, out byte[] installed, out string error), "MegaSyncReal_Installs " + error);
         var after = Sync.Inspect(installed, addresses);
         check(after.State == MegaAbilitySyncState.Installed && Sync.TryReadImportStubs(installed, out var stubs, out _) &&
@@ -528,6 +577,9 @@ internal static class MegaAbilitySyncChecks
         check(Sync.TryInstall(installed, addresses, out byte[] again, out _) && again.SequenceEqual(installed), "MegaSyncReal_ReinstallChangesNothing");
         check(Sync.TryUninstall(installed, addresses, out byte[] removed, out _) && Sync.Inspect(removed, addresses).State == MegaAbilitySyncState.Original, "MegaSyncReal_Uninstalls");
         if (before.State == MegaAbilitySyncState.Original && installed.Length == battle.Length) check(removed.SequenceEqual(battle), "MegaSyncReal_UninstallIsByteIdentical");
+        if (before.State == MegaAbilitySyncState.InstalledEarlierFormat)
+            check(installed.Length == battle.Length && after.PayloadOffset == before.PayloadOffset && Sync.TryUninstall(battle, addresses, out byte[] earlierRemoved, out _) && earlierRemoved.SequenceEqual(removed),
+                "MegaSyncReal_EarlierRoutineReplacedInPlaceAndRemovable");
         check(CroRelocationMap.TryCreate(installed, out _, out _) && Sha(File.ReadAllBytes(battlePath)) == battleHash, "MegaSyncReal_ModuleStaysValidAndSourceUntouched");
         if (LevelCapPatch.InspectBattle(battle, out var caps) == LevelCapCopyState.Applied)
             check(LevelCapPatch.InspectBattle(installed, out var kept) == LevelCapCopyState.Applied && kept.ToBytes().SequenceEqual(caps.ToBytes()), "MegaSyncReal_PlayerLevelCapsKept");

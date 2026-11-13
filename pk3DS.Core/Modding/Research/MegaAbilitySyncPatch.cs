@@ -24,13 +24,15 @@ public sealed record MegaAbilitySyncProfile(
     uint NetLiteral,
     uint NetBssOffset,
     uint PersonalHelper,
+    uint ClientBuffer,
     IReadOnlyList<(uint Start, uint End)> DependencyRanges,
     string DependencySha256)
 {
     /// <summary>
     /// Ultra Sun and Ultra Moon ship the same Battle.cro, so one profile covers both. The hash covers the routines
-    /// the patch depends on (party notification, party reception, the Mega Evolution entry and its helpers), with
-    /// the four hooked instructions left out so it stays valid after installing.
+    /// the patch depends on (network start-up, party notification, party reception, the lookup of the buffer that
+    /// holds a client's packets, the Mega Evolution entry and its helpers), with the four hooked instructions left
+    /// out so it stays valid after installing.
     /// </summary>
     public static MegaAbilitySyncProfile Usum { get; } = new(
         "USUM",
@@ -41,16 +43,19 @@ public sealed record MegaAbilitySyncProfile(
         NetLiteral: 0x8A2E4,
         NetBssOffset: 0x3DF8,
         PersonalHelper: 0x7DF28,
+        ClientBuffer: 0x66A10,
         DependencyRanges:
         [
             (0x7DD24, 0x7DDF4),
             (0xAE29C, 0xAE354),
             (0x11F48, 0x120F4),
             (0x8A238, 0x8A2F0),
-            (0x66858, 0x66A10),
+            (0x66858, 0x66B18),
             (0x7DF28, 0x7DF48),
+            (0xAD4F8, 0xAD7B4),
+            (0xADC44, 0xADC84),
         ],
-        DependencySha256: "096A299386EB3E11C749756743252BEA8E26B8CED870DD2195B9C4F85A132EA3");
+        DependencySha256: "9803B63914EA1A01D792F4836835A11493A891493097AACA5194EA4FA52F7C3F");
 
     public IEnumerable<uint> Sites => [SizeSite, SendSite, ReceiveSite, MegaSite];
 
@@ -89,6 +94,13 @@ public enum MegaAbilitySyncState
     /// <summary>The four hook sites call one block that matches the routine byte for byte.</summary>
     Installed,
 
+    /// <summary>
+    /// The four hook sites call one block that matches, byte for byte, the routine of an earlier layout. That routine
+    /// only read the appendix when the game deserialized the party straight from the received packet, which is not
+    /// what happens in a link battle; installing again replaces it in place.
+    /// </summary>
+    InstalledEarlierFormat,
+
     /// <summary>Some sites are hooked and others are not, or the block is not the expected one.</summary>
     Partial,
 
@@ -111,8 +123,11 @@ public sealed record MegaAbilitySyncInspection(
 /// The game resolves the Ability of a Mega Evolution from its own Personal table. With this patch each game adds,
 /// after the party it already sends, a 12-byte appendix with the Ability each of its Pokémon gets when it Mega
 /// Evolves; the receiving game keeps that value with its copy of the remote Pokémon and uses it when that Pokémon
-/// Mega Evolves. Parties that did not arrive through the network (the player's own, a local partner) are not touched. A game without the patch ignores the appendix, and a patched game that receives no valid appendix
-/// keeps the original behaviour, so the synchronisation only happens when both sides carry the same protocol.
+/// Mega Evolves. The appendix is looked up in the buffer that holds that player's packets, because in a link battle
+/// the game already knows the other party and deserializes its own copy instead of the packet. The player's own
+/// party and parties that belong to no network player (a partner run by the game) are not touched. A game without
+/// the patch ignores the appendix, and a patched game that receives no valid appendix keeps the original behaviour,
+/// so the synchronisation only happens when both sides carry the same protocol.
 /// </para>
 /// <para>Only Battle.cro is written. code.bin and static.crs are read to resolve addresses.</para>
 /// </summary>
@@ -123,8 +138,8 @@ public static class MegaAbilitySyncPatch
     /// <summary>Version carried in the appendix. Two games synchronise only when it is equal.</summary>
     public const byte ProtocolVersion = 1;
 
-    /// <summary>Layout version of the installed block.</summary>
-    public const uint PayloadFormat = 1;
+    /// <summary>Layout version of the installed block. Version 1 looked for the appendix only in the packet being deserialized.</summary>
+    public const uint PayloadFormat = 2;
 
     public const int PartyBytes = 0x618;
     public const int AppendixBytes = 12;
@@ -140,20 +155,19 @@ public static class MegaAbilitySyncPatch
 
     private const int EntrySize = 2;
     private const int EntrySend = 5;
-    private const int EntryReceive = 70;
-    private const int EntryMega = 135;
-    private const int ReceiveReference = 77;
 
-    private const int LiteralMagic = 151;
-    private const int LiteralPacket = 152;
-    private const int LiteralNetDelta = 153;
-    private const int LiteralEvolveManager = 154;
-    private const int LiteralMegaFormNo = 155;
-    private const int LiteralGetTokuseiIndex = 156;
-    private const int LiteralGetMemories = 157;
-    private const int LiteralSetTokuseiNo = 158;
+    // The eight literals follow the code, in this order.
+    private const int LiteralMagic = 0;
+    private const int LiteralPacket = 1;
+    private const int LiteralNetDelta = 2;
+    private const int LiteralEvolveManager = 3;
+    private const int LiteralMegaFormNo = 4;
+    private const int LiteralGetTokuseiIndex = 5;
+    private const int LiteralGetMemories = 6;
+    private const int LiteralSetTokuseiNo = 7;
+    private const int LiteralCount = 8;
 
-    public const int PayloadBytes = 159 * 4;
+    public const int PayloadBytes = (148 + LiteralCount) * 4;
 
     /// <summary>
     /// Zero bytes kept before the block. Free space is found by looking for zeros, and data placed there by another
@@ -176,6 +190,21 @@ public static class MegaAbilitySyncPatch
         LoadPersonalData,
         GetPersonalParam,
         PersonalHelper,
+        ClientBuffer,
+    }
+
+    /// <summary>One layout of the block: its code with the outgoing calls blank, where they go and where it is entered.</summary>
+    private sealed record Layout(
+        uint Format,
+        uint[] Template,
+        (int Index, Target Target)[] Calls,
+        int EntryReceive,
+        int EntryMega,
+        int ReceiveReference)
+    {
+        public int Bytes => (Template.Length + LiteralCount) * 4;
+
+        public int Entry(int site) => site switch { 0 => EntrySize, 1 => EntrySend, 2 => EntryReceive, _ => EntryMega };
     }
 
     private static readonly (Target Target, string Symbol)[] Imports =
@@ -200,53 +229,104 @@ public static class MegaAbilitySyncPatch
     private const string ExportGetMemories = "_ZNK3pml8pokepara9CoreParam11GetMemoriesENS0_8MemoriesE";
     private const string ExportSetMemories = "_ZN3pml8pokepara9CoreParam11SetMemoriesENS0_8MemoriesEj";
 
-    /// <summary>Calls leaving the block: word index and what they reach.</summary>
-    private static readonly (int Index, Target Target)[] Calls =
-    [
-        (8, Target.Serialize),
-        (14, Target.GetMemberCount),
-        (22, Target.GetMemberPointerConst),
-        (54, Target.GetFormNo),
-        (62, Target.GetMonsNo),
-        (65, Target.PersonalHelper),
-        (74, Target.Deserialize),
-        (125, Target.GetMemberCount),
-        (130, Target.GetMemberPointer),
-        (133, Target.SetMemories),
-        (137, Target.MegaEvolve),
-    ];
+    // Assembled from the reference source kept with the research notes; the outgoing calls are blank here and the
+    // eight literals follow.
+    private static readonly Layout Current = new(
+        PayloadFormat,
+        [
+            0x5953414D, 0x00000002, 0xE3A00E62, 0xE2800004, 0xE12FFF1E, 0xE92D41F0,
+            0xE1A04000, 0xE1A05001, 0xEB000000, 0xE2856C06, 0xE2866018, 0xE59F021C,
+            0xE5860000, 0xE1A00004, 0xEB000000, 0xE1A08000, 0xE3A07000, 0xE3A00000,
+            0xE1570008, 0x2A000003, 0xE1A00004, 0xE1A01007, 0xEB000000, 0xEB000013,
+            0xE0861007, 0xE5C10004, 0xE2877001, 0xE3570006, 0xBAFFFFF3, 0xE1A00006,
+            0xEB000003, 0xE5C6000A, 0xE3A00000, 0xE5C6000B, 0xE8BD81F0, 0xE3A0105A,
+            0xE3A02004, 0xE7D03002, 0xE0211003, 0xE2822001, 0xE352000A, 0xBAFFFFFA,
+            0xE1A00001, 0xE12FFF1E, 0xE92D4070, 0xE1B04000, 0x0A000014, 0xE59F0198,
+            0xE5900000, 0xE1A01004, 0xE59FC190, 0xE12FFF3C, 0xE1A05000, 0xE1A00004,
+            0xEB000000, 0xE1500005, 0x0A00000A, 0xE1A00004, 0xE59FC174, 0xE12FFF3C,
+            0xE1A06000, 0xE1A00004, 0xEB000000, 0xE1A01005, 0xE286201A, 0xEB000000,
+            0xE20000FF, 0xE8BD8070, 0xE3A00000, 0xE8BD8070, 0xE92D47F0, 0xE5948000,
+            0xE1A06000, 0xE207A0FF, 0xEB000000, 0xE3A09000, 0xE59F0120, 0xE79F0000,
+            0xE5D0000A, 0xE150000A, 0x0A000025, 0xE1A0000A, 0xEB000000, 0xE1B07000,
+            0x0A000021, 0xE2872C17, 0xE1D207B2, 0xE3500003, 0x1A00001D, 0xE1D207B0,
+            0xE59F10E4, 0xE1500001, 0x1A00000B, 0xE2875C06, 0xE2855018, 0xE5950000,
+            0xE59F10C8, 0xE1500001, 0x1A000005, 0xE1A00005, 0xEBFFFFBD, 0xE5D5100A,
+            0xE1500001, 0x1A000000, 0xE1A09005, 0xE3A04000, 0xE3A05000, 0xE3590000,
+            0x10890004, 0x15D05004, 0xE3550000, 0x13855CA5, 0xE1A00008, 0xEB000005,
+            0xE1A00006, 0xEB000003, 0xE2844001, 0xE3540006, 0xBAFFFFF2, 0xE8BD87F0,
+            0xE92D4080, 0xE1A07000, 0xEB000000, 0xE1540000, 0x2A000005, 0xE1A00007,
+            0xE1A01004, 0xEB000000, 0xE3A01010, 0xE1A02005, 0xEB000000, 0xE8BD8080,
+            0xE92D4070, 0xE1A04000, 0xEB000000, 0xE1A00004, 0xE3A01010, 0xE59FC03C,
+            0xE12FFF3C, 0xE1A05000, 0xE1A00425, 0xE35000A5, 0x1A000003, 0xE594000C,
+            0xE20510FF, 0xE59FC020, 0xE12FFF3C, 0xE8BD8070,
+        ],
+        [
+            (8, Target.Serialize),
+            (14, Target.GetMemberCount),
+            (22, Target.GetMemberPointerConst),
+            (54, Target.GetFormNo),
+            (62, Target.GetMonsNo),
+            (65, Target.PersonalHelper),
+            (74, Target.Deserialize),
+            (82, Target.ClientBuffer),
+            (122, Target.GetMemberCount),
+            (127, Target.GetMemberPointer),
+            (130, Target.SetMemories),
+            (134, Target.MegaEvolve),
+        ],
+        EntryReceive: 70,
+        EntryMega: 132,
+        ReceiveReference: 77);
 
-    // Assembled from the reference source kept with the research notes; the eleven outgoing calls are blank here
-    // and the eight literals follow.
-    private static readonly uint[] Template =
-    [
-        0x5953414D, 0x00000001, 0xE3A00E62, 0xE2800004, 0xE12FFF1E, 0xE92D41F0,
-        0xE1A04000, 0xE1A05001, 0xEB000000, 0xE2856C06, 0xE2866018, 0xE59F0228,
-        0xE5860000, 0xE1A00004, 0xEB000000, 0xE1A08000, 0xE3A07000, 0xE3A00000,
-        0xE1570008, 0x2A000003, 0xE1A00004, 0xE1A01007, 0xEB000000, 0xEB000013,
-        0xE0861007, 0xE5C10004, 0xE2877001, 0xE3570006, 0xBAFFFFF3, 0xE1A00006,
-        0xEB000003, 0xE5C6000A, 0xE3A00000, 0xE5C6000B, 0xE8BD81F0, 0xE3A0105A,
-        0xE3A02004, 0xE7D03002, 0xE0211003, 0xE2822001, 0xE352000A, 0xBAFFFFFA,
-        0xE1A00001, 0xE12FFF1E, 0xE92D4070, 0xE1B04000, 0x0A000014, 0xE59F01A4,
-        0xE5900000, 0xE1A01004, 0xE59FC19C, 0xE12FFF3C, 0xE1A05000, 0xE1A00004,
-        0xEB000000, 0xE1500005, 0x0A00000A, 0xE1A00004, 0xE59FC180, 0xE12FFF3C,
-        0xE1A06000, 0xE1A00004, 0xEB000000, 0xE1A01005, 0xE286201A, 0xEB000000,
-        0xE20000FF, 0xE8BD8070, 0xE3A00000, 0xE8BD8070, 0xE92D47F0, 0xE5948000,
-        0xE1A06000, 0xE1A07001, 0xEB000000, 0xE3A09000, 0xE59F012C, 0xE79F0000,
-        0xE2800B06, 0xE2800FAE, 0xE3A01004, 0xE1500007, 0x0A000004, 0xE2800C17,
-        0xE2800084, 0xE2511001, 0x1AFFFFF9, 0xEA000021, 0xE2872C17, 0xE1D207B2,
-        0xE3500003, 0x1A00000F, 0xE1D207B0, 0xE59F10E4, 0xE1500001, 0x1A00000B,
-        0xE2875C06, 0xE2855018, 0xE5950000, 0xE59F10C8, 0xE1500001, 0x1A000005,
-        0xE1A00005, 0xEBFFFFBA, 0xE5D5100A, 0xE1500001, 0x1A000000, 0xE1A09005,
-        0xE3A04000, 0xE3A05000, 0xE3590000, 0x10890004, 0x15D05004, 0xE3550000,
-        0x13855CA5, 0xE1A00008, 0xEB000005, 0xE1A00006, 0xEB000003, 0xE2844001,
-        0xE3540006, 0xBAFFFFF2, 0xE8BD87F0, 0xE92D4080, 0xE1A07000, 0xEB000000,
-        0xE1540000, 0x2A000005, 0xE1A00007, 0xE1A01004, 0xEB000000, 0xE3A01010,
-        0xE1A02005, 0xEB000000, 0xE8BD8080, 0xE92D4070, 0xE1A04000, 0xEB000000,
-        0xE1A00004, 0xE3A01010, 0xE59FC03C, 0xE12FFF3C, 0xE1A05000, 0xE1A00425,
-        0xE35000A5, 0x1A000003, 0xE594000C, 0xE20510FF, 0xE59FC020, 0xE12FFF3C,
-        0xE8BD8070,
-    ];
+    // The first published layout, kept only to recognise it and replace or remove it.
+    private static readonly Layout Earlier = new(
+        1,
+        [
+            0x5953414D, 0x00000001, 0xE3A00E62, 0xE2800004, 0xE12FFF1E, 0xE92D41F0,
+            0xE1A04000, 0xE1A05001, 0xEB000000, 0xE2856C06, 0xE2866018, 0xE59F0228,
+            0xE5860000, 0xE1A00004, 0xEB000000, 0xE1A08000, 0xE3A07000, 0xE3A00000,
+            0xE1570008, 0x2A000003, 0xE1A00004, 0xE1A01007, 0xEB000000, 0xEB000013,
+            0xE0861007, 0xE5C10004, 0xE2877001, 0xE3570006, 0xBAFFFFF3, 0xE1A00006,
+            0xEB000003, 0xE5C6000A, 0xE3A00000, 0xE5C6000B, 0xE8BD81F0, 0xE3A0105A,
+            0xE3A02004, 0xE7D03002, 0xE0211003, 0xE2822001, 0xE352000A, 0xBAFFFFFA,
+            0xE1A00001, 0xE12FFF1E, 0xE92D4070, 0xE1B04000, 0x0A000014, 0xE59F01A4,
+            0xE5900000, 0xE1A01004, 0xE59FC19C, 0xE12FFF3C, 0xE1A05000, 0xE1A00004,
+            0xEB000000, 0xE1500005, 0x0A00000A, 0xE1A00004, 0xE59FC180, 0xE12FFF3C,
+            0xE1A06000, 0xE1A00004, 0xEB000000, 0xE1A01005, 0xE286201A, 0xEB000000,
+            0xE20000FF, 0xE8BD8070, 0xE3A00000, 0xE8BD8070, 0xE92D47F0, 0xE5948000,
+            0xE1A06000, 0xE1A07001, 0xEB000000, 0xE3A09000, 0xE59F012C, 0xE79F0000,
+            0xE2800B06, 0xE2800FAE, 0xE3A01004, 0xE1500007, 0x0A000004, 0xE2800C17,
+            0xE2800084, 0xE2511001, 0x1AFFFFF9, 0xEA000021, 0xE2872C17, 0xE1D207B2,
+            0xE3500003, 0x1A00000F, 0xE1D207B0, 0xE59F10E4, 0xE1500001, 0x1A00000B,
+            0xE2875C06, 0xE2855018, 0xE5950000, 0xE59F10C8, 0xE1500001, 0x1A000005,
+            0xE1A00005, 0xEBFFFFBA, 0xE5D5100A, 0xE1500001, 0x1A000000, 0xE1A09005,
+            0xE3A04000, 0xE3A05000, 0xE3590000, 0x10890004, 0x15D05004, 0xE3550000,
+            0x13855CA5, 0xE1A00008, 0xEB000005, 0xE1A00006, 0xEB000003, 0xE2844001,
+            0xE3540006, 0xBAFFFFF2, 0xE8BD87F0, 0xE92D4080, 0xE1A07000, 0xEB000000,
+            0xE1540000, 0x2A000005, 0xE1A00007, 0xE1A01004, 0xEB000000, 0xE3A01010,
+            0xE1A02005, 0xEB000000, 0xE8BD8080, 0xE92D4070, 0xE1A04000, 0xEB000000,
+            0xE1A00004, 0xE3A01010, 0xE59FC03C, 0xE12FFF3C, 0xE1A05000, 0xE1A00425,
+            0xE35000A5, 0x1A000003, 0xE594000C, 0xE20510FF, 0xE59FC020, 0xE12FFF3C,
+            0xE8BD8070,
+        ],
+        [
+            (8, Target.Serialize),
+            (14, Target.GetMemberCount),
+            (22, Target.GetMemberPointerConst),
+            (54, Target.GetFormNo),
+            (62, Target.GetMonsNo),
+            (65, Target.PersonalHelper),
+            (74, Target.Deserialize),
+            (125, Target.GetMemberCount),
+            (130, Target.GetMemberPointer),
+            (133, Target.SetMemories),
+            (137, Target.MegaEvolve),
+        ],
+        EntryReceive: 70,
+        EntryMega: 135,
+        ReceiveReference: 77);
+
+    private static readonly Layout[] Layouts = [Current, Earlier];
 
     // ---------------------------------------------------------------------------------------------------------
     // Protocol model: the same rules the routine applies, for the installer's checks and for simulations.
@@ -462,18 +542,22 @@ public static class MegaAbilitySyncPatch
     // Battle.cro
     // ---------------------------------------------------------------------------------------------------------
 
-    /// <summary>Builds the block for one position. Exposed so its bytes can be compared with the reference.</summary>
+    /// <summary>
+    /// Builds the block for one position. Exposed so its bytes can be compared with the reference;
+    /// <paramref name="earlierFormat"/> gives the first published layout, which is only recognised, never installed.
+    /// </summary>
     public static byte[] BuildPayload(
         uint offset,
         MegaAbilitySyncCodeAddresses code,
         MegaAbilitySyncProfile profile,
-        IReadOnlyDictionary<string, uint> stubs)
+        IReadOnlyDictionary<string, uint> stubs,
+        bool earlierFormat = false)
     {
         ArgumentNullException.ThrowIfNull(code);
         ArgumentNullException.ThrowIfNull(profile);
         ArgumentNullException.ThrowIfNull(stubs);
 
-        var targets = new Dictionary<Target, uint> { [Target.PersonalHelper] = profile.PersonalHelper };
+        var targets = new Dictionary<Target, uint> { [Target.PersonalHelper] = profile.PersonalHelper, [Target.ClientBuffer] = profile.ClientBuffer };
         foreach (var (target, symbol) in Imports)
         {
             if (!stubs.TryGetValue(symbol, out uint stub))
@@ -481,31 +565,33 @@ public static class MegaAbilitySyncPatch
             targets[target] = stub;
         }
 
-        return BuildPayload(offset, code, profile, targets);
+        return BuildPayload(offset, code, profile, targets, earlierFormat ? Earlier : Current);
     }
 
     private static byte[] BuildPayload(
         uint offset,
         MegaAbilitySyncCodeAddresses code,
         MegaAbilitySyncProfile profile,
-        Dictionary<Target, uint> targets)
+        Dictionary<Target, uint> targets,
+        Layout layout)
     {
-        uint[] words = new uint[PayloadBytes / 4];
-        Template.CopyTo(words, 0);
+        uint[] words = new uint[layout.Bytes / 4];
+        layout.Template.CopyTo(words, 0);
 
-        foreach (var (index, target) in Calls)
+        foreach (var (index, target) in layout.Calls)
             words[index] = Call(offset + (uint)index * 4, targets[target]);
 
-        words[LiteralMagic] = (uint)('M' | 'A' << 8 | 'S' << 16 | ProtocolVersion << 24);
-        words[LiteralPacket] = PacketBytes;
-        words[LiteralNetDelta] = profile.NetLiteral - (offset + ReceiveReference * 4 + 8);
-        words[LiteralEvolveManager] = code.EvolveManager;
-        words[LiteralMegaFormNo] = code.MegaFormNo;
-        words[LiteralGetTokuseiIndex] = code.GetTokuseiIndex;
-        words[LiteralGetMemories] = code.GetMemories;
-        words[LiteralSetTokuseiNo] = code.SetTokuseiNo;
+        int literals = layout.Template.Length;
+        words[literals + LiteralMagic] = (uint)('M' | 'A' << 8 | 'S' << 16 | ProtocolVersion << 24);
+        words[literals + LiteralPacket] = PacketBytes;
+        words[literals + LiteralNetDelta] = profile.NetLiteral - (offset + (uint)layout.ReceiveReference * 4 + 8);
+        words[literals + LiteralEvolveManager] = code.EvolveManager;
+        words[literals + LiteralMegaFormNo] = code.MegaFormNo;
+        words[literals + LiteralGetTokuseiIndex] = code.GetTokuseiIndex;
+        words[literals + LiteralGetMemories] = code.GetMemories;
+        words[literals + LiteralSetTokuseiNo] = code.SetTokuseiNo;
 
-        byte[] payload = new byte[PayloadBytes];
+        byte[] payload = new byte[layout.Bytes];
         Buffer.BlockCopy(words, 0, payload, 0, payload.Length);
         return payload;
     }
@@ -568,20 +654,21 @@ public static class MegaAbilitySyncPatch
         if (!TryReadLayout(cro, profile, out var targets, out string error))
             return new(MegaAbilitySyncState.Unsupported, null, [], error);
 
-        var names = new (string Name, string Role, uint Site, Target Original, int Entry)[]
+        var names = new (string Name, string Role, uint Site, Target Original)[]
         {
-            (ResourceName + " · tamaño del paquete del equipo", "Tamaño que se anuncia al enviar el equipo", profile.SizeSite, Target.GetSize, EntrySize),
-            (ResourceName + " · envío del equipo", "Añade las habilidades Mega propias al paquete", profile.SendSite, Target.Serialize, EntrySend),
-            (ResourceName + " · recepción del equipo", "Guarda las habilidades Mega del otro jugador", profile.ReceiveSite, Target.Deserialize, EntryReceive),
-            (ResourceName + " · megaevolución", "Aplica la habilidad del dueño al megaevolucionar", profile.MegaSite, Target.MegaEvolve, EntryMega),
+            (ResourceName + " · tamaño del paquete del equipo", "Tamaño que se anuncia al enviar el equipo", profile.SizeSite, Target.GetSize),
+            (ResourceName + " · envío del equipo", "Añade las habilidades Mega propias al paquete", profile.SendSite, Target.Serialize),
+            (ResourceName + " · recepción del equipo", "Guarda las habilidades Mega del otro jugador", profile.ReceiveSite, Target.Deserialize),
+            (ResourceName + " · megaevolución", "Aplica la habilidad del dueño al megaevolucionar", profile.MegaSite, Target.MegaEvolve),
         };
 
         var sites = new List<PatchResourceReport>();
         var bases = new HashSet<uint>();
-        int original = 0, own = 0, partial = 0, external = 0;
+        int original = 0, own = 0, earlier = 0, external = 0;
 
-        foreach (var (name, role, site, target, entry) in names)
+        for (int i = 0; i < names.Length; i++)
         {
+            var (name, role, site, target) = names[i];
             uint word = BitConverter.ToUInt32(cro, (int)site);
 
             if (word == Call(site, targets[target]))
@@ -598,31 +685,58 @@ public static class MegaAbilitySyncPatch
                 continue;
             }
 
-            uint start = BranchTarget(site, word) - (uint)entry * 4;
-            if (!Fits(cro, start, PayloadBytes) || BitConverter.ToUInt32(cro, (int)start) != HeaderMagic)
+            // The call must land on the entry of a block of a known layout; where the entry is depends on the layout.
+            uint destination = BranchTarget(site, word);
+            Layout layout = null;
+            uint start = 0;
+            bool header = false;
+
+            foreach (var candidate in Layouts)
+            {
+                uint at = destination - (uint)candidate.Entry(i) * 4;
+                if (!Fits(cro, at, 8) || BitConverter.ToUInt32(cro, (int)at) != HeaderMagic)
+                    continue;
+
+                header = true;
+                if (BitConverter.ToUInt32(cro, (int)at + 4) == candidate.Format && Fits(cro, at, (uint)candidate.Bytes))
+                {
+                    layout = candidate;
+                    start = at;
+                    break;
+                }
+            }
+
+            if (!header)
             {
                 external++;
                 sites.Add(new(name, role, PatchResourceState.ExternalModification, site, "La llamada lleva a código que no pertenece a este parche."));
                 continue;
             }
 
-            if (BitConverter.ToUInt32(cro, (int)start + 4) != PayloadFormat)
+            if (layout is null)
             {
-                partial++;
                 sites.Add(new(name, role, PatchResourceState.OwnInstallEarlierFormat, site, "La rutina instalada es de otro formato."));
                 continue;
             }
 
-            if (!MatchesPayload(cro, start, code, profile, targets))
+            if (!MatchesPayload(cro, start, code, profile, targets, layout))
             {
-                partial++;
                 sites.Add(new(name, role, PatchResourceState.PartialInstall, site, "La rutina instalada no coincide con la esperada."));
                 continue;
             }
 
-            own++;
             bases.Add(start);
-            sites.Add(new(name, role, PatchResourceState.OwnInstall, site, $"Llamada a la rutina instalada en 0x{start:X6}."));
+
+            if (layout == Current)
+            {
+                own++;
+                sites.Add(new(name, role, PatchResourceState.OwnInstall, site, $"Llamada a la rutina instalada en 0x{start:X6}."));
+            }
+            else
+            {
+                earlier++;
+                sites.Add(new(name, role, PatchResourceState.OwnInstallEarlierFormat, site, $"Llamada a la rutina anterior instalada en 0x{start:X6}; al instalar de nuevo se sustituye."));
+            }
         }
 
         if (external != 0)
@@ -634,6 +748,10 @@ public static class MegaAbilitySyncPatch
         if (own == names.Length && bases.Count == 1)
             return new(MegaAbilitySyncState.Installed, bases.First(), sites, "El parche está instalado.");
 
+        if (earlier == names.Length && bases.Count == 1)
+            return new(MegaAbilitySyncState.InstalledEarlierFormat, bases.First(), sites,
+                "El parche está instalado con la rutina anterior, que no sincroniza en los combates por enlace. Instálalo de nuevo para sustituirla.");
+
         return new(MegaAbilitySyncState.Partial, bases.Count == 1 ? bases.First() : null, sites,
             "El parche está instalado solo en parte o con una rutina distinta.");
     }
@@ -642,8 +760,9 @@ public static class MegaAbilitySyncPatch
         TryInstall(cro, code, MegaAbilitySyncProfile.Usum, out patched, out error);
 
     /// <summary>
-    /// Installs the routine on a detached copy. Installing over an identical installation returns the same bytes.
-    /// A partial or foreign state is refused: nothing is forced.
+    /// Installs the routine on a detached copy. Installing over an identical installation returns the same bytes, and
+    /// installing over the earlier routine replaces it in the space it already had. A partial or foreign state is
+    /// refused: nothing is forced.
     /// </summary>
     public static bool TryInstall(
         byte[] cro,
@@ -669,6 +788,8 @@ public static class MegaAbilitySyncPatch
                 return true;
             case MegaAbilitySyncState.Original:
                 break;
+            case MegaAbilitySyncState.InstalledEarlierFormat when inspection.PayloadOffset is uint earlierAt:
+                return TryReplaceEarlier(cro, code, profile, earlierAt, out patched, out error);
             default:
                 error = inspection.Detail;
                 return false;
@@ -685,7 +806,7 @@ public static class MegaAbilitySyncPatch
 
         uint start = grant.Offset + GuardBytes;
         byte[] block = new byte[GuardBytes + PayloadBytes];
-        BuildPayload(start, code, profile, targets).CopyTo(block, GuardBytes);
+        BuildPayload(start, code, profile, targets, Current).CopyTo(block, GuardBytes);
 
         if (!session.TryWriteCode(grant, block, out error))
             return false;
@@ -694,10 +815,49 @@ public static class MegaAbilitySyncPatch
             return false;
 
         // Growing the code segment inserts bytes after .text, so the original routines keep their offsets.
-        Write(image, profile.SizeSite, Call(profile.SizeSite, start + EntrySize * 4));
-        Write(image, profile.SendSite, Call(profile.SendSite, start + EntrySend * 4));
-        Write(image, profile.ReceiveSite, Call(profile.ReceiveSite, start + EntryReceive * 4));
-        Write(image, profile.MegaSite, Call(profile.MegaSite, start + EntryMega * 4));
+        return TryHook(image, code, profile, start, out patched, out error);
+    }
+
+    /// <summary>The earlier routine is at least as long as the current one, so the new one takes its place.</summary>
+    private static bool TryReplaceEarlier(
+        byte[] cro,
+        MegaAbilitySyncCodeAddresses code,
+        MegaAbilitySyncProfile profile,
+        uint start,
+        out byte[] patched,
+        out string error)
+    {
+        patched = null;
+
+        if (Current.Bytes > Earlier.Bytes)
+        {
+            error = "La rutina anterior no se puede sustituir en su sitio.";
+            return false;
+        }
+
+        if (!TryReadLayout(cro, profile, out var targets, out error))
+            return false;
+
+        byte[] image = (byte[])cro.Clone();
+        Array.Clear(image, (int)start, Earlier.Bytes);
+        BuildPayload(start, code, profile, targets, Current).CopyTo(image, (int)start);
+        return TryHook(image, code, profile, start, out patched, out error);
+    }
+
+    /// <summary>Points the four calls at the block, refreshes the integrity hashes and reads everything back.</summary>
+    private static bool TryHook(
+        byte[] image,
+        MegaAbilitySyncCodeAddresses code,
+        MegaAbilitySyncProfile profile,
+        uint start,
+        out byte[] patched,
+        out string error)
+    {
+        patched = null;
+
+        uint[] sites = [profile.SizeSite, profile.SendSite, profile.ReceiveSite, profile.MegaSite];
+        for (int i = 0; i < sites.Length; i++)
+            Write(image, sites[i], Call(sites[i], start + (uint)Current.Entry(i) * 4));
 
         if (!CroSegmentExpander.TryUpdateHashes(image, out error))
             return false;
@@ -718,7 +878,7 @@ public static class MegaAbilitySyncPatch
         TryUninstall(cro, code, MegaAbilitySyncProfile.Usum, out restored, out error);
 
     /// <summary>
-    /// Restores the four original calls and clears the routine. If installing had to grow the code segment, the
+    /// Restores the four original calls and clears the routine, of the current or the earlier layout. If installing had to grow the code segment, the
     /// module keeps its new size: the result behaves like the original but is not byte-identical to it.
     /// </summary>
     public static bool TryUninstall(
@@ -738,11 +898,14 @@ public static class MegaAbilitySyncPatch
             return true;
         }
 
-        if (inspection.State != MegaAbilitySyncState.Installed || inspection.PayloadOffset is not uint installedAt)
+        if (inspection.State is not (MegaAbilitySyncState.Installed or MegaAbilitySyncState.InstalledEarlierFormat) ||
+            inspection.PayloadOffset is not uint installedAt)
         {
             error = inspection.Detail;
             return false;
         }
+
+        int installedBytes = inspection.State == MegaAbilitySyncState.Installed ? Current.Bytes : Earlier.Bytes;
 
         if (!TryReadLayout(cro, profile, out var targets, out error))
             return false;
@@ -752,7 +915,7 @@ public static class MegaAbilitySyncPatch
         Write(image, profile.SendSite, Call(profile.SendSite, targets[Target.Serialize]));
         Write(image, profile.ReceiveSite, Call(profile.ReceiveSite, targets[Target.Deserialize]));
         Write(image, profile.MegaSite, Call(profile.MegaSite, targets[Target.MegaEvolve]));
-        Array.Clear(image, (int)installedAt, PayloadBytes);
+        Array.Clear(image, (int)installedAt, installedBytes);
 
         if (!CroSegmentExpander.TryUpdateHashes(image, out error))
             return false;
@@ -780,7 +943,7 @@ public static class MegaAbilitySyncPatch
         if (!CroRelocationMap.TryCreate(cro, out var map, out error))
             return false;
 
-        foreach (uint site in profile.Sites.Append(profile.NetLiteral).Append(profile.PersonalHelper))
+        foreach (uint site in profile.Sites.Append(profile.NetLiteral).Append(profile.PersonalHelper).Append(profile.ClientBuffer))
         {
             if ((site & 3) != 0 || site < map.CodeStart || site + 4 > map.CodeEnd)
             {
@@ -792,7 +955,7 @@ public static class MegaAbilitySyncPatch
         if (!TryReadImportStubs(cro, out var stubs, out error))
             return false;
 
-        targets = new Dictionary<Target, uint> { [Target.PersonalHelper] = profile.PersonalHelper };
+        targets = new Dictionary<Target, uint> { [Target.PersonalHelper] = profile.PersonalHelper, [Target.ClientBuffer] = profile.ClientBuffer };
         foreach (var (target, symbol) in Imports)
         {
             if (!stubs.TryGetValue(symbol, out uint stub))
@@ -858,11 +1021,12 @@ public static class MegaAbilitySyncPatch
         uint start,
         MegaAbilitySyncCodeAddresses code,
         MegaAbilitySyncProfile profile,
-        Dictionary<Target, uint> targets)
+        Dictionary<Target, uint> targets,
+        Layout layout)
     {
         var placeholder = code ?? new MegaAbilitySyncCodeAddresses(0, 0, 0, 0, 0);
-        byte[] expected = BuildPayload(start, placeholder, profile, targets);
-        int compare = code is null ? LiteralEvolveManager * 4 : PayloadBytes;
+        byte[] expected = BuildPayload(start, placeholder, profile, targets, layout);
+        int compare = code is null ? (layout.Template.Length + LiteralEvolveManager) * 4 : layout.Bytes;
 
         return cro.AsSpan((int)start, compare).SequenceEqual(expected.AsSpan(0, compare));
     }

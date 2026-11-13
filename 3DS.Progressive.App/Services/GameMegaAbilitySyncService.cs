@@ -61,7 +61,12 @@ public sealed class GameMegaAbilitySyncService:IProjectEditor
         }
         if(!MegaAbilitySyncPatch.TryInstall(cro,addresses,profile,out byte[] output,out string installError))
             return Report(PatchCapabilityLevel.Conflict,"No se pudo simular la instalación: "+installError,inspection.Sites);
-        string state=inspection.State==MegaAbilitySyncState.Installed?"El parche está instalado.":"Los cuatro puntos tienen el código original.";
+        string state=inspection.State switch
+        {
+            MegaAbilitySyncState.Installed=>"El parche está instalado.",
+            MegaAbilitySyncState.InstalledEarlierFormat=>"El parche está instalado con la rutina anterior, que no sincroniza en los combates por enlace; al instalarlo de nuevo se sustituye en el mismo sitio.",
+            _=>"Los cuatro puntos tienen el código original."
+        };
         if(output.Length!=cro.Length)
             return Report(PatchCapabilityLevel.CompatibleByAdaptation,state+" La instalación amplía el segmento de código porque no queda espacio libre.",inspection.Sites,[],["Battle.cro"]);
         var changes=new List<PatchChangedRange>();
@@ -81,13 +86,24 @@ public sealed class GameMegaAbilitySyncService:IProjectEditor
             throw new InvalidDataException("No se modificó ningún archivo. "+error);
         return(output,!output.AsSpan().SequenceEqual(cro),MegaAbilitySyncPatch.Inspect(output,addresses,profile).State==MegaAbilitySyncState.Installed);
     }
-    private bool Installed(byte[] cro)=>ReadOptional(_crsPath) is { } crs&&ReadOptional(_codePath) is { } code&&
-        MegaAbilitySyncPatch.TryResolveCodeAddresses(crs,code,out var addresses,out _)&&MegaAbilitySyncPatch.Inspect(cro,addresses,_profile).State==MegaAbilitySyncState.Installed;
+    private MegaAbilitySyncState? State(byte[] cro)=>ReadOptional(_crsPath) is { } crs&&ReadOptional(_codePath) is { } code&&
+        MegaAbilitySyncPatch.TryResolveCodeAddresses(crs,code,out var addresses,out _)?MegaAbilitySyncPatch.Inspect(cro,addresses,_profile).State:null;
+    private bool Installed(byte[] cro)=>State(cro)==MegaAbilitySyncState.Installed;
+    private static string Label(MegaAbilitySyncState? state)=>state switch
+    {
+        MegaAbilitySyncState.Installed=>"instalado",
+        MegaAbilitySyncState.InstalledEarlierFormat=>"instalado con la rutina anterior",
+        _=>"sin instalar"
+    };
     public IReadOnlyList<EditorGroup> Read(int id)
     {
         if(id!=1)throw new ArgumentException("Registro inválido.");
         var data=GarcTransaction.ReadUnchanged(_battlePath,_hash);
-        return[new("Estado",[new("Enable","Mega Ability Sync instalado (1) o no (0)",Installed(data)?1:0,0,1)])];
+        var state=State(data);
+        string help=state==MegaAbilitySyncState.InstalledEarlierFormat
+            ?"Instalado con la rutina anterior, que no sincroniza en los combates por enlace: aplica 1 para sustituirla"
+            :"Mega Ability Sync instalado (1) o no (0)";
+        return[new("Estado",[new("Enable",help,state is MegaAbilitySyncState.Installed or MegaAbilitySyncState.InstalledEarlierFormat?1:0,0,1)])];
     }
     public EditorProposal Preview(IReadOnlyDictionary<string,int> options,IReadOnlyList<int> scope)
     {
@@ -96,9 +112,10 @@ public sealed class GameMegaAbilitySyncService:IProjectEditor
         bool enable=options["Enable"]==1;
         var source=GarcTransaction.ReadUnchanged(_battlePath,_hash);
         var patch=Patch(source,ReadOptional(_crsPath),ReadOptional(_codePath),enable,_profile);
-        string action=enable?"Instalar Mega Ability Sync":"Retirar Mega Ability Sync";
+        var before=State(source);
+        string action=!enable?"Retirar Mega Ability Sync":before==MegaAbilitySyncState.InstalledEarlierFormat?"Actualizar Mega Ability Sync":"Instalar Mega Ability Sync";
         return new(_owner,action,0,[new(_battlePath,source,patch.Bytes)],
-            patch.Changed?[new(1,Entries[0].Name,"Battle.cro",enable?"sin instalar":"instalado",enable?"instalado":"sin instalar")]:[],
+            patch.Changed?[new(1,Entries[0].Name,"Battle.cro",Label(before),enable?"instalado":"sin instalar")]:[],
             new Dictionary<string,string>{{"Game","USUM"},{"Protocol",MegaAbilitySyncPatch.ProtocolVersion.ToString()},{"Enable",enable?"1":"0"}});
     }
     public void Save(int id,IReadOnlyDictionary<string,int> values){using var manual=ManualOperationScope.Record(this,id,values);Apply(Preview(values,[id]));}
