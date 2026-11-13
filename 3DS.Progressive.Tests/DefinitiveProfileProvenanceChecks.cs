@@ -39,6 +39,12 @@ internal static class DefinitiveProfileProvenanceChecks
             string suffix = moon ? "_UM" : "_US";
             void Check(bool ok, string name) => check(ok, "DgdProfile_" + name + suffix);
             Check(Block(f) is null, "NoProfileOrOldProjectOmitsBlock");
+            string legacyPath = HistoryPath(f);
+            Directory.CreateDirectory(Path.GetDirectoryName(legacyPath)!);
+            string legacy = System.Text.Json.JsonSerializer.Serialize(new HistoryDocument(1, "USUM", "old", []));
+            File.WriteAllText(legacyPath, legacy);
+            Check(Block(f) is null && File.ReadAllText(legacyPath) == legacy, "LegacyVersionOneJournalUnchanged");
+            File.Delete(legacyPath);
             var recipe = Recipe(f, ["actions/personal"]);
             Check(Block(f) is null, "ImportingOrSelectingWithoutApplyingOmitsBlock");
             var application = new GlobalTemplateApplication(f.Session);
@@ -58,6 +64,9 @@ internal static class DefinitiveProfileProvenanceChecks
                 GlobalTemplateApplication.Snapshot(f.Session).All(p => files[p.Key] == p.Value) && File.ReadAllBytes(HistoryPath(f)).SequenceEqual(history),
                 "RepeatedExportsStableAndNeverWriteGameOrHistory");
             Check(!first.Contains(f.Root, StringComparison.OrdinalIgnoreCase) && !block.ToJsonString().Contains("GlobalTemplateSnapshot"), "NoPathsOrRecipeLeak");
+            File.WriteAllBytes(Path.Combine(f.Game.RomFS, "preview-fixture.bin"), [1, 2, 3]);
+            Check(Block(f)!["currentMatch"]!.GetValue<string>() == "not-verified" && Block(f)!["subsequentChanges"]!.GetValue<string>() == "none-recorded",
+                "ExternalChangesNeverBecomeAnExactMatchClaim");
             var applicationId = f.Session.History.Read().Entries.Last(e => e.Parameters.ContainsKey("GlobalTemplateSnapshot")).Id;
             Edit(f);
             Check(Block(f)!["subsequentChanges"]!.GetValue<string>() == "recorded" && Block(f)!["currentMatch"]!.GetValue<string>() == "not-verified", "LaterEditIsHistoricalNotExact");
@@ -89,6 +98,9 @@ internal static class DefinitiveProfileProvenanceChecks
             entry["Parameters"]!["GlobalTemplateSnapshot"] = snap.ToJson(); entry["Parameters"]!["TemplateSha256"] = snap.Sha256;
             File.WriteAllText(path, root.ToJsonString());
         }
+        Mutate(app => app["Profile"]!["Sections"] = new JsonArray("actions/personal", "actions/missing"));
+        check(Block(other)!["sections"]!.AsArray().Select(s => s!.GetValue<string>()).SequenceEqual(["actions/personal"]),
+            "DgdProfile_EditedSelectionOnlyClaimsPresentSections");
         Mutate(app => app["Profile"]!["Name"] = "C:\\private");
         check(Block(other) is null, "DgdProfile_PrivatePathRejectedInMetadata");
         Mutate(app => app["Profile"]!["Version"] = 2);
