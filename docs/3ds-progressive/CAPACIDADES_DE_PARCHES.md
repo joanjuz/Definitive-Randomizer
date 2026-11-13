@@ -82,6 +82,7 @@ Usa posiciones fijas de `Battle.cro` (el mismo archivo en Ultra Sol y Ultra Luna
 | Situación | Nivel |
 | --- | --- |
 | Cuatro puntos originales o instalados, con espacio libre | Verificada |
+| Instalado con la primera rutina publicada (los cuatro puntos y el bloque coinciden byte a byte con ella): instalar de nuevo la sustituye en su sitio | Verificada, con el aviso de rutina anterior |
 | Igual, pero hay que ampliar el segmento de código | Compatible por adaptación |
 | Un punto ocupado por otra modificación | Conflicto |
 | Instalación a medias, rutinas cambiadas, módulo distinto o faltan `static.crs`/`code.bin` | No acreditada |
