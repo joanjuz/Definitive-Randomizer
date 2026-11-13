@@ -191,6 +191,7 @@ internal sealed class ShareableProfile
     private static int PersonalEntries(GlobalTemplateDocument recipe) => recipe.Section("ProgressiveApp")?["ManualEdits"]?["Entries"] is JsonArray a ? a.Count : 0;
 
     /// <summary>The sections are derived from the recipe itself; the list written in the file must agree with them.</summary>
+    internal static IReadOnlyList<string> AppliedSectionIds(GlobalTemplateDocument recipe) => SectionsOf(recipe).Select(s => s.Id).ToArray();
     private static List<ProfileSection> SectionsOf(GlobalTemplateDocument recipe)
     {
         var sections = new List<ProfileSection>();
