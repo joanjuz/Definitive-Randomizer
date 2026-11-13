@@ -8,7 +8,7 @@ En un proyecto **Ultra Sol o Ultra Luna**, guardar primero las ediciones. En **H
 
 En Progressive Tracker, abrir la partida correcta y **Conexión → Importar datos de Definitive Randomizer**. Revisar edición, revisión, contadores y diferencias antes de confirmar. Cada partida conserva su importación; reemplazar o retirar requiere una acción explícita. La edición tiene que coincidir con la partida. El fingerprint no acredita la ROM que ejecuta el emulador.
 
-El productor retiene abiertos sin compartir escritura los GARC Personal, movimientos, evoluciones y Game Text durante toda la lectura. Comprueba el índice/tabla maestra, reutiliza formatos Core y toma nombres del Game Text guardado. No usa valores de controles, cachés de tablas de la sesión, ni replay/historial. Deshacer y guardar afectan la siguiente exportación porque cambia el archivo leído. Solo se escribe el JSON nuevo mediante temporal y rename sin sobrescritura.
+El productor retiene abiertos sin compartir escritura los GARC Personal, movimientos, evoluciones y Game Text durante toda la lectura. Comprueba el índice/tabla maestra, reutiliza formatos Core y toma nombres del Game Text guardado. Las tablas no se derivan de controles, cachés de la sesión ni replay/historial. Solo el bloque opcional de procedencia histórica lee una receta confirmada del historial, sin reconstruir tablas desde ella. Deshacer y guardar afectan la siguiente exportación porque cambia el archivo leído. Solo se escribe el JSON nuevo mediante temporal y rename sin sobrescritura.
 
 ## Identidad y revisión
 

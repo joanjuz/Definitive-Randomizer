@@ -134,7 +134,7 @@ internal static class DefinitiveGameData
             // Optional block with its own fingerprint: neither the root fingerprint nor source.scope include these files.
             var playerLevelCaps = DefinitivePlayerLevelCaps.Build(config, titleId, streams);
             project.History.RejectPending();
-            return new JsonObject
+            var document = new JsonObject
             {
                 ["format"] = Format, ["schemaVersion"] = 1,
                 ["producer"] = new JsonObject { ["id"] = "DefinitiveRandomizer",
@@ -148,6 +148,10 @@ internal static class DefinitiveGameData
                 ["species"] = species, ["moves"] = moveRows, ["evolutions"] = evolutions,
                 ["playerLevelCaps"] = playerLevelCaps
             };
+            var provenance = DefinitiveProfileProvenance.Build(project, moon ? "ultra-moon" : "ultra-sun");
+            if (provenance is not null) document["profileProvenance"] = provenance;
+            project.History.RejectPending();
+            return document;
         }
         finally { foreach (var stream in streams) stream.Dispose(); }
     }
