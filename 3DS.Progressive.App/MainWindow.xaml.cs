@@ -80,6 +80,7 @@ public partial class MainWindow : Window
     {
         InitializeComponent();
         InitializeDrop();
+        InitializeStartupPath();
         Closed+=OnWindowClosed;
         _interactionProgress=blocked=>
         {

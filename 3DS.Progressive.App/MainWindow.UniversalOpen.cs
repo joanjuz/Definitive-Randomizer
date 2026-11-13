@@ -68,6 +68,27 @@ public partial class MainWindow
         return result;
     }
 
+    /// <summary>
+    /// The one path Windows passes to the executable («Abrir con…», a file or folder dropped on DefinitiveRandomizer.exe, a shortcut with a
+    /// target): null unless there is exactly one argument naming an existing file or folder. Anything else starts the application normally.
+    /// </summary>
+    internal static string? StartupPath(IReadOnlyList<string> arguments)
+    {
+        if (arguments.Count != 2 || string.IsNullOrWhiteSpace(arguments[1])) return null;
+        string path = arguments[1].Trim().Trim('"');
+        try { path = Path.GetFullPath(path); } catch (Exception e) when (e is ArgumentException or NotSupportedException or PathTooLongException or System.Security.SecurityException) { return null; }
+        return File.Exists(path) || Directory.Exists(path) ? path : null;
+    }
+
+    // Opened through the same universal flow as the dialog and drag and drop, once the window is shown.
+    private void InitializeStartupPath()
+    {
+        if (StudioDialog.AutomatedChecks || StartupPath(Environment.GetCommandLineArgs()) is not { } path) return;
+        RoutedEventHandler? opened = null;
+        opened = async (_, _) => { Loaded -= opened; await OpenPathAsync(path); };
+        Loaded += opened;
+    }
+
     // Drag and drop (phase B3): one file or folder dropped on the window is opened exactly like a path chosen in "Abrir proyecto". Nothing is decided here:
     // the detector says what it is, the engines open it, and the same confirmations are asked.
     private void InitializeDrop()
