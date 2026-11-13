@@ -378,6 +378,7 @@ public partial class MainWindow : Window
                 "LevelUp"=>_levelUpView=new LevelUpView(_session),
                 "Items"=>CreateEditor(CurrentItemEditor()),
                 "PersistentItems" when _session.GameConfiguration.USUM=>CreateEditor(new GamePersistentItemsService(_session)),
+                "MegaAbilitySync" when _session.GameConfiguration.USUM=>CreateEditor(new GameMegaAbilitySyncService(_session)),
                 "Marts"=>_session.Generation==6 ? _mart6View=new Gen6MartView(_session,_sectionOptions.GetValueOrDefault("Tiendas · Gen6")) : _martView=CreateMartView(),
                 "FieldItems"=>CreateEditor(fieldEditor!),
                 "GameText"=>_gameTextView=new GameTextView(_session),

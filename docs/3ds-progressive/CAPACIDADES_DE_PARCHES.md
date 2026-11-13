@@ -75,6 +75,17 @@ Shiny Rate y Player Level Caps escriben los dos en `code.bin`: instalados en los
 
 **Comportamiento observado, sin corregir:** con espacio libre, reinstalar la misma tabla no cambia nada. Cuando la primera instalación tuvo que ampliar el segmento, la primera reinstalación vuelve a mover la rutina (del segmento ampliado al relleno de página) y solo la siguiente deja de cambiar. El resultado sigue siendo válido y conserva el otro parche, pero esa reinstalación no es neutra y el informe de capacidades la muestra como cambios. No se ha modificado el instalador: hacerlo exige evidencia con un módulo real.
 
+## Mega Ability Sync
+
+Usa posiciones fijas de `Battle.cro` (el mismo archivo en Ultra Sol y Ultra Luna) y, además, exige que las rutinas de combate de las que depende tengan su contenido original y que las funciones de `code.bin` se resuelvan por nombre con la forma esperada. Detalle en [MEGA_ABILITY_SYNC_USUM.md](MEGA_ABILITY_SYNC_USUM.md).
+
+| Situación | Nivel |
+| --- | --- |
+| Cuatro puntos originales o instalados, con espacio libre | Verificada |
+| Igual, pero hay que ampliar el segmento de código | Compatible por adaptación |
+| Un punto ocupado por otra modificación | Conflicto |
+| Instalación a medias, rutinas cambiadas, módulo distinto o faltan `static.crs`/`code.bin` | No acreditada |
+
 ## Dónde se usa
 
 - **Vista de Player Level Caps**: la línea de estado muestra el nivel y la evidencia de cada archivo, en lugar de dos palabras técnicas.

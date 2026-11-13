@@ -50,6 +50,7 @@ internal static class SectionCatalog
         new("CatchZones","Catch Zones","Mechanics","zonas captura"),
         new("OPower","O-Powers","Mechanics","poderes"),
         new("PersistentItems","Persistent Items","Mechanics","consumibles objetos tras el combate"),
+        new("MegaAbilitySync","Mega Ability Sync","Mechanics","megaevoluciones habilidades combates entre dos juegos multijugador"),
         new("Extraction","Extraer ROM","RomTools","extraer descifrar cxi 3ds"),
         new("Rebuild","Rebuild","RomTools","generar rom exportar reconstruir 3ds romfs exefs"),
         new("CroIntegrity","Integridad CRO/CRR","RomTools","hashes crr integridad"),

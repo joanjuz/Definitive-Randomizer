@@ -26,6 +26,8 @@ internal static class RunnerCatalog
         new("--profiles-only","",RunnerCategory.Ui,true),
         new("--patch-capability-only","",RunnerCategory.Ui,true),
         new("--mega-diagnostic-only","",RunnerCategory.Ui,true),
+        new("--mega-ability-sync-only","",RunnerCategory.Synthetic,true),
+        new("--mega-ability-sync-real","<RomFS extraído> <ExeFS extraído>",RunnerCategory.Real,false),
         new("--definitive-game-data-fixture","<archivo JSON nuevo fuera del proyecto>",RunnerCategory.Synthetic,false),
         new("--definitive-game-data-caps-fixtures","<carpeta nueva o vacía fuera del proyecto>",RunnerCategory.Synthetic,false),
         new("--batch-gen6-only","",RunnerCategory.Synthetic,false),
