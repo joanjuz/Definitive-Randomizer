@@ -30,10 +30,10 @@ La versión estable cubre el alcance descrito en la matriz de compatibilidad. **
   - Un **cuelgue al entregar los pétalos** en una partida de USUM. Su causa sigue sin determinar y no hay una reproducción nueva; no está solucionado. Si juegas USUM modificado y te ocurre, repórtalo con los datos de la guía de respaldo.
   - Un **diagnóstico localizado del movimiento Z** en el primer combate contra Tilo. No se ha demostrado como fallo general.
 - El visor de objetos de mapa (OWSE) conserva el alcance de lectura del pk3DS original; no es un editor de mapas.
-- **Mega Ability Sync (Ultra Sol/Ultra Luna):** solo actúa si **los dos** juegos del combate tienen instalada una versión compatible del parche; si solo la tiene uno, los dos se comportan como el original y no hay aviso en pantalla. Confirmado por el propietario en un combate real por enlace (caso principal, 13/11/2026). **Sin confirmar en combate:** un solo lado con parche, sala creada por el otro jugador, dobles/múltiples/Battle Royal, Ultra Sol contra Ultra Luna, Rayquaza y la convivencia en combate con Persistent Items. No cubre Regresión Primigenia, Ultraestallido ni otros cambios de forma. Los proyectos con la primera rutina deben actualizarla (Mecánicas y CRO lo indica) y reconstruir las dos ROM.
+- **Megaevoluciones en combates por enlace (Ultra Sol/Ultra Luna):** si los dos juegos tienen habilidades randomizadas distintas, una megaevolución puede usar la habilidad del juego que calcula el combate. Esta versión no incluye corrección; Mega Ability Sync se distribuye en la línea de acceso anticipado 1.1.0-preview.
 - **Combates por Internet o enlace con ROM modificadas:** la estabilidad en línea entre juegos randomizados de forma distinta **no** está garantizada; se investiga por separado y no hay parches experimentales en esta versión.
-- **Player Level Caps, Persistent Items y Shiny Rate:** parches de código con informe de capacidades de solo lectura; si la firma no coincide (otra revisión o una modificación externa) **no se instalan**. Se comprobó por pruebas automáticas que Player Level Caps y Persistent Items pueden instalarse juntos; no hay prueba jugable documentada de esa combinación.
-- **Perfiles compartibles (formato 1):** guardan la receta de Global Template de un juego, sin recursos, templates creados, textos del juego ni rutas locales. Un perfil pertenece a un juego; importarlo solo carga sus secciones y no certifica que el resultado coincida con otra ROM.
+- **Player Level Caps, Persistent Items y Shiny Rate:** parches de código; si la firma no coincide (otra revisión o una modificación externa) **no se instalan**. No hay prueba jugable documentada de su combinación.
+- **Balance personal:** no hay balance de movimientos ni de estadísticas por defecto. El de Eris-Ultranova es un paquete opcional; sus mecánicas de combate son personalizaciones de ese romhack y solo se instalan si las eliges.
 
 ## Nintendo DS
 
@@ -54,10 +54,9 @@ La versión estable cubre el alcance descrito en la matriz de compatibilidad. **
 
 ## Definitive Game Data v1
 
-- Solo Ultra Sol/Ultra Luna: especies y formas, estadísticas base, tipos, habilidades, propiedades básicas de movimientos y evoluciones; bloques opcionales con el estado guardado de Player Level Caps (`playerLevelCaps`) y la procedencia histórica del último perfil aplicado (`profileProvenance`).
-- La procedencia es una declaración histórica (nombre, autor, huella): **nunca** certifica que la ROM coincida con un perfil. Ediciones posteriores, Deshacer o una receta posterior sin perfil se señalan o anulan la atribución.
+- Solo Ultra Sol/Ultra Luna: especies y formas, estadísticas base, tipos, habilidades, propiedades básicas de movimientos y evoluciones; bloque opcional con el estado guardado de Player Level Caps (`playerLevelCaps`).
 - No identifica por sí solo la ROM que ejecuta el emulador, ni incluye parches de combate, gráficos ni lecturas de memoria de DS/Switch. La interoperabilidad con Progressive Tracker se comprobó con pruebas automáticas y en navegador, no con la aplicación de escritorio en una partida real.
 
 ## Fuera de esta versión
 
-Editor de eventos DS fuera de Platino CPUE/1 y edición de scripts, warps, geometría o entrenadores nuevos · parches de estabilidad en línea · mentas Gen6 · caramelos raros y repelentes infinitos · perfiles de ROM hacks y biblioteca comunitaria · paridad completa de aprendizajes en Switch (movimientos huevo) · soporte de consola, DLC y Atmosphère.
+Editor de eventos DS fuera de Platino CPUE/1 y edición de scripts, warps, geometría o entrenadores nuevos · parches de estabilidad en línea · mentas Gen6 · caramelos raros y repelentes infinitos · perfiles de ROM hacks y biblioteca comunitaria · paridad completa de aprendizajes en Switch (movimientos huevo) · soporte de consola, DLC y Atmosphère · funciones de la línea de acceso anticipado 1.1.0-preview (perfiles compartibles, informes de capacidades, diagnóstico y comparador de megaevoluciones, Mega Ability Sync, procedencia de perfiles).

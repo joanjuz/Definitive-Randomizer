@@ -1,6 +1,6 @@
 # Pulido de interfaz para la estable 1.0.0
 
-Correcciones de interfaz WPF previas a la primera versión estable. No cambian motores de randomización, formatos binarios, contratos de Global Template, Batch ni historial. Se comprueban con `--stable-polish-only` (44 comprobaciones fuera de pantalla, en CI) y con la auditoría visual existente.
+Correcciones de interfaz WPF previas a la primera versión estable. No cambian motores de randomización, formatos binarios, contratos de Global Template, Batch ni historial. Se comprueban con `--stable-polish-only` (35 comprobaciones fuera de pantalla, en CI) y con la auditoría visual existente.
 
 ## 1. MT y tutores (Ultra Sol/Ultra Luna): acciones inmediatas frente a opciones de receta
 
@@ -39,11 +39,7 @@ Se retiran de Inicio «Espada/Escudo · editor Switch» y «Nintendo DS · Gen4/
 
 Tras «Deshacer» (Historial o Ctrl+K) se vuelve a leer el proyecto desde disco como antes —no se conserva ningún editor ni estado de receta—, pero se reabre **Historial** en lugar de Inicio. La confirmación se mantiene en la barra de estado aunque Historial inicie su comprobación de archivos. La restauración de archivos seleccionados reabre su propia herramienta. La transacción de Deshacer y sus verificaciones no cambian.
 
-## 6. Mega Ability Sync en Mecánicas y CRO
-
-Tarjeta propia, solo en Ultra Sol/Ultra Luna. Muestra el estado leído sin escribir nada (sin instalar, instalado, instalado con la rutina anterior, o no compatible con el motivo) y abre el editor existente, que conserva la vista previa, el historial, la instalación, la actualización y la retirada. El botón se llama «Actualizar Mega Ability Sync» cuando hay una rutina anterior. La descripción visible explica que los dos participantes necesitan una versión compatible; si el proyecto no es compatible, el botón se desactiva y se muestra el motivo. El parche y su protocolo no cambian.
-
 ## Pruebas
 
-- `--stable-polish-only`: 44 comprobaciones (tutores con una tabla sintética de 67 ranuras, preferencia de modo con carpeta de estado aislada y reinicio simulado, Inicio, contraste, ruta de inicio, Deshacer, tarjeta de Mega Ability Sync). Fuera de pantalla; no es una prueba interactiva ni en juego.
+- `--stable-polish-only`: 35 comprobaciones (tutores con una tabla sintética de 67 ranuras, preferencia de modo con carpeta de estado aislada y reinicio simulado, Inicio, contraste, ruta de inicio, Deshacer). Fuera de pantalla; no es una prueba interactiva ni en juego.
 - Suites del CI y auditoría visual: ver el registro de la entrega.
