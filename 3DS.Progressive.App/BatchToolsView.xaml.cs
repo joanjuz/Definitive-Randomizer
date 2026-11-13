@@ -38,6 +38,11 @@ public partial class BatchToolsView : UserControl
     private BatchAction _action;
     private int _lastSeed;
     private string? _templatePath;
+    // A recipe saved before the optional package recorded the former built-in balance without a path.
+    private bool _legacyTemplate;
+    internal const string NoTemplateText="Ningún CSV elegido. El programa no aplica ningún balance por defecto.";
+    internal const string LegacyTemplateText="Balance de una receta anterior: Eris-Ultranova (paquete opcional). Carga otro CSV para sustituirlo.";
+    private bool NeedsTemplate=>_action==BatchAction.MoveBalance||_action==BatchAction.PersonalModify&&Checked("PersonalTemplate");
     private readonly Dictionary<BatchAction, (Dictionary<string, bool> Checks, Dictionary<string, string> Numbers)> _options = [];
     public event Action? BackRequested;
     internal BatchAction ActiveAction => _action;
@@ -47,6 +52,8 @@ public partial class BatchToolsView : UserControl
     internal MasterBatchState? CaptureGlobalState()
     {
         if(!_configured||!_globalOpened)return null;
+        // Without a chosen CSV there is nothing to reproduce; never record an implicit balance.
+        if(NeedsTemplate&&_templatePath is null&&!_legacyTemplate)return null;
         var settings=ReadSettings();
         foreach(var pair in _numbers)
             if(decimal.TryParse(pair.Value.Box.Text,NumberStyles.Number,CultureInfo.CurrentCulture,out var value)&&value>=pair.Value.Min&&value<=pair.Value.Max&&typeof(BatchSettings).GetProperty(pair.Key) is {} property)
@@ -66,7 +73,7 @@ public partial class BatchToolsView : UserControl
                 else if(typeof(BatchSettings).GetProperty(pair.Key)?.GetValue(state.Settings) is bool value)pair.Value.IsChecked=value;
             }
             foreach(var pair in _numbers)if(typeof(BatchSettings).GetProperty(pair.Key)?.GetValue(state.Settings) is IFormattable value)pair.Value.Box.Text=value.ToString(null,CultureInfo.CurrentCulture);
-            _templatePath=state.Settings.TemplatePath;ScopeBox.SelectedIndex=state.Scope;TemplateName.Text=_templatePath is null?"Template incluido":Path.GetFileName(_templatePath);
+            _templatePath=state.Settings.TemplatePath;_legacyTemplate=_templatePath is null&&(state.Action==BatchAction.MoveBalance||state.Settings.PersonalTemplate);ScopeBox.SelectedIndex=state.Scope;TemplateName.Text=_templatePath is not null?Path.GetFileName(_templatePath):_legacyTemplate?LegacyTemplateText:NoTemplateText;
         }
         finally{_building=false;UpdateDependencies();InvalidatePreview();}
     }
@@ -84,8 +91,8 @@ public partial class BatchToolsView : UserControl
         _configured = true;
         _options.Clear();
         _checks.Clear(); _numbers.Clear();
-        _templatePath = null;
-        TemplateName.Text = _moves ? "Balance Progressive incluido" : "Estadísticas Progressive incluidas";
+        _templatePath = null; _legacyTemplate = false;
+        TemplateName.Text = NoTemplateText;
         OpenAction(moves ? BatchAction.MoveRandomize : BatchAction.PersonalRandomize);_globalOpened=false;
     }
 
@@ -148,9 +155,11 @@ public partial class BatchToolsView : UserControl
                     ActionHelp.Text = "En el alcance elegido: Metrónomo (118) tendrá 40 PP; Placaje (33), 1 PP; los demás, 0 PP. Solo modifica PP.";
                     break;
                 case BatchAction.MoveBalance:
-                    Check("BattlePatches", "Aplicar mecánicas de combate del template", _defaultBattlePatches);
-                    Check("MoveDescriptions", "Actualizar descripciones en español", _defaultBattlePatches);
-                    ActionHelp.Text = _defaultBattlePatches?"Usa los templates de pk3DS Progressive. Revisa los movimientos y archivos de combate antes de aplicar.":"En Sol/Luna, el balance inicia con datos de movimientos. Las mecánicas de combate de un CSV se verifican contra Battle.cro antes de guardar.";
+                    // Battle mechanics change how a move behaves in combat, not only its data: always an explicit choice.
+                    Check("BattlePatches", "Aplicar también las mecánicas de combate del CSV (BattlePatch)", false);
+                    Check("MoveDescriptions", "Actualizar descripciones en español", false);
+                    ActionHelp.Text = "Aplica los movimientos del CSV que cargues; no hay balance por defecto. Las filas con BattlePatch también cambian cómo funciona el movimiento en combate (Battle.cro), y solo se instalan si marcas la casilla de mecánicas. Revisa la vista previa antes de aplicar."
+                        + (_defaultBattlePatches ? "" : " En Sol/Luna, las mecánicas de un CSV se verifican contra Battle.cro antes de guardar.");
                     break;
                 case BatchAction.PersonalRandomize:
                     Check("Stats", "Variar estadísticas base"); Number("Deviation", "Variación de estadísticas (%)", 25, 0, 100);
@@ -171,7 +180,7 @@ public partial class BatchToolsView : UserControl
                     ActionHelp.Text = "Usa el motor de pk3DS. La variación y el barajado protegen a los Pokémon con 1 PS. Los parámetros y la semilla se aplican a los registros guardados.";
                     break;
                 case BatchAction.PersonalModify:
-                    Check("PersonalTemplate", "Aplicar estadísticas desde un template Progressive");
+                    Check("PersonalTemplate", "Aplicar estadísticas desde un CSV que elijas");
                     Check("RemoveEvs", "Quitar EV otorgados"); Check("SlowGrowth", "Curva de experiencia lenta");
                     Check("ScaleExperience", "Escalar experiencia base"); Number("ExperiencePercent", "Experiencia base (%)", 100, 0, 10000);
                     Check("ClearCompatibility", "Quitar MT y tutores (conservar MO de Gen 6)");
@@ -302,14 +311,9 @@ public partial class BatchToolsView : UserControl
     {
         var picker = new Microsoft.Win32.OpenFileDialog { Filter = "Templates CSV (*.csv)|*.csv", Title = _moves ? "Template de movimientos" : "Template de estadísticas de Pokémon" };
         if (picker.ShowDialog(Window.GetWindow(this)) != true) return;
-        _templatePath = picker.FileName;
+        _templatePath = picker.FileName; _legacyTemplate = false;
         TemplateName.Text = Path.GetFileName(_templatePath);
         TemplateName.ToolTip = _templatePath;
-        InvalidatePreview(); ValidationText.Text = "";
-    }
-    private void DefaultTemplate_Click(object sender, RoutedEventArgs e)
-    {
-        _templatePath = null; TemplateName.Text = _moves ? "Balance Progressive incluido" : "Estadísticas Progressive incluidas"; TemplateName.ToolTip = null;
         InvalidatePreview(); ValidationText.Text = "";
     }
 
@@ -320,6 +324,8 @@ public partial class BatchToolsView : UserControl
         try
         {
             ReadSettings();
+            if (NeedsTemplate && _templatePath is null && !_legacyTemplate)
+                throw new ArgumentException(_moves ? "Carga el CSV de movimientos que quieres aplicar." : "Carga el CSV de estadísticas que quieres aplicar.");
             if (_prepare?.Invoke() != true) return;
             if (IsRandom)
             {

@@ -17,6 +17,7 @@ on:
       - "pk3DS.slnx"
       - "custom_balance_templates/moves_gen*.csv"
       - "custom_balance_templates/pokemon_stats_gen7.csv"
+      - "plantillas-opcionales/**"
       - ".github/workflows/3ds-progressive-ci.yml"
   pull_request:
     paths:
@@ -32,6 +33,7 @@ on:
       - "pk3DS.slnx"
       - "custom_balance_templates/moves_gen*.csv"
       - "custom_balance_templates/pokemon_stats_gen7.csv"
+      - "plantillas-opcionales/**"
       - ".github/workflows/3ds-progressive-ci.yml"
 
 jobs:
@@ -68,7 +70,7 @@ jobs:
             'guidance-only', 'global-apply-only', 'rebuild-marts-ui-only', 'mart-layout-ui-only',
             'history-inspection-only', 'transaction-races-only', 'undo-toctou-only', 'undo-template-regression-only', 'rebuild-stability-only', 'swsh-only', 'swsh-ui-only',
             'swsh-parity-only', 'legacy-parity-only', 'nds-only',
-            'nds-ui-only', 'nds-events-ui-only', 'nds-map-props-only', 'nds-map-props-ui-only', 'project-detector-only', 'universal-open-only', 'nds-project-format-only', 'nds-project-store-only', 'nds-project-transactions-only', 'nds-project-open-only', 'nds-project-resilience-only', 'usum-mints-only', 'usum-mints-ui-only', 'usum-mint-icons-only', 'usum-mints-distribution-only', 'player-caps-recipe-only', 'stable-polish-only'
+            'nds-ui-only', 'nds-events-ui-only', 'nds-map-props-only', 'nds-map-props-ui-only', 'project-detector-only', 'universal-open-only', 'nds-project-format-only', 'nds-project-store-only', 'nds-project-transactions-only', 'nds-project-open-only', 'nds-project-resilience-only', 'usum-mints-only', 'usum-mints-ui-only', 'usum-mint-icons-only', 'usum-mints-distribution-only', 'player-caps-recipe-only', 'stable-polish-only', 'optional-templates-only'
           )
           foreach ($suite in $suites) {
             & dotnet $runner "--$suite" 2>&1 | Tee-Object -FilePath "validation-logs/$suite.log"

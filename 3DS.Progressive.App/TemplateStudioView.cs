@@ -124,6 +124,13 @@ internal sealed class TemplateStudioView : UserControl
         Commit();_document.Rows=_rows.Select(r=>new Dictionary<string,string>(r.Values)).ToList();foreach(var pair in _checks)_document.Options[pair.Key]=pair.Value.IsChecked==true?1:0;
         _document.BannedItems=_items.Where(i=>i.Policy=="Banned").Select(i=>i.Id).ToArray();_document.AllowedItems=_items.Where(i=>i.Policy=="Allowed").Select(i=>i.Id).ToArray();_document.CanonicalizeIds(_project);return JsonSerializer.Deserialize<AuthoredTemplate>(_document.Serialize())!;
     }
+    // Battle patches are never implied by a generic option: list them so the user decides explicitly.
+    internal static string? BattleMechanicsSummary(AuthoredTemplate d)
+    {
+        if(d.Kind!="Moves")return null;
+        var rows=d.Rows.Where(r=>r.GetValueOrDefault("BattlePatch") is {} p&&!string.IsNullOrWhiteSpace(p)&&!p.Equals("None",StringComparison.OrdinalIgnoreCase)).ToArray();
+        return rows.Length==0?null:string.Join(Environment.NewLine,rows.Select(r=>$"Movimiento {r.GetValueOrDefault("Move")}: {r["BattlePatch"]}"));
+    }
     private Task ImportProgressiveAsync(){string kind=CurrentKind;return LoadAsync(()=>AuthoredTemplate.Progressive(_project,kind));}
     private async Task LoadAsync(Func<AuthoredTemplate> load)
     {
@@ -261,6 +268,8 @@ internal sealed class TemplateStudioView : UserControl
     {
         if(_busy)return;AuthoredTemplate d;try{d=Capture();}catch(Exception e){Error(e);return;}
         string snapshot=d.Serialize();if(apply&&_validated!=snapshot){Invalidate();_status.Text="Comprueba otra vez el template: el borrador cambió.";return;}
+        if(apply&&BattleMechanicsSummary(d) is {} mechanics&&!StudioDialog.Confirm(Window.GetWindow(this),"Mecánicas de combate",
+            "Este template también cambia cómo funcionan movimientos en combate (Battle.cro), además de sus datos. ¿Aplicar estas mecánicas?",mechanics)){_status.Text="No se aplicó nada: el template contiene mecánicas de combate y no se confirmaron.";return;}
         _busy=true;IsEnabled=false;using var interaction=UiProgress.BlockInteraction();UiProgress.Begin(apply?"Aplicando template y registrando historial…":"Comprobando template…");
         try
         {

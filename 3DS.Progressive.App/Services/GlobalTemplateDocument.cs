@@ -178,8 +178,7 @@ internal sealed class GlobalTemplateDocument
             string file=asset["FileName"]?.GetValue<string>()??"";
             string expected=asset["Sha256"]?.GetValue<string>()??"";
             if(file.Length==0)continue;
-            string? found=directories.Where(Directory.Exists).Select(d=>Path.Combine(d,file))
-                .FirstOrDefault(File.Exists);
+            string? found=OptionalTemplates.FindAsset(directories,file,expected);
             if(found is null){messages.Add($"No se encontró el asset: {file}");continue;}
             string hash=Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(found)));
             if(!hash.Equals(expected,StringComparison.OrdinalIgnoreCase))

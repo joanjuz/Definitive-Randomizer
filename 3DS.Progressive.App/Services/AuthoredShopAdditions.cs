@@ -11,14 +11,13 @@ internal sealed partial class AuthoredTemplate
     {
         if(kind=="Shops")return false;
         if(kind=="FieldItems")return true;
-        if(kind=="Moves")return p.Generation==6||p.GameConfiguration.USUM;
-        if(kind is not ("Stats" or "Evolutions"))return false;
-        string prefix=kind=="Stats"?"pokemon_stats":"evolutions";
-        string path=Path.Combine(AppContext.BaseDirectory,"custom_balance_templates",$"{prefix}_gen{p.Generation}.csv");
+        // Move balance and base stats are personal choices: import a CSV explicitly (Importar…).
+        if(kind!="Evolutions")return false;
+        string path=Path.Combine(AppContext.BaseDirectory,"custom_balance_templates",$"evolutions_gen{p.Generation}.csv");
         try
         {
             if(!File.Exists(path))return false;
-            return kind=="Stats"?PokemonStatTemplates.Load(path,Names(p)).Length>0:EvolutionTemplates.Load(path,p.GameConfiguration.GetText(pk3DS.Core.TextName.SpeciesNames),p.ItemNames.ToArray(),p.Generation).Count>0;
+            return EvolutionTemplates.Load(path,p.GameConfiguration.GetText(pk3DS.Core.TextName.SpeciesNames),p.ItemNames.ToArray(),p.Generation).Count>0;
         }
         catch(Exception ex)when(ex is IOException or InvalidDataException or ArgumentException){return false;}
 

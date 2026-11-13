@@ -133,6 +133,13 @@ if(args.Length==1&&args[0]=="--requested-ui-only")
 if(args.Length is 2 or 3&&args[0]=="--visual-audit"){Exception? failure=null;var ui=new Thread(()=>{try{VisualAudit.Run(args[1],args.Length==3?args[2]:null,Check);}catch(Exception ex){failure=ex;}});ui.SetApartmentState(ApartmentState.STA);ui.Start();ui.Join();if(failure is not null)System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(failure).Throw();Console.WriteLine($"Completed {checks} visual audit checks.");return;}
 if(args.Length>=3&&args[0]=="--visual-audit-ds"){Exception? failure=null;var ui=new Thread(()=>{try{VisualAudit.RunDs(args[1],args.Skip(2).ToArray(),Check);}catch(Exception ex){failure=ex;}});ui.SetApartmentState(ApartmentState.STA);ui.Start();ui.Join();if(failure is not null)System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(failure).Throw();Console.WriteLine($"Completed {checks} DS visual audit checks.");return;}
 if(args.Length==1&&args[0]=="--all-ui-only"){Exception? failure=null;var ui=new Thread(()=>{try{UiSmoke.Run(Check);RequestedIntegrationChecks.RunUi(Check);Review73Checks.RunUi(Check); UtilityCompletionUiChecks.Run(Check);TitleScreenChecks.RunUi(Check);TitleMovieChecks.RunUi(Check); Tutor6CompatibilityChecks.RunUi(Check); RomToolUiChecks.Run(Check); GlobalEditorBridgeChecks.RunUi(Check); FieldItems6Checks.RunUi(Check); FeatureVisibilityChecks.Run(Check);MasterBatchChecks.RunUi(Check); Tm6CompatibilityChecks.RunUi(Check); GlobalCompletionChecks.RunUi(Check); BattleFacilityChecks.RunUi(Check); BatchGen6Checks.RunUi(Check);}catch(Exception ex){failure=ex;}});ui.SetApartmentState(ApartmentState.STA);ui.Start();ui.Join();if(failure is not null)throw failure;Console.WriteLine($"Completed {checks} UI checks.");return;}
+if(args.Length==1&&args[0]=="--optional-templates-only")
+{
+    OptionalTemplateChecks.Run(Check,Reject);
+    Exception? failure=null;var thread=new Thread(()=>{try{ThreeDS.Progressive.StudioDialog.AutomatedChecks=true;var app=new ThreeDS.Progressive.App();app.InitializeComponent();OptionalTemplateChecks.Ui(Check);}catch(Exception ex){failure=ex;}});
+    thread.SetApartmentState(ApartmentState.STA);thread.Start();thread.Join();if(failure is not null)System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(failure).Throw();
+    Console.WriteLine($"Completed {checks} optional template checks (synthetic and off-screen; not in game).");return;
+}
 if(args.Length==1&&args[0]=="--stable-polish-only")
 {
     Exception? failure=null;var thread=new Thread(()=>{try{var app=new ThreeDS.Progressive.App();app.InitializeComponent();WpfTestHost.SuppressStartup();StablePolishChecks.Run(Check,Reject);}catch(Exception ex){failure=ex;}});
