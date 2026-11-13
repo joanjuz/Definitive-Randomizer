@@ -29,7 +29,7 @@ La preparación depende de la plataforma.
 | **Nintendo DS** (Gen4 y Gen5) | Un volcado `.nds` de un juego con perfil admitido. | «Abrir proyecto…» → el archivo `.nds`. |
 | **Espada/Escudo** (Switch) | Una extracción de la versión **1.3.2** con `exefs/main.npdm`, `exefs/main` y la carpeta `romfs`. | «Abrir proyecto…» → la carpeta de la extracción. |
 
-Hay un único **«Abrir proyecto…»** para las tres plataformas (en Inicio y en la cabecera): la aplicación detecta el juego y abre su editor. También puedes **arrastrar** el archivo o la carpeta a la ventana, o elegirlo en **Proyectos recientes** del mismo diálogo. Si el juego o la revisión no están admitidos, la aplicación lo rechaza en lugar de editarlo a ciegas. Eso es intencionado.
+Hay un único **«Abrir proyecto…»** para las tres plataformas (en Inicio y en la cabecera): la aplicación detecta el juego y abre su editor. También puedes **arrastrar** el archivo o la carpeta a la ventana (o sobre `DefinitiveRandomizer.exe`, o usar «Abrir con…» de Windows), o elegirlo en **Proyectos recientes** del mismo diálogo. Si el juego o la revisión no están admitidos, la aplicación lo rechaza en lugar de editarlo a ciegas. Eso es intencionado.
 
 **Modo de trabajo (3DS).** La primera vez que abres un proyecto 3DS, Inicio pregunta si quieres el **Modo simplificado** (secciones principales) o el **Modo completo** (todas las herramientas). Tu elección se recuerda en tu usuario de Windows —no en el proyecto ni en la ROM—, así que los siguientes proyectos, también tras reiniciar la aplicación, se abren directamente en ese modo. Para cambiarlo, pulsa «Modo … · Cambiar» en la barra lateral (vuelve a Inicio) o busca «modo» con **Ctrl+K**; cambiar de modo no descarta cambios pendientes.
 

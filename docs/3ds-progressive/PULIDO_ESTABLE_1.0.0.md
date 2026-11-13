@@ -1,6 +1,6 @@
 # Pulido de interfaz para la estable 1.0.0
 
-Correcciones de interfaz WPF previas a la primera versión estable. No cambian motores de randomización, formatos binarios, contratos de Global Template, Batch ni historial. Se comprueban con `--stable-polish-only` (42 comprobaciones fuera de pantalla, en CI) y con la auditoría visual existente.
+Correcciones de interfaz WPF previas a la primera versión estable. No cambian motores de randomización, formatos binarios, contratos de Global Template, Batch ni historial. Se comprueban con `--stable-polish-only` (44 comprobaciones fuera de pantalla, en CI) y con la auditoría visual existente.
 
 ## 1. MT y tutores (Ultra Sol/Ultra Luna): acciones inmediatas frente a opciones de receta
 
@@ -31,7 +31,9 @@ La auditoría visual existente no cubría Inicio (con Inicio visible inspecciona
 
 ## 4. Inicio con una sola apertura
 
-Se retiran de Inicio «Espada/Escudo · editor Switch» y «Nintendo DS · Gen4/Gen5 (beta)»: «Abrir proyecto…» ya detecta la plataforma. Los espacios de trabajo DS y Switch siguen disponibles en la búsqueda (Ctrl+K). Recientes, arrastrar y soltar y la ruta recibida de Windows usan el mismo flujo universal, sin cambios.
+Se retiran de Inicio «Espada/Escudo · editor Switch» y «Nintendo DS · Gen4/Gen5 (beta)»: «Abrir proyecto…» ya detecta la plataforma. Los espacios de trabajo DS y Switch siguen disponibles en la búsqueda (Ctrl+K). Recientes y arrastrar y soltar siguen usando el mismo flujo universal, sin cambios.
+
+**Ruta recibida de Windows (nuevo).** Hasta ahora el ejecutable ignoraba los argumentos. Si recibe exactamente una ruta existente («Abrir con…», un archivo o carpeta soltado sobre `DefinitiveRandomizer.exe`, un acceso directo con destino), al mostrarse la ventana la abre con el mismo flujo universal que el diálogo y el arrastre: mismo detector, mismas confirmaciones y mismo registro en recientes. Sin argumento, con una ruta inexistente o con varias rutas, la aplicación arranca como siempre. No se registran asociaciones de archivos en Windows.
 
 ## 5. Deshacer permanece en Historial
 
@@ -43,5 +45,5 @@ Tarjeta propia, solo en Ultra Sol/Ultra Luna. Muestra el estado leído sin escri
 
 ## Pruebas
 
-- `--stable-polish-only`: 42 comprobaciones (tutores con una tabla sintética de 67 ranuras, preferencia de modo con carpeta de estado aislada y reinicio simulado, Inicio, contraste, Deshacer, tarjeta de Mega Ability Sync). Fuera de pantalla; no es una prueba interactiva ni en juego.
+- `--stable-polish-only`: 44 comprobaciones (tutores con una tabla sintética de 67 ranuras, preferencia de modo con carpeta de estado aislada y reinicio simulado, Inicio, contraste, ruta de inicio, Deshacer, tarjeta de Mega Ability Sync). Fuera de pantalla; no es una prueba interactiva ni en juego.
 - Suites del CI y auditoría visual: ver el registro de la entrega.

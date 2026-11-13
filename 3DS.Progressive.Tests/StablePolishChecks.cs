@@ -27,6 +27,7 @@ internal static class StablePolishChecks
         WorkMode(check);
         Start(check);
         OpenDialogContrast(check);
+        StartupArgument(check);
         Undo(check);
         MegaSyncCard(check);
     }
@@ -201,6 +202,20 @@ internal static class StablePolishChecks
             check(shell.Length==0,$"StablePolish_Shell_TextContrast_{tag} ({string.Join(" | ",shell.Take(4))})");
             main.Close();
         }
+    }
+
+    /// <summary>A path passed by Windows (Abrir con…, dropped on the executable) goes to the universal open; anything else starts normally.</summary>
+    private static void StartupArgument(Action<bool,string> check)
+    {
+        string folder=Path.Combine(Path.GetTempPath(),"dr-startup-"+Guid.NewGuid().ToString("N"));Directory.CreateDirectory(folder);
+        string file=Path.Combine(folder,"Juego.nds");File.WriteAllBytes(file,[1,2,3]);
+        try
+        {
+            check(MainWindow.StartupPath(["app.exe",folder])==Path.GetFullPath(folder)&&MainWindow.StartupPath(["app.exe","\""+file+"\""])==Path.GetFullPath(file),"StablePolish_StartupPath_ExistingFileOrFolder");
+            check(MainWindow.StartupPath(["app.exe"]) is null&&MainWindow.StartupPath(["app.exe",Path.Combine(folder,"missing.nds")]) is null&&MainWindow.StartupPath(["app.exe",file,folder]) is null&&MainWindow.StartupPath(["app.exe","  "]) is null,
+                "StablePolish_StartupPath_OtherwiseStartsNormally");
+        }
+        finally{Directory.Delete(folder,true);}
     }
 
     /// <summary>«Abrir proyecto» (universal dialog): its captions are WPF Labels, which take the system black unless the theme styles them.</summary>
