@@ -57,7 +57,7 @@ Con participantes que consientan y sin servicios oficiales:
 
 ## Corrección
 
-El análisis del código de combate confirmó la hipótesis 2: al megaevolucionar, cada juego lee la habilidad de su propia tabla, y en un combate entre dos juegos solo uno hace los cálculos. La corrección es Mega Ability Sync, descrita en [MEGA_ABILITY_SYNC_USUM.md](MEGA_ABILITY_SYNC_USUM.md): los dos juegos llevan el parche y cada megaevolución usa la habilidad del juego de su dueño, sin igualar tablas, ranuras ni semillas. Está instalable y probada con pruebas automáticas y archivos reales. La primera prueba en un combate real falló y la rutina se corrigió; la corrección sigue pendiente de prueba en combate, con los pasos de ese documento.
+El análisis del código de combate confirmó la hipótesis 2: al megaevolucionar, cada juego lee la habilidad de su propia tabla, y en un combate entre dos juegos solo uno hace los cálculos. La corrección es Mega Ability Sync, descrita en [MEGA_ABILITY_SYNC_USUM.md](MEGA_ABILITY_SYNC_USUM.md): los dos juegos llevan el parche y cada megaevolución usa la habilidad del juego de su dueño, sin igualar tablas, ranuras ni semillas. Está instalable y probada con pruebas automáticas y archivos reales. La primera prueba en un combate real falló y la rutina se corrigió; con la corrección, el propietario confirmó el 13/11/2026 que funciona en un combate real con el parche en los dos juegos. Ese documento indica qué casos siguen sin prueba.
 
 La hipótesis 1 (dependencia de la ranura) sigue siendo cierta y no es un defecto: ocurre también sin conexión. El diagnóstico y el comparador siguen siendo de solo lectura.
 

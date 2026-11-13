@@ -1,12 +1,12 @@
 # Mega Ability Sync · Ultra Sol / Ultra Luna
 
-Estado: **instalable y probado con pruebas automáticas y con los archivos reales; sin confirmar en un combate real entre dos juegos.** La primera prueba en combate (13/11/2026) falló y la rutina se corrigió; la corrección todavía no se ha probado en juego. No se declara que funcione en juego hasta que esa prueba salga bien.
+Estado: **confirmado por el propietario en un combate real entre dos juegos con el parche en ambos (13/11/2026), con la rutina corregida.** La primera prueba de ese día, con la primera rutina, falló y motivó la corrección. La confirmación cubre el caso principal; los casos de la lista «Sin confirmar en juego» siguen sin prueba en combate.
 
 ## Primera prueba en combate y corrección
 
 En la primera prueba, con el parche en los dos juegos, el combate se comportó como el juego original: las megaevoluciones usaron la habilidad de la tabla del juego que calculaba y cada pantalla siguió mostrando la suya.
 
-Causa, identificada en el código del juego y reproducida en la emulación de la rutina (la confirmación definitiva será la nueva prueba en combate): en un combate por enlace cada juego ya conoce el equipo del rival antes de empezar. Aunque el equipo se vuelve a enviar por la conexión, el juego no lee ese paquete: reconstruye el equipo rival a partir de su copia local. La primera rutina solo buscaba el dato añadido cuando el equipo se leía directamente del paquete recibido, así que en ese caso no guardaba nada.
+Causa, identificada en el código del juego y reproducida en la emulación de la rutina (la nueva prueba en combate, ya con la corrección, salió bien): en un combate por enlace cada juego ya conoce el equipo del rival antes de empezar. Aunque el equipo se vuelve a enviar por la conexión, el juego no lee ese paquete: reconstruye el equipo rival a partir de su copia local. La primera rutina solo buscaba el dato añadido cuando el equipo se leía directamente del paquete recibido, así que en ese caso no guardaba nada.
 
 Corrección: al preparar el equipo de cada jugador, la rutina busca el dato añadido en el búfer que guarda los paquetes de ese jugador, se lea el equipo de donde se lea. El formato de lo que se envía no cambia.
 
@@ -68,11 +68,20 @@ Niveles del informe de capacidades (`usum.mega-ability-sync`): **verificada** cu
 | Módulos sintéticos (misma suite) | Instalar, releer, reinstalar sin cambios, retirar, conflictos, instalación parcial, módulo sin espacio, direcciones de otro juego, convivencia con los otros dos parches, editor con historial; reconocer la primera rutina, sustituirla en su sitio y retirarla | No contienen código del juego |
 | Archivos reales (`--mega-ability-sync-real`, fuera del CI) | Ultra Sol y Ultra Luna originales, un Ultra Luna con Player Level Caps y el módulo con la primera rutina tal como se jugó: direcciones resueltas, instalación releída, reinstalación sin cambios, retirada byte a byte idéntica, Player Level Caps conservado, primera rutina sustituida en su sitio con el mismo resultado que una instalación nueva | No ejecuta el juego |
 | Ejecución de la rutina en un emulador de procesador | La rutina ensamblada, dentro del módulo real y junto a las rutinas reales del juego que deciden de dónde se lee cada equipo, con las funciones de `code.bin` sustituidas por modelos. Cubre los dos casos (equipo rival ya conocido, como en la prueba que falló, y equipo leído del paquete); la primera rutina falla en el primero | No ejecuta el motor completo ni la conexión |
-| **Combate real entre dos juegos** | Primera rutina: **falló** (comportamiento original). Rutina corregida: **pendiente** | — |
+| **Combate real entre dos juegos** | Primera rutina: **falló** (comportamiento original). Rutina corregida: **funciona** (propietario, 13/11/2026): combate por enlace entre dos Ultra Luna randomizados de forma distinta, parche en los dos, megaevolución en los dos lados | Los casos de «Sin confirmar en juego» |
 
-La suite automática tiene 165 comprobaciones. Solo la prueba en combate puede confirmar el comportamiento completo: las pruebas automáticas de la primera rutina también pasaban, porque ninguna reproducía el caso del equipo rival ya conocido.
+La suite automática tiene 165 comprobaciones. Solo la prueba en combate confirma el comportamiento: las pruebas automáticas de la primera rutina también pasaban, porque ninguna reproducía el caso del equipo rival ya conocido.
 
-## Prueba en juego pendiente
+### Sin confirmar en juego
+
+- Un solo juego con el parche (debe comportarse como el original, sin errores de conexión).
+- El combate creado por el otro jugador.
+- Combates dobles, múltiples y Battle Royal.
+- Ultra Sol contra Ultra Luna.
+- Megaevolución por movimiento (Rayquaza).
+- Convivencia en combate con Persistent Items.
+
+## Prueba en juego
 
 Con dos proyectos de Ultra Sol / Ultra Luna randomizados con semillas distintas y dos participantes que lo acepten, sin servicios oficiales:
 
@@ -82,7 +91,7 @@ Con dos proyectos de Ultra Sol / Ultra Luna randomizados con semillas distintas 
 4. Repetir con el parche en un solo juego: debe comportarse como sin parche y el combate debe seguir con normalidad.
 5. Repetir sin parche en ninguno, como referencia.
 
-Resultado esperado con los dos parches: la misma habilidad y el mismo efecto en las dos pantallas, la del juego del dueño, en los pasos 2 y 3.
+Resultado esperado con los dos parches: la misma habilidad y el mismo efecto en las dos pantallas, la del juego del dueño, en los pasos 2 y 3. El paso 2 está confirmado; los demás no se han comunicado.
 
 ## Archivos
 
