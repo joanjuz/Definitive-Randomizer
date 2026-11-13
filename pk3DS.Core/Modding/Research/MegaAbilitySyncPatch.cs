@@ -111,7 +111,7 @@ public sealed record MegaAbilitySyncInspection(
 /// The game resolves the Ability of a Mega Evolution from its own Personal table. With this patch each game adds,
 /// after the party it already sends, a 12-byte appendix with the Ability each of its Pokémon gets when it Mega
 /// Evolves; the receiving game keeps that value with its copy of the remote Pokémon and uses it when that Pokémon
-/// Mega Evolves. A game without the patch ignores the appendix, and a patched game that receives no valid appendix
+/// Mega Evolves. Parties that did not arrive through the network (the player's own, a local partner) are not touched. A game without the patch ignores the appendix, and a patched game that receives no valid appendix
 /// keeps the original behaviour, so the synchronisation only happens when both sides carry the same protocol.
 /// </para>
 /// <para>Only Battle.cro is written. code.bin and static.crs are read to resolve addresses.</para>
@@ -234,7 +234,7 @@ public static class MegaAbilitySyncPatch
         0xE20000FF, 0xE8BD8070, 0xE3A00000, 0xE8BD8070, 0xE92D47F0, 0xE5948000,
         0xE1A06000, 0xE1A07001, 0xEB000000, 0xE3A09000, 0xE59F012C, 0xE79F0000,
         0xE2800B06, 0xE2800FAE, 0xE3A01004, 0xE1500007, 0x0A000004, 0xE2800C17,
-        0xE2800084, 0xE2511001, 0x1AFFFFF9, 0xEA000013, 0xE2872C17, 0xE1D207B2,
+        0xE2800084, 0xE2511001, 0x1AFFFFF9, 0xEA000021, 0xE2872C17, 0xE1D207B2,
         0xE3500003, 0x1A00000F, 0xE1D207B0, 0xE59F10E4, 0xE1500001, 0x1A00000B,
         0xE2875C06, 0xE2855018, 0xE5950000, 0xE59F10C8, 0xE1500001, 0x1A000005,
         0xE1A00005, 0xEBFFFFBA, 0xE5D5100A, 0xE1500001, 0x1A000000, 0xE1A09005,

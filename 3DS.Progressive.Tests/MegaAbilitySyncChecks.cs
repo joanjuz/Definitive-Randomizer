@@ -351,10 +351,10 @@ internal static class MegaAbilitySyncChecks
         };
         var ultraSun = new MegaAbilitySyncCodeAddresses(0x66F0D0, 0x4ABE34, 0x4AE80C, 0x4AE1EC, 0x321758);
         var ultraMoon = new MegaAbilitySyncCodeAddresses(0x66F0D0, 0x4ABE3C, 0x4AE814, 0x4AE1F4, 0x321758);
-        check(Sha(Sync.BuildPayload(0xFC974, ultraSun, MegaAbilitySyncProfile.Usum, stubs)) == "1BF0216A6B7FDD0FAF626DC0A25AFA429B4019FA96F294D3CC9DDB11F8E48140" &&
-            Sha(Sync.BuildPayload(0x100000, ultraSun, MegaAbilitySyncProfile.Usum, stubs)) == "673366C64B1DD7E99645B9CEC17AEBFCD727B97C3B269392BF0567F5B2B2C410", "MegaSyncBinary_BlockMatchesTheReference_UltraSun");
-        check(Sha(Sync.BuildPayload(0xFC974, ultraMoon, MegaAbilitySyncProfile.Usum, stubs)) == "19EE7A6D3FBD2FB21E38F06723AAD765B96C6DDB95BB055B9BA2A0BFCF10AE89" &&
-            Sha(Sync.BuildPayload(0x100000, ultraMoon, MegaAbilitySyncProfile.Usum, stubs)) == "215099C5A560EE8047253A1723958B23950582659E821E6CFEF18F5370F9F21B", "MegaSyncBinary_BlockMatchesTheReference_UltraMoon");
+        check(Sha(Sync.BuildPayload(0xFC974, ultraSun, MegaAbilitySyncProfile.Usum, stubs)) == "A822A148F7472FD276011ECB43F040F2C0C0383A78A28D1189626CF4A9EC839C" &&
+            Sha(Sync.BuildPayload(0x100000, ultraSun, MegaAbilitySyncProfile.Usum, stubs)) == "515E958E3EB44291F64768A615950FE491C252EB6557F5B9FF2993A96F85595E", "MegaSyncBinary_BlockMatchesTheReference_UltraSun");
+        check(Sha(Sync.BuildPayload(0xFC974, ultraMoon, MegaAbilitySyncProfile.Usum, stubs)) == "DC34481869BEFC5F6E44E2CFDC1203E08F74198F7B6F8C0306AF13B2C801B1C3" &&
+            Sha(Sync.BuildPayload(0x100000, ultraMoon, MegaAbilitySyncProfile.Usum, stubs)) == "3B2357912FA934B4331D24C4175E8A5C1CB7108F91D148E518EC1709FC1BA3BD", "MegaSyncBinary_BlockMatchesTheReference_UltraMoon");
         check(Sync.PayloadBytes == 636 && Sync.PacketBytes == 0x624, "MegaSyncBinary_Sizes");
 
         foreach (bool tight in new[] { false, true })
