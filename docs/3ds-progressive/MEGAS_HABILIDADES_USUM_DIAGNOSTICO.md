@@ -32,13 +32,23 @@ Lee la tabla Personal guardada y escribe un informe de texto con:
 
 No modifica el proyecto, no reproduce un combate y no confirma la causa.
 
-Archivos: `3DS.Progressive.App/Services/MegaAbilityDiagnostics.cs`, botón en `SystemsView.cs`, suite `--mega-diagnostic-only` (14 comprobaciones con datos sintéticos).
+### Comparar con otro jugador
+
+En la misma tarjeta, **Comparar con otro jugador…** pide dos archivos de «Exportar datos para Progressive Tracker» (uno por jugador) y escribe un informe con:
+
+- si las huellas de los datos exportados coinciden;
+- cuántas formas de Pokémon tienen habilidades distintas entre los dos juegos;
+- las megaevoluciones cuyas tres habilidades difieren, con las de cada juego.
+
+No necesita ninguna ROM ni el proyecto del otro jugador: solo los dos archivos JSON. Sirve para la hipótesis 2 (pasos 4 y 5 de abajo); no demuestra la causa.
+
+Archivos: `3DS.Progressive.App/Services/MegaAbilityDiagnostics.cs`, `MegaAbilityComparison.cs`, botones en `SystemsView.cs`, suite `--mega-diagnostic-only` (43 comprobaciones con datos sintéticos; la comparación usa exportaciones del exportador real sobre proyectos sintéticos).
 
 ## Qué falta para reproducirlo
 
 Con participantes que consientan y sin servicios oficiales:
 
-1. Exportar el diagnóstico en los dos juegos y anotar si las huellas coinciden.
+1. Exportar los datos para Progressive Tracker en los dos juegos y usar «Comparar con otro jugador» para saber si las megaevoluciones coinciden.
 2. Elegir una megaevolución marcada como dependiente de la ranura y dos ejemplares con ranuras distintas.
 3. Fuera de línea: megaevolucionar cada ejemplar y anotar la habilidad que actúa. Confirma o descarta la hipótesis 1.
 4. Entre dos juegos con la **misma** huella: repetir. Si coincide con el paso 3, el problema no es de sincronización.
@@ -47,6 +57,8 @@ Con participantes que consientan y sin servicios oficiales:
 
 ## Corrección posible (no implementada)
 
-Si se confirma la hipótesis 1, bastaría una opción de la randomización de habilidades que deje a cada megaevolución con una sola habilidad en sus tres ranuras, como en el juego original. No se implementa sin esa evidencia. La hipótesis 2 no se corrige en el Randomizer: exige que los dos jugadores usen los mismos datos.
+La dirección de solución es Mega Ability Sync bilateral: conservar las habilidades randomizadas distintas de cada jugador y sincronizar la habilidad efectiva según los datos del propietario del Pokémon. Ambos juegos USUM deben llevar un parche compatible, con identificación y versión de protocolo comprobables antes de usarlo. Si esa compatibilidad no se acredita, el protocolo experimental no debe activarse; la forma concreta de rechazo o aviso sigue por investigar.
+
+No se ofrece igualar las tres ranuras de una Mega ni exigir tablas o semillas comunes como solución. No está demostrado quién tiene autoridad durante el combate, si el transporte actual comunica el ID efectivo ni dónde integrar el parche. Primero hay que investigar el protocolo y el motor reales, distinguir efectos mecánicos de presentación y verificar los dos roles de anfitrión e invitado; no se implementan hooks ni paquetes supuestos. El diagnóstico y el comparador no acreditan sincronización ni compatibilidad bilateral.
 
 Alcance: solo Ultra Sol / Ultra Luna. No se extiende a Sol/Luna ni a la sexta generación.
