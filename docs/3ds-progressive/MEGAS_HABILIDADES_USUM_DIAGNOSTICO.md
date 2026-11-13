@@ -57,6 +57,8 @@ Con participantes que consientan y sin servicios oficiales:
 
 ## Corrección posible (no implementada)
 
-Si se confirma la hipótesis 1, bastaría una opción de la randomización de habilidades que deje a cada megaevolución con una sola habilidad en sus tres ranuras, como en el juego original. No se implementa sin esa evidencia. La hipótesis 2 no se corrige en el Randomizer: exige que los dos jugadores usen los mismos datos.
+La dirección de solución es Mega Ability Sync bilateral: conservar las habilidades randomizadas distintas de cada jugador y sincronizar la habilidad efectiva según los datos del propietario del Pokémon. Ambos juegos USUM deben llevar un parche compatible, con identificación y versión de protocolo comprobables antes de usarlo. Si esa compatibilidad no se acredita, el protocolo experimental no debe activarse; la forma concreta de rechazo o aviso sigue por investigar.
+
+No se ofrece igualar las tres ranuras de una Mega ni exigir tablas o semillas comunes como solución. No está demostrado quién tiene autoridad durante el combate, si el transporte actual comunica el ID efectivo ni dónde integrar el parche. Primero hay que investigar el protocolo y el motor reales, distinguir efectos mecánicos de presentación y verificar los dos roles de anfitrión e invitado; no se implementan hooks ni paquetes supuestos. El diagnóstico y el comparador no acreditan sincronización ni compatibilidad bilateral.
 
 Alcance: solo Ultra Sol / Ultra Luna. No se extiende a Sol/Luna ni a la sexta generación.
