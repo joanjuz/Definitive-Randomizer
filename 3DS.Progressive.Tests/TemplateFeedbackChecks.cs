@@ -36,7 +36,7 @@ internal static class TemplateFeedbackChecks
             if(version!=GameVersion.SM)
             {
                 var old=SynchronizationContext.Current;SynchronizationContext.SetSynchronizationContext(new DispatcherSynchronizationContext(Dispatcher.CurrentDispatcher));
-                try{var task=(Task)Call(view,"ImportProgressiveAsync")!;var frame=new DispatcherFrame();task.ContinueWith(_=>view.Dispatcher.BeginInvoke(()=>frame.Continue=false));Dispatcher.PushFrame(frame);task.GetAwaiter().GetResult();check(Field<System.Collections.IList>(view,"_rows").Count>10&&!Field<System.Windows.Controls.TextBlock>(view,"_status").Text.Contains("subproceso"),version+" real Progressive import completes with UI-thread-safe metadata and selection");}
+                try{var task=(Task)Call(view,"ImportProgressiveAsync")!;var frame=new DispatcherFrame();task.ContinueWith(_=>view.Dispatcher.BeginInvoke(()=>frame.Continue=false));Dispatcher.PushFrame(frame);string message=task.IsFaulted?task.Exception!.GetBaseException().Message:Field<System.Windows.Controls.TextBlock>(view,"_status").Text;check(message.Contains("no tiene valores incluidos")&&!message.Contains("subproceso"),version+" move import offers no built-in balance and reports it on the UI thread");}
                 finally{SynchronizationContext.SetSynchronizationContext(old);}
             }
         }
