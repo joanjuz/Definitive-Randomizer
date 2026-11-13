@@ -118,6 +118,8 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'Tracker consumer commit not found' }
           & $contractPython -I tools/contracts/check_definitive_game_data.py --tracker $tracker --producer $capsFixtures --consumer $consumer 2>&1 | Tee-Object -FilePath validation-logs/dgd-contract.log
           if ($LASTEXITCODE -ne 0) { throw 'Definitive Game Data contract checks failed' }
+          & $contractPython -I tools/contracts/check_profile_provenance.py --tracker $tracker --consumer $consumer
+          if ($LASTEXITCODE -ne 0) { throw 'Profile provenance contract checks failed' }
       - name: Regresiones con datos sinteticos XY, ORAS, SM y USUM
         env:
           PROGRESSIVE_UI_CAPTURE_DIR: ${{ github.workspace }}/ui-captures
