@@ -225,7 +225,7 @@ internal static class SectionProgress
         ["move-tutors.free"]=("MachineTutor","Tutores gratis"),
         ["move-tutors.randomize"]=("MachineTutor","Randomizar tutores"),
         ["move-tutors.sanity"]=("MachineTutor","Tutores · compatibilidad coherente"),
-        ["moves.balance"]=("Moves","Balance Progressive de movimientos"),
+        ["moves.balance"]=("Moves","Balance de movimientos · template CSV"),
         ["moves.metronome"]=("Moves","Modo Metrónomo"),
         ["moves.randomize"]=("Moves","Randomizar movimientos"),
         ["opower.edit"]=("Mechanics","Editar O-Powers"),

@@ -81,7 +81,7 @@ internal sealed class GlobalTemplateApplication(GameProjectSession project)
                     string name=entry["FileName"]?.GetValue<string>()??"";if(name.Length==0)continue;
                     string target=Path.GetFullPath(Path.Combine(workspace,name));
                     if(!target.StartsWith(workspace+Path.DirectorySeparatorChar,StringComparison.OrdinalIgnoreCase))throw new InvalidDataException("Asset fuera de la carpeta de receta.");
-                    string? source=folders.Select(folder=>Path.Combine(folder,name)).FirstOrDefault(File.Exists);
+                    string? source=OptionalTemplates.FindAsset(folders,name,entry["Sha256"]?.GetValue<string>());
                     if(source is null)throw new FileNotFoundException("No se encontró el asset: "+name);
                     Directory.CreateDirectory(Path.GetDirectoryName(target)!);File.Copy(source,target,true);
                     string? canonical=entry["Role"]?.GetValue<string>() switch

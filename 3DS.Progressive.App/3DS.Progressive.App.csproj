@@ -37,6 +37,8 @@
     <Content Include="..\custom_balance_templates\pokemon_stats_gen*.csv" Link="custom_balance_templates\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
     <Content Include="..\custom_balance_templates\moves_gen*.csv" Link="custom_balance_templates\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
     <Content Include="..\custom_balance_templates\evolutions_gen*.csv" Link="custom_balance_templates\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <!-- Optional personal balance (Eris-Ultranova): shipped for explicit import only, never loaded by default. -->
+    <Content Include="..\plantillas-opcionales\eris-ultranova\*.csv;..\plantillas-opcionales\eris-ultranova\*.md" Link="plantillas-opcionales\eris-ultranova\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
     <Content Include="..\pk3DS.WinForms\Templates\trainer_*.txt" Link="Templates\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
   </ItemGroup>
   <PropertyGroup>

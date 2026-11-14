@@ -1,2 +1,3 @@
 Entry,Pokemon,HP,ATK,DEF,SPA,SPD,SPE,Notes
-,Slaking,130,130,100,90,65,85,
+# SM/USUM: only listed entries change; empty stat cells preserve their current value.
+# 25,Pikachu,35,60,40,50,50,100,Example

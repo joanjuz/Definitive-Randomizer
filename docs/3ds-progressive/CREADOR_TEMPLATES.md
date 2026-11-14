@@ -32,9 +32,9 @@ Los CSV escapan comillas y comas, y representan saltos de línea como `\n` para 
 
 ### Progressive
 
-Movimientos de Gen6 carga los datos internos si el CSV distribuido solo contiene su cabecera. USUM carga el CSV Progressive existente. Sol/Luna permite crear templates propios de datos de movimientos, pero no importa el balance exclusivo de USUM.
+Movimientos y estadísticas no tienen valores incluidos: crea el template o impórtalo con «Importar…». El balance de Eris-Ultranova es un paquete opcional que solo se usa si lo importas tú (ver [PLANTILLAS_OPCIONALES_ERIS.md](PLANTILLAS_OPCIONALES_ERIS.md)). Si un template de movimientos contiene mecánicas de combate (`BattlePatch`), al pulsar «Usar template» se enumeran y se pide confirmación.
 
-Objetos de campo carga el catálogo común Progressive para personalizarlo. Importar Progressive solo aparece donde existe una importación válida: movimientos de Gen6/USUM, objetos de campo y archivos de estadísticas/evoluciones con filas válidas. Se oculta en Sol/Luna para movimientos y en el nuevo creador de incorporaciones de tiendas.
+Objetos de campo carga el catálogo común Progressive para personalizarlo. Importar Progressive solo aparece en objetos de campo y en evoluciones cuando su archivo incluido tiene filas válidas. No aparece en movimientos, estadísticas ni en el creador de incorporaciones de tiendas.
 
 En objetos de campo, Permitidos forma el catálogo de selección y Prohibidos excluye objetos de los reemplazos. Los filtros de seguridad siguen protegiendo las ubicaciones excluidas. El nuevo creador de tiendas no contiene catálogo, BP ni controles de randomización.
 
