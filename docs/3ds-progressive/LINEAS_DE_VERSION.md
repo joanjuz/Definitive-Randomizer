@@ -10,7 +10,7 @@ Definitive Randomizer (WPF) se distribuye en dos líneas con numeración distint
 | Contenido | Funciones maduras, con correcciones de errores y compatibilidad | Todo lo de la estable más las funciones integradas después |
 | Cambios | Solo correcciones; ninguna función nueva | Funciones nuevas y experimentales |
 
-## Qué contiene cada una (1.0.0 frente a 1.1.0-preview.1)
+## Qué contiene cada una (1.0.0 frente a 1.1.0-preview.2)
 
 La estable 1.0.0 parte de `main` tras el PR #94 e incorpora las correcciones de interfaz del PR #107, la corrección de randomización del PR #97 y el balance Eris-Ultranova como paquete opcional. La línea de acceso anticipado añade:
 
@@ -19,8 +19,9 @@ La estable 1.0.0 parte de `main` tras el PR #94 e incorpora las correcciones de 
 - Informes de capacidades de parches (solo lectura).
 - Diagnóstico y comparador de megaevoluciones (solo lectura).
 - Procedencia de perfiles en Definitive Game Data (`profileProvenance`).
+- Reconstrucción y nueva extracción de ROM 3DS ya reconstruidas, con validación previa del ExHeader (preview.2).
 
-Detalle y evidencia de cada función: [RELEASE_1.1.0_PREVIEW_1.md](RELEASE_1.1.0_PREVIEW_1.md) y [RELEASE_1.0.0.md](RELEASE_1.0.0.md).
+Detalle y evidencia de cada función: [RELEASE_1.1.0_PREVIEW_2.md](RELEASE_1.1.0_PREVIEW_2.md) y [RELEASE_1.0.0.md](RELEASE_1.0.0.md).
 
 ## Cómo se mantienen
 

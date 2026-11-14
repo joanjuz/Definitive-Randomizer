@@ -28,7 +28,8 @@ Punto de entrada a `docs/3ds-progressive/`. Muchos documentos son **registros hi
 | Estable WPF: pulido de interfaz (tutores, modo recordado, contraste, Inicio, Deshacer, Mega Ability Sync) | [PULIDO_ESTABLE_1.0.0.md](PULIDO_ESTABLE_1.0.0.md) |
 | Balance Eris-Ultranova como paquete opcional (sin balance por defecto) | [PLANTILLAS_OPCIONALES_ERIS.md](PLANTILLAS_OPCIONALES_ERIS.md) |
 | Estable WPF: notas v1.0.0 (rama `release/1.0`), todavía no publicada | [RELEASE_1.0.0.md](RELEASE_1.0.0.md) |
-| Acceso anticipado: notas v1.1.0-preview.1 (`main`), todavía no publicada | [RELEASE_1.1.0_PREVIEW_1.md](RELEASE_1.1.0_PREVIEW_1.md) |
+| Acceso anticipado: notas v1.1.0-preview.2 (`main`), todavía no publicada | [RELEASE_1.1.0_PREVIEW_2.md](RELEASE_1.1.0_PREVIEW_2.md) |
+| Acceso anticipado: notas v1.1.0-preview.1, sustituida por la preview.2 y nunca entregada | [RELEASE_1.1.0_PREVIEW_1.md](RELEASE_1.1.0_PREVIEW_1.md) |
 | Líneas de versión: estable y acceso anticipado | [LINEAS_DE_VERSION.md](LINEAS_DE_VERSION.md) |
 | Empaquetado: modos PRIVATE/PUBLIC y confirmación del commit del operador | [EMPAQUETADO_PRIVATE_PUBLIC.md](EMPAQUETADO_PRIVATE_PUBLIC.md) |
 | Entrenadores DS: tarjetas, formatos explícitos, derivados y comparación con 3DS | [NDS_ENTRENADORES_PARIDAD.md](NDS_ENTRENADORES_PARIDAD.md) |
