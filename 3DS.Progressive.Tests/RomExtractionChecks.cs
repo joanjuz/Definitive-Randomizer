@@ -95,6 +95,7 @@ internal static class RomExtractionChecks
                 Bad(cxi[..0x180],"truncated NCCH");
                 byte[] invalid=(byte[])cxi.Clone();U32(invalid,0x1B4,int.MaxValue);Bad(invalid,"out-of-bounds RomFS");
                 invalid=(byte[])cxi.Clone();invalid[exeOffset+0x200]^=1;Bad(invalid,"corrupt ExeFS hash");
+                invalid=(byte[])cxi.Clone();invalid[0x200+0xD]=1;Bad(invalid,"ExHeader declaring compressed code.bin without a valid BLZ footer");
                 invalid=(byte[])cxi.Clone();invalid.AsSpan(exeOffset,8).Clear();".."u8.CopyTo(invalid.AsSpan(exeOffset));Bad(invalid,"unsafe ExeFS name");
                 int body=(int)((0x60+BitConverter.ToUInt32(rom,8)+4095)/4096*4096);
                 int filesAt=body+(int)BitConverter.ToUInt32(rom,body+0x1C);

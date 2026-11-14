@@ -39,7 +39,7 @@ El límite del análisis de archivos es el ABI del motor: objetos, listas de rec
 
 El generador de desarrollo `native_dependencies.py` reproduce los rangos desde las dos referencias privadas con SHA-256 exacto. Requiere Capstone 5 y solo emite offsets, etiquetas y hashes; no incorpora instrucciones ni archivos comerciales. No es necesario para usar la aplicación ni compilar el manifiesto generado.
 
-Una incompatibilidad identifica perfil, dependencia, intervalo de code.bin y dirección virtual. Ejemplo: getter US, `code.bin 3AE0E0–3AE0F3`, dirección `4AE0E0`. Ya no se presenta una región de casi cinco megabytes como única causa.
+Una incompatibilidad identifica perfil, dependencia, intervalo de code.bin y dirección virtual. Ejemplo: getter US, `code.bin 3AE0E0–3AE0F3`, dirección `4AE0E0`. Ya no se presenta una región de casi cinco megabytes como única causa. El mensaje indica además cuántas de las 62 dependencias difieren y que el rechazo solo bloquea las mentas, sin escribir nada. Consulta [REEXTRACCION_3DS_CXI.md](REEXTRACCION_3DS_CXI.md) para ROM ya reconstruidas y reextraídas.
 
 MT, shiny, efectividad de tipos, obediencia, mapas de iconos y demás datos ajenos no son requisitos de instalación funcional. Los iconos opcionales mantienen sus comprobaciones propias de mapa completo y archivo gráfico; no se adopta un mapa parcial como instalación de iconos válida.
 
