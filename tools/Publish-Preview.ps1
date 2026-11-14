@@ -120,7 +120,12 @@ try {
         if (-not $_.FullName.StartsWith($stage+[IO.Path]::DirectorySeparatorChar,[StringComparison]::OrdinalIgnoreCase)) { throw 'Unexpected package path.' }
         Remove-Item -LiteralPath $_.FullName -Force
     }
-    foreach ($required in @('DefinitiveRandomizer.exe','LegacyBatch/pk3DS.WinForms.exe','custom_balance_templates/field_items.txt','Templates/trainer_better_movesets.txt','Tools/Mobipeg/ffmpeg.exe','Tools/Mobipeg/ffprobe.exe','Tools/Mobipeg/mobipeg-v2.3-source.tar.gz','LICENSE.md','LEEME.md','third-party/PokeFeur-LICENSE.txt','third-party/pkNX-LICENSE.txt')) {
+    # The optional Eris-Ultranova balance ships unchanged in its own folder; it is never a default.
+    foreach ($file in @(& git ls-files plantillas-opcionales/eris-ultranova)) {
+        $packaged = Join-Path $stage $file
+        if (-not (Test-Path -LiteralPath $packaged) -or (Get-FileHash -LiteralPath $packaged -Algorithm SHA256).Hash -ne (Get-FileHash -LiteralPath (Join-Path $repo $file) -Algorithm SHA256).Hash) { throw "Optional template missing or changed while packaging: $file" }
+    }
+    foreach ($required in @('DefinitiveRandomizer.exe','LegacyBatch/pk3DS.WinForms.exe','custom_balance_templates/field_items.txt','plantillas-opcionales/eris-ultranova/LEEME.md','Templates/trainer_better_movesets.txt','Tools/Mobipeg/ffmpeg.exe','Tools/Mobipeg/ffprobe.exe','Tools/Mobipeg/mobipeg-v2.3-source.tar.gz','LICENSE.md','LEEME.md','third-party/PokeFeur-LICENSE.txt','third-party/pkNX-LICENSE.txt')) {
         if (-not (Test-Path -LiteralPath (Join-Path $stage $required))) { throw "Missing packaged dependency: $required" }
     }
     # Neutral .NET resources suffice; app labels and ROM language banks are unaffected.

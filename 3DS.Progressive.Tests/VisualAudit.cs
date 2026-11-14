@@ -25,7 +25,8 @@ internal static class VisualAudit
     private static readonly Game[] Games=[new(GameVersion.USUM,"USUM",[(1280,800),(1536,864),(1280,720),(1093,614)]),
         new(GameVersion.SM,"SM",[(1536,864),(1093,614)]),new(GameVersion.ORAS,"ORAS",[(1536,864),(1093,614)]),new(GameVersion.XY,"XY",[(1536,864),(1093,614)])];
 
-    private static readonly string[] Sections=["HomeButton","PokemonNavButton","TrainersButton","EncountersButton","StaticEncountersButton","MovesButton","LevelUpButton",
+    // Inicio is reached through the brand button (the sidebar «Inicio» entry is collapsed).
+    private static readonly string[] Sections=["BrandHomeButton","PokemonNavButton","TrainersButton","EncountersButton","StaticEncountersButton","MovesButton","LevelUpButton",
         "MachineTutorButton","ItemsButton","MartsButton","FieldItemsButton","EvolutionsButton","GameTextButton","StoryTextButton","MechanicsButton","PokemonToolsButton",
         "RomToolsButton","AutomationButton","ConfigurationButton","TemplateStudioButton","GlobalTemplateButton","BatchRomButton","HistoryButton"];
 
@@ -156,7 +157,9 @@ internal static class VisualAudit
         string label=$"{size} {name.Replace("Button","")}";run.Context=label;
         if(!Click(run,nav,label))return;
         // The home and the Pokémon editor are not hosted in SectionHost: inspect the whole content then.
-        var view=Host(run.Main) is {IsVisible:true,Content:FrameworkElement hosted}?hosted:(FrameworkElement)run.Main.Content;
+        // Inicio covers the section host (which stays visible underneath): inspect Inicio itself when it is shown.
+        var view=run.Main.FindName("HomeHost") is ContentControl {IsVisible:true,Content:FrameworkElement home}?home
+            :Host(run.Main) is {IsVisible:true,Content:FrameworkElement hosted}?hosted:(FrameworkElement)run.Main.Content;
         Check(run,view,label);
         RandomizerOptions(run,view,label);
         // Other tabs of the section (MT / tutors, trainer option tabs, template tabs...).
@@ -166,6 +169,8 @@ internal static class VisualAudit
                 tabs.SelectedIndex=tab;Pump(run.Main);
                 Check(run,view,$"{label}-tab{tab}");
             }
+        // Inicio disables the editor behind it: return to the editor (full mode) so the next sections stay reachable.
+        if(ReferenceEquals(view,(run.Main.FindName("HomeHost") as ContentControl)?.Content)){run.Main.ChooseExperience(false);Pump(run.Main);}
     }
 
     // A sidebar entry that is collapsed but enabled is still a route (Automatización: search palette and tour), so it is audited too.

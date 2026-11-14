@@ -22,7 +22,7 @@ public static class NativeMasterBatchBridge
         var settings=state.Settings with{Seed=0};string? hash=null;
         if(state.Action==BatchAction.MoveBalance||settings.PersonalTemplate)
         {
-            string path=Path.GetFullPath(settings.TemplatePath??Path.Combine(AppContext.BaseDirectory,"custom_balance_templates",state.Action==BatchAction.MoveBalance?$"moves_gen{generation}.csv":$"pokemon_stats_gen{generation}.csv"));
+            string path=Path.GetFullPath(settings.TemplatePath??(state.Action==BatchAction.MoveBalance?OptionalTemplates.LegacyMoveTemplate(generation):OptionalTemplates.LegacyStatsTemplate(generation)));
             using var stream=File.OpenRead(path);hash=Convert.ToHexString(SHA256.HashData(stream));
         }
         var native=document.Section("ProgressiveApp") as JsonObject??new();var batches=native["MasterBatches"] as JsonObject??new();
@@ -39,7 +39,7 @@ public static class NativeMasterBatchBridge
         if(action==BatchAction.MoveBalance||value.PersonalTemplate)
         {
             if(node["TemplateSha256"]?.GetValue<string>() is not {} expected)throw new InvalidDataException("Falta el CSV o su SHA-256.");
-            string path=Path.GetFullPath(value.TemplatePath??Path.Combine(AppContext.BaseDirectory,"custom_balance_templates",action==BatchAction.MoveBalance?$"moves_gen{document.Generation}.csv":$"pokemon_stats_gen{document.Generation}.csv"));
+            string path=Path.GetFullPath(value.TemplatePath??(action==BatchAction.MoveBalance?OptionalTemplates.LegacyMoveTemplate(document.Generation):OptionalTemplates.LegacyStatsTemplate(document.Generation)));
             // A CSV changed since the capture is only a warning (CheckAssets); the current file is used.
             if(!File.Exists(path))throw new FileNotFoundException("Falta el CSV del template.",path);
         }

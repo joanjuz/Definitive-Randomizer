@@ -13,10 +13,11 @@ internal static class NdsUiChecks
 {
     internal static void RunUi(Action<bool,string> check)
     {
-        bool opened=false;var start=new StartView(null,false,_=>{},()=>{},()=>{},()=>{},null,()=>opened=true);
-        var entry=Buttons(start).SingleOrDefault(b=>AutomationProperties.GetName(b).Contains("Nintendo DS"));
-        check(entry is not null&&!Buttons(new StartView(null,false,_=>{},()=>{},()=>{},()=>{})).Any(b=>AutomationProperties.GetName(b).Contains("Nintendo DS")),"NdsUi_HomeEntryAppearsOnlyWhenProvided");
-        entry!.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));check(opened,"NdsUi_HomeEntryOpensDsWorkspace");
+        // Inicio has no separate DS entry: the universal «Abrir proyecto…» detects a DS ROM (the DS workspace stays in the search, Ctrl+K).
+        bool opened=false;var start=new StartView(null,false,_=>{},()=>opened=true,()=>{},()=>{});
+        var entry=Buttons(start).FirstOrDefault(b=>b.Content as string=="Abrir proyecto…");
+        check(entry is not null&&!Buttons(start).Any(b=>AutomationProperties.GetName(b).Contains("Nintendo DS")||(b.Content as string)?.StartsWith("Nintendo DS",StringComparison.Ordinal)==true),"NdsUi_HomeHasOnlyTheUniversalOpen");
+        entry!.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));check(opened,"NdsUi_HomeOpenUsesTheUniversalFlow");
 
         var owner=new Window();var workspace=new NdsWorkspaceView(owner);
         string[] sections=["Inicio","Pokémon","Movimientos","Level Up","Evoluciones","MT y tutores","Compatibilidad MT/MO","Compatibilidad de tutores","Entrenadores","Encuentros","Iniciales","Estáticos y regalos","Intercambios","Objetos del mapa","Tiendas","Ajustes del juego","Global Template y Batch","Historial de cambios"];

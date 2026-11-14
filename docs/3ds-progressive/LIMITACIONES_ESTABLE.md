@@ -30,13 +30,18 @@ La versión estable cubre el alcance descrito en la matriz de compatibilidad. **
   - Un **cuelgue al entregar los pétalos** en una partida de USUM. Su causa sigue sin determinar y no hay una reproducción nueva; no está solucionado. Si juegas USUM modificado y te ocurre, repórtalo con los datos de la guía de respaldo.
   - Un **diagnóstico localizado del movimiento Z** en el primer combate contra Tilo. No se ha demostrado como fallo general.
 - El visor de objetos de mapa (OWSE) conserva el alcance de lectura del pk3DS original; no es un editor de mapas.
+- **Megaevoluciones en combates por enlace (Ultra Sol/Ultra Luna):** si los dos juegos tienen habilidades randomizadas distintas, una megaevolución puede usar la habilidad del juego que calcula el combate. Esta versión no incluye corrección; Mega Ability Sync se distribuye en la línea de acceso anticipado 1.1.0-preview.
+- **Combates por Internet o enlace con ROM modificadas:** la estabilidad en línea entre juegos randomizados de forma distinta **no** está garantizada; se investiga por separado y no hay parches experimentales en esta versión.
+- **Player Level Caps, Persistent Items y Shiny Rate:** parches de código; si la firma no coincide (otra revisión o una modificación externa) **no se instalan**. No hay prueba jugable documentada de su combinación.
+- **Balance personal:** no hay balance de movimientos ni de estadísticas por defecto. El de Eris-Ultranova es un paquete opcional; sus mecánicas de combate son personalizaciones de ese romhack y solo se instalan si las eliges.
 
 ## Nintendo DS
 
 - Seis juegos con perfil exacto (ver la matriz). **Negro 2, SoulSilver, Perla** y otras regiones/revisiones no se admiten.
 - **Modo romhack en beta.** El código del juego (overlays, ARM9) solo se parchea si es el original. Negro, Blanco y Blanco 2 son DSi-enhanced y su ARM9 no se modifica.
 - Las confirmaciones jugables corresponden a lo que se indica en la matriz. La edición de entrenadores (PR #56) se comprobó en combate **solo en Platino** (un Pokémon, cuatro movimientos y objeto); no se extrapola a otros juegos DS, a controles no probados, a formas arbitrarias ni a una partida completa.
-- **El editor de eventos y mapas de DS no está incluido** en esta versión. No hay edición de scripts, destinos ni geometría de mapas.
+- **Proyectos DS persistentes:** el archivo `Juego.nds.drproj` se guarda junto a la ROM. No hay un «Deshacer» general de tablas como el de 3DS. Los diálogos de ubicación alternativa y de recuperación no tienen revisión manual documentada.
+- **Editor de eventos y mapas DS: solo Platino USA (CPUE/1).** Mover NPC existentes (campos o ratón), añadir/duplicar/copiar/pegar NPC, copiar una Enfermera Joy con su comportamiento y compartir el script de un NPC de mensaje, con checkpoints y restauración; lienzo de matrices, terreno y estructuras **de solo lectura**. Confirmado en juego por el propietario: la edición manual de X/Y y el intercambio de NPC, y una Enfermera Joy copiada de Ciudad Jubileo a Pueblo Hojaverde. El arrastre con el ratón, la edición estructural general y «compartir script» no tienen prueba jugable propia. **No** hay edición de scripts arbitrarios, destinos (warps), activadores, geometría, estructuras ni entrenadores nuevos, ni soporte de otros juegos, revisiones o romhacks.
 
 ## Espada y Escudo
 
@@ -49,9 +54,9 @@ La versión estable cubre el alcance descrito en la matriz de compatibilidad. **
 
 ## Definitive Game Data v1
 
-- Solo Ultra Sol/Ultra Luna: especies y formas, estadísticas base, tipos, habilidades, propiedades básicas de movimientos y evoluciones.
-- No identifica por sí solo la ROM que ejecuta el emulador, ni incluye parches de combate, gráficos ni lecturas de memoria de DS/Switch.
+- Solo Ultra Sol/Ultra Luna: especies y formas, estadísticas base, tipos, habilidades, propiedades básicas de movimientos y evoluciones; bloque opcional con el estado guardado de Player Level Caps (`playerLevelCaps`).
+- No identifica por sí solo la ROM que ejecuta el emulador, ni incluye parches de combate, gráficos ni lecturas de memoria de DS/Switch. La interoperabilidad con Progressive Tracker se comprobó con pruebas automáticas y en navegador, no con la aplicación de escritorio en una partida real.
 
 ## Fuera de esta versión
 
-Editor de eventos y mapas DS · mentas Gen6 · caramelos raros y repelentes infinitos · perfiles de ROM hacks y biblioteca comunitaria · paridad completa de aprendizajes en Switch (movimientos huevo) · soporte de consola, DLC y Atmosphère.
+Editor de eventos DS fuera de Platino CPUE/1 y edición de scripts, warps, geometría o entrenadores nuevos · parches de estabilidad en línea · mentas Gen6 · caramelos raros y repelentes infinitos · perfiles de ROM hacks y biblioteca comunitaria · paridad completa de aprendizajes en Switch (movimientos huevo) · soporte de consola, DLC y Atmosphère · funciones de la línea de acceso anticipado 1.1.0-preview (perfiles compartibles, informes de capacidades, diagnóstico y comparador de megaevoluciones, Mega Ability Sync, procedencia de perfiles).

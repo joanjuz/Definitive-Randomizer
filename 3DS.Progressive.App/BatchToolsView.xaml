@@ -43,10 +43,9 @@
     <TextBlock x:Name="ActionHelp" Foreground="{DynamicResource TextSoft}" TextWrapping="Wrap" Margin="0,0,0,8"/>
     <StackPanel x:Name="TemplatePanel" Visibility="Collapsed" Margin="0,0,0,12">
      <TextBlock x:Name="TemplateCaption" Text="Template de movimientos" Foreground="{DynamicResource TextSoft}" Margin="0,0,0,7"/>
-     <TextBlock x:Name="TemplateName" Text="Balance Progressive incluido" TextWrapping="Wrap" Margin="0,0,0,9"/>
+     <TextBlock x:Name="TemplateName" Text="Ningún CSV elegido. El programa no aplica ningún balance por defecto." TextWrapping="Wrap" Margin="0,0,0,9"/>
      <WrapPanel>
-      <Button Content="Cargar CSV…" Click="LoadTemplate_Click" Margin="0,0,8,8"/>
-      <Button Content="Usar Progressive" Click="DefaultTemplate_Click" Margin="0,0,0,8"/>
+      <Button x:Name="LoadTemplateButton" Content="Cargar CSV…" Click="LoadTemplate_Click" Margin="0,0,8,8"/>
      </WrapPanel>
     </StackPanel>
     <StackPanel x:Name="OptionsPanel"/>

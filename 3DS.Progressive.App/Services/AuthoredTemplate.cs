@@ -124,14 +124,8 @@ internal sealed partial class AuthoredTemplate
     private static IEnumerable<int> ProgressivePool(GameProjectSession p,string kind)=>kind=="Shops"&&p.Generation==7?GameMartService.ProgressiveCatalog:ProgressiveLegacy.Randomizer.GetRandomItemList(p.GameConfiguration);
     internal static AuthoredTemplate Progressive(GameProjectSession p,string kind)
     {
-        if(kind=="Moves"&&p.Generation==7&&!p.GameConfiguration.USUM)throw new InvalidDataException("El template de movimientos Progressive corresponde a USUM. En Sol/Luna puedes crear tu propio template de datos de movimientos, sin los parches exclusivos de USUM.");
-        if(kind is "Moves" or "Evolutions" or "Stats")
-        {
-            string file=(kind=="Moves"?"moves":kind=="Stats"?"pokemon_stats":"evolutions")+$"_gen{p.Generation}.csv";
-            string path=Path.Combine(AppContext.BaseDirectory,"custom_balance_templates",file);
-            if(kind=="Moves"&&(!File.Exists(path)||MoveTemplates.LoadMovePatches(path,p.MoveNames.ToArray()).Length==0)){var built=Create(p,kind);built.SetMoveRows(p,BuiltInMoveBalance.ForGeneration(p.Generation));built.ValidateShape(p);return built;}
-            return Import(p,kind,path);
-        }
+        if(kind is "Moves" or "Stats")throw new InvalidDataException("El balance de movimientos y de estadísticas no tiene valores incluidos: importa el CSV que quieras usar.");
+        if(kind=="Evolutions")return Import(p,kind,Path.Combine(AppContext.BaseDirectory,"custom_balance_templates",$"evolutions_gen{p.Generation}.csv"));
         var d=Create(p,kind);if(kind=="Shops"){d.ShopMode="Replace";d.Options=LegacyShopOptions(p);}
         int[] allowed=ProgressivePool(p,kind).Where(id=>id>0&&id<p.ItemNames.Count).Distinct().Order().ToArray();
         d.AllowedItems=allowed;d.BannedItems=Enumerable.Range(1,p.ItemNames.Count-1).Except(allowed).Where(id=>kind!="Shops"||!(p.Generation==6?GameMart6Service.IsProtectedItem(id):GameMartService.IsProtectedItem(id))).ToArray();
