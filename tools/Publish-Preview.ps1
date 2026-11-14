@@ -1,6 +1,6 @@
 ﻿param(
     [Parameter(Mandatory=$true)][string]$OutputDirectory,
-    [string]$Version = '1.0.0',
+    [string]$Version = '1.1.0-preview.1',
     [ValidateSet('PRIVATE','PUBLIC')][string]$DistributionMode = 'PRIVATE',
     [string]$PublicReleaseCommit
 )
