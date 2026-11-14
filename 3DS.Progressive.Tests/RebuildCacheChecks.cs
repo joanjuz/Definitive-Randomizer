@@ -7,6 +7,7 @@ internal static class RebuildCacheChecks
 {
     internal static void Run(Action<bool,string> check)
     {
+        RebuildExheaderChecks.Run(check);
         using var f=new Fixture(GameVersion.XY);GlobalCompletionChecks.SetupCode(f);
         string icon=Path.Combine(f.Game.ExeFS,"icon.bin");File.WriteAllBytes(icon,new byte[]{1,2,3});
         string outside=Path.Combine(Path.GetTempPath(),"rebuild-cache-check-"+Guid.NewGuid().ToString("N"));Directory.CreateDirectory(outside);

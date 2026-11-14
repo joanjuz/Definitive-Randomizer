@@ -196,6 +196,7 @@ if(args.Length==1&&args[0]=="--definitive-game-data-only")
 }
 if(args.Length==4&&args[0]=="--usum-mints-distribution-real-copies"){await UsumMintDistributionRealChecks.Run(args[1],args[2],args[3],Check);Console.WriteLine($"Completed {checks} private mint distribution checks.");return;}
 if(args.Length==1&&args[0]=="--usum-mints-distribution-only"){UsumMintDistributionChecks.Run(Check,Reject);Console.WriteLine($"Completed {checks} USUM mint distribution checks.");return;}
+if(args.Length is 3 or 4&&args[0]=="--rerandomize-cycle-probe"){RerandomizeCycleChecks.Run(args[1],args[2],Check,args.Length==4?args[3]:null);Console.WriteLine($"Completed {checks} private re-extraction cycle checks; gameplay NOT tested.");return;}
 if(args.Length==3&&args[0]=="--usum-mints-project-regression"){UsumMintProjectRegressionChecks.Run(args[1],args[2],Check);Console.WriteLine($"Completed {checks} private USUM mint project regression checks.");return;}
 if(args.Length==1&&args[0]=="--usum-mints-only"){UsumNatureMintChecks.Run(Check,Reject);Console.WriteLine($"Completed {checks} USUM mint checks.");return;}
 if(args.Length==4&&args[0]=="--usum-mints-compatibility-probe"){UsumNatureMintChecks.CompatibilityProbe(args[1],args[2],args[3],Check,Reject);Console.WriteLine($"Completed {checks} USUM mint compatibility checks (real code/Bag; synthetic items/texts).");return;}

@@ -58,10 +58,15 @@ public static class UsumMintCodeDataProfile
     }
     private static string NativeFailure(byte[] code,bool moon)
     {
-        foreach(var range in UsumMintNativeDependencies.Profiles[moon?1:0]){
-            string hash=Convert.ToHexString(SHA256.HashData(code.AsSpan(range.Offset,range.Length)));
-            if(hash!=range.Sha256)return $"Dependencia de mentas {(moon?"UM":"US")} no acreditada: {range.Name}, code.bin 0x{range.Offset:X}–0x{range.Offset+range.Length-1:X} (dirección nativa 0x{range.Offset+0x100000:X}). La implementación, instrucciones o referencias de esta dependencia cambiaron; no se instala.";
-        }
-        return "";
+        var profile=UsumMintNativeDependencies.Profiles[moon?1:0];
+        var failed=profile.Where(range=>Convert.ToHexString(SHA256.HashData(code.AsSpan(range.Offset,range.Length)))!=range.Sha256).ToArray();
+        if(failed.Length==0)return "";
+        var first=failed[0];
+        // The count tells a targeted change (a few routines) from a compressed, encrypted or foreign
+        // executable (every range). Functional mints never write these routines, so this is never
+        // an "already installed" state. Every caller validates before writing anything.
+        return $"Dependencia de mentas {(moon?"UM":"US")} no acreditada: {first.Name}, code.bin 0x{first.Offset:X}–0x{first.Offset+first.Length-1:X} (dirección nativa 0x{first.Offset+0x100000:X}). La implementación, instrucciones o referencias de esta dependencia cambiaron; no se instala. "+
+            $"Difieren {failed.Length} de {profile.Length} dependencias y esta es la primera"+(failed.Length==profile.Length?": el code.bin no es un ejecutable USUM descomprimido de este juego.":"; el resto del ejecutable no se compara.")+
+            " No corresponde a mentas ya instaladas, que no modifican esas rutinas. Solo se bloquean las mentas: el resto del proyecto puede editarse y reconstruirse, y no se modificó ningún archivo.";
     }
 }

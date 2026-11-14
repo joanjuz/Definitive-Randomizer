@@ -22,6 +22,8 @@
 
 `--usum-mints-compatibility-probe <code.bin US reconocido> <code.bin UM reconocido> <Bag.cro original reconocido>` lee dependencias privadas sin modificar las fuentes. Comprueba originales, combinación de tipos/obediencia/MT/shiny, rechazo preciso de cambios en las seis entradas nativas, auxiliares, descriptores y tablas de naturaleza/bloques PK7; acepta cambios ajenos en código, tablas y datos. Verifica instalación/reapertura/deshacer y archivos ajenos. Usa objetos y textos sintéticos: no equivale a una ROM completa ni a una prueba jugable.
 
+`--rerandomize-cycle-probe <carpeta nueva de salida> <imagen .3ds/.cxi reconstruida> [<Global Template>]` extrae la imagen, la abre, edita un entrenador, reconstruye un Trimmed .3DS y lo vuelve a extraer dos veces. En el segundo ciclo puede volver a aplicar un Global Template, edita otro entrenador y randomiza un tercero. Exige que las extracciones coincidan byte a byte con el proyecto editado, que los cambios se acumulen y que se mantengan la identidad NCCH y el estado de las mentas. La imagen de origen no cambia y todo se escribe en la salida nueva. Si falla, guarda la etapa y la excepción completa en `cycle-failure.txt`. Usa copias privadas, no ejecuta el juego. Documentación: [REEXTRACCION_3DS_CXI.md](REEXTRACCION_3DS_CXI.md).
+
 `--usum-mints-project-regression <proyecto USUM privado> <copia nueva de salida>` copia los archivos reales de RomFS/ExeFS y las cabeceras a una salida nueva y separada. En un proyecto sin mentas exige preparación, instalación, reapertura, historial y deshacer exacto de los archivos, preservando lo ajeno; en uno ya instalado comprueba reconocimiento. Contrasta las fuentes antes/después y no escribe en ellas. No ejecuta el juego ni reconstruye una ROM.
 
 `--definitive-game-data-profile-fixtures <carpeta nueva o vacía>` produce documentos del exportador real para ausencia, aplicación, modificaciones y deshacer de procedencia histórica de perfiles. `--definitive-game-data-only` también verifica la procedencia sin escrituras, secciones realmente confirmadas, ediciones posteriores, deshacer, historial antiguo/corrupto y coexistencia con caps.
@@ -100,7 +102,7 @@ dotnet .\3DS.Progressive.Tests\bin\Release\net10.0-windows\3DS.Progressive.Tests
 | `--performance-only` | — |  |
 | `--pickup-only` | — |  |
 | `--pokefeur-only` | — |  |
-| `--rebuild-cache-only` | — |  |
+| `--rebuild-cache-only` | — | incluye la validación sintética del ExHeader de la reconstrucción .3DS |
 | `--rebuild-stability-only` | — | sí |
 | `--remote-sprites-only` | — |  |
 | `--requested-only` | — |  |
@@ -229,6 +231,7 @@ Necesitan extracciones, ROMs o carpetas de salida. Los argumentos concretos (ent
 | `--nds-map-props-probe` | `<informe JSON nuevo> <ROM privada Platino CPUE/1>` | solo lectura; no copia ni exporta ROM |
 | `--nds-map-props-ui-probe` | `<carpeta nueva> <ROM privada Platino CPUE/1>` | editor de eventos real fuera de pantalla sobre una copia; capturas; sin escrituras |
 | `--nds-npc-structure-probe` | `<carpeta nueva> <ROM privada Platino CPUE/1>` | copia la fuente a la carpeta nueva; no modifica la original |
+| `--rerandomize-cycle-probe` | `<carpeta nueva de salida> <imagen .3ds/.cxi reconstruida> [<Global Template>]` | dos ciclos de extracción, edición y reconstrucción sobre copias; la imagen de origen no cambia; documentación: [REEXTRACCION_3DS_CXI.md](REEXTRACCION_3DS_CXI.md) |
 | `--project-detector-probe` | `<carpeta nueva de informe> <ruta> [<ruta>…]` | detecta cada archivo o carpeta, comprueba que no cambia (SHA-256 o instantánea) y abre los candidatos DS y Switch con su motor; solo lectura; documentación: [DETECTOR_PROYECTOS_B1.md](DETECTOR_PROYECTOS_B1.md) |
 | `--universal-open-live-probe` | `<carpeta nueva de informe> <ruta> [<ruta>…]` | **interactiva**: abre cada ruta, en orden, desde el botón único «Abrir proyecto» con ratón y teclado reales (SendInput); necesita un escritorio desbloqueado; solo lee las entradas y comprueba que no cambian |
 | `--nds-project-resilience-probe` | `<carpeta nueva de salida> <operaciones 20-5000> <ROM DS> [<ROM DS>…]` | la resistencia de `--nds-project-resilience-only` con volcados privados en solo lectura (los proyectos se escriben en la carpeta de salida) |

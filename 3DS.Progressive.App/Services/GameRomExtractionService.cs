@@ -74,7 +74,10 @@ internal sealed class GameRomExtractionService(string? protectedProject=null)
                             int at=records.FindIndex(f=>f.Path=="ExeFS/.code.bin");
                             using var stream=File.OpenRead(code);records[at]=new("ExeFS/.code.bin",stream.Length,Convert.ToHexString(SHA256.HashData(stream)));
                         }
-                        else if(length%0x200!=0)throw new InvalidDataException("code.bin comprimido o incompatible; la extracción no se publicó.");
+                        // A header that declares BLZ without a verifiable footer must not publish a
+                        // still-compressed code.bin: every later rebuild would encode it a second time.
+                        else if(plan.CodeCompressed)throw new InvalidDataException("El ExHeader declara code.bin comprimido, pero su compresión BLZ no se pudo verificar; la extracción no se publicó y el contenedor original no se modificó.");
+                        else throw new InvalidDataException("code.bin comprimido o incompatible; la extracción no se publicó.");
                     }
                 }
                 UiProgress.Stage("Calculando SHA-256 del contenedor original…");
