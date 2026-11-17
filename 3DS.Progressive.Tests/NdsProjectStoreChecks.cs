@@ -197,7 +197,7 @@ internal static class NdsProjectStoreChecks
         project = Populated(root, "externo-nuevo", 3);
         using (var store = NdsProjectFileStore.Open(project))
         {
-            var plan = Damage(project, store, b => b[NdsProjectCodec.HeaderSize + 30] ^= 1); File.WriteAllBytes(project, NdsProjectCodec.Serialize(new NdsProjectDocument(Chain(4).Meta with { MinReaderVersion = 2 }, Chain(4).State))); byte[] newer = File.ReadAllBytes(project);
+            var plan = Damage(project, store, b => b[NdsProjectCodec.HeaderSize + 30] ^= 1); File.WriteAllBytes(project, NdsProjectCodec.Serialize(new NdsProjectDocument(Chain(4).Meta with { MinReaderVersion = NdsProjectCodec.ContainerVersion + 1 }, Chain(4).State))); byte[] newer = File.ReadAllBytes(project);
             check(store.Load().Status == NdsProjectLoadStatus.NewerFormat && Fails(() => store.Commit(Chain(5), 4)) == NdsProjectStoreError.NewerFormat && Fails(() => store.Recover(plan.Recommended!)) == NdsProjectStoreError.NewerFormat
                 && File.ReadAllBytes(project).AsSpan().SequenceEqual(newer) && !Names(Path.GetDirectoryName(project)!).Any(n => n.Contains("damaged", StringComparison.Ordinal)), "NdsFileStore_ANewerFormatProjectIsNeitherWrittenNorReplacedByABackup");
         }

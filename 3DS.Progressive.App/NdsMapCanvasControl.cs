@@ -39,6 +39,54 @@ internal sealed class NdsMapCanvasControl : FrameworkElement
     private NdsMapTool _tool;
     private bool _middlePan;
     private (PlatinumEvent Template, Func<int, int, NdsPlacementEval> Evaluate, int X, int Y, NdsPlacementEval? Eval)? _placement;
+    private NdsFacingState? _facing;
+    private bool _showVision = true, _showAllVision;
+
+    // ---- facing and trainer sight (the view owns the values; the canvas only draws them and reports clicks and keys) -------------------------------
+    /// <summary>The selected NPC's stored and proposed facing/sight, or null when nothing turnable is selected.</summary>
+    internal NdsFacingState? Facing => _facing;
+    internal void SetFacing(NdsFacingState? facing) { _facing = facing; InvalidateVisual(); }
+    /// <summary>Sight of the selected trainer (stored and proposed).</summary>
+    internal bool ShowVision { get => _showVision; set { _showVision = value; InvalidateVisual(); } }
+    /// <summary>Stored sight of every visible trainer of the map (faint), besides the selected one.</summary>
+    internal bool ShowAllVision { get => _showAllVision; set { _showAllVision = value; InvalidateVisual(); } }
+    /// <summary>A direction handle was clicked, or Mayús+flecha was pressed. Nothing is changed by the canvas itself.</summary>
+    internal event Action<int>? RotateRequested;
+    /// <summary>Mayús++ / Mayús+− on the canvas: one step more or less of sight.</summary>
+    internal event Action<int>? SightStepRequested;
+    internal const double HandleZoom = 16;
+    /// <summary>Centre of the direction handle <paramref name="direction"/> of the selected NPC, or null when handles are not shown.</summary>
+    internal Point? HandleCentre(int direction)
+    {
+        if (_model is null || _facing is not { } f || !NdsTrainerVision.CanTurn(f.Npc) || _model.Zoom < HandleZoom) return null;
+        var c = _model.TileToPixel(f.X + 0.5, f.Y + 0.5); var (dx, dy) = PlatinumTrainerVision.Step(direction); double r = Math.Clamp(_model.Zoom * 0.45, 6, 11) + 13;
+        return new Point(c.X + dx * r, c.Y + dy * r);
+    }
+    /// <summary>What a left click does on a direction handle: asks to turn the NPC and reports true; never starts a drag, a pan or a selection.</summary>
+    internal bool TurnAt(Point point)
+    {
+        if (_drag is not null || _placement is not null || HandleAt(point) is not int direction) return false;
+        RotateRequested?.Invoke(direction); return true;
+    }
+    /// <summary>
+    /// Mayús+flecha turns the selected NPC; Mayús with + or − changes the trainer's sight. Returns true when the key is one of them (handled even when there is
+    /// nothing to turn, so it never falls through to selection or panning). Plain arrows, Ctrl+arrows, + and − keep their meaning.
+    /// </summary>
+    internal bool FacingKey(Key key, ModifierKeys modifiers)
+    {
+        if ((modifiers & ModifierKeys.Shift) == 0 || (modifiers & (ModifierKeys.Control | ModifierKeys.Alt)) != 0) return false;
+        bool editable = _facing is not null && _drag is null && _placement is null;
+        int? turn = key switch { Key.Up => 0, Key.Down => 1, Key.Left => 2, Key.Right => 3, _ => null };
+        if (turn is int d) { if (editable) RotateRequested?.Invoke(d); return true; }
+        if (key is Key.Add or Key.OemPlus or Key.Subtract or Key.OemMinus) { if (editable) SightStepRequested?.Invoke(key is Key.Add or Key.OemPlus ? 1 : -1); return true; }
+        return false;
+    }
+    /// <summary>The direction handle under a point (a click there turns the NPC and never starts a drag or a selection).</summary>
+    internal int? HandleAt(Point point)
+    {
+        for (int d = 0; d < 4; d++) if (HandleCentre(d) is { } c && Math.Abs(point.X - c.X) <= 8 && Math.Abs(point.Y - c.Y) <= 8) return d;
+        return null;
+    }
 
     internal NdsMapCanvasModel? Model => _model;
     /// <summary>Raised only for user clicks/keys (not for programmatic selection) so tables stay the source of truth.</summary>
@@ -126,13 +174,13 @@ internal sealed class NdsMapCanvasControl : FrameworkElement
         Focusable = true; ClipToBounds = true; SnapsToDevicePixels = true; FocusVisualStyle = null;
         RenderOptions.SetEdgeMode(this, EdgeMode.Aliased); RenderOptions.SetBitmapScalingMode(this, BitmapScalingMode.NearestNeighbor); Cursor = Cursors.Arrow;
         AutomationProperties.SetName(this, "Eventos DS · mapa esquemático de eventos");
-        AutomationProperties.SetHelpText(this, SchematicNotice + " Flechas: elegir el evento vecino. Ctrl+flechas: desplazar. + y −: zoom. F: ajustar a eventos. Re Pág y Av Pág: siguiente o anterior.");
+        AutomationProperties.SetHelpText(this, SchematicNotice + " Flechas: elegir el evento vecino. Ctrl+flechas: desplazar. Mayús+flechas: girar el NPC seleccionado. Mayús con + o −: alcance de visión del entrenador. + y −: zoom. F: ajustar a eventos. Re Pág y Av Pág: siguiente o anterior.");
         Unloaded += (_, _) => { if (IsMouseCaptured) ReleaseMouseCapture(); _pressed = _panning = false; };
     }
 
     internal void SetMap(PlatinumMapLayout layout, IEnumerable<PlatinumEvent> events, PlatinumTerrain? terrain = null, (int Width, int Height)? editorBounds = null, (PlatinumEventKind Kind, int Index)? selected = null, NdsMapLayers? layers = null, PlatinumLandProps? props = null)
     {
-        CancelDrag(); _placement = null; _pendingMove = null; _pendingAdd = null;
+        CancelDrag(); _placement = null; _pendingMove = null; _pendingAdd = null; _facing = null;
         var previousLayers = layers ?? _model?.Layers ?? NdsMapLayers.All; var previous = _model;
         _model = new NdsMapCanvasModel(layout, events, terrain, editorBounds, props) { Layers = previousLayers };
         _terrainBitmap = null;
@@ -145,7 +193,7 @@ internal sealed class NdsMapCanvasControl : FrameworkElement
         else if (ActualWidth > 0 && ActualHeight > 0) _model.SetViewport(ActualWidth, ActualHeight);
         Refresh();
     }
-    internal void Clear() { CancelDrag(); _placement = null; _pendingMove = null; _model = null; Refresh(); }
+    internal void Clear() { CancelDrag(); _placement = null; _pendingMove = null; _facing = null; _model = null; Refresh(); }
     internal void SetLayers(NdsMapLayers layers) { if (_model is not null) _model.Layers = layers; Refresh(); }
     internal void SelectProgrammatic(PlatinumEvent? item, bool reveal)
     {
@@ -179,6 +227,7 @@ internal sealed class NdsMapCanvasControl : FrameworkElement
         Focus(); if (_model is null) return;
         var start = e.GetPosition(this);
         if (_placement is not null) { PlacementClick(start); e.Handled = true; return; }
+        if (TurnAt(start)) { e.Handled = true; return; }
         if (BeginDragAt(start)) { CaptureMouse(); e.Handled = true; return; }
         if (DragDeclined) { e.Handled = true; return; }
         _down = _last = start; _pressed = true; _panning = false; CaptureMouse(); e.Handled = true;
@@ -225,6 +274,7 @@ internal sealed class NdsMapCanvasControl : FrameworkElement
         if (e.Key == Key.Escape && _placement is not null) { CancelPlacement(); e.Handled = true; return; }
         if (e.Key == Key.Escape && _drag is not null) { CancelDrag(); e.Handled = true; return; }
         if (_model is null) return;
+        if (FacingKey(e.Key, Keyboard.Modifiers)) { e.Handled = true; return; }
         bool ctrl = (Keyboard.Modifiers & ModifierKeys.Control) != 0; bool handled = true;
         (int dx, int dy) = e.Key switch { Key.Left => (-1, 0), Key.Right => (1, 0), Key.Up => (0, -1), Key.Down => (0, 1), _ => (0, 0) };
         if (dx != 0 || dy != 0) Navigate(dx, dy, ctrl);
@@ -410,6 +460,10 @@ internal sealed class NdsMapCanvasControl : FrameworkElement
             DrawMarker(dc, m, marker, px, py); drawn.Add(marker); RenderedMarkers++;
             if (z >= 14 && marker.Shape != NdsMarkerShape.Trigger) { var c = m.TileToPixel(marker.CenterX, marker.CenterY); dc.DrawText(Text("#" + marker.Index, 10, textBrush), new Point(c.X + 9, c.Y - 18)); }
         }
+        if (_showAllVision && (m.Layers & NdsMapLayers.Npc) != 0)
+            foreach (var marker in drawn.Where(k => k.Kind == PlatinumEventKind.Npc && PlatinumTrainerVision.ChecksSight(k.Event.Type) && (_facing is null || k.Index != _facing.Npc.Index)))
+                DrawSight(dc, m, NdsTrainerVision.Cells(m, marker.Event, marker.X, marker.Y, marker.Event.Direction, marker.Event.Sight), faint: true);
+        if (_facing is { } facing && _showVision && (m.Layers & NdsMapLayers.Npc) != 0) DrawFacing(dc, m, facing);
         if (m.SelectedMarker is { } sel && m.IsLayerVisible(sel)) DrawSelection(dc, m, sel);
         if (_drag is { Active: true } drag) DrawGhost(dc, m, drag.Npc, drag.Plan.ToX, drag.Plan.ToY, drag.Plan.Outcome, "");
         else if (_pendingMove is { } pending) DrawGhost(dc, m, pending.Npc, pending.X, pending.Y, null, "propuesta pendiente");
@@ -471,6 +525,12 @@ internal sealed class NdsMapCanvasControl : FrameworkElement
         var c = model.TileToPixel(marker.CenterX, marker.CenterY); var centre = new Point(c.X, c.Y);
         double r = Math.Clamp(model.Zoom * 0.45, 6, 11);
         dc.DrawGeometry(fill, edge, ShapeGeometry(marker.Shape, centre, r));
+        // Facing tick: a short notch on the side the NPC looks at, only when tiles are large enough to read it.
+        if (marker.Shape == NdsMarkerShape.Npc && model.Zoom >= 14 && marker.Event.Direction is >= 0 and <= 3)
+        {
+            var (fx, fy) = PlatinumTrainerVision.Step(marker.Event.Direction);
+            dc.DrawLine(TickPen, new Point(c.X + fx * r * 0.3, c.Y + fy * r * 0.3), new Point(c.X + fx * (r + 4), c.Y + fy * (r + 4)));
+        }
         if (marker.Placement == NdsMarkerPlacement.OutsideOwnedBlocks) dc.DrawEllipse(null, WarnPen, centre, r + 5, r + 5);
         else if (marker.Placement == NdsMarkerPlacement.OutsideMatrix) { dc.DrawLine(WarnPen, new Point(c.X - r - 4, c.Y - r - 4), new Point(c.X + r + 4, c.Y + r + 4)); dc.DrawLine(WarnPen, new Point(c.X - r - 4, c.Y + r + 4), new Point(c.X + r + 4, c.Y - r - 4)); }
     }
@@ -494,6 +554,62 @@ internal sealed class NdsMapCanvasControl : FrameworkElement
         else if (outcome == NdsMoveOutcome.NeedsWarning) { var q = Text("?", 14, Brushes.Black); dc.DrawText(q, new Point(target.X - q.Width / 2, target.Y - q.Height / 2)); }
         string label = (showOrigin ? $"{npc.X},{npc.Y} → {tx},{ty}" : $"{tx},{ty}") + (note.Length > 0 ? " · " + note : "");
         var text = Text(label, 11.5, Brushes.White); var spot = new Point(Math.Clamp(target.X - text.Width / 2, 2, Math.Max(2, ActualWidth - text.Width - 6)), Math.Max(2, target.Y - side / 2 - text.Height - 4));
+        dc.DrawRectangle(new SolidColorBrush(Color.FromArgb(0xD0, 0x10, 0x16, 0x1E)), null, new Rect(spot.X - 3, spot.Y - 1, text.Width + 6, text.Height + 2)); dc.DrawText(text, spot);
+    }
+
+    private static readonly Pen TickPen = Freeze(new Pen(new SolidColorBrush(Color.FromRgb(0x10, 0x16, 0x1E)), 2.5) { StartLineCap = PenLineCap.Round, EndLineCap = PenLineCap.Round });
+    private static readonly Pen SavedSightPen = Freeze(new Pen(Brushes.White, 1.5) { DashStyle = DashStyles.Dot });
+    /// <summary>Colour of each sight state. Same hues as the move ghosts: teal = no known collision, amber = no data, red = blocked.</summary>
+    internal static Color SightColor(NdsSightState state) => state switch
+    {
+        NdsSightState.Open => Color.FromRgb(0x4F, 0xC9, 0xB5),
+        NdsSightState.Unknown => Color.FromRgb(0xF2, 0xB8, 0x4B),
+        NdsSightState.Blocked => Color.FromRgb(0xFF, 0x5A, 0x5A),
+        NdsSightState.Occupied => Color.FromRgb(0xC3, 0xA6, 0xF2),
+        _ => Color.FromRgb(0xA6, 0xB5, 0xC9),
+    };
+    private static void DrawSight(DrawingContext dc, NdsMapCanvasModel m, IReadOnlyList<NdsSightCell> cells, bool faint)
+    {
+        foreach (var cell in cells)
+        {
+            var (px, py) = m.TileToPixel(cell.X, cell.Y); var color = SightColor(cell.State); var rect = new Rect(px + 1, py + 1, Math.Max(2, m.Zoom - 2), Math.Max(2, m.Zoom - 2));
+            byte alpha = faint ? (byte)0x30 : cell.State == NdsSightState.Shadowed ? (byte)0x28 : (byte)0x66;
+            var pen = faint ? null : new Pen(new SolidColorBrush(color), cell.State is NdsSightState.Blocked or NdsSightState.Occupied ? 2 : 1.2) { DashStyle = cell.State is NdsSightState.Shadowed or NdsSightState.Unknown ? DashStyles.Dash : DashStyles.Solid };
+            dc.DrawRectangle(new SolidColorBrush(Color.FromArgb(alpha, color.R, color.G, color.B)), pen, rect);
+        }
+    }
+    /// <summary>Selected NPC: stored sight (dotted outline) when it differs from the proposal, proposed sight (filled), facing arrow and the four turn handles.</summary>
+    private void DrawFacing(DrawingContext dc, NdsMapCanvasModel m, NdsFacingState f)
+    {
+        bool trainer = f.Sight is not null;
+        if (trainer && f.Changed && f.SavedSight is int savedSight)
+            foreach (var cell in NdsTrainerVision.Cells(m, f.Npc, f.SavedX, f.SavedY, f.SavedDirection, savedSight))
+            {
+                var (px, py) = m.TileToPixel(cell.X, cell.Y); dc.DrawRectangle(null, SavedSightPen, new Rect(px + 2, py + 2, Math.Max(2, m.Zoom - 4), Math.Max(2, m.Zoom - 4)));
+            }
+        if (trainer) DrawSight(dc, m, NdsTrainerVision.Cells(m, f.Npc, f.X, f.Y, f.Direction, f.Sight!.Value), faint: false);
+        if (f.Direction is < 0 or > 3) return;
+        var accent = Themed(this, "Accent", Inspect); var c = m.TileToPixel(f.X + 0.5, f.Y + 0.5);
+        double r = Math.Clamp(m.Zoom * 0.45, 6, 11), length = r + Math.Max(10, m.Zoom * 0.6);
+        var (dx, dy) = PlatinumTrainerVision.Step(f.Direction); var tip = new Point(c.X + dx * length, c.Y + dy * length);
+        dc.DrawLine(new Pen(accent, 3) { EndLineCap = PenLineCap.Round, StartLineCap = PenLineCap.Round }, new Point(c.X + dx * r, c.Y + dy * r), tip);
+        const double head = 6;
+        dc.DrawGeometry(accent, null, Polygon(tip, new Point(tip.X - dx * head - dy * head, tip.Y - dy * head - dx * head), new Point(tip.X - dx * head + dy * head, tip.Y - dy * head + dx * head)));
+        if (f.SavedDirection != f.Direction && f.SavedDirection is >= 0 and <= 3)
+        {
+            var (sx, sy) = PlatinumTrainerVision.Step(f.SavedDirection);
+            dc.DrawLine(SavedSightPen, new Point(c.X + sx * r, c.Y + sy * r), new Point(c.X + sx * length, c.Y + sy * length));
+        }
+        for (int d = 0; d < 4; d++)
+            if (HandleCentre(d) is { } h)
+            {
+                var (hx, hy) = PlatinumTrainerVision.Step(d); const double s = 6;
+                var triangle = Polygon(new Point(h.X + hx * s, h.Y + hy * s), new Point(h.X - hx * s * 0.4 - hy * s, h.Y - hy * s * 0.4 - hx * s), new Point(h.X - hx * s * 0.4 + hy * s, h.Y - hy * s * 0.4 + hx * s));
+                dc.DrawGeometry(d == f.Direction ? accent : new SolidColorBrush(Color.FromArgb(0xC0, 0x10, 0x16, 0x1E)), new Pen(accent, 1.5), triangle);
+            }
+        string label = PlatinumTrainerVision.DirectionName(f.Direction) + (trainer ? $" · visión {f.Sight}" : "") + (f.Changed ? " · propuesta" : "");
+        var text = Text(label, 11.5, Brushes.White);
+        var spot = new Point(Math.Clamp(c.X - text.Width / 2, 2, Math.Max(2, ActualWidth - text.Width - 6)), Math.Clamp(c.Y + r + (dy > 0 ? length + 6 : 18), 2, Math.Max(2, ActualHeight - text.Height - 2)));
         dc.DrawRectangle(new SolidColorBrush(Color.FromArgb(0xD0, 0x10, 0x16, 0x1E)), null, new Rect(spot.X - 3, spot.Y - 1, text.Width + 6, text.Height + 2)); dc.DrawText(text, spot);
     }
 

@@ -276,6 +276,11 @@ internal static class StablePolishChecks
         try
         {
             main.NavigateTo("History");Wait(()=>((ContentControl)main.FindName("SectionHost")).Content is HistoryView);
+            // As for the user: «Deshacer» is only reachable once the History has finished its own check (that check blocks the interaction). Starting the
+            // reload while it still runs let the late end of that cancelled check consume the result kept for the new History.
+            var progress=(FrameworkElement)main.FindName("OperationProgress");
+            Wait(()=>((ContentControl)main.FindName("SectionHost")).Content is HistoryView {IsLoaded:true});UiPump.Idle();
+            Wait(()=>progress.Visibility!=Visibility.Visible&&!UiProgress.IsInteractionBlocked);UiPump.Idle();
             var before=main.Session;
             var task=(Task)typeof(MainWindow).GetMethod("ReloadAfterUndoAsync",Private)!.Invoke(main,null)!;
             Wait(()=>task.IsCompleted);
@@ -284,7 +289,9 @@ internal static class StablePolishChecks
             check(task.IsCompletedSuccessfully&&!ReferenceEquals(before,main.Session)&&host.Content is HistoryView&&((ContentControl)main.FindName("HomeHost")).Visibility==Visibility.Collapsed,
                 $"StablePolish_Undo_ReloadsTheProjectAndStaysInHistory ({task.Exception?.GetBaseException().Message}{host.Content?.GetType().Name})");
             // After the History has finished verifying the files (its own progress message must not hide the result).
-            var progress=(FrameworkElement)main.FindName("OperationProgress");
+            // The History starts that check from its Loaded event, which comes after it becomes the content: wait until it is loaded (so the check has
+            // started) before waiting for the check to end. Otherwise the wait below can pass before the check even begins.
+            Wait(()=>host.Content is HistoryView {IsLoaded:true});UiPump.Idle();
             Wait(()=>progress.Visibility!=Visibility.Visible&&!UiProgress.IsInteractionBlocked);UiPump.Idle();
             check(status.Text.Contains("deshecho",StringComparison.Ordinal),$"StablePolish_Undo_ShowsTheResult ({status.Text})");
         }

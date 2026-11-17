@@ -100,7 +100,7 @@ internal static class NdsProjectOpenChecks
         // A project written by a newer build.
         string future = folder("futuro"), futureRom = rom(future, "Juego.nds", null);
         using (var project = Open(futureRom)) Work(project, 0);
-        var document = NdsProjectCodec.Read(File.ReadAllBytes(futureRom + ".drproj")).Document!; byte[] newer = NdsProjectCodec.Serialize(new(document.Meta with { MinReaderVersion = 2 }, document.State)); File.WriteAllBytes(futureRom + ".drproj", newer);
+        var document = NdsProjectCodec.Read(File.ReadAllBytes(futureRom + ".drproj")).Document!; byte[] newer = NdsProjectCodec.Serialize(new(document.Meta with { MinReaderVersion = NdsProjectCodec.ContainerVersion + 1 }, document.State)); File.WriteAllBytes(futureRom + ".drproj", newer);
         check(Throws(() => Open(futureRom).Dispose()) == nameof(InvalidDataException) && File.ReadAllBytes(futureRom + ".drproj").AsSpan().SequenceEqual(newer) && !Names(future).Any(n => n.Contains("damaged", StringComparison.Ordinal)), "NdsProjectOpen_AProjectOfANewerVersionIsNotOpenedNorModified");
     }
 
@@ -181,7 +181,7 @@ internal static class NdsProjectOpenChecks
         check(ProjectDetector.Detect(renamed) is { IsCandidate: true, Kind: DetectedKind.DsProject }, "NdsProjectDetector_AProjectIsRecognisedByItsContentNotItsName");
         byte[] bytes = File.ReadAllBytes(project); string torn = Path.Combine(place, "cortado.drproj"); File.WriteAllBytes(torn, bytes[..(bytes.Length / 2)]);
         check(ProjectDetector.Detect(torn) is { IsCandidate: false, Status: DetectionStatus.Incomplete, Kind: DetectedKind.DsProject }, "NdsProjectDetector_ATruncatedProjectIsIncomplete");
-        var document = NdsProjectCodec.Read(bytes).Document!; string newer = Path.Combine(place, "nuevo.drproj"); File.WriteAllBytes(newer, NdsProjectCodec.Serialize(new(document.Meta with { MinReaderVersion = 2 }, document.State)));
+        var document = NdsProjectCodec.Read(bytes).Document!; string newer = Path.Combine(place, "nuevo.drproj"); File.WriteAllBytes(newer, NdsProjectCodec.Serialize(new(document.Meta with { MinReaderVersion = NdsProjectCodec.ContainerVersion + 1 }, document.State)));
         check(ProjectDetector.Detect(newer) is { IsCandidate: false, Status: DetectionStatus.Unsupported, Kind: DetectedKind.DsProject }, "NdsProjectDetector_AProjectOfANewerVersionIsUnsupported");
         // The ROM is not where it was last used: it is looked for next to the project (by game, revision and size); the engine compares the SHA-256.
         string away = folder("detector-movido"), movedProject = Path.Combine(away, "Trabajo.drproj"); File.Copy(project, movedProject);

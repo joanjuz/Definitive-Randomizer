@@ -330,6 +330,12 @@ if(args.Length==1&&args[0]=="--nds-events-ui-only")
 {
     Exception? failure=null;var thread=new Thread(()=>{try{var app=new ThreeDS.Progressive.App();app.InitializeComponent();WpfTestHost.SuppressStartup();ThreeDS.Progressive.StudioDialog.AutomatedChecks=true;NdsEventChecks.RunUi(Check);}catch(Exception ex){failure=ex;}});thread.SetApartmentState(ApartmentState.STA);thread.Start();thread.Join();if(failure is not null)System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(failure).Throw();Console.WriteLine($"Completed {checks} NDS event UI checks (off-screen).");return;
 }
+if(args.Length==1&&args[0]=="--nds-trainer-vision-only"){NdsTrainerVisionChecks.Run(Check);Console.WriteLine($"Completed {checks} DS trainer facing and sight checks (synthetic).");return;}
+if(args.Length==1&&args[0]=="--nds-trainer-vision-ui-only")
+{
+    Exception? failure=null;var thread=new Thread(()=>{try{var app=new ThreeDS.Progressive.App();app.InitializeComponent();WpfTestHost.SuppressStartup();ThreeDS.Progressive.StudioDialog.AutomatedChecks=true;NdsTrainerVisionChecks.RunUi(Check);}catch(Exception ex){failure=ex;}});thread.SetApartmentState(ApartmentState.STA);thread.Start();thread.Join();if(failure is not null)System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(failure).Throw();Console.WriteLine($"Completed {checks} DS trainer facing and sight UI checks (off-screen).");return;
+}
+if(args.Length==3&&args[0]=="--nds-trainer-vision-probe"){NdsTrainerVisionChecks.Probe(args[1],args[2]);return;}
 if(args.Length==1&&args[0]=="--nds-trainers-only"){NdsTrainerParityChecks.Run(Check);Console.WriteLine($"Completed {checks} DS trainer parity checks (synthetic).");return;}
 if(args.Length==1&&args[0]=="--nds-only"){NdsChecks.Run(Check,Reject);NdsGen5RandomizerChecks.Run(Check,Reject);NdsGen4Checks.Run(Check,Reject);NdsDataChecks.Run(Check,Reject);NdsTrainerParityChecks.Run(Check);NdsEventChecks.Run(Check);Console.WriteLine($"Completed {checks} NDS container checks (synthetic).");return;}
 if(args.Length==1&&args[0]=="--legacy-parity-only"){LegacyParityChecks.Run(Check,Reject);Console.WriteLine($"Completed {checks} app/LegacyBatch parity checks.");return;}

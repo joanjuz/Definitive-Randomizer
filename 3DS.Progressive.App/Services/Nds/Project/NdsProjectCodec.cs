@@ -46,7 +46,8 @@ internal sealed record NdsProjectReadResult(NdsProjectReadStatus Status, string 
 /// </summary>
 internal static class NdsProjectCodec
 {
-    internal const int HeaderSize = 64, FooterSize = 40, ContainerVersion = 1;
+    /// <summary><c>ContainerVersion</c> is the newest reader this build is: 2 understands event histories with fixed-look turns and trainer sight.</summary>
+    internal const int HeaderSize = 64, FooterSize = 40, ContainerVersion = 2;
     internal static readonly byte[] Magic = "DRDSPRJ1"u8.ToArray(), EndMagic = "DRDSEND1"u8.ToArray();
     // Safety limits (a real project is a few hundred KiB; these only stop corrupt or hostile files from exhausting memory).
     internal const int MaxManifestBytes = 32 * 1024 * 1024, MaxBlobs = 4096, MaxOperations = 200_000, MaxBlobRawBytes = 256 * 1024 * 1024;
