@@ -190,7 +190,7 @@ internal sealed partial class NdsProject
         IReadOnlyList<NdsProjectOperationRecord> operations, NdsProjectEvents? events, byte[]? eventData, byte[]? eventScripts)
     {
         var settings = current.Meta.Settings is { } existing ? (JsonObject)existing.DeepClone() : new JsonObject(); settings["AllowRomhack"] = IsRomhack;
-        return new(current.Meta with { Writer = _writer, Rom = current.Meta.Rom with { LastKnownPath = SourcePath }, Operations = operations, Events = events, RecompressOverlays = recompress.Order().ToArray(), Settings = settings },
+        return new(current.Meta with { MinReaderVersion = events?.RequiredReader ?? 1, Writer = _writer, Rom = current.Meta.Rom with { LastKnownPath = SourcePath }, Operations = operations, Events = events, RecompressOverlays = recompress.Order().ToArray(), Settings = settings },
             new NdsProjectState { Files = files, Overlays = overlays, Arm9 = arm9, EventData = eventData, EventScripts = eventScripts });
     }
 

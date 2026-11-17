@@ -79,7 +79,10 @@ internal sealed class NdsEventSession
     {
         lock (_gate)
         {
-            var before = PlatinumEvents.Values(Data.Npc(map, index));
+            var npc = Data.Npc(map, index);
+            // Movement and sight are part of the edit only when they change: a plain move or turn keeps the shape (and the version) of earlier checkpoints.
+            values = values with { Movement = values.Movement == npc.Movement ? null : values.Movement, Sight = values.Sight == npc.Sight ? null : values.Sight };
+            var before = new PlatinumNpcValues(npc.X, npc.Y, npc.Direction, values.Movement is null ? null : npc.Movement, values.Sight is null ? null : npc.Sight);
             _ = Data.ReplaceNpc(map, index, before, values);
             var edit = new NdsNpcEdit(map, index, before, values);
             return new(_owner, Revision, NdsEventOperation.OfMove(edit), false, Differences(edit));
@@ -127,7 +130,9 @@ internal sealed class NdsEventSession
         var changes = new List<Gen5Change>(); string name = $"Mapa {edit.Map} · NPC {edit.Index}";
         if (edit.Before.X != edit.After.X) changes.Add(new(name, "Coordenada X", edit.Before.X, edit.After.X));
         if (edit.Before.Y != edit.After.Y) changes.Add(new(name, "Coordenada Y", edit.Before.Y, edit.After.Y));
-        if (edit.Before.Direction != edit.After.Direction) changes.Add(new(name, "Dirección", edit.Before.Direction, edit.After.Direction));
+        if (edit.Before.Direction != edit.After.Direction) changes.Add(new(name, $"Dirección ({PlatinumTrainerVision.DirectionName(edit.Before.Direction)} → {PlatinumTrainerVision.DirectionName(edit.After.Direction)})", edit.Before.Direction, edit.After.Direction));
+        if (edit.Before.Movement is int fromMovement && edit.After.Movement is int toMovement && fromMovement != toMovement) changes.Add(new(name, "Movimiento «mirar fijo»", fromMovement, toMovement));
+        if (edit.Before.Sight is int fromSight && edit.After.Sight is int toSight && fromSight != toSight) changes.Add(new(name, "Alcance de visión (casillas)", fromSight, toSight));
         return changes.AsReadOnly();
     }
     private static IReadOnlyList<Gen5Change> AdditionChanges(NdsNpcAddition add, int countAfter, bool undo = false) =>
@@ -260,10 +265,14 @@ internal sealed class NdsEventSession
             _ops = operations.ToList(); _audit = audit.ToList(); Data = next; LastCheckpoint = null; Revision++;
         }
     }
+    /// <summary>The checkpoint version a history needs: 4 when an NPC edit turns a fixed-look movement or changes a trainer's sight, else the earlier rule.</summary>
+    internal static int VersionFor(IReadOnlyList<NdsEventOperation> ops) =>
+        ops.Any(HasVisionFields) ? 4 : ops.All(o => o.Kind == NdsEventOperation.MoveKind) ? 1 : ops.Any(o => o.Add?.Script is not null) ? 3 : 2;
+    internal static bool HasVisionFields(NdsEventOperation? o) => o?.Move is { } m && (m.Before?.HasVisionFields == true || m.After?.HasVisionFields == true);
     private NdsEventDocument Build(List<NdsEventOperation> ops, List<string> audit) =>
-        ops.All(o => o.Kind == NdsEventOperation.MoveKind)
+        VersionFor(ops) == 1
             ? new(Format, 1, "CPUE", 1, SourcePath, _sha256, ops.Select(o => o.Move!).ToList().AsReadOnly(), audit.AsReadOnly())
-            : new(Format, ops.Any(o => o.Add?.Script is not null) ? 3 : 2, "CPUE", 1, SourcePath, _sha256, Array.Empty<NdsNpcEdit>(), audit.AsReadOnly(), ops.AsReadOnly());
+            : new(Format, VersionFor(ops), "CPUE", 1, SourcePath, _sha256, Array.Empty<NdsNpcEdit>(), audit.AsReadOnly(), ops.AsReadOnly());
     private static IReadOnlyList<NdsEventOperation> Operations(NdsEventDocument document) =>
         document.Version >= 2 ? document.Operations! : document.Edits.Select(NdsEventOperation.OfMove).ToList();
     internal void Load(NdsEventDocument document, string checkpoint)
@@ -276,9 +285,12 @@ internal sealed class NdsEventSession
     }
     private void ValidateDocument(NdsEventDocument document)
     {
-        bool shape = document.Version == 1 ? document.Operations is null && document.Edits is not null
-            : document.Version is 2 or 3 && document.Operations is not null && document.Operations.Count > 0 && document.Edits is { Count: 0 }
-              && (document.Version == 3 ? document.Operations.Any(o => o?.Add?.Script is not null) : document.Operations.All(o => o?.Add?.Script is null));
+        // Version 4 exists only for histories with turned fixed-look movements or edited sight; earlier versions must not carry those fields
+        // (a build that does not know them would ignore them and replay something else).
+        bool shape = document.Version == 1 ? document.Operations is null && document.Edits is not null && document.Edits.All(e => e?.Before?.HasVisionFields != true && e?.After?.HasVisionFields != true)
+            : document.Version is 2 or 3 or 4 && document.Operations is not null && document.Operations.Count > 0 && document.Edits is { Count: 0 }
+              && (document.Version == 4 ? document.Operations.Any(HasVisionFields) : !document.Operations.Any(HasVisionFields))
+              && (document.Version switch { 3 => document.Operations.Any(o => o?.Add?.Script is not null), 2 => document.Operations.All(o => o?.Add?.Script is null), _ => true });
         if (document.Format != Format || !shape || document.Game != "CPUE" || document.Revision != 1 ||
             document.SourceSha256 != _sha256 || !Path.GetFullPath(document.SourcePath).Equals(SourcePath, StringComparison.OrdinalIgnoreCase) ||
             document.Audit is null || (document.Edits?.Count ?? 0) > 10000 || (document.Operations?.Count ?? 0) > 10000 || document.Audit.Count > 20000 || document.Audit.Any(s => s is null || s.Length > 2048))

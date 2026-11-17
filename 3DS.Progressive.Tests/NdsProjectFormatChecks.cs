@@ -51,7 +51,7 @@ internal static class NdsProjectFormatChecks
     {
         var doc = Doc(); byte[] bytes = NdsProjectCodec.Serialize(doc); var read = NdsProjectCodec.Read(bytes);
         check(read.Ok && SameDoc(doc, read.Document!) && read.Document!.Meta.Blobs!.Count == 7, "NdsProject_RoundTripKeepsEveryField");
-        check(read.Header is { ContainerVersion: 1, Generation: 1, OperationCount: 4 } && read.Header.SavedUtc == doc.Meta.SavedUtc && read.Header.TotalLength == bytes.Length, "NdsProject_HeaderCarriesGenerationOperationsAndTime");
+        check(read.Header is { ContainerVersion: NdsProjectCodec.ContainerVersion, Generation: 1, OperationCount: 4 } && read.Header.SavedUtc == doc.Meta.SavedUtc && read.Header.TotalLength == bytes.Length, "NdsProject_HeaderCarriesGenerationOperationsAndTime");
         check(NdsProjectCodec.Serialize(doc).AsSpan().SequenceEqual(bytes) && NdsProjectCodec.Serialize(read.Document!).AsSpan().SequenceEqual(bytes), "NdsProject_SerializationIsDeterministicAndStableAcrossReload");
         var empty = new NdsProjectDocument(doc.Meta with { Operations = [], Events = null, RecompressOverlays = [], Settings = null }, new NdsProjectState());
         var emptyRead = NdsProjectCodec.Read(NdsProjectCodec.Serialize(empty));
@@ -88,7 +88,7 @@ internal static class NdsProjectFormatChecks
         var op = new NdsOperation("Manual", 5, [new Gen5Change("x", "y", 1, 2)], new JsonObject { ["Kind"] = "Edit" });
         var rec = NdsProjectOperationRecord.Of(op); var back = rec.ToOperation();
         check(back.Action == op.Action && back.Seed == 5 && back.Changes.SequenceEqual(op.Changes) && back.Recipe.ToJsonString() == op.Recipe.ToJsonString() && !ReferenceEquals(back.Recipe, op.Recipe), "NdsProject_OperationRecordConvertsBothWaysWithoutAliasing");
-        var newer = NdsProjectCodec.Read(NdsProjectCodec.Serialize(new NdsProjectDocument(doc.Meta with { MinReaderVersion = 2 }, doc.State)));
+        var newer = NdsProjectCodec.Read(NdsProjectCodec.Serialize(new NdsProjectDocument(doc.Meta with { MinReaderVersion = NdsProjectCodec.ContainerVersion + 1 }, doc.State)));
         check(newer.Status == NdsProjectReadStatus.NewerFormat && newer.Header is { Generation: 1 }, "NdsProject_NewerFormatIsRefusedNotGuessed");
     }
 
@@ -291,10 +291,10 @@ internal static class NdsProjectFormatChecks
         using (var s = new InMemoryNdsProjectStore(partial)) check(s.Load().Plan!.Candidates.Select(c => c.Generation).SequenceEqual([3L, 2]), "NdsProjectRecovery_DamagedBackupsAreNotOffered");
         var allBad = Populated(3, out _); allBad.Main![30] ^= 1; foreach (var bkp in allBad.Backups) bkp[40] ^= 1;
         using (var s = new InMemoryNdsProjectStore(allBad)) check(s.Load() is { Status: NdsProjectLoadStatus.Damaged, Plan.Recommended: null }, "NdsProjectRecovery_NoValidBackupMeansNoOfferAndNothingIsChanged");
-        var future = new NdsProjectMedium { Main = NdsProjectCodec.Serialize(new NdsProjectDocument(Doc().Meta with { MinReaderVersion = 2 }, Doc().State)) }; byte[] before = future.Main.ToArray();
+        var future = new NdsProjectMedium { Main = NdsProjectCodec.Serialize(new NdsProjectDocument(Doc().Meta with { MinReaderVersion = NdsProjectCodec.ContainerVersion + 1 }, Doc().State)) }; byte[] before = future.Main.ToArray();
         using (var s = new InMemoryNdsProjectStore(future)) check(s.Load().Status == NdsProjectLoadStatus.NewerFormat && Fails(() => s.Commit(Next(Doc(), 1), 1)) == NdsProjectStoreError.NewerFormat && future.Main.AsSpan().SequenceEqual(before), "NdsProjectStore_NewerFormatIsNeverModified");
         // A newer-format main file is not "damaged": a recovery must not move it aside and install an older backup over it.
-        var newerWithBackups = Populated(4, out var newest); byte[] newerMain = NdsProjectCodec.Serialize(new NdsProjectDocument(newest.Meta with { MinReaderVersion = 2, Generation = 5 }, newest.State)); newerWithBackups.Main = newerMain;
+        var newerWithBackups = Populated(4, out var newest); byte[] newerMain = NdsProjectCodec.Serialize(new NdsProjectDocument(newest.Meta with { MinReaderVersion = NdsProjectCodec.ContainerVersion + 1, Generation = 5 }, newest.State)); newerWithBackups.Main = newerMain;
         using (var s = new InMemoryNdsProjectStore(newerWithBackups))
         {
             var backup = NdsProjectCodec.Read(newerWithBackups.Backups[0]); var candidate = new NdsProjectRecoveryCandidate("copia 1", backup.Document!.Generation, backup.Document.OperationCount, backup.Document.Meta.SavedUtc, backup.Document, newerWithBackups.Backups[0]);

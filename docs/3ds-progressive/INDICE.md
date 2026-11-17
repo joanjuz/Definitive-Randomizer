@@ -17,6 +17,7 @@ Punto de entrada a `docs/3ds-progressive/`. Muchos documentos son **registros hi
 | Rediseño del editor DS: diagnóstico con entrada real, referencia DSPRE, copia entre mapas y plan del renderer | [NDS_EDITOR_REDESIGN_PLAN.md](NDS_EDITOR_REDESIGN_PLAN.md) |
 | NPC DS con comportamiento (enfermera, scripts compartidos), checkpoint v3 y diseño de entrenadores nuevos | [NDS_NPC_SCRIPTS_PHASE6.md](NDS_NPC_SCRIPTS_PHASE6.md) |
 | Editor DS A1: «Añadir enfermera» funcional desde una plantilla real de la ROM (Platino) | [NDS_ANADIR_ENFERMERA_A1.md](NDS_ANADIR_ENFERMERA_A1.md) |
+| Editor DS: orientación y alcance de visión de entrenadores existentes, capa de visión, checkpoint v4 y proyecto con lector 2 (Platino) | [NDS_ENTRENADORES_ORIENTACION_VISION.md](NDS_ENTRENADORES_ORIENTACION_VISION.md) |
 | Detector universal de proyectos (B1): plataforma, juego y compatibilidad de una ruta, sin abrir nada; plan de B2 | [DETECTOR_PROYECTOS_B1.md](DETECTOR_PROYECTOS_B1.md) |
 | Apertura universal de proyectos (B2): un único «Abrir proyecto» para DS, 3DS y Switch; conservación del proyecto anterior y recuperación 3DS tipada | [APERTURA_UNIVERSAL_B2.md](APERTURA_UNIVERSAL_B2.md) |
 | Proyectos DS persistentes con autoguardado (requisito de 1.0.0): auditoría, arquitectura, formato `.drproj`, contrato de persistencia, mediciones y plan por PR | [PROYECTOS_DS_PERSISTENTES.md](PROYECTOS_DS_PERSISTENTES.md), [mediciones](PROYECTOS_DS_PERSISTENTES_MEDIDAS.md) |

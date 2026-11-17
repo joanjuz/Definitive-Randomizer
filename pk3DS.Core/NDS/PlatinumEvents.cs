@@ -27,7 +27,51 @@ public sealed record PlatinumEvent(PlatinumEventKind Kind, int Index, int Id, in
         _ => "Activador de script (solo consulta)",
     };
 }
-public sealed record PlatinumNpcValues(int X, int Y, int Direction);
+/// <summary>
+/// The editable values of an existing NPC. <c>Movement</c> and <c>Sight</c> are optional: null means "not part of this edit" (every checkpoint written before
+/// they existed has them null and is replayed exactly as before). When set, before and after must both carry them.
+/// </summary>
+public sealed record PlatinumNpcValues(int X, int Y, int Direction, int? Movement = null, int? Sight = null)
+{
+    public bool HasVisionFields => Movement is not null || Sight is not null;
+}
+
+/// <summary>
+/// Facing and trainer sight in Platinum, as the engine uses them (pret/pokeplatinum, public decompilation: <c>constants/map_object.h</c>,
+/// <c>struct_defs/events.h</c>, <c>trainer_encounter.c</c>, <c>res/field/scripts/battles.s</c>; checked against the owner's CPUE/1 dump):
+/// <list type="bullet">
+/// <item>+12 is the facing direction: 0 north (up), 1 south (down), 2 west (left), 3 east (right).</item>
+/// <item>+6 is the trainer type. 1 checks sight in the facing direction; 2 in the four directions; 4–8 turn by themselves and are checked like 1 with the
+/// direction they face at that moment; 0 is not a trainer; 3 is a ground item; 9–11 are not identified.</item>
+/// <item>+14 is <c>data[0]</c>: the sight range of the trainer types above. For other NPC it holds unrelated values (up to 117 in the original data), so
+/// it is never presented or edited as sight there.</item>
+/// <item>Movement types 14–17 (LOOK_NORTH, LOOK_SOUTH, LOOK_WEST, LOOK_EAST) keep the NPC facing one direction; the game itself turns trainers for good by
+/// changing that movement type. In the original data every such trainer has the direction that matches its movement type.</item>
+/// </list>
+/// </summary>
+public static class PlatinumTrainerVision
+{
+    /// <summary>Largest sight range of a trainer in the original CPUE/1 data. The engine has no explicit cap; larger values are not accredited.</summary>
+    public const int MaxAccreditedSight = 6;
+    public const int LookNorthMovement = 14, LookEastMovement = 17;
+    public static bool ChecksSight(int trainerType) => trainerType is 1 or 2 or (>= 4 and <= 8);
+    public static bool SeesAllDirections(int trainerType) => trainerType == 2;
+    public static bool TurnsByItself(int trainerType) => trainerType is >= 4 and <= 8;
+    public static bool IsFixedLook(int movement) => movement is >= LookNorthMovement and <= LookEastMovement;
+    /// <summary>The LOOK_* movement type that keeps an NPC facing <paramref name="direction"/> (14 + direction).</summary>
+    public static int FixedLookFor(int direction) => direction is >= 0 and <= 3 ? LookNorthMovement + direction : throw new ArgumentOutOfRangeException(nameof(direction));
+    /// <summary>Movement types whose facing does not change by itself: none (0) and the fixed looks. Any other one turns or walks, so a stored direction is only the initial one.</summary>
+    public static bool KeepsFacing(int movement) => movement == 0 || IsFixedLook(movement);
+    public static string DirectionName(int direction) => direction switch { 0 => "Arriba", 1 => "Abajo", 2 => "Izquierda", 3 => "Derecha", _ => $"desconocida ({direction})" };
+    public static (int Dx, int Dy) Step(int direction) => direction switch { 0 => (0, -1), 1 => (0, 1), 2 => (-1, 0), 3 => (1, 0), _ => throw new ArgumentOutOfRangeException(nameof(direction)) };
+    /// <summary>Battle script ranges of the engine (Script_GetTrainerID): 3000+ single battles, 5000+ double battles. Returns the trainer id or null.</summary>
+    public static int? TrainerId(int script) => script switch { >= 5000 and < 6000 => script - 5000 + 1, >= 3000 and < 5000 => script - 3000 + 1, _ => null };
+    /// <summary>Why <paramref name="npc"/> cannot have its sight edited, or null when it can.</summary>
+    public static string? SightRefusal(PlatinumEvent npc) =>
+        npc.Kind != PlatinumEventKind.Npc ? "no es un NPC"
+        : !ChecksSight(npc.Type) ? $"el juego no comprueba la visión de este NPC (tipo {npc.Type}: {(npc.Type == 0 ? "no es entrenador" : npc.Type == 3 ? "objeto de suelo" : "tipo no identificado")}); su campo +14 no es un alcance"
+        : npc.Sight > MaxAccreditedSight ? $"su alcance guardado ({npc.Sight}) supera el máximo acreditado ({MaxAccreditedSight})" : null;
+}
 public sealed record PlatinumScriptLink(int Reference, int Archive, int? Entry, int? Offset, string Status, string Bytes);
 
 /// <summary>
@@ -45,6 +89,8 @@ public sealed class PlatinumEvents
     /// <summary>Largest NPC block found in the original CPUE/1 event archive (verified on the owner's dump). New NPC are never allowed beyond it: the real engine limit is not known.</summary>
     public const int MaxVanillaNpcCount = 51;
     public const string NormalizedEventsSha256 = "24D1E66E53C5D87DE91CAA26D6D19690C8AC04BAFDE1EAD6BFD7C25F2E1AA7DE";
+    /// <summary><see cref="EditableHash"/> of the original CPUE/1 event archive (computed on the owner's dump, whose <see cref="NormalizedHash"/> is the constant above).</summary>
+    public const string EditableEventsSha256 = "EAB5C0E3F69E80479F257484E576E70425C45E082A21917A0C0AA716029033B3";
     private readonly byte[] _events;
     private readonly Narc _scripts, _matrixFiles;
     private readonly int[] _starts;
@@ -68,7 +114,7 @@ public sealed class PlatinumEvents
             throw new InvalidDataException("Eventos CPUE/1: ARM9, nombres, matrices o scripts no coinciden con las tablas acreditadas.");
         var result = Parse(arm9.AsSpan(HeaderOffset, HeaderCount * 24).ToArray(), names, rom.ReadFile(EventPath), matrices, scripts, locationNames);
         if (Gen5Data.Crc32(arm9.AsSpan(HeaderOffset, HeaderCount * 24).ToArray()) != HeadersCrc32 || result._maps.Length != HeaderCount ||
-            result._blocks.Count != 534 || result._scripts.Files.Count != 1124 || result.NormalizedHash() != NormalizedEventsSha256)
+            result._blocks.Count != 534 || result._scripts.Files.Count != 1124 || (result.NormalizedHash() != NormalizedEventsSha256 && !result.IsAccreditedVisionEdit()))
             throw new InvalidDataException("Eventos CPUE/1: las tablas o los bytes no editables no coinciden con el perfil.");
         return result;
     }
@@ -170,17 +216,35 @@ public sealed class PlatinumEvents
         int file = Map(mapId).EventFile; var users = _maps.Where(m => m.EventFile == file);
         return (users.Min(m => m.Width), users.Min(m => m.Height));
     }
+    /// <summary>
+    /// Writes X, Y and direction of an existing NPC and, when the edit carries them, its fixed-look movement type (+4) and trainer sight (+14).
+    /// Every other byte stays as it is. The extended fields are only accepted where they mean what the editor says (see <see cref="PlatinumTrainerVision"/>).
+    /// </summary>
     public byte[] ReplaceNpc(int mapId, int index, PlatinumNpcValues expected, PlatinumNpcValues values)
     {
         var npc = Npc(mapId, index); var bounds = Bounds(mapId);
-        if (Values(npc) != expected) throw new InvalidOperationException("El NPC cambió desde la vista previa.");
+        if (!Matches(npc, expected)) throw new InvalidOperationException("El NPC cambió desde la vista previa.");
         if (values.X < 0 || values.X >= bounds.Width || values.Y < 0 || values.Y >= bounds.Height || values.Direction is < 0 or > 3)
             throw new ArgumentOutOfRangeException(nameof(values), "Coordenadas fuera de la matriz o dirección fuera de 0–3.");
+        if (expected.Movement.HasValue != values.Movement.HasValue || expected.Sight.HasValue != values.Sight.HasValue)
+            throw new ArgumentException("El estado anterior y el propuesto deben incluir los mismos campos.", nameof(values));
+        if (values.Movement is int movement && (!PlatinumTrainerVision.IsFixedLook(npc.Movement) || movement != PlatinumTrainerVision.FixedLookFor(values.Direction)))
+            throw new ArgumentOutOfRangeException(nameof(values), "El tipo de movimiento solo cambia entre «mirar fijo» (14–17) y debe coincidir con la dirección propuesta.");
+        if (values.Sight is int sight)
+        {
+            string? refusal = PlatinumTrainerVision.SightRefusal(npc) ?? (sight is < 0 or > PlatinumTrainerVision.MaxAccreditedSight ? $"debe estar entre 0 y {PlatinumTrainerVision.MaxAccreditedSight}" : null);
+            if (refusal is not null) throw new ArgumentOutOfRangeException(nameof(values), $"Alcance de visión no admitido: {refusal}.");
+        }
         byte[] output = (byte[])_events.Clone(); int file = Map(mapId).EventFile;
         int at = _starts[file] + _blocks[file][1].Offset + index * 32;
         Put16(output, at + 24, values.X); Put16(output, at + 26, values.Y); Put16(output, at + 12, values.Direction);
+        if (values.Movement is int m) Put16(output, at + 4, m);
+        if (values.Sight is int s) Put16(output, at + 14, s);
         return output;
     }
+    private static bool Matches(PlatinumEvent npc, PlatinumNpcValues expected) =>
+        npc.X == expected.X && npc.Y == expected.Y && npc.Direction == expected.Direction &&
+        (expected.Movement is null || expected.Movement == npc.Movement) && (expected.Sight is null || expected.Sight == npc.Sight);
     public int NpcCount(int mapId) => _blocks[Map(mapId).EventFile][1].Count;
 
     /// <summary>
@@ -300,19 +364,34 @@ public sealed class PlatinumEvents
     public PlatinumEvents WithEvents(byte[] events)
     {
         var next = new PlatinumEvents(_headers, _names, events, _matrices, _scriptBytes, _labels);
-        if (next.NormalizedHash() != NormalizedHash()) throw new InvalidDataException("La edición altera bytes ajenos a X/Y/dirección de NPC.");
+        if (next.EditableHash() != EditableHash()) throw new InvalidDataException("La edición altera bytes ajenos a los campos editables de NPC (X/Y, dirección, giro fijo y visión de entrenador).");
         return next;
     }
-    public string NormalizedHash()
+    /// <summary>The accredited fingerprint used since phase 1: the whole NARC with direction and X/Y of every NPC cleared.</summary>
+    public string NormalizedHash() => Fingerprint(vision: false);
+    /// <summary>
+    /// Like <see cref="NormalizedHash"/>, and also clearing the sight (+14) of the trainer types that check it and the movement type (+4) of NPC whose
+    /// movement is a fixed look (14–17). Which records are cleared depends only on their type and on whether their movement is a fixed look, which an
+    /// accepted edit never changes: a movement turned into anything else, or a sight written on another kind of NPC, changes this fingerprint.
+    /// </summary>
+    public string EditableHash() => Fingerprint(vision: true);
+    private string Fingerprint(bool vision)
     {
         byte[] bytes = Bytes();
         for (int file = 0; file < _blocks.Count; file++) for (int i = 0; i < _blocks[file][1].Count; i++)
         {
             int at = _starts[file] + _blocks[file][1].Offset + i * 32;
             bytes.AsSpan(at + 12, 2).Clear(); bytes.AsSpan(at + 24, 4).Clear();
+            if (!vision) continue;
+            if (PlatinumTrainerVision.ChecksSight(U16(bytes, at + 6))) bytes.AsSpan(at + 14, 2).Clear();
+            if (PlatinumTrainerVision.IsFixedLook(U16(bytes, at + 4))) bytes.AsSpan(at + 4, 2).Clear();
         }
         return Convert.ToHexString(SHA256.HashData(bytes));
     }
+    /// <summary>A ROM rebuilt with turned trainers or edited sight: the editable fingerprint of the profile, and every trainer sight within the accredited range.</summary>
+    private bool IsAccreditedVisionEdit() =>
+        EditableHash() == EditableEventsSha256 &&
+        _maps.Select(m => m.Id).All(id => Events(id).All(e => e.Kind != PlatinumEventKind.Npc || !PlatinumTrainerVision.ChecksSight(e.Type) || e.Sight <= PlatinumTrainerVision.MaxAccreditedSight));
     public string WarpStatus(PlatinumEvent warp)
     {
         if (warp.Kind != PlatinumEventKind.Warp) throw new ArgumentException("No es un warp.");

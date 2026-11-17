@@ -121,11 +121,11 @@ internal sealed class NdsEventEditorView : UserControl
             _tables[i] = table; _tabs.Items.Add(new TabItem { Header = titles[i], Content = table }); AccessibleName(table, "Eventos DS · tabla " + titles[i]);
         }
         var inspector = new StackPanel { Margin = new Thickness(10, 0, 0, 0) };
-        inspector.Children.Add(_selection); inspector.Children.Add(_newBox);
+        inspector.Children.Add(_selection); inspector.Children.Add(_newBox); inspector.Children.Add(BuildFacingPanel());
         foreach (var (label, box) in new[] { ("Coordenada X", _x), ("Coordenada Y", _y), ("Dirección (0–3)", _direction) })
         {
             inspector.Children.Add(new TextBlock { Text = label, Margin = new Thickness(0, 8, 0, 3) }); inspector.Children.Add(box); AccessibleName(box, "Eventos DS · " + label);
-            box.TextChanged += (_, _) => { if (!_updating) { _dirty = true; InvalidatePreview(); } };
+            box.TextChanged += (_, _) => { if (!_updating) { _dirty = true; InvalidatePreview(); UpdateFacing(); } };
         }
         foreach (var button in new[] { _warp, _script }) { button.Margin = new Thickness(0, 10, 0, 4); inspector.Children.Add(button); }
         _details.MinHeight = 150; _details.MaxHeight = 330; inspector.Children.Add(_details);
@@ -186,6 +186,13 @@ internal sealed class NdsEventEditorView : UserControl
             if (layer == NdsMapLayers.None) { box.IsChecked = false; box.IsEnabled = false; box.ToolTip = "No disponible: exige leer los modelos NSBMD y las texturas NSBTX, que no están implementados."; AutomationProperties.SetHelpText(box, (string)box.ToolTip); }
             box.Checked += (_, _) => ApplyLayers(); box.Unchecked += (_, _) => ApplyLayers(); _layerBar.Children.Add(box);
         }
+        foreach (var (box, tip) in new[] { (_visionSelected, "Visión del NPC seleccionado: flecha de orientación y casillas que alcanza (guardado y propuesto)."), (_visionAll, "Visión guardada de todos los entrenadores visibles (tenue).") })
+        {
+            box.ToolTip = tip + " " + NdsTrainerVision.GeometricNotice; AccessibleName(box, "Eventos DS · capa " + box.Content); AutomationProperties.SetHelpText(box, (string)box.ToolTip);
+            box.SetResourceReference(ForegroundProperty, "TextMain"); _layerBar.Children.Add(box);
+        }
+        _visionSelected.Checked += (_, _) => _canvas.ShowVision = true; _visionSelected.Unchecked += (_, _) => _canvas.ShowVision = false;
+        _visionAll.Checked += (_, _) => _canvas.ShowAllVision = true; _visionAll.Unchecked += (_, _) => _canvas.ShowAllVision = false;
         Grid.SetRow(_layerBar, 1); _center.Children.Add(_layerBar);
         _canvasFrame = new Border { BorderThickness = new Thickness(1), Child = _canvas, MinHeight = 180 }; _canvasFrame.SetResourceReference(Border.BorderBrushProperty, "Stroke");
         Grid.SetRow(_canvasFrame, 2); _center.Children.Add(_canvasFrame); Grid.SetRow(_tabs, 2); _center.Children.Add(_tabs); _tabs.Visibility = Visibility.Collapsed;
@@ -199,6 +206,106 @@ internal sealed class NdsEventEditorView : UserControl
         Grid.SetColumn(_center, 1); _body.Children.Add(_center);
         _modeMap.Checked += (_, _) => ApplyMode(); _modeTables.Checked += (_, _) => ApplyMode();
         _canvas.PropPicked += ShowProp; _canvas.EventPicked += PickFromCanvas; _canvas.ViewChanged += UpdateScale; _canvas.Hover += text => _hover.Text = text;
+        _canvas.RotateRequested += Rotate; _canvas.SightStepRequested += StepSight;
+    }
+
+    // ---- facing and trainer sight: turning or changing the sight only fills the existing fields and runs the existing Preview ---------------------
+    private static readonly string[] TurnGlyphs = ["↑", "↓", "←", "→"];
+    private readonly Button[] _turn = new Button[4];
+    private readonly TextBox _sight = new() { Width = 46, HorizontalContentAlignment = HorizontalAlignment.Center, VerticalContentAlignment = VerticalAlignment.Center };
+    private readonly Button _sightMinus = new() { Content = "−", MinWidth = 32 }, _sightPlus = new() { Content = "+", MinWidth = 32 }, _facingRestore = new() { Content = "Restaurar valores guardados", Margin = new Thickness(0, 6, 0, 0) };
+    private readonly TextBlock _facingState = new() { TextWrapping = TextWrapping.Wrap, FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 6, 0, 0) };
+    private readonly TextBlock _facingNotes = new() { TextWrapping = TextWrapping.Wrap, FontSize = 11.5, Margin = new Thickness(0, 6, 0, 0) };
+    private readonly TextBlock _sightHelp = new() { TextWrapping = TextWrapping.Wrap, FontSize = 11.5, Margin = new Thickness(0, 2, 0, 0) };
+    private readonly StackPanel _sightRow = new() { Orientation = System.Windows.Controls.Orientation.Horizontal, Margin = new Thickness(0, 3, 0, 0) };
+    private readonly Border _facingBox = new() { BorderThickness = new Thickness(1), Padding = new Thickness(8), Margin = new Thickness(0, 8, 0, 0), Visibility = Visibility.Collapsed };
+    private readonly CheckBox _visionSelected = new() { Content = "Visión", IsChecked = true, Margin = new Thickness(0, 0, 10, 0), FontSize = 12 }, _visionAll = new() { Content = "Visión de todos", Margin = new Thickness(0, 0, 10, 0), FontSize = 12 };
+    internal NdsFacingState? Facing => _canvas.Facing;
+
+    private UIElement BuildFacingPanel()
+    {
+        _facingBox.SetResourceReference(Border.BorderBrushProperty, "Stroke"); _facingBox.SetResourceReference(Border.BackgroundProperty, "Panel");
+        var stack = new StackPanel(); stack.Children.Add(new TextBlock { Text = "Orientación y visión", FontWeight = FontWeights.SemiBold });
+        var pad = new Grid { Margin = new Thickness(0, 6, 0, 0), HorizontalAlignment = HorizontalAlignment.Left };
+        for (int i = 0; i < 3; i++) { pad.ColumnDefinitions.Add(new() { Width = GridLength.Auto }); pad.RowDefinitions.Add(new() { Height = GridLength.Auto }); }
+        (int Row, int Column)[] places = [(0, 1), (2, 1), (1, 0), (1, 2)];
+        for (int d = 0; d < 4; d++)
+        {
+            int direction = d; string name = PlatinumTrainerVision.DirectionName(d);
+            // Three columns must fit the 280 px inspector (and the compact layout) at 150 %: fixed narrow buttons, the name under the arrow.
+            var button = _turn[d] = new Button { Content = $"{TurnGlyphs[d]} {name}", Width = 78, FontSize = 12, Margin = new Thickness(1), Padding = new Thickness(2, 2, 2, 2) };
+            button.ToolTip = $"Mirar hacia {name.ToLowerInvariant()} (en el mapa: Mayús+flecha o la flecha junto al NPC). Solo prepara la propuesta.";
+            AccessibleName(button, "Eventos DS · orientación · mirar hacia " + name.ToLowerInvariant()); AutomationProperties.SetHelpText(button, (string)button.ToolTip);
+            EditorPresentation.StyleAction(button, EditorPresentation.ActionRole.Tertiary); button.Click += (_, _) => Rotate(direction);
+            Grid.SetRow(button, places[d].Row); Grid.SetColumn(button, places[d].Column); pad.Children.Add(button);
+        }
+        var centre = new TextBlock { Text = "●", HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center, FontSize = 16 }; Grid.SetRow(centre, 1); Grid.SetColumn(centre, 1); pad.Children.Add(centre);
+        stack.Children.Add(pad);
+        stack.Children.Add(new TextBlock { Text = "Alcance de visión (casillas)", Margin = new Thickness(0, 8, 0, 0) });
+        foreach (var (button, delta, tip) in new[] { (_sightMinus, -1, "una casilla menos"), (_sightPlus, 1, "una casilla más") })
+        {
+            EditorPresentation.StyleAction(button, EditorPresentation.ActionRole.Tertiary); button.Padding = new Thickness(6, 2, 6, 2); button.Click += (_, _) => StepSight(delta);
+            button.ToolTip = $"Visión: {tip} (en el mapa: Mayús+{(delta > 0 ? "+" : "−")})."; AccessibleName(button, "Eventos DS · alcance de visión · " + tip);
+        }
+        _sightRow.Children.Add(_sightMinus); _sightRow.Children.Add(_sight); _sightRow.Children.Add(_sightPlus); _sight.Margin = new Thickness(4, 0, 4, 0);
+        AccessibleName(_sight, "Eventos DS · Alcance de visión"); stack.Children.Add(_sightRow); stack.Children.Add(_sightHelp);
+        _sight.TextChanged += (_, _) => { if (!_updating) { _dirty = true; InvalidatePreview(); UpdateFacing(); } };
+        stack.Children.Add(_facingState); stack.Children.Add(_facingNotes);
+        EditorPresentation.StyleAction(_facingRestore, EditorPresentation.ActionRole.Tertiary); _facingRestore.Click += (_, _) => RestoreFacingFields();
+        _facingRestore.ToolTip = "Vuelve a poner en los campos la orientación, la visión y la posición guardadas y descarta la propuesta. No guarda nada.";
+        AccessibleName(_facingRestore, "Eventos DS · orientación · restaurar valores guardados"); AccessibleName(_facingState, "Eventos DS · orientación · guardado y propuesto"); AccessibleName(_facingNotes, "Eventos DS · orientación · notas");
+        stack.Children.Add(_facingRestore); _facingBox.Child = stack; AccessibleName(_facingBox, "Eventos DS · orientación y visión");
+        return _facingBox;
+    }
+    private bool TryField(TextBox box, out int value) => int.TryParse(box.Text, NumberStyles.Integer, CultureInfo.InvariantCulture, out value);
+    /// <summary>Shows the stored and proposed facing/sight of the selected NPC in the panel and on the map. Never changes the session.</summary>
+    private void UpdateFacing()
+    {
+        if (_event is not { } npc || _map is null || !NdsTrainerVision.CanTurn(npc)) { _facingBox.Visibility = Visibility.Collapsed; _canvas.SetFacing(null); return; }
+        _facingBox.Visibility = Visibility.Visible;
+        bool trainer = PlatinumTrainerVision.SightRefusal(npc) is null;
+        int x = TryField(_x, out int vx) ? vx : npc.X, y = TryField(_y, out int vy) ? vy : npc.Y, dir = TryField(_direction, out int vd) ? vd : npc.Direction;
+        int? sight = trainer ? (TryField(_sight, out int vs) ? vs : npc.Sight) : null;
+        var state = new NdsFacingState(npc, npc.X, npc.Y, npc.Direction, trainer ? npc.Sight : null, x, y, dir, sight);
+        for (int d = 0; d < 4; d++) EditorPresentation.StyleAction(_turn[d], d == dir ? EditorPresentation.ActionRole.Primary : EditorPresentation.ActionRole.Tertiary);
+        _sightRow.IsEnabled = trainer && !_busy; _sightMinus.IsEnabled = trainer && sight > 0; _sightPlus.IsEnabled = trainer && sight < PlatinumTrainerVision.MaxAccreditedSight;
+        _sightHelp.Text = trainer
+            ? $"De 0 a {PlatinumTrainerVision.MaxAccreditedSight} (el máximo que usa el juego original). Es la distancia en línea recta a la que detecta al jugador; 0 = no detecta. No es el rango de paseo X/Y."
+            : "No aplica: " + PlatinumTrainerVision.SightRefusal(npc) + ".";
+        string Describe(int d, int? s) => PlatinumTrainerVision.DirectionName(d) + (s is int v ? $" · visión {v}" : "");
+        _facingState.Text = state.Changed ? $"Guardado: {Describe(npc.Direction, state.SavedSight)}\nPropuesta: {Describe(dir, sight)}" : $"Guardado: {Describe(npc.Direction, state.SavedSight)} (sin cambios)";
+        var notes = NdsTrainerVision.Notes(npc).ToList(); if (trainer) notes.Add(NdsTrainerVision.GeometricNotice);
+        _facingNotes.Text = string.Join("\n", notes.Select(n => "• " + n)); _facingRestore.IsEnabled = state.Changed || _pending is not null;
+        _canvas.SetFacing(state);
+    }
+    /// <summary>Turns the selected NPC: fills the direction field (and, for a fixed look, the movement goes with it in Preview) and previews at once.</summary>
+    internal void Rotate(int direction)
+    {
+        if (_busy || _event is not { } npc || !NdsTrainerVision.CanTurn(npc) || direction is < 0 or > 3) return;
+        if (TryField(_direction, out int current) && current == direction && _pending is not null) return;
+        _direction.Text = direction.ToString(CultureInfo.InvariantCulture); PreviewFacing();
+    }
+    internal void StepSight(int delta)
+    {
+        if (_busy || _event is not { } npc || PlatinumTrainerVision.SightRefusal(npc) is not null) return;
+        int value = Math.Clamp((TryField(_sight, out int s) ? s : npc.Sight) + delta, 0, PlatinumTrainerVision.MaxAccreditedSight);
+        _sight.Text = value.ToString(CultureInfo.InvariantCulture); PreviewFacing();
+    }
+    private void PreviewFacing()
+    {
+        PreviewSelection();
+        if (_event is { } npc && TryField(_x, out int x) && TryField(_y, out int y) && (x != npc.X || y != npc.Y) && _pending is { Changes.Count: > 0 }) _canvas.SetPendingMove(npc, x, y);
+        UpdateFacing();
+        if (_pending is { Changes.Count: > 0 }) _status.Text = "Propuesta preparada: revisa las diferencias y pulsa «Guardar cambios…». Aún no se ha guardado nada.";
+        else if (_pending is { Changes.Count: 0 }) _status.Text = "Es el valor guardado: no hay nada que guardar.";
+    }
+    private void RestoreFacingFields()
+    {
+        if (_event is not { } npc || _busy) return;
+        _updating = true;
+        _x.Text = npc.X.ToString(CultureInfo.InvariantCulture); _y.Text = npc.Y.ToString(CultureInfo.InvariantCulture); _direction.Text = npc.Direction.ToString(CultureInfo.InvariantCulture);
+        _sight.Text = PlatinumTrainerVision.SightRefusal(npc) is null ? npc.Sight.ToString(CultureInfo.InvariantCulture) : "";
+        _updating = false; _dirty = false; InvalidatePreview(); UpdateFacing(); _status.Text = "Valores guardados restaurados en los campos; no se ha guardado nada.";
     }
     private UIElement BuildLegend()
     {
@@ -555,7 +662,7 @@ internal sealed class NdsEventEditorView : UserControl
     private void ApplyLayers()
     {
         var layers = NdsMapLayers.None;
-        foreach (var box in _layerBar.Children.OfType<CheckBox>()) if (box.IsChecked == true) layers |= (NdsMapLayers)box.Tag;
+        foreach (var box in _layerBar.Children.OfType<CheckBox>()) if (box.IsChecked == true && box.Tag is NdsMapLayers layer) layers |= layer;
         _canvas.SetLayers(layers);
     }
     private void LoadCanvas(PlatinumMap? map, IReadOnlyList<PlatinumEvent> events)
@@ -669,6 +776,7 @@ internal sealed class NdsEventEditorView : UserControl
         bool editable = item?.Kind == PlatinumEventKind.Npc;
         _x.IsReadOnly = _y.IsReadOnly = _direction.IsReadOnly = !editable; _preview.IsEnabled = editable;
         _x.Text = item?.X.ToString(CultureInfo.InvariantCulture) ?? ""; _y.Text = item?.Y.ToString(CultureInfo.InvariantCulture) ?? ""; _direction.Text = item?.Direction.ToString(CultureInfo.InvariantCulture) ?? "";
+        _sight.Text = item is not null && PlatinumTrainerVision.SightRefusal(item) is null ? item.Sight.ToString(CultureInfo.InvariantCulture) : "";
         _selection.Text = item is null ? "Selecciona un evento" : $"{item.Description} · índice {item.Index} · ID {item.Id}";
         _script.IsEnabled = item?.Script > 0; _warp.IsEnabled = item is { Kind: PlatinumEventKind.Warp } w && CanNavigate(w);
         _details.Text = _map is null ? "Sin mapas." : $"Mapa {_map.Id}: {_map.Name}\nInterno: {_map.InternalName}\nEvento NARC: {_map.EventFile} · scripts: {_map.ScriptFile} · matriz: {_map.Matrix}\nDimensiones: {_map.Width} × {_map.Height} baldosas. No se validan colisiones ni jugabilidad.\n";
@@ -700,7 +808,7 @@ internal sealed class NdsEventEditorView : UserControl
         }
         _canvas.ClearPropSelection(); _canvas.SelectProgrammatic(item, true);
         UpdateStructureButtons();
-        _updating = false;
+        _updating = false; UpdateFacing();
     }
     /// <summary>
     /// A structure was clicked on the canvas. It becomes the only subject of the inspector: the event is deselected first, with the same
@@ -728,8 +836,12 @@ internal sealed class NdsEventEditorView : UserControl
         try
         {
             if (_map is null || _event?.Kind != PlatinumEventKind.Npc) return;
-            int Parse(TextBox box) => int.TryParse(box.Text, NumberStyles.Integer, CultureInfo.InvariantCulture, out int value) ? value : throw new InvalidDataException("Introduce coordenadas y dirección como enteros.");
-            ShowProposal(_session.Preview(_map.Id, _event.Index, new(Parse(_x), Parse(_y), Parse(_direction))));
+            int Parse(TextBox box) => int.TryParse(box.Text, NumberStyles.Integer, CultureInfo.InvariantCulture, out int value) ? value : throw new InvalidDataException("Introduce coordenadas, dirección y alcance como enteros.");
+            var npc = _event; int direction = Parse(_direction);
+            // A fixed-look NPC turns for good only if its LOOK_* movement turns with it (as the game's own scripts do); the session drops unchanged fields.
+            int? movement = PlatinumTrainerVision.IsFixedLook(npc.Movement) && direction is >= 0 and <= 3 ? PlatinumTrainerVision.FixedLookFor(direction) : null;
+            int? sight = PlatinumTrainerVision.SightRefusal(npc) is null ? Parse(_sight) : null;
+            ShowProposal(_session.Preview(_map.Id, npc.Index, new(Parse(_x), Parse(_y), direction, movement, sight)));
             _status.Text = _pending!.Changes.Count == 0 ? "Sin diferencias." : "Revisa las diferencias y guarda un checkpoint nuevo. La ROM fuente no se modifica.";
         }
         catch (Exception ex) when (Known(ex)) { Fail(ex); }
@@ -757,8 +869,13 @@ internal sealed class NdsEventEditorView : UserControl
         using var interaction = UiProgress.BlockInteraction();
         try
         {
-            var proposal = _pending; await Task.Run(() => save(proposal));
-            _dirty = false; InvalidatePreview(); SelectMap(_map is null ? null : _session.Data.Map(_map.Id), confirm: false); RefreshStatus(); Changed?.Invoke();
+            var proposal = _pending; var kept = _event is { } e ? (e.Kind, e.Index, Tab: _tabs.SelectedIndex) : default((PlatinumEventKind Kind, int Index, int Tab)?);
+            await Task.Run(() => save(proposal));
+            _dirty = false; InvalidatePreview(); SelectMap(_map is null ? null : _session.Data.Map(_map.Id), confirm: false);
+            // The saved NPC stays selected (with the map's zoom and position), so turning it again or checking the result needs no new click.
+            if (kept is { } k && k.Tab >= 0 && _tables[k.Tab].Items.Cast<PlatinumEvent>().FirstOrDefault(i => i.Kind == k.Kind && i.Index == k.Index) is { } again)
+            { _updating = true; _tabs.SelectedIndex = k.Tab; _tables[k.Tab].SelectedItem = again; _updating = false; SelectEvent(again); }
+            RefreshStatus(); Changed?.Invoke();
         }
         catch (Exception ex) when (Known(ex)) { Fail(ex); }
         finally { _busy = false; _body.IsEnabled = true; }
