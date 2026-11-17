@@ -227,6 +227,21 @@ internal static partial class NdsMapRenderChecks
         check(scene.Count == 2 && Vector3.Transform(Vector3.Zero, scene[1].Transform) == new Vector3(16, 0, 0) && skipped.Single().Contains("modelo 5"), "MapRender_BlockScenePlacesPropsAndSkipsModelsTheAreaDoesNotLoad");
         Throws<InvalidDataException>(() => new PlatinumMapAssets(headers, NdsGen5RandomizerChecks.BuildNarc([area0, area1]), NdsGen5RandomizerChecks.BuildNarc([build]), NdsGen5RandomizerChecks.BuildNarc([btx]),
             NdsGen5RandomizerChecks.BuildNarc([btx, btx]), NdsGen5RandomizerChecks.BuildNarc([Bmd(1, [tri])]), NdsGen5RandomizerChecks.BuildNarc([LandData(Bmd(1, [quad]))])).Area(0), check, "MapRender_AModelListNamingAMissingModelIsRefused");
+
+        // Consolidation: box filter, level of detail, unowned cells and texture binding
+        uint[] four = [0xFFFF0000, 0, 0, 0xFF0000FF];
+        check(NitroTopDownRenderer.Downsample(four, 2, 2).Single() == (127u << 24 | 127u << 16 | 127u), "MapRender_DownsampleWeightsColourByOpacityAndKeepsCoverage");
+        check(NitroTopDownRenderer.Downsample([0, 0, 0, 0], 2, 2).Single() == 0 && NitroTopDownRenderer.Downsample(four, 2, 1).SequenceEqual(four), "MapRender_DownsampleKeepsTransparencyAndFactorOne");
+        Throws<ArgumentException>(() => NitroTopDownRenderer.Downsample(new uint[9], 3, 2), check, "MapRender_DownsampleRefusesAFactorThatDoesNotDivide");
+        check(ThreeDS.Progressive.Services.Nds.NdsMapRenderCache.SizeFor(10) == 32 && ThreeDS.Progressive.Services.Nds.NdsMapRenderCache.SizeFor(33) == 64 && ThreeDS.Progressive.Services.Nds.NdsMapRenderCache.SizeFor(300) == 512 && ThreeDS.Progressive.Services.Nds.NdsMapRenderCache.SizeFor(5000) == 512, "MapRender_LevelOfDetailIsThePowerOfTwoAboveTheScreenSize");
+        var row = PlatinumMapLayout.ParseMatrix(PlatinumTerrainChecks.Matrix(4, 1, i => new[] { 5, 0, 7, 0 }[i], i => i == 3 ? 0xFFFF : 0), 5, 0);
+        var rowModel = new ThreeDS.Progressive.Services.Nds.NdsMapCanvasModel(row, []);
+        check(rowModel.GraphicsCandidates(row.Cell(0, 0)).SequenceEqual([5]) && rowModel.GraphicsCandidates(row.Cell(1, 0)).SequenceEqual([5, 7]) && rowModel.GraphicsCandidates(row.Cell(2, 0)).SequenceEqual([7]), "MapRender_UnownedCellsTakeTheNearestOwnersInOrder");
+        check(rowModel.GraphicsCandidates(row.Cell(3, 0)).SequenceEqual([0]), "MapRender_EmptyCellsKeepTheirHeader");
+        byte[] areaNone = [0, 0, 0, 0, 0, 0, 0, 0], areaTex = [0, 0, 1, 0, 0, 0, 0, 0], twoHeaders = new byte[48]; twoHeaders[24] = 1;
+        var bound = new PlatinumMapAssets(twoHeaders, NdsGen5RandomizerChecks.BuildNarc([areaNone, areaTex]), NdsGen5RandomizerChecks.BuildNarc([new byte[] { 0, 0 }]), NdsGen5RandomizerChecks.BuildNarc([btx]),
+            NdsGen5RandomizerChecks.BuildNarc([Btx([], []), Btx([new("t", NitroTextureFormat.Palette4, 8, 8, new byte[16])], [("p", [red, green, blue, white])])]), NdsGen5RandomizerChecks.BuildNarc([Bmd(1, [tri])]), NdsGen5RandomizerChecks.BuildNarc([LandData(Bmd(1, [quad]))]));
+        check(!bound.TerrainTexturesBind(0, 0) && bound.TerrainTexturesBind(0, 1) && bound.FirstBindingHeader(0, [0, 1]) == 1 && bound.FirstBindingHeader(0, [0]) == 0, "MapRender_TiesPickTheAreaThatProvidesTheTextures");
     }
     /// <summary>A land_data member: 0x800 bytes of attributes, no props, the model, no BDHC.</summary>
     internal static byte[] LandData(byte[] model)

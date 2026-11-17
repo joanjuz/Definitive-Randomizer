@@ -344,6 +344,12 @@ if(args.Length==3&&args[0]=="--nds-map-render-ui-probe")
 {
     Exception? failure=null;var thread=new Thread(()=>{try{var app=new ThreeDS.Progressive.App();app.InitializeComponent();WpfTestHost.SuppressStartup();ThreeDS.Progressive.StudioDialog.AutomatedChecks=true;NdsMapRenderChecks.ProbeUi(args[1],args[2]);}catch(Exception ex){failure=ex;}});thread.SetApartmentState(ApartmentState.STA);thread.Start();thread.Join();if(failure is not null)System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(failure).Throw();return;
 }
+if(args.Length>=3&&args[0]=="--nds-map-render-gallery-probe")
+{
+    foreach(var r in NdsMapRenderGallery.Probe(args[1],args[2],args.Length>3?args[3..]:null))
+        Console.WriteLine($"{r.Map,3} {r.Name,-44} bloques {r.Blocks,2} tri {r.Triangles,6} sinTex {r.Untextured,3} propsOmitidos {r.Skipped,2} {r.Milliseconds,5} ms | alineación mejor {r.BestShift} solape {r.Overlap:P0} en (0,0) {r.OverlapAtZero:P0} props {r.PropTiles} (props sobre libre {r.PropOnClear:P1})");
+    return;
+}
 if(args.Length==3&&args[0]=="--nds-map-render-probe"){NdsMapRenderChecks.Probe(args[1],args[2]);return;}
 if(args.Length==3&&args[0]=="--nds-trainer-vision-probe"){NdsTrainerVisionChecks.Probe(args[1],args[2]);return;}
 if(args.Length==1&&args[0]=="--nds-trainers-only"){NdsTrainerParityChecks.Run(Check);Console.WriteLine($"Completed {checks} DS trainer parity checks (synthetic).");return;}
