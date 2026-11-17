@@ -58,11 +58,11 @@ No es una reproducción jugable acreditada. La fidelidad se comprueba en el emul
 | Sintética | `--nds-trainer-vision-only` | 74 PASS |
 | WPF fuera de pantalla (1100×760 y 760×560, 125 % y 150 %) | `--nds-trainer-vision-ui-only` | 34 PASS |
 | Copia real CPUE/1 | `--nds-trainer-vision-probe` | PASS: huellas, censo, guardado v4, reapertura, exportación (3 bytes del archivo de eventos), reapertura de la ROM exportada, restauración con SHA-256 idéntico y fuente intacta |
-| Juego en emulador | — | **pendiente del propietario** |
+| Juego en emulador | Ruta 202, NPC 1 (`Platino-vision.nds` y `Platino-restaurado.nds`) | **confirmado por el propietario** (2026-11-17): cambió de dirección, detectó al jugador con alcance 6 y la restauración se comportó como el original |
 
 Las comprobaciones de interfaz invocan los mismos métodos que los manejadores de ratón y teclado (`TurnAt`, `FacingKey`); no son entrada física real.
 
-## Prueba jugable
+## Prueba jugable (confirmada el 2026-11-17)
 
 El probe deja `MANUAL.txt` con el entrenador elegido: **Ruta 202, NPC índice 1, script 3002**. En el original mira abajo con visión 4; tras el cambio mira a la derecha con visión 6.
 
