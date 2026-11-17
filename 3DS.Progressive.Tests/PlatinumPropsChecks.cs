@@ -122,7 +122,7 @@ internal static class PlatinumPropsChecks
             var layer = Find<CheckBox>(view, "Eventos DS · capa Estructuras"); var models = Find<CheckBox>(view, "Eventos DS · capa Modelos/texturas");
             bool Untouched() => session.Revision == 0 && session.Data.Bytes().SequenceEqual(eventsBefore) && NdsMapCanvasChecks.Sha(source) == sourceHash && Directory.GetFiles(temp).Length == 1;
             check(layer.IsEnabled && layer.IsChecked == true && canvas.Model!.HasProps && canvas.Model.Props.Count == 900 * 2, "MapPropsUi_StructuresLayerIsOnWhenThereIsData");
-            check(!models.IsEnabled && models.IsChecked == false && models.ToolTip is string t && t.Contains("NSBMD") && t.Contains("no están implementados") && AutomationProperties.GetHelpText(models).Contains("NSBTX"), "MapPropsUi_ModelsAndTexturesLayerIsHonestlyUnavailable");
+            check(!models.IsEnabled && models.IsChecked == false && models.ToolTip is string t && t.Contains("NSBMD") && t.StartsWith("No disponible") && AutomationProperties.GetHelpText(models).Contains("NSBTX"), "MapPropsUi_ModelsAndTexturesLayerIsHonestlyUnavailable");
             check(NdsMapCanvasChecks.Children<TextBlock>(view).Any(x => x.Text.Contains("estructura (map prop: posición e ID de modelo, sin forma; solo lectura)")), "MapPropsUi_LegendExplainsTheMarker");
 
             var target = canvas.Model!.Props.First(p => p.Prop.ModelId == 23 && p.BlockX == 3 && p.BlockY == 27);

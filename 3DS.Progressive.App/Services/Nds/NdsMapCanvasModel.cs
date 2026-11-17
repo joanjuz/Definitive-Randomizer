@@ -5,7 +5,9 @@ namespace ThreeDS.Progressive.Services.Nds;
 internal enum NdsMarkerShape { Npc, GroundObject, BackgroundObject, Warp, Trigger }
 
 [Flags]
-internal enum NdsMapLayers { None = 0, Npc = 1, Objects = 2, Warps = 4, Triggers = 8, Blocks = 16, Tiles = 32, Ownership = 64, Terrain = 128, Structures = 256, All = 511 }
+internal enum NdsMapLayers { None = 0, Npc = 1, Objects = 2, Warps = 4, Triggers = 8, Blocks = 16, Tiles = 32, Ownership = 64, Terrain = 128, Structures = 256, All = 511,
+    /// <summary>Graphic view (terrain and prop models). Optional and outside <see cref="All"/>: the schematic view stays the default.</summary>
+    Models = 512 }
 
 /// <summary>How a 32×32 block relates to the selected header. Never implies geometry, collisions or walkability.</summary>
 internal enum NdsBlockOwnership { Explicit, Contextual, Other }

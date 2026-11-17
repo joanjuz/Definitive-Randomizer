@@ -335,6 +335,16 @@ if(args.Length==1&&args[0]=="--nds-trainer-vision-ui-only")
 {
     Exception? failure=null;var thread=new Thread(()=>{try{var app=new ThreeDS.Progressive.App();app.InitializeComponent();WpfTestHost.SuppressStartup();ThreeDS.Progressive.StudioDialog.AutomatedChecks=true;NdsTrainerVisionChecks.RunUi(Check);}catch(Exception ex){failure=ex;}});thread.SetApartmentState(ApartmentState.STA);thread.Start();thread.Join();if(failure is not null)System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(failure).Throw();Console.WriteLine($"Completed {checks} DS trainer facing and sight UI checks (off-screen).");return;
 }
+if(args.Length==1&&args[0]=="--nds-map-render-only"){NdsMapRenderChecks.Run(Check);Console.WriteLine($"Completed {checks} DS map graphics checks (synthetic).");return;}
+if(args.Length==1&&args[0]=="--nds-map-render-ui-only")
+{
+    Exception? failure=null;var thread=new Thread(()=>{try{var app=new ThreeDS.Progressive.App();app.InitializeComponent();WpfTestHost.SuppressStartup();ThreeDS.Progressive.StudioDialog.AutomatedChecks=true;NdsMapRenderChecks.RunUi(Check);}catch(Exception ex){failure=ex;}});thread.SetApartmentState(ApartmentState.STA);thread.Start();thread.Join();if(failure is not null)System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(failure).Throw();Console.WriteLine($"Completed {checks} DS map graphics UI checks (off-screen).");return;
+}
+if(args.Length==3&&args[0]=="--nds-map-render-ui-probe")
+{
+    Exception? failure=null;var thread=new Thread(()=>{try{var app=new ThreeDS.Progressive.App();app.InitializeComponent();WpfTestHost.SuppressStartup();ThreeDS.Progressive.StudioDialog.AutomatedChecks=true;NdsMapRenderChecks.ProbeUi(args[1],args[2]);}catch(Exception ex){failure=ex;}});thread.SetApartmentState(ApartmentState.STA);thread.Start();thread.Join();if(failure is not null)System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(failure).Throw();return;
+}
+if(args.Length==3&&args[0]=="--nds-map-render-probe"){NdsMapRenderChecks.Probe(args[1],args[2]);return;}
 if(args.Length==3&&args[0]=="--nds-trainer-vision-probe"){NdsTrainerVisionChecks.Probe(args[1],args[2]);return;}
 if(args.Length==1&&args[0]=="--nds-trainers-only"){NdsTrainerParityChecks.Run(Check);Console.WriteLine($"Completed {checks} DS trainer parity checks (synthetic).");return;}
 if(args.Length==1&&args[0]=="--nds-only"){NdsChecks.Run(Check,Reject);NdsGen5RandomizerChecks.Run(Check,Reject);NdsGen4Checks.Run(Check,Reject);NdsDataChecks.Run(Check,Reject);NdsTrainerParityChecks.Run(Check);NdsEventChecks.Run(Check);Console.WriteLine($"Completed {checks} NDS container checks (synthetic).");return;}
