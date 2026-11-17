@@ -37,9 +37,12 @@ internal static class NdsNpcDragChecks
         NdsNpcMovePlan Plan(int x, int y) => NdsNpcMovePlanner.Plan(model, Npc0, x, y);
 
         // ---- which events can be dragged
-        check(NdsNpcMovePlanner.IsDraggable(Npc0) && !NdsNpcMovePlanner.IsDraggable(Ev(PlatinumEventKind.Npc, 2, 1, 1, 3)) && !NdsNpcMovePlanner.IsDraggable(Ev(PlatinumEventKind.Warp, 0, 1, 1))
-            && !NdsNpcMovePlanner.IsDraggable(Ev(PlatinumEventKind.Object, 0, 1, 1)) && !NdsNpcMovePlanner.IsDraggable(Ev(PlatinumEventKind.Trigger, 0, 1, 1)), "NpcDrag_OnlyExistingNpcRecordsAreDraggable");
-        check(NdsNpcMovePlanner.Plan(model, Ev(PlatinumEventKind.Warp, 0, 130, 880), 131, 880).Outcome == NdsMoveOutcome.Rejected, "NpcDrag_PlannerRefusesNonNpcEvents");
+        check(NdsNpcMovePlanner.IsDraggable(Npc0) && !NdsNpcMovePlanner.IsDraggable(Ev(PlatinumEventKind.Npc, 2, 1, 1, 3)) && NdsNpcMovePlanner.IsDraggable(Ev(PlatinumEventKind.Warp, 0, 1, 1))
+            && NdsNpcMovePlanner.IsDraggable(Ev(PlatinumEventKind.Object, 0, 1, 1)) && NdsNpcMovePlanner.IsDraggable(Ev(PlatinumEventKind.Trigger, 0, 1, 1)), "NpcDrag_GroundItemNpcAreTheOnlyEventsThatCannotBeDragged");
+        // Objects, warps and triggers: their in-game rules are not evaluated, so a valid tile is never "Ready"; outside the editor bounds is refused.
+        check(NdsNpcMovePlanner.Plan(model, Ev(PlatinumEventKind.Warp, 0, 130, 880), 131, 880) is { Outcome: NdsMoveOutcome.NeedsWarning } wp && wp.Reasons.Any(r => r.Contains("no se comprueba el terreno")), "NpcDrag_NonNpcEventsAreAlwaysAWarning");
+        check(NdsNpcMovePlanner.Plan(model, Ev(PlatinumEventKind.Warp, 0, 130, 880), 960, 880).Outcome == NdsMoveOutcome.Rejected && NdsNpcMovePlanner.Plan(model, Ev(PlatinumEventKind.Trigger, 0, 110, 870, 0, 4, 2), 957, 870).Outcome == NdsMoveOutcome.Rejected
+            && NdsNpcMovePlanner.Plan(model, Ev(PlatinumEventKind.Trigger, 0, 110, 870, 0, 4, 2), 956, 870).Outcome == NdsMoveOutcome.NeedsWarning, "NpcDrag_TriggerAreasMustStayInsideTheBounds");
 
         // ---- planning policy
         var ready = Plan(120, 878);
@@ -126,8 +129,10 @@ internal static class NdsNpcDragChecks
             toolMove.IsChecked = true;
             check(canvas.Tool == NdsMapTool.MoveNpc && help.Text.Contains("Mover NPC") && help.Text.Contains("Esc cancela") && help.Text.Contains("no se guarda nada") && help.Text.Contains("botón central"), "NpcDragUi_MoveToolExplainsCancelAndPanning");
             check(!canvas.BeginDragAt(new Point(at.X + 150, at.Y + 150)) && !canvas.DragDeclined && canvas.Drag is null, "NpcDragUi_EmptySpaceStillPansInMoveTool");
-            foreach (var (kind, index) in new[] { (PlatinumEventKind.Warp, 0), (PlatinumEventKind.Object, 0), (PlatinumEventKind.Trigger, 0), (PlatinumEventKind.Npc, 2) })
-                check(!canvas.BeginDragAt(Center(kind, index)) && canvas.Drag is null, $"NpcDragUi_{kind}{index}IsNotDraggable");
+            // Ground-item NPC stay fixed; background objects, warps and triggers can be dragged (only a proposal, always with a warning).
+            check(!canvas.BeginDragAt(Center(PlatinumEventKind.Npc, 2)) && canvas.Drag is null, "NpcDragUi_Npc2IsNotDraggable");
+            foreach (var (kind, index) in new[] { (PlatinumEventKind.Warp, 0), (PlatinumEventKind.Object, 0), (PlatinumEventKind.Trigger, 0) })
+            { check(canvas.BeginDragAt(Center(kind, index)) && canvas.Drag is { Active: false }, $"NpcDragUi_{kind}{index}CanBeDragged"); canvas.CancelDrag(); }
             at = Center(PlatinumEventKind.Npc, 0);
 
             // A drag shows a ghost and live feedback, and changes no data
