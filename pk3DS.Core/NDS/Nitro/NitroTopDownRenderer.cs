@@ -106,6 +106,29 @@ public sealed class NitroTopDownRenderer
         uint Ch(int shift) => (uint)Math.Clamp((int)(((a >> shift) & 0xFF) * wa + ((b >> shift) & 0xFF) * wb + ((c >> shift) & 0xFF) * wc), 0, 255) << shift;
         return 0xFF000000u | Ch(16) | Ch(8) | Ch(0);
     }
+    /// <summary>
+    /// Box-filters a square ARGB image by an integer <paramref name="factor"/>: each output pixel averages factor×factor pixels, weighting colour by
+    /// opacity (transparent pixels add no colour) and keeping the covered fraction as alpha. Used to draw small, far-away blocks without aliasing.
+    /// </summary>
+    public static uint[] Downsample(uint[] pixels, int size, int factor)
+    {
+        if (factor <= 1) return (uint[])pixels.Clone();
+        if (size % factor != 0 || pixels.Length != size * size) throw new ArgumentException("El tamaño debe ser múltiplo del factor.", nameof(factor));
+        int outSize = size / factor, n = factor * factor; var result = new uint[outSize * outSize];
+        for (int oy = 0; oy < outSize; oy++)
+            for (int ox = 0; ox < outSize; ox++)
+            {
+                long a = 0, r = 0, g = 0, b = 0;
+                for (int y = 0; y < factor; y++)
+                    for (int x = 0; x < factor; x++)
+                    {
+                        uint p = pixels[(oy * factor + y) * size + ox * factor + x]; uint pa = p >> 24;
+                        a += pa; r += (p >> 16 & 0xFF) * pa; g += (p >> 8 & 0xFF) * pa; b += (p & 0xFF) * pa;
+                    }
+                result[oy * outSize + ox] = a == 0 ? 0 : (uint)(a / n) << 24 | (uint)(r / a) << 16 | (uint)(g / a) << 8 | (uint)(b / a);
+            }
+        return result;
+    }
     private static uint Modulate(uint x, uint y)
     {
         uint Ch(int shift) => (((x >> shift) & 0xFF) * ((y >> shift) & 0xFF) / 255) << shift;
