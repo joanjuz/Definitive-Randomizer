@@ -21,13 +21,23 @@ internal sealed record NdsNpcAddition(int Map, int Index, string RecordHex, NdsS
 /// <summary>Removal of an NPC that an earlier operation of this history ADDED (never an NPC of the original data). <c>RecordHex</c> must match.</summary>
 internal sealed record NdsNpcRemoval(int Map, int Index, string RecordHex);
 /// <summary>One recorded operation. Exactly one of the payloads is set, according to <c>Kind</c>.</summary>
-internal sealed record NdsEventOperation(string Kind, NdsNpcEdit? Move, NdsNpcAddition? Add, NdsNpcRemoval? Remove = null)
+/// <summary>Edit of an existing background object, warp or trigger (<c>Kind</c>: "Object", "Warp" or "Trigger"): only the fields of <see cref="PlatinumEventValues"/>.</summary>
+internal sealed record NdsEventFieldEdit(int Map, string Kind, int Index, PlatinumEventValues Before, PlatinumEventValues After)
 {
-    internal const string MoveKind = "MoveNpc", AddKind = "AddNpc", RemoveKind = "RemoveAddedNpc";
+    internal PlatinumEventKind EventKind => Kind switch
+    {
+        nameof(PlatinumEventKind.Object) => PlatinumEventKind.Object, nameof(PlatinumEventKind.Warp) => PlatinumEventKind.Warp, nameof(PlatinumEventKind.Trigger) => PlatinumEventKind.Trigger,
+        _ => throw new InvalidDataException("Tipo de evento no editable: " + Kind),
+    };
+}
+internal sealed record NdsEventOperation(string Kind, NdsNpcEdit? Move, NdsNpcAddition? Add, NdsNpcRemoval? Remove = null, NdsEventFieldEdit? Event = null)
+{
+    internal const string MoveKind = "MoveNpc", AddKind = "AddNpc", RemoveKind = "RemoveAddedNpc", EventKind = "EditEvent";
     internal static NdsEventOperation OfRemove(NdsNpcRemoval remove) => new(RemoveKind, null, null, remove);
     internal static NdsEventOperation OfMove(NdsNpcEdit edit) => new(MoveKind, edit, null);
     internal static NdsEventOperation OfAdd(NdsNpcAddition add) => new(AddKind, null, add);
-    internal int Map => Move?.Map ?? Add?.Map ?? Remove?.Map ?? -1;
+    internal static NdsEventOperation OfEvent(NdsEventFieldEdit edit) => new(EventKind, null, null, null, edit);
+    internal int Map => Move?.Map ?? Add?.Map ?? Remove?.Map ?? Event?.Map ?? -1;
 }
 /// <summary>
 /// Version 1: moves only (<c>Edits</c>), exactly as before. Version 2: ordered <c>Operations</c> (moves and NPC additions); <c>Edits</c> is empty.
@@ -60,7 +70,7 @@ internal sealed class NdsEventSession
     internal bool CanUndo => _ops.Count > 0;
     /// <summary>The addition recorded by the last operation, if that is what it was (its exact undo is "Restaurar último cambio").</summary>
     internal NdsNpcAddition? LastAddition => _ops.Count > 0 ? _ops[^1].Add : null;
-    internal bool HasStructuralOperations => _ops.Any(o => o.Kind != NdsEventOperation.MoveKind);
+    internal bool HasStructuralOperations => _ops.Any(o => o.Kind is NdsEventOperation.AddKind or NdsEventOperation.RemoveKind);
     /// <summary>NPC of the ORIGINAL data occupy indices below this count; anything at or above it was added by this history.</summary>
     internal int OriginalNpcCount(int map) => _original.NpcCount(map);
     internal bool IsAddedNpc(int map, int index) => index >= _original.NpcCount(map) && index < Data.NpcCount(map);
@@ -87,6 +97,31 @@ internal sealed class NdsEventSession
             var edit = new NdsNpcEdit(map, index, before, values);
             return new(_owner, Revision, NdsEventOperation.OfMove(edit), false, Differences(edit));
         }
+    }
+    /// <summary>Previews editing an existing background object, warp or trigger. Every rule of <see cref="PlatinumEvents.ReplaceEvent"/> is checked now.</summary>
+    internal NdsEventProposal PreviewEvent(int map, PlatinumEventKind kind, int index, PlatinumEventValues values)
+    {
+        lock (_gate)
+        {
+            var before = PlatinumEvents.EventValues(Data.Event(map, kind, index));
+            _ = Data.ReplaceEvent(map, kind, index, before, values);
+            var edit = new NdsEventFieldEdit(map, kind.ToString(), index, before, values);
+            return new(_owner, Revision, NdsEventOperation.OfEvent(edit), false, EventDifferences(edit, Data));
+        }
+    }
+    private static string KindName(string kind) => kind switch { "Object" => "Objeto", "Warp" => "Warp", _ => "Activador" };
+    private static IReadOnlyList<Gen5Change> EventDifferences(NdsEventFieldEdit edit, PlatinumEvents data)
+    {
+        var changes = new List<Gen5Change>(); string name = $"Mapa {edit.Map} · {KindName(edit.Kind)} {edit.Index}"; var (b, a) = (edit.Before, edit.After);
+        if (b.X != a.X) changes.Add(new(name, "Coordenada X", b.X, a.X));
+        if (b.Y != a.Y) changes.Add(new(name, "Coordenada Y", b.Y, a.Y));
+        if (b.Facing != a.Facing && b.Facing is int fb && a.Facing is int fa) changes.Add(new(name, $"Interacción ({PlatinumEventFields.FacingName(fb)} → {PlatinumEventFields.FacingName(fa)})", fb, fa));
+        if (b.Destination != a.Destination && b.Destination is int db && a.Destination is int da)
+            changes.Add(new(name, $"Mapa de destino ({(db < data.Maps.Count ? data.Map(db).Name : "?")} → {(da < data.Maps.Count ? data.Map(da).Name : "?")})", db, da));
+        if (b.Anchor != a.Anchor && b.Anchor is int ab && a.Anchor is int aa) changes.Add(new(name, "Warp de llegada", ab, aa));
+        if (b.Width != a.Width && b.Width is int wb && a.Width is int wa) changes.Add(new(name, "Ancho (casillas)", wb, wa));
+        if (b.Length != a.Length && b.Length is int lb && a.Length is int la) changes.Add(new(name, "Alto (casillas)", lb, la));
+        return changes.AsReadOnly();
     }
     /// <summary>Previews appending a new NPC. Nothing changes until the proposal is saved into a checkpoint.</summary>
     internal NdsEventProposal PreviewAdd(int map, byte[] record, NdsScriptBinding? script = null)
@@ -121,6 +156,11 @@ internal sealed class NdsEventSession
                 return new(_owner, Revision, last, true, [new($"Mapa {last.Remove!.Map} · NPC añadido {last.Remove.Index}", "Cantidad de NPC", Data.NpcCount(last.Remove.Map), Data.NpcCount(last.Remove.Map) + 1)], [$"Mapa {last.Remove.Map} · volver a poner el NPC añadido eliminado (índice {last.Remove.Index})"]);
             if (last.Kind == NdsEventOperation.AddKind)
                 return new(_owner, Revision, last, true, AdditionChanges(last.Add!, last.Add!.Index, undo: true), AdditionLines(last.Add!, Convert.FromHexString(last.Add!.RecordHex), undo: true));
+            if (last.Kind == NdsEventOperation.EventKind)
+            {
+                var back = last.Event! with { Before = last.Event!.After, After = last.Event.Before };
+                return new(_owner, Revision, NdsEventOperation.OfEvent(back), true, EventDifferences(back, Data));
+            }
             var move = last.Move!; var reversed = move with { Before = move.After, After = move.Before };
             return new(_owner, Revision, NdsEventOperation.OfMove(reversed), true, Differences(reversed));
         }
@@ -186,9 +226,12 @@ internal sealed class NdsEventSession
             {
                 if (ops.Count == 0) throw new InvalidDataException("La restauración no corresponde al último cambio.");
                 var last = ops[^1];
-                bool matches = proposal.Operation.Kind == last.Kind && (last.Kind != NdsEventOperation.MoveKind
-                    ? proposal.Operation == last
-                    : proposal.Operation.Move == (last.Move! with { Before = last.Move!.After, After = last.Move!.Before }));
+                bool matches = proposal.Operation.Kind == last.Kind && last.Kind switch
+                {
+                    NdsEventOperation.MoveKind => proposal.Operation.Move == (last.Move! with { Before = last.Move!.After, After = last.Move!.Before }),
+                    NdsEventOperation.EventKind => proposal.Operation.Event == (last.Event! with { Before = last.Event!.After, After = last.Event!.Before }),
+                    _ => proposal.Operation == last,
+                };
                 if (!matches) throw new InvalidDataException("La restauración no corresponde al último cambio.");
                 ops.RemoveAt(ops.Count - 1);
             }
@@ -199,7 +242,7 @@ internal sealed class NdsEventSession
                 ops.Add(proposal.Operation);
             }
             var next = Replay(ops);
-            string what = proposal.Operation.Kind switch { NdsEventOperation.AddKind => $"NPC nuevo índice {proposal.Operation.Add!.Index}", NdsEventOperation.RemoveKind => $"NPC añadido índice {proposal.Operation.Remove!.Index}", _ => $"NPC {proposal.Operation.Move!.Index}" };
+            string what = proposal.Operation.Kind switch { NdsEventOperation.AddKind => $"NPC nuevo índice {proposal.Operation.Add!.Index}", NdsEventOperation.RemoveKind => $"NPC añadido índice {proposal.Operation.Remove!.Index}", NdsEventOperation.EventKind => $"{KindName(proposal.Operation.Event!.Kind)} {proposal.Operation.Event.Index}", _ => $"NPC {proposal.Operation.Move!.Index}" };
             string detail = proposal.Operation.Kind == NdsEventOperation.AddKind ? string.Join("; ", AdditionLines(proposal.Operation.Add!, Convert.FromHexString(proposal.Operation.Add!.RecordHex), proposal.Undo).Skip(1).Select(l => l.Trim()))
                 : proposal.Operation.Kind == NdsEventOperation.RemoveKind ? "registro " + proposal.Operation.Remove!.RecordHex
                 : string.Join("; ", proposal.Changes.Select(c => $"{c.Field} {c.Before} → {c.After}"));
@@ -267,7 +310,9 @@ internal sealed class NdsEventSession
     }
     /// <summary>The checkpoint version a history needs: 4 when an NPC edit turns a fixed-look movement or changes a trainer's sight, else the earlier rule.</summary>
     internal static int VersionFor(IReadOnlyList<NdsEventOperation> ops) =>
-        ops.Any(HasVisionFields) ? 4 : ops.All(o => o.Kind == NdsEventOperation.MoveKind) ? 1 : ops.Any(o => o.Add?.Script is not null) ? 3 : 2;
+        ops.Any(IsEventEdit) ? 5 : ops.Any(HasVisionFields) ? 4 : ops.All(o => o.Kind == NdsEventOperation.MoveKind) ? 1 : ops.Any(o => o.Add?.Script is not null) ? 3 : 2;
+    /// <summary>Edits of background objects, warps or triggers: checkpoint version 5 and project reader 3 (older builds refuse them instead of replaying something else).</summary>
+    internal static bool IsEventEdit(NdsEventOperation? o) => o?.Kind == NdsEventOperation.EventKind;
     internal static bool HasVisionFields(NdsEventOperation? o) => o?.Move is { } m && (m.Before?.HasVisionFields == true || m.After?.HasVisionFields == true);
     private NdsEventDocument Build(List<NdsEventOperation> ops, List<string> audit) =>
         VersionFor(ops) == 1
@@ -288,8 +333,9 @@ internal sealed class NdsEventSession
         // Version 4 exists only for histories with turned fixed-look movements or edited sight; earlier versions must not carry those fields
         // (a build that does not know them would ignore them and replay something else).
         bool shape = document.Version == 1 ? document.Operations is null && document.Edits is not null && document.Edits.All(e => e?.Before?.HasVisionFields != true && e?.After?.HasVisionFields != true)
-            : document.Version is 2 or 3 or 4 && document.Operations is not null && document.Operations.Count > 0 && document.Edits is { Count: 0 }
-              && (document.Version == 4 ? document.Operations.Any(HasVisionFields) : !document.Operations.Any(HasVisionFields))
+            : document.Version is 2 or 3 or 4 or 5 && document.Operations is not null && document.Operations.Count > 0 && document.Edits is { Count: 0 }
+              && (document.Version == 5 ? document.Operations.Any(IsEventEdit) : !document.Operations.Any(IsEventEdit))
+              && (document.Version == 4 ? document.Operations.Any(HasVisionFields) : document.Version == 5 || !document.Operations.Any(HasVisionFields))
               && (document.Version switch { 3 => document.Operations.Any(o => o?.Add?.Script is not null), 2 => document.Operations.All(o => o?.Add?.Script is null), _ => true });
         if (document.Format != Format || !shape || document.Game != "CPUE" || document.Revision != 1 ||
             document.SourceSha256 != _sha256 || !Path.GetFullPath(document.SourcePath).Equals(SourcePath, StringComparison.OrdinalIgnoreCase) ||
@@ -328,6 +374,12 @@ internal sealed class NdsEventSession
                     try { expected = Convert.FromHexString(remove.RecordHex); } catch (FormatException ex) { throw new InvalidDataException("Registro de NPC ilegible en el checkpoint.", ex); }
                     try { result = result.RemoveNpc(remove.Map, remove.Index, expected); }
                     catch (InvalidOperationException ex) { throw new InvalidDataException(ex.Message, ex); }
+                    break;
+                case NdsEventOperation.EventKind:
+                    var field = operation.Event;
+                    if (field is null || field.Before is null || field.After is null || operation.Move is not null || operation.Add is not null || operation.Remove is not null) throw new InvalidDataException("Edición de evento incompleta.");
+                    if (field.Map < 0 || field.Map >= result.Maps.Count) throw new InvalidDataException("Mapa inexistente en la edición de evento.");
+                    result = result.WithEvents(result.ReplaceEvent(field.Map, field.EventKind, field.Index, field.Before, field.After));
                     break;
                 default: throw new InvalidDataException("Operación de eventos desconocida: " + operation.Kind);
             }

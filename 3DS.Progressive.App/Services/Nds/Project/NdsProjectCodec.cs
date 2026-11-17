@@ -46,8 +46,8 @@ internal sealed record NdsProjectReadResult(NdsProjectReadStatus Status, string 
 /// </summary>
 internal static class NdsProjectCodec
 {
-    /// <summary><c>ContainerVersion</c> is the newest reader this build is: 2 understands event histories with fixed-look turns and trainer sight.</summary>
-    internal const int HeaderSize = 64, FooterSize = 40, ContainerVersion = 2;
+    /// <summary><c>ContainerVersion</c> is the newest reader this build is: 2 understands fixed-look turns and trainer sight; 3 also edits of background objects, warps and triggers.</summary>
+    internal const int HeaderSize = 64, FooterSize = 40, ContainerVersion = 3;
     internal static readonly byte[] Magic = "DRDSPRJ1"u8.ToArray(), EndMagic = "DRDSEND1"u8.ToArray();
     // Safety limits (a real project is a few hundred KiB; these only stop corrupt or hostile files from exhausting memory).
     internal const int MaxManifestBytes = 32 * 1024 * 1024, MaxBlobs = 4096, MaxOperations = 200_000, MaxBlobRawBytes = 256 * 1024 * 1024;
@@ -363,7 +363,7 @@ internal static class NdsProjectCodec
                 bool complete = operation is not null && operation.Kind switch
                 {
                     null => false, NdsEventOperation.MoveKind => operation.Move is not null, NdsEventOperation.AddKind => operation.Add is not null,
-                    NdsEventOperation.RemoveKind => operation.Remove is not null, _ => true,
+                    NdsEventOperation.RemoveKind => operation.Remove is not null, NdsEventOperation.EventKind => operation.Event is not null, _ => true,
                 };
                 if (!complete) return "una operación de eventos está incompleta";
             }
