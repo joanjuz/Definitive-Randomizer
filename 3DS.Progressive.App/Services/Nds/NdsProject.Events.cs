@@ -37,6 +37,18 @@ internal sealed partial class NdsProject
         }
         return (_props, _propsNote);
     }
+    private PlatinumMapAssets? _assets; private string? _assetsNote; private bool _assetsRead;
+    /// <summary>Read-only map graphics (terrain and prop models, textures). Missing or unaccredited data never blocks the event editor.</summary>
+    internal (PlatinumMapAssets? Assets, string? Note) LoadMapAssets()
+    {
+        if (!_assetsRead)
+        {
+            try { _assets = PlatinumMapAssets.Open(_rom); }
+            catch (Exception ex) when (ex is InvalidDataException or FileNotFoundException or IOException or ArgumentException) { _assetsNote = ex.Message; }
+            _assetsRead = true;
+        }
+        return (_assets, _assetsNote);
+    }
     internal IReadOnlyList<string> EventHistory => _events?.Audit ?? Array.Empty<string>();
     internal int OperationCount => _history.Count + EventHistory.Count;
     internal void EventChanged() { Revision++; _gen4View = null; _gen5View = null; }

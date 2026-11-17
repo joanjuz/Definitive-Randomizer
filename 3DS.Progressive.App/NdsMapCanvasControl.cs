@@ -40,6 +40,13 @@ internal sealed class NdsMapCanvasControl : FrameworkElement
     private bool _middlePan;
     private (PlatinumEvent Template, Func<int, int, NdsPlacementEval> Evaluate, int X, int Y, NdsPlacementEval? Eval)? _placement;
     private NdsFacingState? _facing;
+    private NdsMapRenderCache? _renders;
+    /// <summary>Source of the graphic layer (null: not available). Finished blocks redraw the canvas.</summary>
+    internal NdsMapRenderCache? Renders
+    {
+        get => _renders;
+        set { _renders = value; if (value is not null) value.Rendered += () => Dispatcher.BeginInvoke(InvalidateVisual); }
+    }
     private bool _showVision = true, _showAllVision;
 
     // ---- facing and trainer sight (the view owns the values; the canvas only draws them and reports clicks and keys) -------------------------------
@@ -409,6 +416,14 @@ internal sealed class NdsMapCanvasControl : FrameworkElement
         int bx0 = Math.Max(0, (int)Math.Floor(x0 / 32.0)), by0 = Math.Max(0, (int)Math.Floor(y0 / 32.0));
         int bx1 = Math.Min(m.Layout.Width - 1, (int)Math.Floor(x1 / 32.0)), by1 = Math.Min(m.Layout.Height - 1, (int)Math.Floor(y1 / 32.0));
         bool ownership = (m.Layers & NdsMapLayers.Ownership) != 0, blocks = (m.Layers & NdsMapLayers.Blocks) != 0;
+        // Graphic layer: one top-down image per visible block (rendered off the UI thread; a block not ready yet simply appears on the next redraw).
+        if ((m.Layers & NdsMapLayers.Models) != 0 && _renders is { } renders)
+            for (int by = by0; by <= by1; by++)
+                for (int bx = bx0; bx <= bx1; bx++)
+                {
+                    var cell = m.Layout.Cell(bx, by);
+                    if (renders.Get(cell.LandDataId, cell.HeaderId) is { } image) { var (px, py) = m.TileToPixel(bx * 32, by * 32); dc.DrawImage(image, new Rect(px, py, blockPx, blockPx)); }
+                }
         for (int by = by0; by <= by1; by++)
             for (int bx = bx0; bx <= bx1; bx++)
             {

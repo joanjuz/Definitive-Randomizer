@@ -77,9 +77,13 @@ internal sealed class NdsEventEditorView : UserControl
     private DataGrid CurrentTable => _tables[Math.Clamp(_tabs.SelectedIndex, 0, 3)];
     internal event Action? Changed;
 
-    internal NdsEventEditorView(NdsEventSession session, PlatinumTerrain? terrain = null, string? terrainUnavailable = null, PlatinumLandProps? props = null, string? propsUnavailable = null)
+    // Read-only map graphics; null when the ROM's archives are not the accredited CPUE/1 ones. The graphic layer is optional and off by default.
+    private readonly NdsMapRenderCache? _renders; private readonly string? _rendersNote;
+    internal NdsEventEditorView(NdsEventSession session, PlatinumTerrain? terrain = null, string? terrainUnavailable = null, PlatinumLandProps? props = null, string? propsUnavailable = null,
+        PlatinumMapAssets? assets = null, string? assetsUnavailable = null)
     {
         _session = session; _terrain = terrain; _props = props; _propsNote = propsUnavailable;
+        _renders = assets is null ? null : new NdsMapRenderCache(assets, props); _rendersNote = assetsUnavailable;
         _terrainNote.Text = terrain is null
             ? "Terreno: no disponible" + (string.IsNullOrWhiteSpace(terrainUnavailable) ? "" : " (" + terrainUnavailable + ")") + ". Se muestran solo eventos y matriz; las casillas no se consideran libres ni bloqueadas."
             : "Terreno: colisión leída de land_data (bit 15 de cada atributo). «Bloqueado» es un dato del juego; «sin colisión» no confirma que se pueda pasar; sin datos = desconocido. Son bloqueos abstractos, no los gráficos de casas o árboles."; Margin = new Thickness(12);
@@ -151,8 +155,11 @@ internal sealed class NdsEventEditorView : UserControl
         _script.Click += (_, _) => { var selected = _event; if (selected is null) return; _tabs.SelectedIndex = 3; _tables[3].SelectedItem = _tables[3].Items.Cast<PlatinumEvent>().FirstOrDefault(e => e.Kind == selected.Kind && e.Index == selected.Index); _details.Focus(); };
         SizeChanged += (_, _) => Adapt(); _differences.TextChanged += (_, _) => { if (_brief) Adapt(); }; FilterMaps(); RefreshStatus();
     }
+    internal const string GraphicNotice = "Vista gráfica desde arriba: terreno y edificios dibujados con los modelos y texturas de tu ROM, sin la cámara inclinada, la iluminación ni las animaciones del juego. Los marcadores y colisiones siguen siendo esquemáticos.";
+    private readonly TextBlock _notice = new() { Text = NdsMapCanvasControl.SchematicNotice, FontWeight = FontWeights.SemiBold, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 4, 0, 0) };
     private void BuildCenter()
     {
+        _canvas.Renders = _renders;
         _center.RowDefinitions.Add(new() { Height = GridLength.Auto }); _center.RowDefinitions.Add(new() { Height = GridLength.Auto });
         _center.RowDefinitions.Add(new() { Height = new GridLength(1, GridUnitType.Star) }); _center.RowDefinitions.Add(new() { Height = GridLength.Auto });
         var bar = new WrapPanel { Margin = new Thickness(0, 0, 0, 4) }; bar.Children.Add(_modeMap); bar.Children.Add(_modeTables);
@@ -172,7 +179,7 @@ internal sealed class NdsEventEditorView : UserControl
         // NPC operations live in the toolbar above the map: always visible, never scrolled away with the inspector.
         bar.Children.Add(BuildStructureBar());
         _center.Children.Add(bar);
-        foreach (var (label, layer) in new[] { ("NPC", NdsMapLayers.Npc), ("Objetos", NdsMapLayers.Objects), ("Warps", NdsMapLayers.Warps), ("Activadores", NdsMapLayers.Triggers), ("Bloques", NdsMapLayers.Blocks), ("Tiles", NdsMapLayers.Tiles), ("Máscara", NdsMapLayers.Ownership), ("Terreno", NdsMapLayers.Terrain), ("Estructuras", NdsMapLayers.Structures), ("Modelos/texturas", NdsMapLayers.None) })
+        foreach (var (label, layer) in new[] { ("NPC", NdsMapLayers.Npc), ("Objetos", NdsMapLayers.Objects), ("Warps", NdsMapLayers.Warps), ("Activadores", NdsMapLayers.Triggers), ("Bloques", NdsMapLayers.Blocks), ("Tiles", NdsMapLayers.Tiles), ("Máscara", NdsMapLayers.Ownership), ("Terreno", NdsMapLayers.Terrain), ("Estructuras", NdsMapLayers.Structures), ("Modelos/texturas", NdsMapLayers.Models) })
         {
             var box = new CheckBox { Content = label, IsChecked = true, Margin = new Thickness(0, 0, 10, 0), Tag = layer, FontSize = 12 }; AccessibleName(box, "Eventos DS · capa " + label + (layer == NdsMapLayers.Blocks ? " de 32×32 tiles" : layer == NdsMapLayers.Ownership ? " de cabecera (celdas de la cabecera, contextuales y ajenas)" : layer == NdsMapLayers.Terrain ? " y obstáculos (colisión de terreno)" : "")); if (layer == NdsMapLayers.Terrain && _terrain is null) { box.IsChecked = false; box.IsEnabled = false; } box.ToolTip = AutomationProperties.GetName(box).Substring("Eventos DS · ".Length);
             if (layer == NdsMapLayers.Structures)
@@ -183,7 +190,15 @@ internal sealed class NdsEventEditorView : UserControl
                 if (_props is null) { box.IsChecked = false; box.IsEnabled = false; }
                 AutomationProperties.SetHelpText(box, (string)box.ToolTip);
             }
-            if (layer == NdsMapLayers.None) { box.IsChecked = false; box.IsEnabled = false; box.ToolTip = "No disponible: exige leer los modelos NSBMD y las texturas NSBTX, que no están implementados."; AutomationProperties.SetHelpText(box, (string)box.ToolTip); }
+            if (layer == NdsMapLayers.Models)
+            {
+                // Off by default: the schematic view stays the reference; the graphic one is drawn from above, without the game's camera or lighting.
+                box.IsChecked = false; box.IsEnabled = _renders is not null;
+                box.ToolTip = _renders is null
+                    ? "No disponible: no se pudieron leer los modelos NSBMD y las texturas NSBTX de esta ROM" + (string.IsNullOrWhiteSpace(_rendersNote) ? "." : " (" + _rendersNote + ").")
+                    : "Terreno y edificios dibujados desde arriba con los modelos NSBMD y las texturas NSBTX de tu ROM. Vista cenital, sin la cámara inclinada, la iluminación ni las animaciones del juego.";
+                AutomationProperties.SetHelpText(box, (string)box.ToolTip);
+            }
             box.Checked += (_, _) => ApplyLayers(); box.Unchecked += (_, _) => ApplyLayers(); _layerBar.Children.Add(box);
         }
         foreach (var (box, tip) in new[] { (_visionSelected, "Visión del NPC seleccionado: flecha de orientación y casillas que alcanza (guardado y propuesto)."), (_visionAll, "Visión guardada de todos los entrenadores visibles (tenue).") })
@@ -196,7 +211,7 @@ internal sealed class NdsEventEditorView : UserControl
         Grid.SetRow(_layerBar, 1); _center.Children.Add(_layerBar);
         _canvasFrame = new Border { BorderThickness = new Thickness(1), Child = _canvas, MinHeight = 180 }; _canvasFrame.SetResourceReference(Border.BorderBrushProperty, "Stroke");
         Grid.SetRow(_canvasFrame, 2); _center.Children.Add(_canvasFrame); Grid.SetRow(_tabs, 2); _center.Children.Add(_tabs); _tabs.Visibility = Visibility.Collapsed;
-        var notice = new TextBlock { Text = NdsMapCanvasControl.SchematicNotice, FontWeight = FontWeights.SemiBold, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 4, 0, 0) };
+        var notice = _notice;
         AccessibleName(notice, "Eventos DS · aviso de vista esquemática"); AccessibleName(_hover, "Eventos DS · posición bajo el cursor"); AccessibleName(_scale, "Eventos DS · escala y dimensiones");
         BuildMoveBox(); AccessibleName(_toolHelp, "Eventos DS · ayuda de la herramienta");
         _legend = BuildLegend(); ApplyTool(); _canvas.DragGuard = BeginMoveGuard; _canvas.MoveDropped += OnMoveDropped; _canvas.DragChanged += OnDragChanged;
@@ -664,6 +679,7 @@ internal sealed class NdsEventEditorView : UserControl
         var layers = NdsMapLayers.None;
         foreach (var box in _layerBar.Children.OfType<CheckBox>()) if (box.IsChecked == true && box.Tag is NdsMapLayers layer) layers |= layer;
         _canvas.SetLayers(layers);
+        _notice.Text = (layers & NdsMapLayers.Models) != 0 ? GraphicNotice : NdsMapCanvasControl.SchematicNotice;
     }
     private void LoadCanvas(PlatinumMap? map, IReadOnlyList<PlatinumEvent> events)
     {
