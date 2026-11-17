@@ -33,13 +33,14 @@ internal sealed record NdsNpcMovePlan(PlatinumEvent Npc, int FromX, int FromY, i
 
 internal static class NdsNpcMovePlanner
 {
-    /// <summary>Only existing NPC records (not ground-object NPCs, objects, warps or triggers) can be dragged in this phase.</summary>
-    internal static bool IsDraggable(PlatinumEvent e) => e.Kind == PlatinumEventKind.Npc && e.Type != 3;
+    /// <summary>Existing NPC records (not ground-object NPCs), background objects, warps and triggers can be dragged.</summary>
+    internal static bool IsDraggable(PlatinumEvent e) => e.Kind == PlatinumEventKind.Npc ? e.Type != 3 : true;
 
     internal static NdsNpcMovePlan Plan(NdsMapCanvasModel model, PlatinumEvent npc, int x, int y)
     {
-        if (!IsDraggable(npc)) return new(npc, npc.X, npc.Y, x, y, NdsMoveOutcome.Rejected, null, ["este evento no se puede mover con el ratón en esta fase"]);
+        if (!IsDraggable(npc)) return new(npc, npc.X, npc.Y, x, y, NdsMoveOutcome.Rejected, null, ["este evento no se puede mover con el ratón"]);
         if (x == npc.X && y == npc.Y) return new(npc, npc.X, npc.Y, x, y, NdsMoveOutcome.NoChange, null, []);
+        if (npc.Kind != PlatinumEventKind.Npc) return PlanEvent(model, npc, x, y);
         var a = model.Query.Assess(x, y, (npc.Kind, npc.Index));
         // Structural limits of the existing editor cannot be bypassed by any confirmation.
         var structural = new List<string>();
@@ -48,6 +49,22 @@ internal static class NdsNpcMovePlanner
         if (structural.Count > 0) return new(npc, npc.X, npc.Y, x, y, NdsMoveOutcome.Rejected, a, structural);
         if (a.Verdict == NdsTileVerdict.Blocked) return new(npc, npc.X, npc.Y, x, y, NdsMoveOutcome.Rejected, a, a.Reasons);
         return new(npc, npc.X, npc.Y, x, y, a.Verdict == NdsTileVerdict.Allowed ? NdsMoveOutcome.Ready : NdsMoveOutcome.NeedsWarning, a, a.Reasons);
+    }
+
+    /// <summary>
+    /// Background objects, warps and triggers: only the editor bounds (the whole area for a trigger) are structural. Terrain and occupancy rules of NPC do
+    /// not apply (a warp usually sits on a door, a sign on a wall), and their own in-game rules are not known, so a valid tile is always a warning.
+    /// </summary>
+    private static NdsNpcMovePlan PlanEvent(NdsMapCanvasModel model, PlatinumEvent e, int x, int y)
+    {
+        int w = e.Kind == PlatinumEventKind.Trigger ? Math.Max(1, e.RangeX) : 1, h = e.Kind == PlatinumEventKind.Trigger ? Math.Max(1, e.RangeY) : 1;
+        var corner = model.Query.Assess(x, y, (e.Kind, e.Index)); var far = model.Query.Assess(x + w - 1, y + h - 1, (e.Kind, e.Index));
+        if (x < 0 || y < 0 || !corner.EditorAccepts || !far.EditorAccepts)
+            return new(e, e.X, e.Y, x, y, NdsMoveOutcome.Rejected, corner, [w * h > 1 ? "el área del activador sale de los límites que acepta el editor" : "fuera de los límites que acepta el editor de eventos"]);
+        string what = e.Kind switch { PlatinumEventKind.Warp => "un warp", PlatinumEventKind.Trigger => "un activador", _ => "un objeto de fondo" };
+        var reasons = new List<string> { $"no se comprueba el terreno ni la ocupación para {what}: revisa la casilla en el mapa" };
+        if (e.Kind == PlatinumEventKind.Warp) reasons.Add("el jugador entra por esta casilla y llega aquí desde el warp de origen");
+        return new(e, e.X, e.Y, x, y, NdsMoveOutcome.NeedsWarning, corner, reasons);
     }
 }
 

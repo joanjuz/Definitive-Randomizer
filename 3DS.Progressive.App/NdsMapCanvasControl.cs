@@ -51,6 +51,9 @@ internal sealed class NdsMapCanvasControl : FrameworkElement
 
     // ---- facing and trainer sight (the view owns the values; the canvas only draws them and reports clicks and keys) -------------------------------
     /// <summary>The selected NPC's stored and proposed facing/sight, or null when nothing turnable is selected.</summary>
+    private string? _selectionNote;
+    /// <summary>A short line drawn under the selected marker (for a warp: where it leads, stored or proposed). Null: none.</summary>
+    internal string? SelectionNote { get => _selectionNote; set { _selectionNote = value; InvalidateVisual(); } }
     internal NdsFacingState? Facing => _facing;
     internal void SetFacing(NdsFacingState? facing) { _facing = facing; InvalidateVisual(); }
     /// <summary>Sight of the selected trainer (stored and proposed).</summary>
@@ -480,6 +483,12 @@ internal sealed class NdsMapCanvasControl : FrameworkElement
                 DrawSight(dc, m, NdsTrainerVision.Cells(m, marker.Event, marker.X, marker.Y, marker.Event.Direction, marker.Event.Sight), faint: true);
         if (_facing is { } facing && _showVision && (m.Layers & NdsMapLayers.Npc) != 0) DrawFacing(dc, m, facing);
         if (m.SelectedMarker is { } sel && m.IsLayerVisible(sel)) DrawSelection(dc, m, sel);
+        if (_selectionNote is { Length: > 0 } note && m.SelectedMarker is { } noted && m.IsLayerVisible(noted))
+        {
+            var c = m.TileToPixel(noted.CenterX, noted.CenterY); var text = Text(note, 11.5, Brushes.White);
+            var spot = new Point(Math.Clamp(c.X + 18, 2, Math.Max(2, w - text.Width - 6)), Math.Clamp(c.Y - text.Height / 2, 2, Math.Max(2, h - text.Height - 2)));   // right of the marker: the ghost label of a move goes above its target
+            dc.DrawRectangle(new SolidColorBrush(Color.FromArgb(0xD0, 0x10, 0x16, 0x1E)), new Pen(new SolidColorBrush(ColorOf(NdsMarkerShape.Warp)), 1), new Rect(spot.X - 3, spot.Y - 1, text.Width + 6, text.Height + 2)); dc.DrawText(text, spot);
+        }
         if (_drag is { Active: true } drag) DrawGhost(dc, m, drag.Npc, drag.Plan.ToX, drag.Plan.ToY, drag.Plan.Outcome, "");
         else if (_pendingMove is { } pending) DrawGhost(dc, m, pending.Npc, pending.X, pending.Y, null, "propuesta pendiente");
         if (_pendingAdd is { } add) DrawGhost(dc, m, add.Template, add.X, add.Y, null, "NPC nuevo · pendiente de guardar", showOrigin: false);

@@ -125,11 +125,11 @@ internal sealed class NdsEventEditorView : UserControl
             _tables[i] = table; _tabs.Items.Add(new TabItem { Header = titles[i], Content = table }); AccessibleName(table, "Eventos DS · tabla " + titles[i]);
         }
         var inspector = new StackPanel { Margin = new Thickness(10, 0, 0, 0) };
-        inspector.Children.Add(_selection); inspector.Children.Add(_newBox); inspector.Children.Add(BuildFacingPanel());
+        inspector.Children.Add(_selection); inspector.Children.Add(_newBox); inspector.Children.Add(BuildFacingPanel()); inspector.Children.Add(BuildEventPanel());
         foreach (var (label, box) in new[] { ("Coordenada X", _x), ("Coordenada Y", _y), ("Dirección (0–3)", _direction) })
         {
             inspector.Children.Add(new TextBlock { Text = label, Margin = new Thickness(0, 8, 0, 3) }); inspector.Children.Add(box); AccessibleName(box, "Eventos DS · " + label);
-            box.TextChanged += (_, _) => { if (!_updating) { _dirty = true; InvalidatePreview(); UpdateFacing(); } };
+            box.TextChanged += (_, _) => { if (!_updating) { _dirty = true; InvalidatePreview(); UpdateFacing(); UpdateEventPanel(); } };
         }
         foreach (var button in new[] { _warp, _script }) { button.Margin = new Thickness(0, 10, 0, 4); inspector.Children.Add(button); }
         _details.MinHeight = 150; _details.MaxHeight = 330; inspector.Children.Add(_details);
@@ -351,7 +351,7 @@ internal sealed class NdsEventEditorView : UserControl
     {
         bool move = _toolMove.IsChecked == true; HideProposal(); _canvas.Tool = move ? NdsMapTool.MoveNpc : NdsMapTool.Select;
         _toolHelp.Text = move
-            ? "Mover NPC: arrastra un NPC existente a otra casilla; Esc cancela. Para desplazar el mapa, arrastra el fondo o usa el botón central. Soltar solo crea una propuesta: no se guarda nada."
+            ? "Mover NPC: arrastra un NPC, objeto de fondo, warp o activador existente a otra casilla; Esc cancela. Para desplazar el mapa, arrastra el fondo o usa el botón central. Soltar solo crea una propuesta: no se guarda nada."
             : "Seleccionar: clic para elegir un evento; arrastra el fondo para desplazar el mapa.";
     }
     /// <summary>Called when a drag actually activates (after the movement threshold): pending fields or a pending preview need the same authorization as changing the selection.</summary>
@@ -372,7 +372,7 @@ internal sealed class NdsEventEditorView : UserControl
     {
         if (_map is null) return;
         _move = plan; _moveMap = _map;
-        var lines = new List<string> { $"Propuesta de movimiento · NPC {plan.Npc.Index} (ID {plan.Npc.Id}) — Mapa {_map.Id}: {_map.Name}", "Original:  " + PositionText(plan.FromX, plan.FromY), "Propuesto: " + PositionText(plan.ToX, plan.ToY), "Estado: " + plan.Summary };
+        var lines = new List<string> { $"Propuesta de movimiento · {EventLabel(plan.Npc)} — Mapa {_map.Id}: {_map.Name}", "Original:  " + PositionText(plan.FromX, plan.FromY), "Propuesto: " + PositionText(plan.ToX, plan.ToY), "Estado: " + plan.Summary };
         lines.AddRange(plan.Reasons.Select(r => "• " + r));
         if (plan.CanPropose) lines.Add("No evaluado: alturas y BDHC, comportamiento del tile, puertas, scripts, movimiento del NPC y estado dinámico. Esto no es una confirmación de que el movimiento sea seguro en el juego.");
         var sharing = _session.Data.Maps.Where(m => m.EventFile == _map.EventFile).Select(m => m.Id).ToList();
@@ -383,6 +383,10 @@ internal sealed class NdsEventEditorView : UserControl
         _moveCancel.Content = plan.CanPropose ? "Cancelar" : "Cerrar";
         _moveBox.Visibility = Visibility.Visible; _hover.Text = plan.Live; SetFooterCompact(true);
     }
+    private static string EventLabel(PlatinumEvent e) => e.Kind switch
+    {
+        PlatinumEventKind.Npc => $"NPC {e.Index} (ID {e.Id})", PlatinumEventKind.Object => $"objeto de fondo {e.Index}", PlatinumEventKind.Warp => $"warp {e.Index}", _ => $"activador {e.Index} ({e.RangeX}×{e.RangeY})",
+    };
     private void SetFooterCompact(bool compact)
     {
         _proposalOpen = compact; ApplyFooterDetail();
@@ -398,9 +402,10 @@ internal sealed class NdsEventEditorView : UserControl
     {
         var plan = _move; var map = _moveMap; if (plan is null || map is null || !plan.CanPropose || !ReferenceEquals(map, _map) && map.Id != _map?.Id) { HideProposal(); return; }
         HideProposal();
-        var npc = _tables[0].Items.Cast<PlatinumEvent>().FirstOrDefault(e => e.Kind == plan.Npc.Kind && e.Index == plan.Npc.Index);
+        int tab = plan.Npc.Kind switch { PlatinumEventKind.Npc => 0, PlatinumEventKind.Object => 1, PlatinumEventKind.Warp => 2, _ => 3 };
+        var npc = _tables[tab].Items.Cast<PlatinumEvent>().FirstOrDefault(e => e.Kind == plan.Npc.Kind && e.Index == plan.Npc.Index);
         if (npc is null) return;
-        _updating = true; _tabs.SelectedIndex = 0; _tables[0].SelectedItem = npc; _updating = false;
+        _updating = true; _tabs.SelectedIndex = tab; _tables[tab].SelectedItem = npc; _updating = false;
         SelectEvent(npc);
         if (!ReferenceEquals(_event, npc)) return;      // the user declined to leave pending fields: keep everything as it was
         _x.Text = plan.ToX.ToString(CultureInfo.InvariantCulture); _y.Text = plan.ToY.ToString(CultureInfo.InvariantCulture);
@@ -712,7 +717,7 @@ internal sealed class NdsEventEditorView : UserControl
     private bool _brief, _adapting;
     private readonly ScrollViewer _bodyScroll = new() { VerticalScrollBarVisibility = ScrollBarVisibility.Auto, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled, Focusable = false };
     private readonly TextBlock _title = new() { Text = "Eventos · Platino CPUE/1", FontSize = 23, FontWeight = FontWeights.SemiBold };
-    private readonly TextBlock _intro = new() { Text = "Mueve, añade, duplica y copia NPC (también entre mapas, como copia básica). Objetos de fondo, warps y scripts: consulta. Los NPC del juego original no se eliminan.", TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 6, 0, 4) };
+    private readonly TextBlock _intro = new() { Text = "Mueve, añade, duplica y copia NPC (también entre mapas, como copia básica). Mueve objetos de fondo, warps y activadores, cambia el destino de un warp o el tamaño de un activador; los scripts solo se consultan. Los NPC del juego original no se eliminan.", TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 6, 0, 4) };
     internal ScrollViewer WorkingArea => _bodyScroll;
     private void Adapt()
     {
@@ -789,8 +794,8 @@ internal sealed class NdsEventEditorView : UserControl
         }
         _activeTab = Math.Max(0, _tabs.SelectedIndex);
         _event = item; _updating = true; _dirty = false; InvalidatePreview();
-        bool editable = item?.Kind == PlatinumEventKind.Npc;
-        _x.IsReadOnly = _y.IsReadOnly = _direction.IsReadOnly = !editable; _preview.IsEnabled = editable;
+        bool editable = item is not null && NdsNpcMovePlanner.IsDraggable(item);
+        _x.IsReadOnly = _y.IsReadOnly = !editable; _direction.IsReadOnly = item?.Kind != PlatinumEventKind.Npc || !editable; _preview.IsEnabled = editable;
         _x.Text = item?.X.ToString(CultureInfo.InvariantCulture) ?? ""; _y.Text = item?.Y.ToString(CultureInfo.InvariantCulture) ?? ""; _direction.Text = item?.Direction.ToString(CultureInfo.InvariantCulture) ?? "";
         _sight.Text = item is not null && PlatinumTrainerVision.SightRefusal(item) is null ? item.Sight.ToString(CultureInfo.InvariantCulture) : "";
         _selection.Text = item is null ? "Selecciona un evento" : $"{item.Description} · índice {item.Index} · ID {item.Id}";
@@ -806,7 +811,7 @@ internal sealed class NdsEventEditorView : UserControl
                 _details.Text += $"Script #{link.Reference} → archivo {link.Archive} · entrada {link.Entry?.ToString() ?? "?"} · offset {link.Offset?.ToString() ?? "?"}\n{link.Status}\n{link.Bytes}\n";
             }
             _details.Text += "\nBytes completos (campos desconocidos preservados):\n" + item.Raw;
-            if (!editable) _details.Text += "\nSolo consulta en fase 1.";
+            if (!editable) _details.Text += "\nSolo consulta: los NPC que representan objetos de suelo no se editan aquí.";
             if (_session.Data.Maps.Count(m => m.EventFile == _map.EventFile) > 1) _details.Text += "\nArchivo compartido por varias cabeceras: el cambio afecta a todas sus referencias.";
         }
         if (item is { Kind: PlatinumEventKind.Npc } && _map is not null)
@@ -824,7 +829,8 @@ internal sealed class NdsEventEditorView : UserControl
         }
         _canvas.ClearPropSelection(); _canvas.SelectProgrammatic(item, true);
         UpdateStructureButtons();
-        _updating = false; UpdateFacing();
+        LoadEventPanel(item);
+        _updating = false; UpdateFacing(); UpdateEventPanel();
     }
     /// <summary>
     /// A structure was clicked on the canvas. It becomes the only subject of the inspector: the event is deselected first, with the same
@@ -845,13 +851,156 @@ internal sealed class NdsEventEditorView : UserControl
     }
     private bool CanNavigate(PlatinumEvent warp) => warp.Destination >= 0 && warp.Destination < _session.Data.Maps.Count &&
         _session.Data.Events(warp.Destination).Any(e => e.Kind == PlatinumEventKind.Warp && e.Index == warp.Anchor);
+    // ---- background objects, warps and triggers: contextual fields; every change only prepares a proposal through the existing Preview -------------------
+    private readonly Border _eventBox = new() { BorderThickness = new Thickness(1), Padding = new Thickness(8), Margin = new Thickness(0, 8, 0, 0), Visibility = Visibility.Collapsed };
+    private readonly TextBlock _eventTitle = new() { FontWeight = FontWeights.SemiBold, TextWrapping = TextWrapping.Wrap };
+    private readonly TextBlock _eventState = new() { TextWrapping = TextWrapping.Wrap, FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 6, 0, 0) };
+    private readonly TextBlock _eventInfo = new() { TextWrapping = TextWrapping.Wrap, FontSize = 11.5, Margin = new Thickness(0, 6, 0, 0) };
+    private readonly ComboBox _objectFacing = new() { Margin = new Thickness(0, 3, 0, 0) };
+    private readonly ComboBox _warpMap = new() { Margin = new Thickness(0, 3, 0, 0), IsTextSearchEnabled = true }, _warpAnchor = new() { Margin = new Thickness(0, 3, 0, 0) };
+    private readonly TextBox _triggerWidth = new() { Width = 46, HorizontalContentAlignment = HorizontalAlignment.Center }, _triggerLength = new() { Width = 46, HorizontalContentAlignment = HorizontalAlignment.Center };
+    private readonly StackPanel _objectRow = new(), _warpRow = new(), _triggerRow = new();
+    private readonly Button _eventRestore = new() { Content = "Restaurar valores guardados", Margin = new Thickness(0, 6, 0, 0) };
+    private sealed record Choice(int Value, string Label) { public override string ToString() => Label; }
+
+    private UIElement BuildEventPanel()
+    {
+        _eventBox.SetResourceReference(Border.BorderBrushProperty, "Stroke"); _eventBox.SetResourceReference(Border.BackgroundProperty, "Panel");
+        var stack = new StackPanel(); stack.Children.Add(_eventTitle);
+        _objectRow.Children.Add(new TextBlock { Text = "Se usa…", Margin = new Thickness(0, 6, 0, 0) }); _objectRow.Children.Add(_objectFacing);
+        _objectFacing.ItemsSource = Enumerable.Range(0, PlatinumEventFields.MaxFacing + 1).Select(f => new Choice(f, PlatinumEventFields.FacingName(f))).ToList();
+        _objectFacing.SelectionChanged += (_, _) => EventFieldChanged(); AccessibleName(_objectFacing, "Eventos DS · objeto · dirección de interacción");
+        _warpRow.Children.Add(new TextBlock { Text = "Lleva al mapa", Margin = new Thickness(0, 6, 0, 0) }); _warpRow.Children.Add(_warpMap);
+        _warpRow.Children.Add(new TextBlock { Text = "Llega al warp", Margin = new Thickness(0, 6, 0, 0) }); _warpRow.Children.Add(_warpAnchor);
+        _warpMap.ItemsSource = _session.Data.Maps; _warpMap.DisplayMemberPath = nameof(PlatinumMap.Display);
+        _warpMap.SelectionChanged += (_, _) => { if (_updating) return; FillAnchors(_warpMap.SelectedItem as PlatinumMap, null); EventFieldChanged(); };
+        _warpAnchor.SelectionChanged += (_, _) => EventFieldChanged();
+        AccessibleName(_warpMap, "Eventos DS · warp · mapa de destino"); AccessibleName(_warpAnchor, "Eventos DS · warp · warp de llegada");
+        var size = new WrapPanel { Margin = new Thickness(0, 6, 0, 0) };
+        foreach (var (label, box, name) in new[] { ("Ancho", _triggerWidth, "ancho"), ("Alto", _triggerLength, "alto") })
+        {
+            var cell = new StackPanel { Margin = new Thickness(0, 0, 10, 0) }; cell.Children.Add(new TextBlock { Text = label + " (casillas)" });
+            var row = new StackPanel { Orientation = System.Windows.Controls.Orientation.Horizontal };
+            foreach (int delta in new[] { -1, 1 })
+            {
+                var step = new Button { Content = delta < 0 ? "−" : "+", MinWidth = 30, Padding = new Thickness(6, 2, 6, 2) }; EditorPresentation.StyleAction(step, EditorPresentation.ActionRole.Tertiary);
+                AccessibleName(step, $"Eventos DS · activador · {name} {(delta < 0 ? "una casilla menos" : "una casilla más")}");
+                var target = box; int d = delta;
+                step.Click += (_, _) => { int v = int.TryParse(target.Text, out int n) ? n : 1; target.Text = Math.Clamp(v + d, 1, PlatinumEventFields.MaxTriggerSide).ToString(CultureInfo.InvariantCulture); };
+                if (delta < 0) { row.Children.Add(step); row.Children.Add(box); box.Margin = new Thickness(4, 0, 4, 0); } else row.Children.Add(step);
+            }
+            AccessibleName(box, "Eventos DS · activador · " + name); box.TextChanged += (_, _) => EventFieldChanged();
+            cell.Children.Add(row); size.Children.Add(cell);
+        }
+        _triggerRow.Children.Add(size);
+        stack.Children.Add(_objectRow); stack.Children.Add(_warpRow); stack.Children.Add(_triggerRow); stack.Children.Add(_eventState); stack.Children.Add(_eventInfo);
+        EditorPresentation.StyleAction(_eventRestore, EditorPresentation.ActionRole.Tertiary);
+        _eventRestore.Click += (_, _) =>
+        {
+            if (_event is not { } e) return;
+            _updating = true; _x.Text = e.X.ToString(CultureInfo.InvariantCulture); _y.Text = e.Y.ToString(CultureInfo.InvariantCulture); LoadEventPanel(e); _updating = false;
+            _dirty = false; InvalidatePreview(); UpdateEventPanel(); _status.Text = "Valores guardados restaurados en los campos; no se ha guardado nada.";
+        };
+        AccessibleName(_eventRestore, "Eventos DS · evento · restaurar valores guardados"); AccessibleName(_eventState, "Eventos DS · evento · guardado y propuesto"); AccessibleName(_eventInfo, "Eventos DS · evento · notas");
+        stack.Children.Add(_eventRestore); _eventBox.Child = stack; AccessibleName(_eventBox, "Eventos DS · objeto, warp o activador");
+        return _eventBox;
+    }
+    private void FillAnchors(PlatinumMap? map, int? select)
+    {
+        var warps = map is null ? [] : _session.Data.Events(map.Id).Where(e => e.Kind == PlatinumEventKind.Warp).Select(w => new Choice(w.Index, $"Warp {w.Index} · X {w.X}, Y {w.Y}")).ToList();
+        bool was = _updating; _updating = true; _warpAnchor.ItemsSource = warps; _warpAnchor.SelectedItem = warps.FirstOrDefault(c => c.Value == (select ?? 0)) ?? warps.FirstOrDefault(); _updating = was;
+    }
+    /// <summary>Fills the contextual fields from the stored values of the selected event (no proposal).</summary>
+    private void LoadEventPanel(PlatinumEvent? e)
+    {
+        _objectRow.Visibility = e?.Kind == PlatinumEventKind.Object ? Visibility.Visible : Visibility.Collapsed;
+        _warpRow.Visibility = e?.Kind == PlatinumEventKind.Warp ? Visibility.Visible : Visibility.Collapsed;
+        _triggerRow.Visibility = e?.Kind == PlatinumEventKind.Trigger ? Visibility.Visible : Visibility.Collapsed;
+        if (e is null || e.Kind == PlatinumEventKind.Npc) return;
+        if (e.Kind == PlatinumEventKind.Object) _objectFacing.SelectedItem = ((IEnumerable<Choice>)_objectFacing.ItemsSource).FirstOrDefault(c => c.Value == e.Direction);
+        if (e.Kind == PlatinumEventKind.Warp)
+        {
+            bool dynamic = e.Anchor == PlatinumEventFields.DynamicAnchor;
+            _warpMap.SelectedItem = dynamic || e.Destination >= _session.Data.Maps.Count ? null : _session.Data.Map(e.Destination);
+            FillAnchors(_warpMap.SelectedItem as PlatinumMap, e.Anchor); _warpMap.IsEnabled = _warpAnchor.IsEnabled = !dynamic;
+        }
+        if (e.Kind == PlatinumEventKind.Trigger) { _triggerWidth.Text = e.RangeX.ToString(CultureInfo.InvariantCulture); _triggerLength.Text = e.RangeY.ToString(CultureInfo.InvariantCulture); }
+    }
+    /// <summary>The proposed values of the selected object, warp or trigger, read from the fields.</summary>
+    private PlatinumEventValues EventFieldValues(PlatinumEvent e)
+    {
+        int Parse(TextBox box, string what) => int.TryParse(box.Text, NumberStyles.Integer, CultureInfo.InvariantCulture, out int v) ? v : throw new InvalidDataException($"Introduce {what} como entero.");
+        var values = PlatinumEvents.EventValues(e) with { X = Parse(_x, "la coordenada X"), Y = Parse(_y, "la coordenada Y") };
+        return e.Kind switch
+        {
+            PlatinumEventKind.Object => values with { Facing = (_objectFacing.SelectedItem as Choice)?.Value ?? e.Direction },
+            PlatinumEventKind.Warp when e.Anchor != PlatinumEventFields.DynamicAnchor => values with { Destination = (_warpMap.SelectedItem as PlatinumMap)?.Id ?? e.Destination, Anchor = (_warpAnchor.SelectedItem as Choice)?.Value ?? e.Anchor },
+            PlatinumEventKind.Trigger => values with { Width = Parse(_triggerWidth, "el ancho"), Length = Parse(_triggerLength, "el alto") },
+            _ => values,
+        };
+    }
+    private void EventFieldChanged()
+    {
+        if (_updating || _event is null || _event.Kind == PlatinumEventKind.Npc) return;
+        _dirty = true; InvalidatePreview(); PreviewSelection(); UpdateEventPanel();
+    }
+    /// <summary>Shows what the selected object, warp or trigger is, its stored and proposed values and, for warps, where the destination leads.</summary>
+    private void UpdateEventPanel()
+    {
+        if (_event is not { } e || e.Kind == PlatinumEventKind.Npc || !NdsNpcMovePlanner.IsDraggable(e) || _map is null) { _eventBox.Visibility = Visibility.Collapsed; _canvas.SelectionNote = null; return; }
+        _eventBox.Visibility = Visibility.Visible; var data = _session.Data;
+        PlatinumEventValues? proposed; try { proposed = EventFieldValues(e); } catch (InvalidDataException) { proposed = null; }
+        var saved = PlatinumEvents.EventValues(e); bool changed = proposed is not null && proposed != saved;
+        string Where(PlatinumEventValues v) => e.Kind switch
+        {
+            PlatinumEventKind.Object => $"X {v.X}, Y {v.Y} · {PlatinumEventFields.FacingName(v.Facing ?? 0).ToLowerInvariant()}",
+            PlatinumEventKind.Warp => v.Anchor == PlatinumEventFields.DynamicAnchor ? $"X {v.X}, Y {v.Y} · destino dinámico" : $"X {v.X}, Y {v.Y} → {(v.Destination < data.Maps.Count ? data.Map(v.Destination!.Value).Name : "?")} (mapa {v.Destination}), warp {v.Anchor}",
+            _ => $"X {v.X}, Y {v.Y} · {v.Width}×{v.Length} casillas",
+        };
+        _eventTitle.Text = e.Kind switch { PlatinumEventKind.Object => $"Objeto de fondo {e.Index} · {PlatinumEventFields.ObjectTypeName(e.Type)}", PlatinumEventKind.Warp => $"Warp {e.Index}", _ => $"Activador {e.Index}" };
+        _eventState.Text = changed ? $"Guardado: {Where(saved)}\nPropuesta: {Where(proposed!)}" : $"Guardado: {Where(saved)} (sin cambios)";
+        var notes = new List<string>();
+        switch (e.Kind)
+        {
+            case PlatinumEventKind.Object:
+                notes.Add($"Script {e.Script} y tipo {e.Type} no se editan: solo la posición y desde dónde se usa.");
+                if (e.Type == 2) notes.Add("Objeto oculto: el objeto lo decide su script; se puede mover, no cambiar.");
+                break;
+            case PlatinumEventKind.Warp:
+                if (e.Anchor == PlatinumEventFields.DynamicAnchor) notes.Add("Destino dinámico: lo decide la partida (salidas especiales). Se puede mover, pero su destino no se edita.");
+                else
+                {
+                    notes.Add("Solo se puede elegir un warp que ya existe; el jugador aparece sobre él.");
+                    if (proposed is { Destination: int d, Anchor: int an } && data.WarpTargetExists(d, an))
+                    {
+                        var target = data.Event(d, PlatinumEventKind.Warp, an);
+                        bool back = target.Destination == _map.Id && target.Anchor == e.Index;
+                        notes.Add(back ? "El warp de llegada vuelve a este warp: la ida y la vuelta coinciden."
+                            : $"El warp de llegada lleva a {(target.Anchor == PlatinumEventFields.DynamicAnchor ? "un destino dinámico" : $"{(target.Destination < data.Maps.Count ? data.Map(target.Destination).Name : "?")}, warp {target.Anchor}")}: la vuelta no regresa aquí.");
+                    }
+                }
+                break;
+            default: notes.Add($"Script {e.Script}, variable {e.Flag} y su valor no se editan: solo la posición y el tamaño del área."); break;
+        }
+        if (data.Maps.Count(m => m.EventFile == _map.EventFile) > 1) notes.Add("Archivo de eventos compartido: el cambio afecta a todas las cabeceras que lo usan.");
+        notes.Add("Muévelo arrastrándolo en el mapa con la herramienta «Mover NPC» o cambia X/Y abajo.");
+        _eventInfo.Text = string.Join("\n", notes.Select(n => "• " + n)); _eventRestore.IsEnabled = changed || _pending is not null;
+        _canvas.SelectionNote = e.Kind == PlatinumEventKind.Warp && proposed is not null ? (changed ? "propuesta: " : "") + Where(proposed).Split(" → ").Last() : null;
+    }
     internal bool ConfirmLeave() => !_busy && ((!_dirty && _pending is null) || StudioDialog.Confirm(Window.GetWindow(this), "Eventos DS", "Hay campos o una propuesta sin guardar. ¿Descartarlos y continuar?"));
     private void InvalidatePreview() { _pending = null; _save.IsEnabled = false; _differences.Text = ""; _canvas.ClearPendingMove(); }
     internal void PreviewSelection()
     {
         try
         {
-            if (_map is null || _event?.Kind != PlatinumEventKind.Npc) return;
+            if (_map is null || _event is null) return;
+            if (_event.Kind != PlatinumEventKind.Npc)
+            {
+                if (!NdsNpcMovePlanner.IsDraggable(_event)) return;
+                ShowProposal(_session.PreviewEvent(_map.Id, _event.Kind, _event.Index, EventFieldValues(_event)));
+                _status.Text = _pending!.Changes.Count == 0 ? "Sin diferencias." : "Revisa las diferencias y guarda. La ROM fuente no se modifica.";
+                return;
+            }
             int Parse(TextBox box) => int.TryParse(box.Text, NumberStyles.Integer, CultureInfo.InvariantCulture, out int value) ? value : throw new InvalidDataException("Introduce coordenadas, dirección y alcance como enteros.");
             var npc = _event; int direction = Parse(_direction);
             // A fixed-look NPC turns for good only if its LOOK_* movement turns with it (as the game's own scripts do); the session drops unchanged fields.
