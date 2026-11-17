@@ -99,6 +99,7 @@ dotnet .\3DS.Progressive.Tests\bin\Release\net10.0-windows\3DS.Progressive.Tests
 | `--nds-map-props-only` | — | lector de map props (posición e ID de modelo) y modelo de la capa; sintética; sí |
 | `--nds-map-canvas-only` | — | modelo espacial puro del lienzo DS de solo lectura; sin WPF |
 | `--nds-events-only` | — | incluida también en `--nds-only` |
+| `--nds-map-render-only` | — | lectores NSBTX/NSBMD, rasterizador cenital y resolvedor de recursos de mapa con archivos Nitro sintéticos; sí |
 | `--nds-trainer-vision-only` | — | orientación y visión de entrenadores existentes: contratos del motor, escritura byte a byte, checkpoints v1–v4, proyecto (lector 2) y geometría de la visión; sintética; sí |
 | `--performance-only` | — |  |
 | `--pickup-only` | — |  |
@@ -245,6 +246,7 @@ Necesitan extracciones, ROMs o carpetas de salida. Los argumentos concretos (ent
 | `--nds-npc-script-probe` | `<carpeta nueva> <ROM privada Platino CPUE/1>` | copia la fuente; copia la enfermera de Jubileo a Hojaverde, exporta, reabre y restaura; añade una enfermera desde la plantilla de la ROM en la Ruta 201 y restaura |
 | `--nds-live-ui-probe` | `<ROM privada Platino CPUE/1> <carpeta nueva> <ancho> <alto>` | **interactiva y local**: abre una ventana real y usa ratón y teclado reales (SendInput) sobre una copia; requiere el escritorio desbloqueado; no se ejecuta en CI |
 | `--nds-events-probe` | `<salida nueva> <ROM privada Platino CPUE/1>` |  |
+| `--nds-map-render-probe` | `<carpeta nueva> <ROM privada Platino CPUE/1>` | solo lectura: decodifica todas las texturas de mapa y de edificios, lee los 666 modelos de terreno y los 590 de edificios, comprueba los materiales de Hojaverde y guarda un atlas y el render cenital del bloque (privados) |
 | `--nds-trainer-vision-probe` | `<carpeta nueva> <ROM privada Platino CPUE/1>` | copia la fuente; comprueba las huellas y el censo de entrenadores; gira un entrenador «mirar fijo» de la Ruta 202 y amplía su visión, guarda (checkpoint v4), reabre, exporta, reabre la ROM exportada en el editor, restaura y compara SHA-256; escribe `MANUAL.txt` |
 | `--nds-gen5-items-probe` | 2 o más |  |
 | `--nds-gen5-random-probe` | 2 o más |  |
