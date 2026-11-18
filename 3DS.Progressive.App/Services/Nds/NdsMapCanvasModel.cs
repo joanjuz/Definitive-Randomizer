@@ -76,6 +76,25 @@ internal sealed class NdsMapCanvasModel
             maxX = Math.Max(maxX, m.X + m.Width); maxY = Math.Max(maxY, m.Y + m.Height);
         }
         WorldMinX = minX; WorldMinY = minY; WorldMaxX = maxX; WorldMaxY = maxY;
+        _graphicsHeaders = GraphicsHeaders(layout);
+    }
+    /// <summary>
+    /// Header whose area textures draw a cell. Owned cells use their own header. Unowned cells (header 0, «Mystery Zone») are drawn by the engine with the
+    /// area of the map the player is in, so they take the header of the nearest owned cell (ties: the lowest header id). With header 0's own area most of
+    /// their triangles find no texture (measured on CPUE/1: 64 064 of 103 596 untextured in the outdoor matrix; none with the nearest owner).
+    /// </summary>
+    internal int GraphicsHeader(PlatinumMapCell cell) => GraphicsCandidates(cell)[0];
+    /// <summary>Headers that may draw a cell, best first: its own, or for an unowned cell the owners by distance (several when they tie). The render cache
+    /// keeps the first one whose area provides every texture of the block, so a tie never picks an area without those textures.</summary>
+    internal IReadOnlyList<int> GraphicsCandidates(PlatinumMapCell cell) => _graphicsHeaders.TryGetValue((cell.BlockX, cell.BlockY), out var list) ? list : [cell.HeaderId];
+    private readonly Dictionary<(int, int), int[]> _graphicsHeaders;
+    internal static Dictionary<(int, int), int[]> GraphicsHeaders(PlatinumMapLayout layout)
+    {
+        var owned = layout.Cells.Where(c => c.HeaderId != 0 && c.LandDataId != PlatinumTerrain.EmptyLandId).ToList(); var result = new Dictionary<(int, int), int[]>();
+        if (owned.Count == 0) return result;
+        foreach (var cell in layout.Cells.Where(c => c.HeaderId == 0 && c.LandDataId != PlatinumTerrain.EmptyLandId))
+            result[(cell.BlockX, cell.BlockY)] = owned.OrderBy(o => Math.Abs(o.BlockX - cell.BlockX) + Math.Abs(o.BlockY - cell.BlockY)).ThenBy(o => o.HeaderId).Select(o => o.HeaderId).Distinct().Take(8).ToArray();
+        return result;
     }
 
     internal static NdsMapMarker Build(PlatinumMapLayout layout, PlatinumEvent e)
