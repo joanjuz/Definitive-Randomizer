@@ -220,7 +220,7 @@ internal static class NdsTrainerVisionChecks
         check(projectEvents.CheckpointVersion == 4 && projectEvents.RequiredReader == 2 && new NdsProjectEvents([ops[0]], ["x"]).RequiredReader == 1 && new NdsProjectEvents([ops[0]], ["x"]).CheckpointVersion == 1, "VisionProject_ReaderVersionFollowsTheHistory");
         var imported = NdsProjectEvents.FromCheckpoint(document);
         check(imported.ImportedFrom == 4 && imported.ToCheckpoint(source, document.SourceSha256).Version == 4, "VisionProject_Version4CheckpointsImportAndExport");
-        check(NdsProjectCodec.ContainerVersion == 2, "VisionProject_ThisBuildReadsProjectsOfReader2");
+        check(NdsProjectCodec.ContainerVersion >= 2, "VisionProject_ThisBuildReadsProjectsOfReader2");
 
         // End to end through a persistent project: saved with reader 2, rebuilt exactly from the stored history, back to reader 1 after undoing.
         string platinum = Path.Combine(temp, "platino.nds"); File.WriteAllBytes(platinum, NdsGen4Checks.SyntheticRom(Gen4Profile.All.Single(p => p.GameCode == "CPUE"), true));

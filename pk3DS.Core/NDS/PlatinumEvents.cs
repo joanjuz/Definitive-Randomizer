@@ -23,8 +23,8 @@ public sealed record PlatinumEvent(PlatinumEventKind Kind, int Index, int Id, in
         PlatinumEventKind.Npc => "NPC existente",
         PlatinumEventKind.Object when Type == 2 => "Evento de fondo · objeto oculto",
         PlatinumEventKind.Object => "Evento de fondo / cartel",
-        PlatinumEventKind.Warp => "Teletransporte (solo consulta)",
-        _ => "Activador de script (solo consulta)",
+        PlatinumEventKind.Warp => "Teletransporte (warp)",
+        _ => "Activador de script",
     };
 }
 /// <summary>
@@ -72,6 +72,24 @@ public static class PlatinumTrainerVision
         : !ChecksSight(npc.Type) ? $"el juego no comprueba la visión de este NPC (tipo {npc.Type}: {(npc.Type == 0 ? "no es entrenador" : npc.Type == 3 ? "objeto de suelo" : "tipo no identificado")}); su campo +14 no es un alcance"
         : npc.Sight > MaxAccreditedSight ? $"su alcance guardado ({npc.Sight}) supera el máximo acreditado ({MaxAccreditedSight})" : null;
 }
+/// <summary>Editable values of a background object (X, Y, Facing), warp (X, Y, Destination, Anchor) or trigger (X, Y, Width, Length). Fields the kind lacks are null.</summary>
+public sealed record PlatinumEventValues(int X, int Y, int? Destination = null, int? Anchor = null, int? Width = null, int? Length = null, int? Facing = null);
+
+/// <summary>
+/// Event facts used by the editor (pret/pokeplatinum: struct_defs/events.h, location.h, overlay005/field_control.c; generated/bg_event_dirs.txt, checked
+/// against the owner's dump: 1 207 warps with an existing target and 6 dynamic ones; triggers up to 8×6).
+/// </summary>
+public static class PlatinumEventFields
+{
+    /// <summary>WARP_ID_DYNAMIC: the destination is the saved special location, not the warp's fields.</summary>
+    public const int DynamicAnchor = 256, MaxFacing = 6, MaxTriggerSide = 32;
+    /// <summary>Direction the player must face to use a background event (BG_EVENT_DIR_*: 0 north, 1 east, 2 west, 3 south, 4 any, 5 west/east, 6 north/south).</summary>
+    public static string FacingName(int facing) => facing switch
+    {
+        0 => "Mirando arriba", 1 => "Mirando a la derecha", 2 => "Mirando a la izquierda", 3 => "Mirando abajo", 4 => "Desde cualquier lado", 5 => "Izquierda o derecha", 6 => "Arriba o abajo", _ => $"desconocida ({facing})",
+    };
+    public static string ObjectTypeName(int type) => type switch { 0 => "evento al mirar", 1 => "cartel de pared", 2 => "objeto oculto", _ => $"tipo {type}" };
+}
 public sealed record PlatinumScriptLink(int Reference, int Archive, int? Entry, int? Offset, string Status, string Bytes);
 
 /// <summary>
@@ -91,6 +109,8 @@ public sealed class PlatinumEvents
     public const string NormalizedEventsSha256 = "24D1E66E53C5D87DE91CAA26D6D19690C8AC04BAFDE1EAD6BFD7C25F2E1AA7DE";
     /// <summary><see cref="EditableHash"/> of the original CPUE/1 event archive (computed on the owner's dump, whose <see cref="NormalizedHash"/> is the constant above).</summary>
     public const string EditableEventsSha256 = "EAB5C0E3F69E80479F257484E576E70425C45E082A21917A0C0AA716029033B3";
+    /// <summary><see cref="EventsHash"/> of the original CPUE/1 event archive (computed on the owner's dump; levels 0 and 1 reproduce the two constants above).</summary>
+    public const string EventsEditableSha256 = "8A66B39F643BE98BDBC09CBCA46D5066A5C330F7A5F9514C10EAB2613D2ED16C";
     private readonly byte[] _events;
     private readonly Narc _scripts, _matrixFiles;
     private readonly int[] _starts;
@@ -114,7 +134,7 @@ public sealed class PlatinumEvents
             throw new InvalidDataException("Eventos CPUE/1: ARM9, nombres, matrices o scripts no coinciden con las tablas acreditadas.");
         var result = Parse(arm9.AsSpan(HeaderOffset, HeaderCount * 24).ToArray(), names, rom.ReadFile(EventPath), matrices, scripts, locationNames);
         if (Gen5Data.Crc32(arm9.AsSpan(HeaderOffset, HeaderCount * 24).ToArray()) != HeadersCrc32 || result._maps.Length != HeaderCount ||
-            result._blocks.Count != 534 || result._scripts.Files.Count != 1124 || (result.NormalizedHash() != NormalizedEventsSha256 && !result.IsAccreditedVisionEdit()))
+            result._blocks.Count != 534 || result._scripts.Files.Count != 1124 || (result.NormalizedHash() != NormalizedEventsSha256 && !result.IsAccreditedVisionEdit() && !result.IsAccreditedEventEdit()))
             throw new InvalidDataException("Eventos CPUE/1: las tablas o los bytes no editables no coinciden con el perfil.");
         return result;
     }
@@ -247,6 +267,54 @@ public sealed class PlatinumEvents
         (expected.Movement is null || expected.Movement == npc.Movement) && (expected.Sight is null || expected.Sight == npc.Sight);
     public int NpcCount(int mapId) => _blocks[Map(mapId).EventFile][1].Count;
 
+    /// <summary>The current editable values of a background object, warp or trigger (only the fields its kind has).</summary>
+    public static PlatinumEventValues EventValues(PlatinumEvent e) => e.Kind switch
+    {
+        PlatinumEventKind.Object => new(e.X, e.Y, Facing: e.Direction),
+        PlatinumEventKind.Warp => new(e.X, e.Y, Destination: e.Destination, Anchor: e.Anchor),
+        PlatinumEventKind.Trigger => new(e.X, e.Y, Width: e.RangeX, Length: e.RangeY),
+        _ => throw new ArgumentException("Solo objetos de fondo, warps y activadores.", nameof(e)),
+    };
+    public PlatinumEvent Event(int mapId, PlatinumEventKind kind, int index) => Events(mapId).FirstOrDefault(e => e.Kind == kind && e.Index == index)
+        ?? throw new ArgumentOutOfRangeException(nameof(index), "Evento inexistente.");
+    /// <summary>
+    /// Writes the editable fields of an existing background object (position, interaction direction), warp (position; destination and warp index,
+    /// except for dynamic warps, and only to an existing warp) or trigger (position and size). Script, type, flags, variables, values and every other
+    /// byte stay as they are. Positions and areas must lie within the editor bounds (the most conservative when several headers share the file).
+    /// </summary>
+    public byte[] ReplaceEvent(int mapId, PlatinumEventKind kind, int index, PlatinumEventValues expected, PlatinumEventValues values)
+    {
+        if (kind is PlatinumEventKind.Npc) throw new ArgumentException("Los NPC se editan con ReplaceNpc.", nameof(kind));
+        var e = Event(mapId, kind, index); var bounds = Bounds(mapId); var current = EventValues(e);
+        if (expected != current) throw new InvalidOperationException("El evento cambió desde la vista previa.");
+        if (values.Destination.HasValue != expected.Destination.HasValue || values.Anchor.HasValue != expected.Anchor.HasValue || values.Width.HasValue != expected.Width.HasValue
+            || values.Length.HasValue != expected.Length.HasValue || values.Facing.HasValue != expected.Facing.HasValue)
+            throw new ArgumentException("El estado anterior y el propuesto deben incluir los mismos campos.", nameof(values));
+        int width = values.Width ?? 1, length = values.Length ?? 1;
+        if (values.X < 0 || values.Y < 0 || values.X + width > bounds.Width || values.Y + length > bounds.Height)
+            throw new ArgumentOutOfRangeException(nameof(values), "Posición o área fuera de los límites que acepta el editor.");
+        byte[] output = (byte[])_events.Clone(); int file = Map(mapId).EventFile;
+        int at = _starts[file] + _blocks[file][(int)kind].Offset + index * Strides[(int)kind];
+        switch (kind)
+        {
+            case PlatinumEventKind.Object:
+                if (values.Facing is not (>= 0 and <= PlatinumEventFields.MaxFacing)) throw new ArgumentOutOfRangeException(nameof(values), "Dirección de interacción fuera de 0–6.");
+                BinaryPrimitives.WriteInt32LittleEndian(output.AsSpan(at + 4), values.X); BinaryPrimitives.WriteInt32LittleEndian(output.AsSpan(at + 8), values.Y);
+                Put16(output, at + 16, values.Facing.Value);
+                break;
+            case PlatinumEventKind.Warp:
+                if ((values.Destination != expected.Destination || values.Anchor != expected.Anchor) && (expected.Anchor == PlatinumEventFields.DynamicAnchor || !WarpTargetExists(values.Destination!.Value, values.Anchor!.Value)))
+                    throw new ArgumentOutOfRangeException(nameof(values), expected.Anchor == PlatinumEventFields.DynamicAnchor ? "El destino de un warp dinámico lo decide la partida; no se edita." : "El destino debe ser un warp existente de un mapa existente.");
+                Put16(output, at, values.X); Put16(output, at + 2, values.Y); Put16(output, at + 4, values.Destination!.Value); Put16(output, at + 6, values.Anchor!.Value);
+                break;
+            case PlatinumEventKind.Trigger:
+                if (width is < 1 or > PlatinumEventFields.MaxTriggerSide || length is < 1 or > PlatinumEventFields.MaxTriggerSide) throw new ArgumentOutOfRangeException(nameof(values), $"El activador mide de 1 a {PlatinumEventFields.MaxTriggerSide} casillas por lado.");
+                Put16(output, at + 2, values.X); Put16(output, at + 4, values.Y); Put16(output, at + 6, width); Put16(output, at + 8, length);
+                break;
+        }
+        return output;
+    }
+
     /// <summary>
     /// Builds a 32-byte NPC record from an existing, accredited NPC (never a ground object). Unknown bytes, sight, ranges and height are copied from
     /// the template; script, flag and type are set to 0 ("no script", "no flag", normal NPC) because a script or flag copied from another NPC would
@@ -364,30 +432,56 @@ public sealed class PlatinumEvents
     public PlatinumEvents WithEvents(byte[] events)
     {
         var next = new PlatinumEvents(_headers, _names, events, _matrices, _scriptBytes, _labels);
-        if (next.EditableHash() != EditableHash()) throw new InvalidDataException("La edición altera bytes ajenos a los campos editables de NPC (X/Y, dirección, giro fijo y visión de entrenador).");
+        if (next.EventsHash() != EventsHash()) throw new InvalidDataException("La edición altera bytes ajenos a los campos editables de los eventos.");
         return next;
     }
     /// <summary>The accredited fingerprint used since phase 1: the whole NARC with direction and X/Y of every NPC cleared.</summary>
-    public string NormalizedHash() => Fingerprint(vision: false);
+    public string NormalizedHash() => Fingerprint(0);
+    /// <summary>
+    /// <see cref="EditableHash"/> plus the fields <see cref="ReplaceEvent"/> may write: position and interaction direction of background objects (+4..+11,
+    /// +16), position of warps (+0..+3) and their destination (+4..+7) unless the warp is dynamic (anchor 256), and position and size of triggers (+2..+9).
+    /// Script, type, flags, variables, values and every other byte stay protected.
+    /// </summary>
+    public string EventsHash() => Fingerprint(2);
     /// <summary>
     /// Like <see cref="NormalizedHash"/>, and also clearing the sight (+14) of the trainer types that check it and the movement type (+4) of NPC whose
     /// movement is a fixed look (14–17). Which records are cleared depends only on their type and on whether their movement is a fixed look, which an
     /// accepted edit never changes: a movement turned into anything else, or a sight written on another kind of NPC, changes this fingerprint.
     /// </summary>
-    public string EditableHash() => Fingerprint(vision: true);
-    private string Fingerprint(bool vision)
+    public string EditableHash() => Fingerprint(1);
+    private string Fingerprint(int level)
     {
         byte[] bytes = Bytes();
-        for (int file = 0; file < _blocks.Count; file++) for (int i = 0; i < _blocks[file][1].Count; i++)
+        for (int file = 0; file < _blocks.Count; file++)
         {
-            int at = _starts[file] + _blocks[file][1].Offset + i * 32;
-            bytes.AsSpan(at + 12, 2).Clear(); bytes.AsSpan(at + 24, 4).Clear();
-            if (!vision) continue;
-            if (PlatinumTrainerVision.ChecksSight(U16(bytes, at + 6))) bytes.AsSpan(at + 14, 2).Clear();
-            if (PlatinumTrainerVision.IsFixedLook(U16(bytes, at + 4))) bytes.AsSpan(at + 4, 2).Clear();
+            for (int i = 0; i < _blocks[file][1].Count; i++)
+            {
+                int at = _starts[file] + _blocks[file][1].Offset + i * 32;
+                bytes.AsSpan(at + 12, 2).Clear(); bytes.AsSpan(at + 24, 4).Clear();
+                if (level < 1) continue;
+                if (PlatinumTrainerVision.ChecksSight(U16(bytes, at + 6))) bytes.AsSpan(at + 14, 2).Clear();
+                if (PlatinumTrainerVision.IsFixedLook(U16(bytes, at + 4))) bytes.AsSpan(at + 4, 2).Clear();
+            }
+            if (level < 2) continue;
+            for (int i = 0; i < _blocks[file][0].Count; i++) { int at = _starts[file] + _blocks[file][0].Offset + i * 20; bytes.AsSpan(at + 4, 8).Clear(); bytes.AsSpan(at + 16, 2).Clear(); }
+            for (int i = 0; i < _blocks[file][2].Count; i++)
+            {
+                int at = _starts[file] + _blocks[file][2].Offset + i * 12; bytes.AsSpan(at, 4).Clear();
+                if (U16(bytes, at + 6) != PlatinumEventFields.DynamicAnchor) bytes.AsSpan(at + 4, 4).Clear();
+            }
+            for (int i = 0; i < _blocks[file][3].Count; i++) { int at = _starts[file] + _blocks[file][3].Offset + i * 16; bytes.AsSpan(at + 2, 8).Clear(); }
         }
         return Convert.ToHexString(SHA256.HashData(bytes));
     }
+    /// <summary>A ROM rebuilt with edited objects, warps or triggers: the events fingerprint of the profile, the trainer sight range and every warp destination valid.</summary>
+    private bool IsAccreditedEventEdit() =>
+        EventsHash() == EventsEditableSha256 &&
+        _maps.Select(m => m.Id).All(id => Events(id).All(e =>
+            e.Kind == PlatinumEventKind.Npc ? !PlatinumTrainerVision.ChecksSight(e.Type) || e.Sight <= PlatinumTrainerVision.MaxAccreditedSight
+            : e.Kind != PlatinumEventKind.Warp || e.Anchor == PlatinumEventFields.DynamicAnchor || WarpTargetExists(e.Destination, e.Anchor)));
+    /// <summary>Whether a destination header and warp index name an existing warp (what the engine places the player on).</summary>
+    public bool WarpTargetExists(int header, int anchor) =>
+        header >= 0 && header < _maps.Length && anchor >= 0 && anchor != PlatinumEventFields.DynamicAnchor && anchor < _blocks[_maps[header].EventFile][2].Count;
     /// <summary>A ROM rebuilt with turned trainers or edited sight: the editable fingerprint of the profile, and every trainer sight within the accredited range.</summary>
     private bool IsAccreditedVisionEdit() =>
         EditableHash() == EditableEventsSha256 &&

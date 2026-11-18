@@ -59,7 +59,7 @@ internal sealed partial class NdsProject
         try
         {
             document = NdsEventSession.ReadDocument(path);
-            if (document.Format != NdsEventSession.Format || document.Version is not (1 or 2 or 3 or 4) || document.Game != "CPUE" || document.Revision != 1 ||
+            if (document.Format != NdsEventSession.Format || document.Version is not (1 or 2 or 3 or 4 or 5) || document.Game != "CPUE" || document.Revision != 1 ||
                 string.IsNullOrWhiteSpace(document.SourcePath) || !document.SourcePath.EndsWith(".nds", StringComparison.OrdinalIgnoreCase))
                 throw new InvalidDataException("Checkpoint de eventos no compatible con Platino CPUE/1.");
         }
