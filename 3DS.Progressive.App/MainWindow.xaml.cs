@@ -414,6 +414,7 @@ public partial class MainWindow : Window
                     _globalTemplateView?.LoadedSourcePath),
 
                 "OWSE"=>new OwseDevView(_session),
+                "MapEditor3ds"=>new Map3dsEditorView(_session),
                 "Rebuild"=>_romRebuildView=new RomRebuildView(_session),
                 "CroIntegrity"=>_croIntegrityView=new CroIntegrityView(_session),
                 "GarcShuffle" when _session.Generation==6=>new GarcShuffleView(_session),
@@ -491,9 +492,9 @@ public partial class MainWindow : Window
         {Section_Click(new Button{Tag=section},new RoutedEventArgs());return;}
         if(section is "FacilityNormal" or "FacilityAlternate")
         {Section_Click(new Button{Tag=section},new RoutedEventArgs());return;}
-        if(section is "CroRecipes" or "UsumRelearner" or "UsumNatureMints" or "EggMoves" or "MegaEvolutions" or "TypeChart" or "ShinyRate" or "OWSE" or "Rebuild" or "CroIntegrity" or "Pickup" or "OPower" or "CatchZones" or "Trade6")
+        if(section is "CroRecipes" or "UsumRelearner" or "UsumNatureMints" or "EggMoves" or "MegaEvolutions" or "TypeChart" or "ShinyRate" or "OWSE" or "MapEditor3ds" or "Rebuild" or "CroIntegrity" or "Pickup" or "OPower" or "CatchZones" or "Trade6")
         {
-            if(section is "EggMoves" or "MegaEvolutions" or "TypeChart" or "ShinyRate" or "OWSE" or "Rebuild" or "CroIntegrity" or "Pickup" or "OPower" or "CatchZones" or "Trade6"||_session.GameConfiguration.USUM)
+            if(section is "EggMoves" or "MegaEvolutions" or "TypeChart" or "ShinyRate" or "OWSE" or "MapEditor3ds" or "Rebuild" or "CroIntegrity" or "Pickup" or "OPower" or "CatchZones" or "Trade6"||_session.GameConfiguration.USUM)
                 Section_Click(new Button{Tag=section},new RoutedEventArgs());
             return;
         }

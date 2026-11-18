@@ -15,6 +15,7 @@ internal static class ProjectFeatureAvailability
         "PersistentItems" or "MegaAbilitySync" or "PlayerCaps" or "UsumRelearner" or "UsumNatureMints" or "CroRecipes"=>project.GameConfiguration.USUM,
         "Trade6" or "CatchZones" or "OPower"=>project.Generation==6,
         "OWSE"=>project.Generation==7,
+        "MapEditor3ds"=>project.Generation==6,
         "Marts"=>project.Generation is 6 or 7,
         _=>true
     };

@@ -19,6 +19,7 @@ Punto de entrada a `docs/3ds-progressive/`. Muchos documentos son **registros hi
 | Editor DS A1: «Añadir enfermera» funcional desde una plantilla real de la ROM (Platino) | [NDS_ANADIR_ENFERMERA_A1.md](NDS_ANADIR_ENFERMERA_A1.md) |
 | Editor DS: edición de objetos de fondo, warps (destino validado) y activadores existentes, checkpoint v5 y proyecto con lector 3 (Platino) | [NDS_EVENTOS_OBJETOS_WARPS_ACTIVADORES.md](NDS_EVENTOS_OBJETOS_WARPS_ACTIVADORES.md) |
 | Editor DS: lectores NSBMD/NSBTX, recursos de mapa y render cenital por software (Platino) | [NDS_MAP_RENDER_LECTORES.md](NDS_MAP_RENDER_LECTORES.md) |
+| Editor de mapas 3DS Gen6 (X/Y, OR/AS): zonas, matriz, rejilla de permisos y eventos, solo lectura | [MAPAS_3DS_GEN6.md](MAPAS_3DS_GEN6.md) |
 | Editor DS: orientación y alcance de visión de entrenadores existentes, capa de visión, checkpoint v4 y proyecto con lector 2 (Platino) | [NDS_ENTRENADORES_ORIENTACION_VISION.md](NDS_ENTRENADORES_ORIENTACION_VISION.md) |
 | Detector universal de proyectos (B1): plataforma, juego y compatibilidad de una ruta, sin abrir nada; plan de B2 | [DETECTOR_PROYECTOS_B1.md](DETECTOR_PROYECTOS_B1.md) |
 | Apertura universal de proyectos (B2): un único «Abrir proyecto» para DS, 3DS y Switch; conservación del proyecto anterior y recuperación 3DS tipada | [APERTURA_UNIVERSAL_B2.md](APERTURA_UNIVERSAL_B2.md) |
