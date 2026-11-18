@@ -45,10 +45,11 @@ internal sealed class Map3dsEditorView : UserControl
     {
         var config = session.GameConfiguration;
         if (config.XY || config.ORAS) return Gen6MapBackend.FromConfig(config);
-        throw new NotSupportedException("El editor de mapas 3DS todavía no admite este juego. Gen7 (Sol/Luna y Ultra Sol/Ultra Luna) está en desarrollo.");
+        if (config.USUM) return pk3DS.Core.Maps.Gen7.Gen7MapBackend.FromConfig(config);
+        throw new NotSupportedException("El editor de mapas 3DS todavía no admite este juego. Sol/Luna está en desarrollo.");
     }
 
-    internal static bool Supports(GameProjectSession session) => session.GameConfiguration.XY || session.GameConfiguration.ORAS;
+    internal static bool Supports(GameProjectSession session) => session.GameConfiguration.XY || session.GameConfiguration.ORAS || session.GameConfiguration.USUM;
 
     internal Map3dsEditorView(GameProjectSession session) : this(CreateBackend(session)) { }
 
@@ -93,7 +94,7 @@ internal sealed class Map3dsEditorView : UserControl
         bar.Children.Add(_zoneTitle);
         if (backend.Capabilities.Graphics)
         {
-            var gfx = new CheckBox { Content = "Modelos/texturas", IsChecked = false, Foreground = Res("TextMain"), Margin = new Thickness(0, 0, 12, 0), VerticalAlignment = VerticalAlignment.Center,
+            var gfx = new CheckBox { Content = "Modelos/texturas", IsChecked = backend.Capabilities.GraphicsByDefault, Foreground = Res("TextMain"), Margin = new Thickness(0, 0, 12, 0), VerticalAlignment = VerticalAlignment.Center,
                 ToolTip = Map3dsCanvas.GraphicNotice };
             gfx.Checked += (_, _) => ApplyLayers(); gfx.Unchecked += (_, _) => ApplyLayers();
             _layerBoxes["Graphics"] = gfx; bar.Children.Add(gfx);
@@ -138,6 +139,7 @@ internal sealed class Map3dsEditorView : UserControl
         _canvas.EventPicked += item => { ShowDetails(item); SyncList(item); };
         _canvas.Hover += text => _status.Text = text;
         ShowDetails(null);
+        ApplyLayers();
         if (backend.Zones.Count > 0) _zones.SelectedIndex = 0;
     }
 

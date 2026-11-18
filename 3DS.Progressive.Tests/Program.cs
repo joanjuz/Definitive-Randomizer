@@ -356,6 +356,8 @@ if(args.Length>=3&&args[0]=="--nds-map-render-gallery-probe")
         Console.WriteLine($"{r.Map,3} {r.Name,-44} bloques {r.Blocks,2} tri {r.Triangles,6} sinTex {r.Untextured,3} propsOmitidos {r.Skipped,2} {r.Milliseconds,5} ms | alineación mejor {r.BestShift} solape {r.Overlap:P0} en (0,0) {r.OverlapAtZero:P0} props {r.PropTiles} (props sobre libre {r.PropOnClear:P1})");
     return;
 }
+if(args.Length==1&&args[0]=="--map3ds-gen7-only"){Map3dsGen7Checks.Run(Check);Console.WriteLine($"Completed {checks} Gen7 map reader checks (synthetic).");return;}
+if(args.Length==5&&args[0]=="--map3ds-gen7-render-probe"){Map3dsGen7Checks.RenderProbe(args[1],args[2],int.Parse(args[3]),int.Parse(args[4]));return;}
 if(args.Length==1&&args[0]=="--map3ds-render-only"){Map3dsRenderChecks.Run(Check);Console.WriteLine($"Completed {checks} 3DS map graphics checks (synthetic).");return;}
 if(args.Length==1&&args[0]=="--map3ds-render-ui-only")
 {

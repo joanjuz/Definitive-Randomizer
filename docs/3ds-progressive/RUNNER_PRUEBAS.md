@@ -100,6 +100,7 @@ dotnet .\3DS.Progressive.Tests\bin\Release\net10.0-windows\3DS.Progressive.Tests
 | `--nds-map-canvas-only` | — | modelo espacial puro del lienzo DS de solo lectura; sin WPF |
 | `--nds-events-only` | — | incluida también en `--nds-only` |
 | `--nds-map-render-ui-only` | — | capa Modelos/texturas del editor con recursos sintéticos: desactivada por defecto, render en segundo plano, vuelta exacta a la vista esquemática y aviso; sí |
+| `--map3ds-gen7-only` | — | matriz de mundo Gen7 (`TR`), texturas GFL2 y adaptador USUM de solo lectura con datos sintéticos; sí |
 | `--map3ds-render-only` | — | lector H3D (BCH): decodificación PICA y ETC1, transformación UV, mallas y tiras, versiones admitidas, y rasterizador cenital Gen6 con modelos sintéticos; sí |
 | `--map3ds-render-ui-only` | — | capa «Modelos/texturas» del editor 3DS con un adaptador de prueba: desactivada por defecto, render en segundo plano con caché, eventos encima y vuelta a la vista esquemática; sí |
 | `--map3ds-gen6-ui-only` | — | editor de mapas 3DS fuera de pantalla con el adaptador sintético: lista de zonas, marcadores, selección en mapa y lista, capas, eventos sin dibujar y ausencia de controles de escritura; sí |
@@ -255,6 +256,7 @@ Necesitan extracciones, ROMs o carpetas de salida. Los argumentos concretos (ent
 | `--nds-events-probe` | `<salida nueva> <ROM privada Platino CPUE/1>` |  |
 | `--nds-map-render-gallery-probe` | `<carpeta nueva> <ROM privada Platino CPUE/1> [nombres internos…]` | solo lectura: renderiza ciudades, interiores, cuevas y rutas con los eventos encima y mide bloques, triángulos, tiempo y alineación con las colisiones; guarda un PNG por mapa (privado) |
 | `--nds-map-render-ui-probe` | `<carpeta nueva> <ROM privada Platino CPUE/1>` | editor fuera de pantalla con la capa gráfica sobre Hojaverde; guarda la captura (privada) en la carpeta |
+| `--map3ds-gen7-render-probe` | `<carpeta nueva> <carpeta extraída de Ultra Sol/Ultra Luna> <mundo> <píxeles por bloque>` | solo lectura: dibuja un mundo con sus modelos y texturas reales (PNG privado), lee los modelos y texturas de todos los mundos y comprueba que los GARC de origen no cambian |
 | `--map3ds-gen6-render-probe` | `<carpeta nueva> <carpeta extraída de X/Y u OR/AS> <zona> <píxeles por bloque>` | solo lectura: dibuja todos los bloques de una zona con sus modelos y texturas reales (PNG privado) y lee todos los modelos GR usados y todas las texturas de área de la copia |
 | `--map3ds-gen6-ui-probe` | `<carpeta nueva> <carpeta extraída de X/Y u OR/AS> <zona> [graficos]` | solo lectura: abre el editor fuera de pantalla sobre una zona real (con `graficos`, activa la capa de modelos y espera al render) y guarda la captura (privada) |
 | `--map3ds-gen6-probe` | `<carpeta nueva> <carpeta extraída de X/Y u OR/AS>` | solo lectura: lee todas las zonas, matrices y bloques GR de una copia, cuenta eventos por tipo y su posición respecto a la matriz, y comprueba que los GARC de origen no cambian |

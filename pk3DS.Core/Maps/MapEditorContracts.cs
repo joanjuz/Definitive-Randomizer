@@ -52,7 +52,8 @@ public interface IMapMutationValidator
 }
 
 /// <summary>What an adapter can do, with the reason when it cannot.</summary>
-public sealed record MapCapabilities(bool Graphics, bool Events, bool Editing, string Note);
+/// <param name="GraphicsByDefault">Show the model layer when the editor opens (for adapters without a cell grid).</param>
+public sealed record MapCapabilities(bool Graphics, bool Events, bool Editing, string Note, bool GraphicsByDefault = false);
 
 public sealed record MapZoneEntry(int Id, string Name, int Layout, string Detail);
 

@@ -96,6 +96,8 @@ internal static class RunnerCatalog
         new("--nds-trainer-vision-only","",RunnerCategory.Synthetic,true),
         new("--nds-trainer-vision-ui-only","",RunnerCategory.Ui,true),
         new("--nds-trainer-vision-probe","<carpeta nueva> <Platino CPUE/1 privado>",RunnerCategory.Real,false),
+        new("--map3ds-gen7-only","",RunnerCategory.Synthetic,true),
+        new("--map3ds-gen7-render-probe","<carpeta nueva> <carpeta extraída USUM> <mundo> <píxeles por bloque>",RunnerCategory.Real,false),
         new("--map3ds-render-only","",RunnerCategory.Synthetic,true),
         new("--map3ds-render-ui-only","",RunnerCategory.Ui,true),
         new("--map3ds-gen6-render-probe","<carpeta nueva> <carpeta extraída X/Y u OR/AS> <zona> <píxeles por bloque>",RunnerCategory.Real,false),
