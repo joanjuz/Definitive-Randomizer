@@ -64,8 +64,8 @@ internal static class Map3dsGen7Checks
         check(backend.Zones.Count == 1 && backend.Zones[0].Id == 0 && backend.Skipped.Any(s => s.World == 1), "Gen7Map_ListsWorldsWithBlocks");
         var layout = backend.Resources.Layout(0);
         check(layout.Width == 2 && layout.BlockAt(0, 0) == 0 && layout.BlockAt(1, 0) == -1 && backend.Resources.Cells(0) is null, "Gen7Map_LayoutFollowsTheMatrix");
-        check(backend.Capabilities is { Graphics: true, Events: true, Editing: false, GraphicsByDefault: true } && backend.Mutations is null && backend.Events.ZoneEvents(0).Count == 0,
-            "Gen7Map_ReadOnlyAndAreasWithoutEventPackHaveNoEvents");
+        check(backend.Capabilities is { Graphics: true, Events: true, Editing: true, GraphicsByDefault: true } && backend.Mutations is not null && !backend.Validate(0, new MapMutation(MapEventKind.Npc, 0, "Modelo", 1)).Allowed && backend.Events.ZoneEvents(0).Count == 0,
+            "Gen7Map_OnlyNpcPositionIsWritableAndAreasWithoutEventPackHaveNoEvents");
         check(backend.Resources.Graphic(0, 0, 64) is null, "Gen7Map_BlocksWithoutModelsHaveNoGraphic");
 
         // Event pack: part 1 (NPC) with one zone file holding one 120-byte record of type 1 at world (5250, 0, 2100).
@@ -91,7 +91,7 @@ internal static class Map3dsGen7Checks
         var evs = withEvents.Events.ZoneEvents(0);
         var npc = evs.First(e => e.Kind == MapEventKind.Npc);
         check(evs.Count == 2 && npc.X == 50 && npc.Y == 20 && npc.Placed && npc.Properties.Any(p => p.Name == "Modelo" && p.Value == "300")
-            && npc.Properties.Any(p => p.Name == "Evento" && p.Value == "77") && npc.Properties.All(p => !p.Writable),
+            && npc.Properties.Any(p => p.Name == "Evento" && p.Value == "77") && npc.Properties.Count(p => p.Writable) == 1 && npc.Properties.Single(p => p.Writable).Name.StartsWith("Posición"),
             "Gen7Events_NpcRecordPositionModelAndEventFromTheCornerOrigin");
         parts[1] = Map3dsGen6Checks.Pack("EM", Zone(120, 9, 5250, 2100));
         files[0] = Map3dsGen6Checks.Pack("ED", parts);
@@ -131,6 +131,51 @@ internal static class Map3dsGen7Checks
         var warpView = wb.Events.ZoneEvents(0).First(e => e.Kind == MapEventKind.Warp);
         check(warpView.Properties.Any(p => p.Name == "Destino" && p.Value.Contains("Casa Prueba")) && warpView.Properties.Any(p => p.Name == "Retorno" && p.Value.StartsWith("Verificado"))
             && warpView.Properties.Any(p => p.Name == "Llegada en el destino" && p.Value.StartsWith("2050")) && warpView.Properties.All(p => !p.Writable), "Gen7Warps_PropertiesShowDestinationArrivalAndReturn");
+
+        // Move: one zone file with two NPCs; NPC 0 has a cylinder talk range (type 0) and a wall body (type 2).
+        byte[] NpcZone(bool shareShape)
+        {
+            int tail = 4 + (2 * 120);
+            var shapes = new List<byte>();
+            byte[] Shape(int type, params float[] values)
+            {
+                var b = new byte[8 + (values.Length * 4)];
+                BinaryPrimitives.WriteInt32LittleEndian(b, 1); BinaryPrimitives.WriteInt32LittleEndian(b.AsSpan(4), type);
+                for (int i = 0; i < values.Length; i++) BinaryPrimitives.WriteSingleLittleEndian(b.AsSpan(8 + (i * 4)), values[i]);
+                return b;
+            }
+            var talk = Shape(0, 1000, 10, 2000, 50, 60);
+            var body = Shape(2, 990, 10, 1990, 1010, 10, 2010, 80);
+            var d = new byte[tail + talk.Length + body.Length];
+            BinaryPrimitives.WriteInt32LittleEndian(d, 2);
+            for (int n = 0; n < 2; n++)
+            {
+                int o = 4 + (n * 120);
+                BinaryPrimitives.WriteUInt32LittleEndian(d.AsSpan(o), 1);
+                BinaryPrimitives.WriteSingleLittleEndian(d.AsSpan(o + 4), n == 0 ? 1000 : 3000); BinaryPrimitives.WriteSingleLittleEndian(d.AsSpan(o + 8), 10); BinaryPrimitives.WriteSingleLittleEndian(d.AsSpan(o + 12), 2000);
+            }
+            talk.CopyTo(d, tail); body.CopyTo(d, tail + talk.Length);
+            BinaryPrimitives.WriteUInt32LittleEndian(d.AsSpan(4 + 0x70), (uint)tail);
+            BinaryPrimitives.WriteUInt32LittleEndian(d.AsSpan(4 + 0x74), (uint)(tail + talk.Length));
+            if (shareShape) BinaryPrimitives.WriteUInt32LittleEndian(d.AsSpan(4 + 120 + 0x70), (uint)tail);
+            return d;
+        }
+        byte[] EdNpc(byte[] zoneFile) { var ps = Enumerable.Range(0, 17).Select(_ => Array.Empty<byte>()).ToArray(); ps[1] = Map3dsGen6Checks.Pack("EM", zoneFile); return Map3dsGen6Checks.Pack("ED", ps); }
+        var ed = EdNpc(NpcZone(false));
+        var movedEd = Gen7ZoneEdit.MoveNpc(ed, 0, 0, new System.Numerics.Vector3(1105, 20, 2210));
+        var (zs, zl) = Gen7ZoneEdit.ZoneFile(movedEd, 1, 0);
+        float F(int at) => BinaryPrimitives.ReadSingleLittleEndian(movedEd.AsSpan(zs + at));
+        int tailAt = 4 + 240;
+        check(F(4 + 4) == 1105 && F(4 + 8) == 20 && F(4 + 12) == 2210 && F(4 + 120 + 4) == 3000, "Gen7Edit_MoveNpcWritesItsPositionOnly");
+        check(F(tailAt + 8) == 1105 && F(tailAt + 12) == 20 && F(tailAt + 16) == 2210 && F(tailAt + 20) == 50, "Gen7Edit_TalkRangeCylinderMovesWithTheNpc");
+        int bodyAt = tailAt + 28;
+        check(F(bodyAt + 8) == 1095 && F(bodyAt + 20) == 1115 && F(bodyAt + 24) == 20 && F(bodyAt + 28) == 2220 && F(bodyAt + 32) == 80, "Gen7Edit_BodyWallPointsMoveAndHeightStays");
+        check(movedEd.Length == ed.Length && Enumerable.Range(0, ed.Length).Count(i => ed[i] != movedEd[i]) <= 4 * (3 + 3 + 6), "Gen7Edit_PackKeepsItsSizeAndOnlyThoseBytesChange");
+        bool shared = false;
+        try { Gen7ZoneEdit.MoveNpc(EdNpc(NpcZone(true)), 0, 0, new System.Numerics.Vector3(1105, 20, 2210)); } catch (InvalidOperationException) { shared = true; }
+        bool badRow = false;
+        try { Gen7ZoneEdit.MoveNpc(ed, 0, 5, new System.Numerics.Vector3(1, 1, 1)); } catch (ArgumentOutOfRangeException) { badRow = true; }
+        check(shared && badRow, "Gen7Edit_RefusesSharedShapesAndMissingRows");
 
         // Collision: two triangles, attributes 3 and 5.
         var col = new byte[8 + (2 * 72)];

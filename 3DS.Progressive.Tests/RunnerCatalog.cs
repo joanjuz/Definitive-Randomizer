@@ -99,6 +99,8 @@ internal static class RunnerCatalog
         new("--map3ds-gen7-only","",RunnerCategory.Synthetic,true),
         new("--map3ds-gen7-ground-probe","<carpeta nueva> <carpeta extraída USUM> <área> <píxeles por bloque>",RunnerCategory.Real,false),
         new("--map3ds-gen7-warps-probe","<carpeta extraída USUM>",RunnerCategory.Real,false),
+        new("--map3ds-gen7-npc-move-probe","<copia USUM en carpeta de pruebas> <área> <n.º de NPC>",RunnerCategory.Real,false),
+        new("--map3ds-gen7-npc-move-rebuild","<copia con el movimiento> <imagen 3DS nueva> <carpeta nueva de reextracción> <área> <n.º de NPC> <x> <y>",RunnerCategory.Real,false),
         new("--map3ds-gen7-ui-probe","<carpeta nueva> <carpeta extraída USUM> <área> [diagnostico]",RunnerCategory.Real,false),
         new("--map3ds-gen7-render-probe","<carpeta nueva> <carpeta extraída USUM> <mundo> <píxeles por bloque>",RunnerCategory.Real,false),
         new("--map3ds-render-only","",RunnerCategory.Synthetic,true),

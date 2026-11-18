@@ -21,6 +21,14 @@ Registro de 88 bytes (tipo 3): posición float3 en +4, rotación (cuaternión) e
 
 Activadores (60 bytes, tipo 0): script en +0x2C y forma de activación en la cola del archivo de zona (+0x38). Los campos +0x20/+0x24/+0x28 se muestran como «sin verificar».
 
+### Edición: mover NPC (primera escritura de USUM)
+
+- Solo NPC normales (parte 1 del `ED`, registros de 120 bytes); los entrenadores siguen en solo lectura.
+- Se escribe la posición float3 en +4 y se trasladan, con el mismo desplazamiento, sus dos formas (rango de conversación en +0x70 y colisión del cuerpo en +0x74; vértices absolutos en la cola del archivo de zona). Nada cambia de tamaño. Si una forma la comparte otro registro, no se mueve.
+- Destino: centro de una casilla del editor (105 unidades) con **suelo transitable** según la colisión de suelo; la altura se toma de ese suelo (el triángulo más cercano a la altura actual) y se rechazan saltos de más de 600 unidades, casillas fuera de la matriz y casillas ocupadas por otro NPC o entrenador.
+- `Map3dsGen7NpcMoveService`: lectura por huella, recompresión LZ11 comprobada, `GarcTransaction.Build`, todos los demás miembros del GARC idénticos y `ProjectHistory.Commit`. El GARC de campo de USUM (483 MB) supera el límite de los puntos de restauración (`RestorePoints.MaxBytes`, 256 MB); por eso el servicio guarda junto al historial el miembro original del área y «Restaurar estado anterior del área» lo vuelve a escribir byte a byte como una nueva entrada del historial.
+- **Prueba jugable pendiente.**
+
 Implementación propia (sin copiar código):
 
 - `pk3DS.Core/Maps/Ctr/Gfl2File.cs`: modelos, texturas y paquetes de modelos GFL2 (formato documentado por SPICA, gdkchan, dominio público). La transformación del modelo de campo no se aplica: los vértices ya están en coordenadas del mundo.
@@ -43,6 +51,5 @@ Implementación propia (sin copiar código):
 - **Suelo exterior (resuelto)**: el suelo de las áreas exteriores grandes (Route 1, Iki, Hau'oli…) no está en los bloques de a/0/8/6, sino en la **parte 4 del `BG` del área** (un paquete con un modelo por entrada; mallas como `ground_01_01_*`, además del mar y las rocas lejanas). Se localizó comparando con USUM-Studio (binario oficial de su CI, ejecutado sobre una copia aislada de Ultra Luna), cuyo inspector la muestra como «Distant scenery». Con ella, Route 1 pasa de 5,6 % a 34,1 % de cobertura visual y lo que solo tenía colisión baja de 23,2 % a 1,9 % (Hau'oli: 0,2 %). Cada área trae el paisaje de su propia zona; lo que queda fuera pertenece a las áreas vecinas.
 - **Mar**: sus materiales combinan texturas de brillo y oleaje que la vista aproximada no reproduce; se ve como franjas de color.
 - **Capa «Colisión del suelo (diagnóstico)»**, desactivada por defecto: dibuja en colores planos (uno por atributo de superficie) la colisión transitable de la parte 6 de cada bloque (u32 0x14120500, triángulos de 72 bytes con vértices en +0/+16/+32 y atributo en +64). La leyenda indica que no son los gráficos del suelo. Comparación en Ultra Luna (`--map3ds-gen7-ground-probe`): Route 1 visual 5,6 % frente a colisión 27,8 % (23,2 % solo colisión); Iki 2,6 % frente a 11,5 %; Hau'oli 2,1 % frente a 6,7 %. La colisión cubre exactamente los caminos, plazas y zonas transitables que faltan; las matrices no tienen variantes (un archivo `TR`, u32 en +16 = 0).
-- Sin edición: ningún campo de evento tiene escritura verificada todavía.
 - Scripts, formas de activación y nombres de transición no se interpretan aún.
 - Sol/Luna no está habilitado.

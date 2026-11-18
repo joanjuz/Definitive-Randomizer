@@ -20,7 +20,7 @@ namespace pk3DS.Core.Maps.Gen7;
 /// spans [c·size, (c+1)·size) on X and Z. Static objects (slot 4, "AS") are placed
 /// with the ED part 4 records; events come from the other ED parts (Gen7Events).
 /// </summary>
-public sealed class Gen7MapBackend : IMapEditorBackend, IMapResourceProvider, IMapEventProvider
+public sealed class Gen7MapBackend : IMapEditorBackend, IMapResourceProvider, IMapEventProvider, IMapMutationValidator
 {
     public const int SlotsPerWorld = 11;
     private readonly Func<int, byte[]> _world, _chunk;
@@ -43,9 +43,9 @@ public sealed class Gen7MapBackend : IMapEditorBackend, IMapResourceProvider, IM
     public IReadOnlyList<MapZoneEntry> Zones => _entries;
     public IMapResourceProvider Resources => this;
     public IMapEventProvider Events => this;
-    public IMapMutationValidator? Mutations => null;
-    public MapCapabilities Capabilities { get; } = new(true, true, false,
-        "Lectura: modelos y texturas reales de cada área vistos desde arriba y eventos (NPC, entrenadores, warps, interacciones, objetos recogibles y activadores). Sin edición.", GraphicsByDefault: true,
+    public IMapMutationValidator? Mutations => this;
+    public MapCapabilities Capabilities { get; } = new(true, true, true,
+        "Modelos y texturas reales de cada área vistos desde arriba y eventos (NPC, entrenadores, warps, interacciones, objetos recogibles y activadores). Edición: posición de NPC existentes, apoyada en el suelo transitable (pendiente de prueba en el juego).", GraphicsByDefault: true,
         DiagnosticLayer: "Colisión del suelo (diagnóstico)");
     private readonly Dictionary<int, H3dModel?> _collision = [];
     public IReadOnlyList<(int World, string Reason)> Skipped { get; }
@@ -98,6 +98,8 @@ public sealed class Gen7MapBackend : IMapEditorBackend, IMapResourceProvider, IM
         if (ed is null) return list;
         var w = World(zone);
         int counter = 0;
+        lock (_gate) _refs.Remove(zone);
+        var refs = new Dictionary<int, (int Pack, int Zone, int Row, Vector3 Position)>();
         foreach (var layout in Gen7Events.Layouts)
         {
             if (layout.Pack >= ed.Count || ed.Length(layout.Pack) == 0) continue;
@@ -147,11 +149,80 @@ public sealed class Gen7MapBackend : IMapEditorBackend, IMapResourceProvider, IM
                     props.Add(new("Forma de activación", r.U32(56) == 0 ? "sin forma" : $"datos en +0x{r.U32(56):X} del archivo de zona", Note: "Formas sin interpretar todavía."));
                 }
                 bool inside = cx >= 0 && cy >= 0 && cx < w.Width * 40 && cy < w.Height * 40 && float.IsFinite(pos.X) && float.IsFinite(pos.Z);
+                if (layout.Pack == Gen7Events.NpcPack)
+                    props.Add(new("Posición (editable)", $"casilla {Math.Floor(cx):0}, {Math.Floor(cy):0}", Writable: true,
+                        Note: "Se puede mover a otra casilla con suelo transitable; la altura se toma de la colisión del suelo."));
+                refs[counter] = (layout.Pack, z, r.Index, pos);
                 list.Add(new MapEventView(layout.Kind, counter++, Math.Floor(cx), Math.Floor(cy), 1, 1, null,
                     $"{layout.Name} {r.Index} · zona {z}", props, inside ? null : "Fuera de la matriz del área."));
             }
         }
+        lock (_gate) _refs[zone] = refs;
         return list;
+    }
+
+    private readonly Dictionary<int, Dictionary<int, (int Pack, int Zone, int Row, Vector3 Position)>> _refs = [];
+
+    /// <summary>ED part, local zone, row and position behind an event view index.</summary>
+    public (int Pack, int Zone, int Row, Vector3 Position)? EventRef(int area, int index)
+    {
+        if (!_refs.ContainsKey(area)) ZoneEvents(area);
+        lock (_gate) return _refs.TryGetValue(area, out var m) && m.TryGetValue(index, out var r) ? r : null;
+    }
+
+    /// <summary>Decompressed event pack of an area as read when it was first needed.</summary>
+    public byte[] EventBytes(int area) => (byte[])_world(area * SlotsPerWorld).Clone();
+
+    /// <summary>
+    /// Height of the walkable ground under (x, z): the collision triangle containing the point whose
+    /// height is closest to <paramref name="near"/> (bridges and stacked floors). Null when there is none.
+    /// </summary>
+    public float? GroundHeight(int area, float x, float z, float near)
+    {
+        float? best = null;
+        foreach (var t in GroundCollision(area))
+        {
+            float d = ((t.B.Z - t.C.Z) * (t.A.X - t.C.X)) + ((t.C.X - t.B.X) * (t.A.Z - t.C.Z));
+            if (MathF.Abs(d) < 1e-6f) continue;
+            float a = (((t.B.Z - t.C.Z) * (x - t.C.X)) + ((t.C.X - t.B.X) * (z - t.C.Z))) / d;
+            float b = (((t.C.Z - t.A.Z) * (x - t.C.X)) + ((t.A.X - t.C.X) * (z - t.C.Z))) / d;
+            float c = 1 - a - b;
+            if (a < -1e-4f || b < -1e-4f || c < -1e-4f) continue;
+            float y = (a * t.A.Y) + (b * t.B.Y) + (c * t.C.Y);
+            if (best is null || MathF.Abs(y - near) < MathF.Abs(best.Value - near)) best = y;
+        }
+        return best;
+    }
+
+    /// <summary>Cell centre in world units.</summary>
+    public static (float X, float Z) CellCentre(int x, int y) => ((x + 0.5f) * UnitsPerCell, (y + 0.5f) * UnitsPerCell);
+
+    public MapMutationCheck Validate(int zone, MapMutation mutation) =>
+        new(false, "Solo se admite mover NPC (posición). Los demás campos no tienen escritura verificada.");
+
+    public MapMutationCheck ValidateMove(int zone, MapEventKind kind, int index, int x, int y)
+    {
+        if (kind != MapEventKind.Npc) return new(false, "Solo se pueden mover NPC.");
+        if (!_worlds.TryGetValue(zone, out var w)) return new(false, "Área no disponible.");
+        if (EventRef(zone, index) is not { } r || r.Pack != Gen7Events.NpcPack) return new(false, "Solo se mueven NPC normales; los entrenadores siguen en solo lectura (su visión y rutas no se han verificado).");
+        if (x < 0 || y < 0 || x >= w.Width * 40 || y >= w.Height * 40) return new(false, "La casilla está fuera de la matriz del área.");
+        var (cx, cz) = CellCentre(x, y);
+        if (MathF.Floor(r.Position.X / UnitsPerCell) == x && MathF.Floor(r.Position.Z / UnitsPerCell) == y) return new(false, "El NPC ya está en esa casilla.");
+        if (GroundHeight(zone, cx, cz, r.Position.Y) is not float h) return new(false, "No hay suelo transitable (colisión de suelo) en esa casilla.");
+        if (MathF.Abs(h - r.Position.Y) > 600) return new(false, $"El suelo de esa casilla está a {h - r.Position.Y:0} unidades de altura del NPC; se evita por seguridad.");
+        foreach (var other in _refs[zone].Where(k => k.Key != index && k.Value.Pack is Gen7Events.NpcPack or Gen7Events.TrainerPack))
+            if (Vector2.Distance(new(other.Value.Position.X, other.Value.Position.Z), new(cx, cz)) < UnitsPerCell * 0.75f)
+                return new(false, "La casilla la ocupa otro NPC o entrenador.");
+        return new(true, "La posición se puede escribir (altura del suelo " + h.ToString("0.#", System.Globalization.CultureInfo.InvariantCulture) + "). El juego no se ha probado con este cambio: comprueba que el NPC es accesible y que su conversación funciona.");
+    }
+
+    /// <summary>World position for a validated move: cell centre on the ground.</summary>
+    public Vector3 MoveTarget(int area, int index, int x, int y)
+    {
+        var r = EventRef(area, index) ?? throw new ArgumentOutOfRangeException(nameof(index));
+        var (cx, cz) = CellCentre(x, y);
+        float h = GroundHeight(area, cx, cz, r.Position.Y) ?? throw new InvalidOperationException("No hay suelo en esa casilla.");
+        return new Vector3(cx, h, cz);
     }
 
     /// <summary>Terrain models of the area (distinct block ids of its matrix) plus its placed static objects.</summary>
