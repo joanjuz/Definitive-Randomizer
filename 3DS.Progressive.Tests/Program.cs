@@ -362,6 +362,8 @@ if(args.Length is 4 or 5&&args[0]=="--map3ds-gen7-ui-probe")
 }
 if(args.Length==5&&args[0]=="--map3ds-gen7-ground-probe"){Map3dsGen7Checks.GroundProbe(args[1],args[2],int.Parse(args[3]),int.Parse(args[4]));return;}
 if(args.Length==2&&args[0]=="--map3ds-gen7-warps-probe"){Map3dsGen7Checks.WarpsProbe(args[1]);return;}
+if(args.Length==4&&args[0]=="--map3ds-gen7-npc-move-probe"){Map3dsGen7NpcMoveChecks.Probe(args[1],int.Parse(args[2]),int.Parse(args[3]));return;}
+if(args.Length==8&&args[0]=="--map3ds-gen7-npc-move-rebuild"){Map3dsGen7NpcMoveChecks.Rebuild(args[1],args[2],args[3],int.Parse(args[4]),int.Parse(args[5]),int.Parse(args[6]),int.Parse(args[7]));return;}
 if(args.Length==1&&args[0]=="--map3ds-gen7-only"){Map3dsGen7Checks.Run(Check);Console.WriteLine($"Completed {checks} Gen7 map reader checks (synthetic).");return;}
 if(args.Length==5&&args[0]=="--map3ds-gen7-render-probe"){Map3dsGen7Checks.RenderProbe(args[1],args[2],int.Parse(args[3]),int.Parse(args[4]));return;}
 if(args.Length==1&&args[0]=="--map3ds-render-only"){Map3dsRenderChecks.Run(Check);Console.WriteLine($"Completed {checks} 3DS map graphics checks (synthetic).");return;}

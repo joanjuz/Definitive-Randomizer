@@ -311,6 +311,13 @@ internal static class Map3dsGen6Checks
         check(edit.PreviewMove(first) && edit.MoveSave!.IsEnabled && edit.PendingMove is { X: 46, Y: 12 } && calls.Count == 0, "Map3dsMoveUi_PreviewShowsTheTargetWithoutWriting");
         check(edit.SaveMove() && calls.SequenceEqual([(0, 0, 46, 12)]) && reloads == 1 && edit.PendingMove is null && edit.Status.Text.Contains("historial"),
             "Map3dsMoveUi_SaveCommitsThroughTheProjectAndReloads");
+        int restores = 0;
+        var restoring = new Map3dsMover((b, z, n, x, y) => "m", () => Synthetic(out _), z => true, z => { restores++; return "Restaurado"; });
+        var rv = new Map3dsEditorView(Synthetic(out _), restoring);
+        Layout(rv, 1400, 860);
+        rv.EventList.SelectedIndex = rv.EventList.Items.Cast<ListBoxItem>().ToList().FindIndex(i => i.Tag is MapEventView { Kind: MapEventKind.Npc, Index: 0 });
+        UiPump.Idle();
+        check(rv.MoveRestore is not null && edit.MoveRestore is null && rv.RestoreArea() && restores == 1 && rv.Status.Text.Contains("historial"), "Map3dsMoveUi_RestoreButtonOnlyWhenAStateIsSaved");
         var readOnlyNpc = new Map3dsEditorView(Synthetic(out _));
         Layout(readOnlyNpc, 1400, 860);
         readOnlyNpc.EventList.SelectedIndex = readOnlyNpc.EventList.Items.Cast<ListBoxItem>().ToList().FindIndex(i => i.Tag is MapEventView { Kind: MapEventKind.Npc });

@@ -1,5 +1,6 @@
 using pk3DS.Core.Maps;
 using pk3DS.Core.Maps.Gen6;
+using System.IO;
 using ThreeDS.Progressive.Services;
 
 namespace ThreeDS.Progressive;
@@ -9,14 +10,31 @@ namespace ThreeDS.Progressive;
 /// <see cref="Map3dsNpcMoveService"/> (history, undo, rebuild) and rebuilds the
 /// adapter from the files on disk afterwards. Tests can pass their own delegates.
 /// </summary>
-internal sealed class Map3dsMover(Func<IMapEditorBackend, int, int, int, int, string> move, Func<IMapEditorBackend> reload)
+internal sealed class Map3dsMover(Func<IMapEditorBackend, int, int, int, int, string> move, Func<IMapEditorBackend> reload,
+    Func<int, bool>? canRestore = null, Func<int, string>? restore = null)
 {
     internal string Move(IMapEditorBackend backend, int zone, int npc, int x, int y) => move(backend, zone, npc, x, y);
     internal IMapEditorBackend Reload() => reload();
+    /// <summary>Whether the zone/area can go back exactly to its state before the last move made here.</summary>
+    internal bool CanRestore(int zone) => canRestore?.Invoke(zone) == true;
+    internal string Restore(int zone) => restore?.Invoke(zone) ?? throw new InvalidOperationException("Este juego deshace los movimientos desde el historial.");
 
     internal static Map3dsMover? For(GameProjectSession session)
     {
         var config = session.GameConfiguration;
+        if (config.USUM)
+        {
+            var gen7 = new Map3dsGen7NpcMoveService(session);
+            return new Map3dsMover((backend, area, index, x, y) =>
+            {
+                if (backend is not pk3DS.Core.Maps.Gen7.Gen7MapBackend b7) throw new InvalidOperationException("El adaptador no admite escritura.");
+                var proposal = gen7.Preview(b7, area, index, x, y);
+                gen7.Apply(proposal);
+                return proposal.Action;
+            }, () => { gen7.Refresh(); return pk3DS.Core.Maps.Gen7.Gen7MapBackend.FromConfig(config); },
+            area => { try { return gen7.CanRestore(area); } catch (Exception ex) when (ex is IOException or InvalidDataException) { return false; } },
+            area => { var p = gen7.PreviewRestore(area); gen7.Apply(p); return p.Action; });
+        }
         if (!config.XY && !config.ORAS) return null;
         var service = new Map3dsNpcMoveService(session);
         return new Map3dsMover((backend, zone, npc, x, y) =>

@@ -92,6 +92,39 @@ internal static class Map3dsRenderChecks
         check(render.Triangles == 8 && render.Untextured == 2 && render.MissingTextures.SequenceEqual(["lost"]) && P(78, 78)[3] == 255,
             "Render_CountsTrianglesAndMissingTextures");
         check(P(40, 40)[3] == 255 && render.Size == 80, "Render_BlockSpansTheWholeImage");
+
+        // Colour ramps (lookup tables for the texture combiner, e.g. the USUM sea gradient) are not painted when the material has an image.
+        var rampPx = new byte[16 * 16 * 4];
+        for (int y = 0; y < 16; y++) for (int x = 0; x < 16; x++) { int o = ((y * 16) + x) * 4; rampPx[o] = (byte)(255 - (y * 16)); rampPx[o + 2] = (byte)(y * 16); rampPx[o + 3] = 255; }
+        var rampTex = new DecodedTexture(16, 16, rampPx);
+        var noisyPx = new byte[16 * 16 * 4];
+        for (int i = 0; i < 256; i++) { noisyPx[i * 4] = (byte)((i * 97) % 251); noisyPx[(i * 4) + 1] = (byte)((i * 53) % 241); noisyPx[(i * 4) + 3] = 255; }
+        check(rampTex.IsRamp && !Solid(1, 2, 3).IsRamp && !new DecodedTexture(16, 16, noisyPx).IsRamp, "Render_DetectsColourRampsPerChannel");
+        var seaModel = new H3dModel("sea", Matrix4x4.Identity, [new("sea", ["ramp", "caustics", ""], [Identity, Identity, Identity])], [Quad(0, -360, -360, 360, 360)]);
+        var seaTex = new Dictionary<string, DecodedTexture> { ["ramp"] = rampTex, ["caustics"] = Solid(90, 90, 90) };
+        var sea = Gen6TopDownRenderer.Render(seaModel, n => seaTex.GetValueOrDefault(n), 16);
+        var onlyRamp = Gen6TopDownRenderer.Render(seaModel with { Materials = [new("sea", ["ramp", "", ""], [Identity, Identity, Identity])] }, n => seaTex.GetValueOrDefault(n), 16);
+        check(sea.Pixels[(8 * 16 + 8) * 4] == 90 && sea.Pixels[(8 * 16 + 8) * 4 + 2] == 90 && onlyRamp.Untextured == 0, "Render_RampIsSkippedWhenAnImageExistsAndKeptAsLastResort");
+
+        // Additive materials (GPUREG_BLEND_FUNC destination factor ONE) add light over the surface and never hide it, whatever the order.
+        var additive = new H3dMaterial("glow", ["glow", "", ""], [Identity, Identity, Identity], 0x16160000u);
+        check(additive.Additive && !new H3dMaterial("x", ["", "", ""], [Identity, Identity, Identity], 0x76760000u).Additive && !new H3dMaterial("y", ["", "", ""], [Identity, Identity, Identity]).Additive,
+            "Render_BlendFunctionDestinationOneIsAdditive");
+        var glowModel = new H3dModel("glow", Matrix4x4.Identity, [additive, new("base", ["base", "", ""], [Identity, Identity, Identity])],
+            [Quad(50, -360, -360, 360, 360, 0), Quad(0, -360, -360, 360, 360, 1)]);
+        var glowTex = new Dictionary<string, DecodedTexture> { ["glow"] = Solid(30, 30, 30), ["base"] = Solid(100, 0, 0) };
+        var glow = Gen6TopDownRenderer.Render(glowModel, n => glowTex.GetValueOrDefault(n), 16);
+        int gc = (8 * 16 + 8) * 4;
+        check(glow.Pixels[gc + 2] == 130 && glow.Pixels[gc + 1] == 30 && glow.Pixels[gc + 3] == 255, "Render_AdditiveMaterialAddsOverTheSurfaceBelow");
+
+        // Mip levels: a texture shrunk on screen is averaged instead of aliasing into stripes.
+        var stripes = new byte[64 * 64 * 4];
+        for (int y = 0; y < 64; y++) for (int x = 0; x < 64; x++) { int o = ((y * 64) + x) * 4; stripes[o + 2] = (byte)(y % 2 == 0 ? 255 : 0); stripes[o + 3] = 255; }
+        var stripeTex = new DecodedTexture(64, 64, stripes);
+        check(stripeTex.Level(0) == stripeTex && stripeTex.Level(1).Width == 32 && stripeTex.Level(1).Pixels[2] is >= 126 and <= 128 && stripeTex.Level(20).Width == 1, "Render_MipLevelsAverageTexels");
+        var tiny = Gen6TopDownRenderer.Render(new H3dModel("s", Matrix4x4.Identity, [new("s", ["s", "", ""], [Identity, Identity, Identity])], [Quad(0, -360, -360, 360, 360)]),
+            n => n == "s" ? stripeTex : null, 8);
+        check(Enumerable.Range(0, 64).All(i => tiny.Pixels[(i * 4) + 2] is >= 100 and <= 160), "Render_ShrunkTexturesUseTheMatchingMipLevel");
     }
 
     /// <summary>Adapter that draws a solid image per block, to check the graphics layer of the view.</summary>

@@ -28,7 +28,7 @@ internal sealed class Map3dsEditorView : UserControl
     /// <summary>Writes a move through the project (preview text, then commit). Null when the view is read-only.</summary>
     private readonly Map3dsMover? _mover;
     private TextBox? _moveX, _moveY;
-    private Button? _moveSave;
+    private Button? _moveSave, _moveRestore;
     private TextBlock? _moveResult;
     private (MapEventView Npc, int X, int Y)? _pendingMove;
     private readonly Map3dsCanvas _canvas = new();
@@ -51,6 +51,7 @@ internal sealed class Map3dsEditorView : UserControl
     internal TextBox? MoveX => _moveX;
     internal TextBox? MoveY => _moveY;
     internal Button? MoveSave => _moveSave;
+    internal Button? MoveRestore => _moveRestore;
     internal TextBlock? MoveResult => _moveResult;
     internal (MapEventView Npc, int X, int Y)? PendingMove => _pendingMove;
     internal int? CurrentZone { get; private set; }
@@ -255,7 +256,7 @@ internal sealed class Map3dsEditorView : UserControl
             if (p.Note is { } n) row.Children.Add(new TextBlock { Text = n, Foreground = Res("TextSoft"), FontSize = 11, TextWrapping = TextWrapping.Wrap });
             _details.Children.Add(row);
         }
-        _moveX = _moveY = null; _moveSave = null; _moveResult = null;
+        _moveX = _moveY = null; _moveSave = null; _moveResult = null; _moveRestore = null;
         bool movable = _mover is not null && item.Kind == MapEventKind.Npc && item.Placed && item.Properties.Any(p => p.Writable);
         if (!movable)
         {
@@ -286,7 +287,33 @@ internal sealed class Map3dsEditorView : UserControl
         _moveResult = new TextBlock { TextWrapping = TextWrapping.Wrap, Foreground = Res("TextSoft"), Margin = new Thickness(0, 6, 0, 0) };
         box.Children.Add(_moveResult);
         box.Children.Add(new TextBlock { Text = GameplayNotice, TextWrapping = TextWrapping.Wrap, Foreground = Res("TextSoft"), FontSize = 11, Margin = new Thickness(0, 6, 0, 0) });
+        if (CurrentZone is int restoreZone && _mover is not null && _mover.CanRestore(restoreZone))
+        {
+            _moveRestore = Small("Restaurar estado anterior del área", () => RestoreArea(), "Volver, byte a byte, al estado del área antes del último movimiento");
+            _moveRestore.Margin = new Thickness(0, 8, 0, 0);
+            box.Children.Add(_moveRestore);
+        }
         _details.Children.Add(box);
+    }
+
+    /// <summary>Puts the area back to its state before the last move made here (a new history entry) and reloads it.</summary>
+    internal bool RestoreArea()
+    {
+        if (_mover is null || CurrentZone is not int zone) return false;
+        try
+        {
+            string summary = _mover.Restore(zone);
+            _backend = _mover.Reload();
+            _pendingMove = null; _canvas.SetPendingMove(null);
+            ShowZone(zone);
+            _status.Text = summary + " · Registrado en el historial.";
+            return true;
+        }
+        catch (Exception ex) when (ex is InvalidOperationException or InvalidDataException or IOException)
+        {
+            _status.Text = "No se restauró: " + ex.Message;
+            return false;
+        }
     }
 
     /// <summary>Checks the target cell and shows a ghost marker; nothing is written.</summary>
