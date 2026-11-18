@@ -158,9 +158,25 @@ public static class Gfl2File
                 if (u < 3) { textures[u] = tex; coords[u] = new H3dTextureCoord(0, (byte)mapping, scale, rotation, translation); }
                 _ = unit;
             }
+            uint? blend = null;
+            try
+            {
+                // After the units (16-byte aligned): u32 command length, render priority, u32, render layer,
+                // four u32 hashes, then PICA register writes; 0x101 is GPUREG_BLEND_FUNC.
+                r.Align16();
+                int cmdLength = r.I32();
+                if (cmdLength > 0 && cmdLength <= 0x2000 && r.Position + 28 + cmdLength <= start + length)
+                {
+                    r.Skip(4 + 4 + 4 + 16);
+                    var words = new uint[cmdLength / 4];
+                    for (int k = 0; k < words.Length; k++) words[k] = r.U32();
+                    foreach (var c in PicaCommands.Read(words)) if (c.Register == 0x101) blend = c.Value;
+                }
+            }
+            catch (MapFormatException) { blend = null; }
             r.Seek(start + length);
             materialIndex.TryAdd(name, materials.Count);
-            materials.Add(new H3dMaterial(name, textures, coords));
+            materials.Add(new H3dMaterial(name, textures, coords, blend));
         }
         var meshes = new List<H3dMesh>();
         for (int i = 0; i < meshNames.Length; i++)

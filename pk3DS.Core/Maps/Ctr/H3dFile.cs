@@ -255,7 +255,12 @@ public sealed record H3dTextureCoord(byte TransformType, byte MappingType, Vecto
     }
 }
 
-public sealed record H3dMaterial(string Name, IReadOnlyList<string> TextureNames, IReadOnlyList<H3dTextureCoord> Coords);
+/// <param name="BlendFunction">Raw PICA GPUREG_BLEND_FUNC value when the material declares one (GFL2), else null.</param>
+public sealed record H3dMaterial(string Name, IReadOnlyList<string> TextureNames, IReadOnlyList<H3dTextureCoord> Coords, uint? BlendFunction = null)
+{
+    /// <summary>Colour destination factor ONE: the material adds light on top of what is below (highlights, glows).</summary>
+    public bool Additive => BlendFunction is uint b && ((b >> 20) & 0xF) == 1 && ((b >> 16) & 0xF) != 0;
+}
 
 public sealed record PicaAttribute(int Name, int Format, int Elements, float Scale)
 {
