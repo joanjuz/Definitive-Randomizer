@@ -54,6 +54,8 @@ public interface IMapEventProvider
 public interface IMapMutationValidator
 {
     MapMutationCheck Validate(int zone, MapMutation mutation);
+    /// <summary>Whether an event may be placed on the given cell of its zone.</summary>
+    MapMutationCheck ValidateMove(int zone, MapEventKind kind, int index, int x, int y);
 }
 
 /// <summary>What an adapter can do, with the reason when it cannot.</summary>

@@ -33,6 +33,14 @@ Posiciones:
 - `Gen6TopDownRenderer.cs`: rasterizador cenital por software. El bloque está centrado en el origen (−360…360 en X y Z, 18 unidades por casilla, Y hacia arriba); gana la superficie más alta. La textura elegida es la de coordenadas UV cuyo nombre coincide con el del material, o la primera disponible; se multiplica por el color de vértice y se descartan los texels casi transparentes. **Aproximado**: sin iluminación, combinadores, mezclas ni animaciones.
 - La capa está desactivada por defecto; los bloques se dibujan en segundo plano con nivel de detalle según el zoom (64–512 px) y una caché.
 
+## Edición: mover NPC (primera escritura)
+
+- Única escritura habilitada: la **casilla de un NPC existente** (u16 X/Y en 0x28/0x2A del registro de 0x30 bytes). Los campos 0x14–0x1A son desplazamientos relativos del área de paseo (valores pequeños en las 2900 NPC de Zafiro Alfa) y no se tocan, así que el área se mueve con el NPC.
+- Validación (`Gen6MapBackend.ValidateMove`): solo NPC con posición verificada, dentro de la matriz, en una celda con bloque, no ocupada por otro NPC y distinta de la actual. No se comprueba la transitabilidad: la semántica de la rejilla de permisos no está verificada.
+- `Gen6ZoneEdit.MoveNpc` escribe sobre una copia y falla si cambia cualquier otro byte. `Map3dsNpcMoveService` (app) lee el GARC por huella, recomprime LZ11 comprobando que es reversible, reconstruye el GARC con `GarcTransaction.Build` (relectura verificada), comprueba que las demás zonas no cambian y confirma con `ProjectHistory.Commit`: deshacer, reconstrucción y reapertura son las del resto del proyecto. Si el archivo cambia fuera del editor (p. ej. al deshacer), el servicio se niega a escribir hasta recargar.
+- Interfaz: al seleccionar un NPC aparece «Mover NPC» (X/Y, Previsualizar con un marcador fantasma, Guardar, Cancelar). Previsualizar no escribe nada.
+- **Prueba jugable pendiente.**
+
 ## Pruebas
 
 | Nivel | Opción | Resultado |
@@ -46,7 +54,11 @@ Posiciones:
 | Copia real, gráficos | `--map3ds-gen6-render-probe` | X: los 1022 modelos GR usados y las 11 887 texturas de las 160 áreas usadas se leen sin errores; Vaniville y alrededores (16 bloques, 46 431 triángulos) en ~0,3 s |
 | Copia real, gráficos OR/AS | `--map3ds-gen6-render-probe` (Zafiro Alfa) | los 846 modelos GR usados y las 7338 texturas de las 219 áreas se leen sin errores; zona 445 (12 bloques, 38 181 triángulos) en ~0,3 s |
 | Captura real con gráficos | `--map3ds-gen6-ui-probe … graficos` | Vaniville (X) y Monte Cenizo (Zafiro Alfa) en el editor con la capa activada |
-| Juego | — | no aplica (solo lectura) |
+| Escritura sintética | `--map3ds-gen6-only` | 23 comprobaciones (incluye escritura y validación de movimientos) |
+| Interfaz de movimiento | `--map3ds-gen6-ui-only` | 15 comprobaciones |
+| Persistencia real (copia de X) | `--map3ds-npc-move-probe` | NPC 0 de Vaniville (459, 611) → (460, 611): la vista previa no escribe; reabierto desde disco en la casilla nueva; solo cambia su posición; las demás zonas son idénticas; entrada en el historial; deshacer devuelve el GARC original |
+| Reconstrucción | `--map3ds-npc-move-rebuild` | imagen 3DS completa, 656 archivos idénticos en la reextracción, el NPC sigue movido |
+| Juego | — | **pendiente** (prueba del propietario) |
 
 ## Limitaciones
 

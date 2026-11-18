@@ -43,6 +43,9 @@ internal sealed class Map3dsCanvas : FrameworkElement
     private bool _panned;
 
     internal MapEventView? Selected { get; private set; }
+    private (MapEventView Npc, int X, int Y)? _pendingMove;
+    internal void SetPendingMove((MapEventView Npc, int X, int Y)? move) { _pendingMove = move; InvalidateVisual(); }
+    private static readonly Pen GhostPen = Freeze(new Pen(Brushes.White, 2) { DashStyle = DashStyles.Dash });
     internal event Action<MapEventView?>? EventPicked;
     internal event Action<string>? Hover;
     internal Map3dsLayers Layers { get; private set; } = Map3dsLayers.All;
@@ -255,6 +258,14 @@ internal sealed class Map3dsCanvas : FrameworkElement
                 dc.DrawRectangle(fill, new Pen(new SolidColorBrush(color), area ? 1.5 : 1), inset);
             }
             RenderedMarkers++;
+        }
+        if (_pendingMove is { } mv)
+        {
+            var from = ToScreen(new Point(mv.Npc.X + 0.5, mv.Npc.Y + 0.5));
+            var to = ToScreen(new Point(mv.X + 0.5, mv.Y + 0.5));
+            dc.DrawLine(GhostPen, from, to);
+            double rad = Math.Max(4, _scale * 0.5);
+            dc.DrawEllipse(new SolidColorBrush(Color.FromArgb(0x99, 0xF4, 0xC9, 0x5D)), GhostPen, to, rad, rad);
         }
         if (Selected is { Placed: true } s && Layers.Shows(s.Kind))
         {
