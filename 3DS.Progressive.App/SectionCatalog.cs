@@ -42,6 +42,7 @@ internal static class SectionCatalog
         new("ShinyRate","Shiny Rate","PokemonTools","variocolor shiny brillante probabilidad"),
         new("Pickup","Pickup","PokemonTools","recogida habilidad"),
         new("OWSE","OWSE","PokemonTools","mapas scripts dev"),
+        new("MapEditor3ds","Editor de mapas","PokemonTools","mapas eventos npc warps activadores zonas"),
         new("Tutor6","Tutores BP · ORAS","Mechanics","tutores bp"),
         new("PlayerCaps","Player Level Caps","Mechanics","limite nivel jugador level cap"),
         new("UsumRelearner","USUM Relearner","Mechanics","recordar movimientos cafeteria"),

@@ -100,6 +100,8 @@ dotnet .\3DS.Progressive.Tests\bin\Release\net10.0-windows\3DS.Progressive.Tests
 | `--nds-map-canvas-only` | — | modelo espacial puro del lienzo DS de solo lectura; sin WPF |
 | `--nds-events-only` | — | incluida también en `--nds-only` |
 | `--nds-map-render-ui-only` | — | capa Modelos/texturas del editor con recursos sintéticos: desactivada por defecto, render en segundo plano, vuelta exacta a la vista esquemática y aviso; sí |
+| `--map3ds-gen6-ui-only` | — | editor de mapas 3DS fuera de pantalla con el adaptador sintético: lista de zonas, marcadores, selección en mapa y lista, capas, eventos sin dibujar y ausencia de controles de escritura; sí |
+| `--map3ds-gen6-only` | — | lectores de mapas Gen6 (paquetes ZO/MM/GR, entidades, matriz y rejilla de permisos) con archivos sintéticos; adaptador de solo lectura; sí |
 | `--nds-map-render-only` | — | lectores NSBTX/NSBMD, rasterizador cenital y resolvedor de recursos de mapa con archivos Nitro sintéticos; sí |
 | `--nds-trainer-vision-only` | — | orientación y visión de entrenadores existentes: contratos del motor, escritura byte a byte, checkpoints v1–v4, proyecto (lector 2) y geometría de la visión; sintética; sí |
 | `--performance-only` | — |  |
@@ -249,6 +251,8 @@ Necesitan extracciones, ROMs o carpetas de salida. Los argumentos concretos (ent
 | `--nds-events-probe` | `<salida nueva> <ROM privada Platino CPUE/1>` |  |
 | `--nds-map-render-gallery-probe` | `<carpeta nueva> <ROM privada Platino CPUE/1> [nombres internos…]` | solo lectura: renderiza ciudades, interiores, cuevas y rutas con los eventos encima y mide bloques, triángulos, tiempo y alineación con las colisiones; guarda un PNG por mapa (privado) |
 | `--nds-map-render-ui-probe` | `<carpeta nueva> <ROM privada Platino CPUE/1>` | editor fuera de pantalla con la capa gráfica sobre Hojaverde; guarda la captura (privada) en la carpeta |
+| `--map3ds-gen6-ui-probe` | `<carpeta nueva> <carpeta extraída de X/Y u OR/AS> <zona>` | solo lectura: abre el editor fuera de pantalla sobre una zona real y guarda la captura (privada) |
+| `--map3ds-gen6-probe` | `<carpeta nueva> <carpeta extraída de X/Y u OR/AS>` | solo lectura: lee todas las zonas, matrices y bloques GR de una copia, cuenta eventos por tipo y su posición respecto a la matriz, y comprueba que los GARC de origen no cambian |
 | `--nds-map-render-probe` | `<carpeta nueva> <ROM privada Platino CPUE/1>` | solo lectura: decodifica todas las texturas de mapa y de edificios, lee los 666 modelos de terreno y los 590 de edificios, comprueba los materiales de Hojaverde y guarda un atlas y el render cenital del bloque (privados) |
 | `--nds-trainer-vision-probe` | `<carpeta nueva> <ROM privada Platino CPUE/1>` | copia la fuente; comprueba las huellas y el censo de entrenadores; gira un entrenador «mirar fijo» de la Ruta 202 y amplía su visión, guarda (checkpoint v4), reabre, exporta, reabre la ROM exportada en el editor, restaura y compara SHA-256; escribe `MANUAL.txt` |
 | `--nds-gen5-items-probe` | 2 o más |  |

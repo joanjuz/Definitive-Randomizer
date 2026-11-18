@@ -350,6 +350,16 @@ if(args.Length>=3&&args[0]=="--nds-map-render-gallery-probe")
         Console.WriteLine($"{r.Map,3} {r.Name,-44} bloques {r.Blocks,2} tri {r.Triangles,6} sinTex {r.Untextured,3} propsOmitidos {r.Skipped,2} {r.Milliseconds,5} ms | alineación mejor {r.BestShift} solape {r.Overlap:P0} en (0,0) {r.OverlapAtZero:P0} props {r.PropTiles} (props sobre libre {r.PropOnClear:P1})");
     return;
 }
+if(args.Length==1&&args[0]=="--map3ds-gen6-only"){Map3dsGen6Checks.Run(Check);Console.WriteLine($"Completed {checks} Gen6 map and event reader checks (synthetic).");return;}
+if(args.Length==1&&args[0]=="--map3ds-gen6-ui-only")
+{
+    Exception? failure=null;var thread=new Thread(()=>{try{var app=new ThreeDS.Progressive.App();app.InitializeComponent();WpfTestHost.SuppressStartup();ThreeDS.Progressive.StudioDialog.AutomatedChecks=true;Map3dsGen6Checks.RunUi(Check);}catch(Exception ex){failure=ex;}});thread.SetApartmentState(ApartmentState.STA);thread.Start();thread.Join();if(failure is not null)System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(failure).Throw();Console.WriteLine($"Completed {checks} 3DS map editor UI checks (off-screen).");return;
+}
+if(args.Length==4&&args[0]=="--map3ds-gen6-ui-probe")
+{
+    Exception? failure=null;var thread=new Thread(()=>{try{var app=new ThreeDS.Progressive.App();app.InitializeComponent();WpfTestHost.SuppressStartup();ThreeDS.Progressive.StudioDialog.AutomatedChecks=true;Map3dsGen6Checks.ProbeUi(args[1],args[2],int.Parse(args[3]));}catch(Exception ex){failure=ex;}});thread.SetApartmentState(ApartmentState.STA);thread.Start();thread.Join();if(failure is not null)System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(failure).Throw();return;
+}
+if(args.Length==3&&args[0]=="--map3ds-gen6-probe"){Map3dsGen6Checks.Probe(args[1],args[2]);return;}
 if(args.Length==3&&args[0]=="--nds-map-render-probe"){NdsMapRenderChecks.Probe(args[1],args[2]);return;}
 if(args.Length==3&&args[0]=="--nds-trainer-vision-probe"){NdsTrainerVisionChecks.Probe(args[1],args[2]);return;}
 if(args.Length==1&&args[0]=="--nds-trainers-only"){NdsTrainerParityChecks.Run(Check);Console.WriteLine($"Completed {checks} DS trainer parity checks (synthetic).");return;}
