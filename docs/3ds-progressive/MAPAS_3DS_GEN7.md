@@ -1,29 +1,38 @@
-# Editor de mapas 3DS — Gen7 (Ultra Sol/Ultra Luna), primer incremento
+# Editor de mapas 3DS — Gen7 (Ultra Sol/Ultra Luna)
 
-Ultra Sol/Ultra Luna se abren en el mismo editor de mapas que Gen6 (`Map3dsEditorView`), con un adaptador propio de solo lectura. Cada entrada de la lista es un **mundo** y se dibuja con sus modelos y texturas reales vistos desde arriba (la capa «Modelos/texturas» se activa por defecto porque Gen7 no tiene rejilla de permisos). **Los eventos de Gen7 todavía no se muestran**: su formato no está identificado.
+Ultra Sol/Ultra Luna se abren en el mismo editor de mapas que Gen6 (`Map3dsEditorView`), con un adaptador propio **de solo lectura**. Cada entrada de la lista es un **área** de campo con su nombre de ubicación; se dibuja con sus modelos y texturas reales vistos desde arriba (la capa «Modelos/texturas» se activa por defecto) y con sus **eventos**: NPC, entrenadores, warps, interacciones, objetos recogibles y activadores.
 
 ## Formatos verificados (Ultra Luna)
 
 | Recurso | Ubicación | Contenido |
 | --- | --- | --- |
-| Datos de campo por mundo | `encdata` a/0/8/3 (Ultra Luna; a/0/8/2 en Ultra Sol) | 11 archivos por mundo (336 mundos). Slot 1: paquete `BG` cuya parte 0 son las texturas del mundo (GFL2) y la 1 los shaders; slot 2: matriz `TR` |
-| Matriz `TR` | slot 2 | u32 ancho, u32 alto, u32 tamaño de bloque (4200), dos u32 y registros de 12 bytes; el primer u16 es el identificador del bloque (0xFFFF = vacío) |
-| Bloques | a/0/8/6 | paquete `BG` por identificador; las partes que empiezan por 0x15122117 son modelos GFL2 (objetos y estructuras en la parte 0, hierba de encuentros en la 1). Los vértices están en coordenadas del mundo: el bloque (c, f) está centrado en (c·4200, f·4200) |
+| Datos de campo por área | `encdata` a/0/8/3 (Ultra Luna; a/0/8/2 en Ultra Sol) | 11 archivos por área (336 áreas). Slot 0 `ED` eventos; slot 1 `BG` (parte 0 texturas del área, 1 shaders, 2 vegetación, 4 paisaje lejano); slot 2 matriz `TR`; slot 4 `AS` objetos estáticos |
+| Matriz `TR` | slot 2 | u32 ancho, u32 alto, u32 tamaño de bloque (4200), dos u32 y registros de 12 bytes; el primer u16 es el identificador del bloque (0xFFFF = vacío). El bloque (c, f) ocupa **[c·4200, (c+1)·4200)** en X y Z |
+| Bloques | a/0/8/6 | paquete `BG` por identificador; las partes que empiezan por 0x15122117 son modelos GFL2 en coordenadas del mundo |
+| Objetos estáticos | slot 4 `AS` | un paquete `SM` por objeto: parte 0 empieza por el u16 del identificador; parte 1 es un paquete de modelos GFL2 (magia 0x10000) |
+| Nombres de área | a/0/7/7 y a/0/9/1 | zonas de 84 bytes (nombre de ubicación en +0x1C) → mundo (u16 por zona) → cabecera `WD` (pares zona/área entre los u32 de +8 y +12) |
+| Eventos | slot 0 `ED` | cada parte es un paquete con un archivo por zona del área: u32 recuento, registros de tamaño fijo cuyo primer u32 es el tipo, posición float3 en +4 (X, altura, Z) e identificador de evento en +0x2C |
 
-- `pk3DS.Core/Maps/Ctr/Gfl2File.cs`: lector propio de solo lectura de modelos y texturas GFL2 (formato documentado por SPICA, gdkchan, dominio público). Las secciones llevan su longitud y lo desconocido se salta por longitud. Las cadenas con longitud prefijada pueden incluir el terminador. La transformación del modelo **no** se aplica: los vértices ya coinciden con la caja de la cabecera.
-- `pk3DS.Core/Maps/Gen7/Gen7MapBackend.cs`: adaptador. Reutiliza el rasterizador cenital de Gen6 (`Gen6TopDownRenderer`), ahora con un rectángulo del mundo arbitrario y varios modelos.
-- El rasterizador mezcla ahora los texels con alfa parcial (máscaras de capa) y solo descarta los casi transparentes (alfa < 16).
+Tipos de evento (parte de `ED`, tamaño, tipo): activadores (0, 60, 0), NPC (1, 120, 1; modelo en +0x34, script en +0x38), warps (2, 88, 3), interacciones (3, 60, 2), objetos estáticos (4, 56, 4; rotación cuaternión en +0x10, modelo u16 en +0x30), entrenadores (7, 84, 7), objetos recogibles (10, 64, 10). La tabla se contrastó con USUM-Studio (Aqua-0, GPL-3.0) y se verificó con los datos: en las 336 áreas de Ultra Luna, **ningún registro tiene un tipo distinto del esperado** (5253 eventos).
+
+Implementación propia (sin copiar código):
+
+- `pk3DS.Core/Maps/Ctr/Gfl2File.cs`: modelos, texturas y paquetes de modelos GFL2 (formato documentado por SPICA, gdkchan, dominio público). La transformación del modelo de campo no se aplica: los vértices ya están en coordenadas del mundo.
+- `pk3DS.Core/Maps/Gen7/Gen7MapBackend.cs` y `Gen7Events.cs`: áreas, matriz, modelos de bloque, objetos estáticos colocados (cuaternión + traslación), nombres y eventos. Un tipo de evento con registros inesperados no se muestra.
+- El rasterizador cenital de Gen6 se reutiliza con un rectángulo del mundo arbitrario y mezcla el alfa parcial.
 
 ## Pruebas
 
 | Nivel | Opción | Resultado |
 | --- | --- | --- |
-| Sintética | `--map3ds-gen7-only` | 10 comprobaciones (matriz `TR`, texturas GFL2, formatos desconocidos, adaptador) |
-| Copia real, solo lectura | `--map3ds-gen7-render-probe` | Ultra Luna: 336 mundos; 1078 modelos y 8798 texturas leídos sin errores; mundos 0, 30 y 135 dibujados; los GARC de origen no cambian |
+| Sintética | `--map3ds-gen7-only` | 13 comprobaciones (matriz, texturas, adaptador, registros de eventos, tipos inesperados, tablas truncadas) |
+| Copia real, solo lectura | `--map3ds-gen7-render-probe` | 336 áreas; 2505 modelos (bloques y objetos estáticos) y 12 926 texturas sin errores; 5253 eventos sin tipos inesperados; 29 fuera de la matriz (sobre todo áreas del Ultraespacio) |
+| Editor real | `--map3ds-gen7-ui-probe` | Iki (área 1): 12 bloques y 62 eventos alineados con sus estructuras |
 | Juego | — | no aplica (solo lectura) |
 
 ## Limitaciones
 
-- **Falta el terreno de las ciudades y rutas principales**: en los mundos comprobados (0, 135) los bloques de a/0/8/6 contienen edificios, árboles, vallas y hierba, pero no las mallas del suelo; en el mundo 30 sí aparecen. El origen del terreno está pendiente de localizar.
-- Sin eventos (NPC, warps, activadores) hasta identificar el paquete `ED` (17 tipos de registro, una entrada por zona del mundo).
-- Sol/Luna no se ha comprobado y no se habilita.
+- **Falta el suelo de las áreas exteriores completas** (Route 1, Iki, Hau'oli…): sus bloques de a/0/8/6 contienen objetos, árboles, vallas y hierba, pero no las mallas del suelo. Áreas como el festival de Iki (área 7) o los interiores sí lo tienen y se dibujan. El origen del suelo exterior está pendiente; no se rellena con texturas inventadas.
+- Sin edición: ningún campo de evento tiene escritura verificada todavía.
+- Destinos de warps, scripts y formas de activación no se interpretan aún.
+- Sol/Luna no está habilitado.

@@ -45,6 +45,44 @@ public static class Gfl2File
         public void Seek(int p) { if (p < 0 || p > _d.Length) throw new MapFormatException("Salto GFL2 fuera del archivo."); Position = p; }
     }
 
+    public const uint ModelPackMagic = 0x10000;
+
+    /// <summary>
+    /// Model resource pack (magic 0x10000): five u32 counts (models, textures, two unknown, shaders),
+    /// a pointer table, then per entry a byte-length name and the u32 address of its payload.
+    /// </summary>
+    public static (List<H3dModel> Models, List<H3dTexture> Textures) ReadModelPack(ReadOnlySpan<byte> data)
+    {
+        if (data.Length < 24 || BinaryPrimitives.ReadUInt32LittleEndian(data) != ModelPackMagic) throw new MapFormatException("No es un paquete de modelos GFL2.");
+        var counts = new int[5]; long total = 0;
+        for (int i = 0; i < 5; i++) { counts[i] = BinaryPrimitives.ReadInt32LittleEndian(data[(4 + (i * 4))..]); total += counts[i]; }
+        if (total < 0 || total > 0x20000 || 24 + (total * 4) > data.Length) throw new MapFormatException("Tabla del paquete de modelos no válida.");
+        var entries = new List<(int Category, int Address)>();
+        int pointer = 24;
+        for (int c = 0; c < 5; c++)
+            for (int i = 0; i < counts[c]; i++, pointer += 4)
+            {
+                int pos = BinaryPrimitives.ReadInt32LittleEndian(data[pointer..]);
+                if (pos == 0) continue;
+                if (pos < 24 + (total * 4) || pos >= data.Length) throw new MapFormatException("Nombre de recurso fuera del paquete.");
+                int field = pos + 1 + data[pos];
+                if (field + 4 > data.Length) throw new MapFormatException("Recurso truncado.");
+                int address = BinaryPrimitives.ReadInt32LittleEndian(data[field..]);
+                if (address <= field + 3 || address >= data.Length) throw new MapFormatException("Dirección de recurso no válida.");
+                entries.Add((c, address));
+            }
+        entries.Sort((a, b) => a.Address.CompareTo(b.Address));
+        var models = new List<H3dModel>(); var textures = new List<H3dTexture>();
+        for (int i = 0; i < entries.Count; i++)
+        {
+            int end = i + 1 < entries.Count ? entries[i + 1].Address : data.Length;
+            var payload = data[entries[i].Address..end];
+            if (entries[i].Category == 0) models.Add(ReadModel(payload));
+            else if (entries[i].Category == 1 && ReadTexture(payload) is { } t) textures.Add(t);
+        }
+        return (models, textures);
+    }
+
     /// <summary>One texture blob (magic 0x15041213 followed by the "texture" section).</summary>
     public static H3dTexture? ReadTexture(ReadOnlySpan<byte> data)
     {
