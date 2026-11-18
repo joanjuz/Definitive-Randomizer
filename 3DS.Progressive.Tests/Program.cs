@@ -361,6 +361,8 @@ if(args.Length==1&&args[0]=="--map3ds-render-ui-only")
 {
     Exception? failure=null;var thread=new Thread(()=>{try{var app=new ThreeDS.Progressive.App();app.InitializeComponent();WpfTestHost.SuppressStartup();ThreeDS.Progressive.StudioDialog.AutomatedChecks=true;Map3dsRenderChecks.RunUi(Check);}catch(Exception ex){failure=ex;}});thread.SetApartmentState(ApartmentState.STA);thread.Start();thread.Join();if(failure is not null)System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(failure).Throw();Console.WriteLine($"Completed {checks} 3DS map graphics UI checks (off-screen).");return;
 }
+if(args.Length==8&&args[0]=="--map3ds-npc-move-rebuild"){Map3dsNpcMoveChecks.Rebuild(args[1],args[2],args[3],int.Parse(args[4]),int.Parse(args[5]),int.Parse(args[6]),int.Parse(args[7]));return;}
+if(args.Length==6&&args[0]=="--map3ds-npc-move-probe"){Map3dsNpcMoveChecks.Probe(args[1],int.Parse(args[2]),int.Parse(args[3]),int.Parse(args[4]),int.Parse(args[5]));return;}
 if(args.Length==1&&args[0]=="--map3ds-gen6-only"){Map3dsGen6Checks.Run(Check);Console.WriteLine($"Completed {checks} Gen6 map and event reader checks (synthetic).");return;}
 if(args.Length==1&&args[0]=="--map3ds-gen6-ui-only")
 {

@@ -119,7 +119,8 @@ internal static class Map3dsGen6Checks
         check(backend.Zones.Count == 2 && backend.Zones[0].Name == "000 · Pueblo Prueba" && backend.Zones[1].Id == 1, "Gen6Map_ListsReadableZonesWithLocationNames");
         check(backend.Skipped.Count == 3 && backend.Skipped.Any(s => s.Zone == 2 && s.Reason.Contains("longitud")) && backend.Skipped.Any(s => s.Zone == 4 && s.Reason.Contains("matriz")),
             "Gen6Map_SkipsZonesWithInconsistentLengthsOrMissingMatrices");
-        check(backend.Family == "gen6-oras" && !backend.Capabilities.Editing && backend.Mutations is null, "Gen6Map_AdapterIsReadOnly");
+        check(backend.Family == "gen6-oras" && backend.Capabilities.Editing && backend.Mutations is not null
+            && !backend.Validate(0, new MapMutation(MapEventKind.Npc, 0, "Modelo", 3)).Allowed, "Gen6Map_OnlyNpcPositionIsWritable");
 
         var layout = backend.Resources.Layout(0);
         check(layout.Width == 2 && layout.Height == 2 && layout.BlockCells == 40 && layout.BlockAt(0, 0) == 0 && layout.BlockAt(0, 1) == -1 && layout.BlockAt(1, 1) == 1 && layout.BlockAt(5, 0) == -1,
@@ -144,7 +145,29 @@ internal static class Map3dsGen6Checks
         var prop = events.First(e => e.Kind == MapEventKind.Prop);
         var trigger = events.First(e => e.Kind == MapEventKind.Trigger);
         check(prop.X == 44 && prop.Width == 2 && trigger.X == 41 && trigger.Y == 30 && trigger.Width == 3, "Gen6Map_PropAndTriggerAreas");
-        check(events.All(e => e.Properties.All(p => !p.Writable)), "Gen6Map_NoWritableFieldsInReadOnlyAdapter");
+        check(events.Where(e => e.Kind != MapEventKind.Npc).All(e => e.Properties.All(p => !p.Writable))
+            && events.Where(e => e.Kind == MapEventKind.Npc).All(e => e.Properties.Count(p => p.Writable) == 1 && e.Properties.Single(p => p.Writable).Name == "Casilla"),
+            "Gen6Map_OnlyTheNpcCellIsMarkedWritable");
+
+        // Writing an NPC position touches exactly the two u16 fields.
+        var raw = backend.ZoneBytes(0);
+        var moved = Gen6ZoneEdit.MoveNpc(raw, 1, 33, 21);
+        var diff = Enumerable.Range(0, raw.Length).Where(i => raw[i] != moved[i]).ToArray();
+        var after = new Gen6Zone(moved).Entities;
+        var npc1 = after.Records.First(r => r.Kind == MapEventKind.Npc && r.Index == 1);
+        check(diff.Length > 0 && diff.All(i => i >= npc1.Offset + 0x28 && i < npc1.Offset + 0x2C) && after.U16(npc1, 0x28) == 33 && after.U16(npc1, 0x2A) == 21
+            && moved.Length == raw.Length, "Gen6Edit_MoveNpcWritesOnlyItsPosition");
+        bool missing = false, range = false;
+        try { Gen6ZoneEdit.MoveNpc(raw, 9, 1, 1); } catch (ArgumentOutOfRangeException) { missing = true; }
+        try { Gen6ZoneEdit.MoveNpc(raw, 0, 70000, 1); } catch (ArgumentOutOfRangeException) { range = true; }
+        check(missing && range, "Gen6Edit_RejectsMissingNpcsAndOutOfRangeCells");
+        check(backend.ValidateMove(0, MapEventKind.Npc, 0, 46, 12).Allowed, "Gen6Move_AllowsAFreeCellWithABlock");
+        check(!backend.ValidateMove(0, MapEventKind.Npc, 0, 90, 12).Allowed && !backend.ValidateMove(0, MapEventKind.Npc, 0, 10, 50).Reason.Contains("fuera")
+            && backend.ValidateMove(0, MapEventKind.Npc, 0, 10, 50).Reason.Contains("sin bloque"), "Gen6Move_RejectsOutsideTheMatrixAndEmptyCells");
+        check(backend.ValidateMove(0, MapEventKind.Npc, 1, 45, 12).Reason.Contains("ocupa") && backend.ValidateMove(0, MapEventKind.Npc, 0, 45, 12).Reason.Contains("ya está"),
+            "Gen6Move_RejectsOccupiedAndUnchangedCells");
+        check(!backend.ValidateMove(0, MapEventKind.Warp, 0, 46, 12).Allowed && !backend.ValidateMove(1, MapEventKind.Npc, 0, 2, 2).Allowed,
+            "Gen6Move_RejectsOtherKindsAndUnverifiedZones");
 
         check(events.All(e => e.Placed), "Gen6Map_EventsInsideTheMatrixArePlaced");
         var untrusted = backend.Events.ZoneEvents(1);
@@ -271,6 +294,28 @@ internal static class Map3dsGen6Checks
             "Map3dsUi_UnplacedEventsAreListedWithAWarningButNotDrawn");
         double before = view.Canvas.Scale; view.Canvas.ZoomCentered(2);
         check(Math.Abs(view.Canvas.Scale - (before * 2)) < 1e-6, "Map3dsUi_ZoomChangesScale");
+        // Editing panel with a test mover: nothing is written until "Guardar".
+        var calls = new List<(int Zone, int Npc, int X, int Y)>();
+        int reloads = 0;
+        var mover = new Map3dsMover((b, z, n, x, y) => { calls.Add((z, n, x, y)); return $"Mover NPC {n}"; }, () => { reloads++; return Synthetic(out _); });
+        var edit = new Map3dsEditorView(Synthetic(out _), mover);
+        Layout(edit, 1400, 860);
+        var first = edit.Backend.Events.ZoneEvents(0).First(e => e.Kind == MapEventKind.Npc);
+        edit.EventList.SelectedIndex = edit.EventList.Items.Cast<ListBoxItem>().ToList().FindIndex(i => i.Tag is MapEventView { Kind: MapEventKind.Npc, Index: 0 });
+        UiPump.Idle();
+        check(edit.MoveX is { Text: "45" } && edit.MoveY is { Text: "12" } && edit.MoveSave is { IsEnabled: false }, "Map3dsMoveUi_NpcShowsTheMovePanelWithItsCell");
+        edit.MoveX!.Text = "90";
+        check(!edit.PreviewMove(first) && edit.MoveSave!.IsEnabled == false && edit.PendingMove is null && edit.MoveResult!.Text.Contains("fuera") && calls.Count == 0,
+            "Map3dsMoveUi_InvalidCellsCannotBeSaved");
+        edit.MoveX!.Text = "46";
+        check(edit.PreviewMove(first) && edit.MoveSave!.IsEnabled && edit.PendingMove is { X: 46, Y: 12 } && calls.Count == 0, "Map3dsMoveUi_PreviewShowsTheTargetWithoutWriting");
+        check(edit.SaveMove() && calls.SequenceEqual([(0, 0, 46, 12)]) && reloads == 1 && edit.PendingMove is null && edit.Status.Text.Contains("historial"),
+            "Map3dsMoveUi_SaveCommitsThroughTheProjectAndReloads");
+        var readOnlyNpc = new Map3dsEditorView(Synthetic(out _));
+        Layout(readOnlyNpc, 1400, 860);
+        readOnlyNpc.EventList.SelectedIndex = readOnlyNpc.EventList.Items.Cast<ListBoxItem>().ToList().FindIndex(i => i.Tag is MapEventView { Kind: MapEventKind.Npc });
+        UiPump.Idle();
+        check(readOnlyNpc.MoveX is null, "Map3dsMoveUi_NoMovePanelWithoutAProject");
         check(Map3dsCanvas.CellColor(0x01000021u) == 0xFF0E1218u && Map3dsCanvas.CellColor(5) == Map3dsCanvas.CellColor(5) && Map3dsCanvas.CellColor(5) != Map3dsCanvas.CellColor(6),
             "Map3dsUi_PermissionColoursAreStable");
     }
