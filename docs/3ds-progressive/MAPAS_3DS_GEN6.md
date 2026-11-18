@@ -1,6 +1,6 @@
 # Editor de mapas 3DS — Gen6 (X/Y, Rubí Omega/Zafiro Alfa)
 
-Editor de mapas de 3DS para Gen6. Muestra cada zona con la rejilla de permisos real de sus bloques y sus eventos (NPC, objetos, warps y activadores), seleccionables en el mapa o en la lista. En X/Y, la capa «Modelos/texturas» dibuja los bloques con sus modelos y texturas reales vistos desde arriba. **Es de solo lectura**: ningún control escribe en el proyecto.
+Editor de mapas de 3DS para Gen6. Muestra cada zona con la rejilla de permisos real de sus bloques y sus eventos (NPC, objetos, warps y activadores), seleccionables en el mapa o en la lista. En X/Y y OR/AS, la capa «Modelos/texturas» dibuja los bloques con sus modelos y texturas reales vistos desde arriba. **Es de solo lectura**: ningún control escribe en el proyecto.
 
 ## Arquitectura
 
@@ -28,7 +28,7 @@ Posiciones:
 ## Gráficos (capa «Modelos/texturas»)
 
 - Cada bloque `GR` lleva su modelo en la parte 1 (BCH). Las texturas no están en el bloque: la cabecera de zona indica el **área** (u16 en 0x02) y el paquete `AD` del área (X/Y a/0/1/3, OR/AS a/0/1/4) contiene varios BCH de texturas. Los materiales las nombran.
-- `pk3DS.Core/Maps/Ctr/H3dFile.cs`: lector propio de solo lectura del contenedor H3D/BCH (reubicación, texturas, materiales, mallas y comandos PICA200). Implementado a partir del formato documentado por SPICA (gdkchan, dominio público). Solo acepta la versión **7** (X/Y). OR/AS usa la **0x21**, que tiene otra disposición y aún no se admite: allí la capa no aparece.
+- `pk3DS.Core/Maps/Ctr/H3dFile.cs`: lector propio de solo lectura del contenedor H3D/BCH (reubicación, texturas, materiales, mallas y comandos PICA200). Implementado a partir del formato documentado por SPICA (gdkchan, dominio público). Acepta las versiones **7** (X/Y) y **0x21** (OR/AS), cuyas diferencias se midieron con archivos reales: en 0x21 la cabecera añade la sección RawExt y los materiales ocupan 0x2C bytes (los mapeadores de textura están fuera del material; nombres de textura en +0x1C), frente a 0x58 en la versión 7 (nombres en +0x48). Otras versiones se rechazan.
 - `PicaTexture.cs`: texturas PICA200 (RGBA8, RGB8, RGBA5551, RGB565, RGBA4, LA8, HiLo8, L8, A8, LA4, L4, A4, ETC1, ETC1A4).
 - `Gen6TopDownRenderer.cs`: rasterizador cenital por software. El bloque está centrado en el origen (−360…360 en X y Z, 18 unidades por casilla, Y hacia arriba); gana la superficie más alta. La textura elegida es la de coordenadas UV cuyo nombre coincide con el del material, o la primera disponible; se multiplica por el color de vértice y se descartan los texels casi transparentes. **Aproximado**: sin iluminación, combinadores, mezclas ni animaciones.
 - La capa está desactivada por defecto; los bloques se dibujan en segundo plano con nivel de detalle según el zoom (64–512 px) y una caché.
@@ -44,12 +44,12 @@ Posiciones:
 | Sintética (gráficos) | `--map3ds-render-only` | 14 comprobaciones |
 | Interfaz (gráficos) | `--map3ds-render-ui-only` | 7 comprobaciones |
 | Copia real, gráficos | `--map3ds-gen6-render-probe` | X: los 1022 modelos GR usados y las 11 887 texturas de las 160 áreas usadas se leen sin errores; Vaniville y alrededores (16 bloques, 46 431 triángulos) en ~0,3 s |
-| Captura real con gráficos | `--map3ds-gen6-ui-probe … 0 graficos` | Vaniville en el editor con la capa activada |
+| Copia real, gráficos OR/AS | `--map3ds-gen6-render-probe` (Zafiro Alfa) | los 846 modelos GR usados y las 7338 texturas de las 219 áreas se leen sin errores; zona 445 (12 bloques, 38 181 triángulos) en ~0,3 s |
+| Captura real con gráficos | `--map3ds-gen6-ui-probe … graficos` | Vaniville (X) y Monte Cenizo (Zafiro Alfa) en el editor con la capa activada |
 | Juego | — | no aplica (solo lectura) |
 
 ## Limitaciones
 
-- OR/AS: sin capa gráfica hasta verificar la disposición de la versión BCH 0x21.
 - La vista gráfica es aproximada y no se ha comparado todavía con capturas del juego.
 - Sin edición. Cada campo editable necesitará su propia verificación y prueba en el juego.
 - Sol/Luna y Ultra Sol/Ultra Luna usan otros formatos (paquetes `BG` y modelos GFL2) y necesitan su propio adaptador.

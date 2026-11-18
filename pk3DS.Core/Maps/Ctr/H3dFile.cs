@@ -19,9 +19,12 @@ namespace pk3DS.Core.Maps.Ctr;
 /// </summary>
 public sealed class H3dFile
 {
-    /// <summary>Backward-compatibility values observed in the Gen6 map files.</summary>
-    public static readonly IReadOnlySet<byte> SupportedVersions = new HashSet<byte> { 7 };
-    private const int MeshSize = 0x38, SubMeshSize = 0x34, MaterialSize = 0x58;
+    /// <summary>Backward-compatibility values observed in the Gen6 map files: 7 (X/Y) and 0x21 (OR/AS).</summary>
+    public static readonly IReadOnlySet<byte> SupportedVersions = new HashSet<byte> { 7, 0x21 };
+    private const int MeshSize = 0x38, SubMeshSize = 0x34;
+    // Version 7 keeps the texture mappers inline in the material; 0x21 points to them.
+    private int MaterialSize => Version >= 0x21 ? 0x2C : 0x58;
+    private int MaterialNames => Version >= 0x21 ? 0x1C : 0x48;
 
     private readonly byte[] _d;
     public byte Version { get; }
@@ -35,8 +38,10 @@ public sealed class H3dFile
         Version = source[4];
         if (!SupportedVersions.Contains(Version)) throw new MapFormatException($"Versión BCH 0x{Version:X2} no verificada.");
         _d = source.ToArray();
-        int contents = I32(0x08), strings = I32(0x0C), commands = I32(0x10), raw = I32(0x14), relocation = I32(0x18);
-        int relocationLength = I32(0x2C);
+        bool ext = Version >= 0x21; // RawExt section present
+        int contents = I32(0x08), strings = I32(0x0C), commands = I32(0x10), raw = I32(0x14);
+        int rawExt = ext ? I32(0x18) : 0, relocation = I32(ext ? 0x1C : 0x18);
+        int relocationLength = I32(ext ? 0x34 : 0x2C);
         if (relocation < 0 || relocationLength < 0 || relocation + relocationLength > _d.Length) throw new MapFormatException("Tabla de reubicación fuera del archivo.");
         uint Section(int id) => id switch
         {
@@ -45,6 +50,9 @@ public sealed class H3dFile
             2 or 3 => (uint)commands,
             4 or 5 or 6 or 8 => (uint)raw,
             7 => (uint)raw | 0x80000000u,
+            9 or 10 or 11 or 13 when ext => (uint)rawExt,
+            12 when ext => (uint)rawExt | 0x80000000u,
+            14 => 0u, // BaseAddress
             _ => throw new MapFormatException($"Sección de reubicación {id} no admitida."),
         };
         for (int o = 0; o < relocationLength; o += 4)
@@ -52,7 +60,7 @@ public sealed class H3dFile
             uint value = U32(relocation + o);
             uint pointer = value & 0x1FFFFFF;
             int target = (int)((value >> 25) & 0xF), source2 = (int)(value >> 29);
-            // Version 7 uses the current section numbering (older and 8–0x20 versions are shifted, not accepted here).
+            // Versions 7 and 0x21 use the current section numbering (older and 8–0x20 versions are shifted, not accepted here).
             if (target != 1) pointer <<= 2;
             long at = Section(source2) + (long)pointer;
             if (at < 0 || at + 4 > _d.Length) throw new MapFormatException("Puntero reubicado fuera del archivo.");
@@ -154,7 +162,8 @@ public sealed class H3dFile
             int c = p + 0x0C + (i * 0x18);
             coords[i] = new H3dTextureCoord(_d[c + 1], _d[c + 2], new Vector2(F32(c + 4), F32(c + 8)), F32(c + 12), new Vector2(F32(c + 16), F32(c + 20)));
         }
-        return new H3dMaterial(Str(U32(at + 0x54)), [Str(U32(at + 0x48)), Str(U32(at + 0x4C)), Str(U32(at + 0x50))], coords);
+        int n = at + MaterialNames;
+        return new H3dMaterial(Str(U32(n + 12)), [Str(U32(n)), Str(U32(n + 4)), Str(U32(n + 8))], coords);
     }
 
     private H3dMesh ReadMesh(int at, int materialCount)

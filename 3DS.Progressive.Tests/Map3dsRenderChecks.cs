@@ -59,9 +59,9 @@ internal static class Map3dsRenderChecks
 
         bool notBch = false, version = false;
         try { _ = new H3dFile(new byte[64]); } catch (MapFormatException) { notBch = true; }
-        var fake = new byte[0x80]; "BCH\0"u8.CopyTo(fake); fake[4] = 0x21;
-        try { _ = new H3dFile(fake); } catch (MapFormatException ex) { version = ex.Message.Contains("0x21"); }
-        check(notBch && version && H3dFile.SupportedVersions.SetEquals([7]), "H3d_OnlyVerifiedVersionsAreAccepted");
+        var fake = new byte[0x80]; "BCH\0"u8.CopyTo(fake); fake[4] = 0x20;
+        try { _ = new H3dFile(fake); } catch (MapFormatException ex) { version = ex.Message.Contains("0x20"); }
+        check(notBch && version && H3dFile.SupportedVersions.SetEquals([7, 0x21]), "H3d_OnlyVerifiedVersionsAreAccepted");
 
         var quad = Quad(0, -360, -360, 360, 360);
         var corners = quad.Read(PicaAttribute.Position)!;

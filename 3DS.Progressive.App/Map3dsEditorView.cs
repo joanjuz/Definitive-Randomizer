@@ -181,6 +181,7 @@ internal sealed class Map3dsEditorView : UserControl
             _canvas.SetZone(_backend.Resources, layout, _current, zone);
             var entry = _backend.Zones.First(z => z.Id == zone);
             _zoneTitle.Text = entry.Name;
+            if (!Equals(_zones.SelectedItem, entry) && _zones.Items.Contains(entry)) { _zones.SelectedItem = entry; _zones.ScrollIntoView(entry); }
             int unplaced = _current.Count(e => !e.Placed);
             _status.Text = $"{_current.Count} eventos · matriz {layout.Width}×{layout.Height} bloques" + (unplaced > 0 ? $" · {unplaced} sin dibujar (ver lista)" : "");
             _syncing = true;

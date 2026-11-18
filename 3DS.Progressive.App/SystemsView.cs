@@ -263,8 +263,8 @@ internal sealed class SystemsView : UserControl
         if(ProjectFeatureAvailability.Supports(_project,"OWSE"))stack.Children.Add(owse);
         var maps=Card("Editor de mapas · zonas y eventos",
             "Mapa de cada zona con sus NPC, objetos, warps y activadores.",
-            "X/Y y Rubí Omega/Zafiro Alfa: rejilla de permisos real de cada bloque y eventos seleccionables con sus propiedades. " +
-            "Solo lectura hasta verificar cada campo editable; los gráficos del juego llegarán en un paso posterior.","Experimental");
+            "X/Y y Rubí Omega/Zafiro Alfa: modelos y texturas reales vistos desde arriba, rejilla de permisos y eventos seleccionables con sus propiedades. " +
+            "Solo lectura hasta verificar cada campo editable.","Experimental");
         AddButton((StackPanel)maps.Child,"Abrir editor de mapas",()=>_navigate("MapEditor3ds"));
         if(ProjectFeatureAvailability.Supports(_project,"MapEditor3ds"))stack.Children.Add(maps);
     }
