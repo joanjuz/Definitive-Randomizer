@@ -104,6 +104,19 @@ public sealed class PlatinumMapAssets
         }
         skipped = notes; return scene;
     }
+    /// <summary>Whether the header's area provides the texture and palette of every textured material of the block's terrain model.</summary>
+    public bool TerrainTexturesBind(int land, int header)
+    {
+        var set = MapTextures(Area(header).MapTextureArchive);
+        return LandModel(land).SelectMany(m => m.Materials).Where(m => m.Texture is not null)
+            .All(m => set.Texture(m.Texture!) is { } t && (t.Format == NitroTextureFormat.Direct || m.Palette is not null && set.Palette(m.Palette) is not null));
+    }
+    /// <summary>The first header (in the given order) whose area binds every terrain texture of the block; the first one when none does.</summary>
+    public int FirstBindingHeader(int land, IReadOnlyList<int> candidates)
+    {
+        foreach (int header in candidates) if (TerrainTexturesBind(land, header)) return header;
+        return candidates.Count > 0 ? candidates[0] : 0;
+    }
     public int BuildModelCount => _buildModels.Files.Count;
     public int MapTextureCount => _mapTextures.Files.Count;
     public int PropTextureCount => _areaBuildTextures.Files.Count;

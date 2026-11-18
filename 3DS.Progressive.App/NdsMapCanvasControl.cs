@@ -425,7 +425,7 @@ internal sealed class NdsMapCanvasControl : FrameworkElement
                 for (int bx = bx0; bx <= bx1; bx++)
                 {
                     var cell = m.Layout.Cell(bx, by);
-                    if (renders.Get(cell.LandDataId, cell.HeaderId) is { } image) { var (px, py) = m.TileToPixel(bx * 32, by * 32); dc.DrawImage(image, new Rect(px, py, blockPx, blockPx)); }
+                    if (renders.Get(cell.LandDataId, m.GraphicsCandidates(cell), blockPx) is { } image) { var (px, py) = m.TileToPixel(bx * 32, by * 32); dc.DrawImage(image, new Rect(px, py, blockPx, blockPx)); }
                 }
         for (int by = by0; by <= by1; by++)
             for (int bx = bx0; bx <= bx1; bx++)

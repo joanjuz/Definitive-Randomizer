@@ -39,6 +39,20 @@ internal static partial class NdsMapRenderChecks
             canvas.Invalidate(); NdsMapCanvasChecks.Capture(view, 1280, 860, "twinleaf-editor-graphic");
             Console.WriteLine($"PASS MapRenderUiReal_TwinleafInTheEditor: {canvas.Renders.Cached} blocks in {clock.ElapsedMilliseconds} ms; problems: {canvas.Renders.Problem(0, 411) ?? "none"}");
             File.Copy(Path.Combine(AppContext.BaseDirectory, "nds-map-canvas", "twinleaf-editor-graphic.png"), Path.Combine(output, "twinleaf-editor-graphic.png"));
+            // Whole matrix (the outdoor world): redraw as the window would whenever blocks finish, and count renders. Every block should render once.
+            canvas.FitMatrix(); var model = canvas.Model!; int cellsWithLand = model.Layout.Cells.Select(c => (c.LandDataId, canvas.Renders.ResolveHeader(c.LandDataId, model.GraphicsCandidates(c)))).Where(k => k.LandDataId != 0xFFFF).Distinct().Count(); var whole = System.Diagnostics.Stopwatch.StartNew(); int before = canvas.Renders.RenderCount;
+            while (whole.Elapsed.TotalSeconds < 40) { canvas.Invalidate(); NdsMapCanvasChecks.Pixels(canvas, (int)canvas.ActualWidth, (int)canvas.ActualHeight); System.Windows.Threading.Dispatcher.CurrentDispatcher.Invoke(() => { }, System.Windows.Threading.DispatcherPriority.Background); if (!canvas.Renders.Busy && canvas.Renders.Cached >= cellsWithLand) break; }
+            int renders = canvas.Renders.RenderCount - before; NdsMapCanvasChecks.Capture(view, 1280, 860, "overworld-editor-graphic");
+            Console.WriteLine($"{(!canvas.Renders.Busy && canvas.Renders.Cached >= cellsWithLand && renders <= 3 * cellsWithLand ? "PASS" : "FAIL")} MapRenderUiReal_WholeMatrixRendersEveryBlockWithoutLooping: {cellsWithLand} distinct blocks, {renders} renders in {whole.ElapsedMilliseconds} ms, busy {canvas.Renders.Busy}, cached {canvas.Renders.Cached} ({canvas.Renders.CachedBytes / 1048576} MB), working set {Environment.WorkingSet / 1048576} MB");
+            File.Copy(Path.Combine(AppContext.BaseDirectory, "nds-map-canvas", "overworld-editor-graphic.png"), Path.Combine(output, "overworld-editor-graphic.png"));
+            int unowned = 0, untextured = 0;
+            foreach (var cell in model.Layout.Cells.Where(c => c.HeaderId == 0 && c.LandDataId != 0xFFFF))
+            {
+                unowned++; var r = new pk3DS.Core.NDS.Nitro.NitroTopDownRenderer(32, 32, -256, -256, 32 / 512f);
+                foreach (var p in assets.BlockScene(cell.LandDataId, canvas.Renders.ResolveHeader(cell.LandDataId, model.GraphicsCandidates(cell)), project.LoadProps().Props!.Props(cell.LandDataId), out _).ToList()) r.Draw(p);
+                untextured += r.Untextured;
+            }
+            Console.WriteLine($"{(untextured == 0 ? "PASS" : "FAIL")} MapRenderUiReal_UnownedCellsUseTheNearestOwnersTextures: {unowned} cells, {untextured} untextured triangles");
         }
         File.Delete(copy);
         if (NdsMapCanvasChecks.Sha(source) != hash) throw new Exception("Source changed");
@@ -75,6 +89,13 @@ internal static partial class NdsMapRenderChecks
             var pixels = new uint[512 * 512]; image!.CopyPixels(pixels, 512 * 4, 0);
             check(image.PixelWidth == NdsMapRenderCache.BlockPixels && pixels[0] == 0xFF00FF00 && pixels[^1] == 0xFF00FF00 && problem is null, "MapRenderUi_ABlockImageIsTheTexturedGroundAtSixteenPixelsPerTile");
             check(canvas.Renders.Get(0xFFFF, 1) is null && canvas.Renders.Get(0, 99) is null, "MapRenderUi_EmptyCellsAndUnknownHeadersHaveNoImage");
+            // Level of detail: a small request renders a small image; a larger one returns that image at once and the sharper one when ready.
+            var lod = new NdsMapRenderCache(assets, null); void Settle() { var t = System.Diagnostics.Stopwatch.StartNew(); while (lod.Busy && t.Elapsed.TotalSeconds < 30) System.Windows.Threading.Dispatcher.CurrentDispatcher.Invoke(() => { }, System.Windows.Threading.DispatcherPriority.Background); }
+            check(lod.Get(0, NdsTrainerVisionChecks.Map, 20) is null, "MapRenderUi_NothingIsShownBeforeTheFirstRender"); Settle();
+            var small = lod.Get(0, NdsTrainerVisionChecks.Map, 20); var interim = lod.Get(0, NdsTrainerVisionChecks.Map, 400); Settle(); var sharp = lod.Get(0, NdsTrainerVisionChecks.Map, 400);
+            check(small?.PixelWidth == 32 && ReferenceEquals(interim, small) && sharp?.PixelWidth == 512 && lod.CachedBytes == (32 * 32 + 512 * 512) * 4, "MapRenderUi_ASharperImageReplacesTheSmallOneWhenReady");
+            var smallPixels = new uint[32 * 32]; small!.CopyPixels(smallPixels, 32 * 4, 0);
+            check(smallPixels.All(p => p == 0xFF00FF00), "MapRenderUi_SmallImagesAreFilteredNotNoisy");
 
             // The notice changes with the layer, so the column is laid out again before comparing with the schematic capture.
             models.IsChecked = false; NdsMapCanvasChecks.Arrange(view, 1100, 760); canvas.Invalidate();

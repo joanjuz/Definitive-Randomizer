@@ -38,6 +38,28 @@ En **Nintendo DS → Eventos**, la casilla **Modelos/texturas** de la barra de c
 - En el editor (`--nds-map-render-ui-probe`, fuera de pantalla): Hojaverde y sus bloques vecinos (10 bloques) se renderizan en unos 1,2 s. Los warps quedan sobre las puertas de las casas.
 - Pueblo Hojaverde (cabecera 411, área 6, bloque `land_data` 0): los 19 materiales encuentran su textura y su paleta. El render cenital del bloque con sus 8 props (8 px por casilla, 256×256) tarda unos 35 ms y muestra las cuatro casas, el camino, el lago, el cinturón de árboles, las flores y las vallas en sus posiciones. Imágenes privadas en la carpeta de salida; no se distribuyen.
 
+## Consolidación en mapas complejos (incremento posterior)
+
+Galería sobre la copia real (`--nds-map-render-gallery-probe`): ciudades, interiores, terrazas, cuevas y rutas. Para cada mapa se mide la alineación como el desplazamiento de ±2 casillas que mejor hace coincidir los píxeles de los edificios con las colisiones de `land_data`. En las ciudades, más del 80 % de los píxeles de edificios coincide con casillas bloqueadas y solo el 1–8 % queda sobre casillas libres. Donde el óptimo no es (0,0), la diferencia es de 0 a 5 puntos (escalones, aleros y toldos que sobresalen). Los warps de las puertas coinciden con las puertas dibujadas. Ningún mapa tiene triángulos sin textura ni props omitidos.
+
+| Mapa | Bloques | Triángulos | Tiempo | Coincidencia en (0,0) |
+| --- | --- | --- | --- | --- |
+| Pueblo Hojaverde (T01) | 1 | 1758 | 97 ms | 93 % |
+| Ciudad Jubileo (C01) | 4 | 5690 | 229 ms | 95 % |
+| Ciudad Pirita (C03) | 3 | 4988 | 143 ms | 83 % |
+| Ciudad Corazón (C05) | 4 | 6036 | 125 ms | 92 % |
+| Ciudad Rocavelo (C07) | 4 | 7012 | 88 ms | 92 % |
+| Ciudad Puntaneva (C09) | 2 | 2782 | 54 ms | 90 % |
+| Interiores (casa, Centro Pokémon, gimnasio, etc.) | 1 | 386–916 | 2–6 ms | — |
+| Cueva y monte (D05R0101, D16) | 1 | 2098–2289 | 16–18 ms | — / 89 % |
+| Rutas 209 y 210 | 3 | 3966–5095 | 58–65 ms | 76–80 % |
+
+Defectos demostrados y corregidos:
+
+- **Matriz completa en bucle.** Con «Ver matriz completa» en el exterior, la caché de 48 imágenes de 512 px expulsaba bloques visibles y los volvía a renderizar sin fin: 526 renders en 40 s, siempre ocupada. Ahora cada bloque se renderiza al tamaño que ocupa en pantalla (potencia de dos de 32 a 512 px), la caché se limita por memoria (96 MB) y un único trabajador atiende primero lo más reciente. Mientras llega una imagen más nítida se muestra la disponible. Resultado: los 256 bloques distintos del exterior en unos 3,5 s y unos 7 MB.
+- **Celdas sin dueño sin texturas.** En el exterior, 299 celdas tienen la cabecera 0 («Mystery Zone»). Dibujadas con el área de esa cabecera, 64 064 de sus 103 596 triángulos quedaban sin textura (cuadros planos). El juego las dibuja con el área del mapa en el que está el jugador, así que ahora usan la del propietario más cercano. En los empates se elige el primero cuyo área contiene todas las texturas del bloque. Ahora quedan 0 triángulos sin textura.
+- **Ruido a escala pequeña.** Los bloques lejanos se renderizan a 2× o 4× y se promedian ponderando la opacidad, en lugar de tomar un solo texel por píxel.
+
 ## Limitaciones conocidas
 
 - Vista cenital ortográfica, no la cámara inclinada del juego. No hay iluminación, niebla, marcas de borde, animaciones de textura ni de props.
@@ -50,6 +72,6 @@ En **Nintendo DS → Eventos**, la casilla **Modelos/texturas** de la barra de c
 
 | Nivel | Opción | Resultado |
 | --- | --- | --- |
-| Sintética (archivos Nitro mínimos construidos en la prueba) | `--nds-map-render-only` (en el CI) | 37 PASS |
-| WPF fuera de pantalla | `--nds-map-render-ui-only` (en el CI) | 9 PASS |
-| Copia real CPUE/1 | `--nds-map-render-probe` y `--nds-map-render-ui-probe` | PASS |
+| Sintética (archivos Nitro mínimos construidos en la prueba) | `--nds-map-render-only` (en el CI) | 44 PASS |
+| WPF fuera de pantalla | `--nds-map-render-ui-only` (en el CI) | 12 PASS |
+| Copia real CPUE/1 | `--nds-map-render-probe`, `--nds-map-render-ui-probe` (Hojaverde, matriz completa, celdas sin dueño) y `--nds-map-render-gallery-probe` | PASS |

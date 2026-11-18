@@ -103,6 +103,7 @@ internal static class RunnerCatalog
         new("--nds-map-render-ui-only","",RunnerCategory.Ui,true),
         new("--nds-map-render-probe","<carpeta nueva> <Platino CPUE/1 privado>",RunnerCategory.Real,false),
         new("--nds-map-render-ui-probe","<carpeta nueva> <Platino CPUE/1 privado>",RunnerCategory.Real,false),
+        new("--nds-map-render-gallery-probe","<carpeta nueva> <Platino CPUE/1 privado> [nombres internos…]",RunnerCategory.Real,false),
         new("--performance-only","",RunnerCategory.Synthetic,false),
         new("--pickup-only","",RunnerCategory.Synthetic,false),
         new("--pokefeur-only","",RunnerCategory.Synthetic,false),
