@@ -42,6 +42,7 @@ internal sealed class Map3dsEditorView : UserControl
 
     internal Map3dsCanvas Canvas => _canvas;
     internal CheckBox? GraphicsToggle => _layerBoxes.GetValueOrDefault("Graphics");
+    internal CheckBox? DiagnosticToggle => _layerBoxes.GetValueOrDefault("Diagnostic");
     internal ListBox ZoneList => _zones;
     internal ListBox EventList => _events;
     internal StackPanel Details => _details;
@@ -58,10 +59,11 @@ internal sealed class Map3dsEditorView : UserControl
     {
         var config = session.GameConfiguration;
         if (config.XY || config.ORAS) return Gen6MapBackend.FromConfig(config);
-        throw new NotSupportedException("El editor de mapas 3DS todavía no admite este juego. Gen7 (Sol/Luna y Ultra Sol/Ultra Luna) está en desarrollo.");
+        if (config.USUM) return pk3DS.Core.Maps.Gen7.Gen7MapBackend.FromConfig(config);
+        throw new NotSupportedException("El editor de mapas 3DS todavía no admite este juego. Sol/Luna está en desarrollo.");
     }
 
-    internal static bool Supports(GameProjectSession session) => session.GameConfiguration.XY || session.GameConfiguration.ORAS;
+    internal static bool Supports(GameProjectSession session) => session.GameConfiguration.XY || session.GameConfiguration.ORAS || session.GameConfiguration.USUM;
 
     internal Map3dsEditorView(GameProjectSession session) : this(CreateBackend(session), Map3dsMover.For(session)) { }
 
@@ -107,10 +109,17 @@ internal sealed class Map3dsEditorView : UserControl
         bar.Children.Add(_zoneTitle);
         if (backend.Capabilities.Graphics)
         {
-            var gfx = new CheckBox { Content = "Modelos/texturas", IsChecked = false, Foreground = Res("TextMain"), Margin = new Thickness(0, 0, 12, 0), VerticalAlignment = VerticalAlignment.Center,
+            var gfx = new CheckBox { Content = "Modelos/texturas", IsChecked = backend.Capabilities.GraphicsByDefault, Foreground = Res("TextMain"), Margin = new Thickness(0, 0, 12, 0), VerticalAlignment = VerticalAlignment.Center,
                 ToolTip = Map3dsCanvas.GraphicNotice };
             gfx.Checked += (_, _) => ApplyLayers(); gfx.Unchecked += (_, _) => ApplyLayers();
             _layerBoxes["Graphics"] = gfx; bar.Children.Add(gfx);
+        }
+        if (backend.Capabilities.DiagnosticLayer is { } diagnosticName)
+        {
+            var diag = new CheckBox { Content = diagnosticName, IsChecked = false, Foreground = Res("TextMain"), Margin = new Thickness(0, 0, 12, 0), VerticalAlignment = VerticalAlignment.Center,
+                ToolTip = Map3dsCanvas.DiagnosticNotice };
+            diag.Checked += (_, _) => ApplyLayers(); diag.Unchecked += (_, _) => ApplyLayers();
+            _layerBoxes["Diagnostic"] = diag; bar.Children.Add(diag);
         }
         foreach (var (key, label) in new[] { ("Cells", "Permisos"), ("Blocks", "Bloques"), ("Npcs", "NPC"), ("Props", "Objetos"), ("Warps", "Warps"), ("Triggers", "Activadores") })
         {
@@ -152,6 +161,7 @@ internal sealed class Map3dsEditorView : UserControl
         _canvas.EventPicked += item => { ShowDetails(item); SyncList(item); };
         _canvas.Hover += text => _status.Text = text;
         ShowDetails(null);
+        ApplyLayers();
         if (backend.Zones.Count > 0) _zones.SelectedIndex = 0;
     }
 
@@ -181,8 +191,9 @@ internal sealed class Map3dsEditorView : UserControl
     {
         bool On(string k) => _layerBoxes.TryGetValue(k, out var box) && box.IsChecked == true;
         bool graphics = On("Graphics");
-        _canvas.SetLayers(new Map3dsLayers(On("Cells"), On("Blocks"), On("Npcs"), On("Props"), On("Warps"), On("Triggers"), graphics));
-        _legend.Text = graphics ? Map3dsCanvas.GraphicNotice : Map3dsCanvas.SchematicNotice;
+        bool diagnostic = On("Diagnostic");
+        _canvas.SetLayers(new Map3dsLayers(On("Cells"), On("Blocks"), On("Npcs"), On("Props"), On("Warps"), On("Triggers"), graphics, diagnostic));
+        _legend.Text = (graphics ? Map3dsCanvas.GraphicNotice : Map3dsCanvas.SchematicNotice) + (diagnostic ? " " + Map3dsCanvas.DiagnosticNotice : "");
     }
 
     internal void ShowZone(int zone)

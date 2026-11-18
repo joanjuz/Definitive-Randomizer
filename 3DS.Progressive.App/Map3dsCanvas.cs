@@ -34,6 +34,8 @@ internal sealed class Map3dsCanvas : FrameworkElement
     /// <summary>Blocks whose graphic is being drawn; tests wait for it to reach zero.</summary>
     internal int PendingGraphics { get { lock (_pending) return _pending.Count; } }
     internal int GraphicsDrawn { get; private set; }
+    internal int DiagnosticsDrawn { get; private set; }
+    internal const string DiagnosticNotice = "Capa de diagnóstico: superficies de colisión transitables del juego, en colores planos por atributo. No son los gráficos del suelo, que todavía no se han localizado.";
     private double _scale = 4;
     private Vector _offset;
     private Point? _panFrom;
@@ -175,17 +177,18 @@ internal sealed class Map3dsCanvas : FrameworkElement
     /// Image of a block from the game models. Returns the best cached size and,
     /// when the wanted size is missing, draws it on a worker thread.
     /// </summary>
-    private ImageSource? Graphic(int block, double onScreen)
+    private ImageSource? Graphic(int block, double onScreen, bool diagnostic = false)
     {
         if (_resources is null || _zone < 0) return null;
         int want = DetailFor(onScreen);
-        var key = (_zone, block, want);
+        int slot = diagnostic ? -1 - block : block; // diagnostic images share the cache under negative keys
+        var key = (_zone, slot, want);
         ImageSource? best = null;
         lock (_pending)
         {
             if (_graphics.TryGetValue(key, out var exact)) return exact;
             foreach (int s in new[] { 512, 256, 128, 64 })
-                if (_graphics.TryGetValue((_zone, block, s), out var img) && img is not null) { best = img; break; }
+                if (_graphics.TryGetValue((_zone, slot, s), out var img) && img is not null) { best = img; break; }
             if (!_pending.Add(key)) return best;
         }
         var resources = _resources; int zone = _zone, generation = _generation;
@@ -194,7 +197,7 @@ internal sealed class Map3dsCanvas : FrameworkElement
             ImageSource? result = null;
             try
             {
-                var g = resources.Graphic(zone, block, want);
+                var g = diagnostic ? resources.Diagnostic(zone, block, want) : resources.Graphic(zone, block, want);
                 if (g is not null)
                 {
                     var bmp = BitmapSource.Create(g.Size, g.Size, 96, 96, PixelFormats.Bgra32, null, g.Pixels, g.Size * 4);
@@ -220,7 +223,7 @@ internal sealed class Map3dsCanvas : FrameworkElement
     protected override void OnRender(DrawingContext dc)
     {
         dc.DrawRectangle(Surface, null, new Rect(0, 0, ActualWidth, ActualHeight));
-        RenderedMarkers = 0; GraphicsDrawn = 0;
+        RenderedMarkers = 0; GraphicsDrawn = 0; DiagnosticsDrawn = 0;
         if (_layout is null) return;
         double size = _layout.BlockCells * _scale;
         for (int r = 0; r < _layout.Height; r++)
@@ -230,9 +233,11 @@ internal sealed class Map3dsCanvas : FrameworkElement
                 var rect = new Rect(ToScreen(new Point(c * _layout.BlockCells, r * _layout.BlockCells)), new Size(size, size));
                 if (rect.Right < 0 || rect.Bottom < 0 || rect.Left > ActualWidth || rect.Top > ActualHeight) continue;
                 if (block < 0) { dc.DrawRectangle(EmptyBlock, null, rect); continue; }
-                if (Layers.Graphics && Graphic(block, rect.Width) is { } gfx) { dc.DrawImage(gfx, rect); GraphicsDrawn++; }
-                else if (Layers.Cells && BlockImage(block) is { } img) dc.DrawImage(img, rect);
-                else dc.DrawRectangle(EmptyBlock, null, rect);
+                bool drawn = false;
+                if (Layers.Diagnostic && Graphic(block, rect.Width, diagnostic: true) is { } diag) { dc.DrawRectangle(EmptyBlock, null, rect); dc.DrawImage(diag, rect); DiagnosticsDrawn++; drawn = true; }
+                if (Layers.Graphics && Graphic(block, rect.Width) is { } gfx) { if (!drawn) dc.DrawRectangle(EmptyBlock, null, rect); dc.DrawImage(gfx, rect); GraphicsDrawn++; }
+                else if (!drawn && Layers.Cells && BlockImage(block) is { } img) dc.DrawImage(img, rect);
+                else if (!drawn) dc.DrawRectangle(EmptyBlock, null, rect);
                 if (Layers.Blocks) dc.DrawRectangle(null, BlockPen, rect);
             }
         foreach (var e in _events.Where(Visible).OrderByDescending(e => e.Width * e.Height))
@@ -336,7 +341,7 @@ internal sealed class Map3dsCanvas : FrameworkElement
     }
 }
 
-internal sealed record Map3dsLayers(bool Cells, bool Blocks, bool Npcs, bool Props, bool Warps, bool Triggers, bool Graphics = false)
+internal sealed record Map3dsLayers(bool Cells, bool Blocks, bool Npcs, bool Props, bool Warps, bool Triggers, bool Graphics = false, bool Diagnostic = false)
 {
     internal static readonly Map3dsLayers All = new(true, true, true, true, true, true);
     internal bool Shows(MapEventKind kind) => kind switch

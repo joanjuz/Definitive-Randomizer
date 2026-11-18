@@ -24,14 +24,23 @@ public static class Gen6TopDownRenderer
 {
     public const float Half = 360f;
 
-    public static BlockRender Render(H3dModel model, Func<string, DecodedTexture?> texture, int size)
+    public static BlockRender Render(H3dModel model, Func<string, DecodedTexture?> texture, int size) =>
+        Render(model, texture, size, -Half, -Half, 2 * Half);
+
+    /// <summary>Draws the square of the XZ plane that starts at (<paramref name="minX"/>, <paramref name="minZ"/>) and spans <paramref name="span"/> units.</summary>
+    public static BlockRender Render(H3dModel model, Func<string, DecodedTexture?> texture, int size, float minX, float minZ, float span) =>
+        Render([model], texture, size, minX, minZ, span);
+
+    /// <summary>Several models drawn into the same image (Gen7 worlds are split in models placed in world coordinates).</summary>
+    public static BlockRender Render(IReadOnlyList<H3dModel> models, Func<string, DecodedTexture?> texture, int size, float minX, float minZ, float span)
     {
         var colour = new byte[size * size * 4];
         var depth = new float[size * size];
         Array.Fill(depth, float.NegativeInfinity);
         int triangles = 0, untextured = 0;
         var missing = new SortedSet<string>(StringComparer.Ordinal);
-        float scale = size / (2 * Half);
+        float scale = size / span;
+        foreach (var model in models)
         foreach (var mesh in model.Meshes)
         {
             var pos = mesh.Read(PicaAttribute.Position);
@@ -54,7 +63,7 @@ public static class Gen6TopDownRenderer
                 if (tex is null) untextured++;
                 Raster(world[a], world[b], world[c], uv[a], uv[b], uv[c],
                     colours is null ? Vector4.One : colours[a], colours is null ? Vector4.One : colours[b], colours is null ? Vector4.One : colours[c],
-                    tex, size, scale, colour, depth);
+                    tex, size, scale, minX, minZ, colour, depth);
             }
         }
         return new BlockRender(size, colour, triangles, untextured, [.. missing]);
@@ -75,11 +84,11 @@ public static class Gen6TopDownRenderer
     }
 
     private static void Raster(Vector3 p0, Vector3 p1, Vector3 p2, Vector2 t0, Vector2 t1, Vector2 t2, Vector4 c0, Vector4 c1, Vector4 c2,
-        DecodedTexture? tex, int size, float scale, byte[] colour, float[] depth)
+        DecodedTexture? tex, int size, float scale, float originX, float originZ, byte[] colour, float[] depth)
     {
-        float x0 = (p0.X + Half) * scale, y0 = (p0.Z + Half) * scale;
-        float x1 = (p1.X + Half) * scale, y1 = (p1.Z + Half) * scale;
-        float x2 = (p2.X + Half) * scale, y2 = (p2.Z + Half) * scale;
+        float x0 = (p0.X - originX) * scale, y0 = (p0.Z - originZ) * scale;
+        float x1 = (p1.X - originX) * scale, y1 = (p1.Z - originZ) * scale;
+        float x2 = (p2.X - originX) * scale, y2 = (p2.Z - originZ) * scale;
         float area = ((x1 - x0) * (y2 - y0)) - ((x2 - x0) * (y1 - y0));
         if (MathF.Abs(area) < 1e-6f) return; // vertical faces are invisible from above
         int minX = Math.Max(0, (int)MathF.Floor(MathF.Min(x0, MathF.Min(x1, x2)))), maxX = Math.Min(size - 1, (int)MathF.Ceiling(MathF.Max(x0, MathF.Max(x1, x2))));
@@ -96,18 +105,24 @@ public static class Gen6TopDownRenderer
                 int i = (y * size) + x;
                 if (h < depth[i]) continue;
                 var vc = (c0 * w0) + (c1 * w1) + (c2 * w2);
-                float r = 0.55f, g = 0.6f, b = 0.55f;
+                float r = 0.55f, g = 0.6f, b = 0.55f, a = 1;
                 if (tex is not null)
                 {
                     var t = (t0 * w0) + (t1 * w1) + (t2 * w2);
                     int tx = Wrap((int)MathF.Floor(t.X * tex.Width), tex.Width), ty = Wrap((int)MathF.Floor((1 - t.Y) * tex.Height), tex.Height);
                     int s = ((ty * tex.Width) + tx) * 4;
-                    if (tex.Pixels[s + 3] < 128) continue;
-                    b = tex.Pixels[s] / 255f; g = tex.Pixels[s + 1] / 255f; r = tex.Pixels[s + 2] / 255f;
+                    // Nearly transparent texels are cut out; partial alpha (terrain layer masks) is blended over what is below.
+                    if (tex.Pixels[s + 3] < 16) continue;
+                    b = tex.Pixels[s] / 255f; g = tex.Pixels[s + 1] / 255f; r = tex.Pixels[s + 2] / 255f; a = tex.Pixels[s + 3] / 255f;
                 }
-                depth[i] = h;
                 int o = i * 4;
-                colour[o] = Byte(b * vc.Z); colour[o + 1] = Byte(g * vc.Y); colour[o + 2] = Byte(r * vc.X); colour[o + 3] = 0xFF;
+                float nb = b * vc.Z, ng = g * vc.Y, nr = r * vc.X;
+                if (a < 0.98f && colour[o + 3] != 0)
+                {
+                    nb = (nb * a) + (colour[o] / 255f * (1 - a)); ng = (ng * a) + (colour[o + 1] / 255f * (1 - a)); nr = (nr * a) + (colour[o + 2] / 255f * (1 - a));
+                }
+                if (a >= 0.5f) depth[i] = h;
+                colour[o] = Byte(nb); colour[o + 1] = Byte(ng); colour[o + 2] = Byte(nr); colour[o + 3] = 0xFF;
             }
     }
 
