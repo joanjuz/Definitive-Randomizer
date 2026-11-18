@@ -6,7 +6,7 @@ Ultra Sol/Ultra Luna se abren en el mismo editor de mapas que Gen6 (`Map3dsEdito
 
 | Recurso | Ubicación | Contenido |
 | --- | --- | --- |
-| Datos de campo por área | `encdata` a/0/8/3 (Ultra Luna; a/0/8/2 en Ultra Sol) | 11 archivos por área (336 áreas). Slot 0 `ED` eventos; slot 1 `BG` (parte 0 texturas del área, 1 shaders, 2 vegetación, 4 paisaje lejano); slot 2 matriz `TR`; slot 4 `AS` objetos estáticos |
+| Datos de campo por área | `encdata` a/0/8/3 (Ultra Luna; a/0/8/2 en Ultra Sol) | 11 archivos por área (336 áreas). Slot 0 `ED` eventos; slot 1 `BG` (parte 0 texturas del área, 1 shaders, 2 vegetación, **4 paisaje del área: suelo exterior, mar y rocas**); slot 2 matriz `TR`; slot 4 `AS` objetos estáticos |
 | Matriz `TR` | slot 2 | u32 ancho, u32 alto, u32 tamaño de bloque (4200), dos u32 y registros de 12 bytes; el primer u16 es el identificador del bloque (0xFFFF = vacío). El bloque (c, f) ocupa **[c·4200, (c+1)·4200)** en X y Z |
 | Bloques | a/0/8/6 | paquete `BG` por identificador; las partes que empiezan por 0x15122117 son modelos GFL2 en coordenadas del mundo |
 | Objetos estáticos | slot 4 `AS` | un paquete `SM` por objeto: parte 0 empieza por el u16 del identificador; parte 1 es un paquete de modelos GFL2 (magia 0x10000) |
@@ -26,14 +26,15 @@ Implementación propia (sin copiar código):
 | Nivel | Opción | Resultado |
 | --- | --- | --- |
 | Sintética | `--map3ds-gen7-only` | 16 comprobaciones (matriz, texturas, adaptador, registros de eventos, tipos inesperados, tablas truncadas) |
-| Copia real, solo lectura | `--map3ds-gen7-render-probe` | 336 áreas; 2505 modelos (bloques y objetos estáticos) y 12 926 texturas sin errores; 5253 eventos sin tipos inesperados; 29 fuera de la matriz (sobre todo áreas del Ultraespacio) |
+| Copia real, solo lectura | `--map3ds-gen7-render-probe` | 336 áreas; 2600 modelos (bloques, objetos estáticos y paisaje del área) y 12 926 texturas sin errores; 5253 eventos sin tipos inesperados; 29 fuera de la matriz (sobre todo áreas del Ultraespacio) |
 | Sintética (colisión y capa de diagnóstico) | `--map3ds-gen7-only`, `--map3ds-render-ui-only` | lectura de colisión, rechazo de archivos ajenos y mallas truncadas; capa desactivada por defecto, dibujada y explicada |
 | Editor real | `--map3ds-gen7-ui-probe` | Iki (área 1): 12 bloques y 62 eventos alineados con sus estructuras; con `diagnostico`, también la colisión del suelo |
 | Juego | — | no aplica (solo lectura) |
 
 ## Limitaciones
 
-- **Falta el suelo de las áreas exteriores completas** (Route 1, Iki, Hau'oli…): sus bloques de a/0/8/6 contienen objetos, árboles, vallas y hierba, pero no las mallas visuales del suelo; las áreas que sí lo tienen (festival de Iki, interiores) se dibujan. No se rellena con texturas inventadas.
+- **Suelo exterior (resuelto)**: el suelo de las áreas exteriores grandes (Route 1, Iki, Hau'oli…) no está en los bloques de a/0/8/6, sino en la **parte 4 del `BG` del área** (un paquete con un modelo por entrada; mallas como `ground_01_01_*`, además del mar y las rocas lejanas). Se localizó comparando con USUM-Studio (binario oficial de su CI, ejecutado sobre una copia aislada de Ultra Luna), cuyo inspector la muestra como «Distant scenery». Con ella, Route 1 pasa de 5,6 % a 34,1 % de cobertura visual y lo que solo tenía colisión baja de 23,2 % a 1,9 % (Hau'oli: 0,2 %). Cada área trae el paisaje de su propia zona; lo que queda fuera pertenece a las áreas vecinas.
+- **Mar**: sus materiales combinan texturas de brillo y oleaje que la vista aproximada no reproduce; se ve como franjas de color.
 - **Capa «Colisión del suelo (diagnóstico)»**, desactivada por defecto: dibuja en colores planos (uno por atributo de superficie) la colisión transitable de la parte 6 de cada bloque (u32 0x14120500, triángulos de 72 bytes con vértices en +0/+16/+32 y atributo en +64). La leyenda indica que no son los gráficos del suelo. Comparación en Ultra Luna (`--map3ds-gen7-ground-probe`): Route 1 visual 5,6 % frente a colisión 27,8 % (23,2 % solo colisión); Iki 2,6 % frente a 11,5 %; Hau'oli 2,1 % frente a 6,7 %. La colisión cubre exactamente los caminos, plazas y zonas transitables que faltan; las matrices no tienen variantes (un archivo `TR`, u32 en +16 = 0).
 - Sin edición: ningún campo de evento tiene escritura verificada todavía.
 - Destinos de warps, scripts y formas de activación no se interpretan aún.

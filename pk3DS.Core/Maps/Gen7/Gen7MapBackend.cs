@@ -133,6 +133,7 @@ public sealed class Gen7MapBackend : IMapEditorBackend, IMapResourceProvider, IM
         var list = new List<H3dModel>();
         foreach (int id in World(world).Blocks.Where(b => b >= 0 && b < _chunkCount).Distinct()) list.AddRange(ModelsOfBlock(id));
         list.AddRange(PlacedStatics(world));
+        list.AddRange(AreaScenery(world));
         return list;
     }
 
@@ -204,6 +205,39 @@ public sealed class Gen7MapBackend : IMapEditorBackend, IMapResourceProvider, IM
         catch (MapFormatException ex) { LastGraphicError = $"Colocaciones del área {world}: {ex.Message}"; }
         lock (_gate) _placed[world] = list;
         return list;
+    }
+
+    private readonly Dictionary<int, IReadOnlyList<H3dModel>> _scenery = [];
+
+    /// <summary>
+    /// Area-wide scenery: the models of part 4 of the area's BG pack (a pack with one model per
+    /// entry). It holds the ground of the large outdoor areas (meshes such as ground_01_01_*),
+    /// the sea and distant rocks; confirmed against USUM-Studio's "Distant scenery" on Route 1.
+    /// </summary>
+    public IReadOnlyList<H3dModel> AreaScenery(int world)
+    {
+        lock (_gate)
+        {
+            if (_scenery.TryGetValue(world, out var done)) return done;
+            var list = new List<H3dModel>();
+            try
+            {
+                var bg = Gen6Pack.Read(_world((world * SlotsPerWorld) + 1), "BG");
+                if (bg.Count > 4 && bg.Length(4) >= 8)
+                {
+                    var part = bg.Part(4).ToArray();
+                    var inner = Gen7Events.Container(part);
+                    if (inner is not null)
+                        for (int i = 0; i < inner.Count; i++)
+                        {
+                            var m = inner.Part(i);
+                            if (m.Length >= 4 && BinaryPrimitives.ReadUInt32LittleEndian(m) == Gfl2File.ModelMagic) list.Add(Gfl2File.ReadModel(m));
+                        }
+                }
+            }
+            catch (MapFormatException ex) { LastGraphicError = $"Paisaje del área {world}: {ex.Message}"; }
+            return _scenery[world] = list;
+        }
     }
 
     /// <summary>The area's event pack ("ED", slot 0), or null.</summary>
