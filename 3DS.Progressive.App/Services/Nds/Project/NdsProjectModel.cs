@@ -42,12 +42,12 @@ internal sealed record NdsProjectEvents(IReadOnlyList<NdsEventOperation> Operati
     /// Oldest project reader that understands this history. Movement and sight live inside an event operation, whose shape an older build keeps fixed and would
     /// silently drop, so a history that uses them needs reader 2 (see <see cref="NdsProjectMeta"/>); any other history stays readable by reader 1.
     /// </summary>
-    internal int RequiredReader => Operations.Any(NdsEventSession.HasVisionFields) ? 2 : 1;
+    internal int RequiredReader => Operations.Any(NdsEventSession.IsEventEdit) ? 3 : Operations.Any(NdsEventSession.HasVisionFields) ? 2 : 1;
 
     internal static NdsProjectEvents FromCheckpoint(NdsEventDocument document)
     {
-        if (document.Version is < 1 or > 4) throw new InvalidDataException("Solo se importan checkpoints de eventos v1 a v4.");
-        var operations = document.Version >= 2 ? document.Operations ?? throw new InvalidDataException("Checkpoint v2–v4 sin operaciones.") : document.Edits.Select(NdsEventOperation.OfMove).ToList();
+        if (document.Version is < 1 or > 5) throw new InvalidDataException("Solo se importan checkpoints de eventos v1 a v5.");
+        var operations = document.Version >= 2 ? document.Operations ?? throw new InvalidDataException("Checkpoint v2–v5 sin operaciones.") : document.Edits.Select(NdsEventOperation.OfMove).ToList();
         return new(operations.ToList().AsReadOnly(), document.Audit.ToList().AsReadOnly(), document.Version);
     }
 

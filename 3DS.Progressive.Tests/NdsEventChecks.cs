@@ -160,7 +160,7 @@ internal static class NdsEventChecks
             NdsUiChecksPump(view.SaveToAsync(Path.Combine(temp, "saved.ndsevents.json")));
             check(session.Data.Npc(0, 0).X == 12 && File.Exists(Path.Combine(temp, "saved.ndsevents.json")), "NdsEventsUi_SaveCreatesPersistentCheckpoint");
             tabs.SelectedIndex = 2;
-            check(Box("Coordenada X").IsReadOnly && !Action("Previsualizar diferencias").IsEnabled && Action("Ir al destino existente").IsEnabled, "NdsEventsUi_WarpsReadOnlyWithValidatedNavigation");
+            check(!Box("Coordenada X").IsReadOnly && Box("Dirección (0–3)").IsReadOnly && Action("Previsualizar diferencias").IsEnabled && Action("Ir al destino existente").IsEnabled, "NdsEventsUi_WarpsEditableWithValidatedNavigation");
             Action("Ir al destino existente").RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));
             check((maps.SelectedItem as PlatinumMap)?.Id == 1, "NdsEventsUi_WarpButtonNavigatesToDestinationMap");
             Box("buscar mapa por nombre o ID").Text = "MAP_C";

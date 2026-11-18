@@ -32,7 +32,7 @@ internal static class NdsTrainerVision
         PlatinumTrainerVision.SeesAllDirections(npc.Type) ? [0, 1, 2, 3] : direction is >= 0 and <= 3 ? [direction] : [];
 
     /// <summary>Only existing NPC that the move tool also accepts can be turned (not ground items, objects, warps or triggers).</summary>
-    internal static bool CanTurn(PlatinumEvent e) => NdsNpcMovePlanner.IsDraggable(e);
+    internal static bool CanTurn(PlatinumEvent e) => e.Kind == PlatinumEventKind.Npc && e.Type != 3;
 
     /// <summary>
     /// Tiles a trainer at (<paramref name="x"/>, <paramref name="y"/>) could see with this direction and range. Tiles outside the matrix are not listed.
