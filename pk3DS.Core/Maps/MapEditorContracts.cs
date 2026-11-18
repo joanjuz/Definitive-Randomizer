@@ -35,6 +35,11 @@ public interface IMapResourceProvider
     /// or null when the adapter cannot draw it. Zone-dependent because textures may come from the zone's area.
     /// </summary>
     MapBlockImage? Graphic(int zone, int block, int size);
+    /// <summary>
+    /// Optional diagnostic image of a block (for example collision surfaces), clearly not the
+    /// game's graphics. Null when the adapter has none.
+    /// </summary>
+    MapBlockImage? Diagnostic(int zone, int block, int size) => null;
 }
 
 /// <summary>BGRA pixels (first row at the top) of a rendered block.</summary>
@@ -53,7 +58,7 @@ public interface IMapMutationValidator
 
 /// <summary>What an adapter can do, with the reason when it cannot.</summary>
 /// <param name="GraphicsByDefault">Show the model layer when the editor opens (for adapters without a cell grid).</param>
-public sealed record MapCapabilities(bool Graphics, bool Events, bool Editing, string Note, bool GraphicsByDefault = false);
+public sealed record MapCapabilities(bool Graphics, bool Events, bool Editing, string Note, bool GraphicsByDefault = false, string? DiagnosticLayer = null);
 
 public sealed record MapZoneEntry(int Id, string Name, int Layout, string Detail);
 

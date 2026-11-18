@@ -104,7 +104,13 @@ internal static class Map3dsRenderChecks
         public IMapResourceProvider Resources => this;
         public IMapEventProvider Events => inner.Events;
         public IMapMutationValidator? Mutations => null;
-        public MapCapabilities Capabilities => inner.Capabilities with { Graphics = true };
+        public MapCapabilities Capabilities => inner.Capabilities with { Graphics = true, DiagnosticLayer = "Diagnóstico de prueba" };
+        public MapBlockImage? Diagnostic(int zone, int block, int size)
+        {
+            var px = new byte[size * size * 4];
+            for (int i = 0; i < px.Length; i += 4) { px[i] = 0xC0; px[i + 3] = 0xFF; }
+            return new MapBlockImage(size, px, 2, 2);
+        }
         public MapLayout Layout(int zone) => inner.Resources.Layout(zone);
         public MapCellGrid? Cells(int block) => inner.Resources.Cells(block);
         public MapBlockImage? Graphic(int zone, int block, int size)
@@ -143,6 +149,16 @@ internal static class Map3dsRenderChecks
         check(painted.Calls == calls, "Map3dsGfxUi_RenderedBlocksAreCached");
         view.GraphicsToggle.IsChecked = false; Layout(view, 1400, 860);
         check(view.Canvas.GraphicsDrawn == 0 && texts.Count > 0, "Map3dsGfxUi_TurningOffReturnsToTheSchematicView");
+        check(view.DiagnosticToggle is { IsChecked: false } && view.Canvas.DiagnosticsDrawn == 0, "Map3dsGfxUi_DiagnosticLayerIsOffByDefault");
+        view.DiagnosticToggle!.IsChecked = true;
+        var untilDiag = DateTime.UtcNow.AddSeconds(10);
+        do { Layout(view, 1400, 860); UiPump.Idle(); Thread.Sleep(20); } while ((view.Canvas.PendingGraphics > 0 || view.Canvas.DiagnosticsDrawn == 0) && DateTime.UtcNow < untilDiag);
+        var legendTexts = new List<string>();
+        void CollectLegend(DependencyObject d) { for (int i = 0; i < System.Windows.Media.VisualTreeHelper.GetChildrenCount(d); i++) { var c = System.Windows.Media.VisualTreeHelper.GetChild(d, i); if (c is TextBlock tb) legendTexts.Add(tb.Text); CollectLegend(c); } }
+        CollectLegend(view);
+        check(view.Canvas.DiagnosticsDrawn == 3 && legendTexts.Any(x => x.Contains(Map3dsCanvas.DiagnosticNotice)), "Map3dsGfxUi_DiagnosticLayerIsDrawnAndExplained");
+        view.DiagnosticToggle.IsChecked = false; Layout(view, 1400, 860);
+        check(view.Canvas.DiagnosticsDrawn == 0, "Map3dsGfxUi_DiagnosticLayerTurnsOff");
         check(Map3dsCanvas.DetailFor(10) == 64 && Map3dsCanvas.DetailFor(130) == 256 && Map3dsCanvas.DetailFor(5000) == 512, "Map3dsGfxUi_LevelOfDetail");
     }
 }

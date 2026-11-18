@@ -34,6 +34,7 @@ internal sealed class Map3dsEditorView : UserControl
 
     internal Map3dsCanvas Canvas => _canvas;
     internal CheckBox? GraphicsToggle => _layerBoxes.GetValueOrDefault("Graphics");
+    internal CheckBox? DiagnosticToggle => _layerBoxes.GetValueOrDefault("Diagnostic");
     internal ListBox ZoneList => _zones;
     internal ListBox EventList => _events;
     internal StackPanel Details => _details;
@@ -98,6 +99,13 @@ internal sealed class Map3dsEditorView : UserControl
                 ToolTip = Map3dsCanvas.GraphicNotice };
             gfx.Checked += (_, _) => ApplyLayers(); gfx.Unchecked += (_, _) => ApplyLayers();
             _layerBoxes["Graphics"] = gfx; bar.Children.Add(gfx);
+        }
+        if (backend.Capabilities.DiagnosticLayer is { } diagnosticName)
+        {
+            var diag = new CheckBox { Content = diagnosticName, IsChecked = false, Foreground = Res("TextMain"), Margin = new Thickness(0, 0, 12, 0), VerticalAlignment = VerticalAlignment.Center,
+                ToolTip = Map3dsCanvas.DiagnosticNotice };
+            diag.Checked += (_, _) => ApplyLayers(); diag.Unchecked += (_, _) => ApplyLayers();
+            _layerBoxes["Diagnostic"] = diag; bar.Children.Add(diag);
         }
         foreach (var (key, label) in new[] { ("Cells", "Permisos"), ("Blocks", "Bloques"), ("Npcs", "NPC"), ("Props", "Objetos"), ("Warps", "Warps"), ("Triggers", "Activadores") })
         {
@@ -169,8 +177,9 @@ internal sealed class Map3dsEditorView : UserControl
     {
         bool On(string k) => _layerBoxes.TryGetValue(k, out var box) && box.IsChecked == true;
         bool graphics = On("Graphics");
-        _canvas.SetLayers(new Map3dsLayers(On("Cells"), On("Blocks"), On("Npcs"), On("Props"), On("Warps"), On("Triggers"), graphics));
-        _legend.Text = graphics ? Map3dsCanvas.GraphicNotice : Map3dsCanvas.SchematicNotice;
+        bool diagnostic = On("Diagnostic");
+        _canvas.SetLayers(new Map3dsLayers(On("Cells"), On("Blocks"), On("Npcs"), On("Props"), On("Warps"), On("Triggers"), graphics, diagnostic));
+        _legend.Text = (graphics ? Map3dsCanvas.GraphicNotice : Map3dsCanvas.SchematicNotice) + (diagnostic ? " " + Map3dsCanvas.DiagnosticNotice : "");
     }
 
     internal void ShowZone(int zone)

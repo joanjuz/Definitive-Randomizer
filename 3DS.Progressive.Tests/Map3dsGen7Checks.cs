@@ -102,6 +102,23 @@ internal static class Map3dsGen7Checks
         bool overflow = false;
         try { _ = Gen7Events.Records(Zone(60, 0, 0, 0, 2)[..70], 60, 0).ToList(); } catch (MapFormatException) { overflow = true; }
         check(overflow, "Gen7Events_TruncatedTablesAreRejected");
+
+        // Collision: two triangles, attributes 3 and 5.
+        var col = new byte[8 + (2 * 72)];
+        BinaryPrimitives.WriteUInt32LittleEndian(col, Gen7Collision.Magic); BinaryPrimitives.WriteInt32LittleEndian(col.AsSpan(4), 2);
+        float[][] verts = [[0, 0, 0], [4200, 0, 0], [0, 0, 4200], [4200, 5, 0], [4200, 5, 4200], [0, 5, 4200]];
+        for (int k = 0; k < 6; k++) for (int c = 0; c < 3; c++) BinaryPrimitives.WriteSingleLittleEndian(col.AsSpan(8 + ((k / 3) * 72) + ((k % 3) * 16) + (c * 4)), verts[k][c]);
+        BinaryPrimitives.WriteUInt32LittleEndian(col.AsSpan(8 + 64), 3); BinaryPrimitives.WriteUInt32LittleEndian(col.AsSpan(8 + 72 + 64), 5);
+        var tris = Gen7Collision.Read(col);
+        check(tris.Count == 2 && tris[0].B.X == 4200 && tris[1].A.Y == 5 && tris[0].Attribute == 3 && tris[1].Attribute == 5, "Gen7Collision_ReadsVerticesAndAttributes");
+        var diagImage = Gen6TopDownRenderer.Render([Gen7Collision.ToDiagnosticModel(tris)], _ => null, 32, 0, 0, 4200);
+        int covered = 0; for (int i = 3; i < diagImage.Pixels.Length; i += 4) if (diagImage.Pixels[i] != 0) covered++;
+        check(covered > 32 * 32 * 0.95 && diagImage.Pixels[2] != diagImage.Pixels[((31 * 32) + 31) * 4 + 2] | diagImage.Pixels[1] != diagImage.Pixels[((31 * 32) + 31) * 4 + 1],
+            "Gen7Collision_DiagnosticModelCoversTheTrianglesWithOneColourPerAttribute");
+        bool badMagic = false, badCount = false;
+        try { Gen7Collision.Read(new byte[16]); } catch (MapFormatException) { badMagic = true; }
+        try { var broken = (byte[])col.Clone(); BinaryPrimitives.WriteInt32LittleEndian(broken.AsSpan(4), 9); Gen7Collision.Read(broken); } catch (MapFormatException) { badCount = true; }
+        check(badMagic && badCount, "Gen7Collision_RejectsOtherFilesAndTruncatedMeshes");
     }
 
     /// <summary>Read-only: renders a whole world and reads every world model and texture of a USUM copy.</summary>
@@ -169,21 +186,75 @@ internal static class Map3dsGen7Checks
     }
 
     /// <summary>Opens the editor off-screen on a real USUM area (graphics on by default), waits for the blocks and saves a capture.</summary>
-    internal static void ProbeUi(string output, string root, int area)
+    internal static void ProbeUi(string output, string root, int area, bool diagnostic = false)
     {
         if (Directory.Exists(output) && Directory.EnumerateFileSystemEntries(output).Any()) throw new IOException("Usa una carpeta nueva de salida.");
         Directory.CreateDirectory(output);
         var backend = Gen7MapBackend.FromConfig(Map3dsGen6Checks.OpenConfig(root));
         var view = new ThreeDS.Progressive.Map3dsEditorView(backend);
         view.ShowZone(area);
+        if (diagnostic) view.DiagnosticToggle!.IsChecked = true;
         var until = DateTime.UtcNow.AddSeconds(120);
         void Lay() { view.Measure(new System.Windows.Size(1600, 1000)); view.Arrange(new System.Windows.Rect(0, 0, 1600, 1000)); view.UpdateLayout(); UiPump.Idle(); }
-        do { Lay(); System.Threading.Thread.Sleep(50); } while ((view.Canvas.PendingGraphics > 0 || view.Canvas.GraphicsDrawn == 0) && DateTime.UtcNow < until);
+        do { Lay(); System.Threading.Thread.Sleep(50); } while ((view.Canvas.PendingGraphics > 0 || view.Canvas.GraphicsDrawn == 0 || (diagnostic && view.Canvas.DiagnosticsDrawn == 0)) && DateTime.UtcNow < until);
         Lay();
         var image = new RenderTargetBitmap(1600, 1000, 96, 96, PixelFormats.Pbgra32); image.Render(view);
         var png = new PngBitmapEncoder(); png.Frames.Add(BitmapFrame.Create(image));
-        string file = Path.Combine(output, $"gen7-area-{area:000}-editor.png");
+        string file = Path.Combine(output, $"gen7-area-{area:000}-editor{(diagnostic ? "-diagnostico" : "")}.png");
         using (var f = File.Create(file)) png.Save(f);
-        Console.WriteLine($"Área {area}: {view.Canvas.GraphicsDrawn} bloques, {view.Canvas.RenderedMarkers} marcadores, {view.EventList.Items.Count} eventos · {file}");
+        Console.WriteLine($"Área {area}: {view.Canvas.GraphicsDrawn} bloques, {view.Canvas.DiagnosticsDrawn} de diagnóstico, {view.Canvas.RenderedMarkers} marcadores, {view.EventList.Items.Count} eventos · {file}");
+    }
+
+    /// <summary>
+    /// Read-only diagnosis of a USUM area: visual coverage (block models and placed statics)
+    /// against walkable-ground collision coverage, plus matrix variants. Saves both images and
+    /// an overlay (visual in colour, collision-only pixels in magenta).
+    /// </summary>
+    internal static void GroundProbe(string output, string root, int area, int pixels)
+    {
+        if (Directory.Exists(output) && Directory.EnumerateFileSystemEntries(output).Any()) throw new IOException("Usa una carpeta nueva de salida.");
+        Directory.CreateDirectory(output);
+        var config = Map3dsGen6Checks.OpenConfig(root);
+        var backend = Gen7MapBackend.FromConfig(config);
+        var fields = config.GetlzGARCData("encdata");
+        var tr = pk3DS.Core.Maps.Gen6.Gen6Pack.Read(fields[(area * Gen7MapBackend.SlotsPerWorld) + 2], "TR");
+        var grid = tr.Part(0);
+        Console.WriteLine($"Área {backend.Zones.FirstOrDefault(z => z.Id == area)?.Name}: TR con {tr.Count} archivo(s); u32 +12 = {BinaryPrimitives.ReadUInt32LittleEndian(grid[12..])}; u32 +16 (variantes) = {BinaryPrimitives.ReadUInt32LittleEndian(grid[16..])}");
+        var layout = backend.Resources.Layout(area);
+        int w = layout.Width * pixels, h = layout.Height * pixels;
+        byte[] Compose(Func<int, MapBlockImage?> f)
+        {
+            var c = new byte[w * h * 4];
+            for (int r = 0; r < layout.Height; r++) for (int col = 0; col < layout.Width; col++)
+            {
+                int b = layout.BlockAt(col, r); if (b < 0) continue;
+                var img = f(b); if (img is null) continue;
+                for (int y = 0; y < pixels; y++) Buffer.BlockCopy(img.Pixels, y * pixels * 4, c, (((r * pixels) + y) * w + (col * pixels)) * 4, pixels * 4);
+            }
+            return c;
+        }
+        var visual = Compose(b => backend.Resources.Graphic(area, b, pixels));
+        var collision = Compose(b => backend.Resources.Diagnostic(area, b, pixels));
+        int vis = 0, col2 = 0, both = 0, onlyCollision = 0, onlyVisual = 0;
+        var overlay = new byte[visual.Length];
+        for (int i = 0; i < visual.Length; i += 4)
+        {
+            bool v = visual[i + 3] != 0, c = collision[i + 3] != 0;
+            if (v) vis++; if (c) col2++; if (v && c) both++; if (c && !v) onlyCollision++; if (v && !c) onlyVisual++;
+            if (v) { overlay[i] = visual[i]; overlay[i + 1] = visual[i + 1]; overlay[i + 2] = visual[i + 2]; overlay[i + 3] = 255; }
+            else if (c) { overlay[i] = 0xC0; overlay[i + 1] = 0x30; overlay[i + 2] = 0xC0; overlay[i + 3] = 255; }
+        }
+        int n = visual.Length / 4;
+        var tris = backend.GroundCollision(area);
+        Console.WriteLine($"Colisión de suelo: {tris.Count} triángulos, {tris.Select(t => t.Attribute).Distinct().Count()} atributos; altura {(tris.Count > 0 ? tris.Min(t => Math.Min(t.A.Y, Math.Min(t.B.Y, t.C.Y))) : 0):0}..{(tris.Count > 0 ? tris.Max(t => Math.Max(t.A.Y, Math.Max(t.B.Y, t.C.Y))) : 0):0}");
+        Console.WriteLine($"Cobertura visual {vis * 100.0 / n:0.0}% · colisión {col2 * 100.0 / n:0.0}% · ambas {both * 100.0 / n:0.0}% · solo colisión {onlyCollision * 100.0 / n:0.0}% · solo visual {onlyVisual * 100.0 / n:0.0}%");
+        void Save(byte[] px, string name)
+        {
+            var bmp = BitmapSource.Create(w, h, 96, 96, PixelFormats.Bgra32, null, px, w * 4);
+            var png = new PngBitmapEncoder(); png.Frames.Add(BitmapFrame.Create(bmp));
+            using var f = File.Create(Path.Combine(output, name)); png.Save(f);
+        }
+        Save(visual, $"area-{area:000}-visual.png"); Save(collision, $"area-{area:000}-colision.png"); Save(overlay, $"area-{area:000}-superpuesto.png");
+        Console.WriteLine("Solo lectura; imágenes privadas en " + output);
     }
 }

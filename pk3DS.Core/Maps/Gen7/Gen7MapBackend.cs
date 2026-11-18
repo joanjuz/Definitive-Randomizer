@@ -42,7 +42,9 @@ public sealed class Gen7MapBackend : IMapEditorBackend, IMapResourceProvider, IM
     public IMapEventProvider Events => this;
     public IMapMutationValidator? Mutations => null;
     public MapCapabilities Capabilities { get; } = new(true, true, false,
-        "Lectura: modelos y texturas reales de cada área vistos desde arriba y eventos (NPC, entrenadores, warps, interacciones, objetos recogibles y activadores). Sin edición.", GraphicsByDefault: true);
+        "Lectura: modelos y texturas reales de cada área vistos desde arriba y eventos (NPC, entrenadores, warps, interacciones, objetos recogibles y activadores). Sin edición.", GraphicsByDefault: true,
+        DiagnosticLayer: "Colisión del suelo (diagnóstico)");
+    private readonly Dictionary<int, H3dModel?> _collision = [];
     public IReadOnlyList<(int World, string Reason)> Skipped { get; }
     public string? LastGraphicError { get; private set; }
 
@@ -216,6 +218,44 @@ public sealed class Gen7MapBackend : IMapEditorBackend, IMapResourceProvider, IM
     }
 
     public int BlockCount => _chunkCount;
+
+    /// <summary>Walkable-ground collision of the area: part 6 of every block of its matrix.</summary>
+    public IReadOnlyList<Gen7CollisionTriangle> GroundCollision(int world)
+    {
+        var list = new List<Gen7CollisionTriangle>();
+        foreach (int id in World(world).Blocks.Where(b => b >= 0 && b < _chunkCount).Distinct())
+        {
+            try
+            {
+                var data = _chunk(id);
+                if (data.Length < 8 || data[0] != 'B' || data[1] != 'G') continue;
+                var pack = Gen6Pack.Read(data, "BG");
+                if (pack.Count > 6 && pack.Length(6) >= 8) list.AddRange(Gen7Collision.Read(pack.Part(6)));
+            }
+            catch (MapFormatException ex) { LastGraphicError = $"Colisión del bloque {id}: {ex.Message}"; }
+        }
+        return list;
+    }
+
+    /// <summary>Diagnostic layer: the walkable-ground collision drawn flat, one colour per surface attribute.</summary>
+    public MapBlockImage? Diagnostic(int zone, int block, int size)
+    {
+        var w = World(zone);
+        if (block < 0 || block >= w.Width * w.Height || size <= 0) return null;
+        H3dModel? model;
+        lock (_gate)
+        {
+            if (!_collision.TryGetValue(zone, out model))
+            {
+                var tris = GroundCollision(zone);
+                _collision[zone] = model = tris.Count == 0 ? null : Gen7Collision.ToDiagnosticModel(tris);
+            }
+        }
+        if (model is null) return null;
+        int c = block % w.Width, r = block / w.Width;
+        var render = Gen6TopDownRenderer.Render([model], _ => null, size, c * w.BlockSize, r * w.BlockSize, w.BlockSize);
+        return new MapBlockImage(render.Size, render.Pixels, render.Triangles, render.Untextured);
+    }
 
     /// <summary>GFL2 models stored for one block id of the map GARC.</summary>
     public IReadOnlyList<H3dModel> ModelsOfBlock(int id)

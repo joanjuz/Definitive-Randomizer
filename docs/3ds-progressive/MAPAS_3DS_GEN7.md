@@ -25,14 +25,16 @@ Implementación propia (sin copiar código):
 
 | Nivel | Opción | Resultado |
 | --- | --- | --- |
-| Sintética | `--map3ds-gen7-only` | 13 comprobaciones (matriz, texturas, adaptador, registros de eventos, tipos inesperados, tablas truncadas) |
+| Sintética | `--map3ds-gen7-only` | 16 comprobaciones (matriz, texturas, adaptador, registros de eventos, tipos inesperados, tablas truncadas) |
 | Copia real, solo lectura | `--map3ds-gen7-render-probe` | 336 áreas; 2505 modelos (bloques y objetos estáticos) y 12 926 texturas sin errores; 5253 eventos sin tipos inesperados; 29 fuera de la matriz (sobre todo áreas del Ultraespacio) |
-| Editor real | `--map3ds-gen7-ui-probe` | Iki (área 1): 12 bloques y 62 eventos alineados con sus estructuras |
+| Sintética (colisión y capa de diagnóstico) | `--map3ds-gen7-only`, `--map3ds-render-ui-only` | lectura de colisión, rechazo de archivos ajenos y mallas truncadas; capa desactivada por defecto, dibujada y explicada |
+| Editor real | `--map3ds-gen7-ui-probe` | Iki (área 1): 12 bloques y 62 eventos alineados con sus estructuras; con `diagnostico`, también la colisión del suelo |
 | Juego | — | no aplica (solo lectura) |
 
 ## Limitaciones
 
-- **Falta el suelo de las áreas exteriores completas** (Route 1, Iki, Hau'oli…): sus bloques de a/0/8/6 contienen objetos, árboles, vallas y hierba, pero no las mallas del suelo. Áreas como el festival de Iki (área 7) o los interiores sí lo tienen y se dibujan. El origen del suelo exterior está pendiente; no se rellena con texturas inventadas.
+- **Falta el suelo de las áreas exteriores completas** (Route 1, Iki, Hau'oli…): sus bloques de a/0/8/6 contienen objetos, árboles, vallas y hierba, pero no las mallas visuales del suelo; las áreas que sí lo tienen (festival de Iki, interiores) se dibujan. No se rellena con texturas inventadas.
+- **Capa «Colisión del suelo (diagnóstico)»**, desactivada por defecto: dibuja en colores planos (uno por atributo de superficie) la colisión transitable de la parte 6 de cada bloque (u32 0x14120500, triángulos de 72 bytes con vértices en +0/+16/+32 y atributo en +64). La leyenda indica que no son los gráficos del suelo. Comparación en Ultra Luna (`--map3ds-gen7-ground-probe`): Route 1 visual 5,6 % frente a colisión 27,8 % (23,2 % solo colisión); Iki 2,6 % frente a 11,5 %; Hau'oli 2,1 % frente a 6,7 %. La colisión cubre exactamente los caminos, plazas y zonas transitables que faltan; las matrices no tienen variantes (un archivo `TR`, u32 en +16 = 0).
 - Sin edición: ningún campo de evento tiene escritura verificada todavía.
 - Destinos de warps, scripts y formas de activación no se interpretan aún.
 - Sol/Luna no está habilitado.
