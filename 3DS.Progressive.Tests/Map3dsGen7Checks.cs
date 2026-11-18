@@ -103,6 +103,35 @@ internal static class Map3dsGen7Checks
         try { _ = Gen7Events.Records(Zone(60, 0, 0, 0, 2)[..70], 60, 0).ToList(); } catch (MapFormatException) { overflow = true; }
         check(overflow, "Gen7Events_TruncatedTablesAreRejected");
 
+        // Warps: area 0 (zone 10) and area 1 (zone 20) point at each other; area 0 also has a broken warp.
+        byte[] Warp(int zone, int ev, int destZone, int destEvent, float x, float ax)
+        {
+            var d = new byte[88];
+            BinaryPrimitives.WriteUInt32LittleEndian(d, 3); BinaryPrimitives.WriteSingleLittleEndian(d.AsSpan(4), x); BinaryPrimitives.WriteSingleLittleEndian(d.AsSpan(12), 100);
+            BinaryPrimitives.WriteUInt32LittleEndian(d.AsSpan(44), (uint)ev); BinaryPrimitives.WriteUInt32LittleEndian(d.AsSpan(48), (uint)destEvent);
+            BinaryPrimitives.WriteUInt16LittleEndian(d.AsSpan(52), (ushort)zone); BinaryPrimitives.WriteUInt16LittleEndian(d.AsSpan(54), (ushort)destZone);
+            BinaryPrimitives.WriteUInt32LittleEndian(d.AsSpan(56), 8); BinaryPrimitives.WriteSingleLittleEndian(d.AsSpan(60), ax); BinaryPrimitives.WriteSingleLittleEndian(d.AsSpan(68), 150);
+            return d;
+        }
+        byte[] WarpZone(params byte[][] rows) { var d = new byte[4 + (88 * rows.Length)]; BinaryPrimitives.WriteInt32LittleEndian(d, rows.Length); for (int i = 0; i < rows.Length; i++) rows[i].CopyTo(d, 4 + (i * 88)); return d; }
+        byte[] EdWith(byte[] warpZone) { var ps = Enumerable.Range(0, 17).Select(_ => Array.Empty<byte>()).ToArray(); ps[2] = Map3dsGen6Checks.Pack("EM", warpZone); return Map3dsGen6Checks.Pack("ED", ps); }
+        var wf = new Dictionary<int, byte[]>
+        {
+            [0] = EdWith(WarpZone(Warp(10, 301, 20, 302, 500, 520), Warp(10, 303, 99, 1, 900, 900))), [2] = Map3dsGen6Checks.Pack("TR", Tr(1, 1, 4200, 5)),
+            [11] = EdWith(WarpZone(Warp(20, 302, 10, 301, 2000, 2050))), [13] = Map3dsGen6Checks.Pack("TR", Tr(1, 1, 4200, 6)),
+        };
+        var table = new Dictionary<int, Gen7ZoneInfo> { [10] = new(10, 0, "Ruta Prueba", true), [20] = new(20, 1, "Casa Prueba", true) };
+        var wb = new Gen7MapBackend("Prueba", 22, i => wf.GetValueOrDefault(i, []), 10, _ => [], null, table);
+        var w0 = wb.Warps(0);
+        var link = wb.Resolve(w0[0]);
+        check(w0.Count == 2 && w0[0].Zone == 10 && w0[0].DestinationZone == 20 && w0[0].DestinationEvent == 302 && w0[0].Transition == 8 && w0[0].Arrival.X == 520,
+            "Gen7Warps_RecordFields");
+        check(link is { Target: { Event: 302, Area: 1 }, ReturnVerified: true } && link.Target.Arrival.X == 2050 && link.Zone.Name == "Casa Prueba", "Gen7Warps_DestinationAndReturnAreResolved");
+        check(wb.Resolve(w0[1]) is null, "Gen7Warps_UnknownDestinationZonesAreNotResolved");
+        var warpView = wb.Events.ZoneEvents(0).First(e => e.Kind == MapEventKind.Warp);
+        check(warpView.Properties.Any(p => p.Name == "Destino" && p.Value.Contains("Casa Prueba")) && warpView.Properties.Any(p => p.Name == "Retorno" && p.Value.StartsWith("Verificado"))
+            && warpView.Properties.Any(p => p.Name == "Llegada en el destino" && p.Value.StartsWith("2050")) && warpView.Properties.All(p => !p.Writable), "Gen7Warps_PropertiesShowDestinationArrivalAndReturn");
+
         // Collision: two triangles, attributes 3 and 5.
         var col = new byte[8 + (2 * 72)];
         BinaryPrimitives.WriteUInt32LittleEndian(col, Gen7Collision.Magic); BinaryPrimitives.WriteInt32LittleEndian(col.AsSpan(4), 2);
@@ -256,5 +285,36 @@ internal static class Map3dsGen7Checks
         }
         Save(visual, $"area-{area:000}-visual.png"); Save(collision, $"area-{area:000}-colision.png"); Save(overlay, $"area-{area:000}-superpuesto.png");
         Console.WriteLine("Solo lectura; imágenes privadas en " + output);
+    }
+
+    /// <summary>Read-only: resolves every warp of a USUM copy and measures how consistent the links are.</summary>
+    internal static void WarpsProbe(string root)
+    {
+        var backend = Gen7MapBackend.FromConfig(Map3dsGen6Checks.OpenConfig(root));
+        int total = 0, nearOwn = 0, zoneKnown = 0, ownZoneInArea = 0, targetFound = 0, back = 0, arrivalNear = 0, targetElsewhere = 0;
+        var transitions = new Dictionary<int, int>();
+        string? example = null;
+        foreach (var area in backend.Zones)
+            foreach (var w in backend.Warps(area.Id))
+            {
+                total++;
+                transitions[w.Transition] = transitions.GetValueOrDefault(w.Transition) + 1;
+                if (System.Numerics.Vector3.Distance(new(w.Arrival.X, 0, w.Arrival.Z), new(w.Position.X, 0, w.Position.Z)) < 600) nearOwn++;
+                if (backend.ZoneTable.TryGetValue(w.Zone, out var own) && own.Area == area.Id) ownZoneInArea++;
+                var link = backend.Resolve(w);
+                if (link is null) continue;
+                zoneKnown++;
+                if (link.Target is { } t)
+                {
+                    targetFound++;
+                    if (link.ReturnVerified) back++;
+                    if (System.Numerics.Vector3.Distance(new(w.Arrival.X, 0, w.Arrival.Z), new(t.Position.X, 0, t.Position.Z)) < 600) arrivalNear++;
+                    example ??= $"{area.Name}: warp evento {w.Event} (zona {w.Zone}) → {link.Zone.Name} zona {link.Zone.Zone} área {link.Zone.Area}, warp evento {t.Event} en {t.Position.X:0},{t.Position.Z:0}; llegada {w.Arrival.X:0},{w.Arrival.Z:0}; retorno {(link.ReturnVerified ? "sí" : "no")}";
+                }
+                else targetElsewhere++;
+            }
+        Console.WriteLine($"Warps {total} · zona propia en su área {ownZoneInArea} · zona de destino conocida {zoneKnown} · warp de destino encontrado {targetFound} · retorno verificado {back} · llegada a < 600 u del warp de destino {arrivalNear} · llegada a < 600 u del propio warp {nearOwn} · zona conocida sin warp con ese evento {targetElsewhere}");
+        Console.WriteLine("Transiciones: " + string.Join(", ", transitions.OrderBy(k => k.Key).Select(k => $"{k.Key}:{k.Value}")));
+        Console.WriteLine("Ejemplo: " + example);
     }
 }

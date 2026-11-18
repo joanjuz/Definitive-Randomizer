@@ -15,6 +15,12 @@ Ultra Sol/Ultra Luna se abren en el mismo editor de mapas que Gen6 (`Map3dsEdito
 
 Tipos de evento (parte de `ED`, tamaño, tipo): activadores (0, 60, 0), NPC (1, 120, 1; modelo en +0x34, script en +0x38), warps (2, 88, 3), interacciones (3, 60, 2), objetos estáticos (4, 56, 4; rotación cuaternión en +0x10, modelo u16 en +0x30), entrenadores (7, 84, 7), objetos recogibles (10, 64, 10). La tabla se contrastó con USUM-Studio (Aqua-0, GPL-3.0) y se verificó con los datos: en las 336 áreas de Ultra Luna, **ningún registro tiene un tipo distinto del esperado** (5253 eventos).
 
+### Warps (verificados con Ultra Luna)
+
+Registro de 88 bytes (tipo 3): posición float3 en +4, rotación (cuaternión) en +0x10, evento en +0x2C, **evento del warp de destino u32 en +0x30**, **zona propia u16 en +0x34**, **zona de destino u16 en +0x36**, transición u32 en +0x38 (0–13) y **punto de aparición float3 en +0x3C**. Resolución: zona de destino → área (tabla de zonas) → warp de esa zona con ese evento. En los 678 warps: la zona propia pertenece a su área en 678; el destino se encuentra en 678; el destino apunta de vuelta al origen en 665; el punto de aparición está a menos de 600 unidades de su **propio** warp en 678 (es donde aparece el jugador al llegar a ese warp). El editor muestra destino, warp de destino, llegada en el destino, retorno (verificado o no) y transición. Los nombres de las transiciones no se han verificado.
+
+Activadores (60 bytes, tipo 0): script en +0x2C y forma de activación en la cola del archivo de zona (+0x38). Los campos +0x20/+0x24/+0x28 se muestran como «sin verificar».
+
 Implementación propia (sin copiar código):
 
 - `pk3DS.Core/Maps/Ctr/Gfl2File.cs`: modelos, texturas y paquetes de modelos GFL2 (formato documentado por SPICA, gdkchan, dominio público). La transformación del modelo de campo no se aplica: los vértices ya están en coordenadas del mundo.
@@ -25,9 +31,10 @@ Implementación propia (sin copiar código):
 
 | Nivel | Opción | Resultado |
 | --- | --- | --- |
-| Sintética | `--map3ds-gen7-only` | 16 comprobaciones (matriz, texturas, adaptador, registros de eventos, tipos inesperados, tablas truncadas) |
+| Sintética | `--map3ds-gen7-only` | 20 comprobaciones (matriz, texturas, adaptador, registros de eventos, tipos inesperados, tablas truncadas) |
 | Copia real, solo lectura | `--map3ds-gen7-render-probe` | 336 áreas; 2600 modelos (bloques, objetos estáticos y paisaje del área) y 12 926 texturas sin errores; 5253 eventos sin tipos inesperados; 29 fuera de la matriz (sobre todo áreas del Ultraespacio) |
 | Sintética (colisión y capa de diagnóstico) | `--map3ds-gen7-only`, `--map3ds-render-ui-only` | lectura de colisión, rechazo de archivos ajenos y mallas truncadas; capa desactivada por defecto, dibujada y explicada |
+| Warps reales | `--map3ds-gen7-warps-probe` | 678 warps: 678 destinos encontrados, 665 retornos verificados, 678 puntos de aparición junto a su warp |
 | Editor real | `--map3ds-gen7-ui-probe` | Iki (área 1): 12 bloques y 62 eventos alineados con sus estructuras; con `diagnostico`, también la colisión del suelo |
 | Juego | — | no aplica (solo lectura) |
 
@@ -37,5 +44,5 @@ Implementación propia (sin copiar código):
 - **Mar**: sus materiales combinan texturas de brillo y oleaje que la vista aproximada no reproduce; se ve como franjas de color.
 - **Capa «Colisión del suelo (diagnóstico)»**, desactivada por defecto: dibuja en colores planos (uno por atributo de superficie) la colisión transitable de la parte 6 de cada bloque (u32 0x14120500, triángulos de 72 bytes con vértices en +0/+16/+32 y atributo en +64). La leyenda indica que no son los gráficos del suelo. Comparación en Ultra Luna (`--map3ds-gen7-ground-probe`): Route 1 visual 5,6 % frente a colisión 27,8 % (23,2 % solo colisión); Iki 2,6 % frente a 11,5 %; Hau'oli 2,1 % frente a 6,7 %. La colisión cubre exactamente los caminos, plazas y zonas transitables que faltan; las matrices no tienen variantes (un archivo `TR`, u32 en +16 = 0).
 - Sin edición: ningún campo de evento tiene escritura verificada todavía.
-- Destinos de warps, scripts y formas de activación no se interpretan aún.
+- Scripts, formas de activación y nombres de transición no se interpretan aún.
 - Sol/Luna no está habilitado.

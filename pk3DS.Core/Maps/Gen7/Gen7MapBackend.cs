@@ -34,6 +34,9 @@ public sealed class Gen7MapBackend : IMapEditorBackend, IMapResourceProvider, IM
     private readonly Dictionary<int, (IReadOnlyDictionary<int, IReadOnlyList<H3dModel>> Models, IReadOnlyList<H3dTexture> Textures)> _statics = [];
     private readonly Dictionary<int, IReadOnlyList<H3dModel>> _placed = [];
     private readonly IReadOnlyDictionary<int, string> _areaNames;
+    private readonly IReadOnlyDictionary<int, Gen7ZoneInfo> _zoneTable;
+    /// <summary>Global zone → area and location name (empty when the tables are not available).</summary>
+    public IReadOnlyDictionary<int, Gen7ZoneInfo> ZoneTable => _zoneTable;
 
     public string Family => "gen7-usum";
     public string Title { get; }
@@ -49,9 +52,10 @@ public sealed class Gen7MapBackend : IMapEditorBackend, IMapResourceProvider, IM
     public string? LastGraphicError { get; private set; }
 
     public Gen7MapBackend(string title, int worldFiles, Func<int, byte[]> world, int chunkCount, Func<int, byte[]> chunk,
-        IReadOnlyDictionary<int, string>? areaNames = null)
+        IReadOnlyDictionary<int, string>? areaNames = null, IReadOnlyDictionary<int, Gen7ZoneInfo>? zoneTable = null)
     {
         Title = title; _world = world; _chunk = chunk; _chunkCount = chunkCount; _areaNames = areaNames ?? new Dictionary<int, string>();
+        _zoneTable = zoneTable ?? new Dictionary<int, Gen7ZoneInfo>();
         var skipped = new List<(int, string)>();
         for (int w = 0; w < worldFiles / SlotsPerWorld; w++)
         {
@@ -119,6 +123,29 @@ public sealed class Gen7MapBackend : IMapEditorBackend, IMapResourceProvider, IM
                 if (layout.Type != 0) props.Add(new("Evento", r.U32(44).ToString(System.Globalization.CultureInfo.InvariantCulture)));
                 if (layout.Model >= 0) props.Add(new("Modelo", r.U32(layout.Model).ToString(System.Globalization.CultureInfo.InvariantCulture)));
                 if (layout.Script >= 0) props.Add(new("Script", r.U32(layout.Script).ToString(System.Globalization.CultureInfo.InvariantCulture)));
+                string N(long v) => v.ToString(System.Globalization.CultureInfo.InvariantCulture);
+                if (layout.Pack == Gen7Events.WarpPack)
+                {
+                    var warp = new Gen7Warp(zone, z, r.Index, pos, (int)r.U32(44), r.U16(52), r.U16(54), (int)r.U32(48), (int)r.U32(56), new Vector3(r.F(60), r.F(64), r.F(68)));
+                    string ZoneName(int id) => _zoneTable.TryGetValue(id, out var info) ? $"{info.Name} (zona {id}, área {info.Area})" : $"zona {id}";
+                    props.Add(new("Zona del warp", ZoneName(warp.Zone)));
+                    var link = Resolve(warp);
+                    props.Add(new("Destino", ZoneName(warp.DestinationZone) + $" · warp con evento {N(warp.DestinationEvent)}",
+                        Note: link?.Target is null ? "No se encontró el warp de destino en las tablas leídas." : null));
+                    if (link?.Target is { } target)
+                    {
+                        props.Add(new("Llegada en el destino", $"{target.Arrival.X:0.#}, {target.Arrival.Z:0.#} · altura {target.Arrival.Y:0.#}",
+                            Note: "Punto de aparición del warp de destino (campo +0x3C), en coordenadas de su área."));
+                        props.Add(new("Retorno", link.ReturnVerified ? "Verificado: el warp de destino vuelve a este." : "No verificado: el warp de destino apunta a otro lugar."));
+                    }
+                    props.Add(new("Aparición al llegar aquí", $"{warp.Arrival.X:0.#}, {warp.Arrival.Z:0.#} · altura {warp.Arrival.Y:0.#}"));
+                    props.Add(new("Transición", N(warp.Transition), Note: "Tipo de entrada (0–13); sus nombres no se han verificado."));
+                }
+                else if (layout.Pack == Gen7Events.TriggerPack)
+                {
+                    props.Add(new("Campos +0x20 / +0x24 / +0x28", $"{N(r.U32(32))} / {N(r.U32(36))} / {N(r.U32(40))}", Note: "Sin verificar (posibles versión, banderas y condición)."));
+                    props.Add(new("Forma de activación", r.U32(56) == 0 ? "sin forma" : $"datos en +0x{r.U32(56):X} del archivo de zona", Note: "Formas sin interpretar todavía."));
+                }
                 bool inside = cx >= 0 && cy >= 0 && cx < w.Width * 40 && cy < w.Height * 40 && float.IsFinite(pos.X) && float.IsFinite(pos.Z);
                 list.Add(new MapEventView(layout.Kind, counter++, Math.Floor(cx), Math.Floor(cy), 1, 1, null,
                     $"{layout.Name} {r.Index} · zona {z}", props, inside ? null : "Fuera de la matriz del área."));
@@ -238,6 +265,34 @@ public sealed class Gen7MapBackend : IMapEditorBackend, IMapResourceProvider, IM
             catch (MapFormatException ex) { LastGraphicError = $"Paisaje del área {world}: {ex.Message}"; }
             return _scenery[world] = list;
         }
+    }
+
+    /// <summary>Warps of an area (ED part 2, 88-byte records of type 3).</summary>
+    public IReadOnlyList<Gen7Warp> Warps(int area)
+    {
+        var list = new List<Gen7Warp>();
+        var ed = EventPack(area);
+        if (ed is null || ed.Count <= Gen7Events.WarpPack || ed.Length(Gen7Events.WarpPack) == 0) return list;
+        var zones = Gen7Events.Container(ed.Part(Gen7Events.WarpPack).ToArray());
+        if (zones is null) return list;
+        for (int z = 0; z < zones.Count; z++)
+            foreach (var r in Gen7Events.Records(zones.Part(z).ToArray(), 88, 3))
+                list.Add(new Gen7Warp(area, z, r.Index, r.Position, (int)r.U32(44), r.U16(52), r.U16(54), (int)r.U32(48), (int)r.U32(56), new Vector3(r.F(60), r.F(64), r.F(68))));
+        return list;
+    }
+
+    /// <summary>
+    /// Destination of a warp: the zone at +0x36 gives the area through the zone table, and the
+    /// destination warp is the one of that zone whose event id equals +0x30. Null when any step
+    /// is missing. The return is verified when that warp points back to the source.
+    /// </summary>
+    public Gen7WarpLink? Resolve(Gen7Warp warp)
+    {
+        if (!_zoneTable.TryGetValue(warp.DestinationZone, out var zone)) return null;
+        if (!_worlds.ContainsKey(zone.Area)) return new Gen7WarpLink(zone, null, false);
+        var target = Warps(zone.Area).FirstOrDefault(w => w.Zone == warp.DestinationZone && w.Event == warp.DestinationEvent);
+        bool back = target is not null && target.DestinationZone == warp.Zone && target.DestinationEvent == warp.Event;
+        return new Gen7WarpLink(zone, target, back);
     }
 
     /// <summary>The area's event pack ("ED", slot 0), or null.</summary>
@@ -399,7 +454,10 @@ public sealed class Gen7MapBackend : IMapEditorBackend, IMapResourceProvider, IM
         object gate = new();
         byte[] W(int i) { lock (gate) return worlds[i]; }
         byte[] C(int i) { lock (gate) return chunks[i]; }
-        return new Gen7MapBackend("Pokémon Ultra Sol / Ultra Luna", worlds.FileCount, W, chunks.FileCount, C, AreaNames(config));
+        var table = ReadZoneTable(config);
+        var names = new Dictionary<int, string>();
+        foreach (var z in table.Values.Where(z => z.Listed).OrderBy(z => z.Zone)) names.TryAdd(z.Area, z.Name);
+        return new Gen7MapBackend("Pokémon Ultra Sol / Ultra Luna", worlds.FileCount, W, chunks.FileCount, C, names, table);
     }
 
     /// <summary>
@@ -407,9 +465,9 @@ public sealed class Gen7MapBackend : IMapEditorBackend, IMapResourceProvider, IM
     /// (WD part 0: u32 at 8/12 bound (zone, area) u16 pairs) → area. The name is the location
     /// text at zone+0x1C. Zones with byte 31 set are skipped, as in the game data tooling.
     /// </summary>
-    public static IReadOnlyDictionary<int, string> AreaNames(GameConfig config)
+    public static IReadOnlyDictionary<int, Gen7ZoneInfo> ReadZoneTable(GameConfig config)
     {
-        var result = new Dictionary<int, string>();
+        var result = new Dictionary<int, Gen7ZoneInfo>();
         try
         {
             var zd = config.GetlzGARCData("zonedata");
@@ -419,7 +477,7 @@ public sealed class Gen7MapBackend : IMapEditorBackend, IMapResourceProvider, IM
             var headers = new Dictionary<int, byte[]>();
             for (int z = 0; z < zones.Length / 84 && (z * 2) + 2 <= worldOf.Length; z++)
             {
-                if (zones[(z * 84) + 31] != 0) continue;
+                bool listed = zones[(z * 84) + 31] == 0;
                 int w = BinaryPrimitives.ReadUInt16LittleEndian(worldOf.AsSpan(z * 2));
                 if (!headers.TryGetValue(w, out var h)) headers[w] = h = Gen6Pack.Read(worlds[w], "WD").Part(0).ToArray();
                 int begin = BinaryPrimitives.ReadInt32LittleEndian(h.AsSpan(8)), end = BinaryPrimitives.ReadInt32LittleEndian(h.AsSpan(12));
@@ -427,13 +485,22 @@ public sealed class Gen7MapBackend : IMapEditorBackend, IMapResourceProvider, IM
                 int name = BinaryPrimitives.ReadUInt16LittleEndian(zones.AsSpan((z * 84) + 28));
                 for (int p = begin; p + 4 <= end; p += 4)
                     if (BinaryPrimitives.ReadUInt16LittleEndian(h.AsSpan(p)) == z)
-                        result.TryAdd(BinaryPrimitives.ReadUInt16LittleEndian(h.AsSpan(p + 2)), name < names.Length ? names[name] : $"Ubicación {name}");
+                        result.TryAdd(z, new Gen7ZoneInfo(z, BinaryPrimitives.ReadUInt16LittleEndian(h.AsSpan(p + 2)), name < names.Length ? names[name] : $"Ubicación {name}", listed));
             }
         }
         catch (Exception ex) when (ex is MapFormatException or ArgumentException or IndexOutOfRangeException) { }
         return result;
     }
 }
+
+/// <summary>Global zone of the zone table: its area, location name and whether it is listed (byte 31 = 0).</summary>
+public sealed record Gen7ZoneInfo(int Zone, int Area, string Name, bool Listed);
+
+/// <summary>One warp record: own zone (+0x34), event (+0x2C), destination zone (+0x36) and event (+0x30), transition (+0x38), arrival (+0x3C).</summary>
+public sealed record Gen7Warp(int Area, int LocalZone, int Row, Vector3 Position, int Event, int Zone, int DestinationZone, int DestinationEvent, int Transition, Vector3 Arrival);
+
+/// <summary>Resolved destination of a warp.</summary>
+public sealed record Gen7WarpLink(Gen7ZoneInfo Zone, Gen7Warp? Target, bool ReturnVerified);
 
 /// <summary>Block matrix of a Gen7 world (the "TR" file).</summary>
 public sealed class Gen7World
