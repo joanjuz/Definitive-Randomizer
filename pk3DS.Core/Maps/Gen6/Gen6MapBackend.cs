@@ -15,7 +15,7 @@ public enum Gen6Title { XY, ORAS }
 /// matrices from mapMatrix and blocks from mapGR. Every file is read through
 /// the delegates, so the adapter never touches the project on disk.
 /// </summary>
-public sealed class Gen6MapBackend : IMapEditorBackend, IMapResourceProvider, IMapEventProvider
+public sealed class Gen6MapBackend : IMapEditorBackend, IMapResourceProvider, IMapEventProvider, IMapMutationValidator
 {
     private readonly Func<int, byte[]> _zone, _matrix, _block;
     private readonly int _matrixCount, _blockCount;
@@ -38,7 +38,7 @@ public sealed class Gen6MapBackend : IMapEditorBackend, IMapResourceProvider, IM
     public IReadOnlyList<MapZoneEntry> Zones => _entries;
     public IMapResourceProvider Resources => this;
     public IMapEventProvider Events => this;
-    public IMapMutationValidator? Mutations => null;
+    public IMapMutationValidator? Mutations => this;
     public MapCapabilities Capabilities { get; }
     /// <summary>Zones that could not be read, with the reason; they are not listed.</summary>
     public IReadOnlyList<(int Zone, string Reason)> Skipped { get; }
@@ -48,9 +48,9 @@ public sealed class Gen6MapBackend : IMapEditorBackend, IMapResourceProvider, IM
     {
         Game = game; _zone = zone; _matrix = matrix; _block = block; _matrixCount = matrixCount; _blockCount = blockCount;
         _area = area; _areaCount = area is null ? 0 : areaCount;
-        Capabilities = new(_area is not null, true, false, _area is not null
-            ? "Lectura: modelos y texturas reales de cada bloque (vista cenital aproximada), rejilla de permisos y eventos."
-            : "Lectura: rejilla de permisos y eventos.");
+        Capabilities = new(_area is not null, true, true, (_area is not null
+            ? "Modelos y texturas reales de cada bloque (vista cenital aproximada), rejilla de permisos y eventos."
+            : "Rejilla de permisos y eventos.") + " Edición: posición de NPC existentes (pendiente de prueba en el juego).");
         var skipped = new List<(int, string)>();
         for (int i = 0; i < zoneCount; i++)
         {
@@ -65,6 +65,28 @@ public sealed class Gen6MapBackend : IMapEditorBackend, IMapResourceProvider, IM
             _entries.Add(new MapZoneEntry(i, $"{i:000} · {place}", z.Matrix, $"matriz {z.Matrix} · {count} eventos"));
         }
         Skipped = skipped;
+    }
+
+    /// <summary>Decompressed bytes of a zone as read when the adapter was built.</summary>
+    public byte[] ZoneBytes(int id) => (byte[])Zone(id).Pack.Raw.Clone();
+
+    public MapMutationCheck Validate(int zone, MapMutation mutation) =>
+        new(false, "Solo se admite mover NPC (posición). Los demás campos no tienen escritura verificada.");
+
+    public MapMutationCheck ValidateMove(int zone, MapEventKind kind, int index, int x, int y)
+    {
+        if (kind != MapEventKind.Npc) return new(false, "Solo se pueden mover NPC; objetos, warps y activadores siguen en solo lectura.");
+        if (!_zones.ContainsKey(zone)) return new(false, "Zona no disponible.");
+        var view = ZoneEvents(zone).FirstOrDefault(e => e.Kind == kind && e.Index == index);
+        if (view is null) return new(false, $"La zona no tiene NPC {index}.");
+        if (!view.Placed) return new(false, "La posición de este NPC no está verificada; no se puede mover.");
+        var layout = Layout(zone);
+        if (x < 0 || y < 0 || x >= layout.Width * layout.BlockCells || y >= layout.Height * layout.BlockCells) return new(false, "La casilla está fuera de la matriz de la zona.");
+        if (layout.BlockAt(x / layout.BlockCells, y / layout.BlockCells) < 0) return new(false, "La casilla está en una celda sin bloque de mapa.");
+        if (view.X == x && view.Y == y) return new(false, "El NPC ya está en esa casilla.");
+        var other = ZoneEvents(zone).FirstOrDefault(e => e.Kind == MapEventKind.Npc && e.Index != index && e.Placed && (int)e.X == x && (int)e.Y == y);
+        if (other is not null) return new(false, $"La casilla ya la ocupa {other.Label}.");
+        return new(true, "La posición se puede escribir. El juego no se ha probado con este cambio: comprueba que el NPC es accesible y que su script sigue funcionando.");
     }
 
     public Gen6Zone Zone(int id) => _zones.TryGetValue(id, out var z) ? z : throw new ArgumentOutOfRangeException(nameof(id), $"La zona {id} no está disponible.");
@@ -191,7 +213,7 @@ public sealed class Gen6MapBackend : IMapEditorBackend, IMapResourceProvider, IM
                 p.Add(new("Script", N(e.U16(r, 0x0A))));
                 p.Add(new("Orientación (valor)", N(e.U16(r, 0x0C)), Note: "Valores 0–7 en el juego; su correspondencia con las direcciones aún no está verificada."));
                 p.Add(new("Alcance de visión", N(e.U16(r, 0x0E))));
-                p.Add(new("Casilla", $"{N(x)}, {N(y)}"));
+                p.Add(new("Casilla", $"{N(x)}, {N(y)}", Writable: true, Note: "Editable: se puede mover a otra casilla con bloque de la zona."));
                 p.Add(new("Ángulo", e.F32(r, 0x2C).ToString("0.##", CultureInfo.InvariantCulture) + "°"));
                 return new(r.Kind, r.Index, x, y, 1, 1, null, $"NPC {r.Index} · modelo {e.U16(r, 0x02)}", p);
             }

@@ -2,6 +2,7 @@
 using System;
 using System.Buffers.Binary;
 using System.Collections.Generic;
+using System.Linq;
 
 namespace pk3DS.Core.Maps.Gen6;
 
@@ -31,6 +32,33 @@ public sealed class Gen6Zone
         Matrix = BinaryPrimitives.ReadUInt16LittleEndian(head[4..]);
         ParentMap = BinaryPrimitives.ReadUInt16LittleEndian(head[0x1C..]) & 0x3FF;
         Entities = new Gen6ZoneEntities(Pack.Raw, Pack.Start(1), Pack.Length(1));
+    }
+}
+
+/// <summary>In-place edits of a decompressed zone file. Only verified fields are written.</summary>
+public static class Gen6ZoneEdit
+{
+    public const int NpcX = 0x28, NpcY = 0x2A;
+
+    /// <summary>
+    /// Copy of <paramref name="zone"/> with NPC <paramref name="index"/> on cell (x, y).
+    /// Only the two u16 position fields change; the wander area (0x14–0x1A) is relative and is kept.
+    /// </summary>
+    public static byte[] MoveNpc(byte[] zone, int index, int x, int y)
+    {
+        if (x is < 0 or > 0xFFFF || y is < 0 or > 0xFFFF) throw new ArgumentOutOfRangeException(nameof(x), "Casilla fuera del rango de 16 bits.");
+        var parsed = new Gen6Zone(zone);
+        var record = parsed.Entities.Records.FirstOrDefault(r => r.Kind == MapEventKind.Npc && r.Index == index);
+        if (record.Size == 0) throw new ArgumentOutOfRangeException(nameof(index), $"La zona no tiene NPC {index}.");
+        var output = (byte[])zone.Clone();
+        BinaryPrimitives.WriteUInt16LittleEndian(output.AsSpan(record.Offset + NpcX), (ushort)x);
+        BinaryPrimitives.WriteUInt16LittleEndian(output.AsSpan(record.Offset + NpcY), (ushort)y);
+        int changed = 0;
+        for (int i = 0; i < zone.Length; i++)
+            if (zone[i] != output[i] && (i < record.Offset + NpcX || i >= record.Offset + NpcY + 2)) changed++;
+        if (changed != 0) throw new InvalidOperationException("La escritura tocó bytes fuera de la posición del NPC.");
+        _ = new Gen6Zone(output); // still a valid zone
+        return output;
     }
 }
 
@@ -79,7 +107,7 @@ public sealed class Gen6ZoneEntities
 
     public ReadOnlySpan<byte> Bytes(Gen6EntityRecord record) => _raw.AsSpan(record.Offset, record.Size);
 
-    internal ushort U16(Gen6EntityRecord r, int at) => BinaryPrimitives.ReadUInt16LittleEndian(Bytes(r)[at..]);
+    public ushort U16(Gen6EntityRecord r, int at) => BinaryPrimitives.ReadUInt16LittleEndian(Bytes(r)[at..]);
     internal short S16(Gen6EntityRecord r, int at) => BinaryPrimitives.ReadInt16LittleEndian(Bytes(r)[at..]);
     internal float F32(Gen6EntityRecord r, int at) => BinaryPrimitives.ReadSingleLittleEndian(Bytes(r)[at..]);
 }

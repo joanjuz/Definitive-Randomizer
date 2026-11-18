@@ -1,3 +1,4 @@
+using System.IO;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
@@ -22,7 +23,14 @@ namespace ThreeDS.Progressive;
 internal sealed class Map3dsEditorView : UserControl
 {
     internal const string ReadOnlyNotice = "Solo lectura: este juego todavía no tiene campos de eventos con escritura verificada.";
-    private readonly IMapEditorBackend _backend;
+    internal const string GameplayNotice = "Escritura verificada en el archivo, pero aún no probada en el juego. Guarda en una copia de trabajo y compruébalo en el emulador.";
+    private IMapEditorBackend _backend;
+    /// <summary>Writes a move through the project (preview text, then commit). Null when the view is read-only.</summary>
+    private readonly Map3dsMover? _mover;
+    private TextBox? _moveX, _moveY;
+    private Button? _moveSave;
+    private TextBlock? _moveResult;
+    private (MapEventView Npc, int X, int Y)? _pendingMove;
     private readonly Map3dsCanvas _canvas = new();
     private readonly ListBox _zones, _events;
     private readonly TextBox _search;
@@ -39,6 +47,11 @@ internal sealed class Map3dsEditorView : UserControl
     internal StackPanel Details => _details;
     internal TextBlock Status => _status;
     internal IMapEditorBackend Backend => _backend;
+    internal TextBox? MoveX => _moveX;
+    internal TextBox? MoveY => _moveY;
+    internal Button? MoveSave => _moveSave;
+    internal TextBlock? MoveResult => _moveResult;
+    internal (MapEventView Npc, int X, int Y)? PendingMove => _pendingMove;
     internal int? CurrentZone { get; private set; }
 
     internal static IMapEditorBackend CreateBackend(GameProjectSession session)
@@ -50,11 +63,12 @@ internal sealed class Map3dsEditorView : UserControl
 
     internal static bool Supports(GameProjectSession session) => session.GameConfiguration.XY || session.GameConfiguration.ORAS;
 
-    internal Map3dsEditorView(GameProjectSession session) : this(CreateBackend(session)) { }
+    internal Map3dsEditorView(GameProjectSession session) : this(CreateBackend(session), Map3dsMover.For(session)) { }
 
-    internal Map3dsEditorView(IMapEditorBackend backend)
+    internal Map3dsEditorView(IMapEditorBackend backend, Map3dsMover? mover = null)
     {
         _backend = backend;
+        _mover = backend.Mutations is not null ? mover : null;
         Background = Res("Bg");
         var root = new DockPanel { Margin = new Thickness(18) };
         Content = root;
@@ -230,7 +244,74 @@ internal sealed class Map3dsEditorView : UserControl
             if (p.Note is { } n) row.Children.Add(new TextBlock { Text = n, Foreground = Res("TextSoft"), FontSize = 11, TextWrapping = TextWrapping.Wrap });
             _details.Children.Add(row);
         }
-        if (!_backend.Capabilities.Editing)
+        _moveX = _moveY = null; _moveSave = null; _moveResult = null;
+        bool movable = _mover is not null && item.Kind == MapEventKind.Npc && item.Placed && item.Properties.Any(p => p.Writable);
+        if (!movable)
+        {
             _details.Children.Add(new TextBlock { Text = ReadOnlyNotice, Foreground = Res("TextSoft"), FontStyle = FontStyles.Italic, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 12, 0, 0) });
+            return;
+        }
+        var box = new StackPanel { Margin = new Thickness(0, 14, 0, 0) };
+        box.Children.Add(new TextBlock { Text = "Mover NPC", FontWeight = FontWeights.SemiBold, Foreground = Res("TextMain") });
+        var coords = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 6, 0, 0) };
+        TextBox Number(string name, double value)
+        {
+            var t = new TextBox { Text = ((int)value).ToString(System.Globalization.CultureInfo.InvariantCulture), Width = 64, Margin = new Thickness(4, 0, 10, 0) };
+            System.Windows.Automation.AutomationProperties.SetName(t, name);
+            return t;
+        }
+        coords.Children.Add(new TextBlock { Text = "X", Foreground = Res("TextSoft"), VerticalAlignment = VerticalAlignment.Center });
+        coords.Children.Add(_moveX = Number("Casilla X de destino", item.X));
+        coords.Children.Add(new TextBlock { Text = "Y", Foreground = Res("TextSoft"), VerticalAlignment = VerticalAlignment.Center });
+        coords.Children.Add(_moveY = Number("Casilla Y de destino", item.Y));
+        box.Children.Add(coords);
+        var buttons = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 8, 0, 0) };
+        buttons.Children.Add(Small("Previsualizar", () => PreviewMove(item), "Previsualizar el movimiento en el mapa"));
+        _moveSave = Small("Guardar", () => SaveMove(), "Guardar el movimiento en el proyecto");
+        _moveSave.IsEnabled = false;
+        buttons.Children.Add(_moveSave);
+        buttons.Children.Add(Small("Cancelar", () => { _pendingMove = null; _canvas.SetPendingMove(null); if (_moveSave is not null) _moveSave.IsEnabled = false; if (_moveResult is not null) _moveResult.Text = ""; }, "Cancelar el movimiento"));
+        box.Children.Add(buttons);
+        _moveResult = new TextBlock { TextWrapping = TextWrapping.Wrap, Foreground = Res("TextSoft"), Margin = new Thickness(0, 6, 0, 0) };
+        box.Children.Add(_moveResult);
+        box.Children.Add(new TextBlock { Text = GameplayNotice, TextWrapping = TextWrapping.Wrap, Foreground = Res("TextSoft"), FontSize = 11, Margin = new Thickness(0, 6, 0, 0) });
+        _details.Children.Add(box);
+    }
+
+    /// <summary>Checks the target cell and shows a ghost marker; nothing is written.</summary>
+    internal bool PreviewMove(MapEventView npc)
+    {
+        if (_moveX is null || _moveY is null || _moveResult is null || _moveSave is null || CurrentZone is not int zone || _backend.Mutations is null) return false;
+        _pendingMove = null; _canvas.SetPendingMove(null); _moveSave.IsEnabled = false;
+        if (!int.TryParse(_moveX.Text, out int x) || !int.TryParse(_moveY.Text, out int y)) { _moveResult.Text = "Escribe números enteros para X e Y."; return false; }
+        var check = _backend.Mutations.ValidateMove(zone, npc.Kind, npc.Index, x, y);
+        _moveResult.Text = check.Reason;
+        if (!check.Allowed) return false;
+        _pendingMove = (npc, x, y);
+        _canvas.SetPendingMove(_pendingMove);
+        _moveSave.IsEnabled = true;
+        return true;
+    }
+
+    /// <summary>Commits the previewed move through the project history and reloads the zone from disk.</summary>
+    internal bool SaveMove()
+    {
+        if (_mover is null || _pendingMove is not { } move || CurrentZone is not int zone || _moveResult is null) return false;
+        try
+        {
+            string summary = _mover.Move(_backend, zone, move.Npc.Index, move.X, move.Y);
+            _backend = _mover.Reload();
+            _pendingMove = null; _canvas.SetPendingMove(null);
+            ShowZone(zone);
+            var moved = _current.FirstOrDefault(e => e.Kind == move.Npc.Kind && e.Index == move.Npc.Index);
+            _canvas.Select(moved, true); ShowDetails(moved); SyncList(moved);
+            _status.Text = summary + " · Puedes deshacerlo desde el historial.";
+            return true;
+        }
+        catch (Exception ex) when (ex is InvalidOperationException or InvalidDataException or IOException or ArgumentException)
+        {
+            _moveResult.Text = "No se guardó: " + ex.Message;
+            return false;
+        }
     }
 }
