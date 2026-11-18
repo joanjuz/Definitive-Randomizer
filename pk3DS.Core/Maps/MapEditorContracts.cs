@@ -30,7 +30,15 @@ public interface IMapResourceProvider
     MapLayout Layout(int zone);
     /// <summary>Collision/permission cells of one block, or null when the block has none.</summary>
     MapCellGrid? Cells(int block);
+    /// <summary>
+    /// Image of one block drawn from its game models, <paramref name="size"/> pixels a side,
+    /// or null when the adapter cannot draw it. Zone-dependent because textures may come from the zone's area.
+    /// </summary>
+    MapBlockImage? Graphic(int zone, int block, int size);
 }
+
+/// <summary>BGRA pixels (first row at the top) of a rendered block.</summary>
+public sealed record MapBlockImage(int Size, byte[] Pixels, int Triangles, int Untextured);
 
 public interface IMapEventProvider
 {

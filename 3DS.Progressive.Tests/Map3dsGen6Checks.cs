@@ -276,7 +276,7 @@ internal static class Map3dsGen6Checks
     }
 
     /// <summary>Opens the editor on a real copy, off-screen, and saves a capture of one zone.</summary>
-    internal static void ProbeUi(string output, string root, int zone)
+    internal static void ProbeUi(string output, string root, int zone, bool graphics = false)
     {
         if (Directory.Exists(output) && Directory.EnumerateFileSystemEntries(output).Any()) throw new IOException("Usa una carpeta nueva de salida.");
         Directory.CreateDirectory(output);
@@ -285,7 +285,14 @@ internal static class Map3dsGen6Checks
         var sw = System.Diagnostics.Stopwatch.StartNew();
         var view = new Map3dsEditorView(backend);
         view.ShowZone(zone);
-        string png = Path.Combine(output, $"gen6-zone-{zone:000}.png");
+        if (graphics)
+        {
+            view.GraphicsToggle!.IsChecked = true;
+            var until = DateTime.UtcNow.AddSeconds(60);
+            do { Layout(view, 1600, 1000); UiPump.Idle(); Thread.Sleep(25); } while ((view.Canvas.PendingGraphics > 0 || view.Canvas.GraphicsDrawn == 0) && DateTime.UtcNow < until);
+            Console.WriteLine($"Capa gráfica: {view.Canvas.GraphicsDrawn} bloques dibujados, pendientes {view.Canvas.PendingGraphics}");
+        }
+        string png = Path.Combine(output, $"gen6-zone-{zone:000}{(graphics ? "-graficos" : "")}.png");
         SavePng(view, 1600, 1000, png);
         Console.WriteLine($"Zona {zone}: {view.Canvas.RenderedMarkers} marcadores dibujados, {view.EventList.Items.Count} eventos, {sw.ElapsedMilliseconds} ms · {png}");
         bool same = SnapshotHashes(root).SequenceEqual(hashes);
@@ -293,10 +300,69 @@ internal static class Map3dsGen6Checks
         if (!same) throw new InvalidDataException("La copia de origen cambió.");
     }
 
+    /// <summary>Read-only: renders every block of a zone from its models and textures, and parses every model and area texture of the copy.</summary>
+    internal static void RenderProbe(string output, string root, int zone, int pixels)
+    {
+        if (Directory.Exists(output) && Directory.EnumerateFileSystemEntries(output).Any()) throw new IOException("Usa una carpeta nueva de salida.");
+        Directory.CreateDirectory(output);
+        var hashes = SnapshotHashes(root);
+        var config = OpenConfig(root);
+        var backend = Gen6MapBackend.FromConfig(config);
+        var layout = backend.Resources.Layout(zone);
+        var sw = System.Diagnostics.Stopwatch.StartNew();
+        int minC = int.MaxValue, minR = int.MaxValue, maxC = -1, maxR = -1;
+        for (int r = 0; r < layout.Height; r++) for (int c = 0; c < layout.Width; c++)
+            if (layout.BlockAt(c, r) >= 0) { minC = Math.Min(minC, c); minR = Math.Min(minR, r); maxC = Math.Max(maxC, c); maxR = Math.Max(maxR, r); }
+        int w = (maxC - minC + 1) * pixels, h = (maxR - minR + 1) * pixels, triangles = 0, untextured = 0, drawn = 0, failed = 0;
+        var canvas = new byte[w * h * 4];
+        for (int r = minR; r <= maxR; r++) for (int c = minC; c <= maxC; c++)
+        {
+            int block = layout.BlockAt(c, r);
+            if (block < 0) continue;
+            var img = backend.Resources.Graphic(zone, block, pixels);
+            if (img is null) { failed++; continue; }
+            drawn++; triangles += img.Triangles; untextured += img.Untextured;
+            for (int y = 0; y < pixels; y++)
+                Buffer.BlockCopy(img.Pixels, y * pixels * 4, canvas, ((((r - minR) * pixels) + y) * w + ((c - minC) * pixels)) * 4, pixels * 4);
+        }
+        long zoneMs = sw.ElapsedMilliseconds;
+        var bmp = BitmapSource.Create(w, h, 96, 96, PixelFormats.Bgra32, null, canvas, w * 4);
+        var png = new PngBitmapEncoder(); png.Frames.Add(BitmapFrame.Create(bmp));
+        string file = Path.Combine(output, $"gen6-render-zone-{zone:000}.png");
+        using (var f = File.Create(file)) png.Save(f);
+        var zoneArea = backend.Zone(zone).Area;
+        Console.WriteLine($"Zona {zone} (área {zoneArea}): {drawn} bloques dibujados, {failed} sin modelo legible, {triangles} triángulos, {untextured} sin textura, {zoneMs} ms · {file}");
+        sw.Restart();
+        int models = 0, modelErrors = 0, areas = 0, areaErrors = 0, textures = 0, textureErrors = 0;
+        var usedBlocks = backend.Zones.SelectMany(z => backend.Resources.Layout(z.Id).Blocks).Where(b => b >= 0).Distinct().ToArray();
+        foreach (int b in usedBlocks)
+        {
+            var gr = backend.Block(b);
+            if (gr is null) continue;
+            try { _ = new pk3DS.Core.Maps.Ctr.H3dFile(gr.Model).Models.Count; models++; }
+            catch (MapFormatException ex) { modelErrors++; if (modelErrors <= 5) Console.WriteLine($"  modelo {b}: {ex.Message}"); }
+        }
+        foreach (int a in backend.Zones.Select(z => backend.Zone(z.Id).Area).Distinct())
+        {
+            var set = backend.AreaTextures(a);
+            if (set is null) { areaErrors++; if (areaErrors <= 5) Console.WriteLine($"  área {a}: {backend.LastGraphicError}"); continue; }
+            areas++;
+            foreach (var t in set.Values)
+            {
+                try { _ = t.Decode(); textures++; }
+                catch (MapFormatException) { textureErrors++; }
+            }
+        }
+        Console.WriteLine($"Modelos GR usados leídos {models} · con error {modelErrors} · áreas {areas} · con error {areaErrors} · texturas decodificadas {textures} · con error {textureErrors} · {sw.ElapsedMilliseconds} ms");
+        bool same = SnapshotHashes(root).SequenceEqual(hashes);
+        Console.WriteLine((same ? "PASS" : "FAIL") + " Gen6RenderReal_SourceUnchanged; gameplay NOT tested");
+        if (!same) throw new InvalidDataException("La copia de origen cambió.");
+    }
+
     private static string[] SnapshotHashes(string root)
     {
         var romfs = Directory.GetDirectories(root).First(x => Path.GetFileName(x).Contains("rom", StringComparison.OrdinalIgnoreCase) && Directory.Exists(Path.Combine(x, "a")));
-        return new[] { "a/0/1/2", "a/0/1/3", "a/0/4/1", "a/0/4/2", "a/0/3/9", "a/0/4/0" }
+        return new[] { "a/0/1/2", "a/0/1/3", "a/0/1/4", "a/0/4/1", "a/0/4/2", "a/0/3/9", "a/0/4/0" }
             .Select(p => Path.Combine(romfs, p)).Where(File.Exists)
             .Select(p => p + "=" + Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(File.ReadAllBytes(p)))).ToArray();
     }

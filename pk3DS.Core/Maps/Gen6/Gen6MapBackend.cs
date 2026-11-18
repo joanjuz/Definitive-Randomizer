@@ -3,6 +3,8 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
+using pk3DS.Core.CTR;
+using pk3DS.Core.Maps.Ctr;
 
 namespace pk3DS.Core.Maps.Gen6;
 
@@ -22,6 +24,13 @@ public sealed class Gen6MapBackend : IMapEditorBackend, IMapResourceProvider, IM
     private readonly Dictionary<int, Gen6MapBlock?> _blocks = [];
     private readonly List<MapZoneEntry> _entries = [];
     private readonly object _gate = new();
+    private readonly Func<int, byte[]>? _area;
+    private readonly int _areaCount;
+    private readonly Dictionary<int, Dictionary<string, H3dTexture>?> _areaTextures = [];
+    private readonly Dictionary<(int Area, string Name), DecodedTexture?> _decoded = [];
+    private readonly Dictionary<int, H3dModel?> _models = [];
+    /// <summary>Why the last block could not be drawn, for diagnostics.</summary>
+    public string? LastGraphicError { get; private set; }
 
     public Gen6Title Game { get; }
     public string Family => Game == Gen6Title.XY ? "gen6-xy" : "gen6-oras";
@@ -30,15 +39,18 @@ public sealed class Gen6MapBackend : IMapEditorBackend, IMapResourceProvider, IM
     public IMapResourceProvider Resources => this;
     public IMapEventProvider Events => this;
     public IMapMutationValidator? Mutations => null;
-    public MapCapabilities Capabilities { get; } = new(false, true, false,
-        "Lectura: rejilla de permisos y eventos. Los modelos BCH y la edición se habilitarán por separado, con sus propias pruebas.");
+    public MapCapabilities Capabilities { get; }
     /// <summary>Zones that could not be read, with the reason; they are not listed.</summary>
     public IReadOnlyList<(int Zone, string Reason)> Skipped { get; }
 
     public Gen6MapBackend(Gen6Title game, int zoneCount, Func<int, byte[]> zone, int matrixCount, Func<int, byte[]> matrix,
-        int blockCount, Func<int, byte[]> block, IReadOnlyList<string>? locationNames)
+        int blockCount, Func<int, byte[]> block, IReadOnlyList<string>? locationNames, int areaCount = 0, Func<int, byte[]>? area = null)
     {
         Game = game; _zone = zone; _matrix = matrix; _block = block; _matrixCount = matrixCount; _blockCount = blockCount;
+        _area = area; _areaCount = area is null ? 0 : areaCount;
+        Capabilities = new(_area is not null, true, false, _area is not null
+            ? "Lectura: modelos y texturas reales de cada bloque (vista cenital aproximada), rejilla de permisos y eventos."
+            : "Lectura: rejilla de permisos y eventos.");
         var skipped = new List<(int, string)>();
         for (int i = 0; i < zoneCount; i++)
         {
@@ -68,6 +80,69 @@ public sealed class Gen6MapBackend : IMapEditorBackend, IMapResourceProvider, IM
     }
 
     public MapCellGrid? Cells(int block) => Block(block)?.Cells;
+
+    public MapBlockImage? Graphic(int zone, int block, int size)
+    {
+        if (_area is null || size <= 0) return null;
+        int area = Zone(zone).Area;
+        H3dModel? model;
+        lock (_gate)
+        {
+            if (!_models.TryGetValue(block, out model))
+            {
+                var b = Block(block);
+                try { model = b is null ? null : new H3dFile(b.Model).Models.FirstOrDefault(); }
+                catch (MapFormatException ex) { model = null; LastGraphicError = $"Bloque {block}: {ex.Message}"; }
+                _models[block] = model;
+            }
+        }
+        if (model is null) return null;
+        var render = Gen6TopDownRenderer.Render(model, name => Texture(area, name), size);
+        return new MapBlockImage(render.Size, render.Pixels, render.Triangles, render.Untextured);
+    }
+
+    /// <summary>Texture of an area by name, decoded once.</summary>
+    public DecodedTexture? Texture(int area, string name)
+    {
+        lock (_gate)
+        {
+            if (_decoded.TryGetValue((area, name), out var done)) return done;
+            var set = AreaTextures(area);
+            DecodedTexture? result = null;
+            if (set is not null && set.TryGetValue(name, out var t))
+            {
+                try { result = new DecodedTexture(t.Width, t.Height, t.Decode()); }
+                catch (MapFormatException ex) { LastGraphicError = $"Textura {name}: {ex.Message}"; }
+            }
+            _decoded[(area, name)] = result;
+            return result;
+        }
+    }
+
+    /// <summary>Every texture of every BCH part of the area pack ("AD"); the first one with a name wins.</summary>
+    public IReadOnlyDictionary<string, H3dTexture>? AreaTextures(int area)
+    {
+        if (_area is null || area < 0 || area >= _areaCount) return null;
+        lock (_gate)
+        {
+            if (_areaTextures.TryGetValue(area, out var cached)) return cached;
+            Dictionary<string, H3dTexture>? set = null;
+            try
+            {
+                var pack = Gen6Pack.Read(_area(area), "AD");
+                set = new Dictionary<string, H3dTexture>(StringComparer.Ordinal);
+                for (int i = 0; i < pack.Count; i++)
+                {
+                    var part = pack.Part(i);
+                    if (part.Length < 4 || part[0] != 'B' || part[1] != 'C' || part[2] != 'H') continue;
+                    foreach (var tex in new H3dFile(part).Textures) set.TryAdd(tex.Name, tex);
+                }
+            }
+            catch (MapFormatException ex) { set = null; LastGraphicError = $"Área {area}: {ex.Message}"; }
+            _areaTextures[area] = set;
+            return set;
+        }
+    }
 
     public Gen6MapBlock? Block(int block)
     {
@@ -161,9 +236,11 @@ public sealed class Gen6MapBackend : IMapEditorBackend, IMapResourceProvider, IM
         var zones = config.GetlzGARCData("encdata");
         var matrices = config.GetlzGARCData("mapMatrix");
         var blocks = config.GetlzGARCData("mapGR");
+        // Area data packs ("AD"): XY a/0/1/3, ORAS a/0/1/4, right after the zone GARC. Checked on real copies.
+        var areas = new GARC.LazyGARC(System.IO.File.ReadAllBytes(System.IO.Path.Combine(config.RomFS, config.XY ? "a/0/1/3" : "a/0/1/4")));
         string[]? names = null;
         try { names = config.GetText(TextName.metlist_000000); } catch (Exception) { }
         return new Gen6MapBackend(config.XY ? Gen6Title.XY : Gen6Title.ORAS,
-            zones.FileCount, i => zones[i], matrices.FileCount, i => matrices[i], blocks.FileCount, i => blocks[i], names);
+            zones.FileCount, i => zones[i], matrices.FileCount, i => matrices[i], blocks.FileCount, i => blocks[i], names, areas.FileCount, i => areas[i]);
     }
 }

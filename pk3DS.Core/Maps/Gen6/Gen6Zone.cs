@@ -16,6 +16,8 @@ public sealed class Gen6Zone
     public const int HeaderSize = 0x38;
     public Gen6Pack Pack { get; }
     public int Matrix { get; }
+    /// <summary>Area data (textures shared by the zone's blocks), u16 at 0x02.</summary>
+    public int Area { get; }
     public int ParentMap { get; }
     public Gen6ZoneEntities Entities { get; }
 
@@ -25,6 +27,7 @@ public sealed class Gen6Zone
         if (Pack.Count < 3) throw new MapFormatException($"Zona con {Pack.Count} partes.");
         var head = Pack.Part(0);
         if (head.Length < HeaderSize) throw new MapFormatException("Cabecera de zona demasiado corta.");
+        Area = BinaryPrimitives.ReadUInt16LittleEndian(head[2..]);
         Matrix = BinaryPrimitives.ReadUInt16LittleEndian(head[4..]);
         ParentMap = BinaryPrimitives.ReadUInt16LittleEndian(head[0x1C..]) & 0x3FF;
         Entities = new Gen6ZoneEntities(Pack.Raw, Pack.Start(1), Pack.Length(1));

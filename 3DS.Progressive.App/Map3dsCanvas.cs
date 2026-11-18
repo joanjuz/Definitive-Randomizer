@@ -26,6 +26,14 @@ internal sealed class Map3dsCanvas : FrameworkElement
     private MapLayout? _layout;
     private IReadOnlyList<MapEventView> _events = [];
     private readonly Dictionary<int, ImageSource?> _blockImages = [];
+    private readonly Dictionary<(int Zone, int Block, int Size), ImageSource?> _graphics = [];
+    private readonly HashSet<(int Zone, int Block, int Size)> _pending = [];
+    private int _zone = -1;
+    private int _generation;
+    internal const string GraphicNotice = "Modelos y texturas reales vistos desde arriba. Vista aproximada: sin iluminación, transparencias ni animaciones; los eventos se dibujan encima.";
+    /// <summary>Blocks whose graphic is being drawn; tests wait for it to reach zero.</summary>
+    internal int PendingGraphics { get { lock (_pending) return _pending.Count; } }
+    internal int GraphicsDrawn { get; private set; }
     private double _scale = 4;
     private Vector _offset;
     private Point? _panFrom;
@@ -63,10 +71,11 @@ internal sealed class Map3dsCanvas : FrameworkElement
         _ => Color.FromRgb(0x4F, 0xC9, 0xB5),
     };
 
-    internal void SetZone(IMapResourceProvider resources, MapLayout layout, IReadOnlyList<MapEventView> events)
+    internal void SetZone(IMapResourceProvider resources, MapLayout layout, IReadOnlyList<MapEventView> events, int zone = -1)
     {
-        if (!ReferenceEquals(resources, _resources)) _blockImages.Clear();
-        _resources = resources; _layout = layout; _events = events; Selected = null;
+        if (!ReferenceEquals(resources, _resources)) { _blockImages.Clear(); lock (_pending) _graphics.Clear(); }
+        if (zone != _zone) _generation++;
+        _resources = resources; _layout = layout; _events = events; Selected = null; _zone = zone;
         Fit();
     }
 
@@ -151,10 +160,64 @@ internal sealed class Map3dsCanvas : FrameworkElement
         return 0xFF000000u | ((uint)r << 16) | ((uint)g << 8) | b;
     }
 
+    /// <summary>Level of detail: block side in pixels, a power of two between 64 and 512.</summary>
+    internal static int DetailFor(double onScreen)
+    {
+        int size = 64;
+        while (size < 512 && size < onScreen) size *= 2;
+        return size;
+    }
+
+    /// <summary>
+    /// Image of a block from the game models. Returns the best cached size and,
+    /// when the wanted size is missing, draws it on a worker thread.
+    /// </summary>
+    private ImageSource? Graphic(int block, double onScreen)
+    {
+        if (_resources is null || _zone < 0) return null;
+        int want = DetailFor(onScreen);
+        var key = (_zone, block, want);
+        ImageSource? best = null;
+        lock (_pending)
+        {
+            if (_graphics.TryGetValue(key, out var exact)) return exact;
+            foreach (int s in new[] { 512, 256, 128, 64 })
+                if (_graphics.TryGetValue((_zone, block, s), out var img) && img is not null) { best = img; break; }
+            if (!_pending.Add(key)) return best;
+        }
+        var resources = _resources; int zone = _zone, generation = _generation;
+        Task.Run(() =>
+        {
+            ImageSource? result = null;
+            try
+            {
+                var g = resources.Graphic(zone, block, want);
+                if (g is not null)
+                {
+                    var bmp = BitmapSource.Create(g.Size, g.Size, 96, 96, PixelFormats.Bgra32, null, g.Pixels, g.Size * 4);
+                    bmp.Freeze(); result = bmp;
+                }
+            }
+            catch (Exception ex) when (ex is pk3DS.Core.Maps.MapFormatException or InvalidOperationException) { result = null; }
+            Dispatcher.BeginInvoke(() =>
+            {
+                lock (_pending)
+                {
+                    _pending.Remove(key);
+                    if (generation != _generation) return;
+                    _graphics[key] = result;
+                    if (_graphics.Count > 400) foreach (var old in _graphics.Keys.Where(k => k.Zone != zone).Take(200).ToList()) _graphics.Remove(old);
+                }
+                InvalidateVisual();
+            });
+        });
+        return best;
+    }
+
     protected override void OnRender(DrawingContext dc)
     {
         dc.DrawRectangle(Surface, null, new Rect(0, 0, ActualWidth, ActualHeight));
-        RenderedMarkers = 0;
+        RenderedMarkers = 0; GraphicsDrawn = 0;
         if (_layout is null) return;
         double size = _layout.BlockCells * _scale;
         for (int r = 0; r < _layout.Height; r++)
@@ -164,7 +227,8 @@ internal sealed class Map3dsCanvas : FrameworkElement
                 var rect = new Rect(ToScreen(new Point(c * _layout.BlockCells, r * _layout.BlockCells)), new Size(size, size));
                 if (rect.Right < 0 || rect.Bottom < 0 || rect.Left > ActualWidth || rect.Top > ActualHeight) continue;
                 if (block < 0) { dc.DrawRectangle(EmptyBlock, null, rect); continue; }
-                if (Layers.Cells && BlockImage(block) is { } img) dc.DrawImage(img, rect);
+                if (Layers.Graphics && Graphic(block, rect.Width) is { } gfx) { dc.DrawImage(gfx, rect); GraphicsDrawn++; }
+                else if (Layers.Cells && BlockImage(block) is { } img) dc.DrawImage(img, rect);
                 else dc.DrawRectangle(EmptyBlock, null, rect);
                 if (Layers.Blocks) dc.DrawRectangle(null, BlockPen, rect);
             }
@@ -261,7 +325,7 @@ internal sealed class Map3dsCanvas : FrameworkElement
     }
 }
 
-internal sealed record Map3dsLayers(bool Cells, bool Blocks, bool Npcs, bool Props, bool Warps, bool Triggers)
+internal sealed record Map3dsLayers(bool Cells, bool Blocks, bool Npcs, bool Props, bool Warps, bool Triggers, bool Graphics = false)
 {
     internal static readonly Map3dsLayers All = new(true, true, true, true, true, true);
     internal bool Shows(MapEventKind kind) => kind switch

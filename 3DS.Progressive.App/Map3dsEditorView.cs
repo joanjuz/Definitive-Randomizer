@@ -27,12 +27,13 @@ internal sealed class Map3dsEditorView : UserControl
     private readonly ListBox _zones, _events;
     private readonly TextBox _search;
     private readonly StackPanel _details;
-    private readonly TextBlock _status, _zoneTitle;
+    private readonly TextBlock _status, _zoneTitle, _legend;
     private readonly Dictionary<string, CheckBox> _layerBoxes = [];
     private IReadOnlyList<MapEventView> _current = [];
     private bool _syncing;
 
     internal Map3dsCanvas Canvas => _canvas;
+    internal CheckBox? GraphicsToggle => _layerBoxes.GetValueOrDefault("Graphics");
     internal ListBox ZoneList => _zones;
     internal ListBox EventList => _events;
     internal StackPanel Details => _details;
@@ -90,6 +91,13 @@ internal sealed class Map3dsEditorView : UserControl
         DockPanel.SetDock(bar, Dock.Top); centre.Children.Add(bar);
         _zoneTitle = new TextBlock { Foreground = Res("TextMain"), FontWeight = FontWeights.SemiBold, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 14, 0) };
         bar.Children.Add(_zoneTitle);
+        if (backend.Capabilities.Graphics)
+        {
+            var gfx = new CheckBox { Content = "Modelos/texturas", IsChecked = false, Foreground = Res("TextMain"), Margin = new Thickness(0, 0, 12, 0), VerticalAlignment = VerticalAlignment.Center,
+                ToolTip = Map3dsCanvas.GraphicNotice };
+            gfx.Checked += (_, _) => ApplyLayers(); gfx.Unchecked += (_, _) => ApplyLayers();
+            _layerBoxes["Graphics"] = gfx; bar.Children.Add(gfx);
+        }
         foreach (var (key, label) in new[] { ("Cells", "Permisos"), ("Blocks", "Bloques"), ("Npcs", "NPC"), ("Props", "Objetos"), ("Warps", "Warps"), ("Triggers", "Activadores") })
         {
             var box = new CheckBox { Content = label, IsChecked = true, Foreground = Res("TextMain"), Margin = new Thickness(0, 0, 12, 0), VerticalAlignment = VerticalAlignment.Center };
@@ -99,8 +107,8 @@ internal sealed class Map3dsEditorView : UserControl
         bar.Children.Add(Small("−", () => _canvas.ZoomCentered(1 / 1.25), "Alejar"));
         bar.Children.Add(Small("+", () => _canvas.ZoomCentered(1.25), "Acercar"));
         bar.Children.Add(Small("Encajar", () => _canvas.Fit(), "Encajar la zona en la vista"));
-        var legend = new TextBlock { Text = Map3dsCanvas.SchematicNotice, TextWrapping = TextWrapping.Wrap, Foreground = Res("TextSoft"), FontSize = 11.5, Margin = new Thickness(0, 6, 0, 0) };
-        DockPanel.SetDock(legend, Dock.Bottom); centre.Children.Add(legend);
+        _legend = new TextBlock { Text = Map3dsCanvas.SchematicNotice, TextWrapping = TextWrapping.Wrap, Foreground = Res("TextSoft"), FontSize = 11.5, Margin = new Thickness(0, 6, 0, 0) };
+        DockPanel.SetDock(_legend, Dock.Bottom); centre.Children.Add(_legend);
         var frame = new Border { BorderBrush = Res("Stroke"), BorderThickness = new Thickness(1), Child = _canvas };
         System.Windows.Automation.AutomationProperties.SetName(_canvas, "Mapa de la zona");
         centre.Children.Add(frame);
@@ -157,8 +165,10 @@ internal sealed class Map3dsEditorView : UserControl
 
     private void ApplyLayers()
     {
-        bool On(string k) => _layerBoxes[k].IsChecked == true;
-        _canvas.SetLayers(new Map3dsLayers(On("Cells"), On("Blocks"), On("Npcs"), On("Props"), On("Warps"), On("Triggers")));
+        bool On(string k) => _layerBoxes.TryGetValue(k, out var box) && box.IsChecked == true;
+        bool graphics = On("Graphics");
+        _canvas.SetLayers(new Map3dsLayers(On("Cells"), On("Blocks"), On("Npcs"), On("Props"), On("Warps"), On("Triggers"), graphics));
+        _legend.Text = graphics ? Map3dsCanvas.GraphicNotice : Map3dsCanvas.SchematicNotice;
     }
 
     internal void ShowZone(int zone)
@@ -168,7 +178,7 @@ internal sealed class Map3dsEditorView : UserControl
             var layout = _backend.Resources.Layout(zone);
             _current = _backend.Events.ZoneEvents(zone);
             CurrentZone = zone;
-            _canvas.SetZone(_backend.Resources, layout, _current);
+            _canvas.SetZone(_backend.Resources, layout, _current, zone);
             var entry = _backend.Zones.First(z => z.Id == zone);
             _zoneTitle.Text = entry.Name;
             int unplaced = _current.Count(e => !e.Placed);
