@@ -3,7 +3,8 @@
 **Estado:**
 - Implementado para Pokémon X / Y y Rubí Omega / Zafiro Alfa.
 - Escritura comprobada en una copia real de X.
-- **Sin prueba dentro del juego aprobada.** La primera prueba del propietario (Ruta 2 de X) se congelaba al entrar en la ruta porque el área no cargaba el modelo de la enfermera; corregido, pendiente de una nueva prueba.
+- **Prueba en el juego aprobada por el propietario en Pokémon X** (Ruta 2, imagen v2): la enfermera aparece, se puede hablar con ella, cura al equipo y el juego no se congela. La primera versión, sin la entrada del modelo en la lista del área, se congelaba al entrar en la ruta.
+- Sin prueba en el juego: Y, Rubí Omega y Zafiro Alfa.
 - Ultra Sol / Ultra Luna, Sol / Luna y los juegos de DS no tienen esta función.
 
 ## Qué hace
@@ -108,7 +109,7 @@ El valor de permiso de la casilla se muestra junto con cuántos NPC de la zona e
 
 ## Limitaciones
 
-- **Sin prueba en el juego.** La primera versión, sin la lista de modelos, se congelaba al entrar en la Ruta 2.
+- **Aprobada en el juego solo en X**, dentro de la Ruta 2 (fuera de un Centro Pokémon). La primera versión, sin la lista de modelos, se congelaba al entrar en la ruta.
   - No está comprobado que la secuencia del Centro funcione fuera de un Centro Pokémon.
   - Su script coloca la cámara con valores pensados para los Centros y llama a la animación de la máquina curativa.
   - Lo que ocurra fuera de un Centro (salto de cámara, animación ausente, bloqueo) solo se sabrá en el juego.
