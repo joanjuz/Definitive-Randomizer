@@ -1,95 +1,101 @@
-# Editor de mapas 3DS: zonas de captura (X / Y)
+# Editor de mapas 3DS: zonas de captura (Gen6)
 
 **Estado:**
 
-| Capacidad | Situación |
+| Juego | Situación |
 | --- | --- |
-| **A. Zona de encuentros funcional** | Implementada para X / Y. Escritura comprobada en una copia real de X. **Sin prueba en el juego.** |
-| **B. Hierba visible** | **No implementada.** Las casillas convertidas no cambian de aspecto. |
-| Rubí Omega / Zafiro Alfa | Rechazado: su tabla de encuentros tiene otro formato. |
-| Ultra Sol / Ultra Luna, DS | Sin esta función. |
+| **Pokémon X** | **Prueba en el juego aprobada por el propietario.** Pueblo Acuarela, 24 casillas nuevas (6 × 4), tabla copiada de la Ruta 2: producen encuentros salvajes. La aprobación cubre ese caso; no se extiende sola a otros terrenos. |
+| **Pokémon Y** | El mismo formato que X, comprobado en los datos de Y (estructura de zonas, tablas, valor de hierba y mapas de zonas idénticos). Sin prueba en el juego. |
+| **Rubí Omega / Zafiro Alfa** | Implementado con su propio formato. Escritura comprobada en una copia real de Rubí Omega. Sin prueba en el juego. |
+| **Ultra Sol / Ultra Luna, DS** | Sin esta función. |
+
+**Hierba visible:** no implementada y **fuera del roadmap activo por decisión del propietario**. Una zona de captura es funcional cuando el juego produce encuentros en sus casillas, aunque el escenario siga mostrando suelo normal. El editor señala en el mapa las casillas con encuentros (verde) y las marcadas (verde claro).
 
 ## Qué hace
 
 1. El botón «Zona de captura» abre un panel.
 2. Se eligen casillas con clic (otro clic las quita) o con un rectángulo de dos esquinas.
-3. Las casillas que ya tienen encuentros se ven en verde; las marcadas, en verde claro con borde discontinuo.
-4. **Si la zona no tiene tabla de encuentros,** se elige la zona de la que copiarla.
-5. **«Previsualizar» es obligatorio antes de «Guardar».** Comprueba todo sin escribir; cualquier cambio de casillas u origen obliga a previsualizar otra vez.
-6. «Guardar» escribe a través del historial del proyecto: un solo cambio que se deshace y se reconstruye como los demás.
+3. **Si la zona no tiene tabla de encuentros,** se elige la zona de la que copiarla.
+4. **«Previsualizar» es obligatorio antes de «Guardar».** Cualquier cambio de casillas u origen obliga a previsualizar otra vez.
+5. «Guardar» escribe todos los archivos afectados en una sola entrada del historial del proyecto, que se deshace y se reconstruye como las demás.
 
-## Cómo funcionan los encuentros en X / Y
+## Cuándo produce encuentros una casilla
 
-Lo comprobado en los datos de X:
+Hacen falta dos cosas, comprobadas en los datos de cada familia:
 
-### 1. Permiso de la casilla
+1. **El permiso de la casilla es el valor de hierba de esa familia.**
+2. **La zona dueña de la casilla tiene tabla de encuentros:** la parte 3 de su paquete `ZO`, vacía en las zonas sin encuentros.
+   - El valor de hierba aparece también en zonas sin tabla, que no tienen encuentros.
 
-- Los bloques de mapa (`mapGR`, `a/0/4/1`) tienen una rejilla de 40 × 40 permisos de 32 bits.
-- La hierba alta de la Ruta 2 vale **`0x20002004`** en sus 115 casillas.
-- El suelo normal sobre el que están los NPC vale **`0x20`**.
-- «Enable Catch Zones» convierte exactamente `0x20` en `0x20002004` en tres bloques.
-- **El significado de cada bit no está acreditado.** Por eso solo se escriben esos dos valores y solo en ese sentido.
+**Qué zona es la dueña:**
+- **Matrices exteriores:** el bloque 0 de la matriz lleva, tras los bloques, un mapa de zonas (un u16 por cada 10 × 10 casillas) y un u16 más por bloque. Su tamaño es exactamente 8 + 36 bytes por bloque. Hay 20 en X/Y y 22 en OR/AS, y sus zonas son siempre zonas que usan la matriz.
+- **Matrices interiores:** no tienen mapa; solo se admiten si una única zona usa la matriz.
 
-### 2. Tabla de encuentros de la zona
+| | X / Y | Rubí Omega / Zafiro Alfa |
+| --- | --- | --- |
+| Suelo normal | `0x20` | `0x20` |
+| Hierba con encuentros | **`0x20002004`** (las 115 casillas de hierba de la Ruta 2 de X; Y igual) | **`0x20004004`** (8693 casillas en 45 zonas con tabla, igual en OR y AS). `0x20002004` **no existe** en OR/AS |
+| Partes del paquete `ZO` | 4; la tabla es la última | 5; la tabla va seguida de una parte 4 de 12 bytes |
+| Tabla | 0x188 bytes, en 53 de 360 zonas | 0x104 bytes, en 150 de 536 zonas |
+| Copia compartida | — | El último miembro del archivo de zonas es un paquete `EN` con una copia de cada tabla, idéntica byte a byte a la de su zona en las 536 zonas de OR y de AS. El editor de encuentros escribe ambas |
 
-- Es la parte 3 del paquete `ZO` de la zona: 0x188 bytes, que son 0x10 de cabecera y 0x178 de 94 ranuras.
-- Está vacía en 307 de las 360 zonas de X y tiene 0x188 bytes en las otras 53.
-- **El valor de hierba solo no basta:** `0x20002004` aparece en 11 zonas sin tabla, que no tienen encuentros. Por eso «Enable Catch Zones» crea la tabla en las zonas a las que añade hierba.
-- La parte 3 es siempre la última del paquete. Crearla solo añade 0x188 bytes al final y mueve el desplazamiento final.
-
-### 3. Qué zona manda en cada casilla
-
-- **Matrices exteriores** (20 en X, 22 en Zafiro Alfa), que comparten varias zonas:
-  - el bloque 0 de la matriz tiene, tras los bloques, un **mapa de zonas** con un u16 por cada 10 × 10 casillas (4 × 4 por bloque);
-  - después lleva un u16 más por bloque;
-  - el tamaño es exactamente 8 + 36 bytes por bloque, y todas las zonas del mapa son zonas que usan esa matriz;
-  - por ejemplo, la Ruta 2 ocupa las filas 400–479 y Pueblo Acuarela las 480–559 de la misma matriz.
-- **Matrices interiores:** no tienen mapa de zonas. Solo se admiten si una única zona usa la matriz.
+**Diferencias entre Rubí Omega y Zafiro Alfa:** las mismas 150 zonas tienen tabla y el formato es idéntico. Solo difieren los Pokémon de 28 tablas (exclusivos de cada versión).
 
 ## Qué escribe y qué comprueba
 
-- **Bloques.** Solo cambian las casillas elegidas, de `0x20` a `0x20002004`.
-  - Se comprueba byte a byte que nada más cambia.
-  - Se rechaza cualquier casilla que no sea suelo normal: muros, agua, hierba ya existente y otros valores.
-  - Se rechaza un bloque que aparezca en más de una posición de las matrices del juego. En X no hay ninguno, pero se comprueba igualmente.
-- **Casillas rechazadas:**
-  - las que, según el mapa de zonas, pertenecen a otra zona;
-  - las que ocupa un NPC, un objeto, un warp o un activador;
-  - las de zonas cuyas posiciones no son casillas;
-  - más de 1600 casillas por operación.
+- **Casillas.**
+  - Solo cambian las casillas elegidas, de `0x20` al valor de hierba de la familia. Se comprueba byte a byte.
+  - Se rechazan:
+    - muros, agua, hierba existente y cualquier otro valor;
+    - casillas de otra zona según el mapa de zonas;
+    - casillas ocupadas por un NPC, un objeto, un warp o un activador;
+    - bloques que aparezcan en más de una posición de las matrices (no hay ninguno en X, Y, OR ni AS, pero se comprueba);
+    - zonas cuyas posiciones no son casillas;
+    - más de 1600 casillas.
+  - Valores distintos de esos dos, como `0x20084004` de OR/AS, no se escriben: su efecto no está acreditado.
 - **Tabla.**
-  - Si la zona ya tiene tabla, no se toca.
-  - Si no la tiene, se copia entera la tabla de la zona de origen tal como está en el proyecto. Si se randomizó antes, se copian los Pokémon randomizados.
-  - La tabla nueva aparece en el editor «Encuentros» y la incluyen randomizaciones posteriores, porque ambos encuentran las tablas por su desplazamiento.
-- **Reconstrucción.** Los dos GARC se reconstruyen y se releen, y se comprueba que el resto de miembros es idéntico.
-  - Si los archivos no coinciden con lo que leyó el editor, no se escribe nada.
+  - Si la zona ya la tiene, no se toca.
+  - Si no la tiene, se **inserta** una copia exacta de la de la zona de origen tal como esté en el proyecto (también si está randomizada). Los desplazamientos de las partes siguientes se mueven y el resto de partes se comprueba byte a byte.
+  - En OR/AS se inserta además la misma tabla en la copia `EN`, en la posición de la zona. Las demás copias solo se desplazan.
+  - En OR/AS se rechaza la escritura si la copia `EN` de la zona o del origen no coincide con su tabla.
+- **Reconstrucción.** Se reconstruyen y releen los GARC de bloques y de zonas, comprobando que los demás miembros no cambian. Si los archivos no coinciden con lo que leyó el editor, no se escribe nada.
+- **Compatibilidad.** El editor «Encuentros» y la randomización encuentran las tablas por su desplazamiento. La tabla creada aparece como una ubicación más, se edita y se randomiza como las demás. En OR/AS esto mantiene sincronizada la copia `EN`.
+
+### «Enable Catch Zones» de OR/AS
+
+Su manifiesto sirvió de referencia, pero no se copia:
+
+- en tres bloques escribe `0x20002004`, el valor de X/Y, que OR/AS no usa en ninguna casilla;
+- en dos zonas (por ejemplo, la 447) deja la parte 4 con longitud negativa.
+
+El editor usa solo valores y estructuras leídos de los juegos.
 
 ## Pruebas
 
-- **`--map3ds-catch-zones-only`** (13 comprobaciones sintéticas):
-  - mapa de zonas, dueño de cada casilla y usos de los bloques;
-  - escritura de casillas byte a byte y tabla añadida al final;
-  - todos los rechazos y la relectura.
-- **`--map3ds-catch-zones-ui-only`** (9 fuera de pantalla):
-  - botón, origen de la tabla, clics y rectángulo;
-  - vista previa obligatoria y guardado por el proyecto.
-- **Copia real de X, `--map3ds-catch-zone-probe`:** zona 8 (Pueblo Acuarela, sin encuentros), casillas (444–449, 518–521) = 24, tabla copiada de la zona 259 (Ruta 2). 8/8:
-  - la vista previa no escribe;
-  - al reabrir aparecen las 24 casillas y la tabla igual a la de la Ruta 2;
-  - solo cambian esas casillas de los bloques 7 y 10;
-  - las demás zonas quedan idénticas;
-  - queda entrada de historial;
-  - deshacer devuelve el SHA-256 original de los dos archivos;
-  - un editor con datos antiguos no puede escribir.
-  - Verificado también por separado con un lector propio.
-- **`--map3ds-catch-zone-rebuild`:** la imagen 3DS contiene byte a byte los dos archivos editados.
+- **`--map3ds-catch-zones-only`** (21 comprobaciones sintéticas):
+  - valores por familia y mapa de zonas;
+  - dueño de cada casilla y usos de los bloques;
+  - casillas y tabla en X/Y y OR/AS: inserción antes de la parte 4 y copia `EN`;
+  - rechazos, incluidas la copia `EN` ausente o distinta;
+  - relectura.
+- **`--map3ds-catch-zones-ui-only`** (10 fuera de pantalla):
+  - botón, origen de la tabla, clic y rectángulo;
+  - vista previa obligatoria y guardado;
+  - panel en OR/AS.
+- **`--map3ds-catch-zone-probe`**, copias reales:
+
+| Juego | Caso | Resultado |
+| --- | --- | --- |
+| X | zona 8, Pueblo Acuarela, sin tabla: 24 casillas y tabla de la Ruta 2 | 8/8 (la copia de la prueba aprobada) |
+| X | zona 259, Ruta 2, con tabla: 10 casillas | 9/9; el editor de encuentros sigue con 54 ubicaciones; sin dejar cambios |
+| X | zona 4, interior de Pueblo Boceto (una sola zona), sin tabla: 4 casillas | 9/9; el editor de encuentros pasa de 54 a 55; sin dejar cambios |
+| X | casillas de la Ruta 2 pedidas para Pueblo Acuarela | rechazado: «pertenece a la zona 259» |
+| Rubí Omega | zona 6, Villa Raíz, sin tabla: 24 casillas (92–97, 172–175) y tabla de la Ruta 101 | 11/11. Cambian solo los miembros 6 y 537 (`EN`) y 24 casillas del bloque 6. El editor de encuentros pasa de 150 a 151 ubicaciones y las 151 copias `EN` coinciden con sus zonas. Deshacer devuelve los dos archivos originales. Verificado por separado con un lector propio |
+
+- **`--map3ds-catch-zone-rebuild`:** las imágenes 3DS contienen byte a byte los archivos editados.
 
 ## Limitaciones
 
-- **Sin prueba en el juego.**
-- **Hierba no visible.** Representarla exige modificar el modelo 3D del bloque (BCH), que es otro formato con otros riesgos; queda para un incremento propio.
-- **Solo X / Y.**
-  - La tabla de OR/AS es distinta (0xF6 bytes, según el editor de encuentros).
-  - Sus valores de hierba no se han estudiado.
-- **No se distinguen otros tipos de encuentro** (flores, hierba oscura, cuevas, agua). Solo se escribe el valor de la hierba de la Ruta 2, que es la primera fila de la tabla.
-- **Quitar encuentros a casillas existentes** no forma parte de esta versión. Lo hecho aquí se deshace desde el historial.
+- Solo se acreditan en el juego las 24 casillas de Pueblo Acuarela en X. Y, Rubí Omega y Zafiro Alfa están pendientes de prueba jugable.
+- Solo se escribe la hierba normal de cada familia. Otros tipos de encuentro (flores, hierba oscura, cuevas, agua) quedan fuera mientras no se acredite su valor.
+- Quitar encuentros a casillas existentes no forma parte de esta versión; lo hecho se deshace desde el historial.
