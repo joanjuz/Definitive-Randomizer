@@ -15,7 +15,7 @@ public enum Gen6Title { XY, ORAS }
 /// matrices from mapMatrix and blocks from mapGR. Every file is read through
 /// the delegates, so the adapter never touches the project on disk.
 /// </summary>
-public sealed class Gen6MapBackend : IMapEditorBackend, IMapResourceProvider, IMapEventProvider, IMapMutationValidator, IMapTrainerViews, IMapNurseCreation
+public sealed class Gen6MapBackend : IMapEditorBackend, IMapResourceProvider, IMapEventProvider, IMapMutationValidator, IMapTrainerViews, IMapNurseCreation, IMapCatchZones
 {
     private readonly Func<int, byte[]> _zone, _matrix, _block;
     private readonly int _matrixCount, _blockCount;
@@ -54,7 +54,7 @@ public sealed class Gen6MapBackend : IMapEditorBackend, IMapResourceProvider, IM
         _area = area; _areaCount = area is null ? 0 : areaCount;
         Capabilities = new(_area is not null, true, true, (_area is not null
             ? "Modelos y texturas reales de cada bloque (vista cenital aproximada), rejilla de permisos y eventos."
-            : "Rejilla de permisos y eventos.") + " Edición: posición, orientación y visión de NPC existentes y añadir enfermera (pendiente de prueba en el juego).");
+            : "Rejilla de permisos y eventos.") + " Edición: posición, orientación y visión de NPC existentes, añadir enfermera y zonas de captura en X/Y.");
         var skipped = new List<(int, string)>();
         for (int i = 0; i < zoneCount; i++)
         {
@@ -360,6 +360,138 @@ public sealed class Gen6MapBackend : IMapEditorBackend, IMapResourceProvider, IM
             ground = $" Permiso de la casilla 0x{value.ToString("X8", CultureInfo.InvariantCulture)}: " + (same > 0 ? $"{same} NPC de esta zona están sobre casillas con el mismo valor." : "ningún NPC de esta zona está sobre una casilla con ese valor; comprueba que se puede llegar a hablar con ella.");
         }
         return new(true, $"Se puede añadir como NPC {count} (copia de la enfermera de la zona {nurse.Zone:000}).{modelNote}{ground} No se ha probado en el juego fuera de un Centro Pokémon: comprueba que aparece, que se puede hablar con ella y que cura al equipo.");
+    }
+
+    private Gen6MapMatrix MatrixOf(int zone)
+    {
+        int id = Zone(zone).Matrix;
+        lock (_gate)
+        {
+            if (!_matrices.TryGetValue(id, out var m)) _matrices[id] = m = new Gen6MapMatrix(_matrix(id));
+            return m;
+        }
+    }
+
+    /// <summary>Decompressed bytes of a map block as read when the adapter was built, or null when it cannot be read.</summary>
+    public byte[]? BlockBytes(int block) => Block(block) is { } b ? (byte[])b.Pack.Raw.Clone() : null;
+
+    private Dictionary<int, int>? _blockUses;
+
+    /// <summary>Positions where a block appears in all the matrices of the game (a painted block changes every one of them).</summary>
+    public int BlockUses(int block)
+    {
+        lock (_gate)
+        {
+            if (_blockUses is null)
+            {
+                var uses = new Dictionary<int, int>();
+                for (int m = 0; m < _matrixCount; m++)
+                {
+                    Gen6MapMatrix matrix;
+                    try { matrix = new Gen6MapMatrix(_matrix(m)); } catch (MapFormatException) { continue; }
+                    foreach (int b in matrix.Blocks.Where(b => b >= 0)) uses[b] = uses.GetValueOrDefault(b) + 1;
+                }
+                _blockUses = uses;
+            }
+            return _blockUses.GetValueOrDefault(block);
+        }
+    }
+
+    /// <summary>
+    /// Zone whose encounter table applies on cell (x, y): the zone map of an exterior matrix, or the zone itself
+    /// when it is the only one using a matrix without zone map. Null when it cannot be decided.
+    /// </summary>
+    public int? CellOwner(int zone, int x, int y)
+    {
+        var matrix = MatrixOf(zone);
+        if (matrix.ZoneAt(x, y) is int owner) return owner;
+        int matrixId = Zone(zone).Matrix;
+        return _zones.Values.Count(z => z.Matrix == matrixId) == 1 ? zone : null;
+    }
+
+    private uint? CellValue(MapLayout layout, int x, int y)
+    {
+        if (x < 0 || y < 0 || x >= layout.Width * layout.BlockCells || y >= layout.Height * layout.BlockCells) return null;
+        int block = layout.BlockAt(x / layout.BlockCells, y / layout.BlockCells);
+        if (block < 0 || Cells(block) is not { } g) return null;
+        return g.Cells[((y % layout.BlockCells) * g.Width) + (x % layout.BlockCells)];
+    }
+
+    public bool HasEncounterTable(int zone)
+    {
+        var pack = Zone(zone).Pack;
+        return pack.Count > Gen6CatchZones.TablePart && pack.Length(Gen6CatchZones.TablePart) > 0;
+    }
+
+    /// <summary>Encounter table of a zone (part 3 of its pack), or null.</summary>
+    public byte[]? EncounterTable(int zone) => Gen6CatchZones.Table(ZoneBytes(zone));
+
+    public IReadOnlyList<MapZoneEntry> EncounterSources =>
+        _entries.Where(e => Zone(e.Id).Pack is var p && p.Count > Gen6CatchZones.TablePart && p.Length(Gen6CatchZones.TablePart) == Gen6CatchZones.TableSize).ToArray();
+
+    public IReadOnlyList<(int X, int Y)> EncounterCells(int zone)
+    {
+        var layout = Layout(zone);
+        var cells = new List<(int, int)>();
+        for (int by = 0; by < layout.Height; by++)
+            for (int bx = 0; bx < layout.Width; bx++)
+            {
+                int block = layout.BlockAt(bx, by);
+                if (block < 0 || Cells(block) is not { } g) continue;
+                for (int cy = 0; cy < g.Height; cy++)
+                    for (int cx = 0; cx < g.Width; cx++)
+                    {
+                        if (g.Cells[(cy * g.Width) + cx] != Gen6CatchZones.EncounterGrass) continue;
+                        int x = (bx * layout.BlockCells) + cx, y = (by * layout.BlockCells) + cy;
+                        if (CellOwner(zone, x, y) == zone) cells.Add((x, y));
+                    }
+            }
+        return cells;
+    }
+
+    /// <summary>Most cells written in one operation.</summary>
+    public const int MaxCatchCells = 1600;
+
+    public MapMutationCheck ValidateCatchCells(int zone, IReadOnlyCollection<(int X, int Y)> cells, int? sourceZone)
+    {
+        if (Game != Gen6Title.XY) return new(false, "Las zonas de captura solo están verificadas en X/Y. Rubí Omega/Zafiro Alfa usa otro formato de tabla de encuentros.");
+        if (!_zones.ContainsKey(zone)) return new(false, "Zona no disponible.");
+        if (cells.Count == 0) return new(false, "Elige al menos una casilla.");
+        if (cells.Distinct().Count() != cells.Count) return new(false, "Hay casillas repetidas.");
+        if (cells.Count > MaxCatchCells) return new(false, $"Como máximo {MaxCatchCells} casillas por operación.");
+        var events = ZoneEvents(zone);
+        if (events.Any(e => e.PositionNote?.Contains("no son casillas", StringComparison.Ordinal) == true))
+            return new(false, "Esta zona guarda posiciones que no son casillas; su formato aún no está verificado.");
+        var layout = Layout(zone);
+        var blocks = new HashSet<int>();
+        foreach (var (x, y) in cells)
+        {
+            if (CellValue(layout, x, y) is not uint value) return new(false, $"La casilla {x}, {y} está fuera de la matriz o en una celda sin bloque.");
+            if (value != Gen6CatchZones.Ground)
+                return new(false, $"La casilla {x}, {y} no es suelo normal (permiso 0x{value.ToString("X8", CultureInfo.InvariantCulture)}); solo se convierte el suelo 0x{Gen6CatchZones.Ground:X8}.");
+            int? owner = CellOwner(zone, x, y);
+            if (owner is null) return new(false, "No se puede saber qué zona usa estas casillas: la matriz no tiene mapa de zonas y la comparten varias zonas.");
+            if (owner != zone) return new(false, $"La casilla {x}, {y} pertenece a la zona {owner} en el mapa de zonas; sus encuentros serían los de esa zona.");
+            var taken = events.FirstOrDefault(e => e.Placed && x >= e.X && x < e.X + e.Width && y >= e.Y && y < e.Y + e.Height);
+            if (taken is not null) return new(false, $"La casilla {x}, {y} la ocupa {taken.Label}.");
+            int block = layout.BlockAt(x / layout.BlockCells, y / layout.BlockCells);
+            if (blocks.Add(block) && BlockUses(block) != 1) return new(false, $"El bloque {block} aparece en {BlockUses(block)} posiciones de las matrices del juego; cambiarlo afectaría a todas.");
+        }
+        string table;
+        if (HasEncounterTable(zone))
+        {
+            if (Zone(zone).Pack.Length(Gen6CatchZones.TablePart) != Gen6CatchZones.TableSize) return new(false, "La tabla de encuentros de la zona tiene un tamaño inesperado.");
+            table = "Usará la tabla de encuentros actual de la zona.";
+        }
+        else
+        {
+            if (sourceZone is not int source) return new(false, "La zona no tiene tabla de encuentros: elige la zona de la que se copiará.");
+            if (source == zone || !_zones.ContainsKey(source) || !EncounterSources.Any(e => e.Id == source)) return new(false, $"La zona {source} no tiene una tabla de encuentros que se pueda copiar.");
+            table = $"La zona no tiene encuentros: se creará su tabla copiando la de la zona {source:000} tal como está ahora (también si está randomizada); después se puede editar en «Encuentros».";
+        }
+        int already = EncounterCells(zone).Count;
+        return new(true, $"Se pueden convertir {cells.Count} casillas de suelo normal en suelo con encuentros (0x{Gen6CatchZones.EncounterGrass:X8}) en {blocks.Count} bloque{(blocks.Count == 1 ? "" : "s")}; la zona ya tenía {already}. {table} " +
+            "La hierba no se verá: el modelo del mapa no cambia. No se ha probado en el juego.");
     }
 
     public IReadOnlyList<(int X, int Y)> SightCells(int zone, MapEventKind kind, int index, double facing, int sight)

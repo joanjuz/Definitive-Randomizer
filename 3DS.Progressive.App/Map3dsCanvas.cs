@@ -60,6 +60,13 @@ internal sealed class Map3dsCanvas : FrameworkElement
     /// <summary>While true, a click picks a cell (<see cref="CellPicked"/>) instead of selecting an event.</summary>
     internal bool PickingCell { get; set; }
     internal event Action<int, int>? CellPicked;
+    private (IReadOnlyList<(int X, int Y)> Existing, IReadOnlyCollection<(int X, int Y)> Pending)? _catch;
+    /// <summary>Cells that already produce encounters and cells chosen to get them.</summary>
+    internal void SetCatch((IReadOnlyList<(int X, int Y)> Existing, IReadOnlyCollection<(int X, int Y)> Pending)? cells) { _catch = cells; InvalidateVisual(); }
+    internal (IReadOnlyList<(int X, int Y)> Existing, IReadOnlyCollection<(int X, int Y)> Pending)? CatchOverlay => _catch;
+    private static readonly Brush CatchExisting = Freeze(new SolidColorBrush(Color.FromArgb(0x66, 0x3F, 0xB9, 0x50)));
+    private static readonly Pen CatchExistingEdge = Freeze(new Pen(new SolidColorBrush(Color.FromArgb(0xCC, 0x2E, 0x8B, 0x3C)), 1));
+    private static readonly Brush CatchPending = Freeze(new SolidColorBrush(Color.FromArgb(0xAA, 0xB8, 0xF2, 0x4A)));
     /// <summary>Picks cell (x, y) as a click would while <see cref="PickingCell"/> is on.</summary>
     internal void PickCell(int x, int y) { if (PickingCell) CellPicked?.Invoke(x, y); }
     internal event Action<MapEventView?>? EventPicked;
@@ -96,7 +103,7 @@ internal sealed class Map3dsCanvas : FrameworkElement
     {
         if (!ReferenceEquals(resources, _resources)) { _blockImages.Clear(); lock (_pending) _graphics.Clear(); }
         if (zone != _zone) _generation++;
-        _resources = resources; _layout = layout; _events = events; Selected = null; _zone = zone; _view = null; _pendingNurse = null;
+        _resources = resources; _layout = layout; _events = events; Selected = null; _zone = zone; _view = null; _pendingNurse = null; _catch = null;
         Fit();
     }
 
@@ -282,6 +289,12 @@ internal sealed class Map3dsCanvas : FrameworkElement
             dc.DrawLine(GhostPen, from, to);
             double rad = Math.Max(4, _scale * 0.5);
             dc.DrawEllipse(new SolidColorBrush(Color.FromArgb(0x99, 0xF4, 0xC9, 0x5D)), GhostPen, to, rad, rad);
+        }
+        if (_catch is { } zoneCells)
+        {
+            var catchSize = new Size(_scale, _scale);
+            foreach (var (cx, cy) in zoneCells.Existing) dc.DrawRectangle(CatchExisting, CatchExistingEdge, new Rect(ToScreen(new Point(cx, cy)), catchSize));
+            foreach (var (cx, cy) in zoneCells.Pending) dc.DrawRectangle(CatchPending, GhostPen, new Rect(ToScreen(new Point(cx, cy)), catchSize));
         }
         if (_pendingNurse is { } nurse)
         {

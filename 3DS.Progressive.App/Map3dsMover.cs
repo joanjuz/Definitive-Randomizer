@@ -13,8 +13,13 @@ namespace ThreeDS.Progressive;
 internal sealed class Map3dsMover(Func<IMapEditorBackend, int, int, int, int, string> move, Func<IMapEditorBackend> reload,
     Func<int, bool>? canRestore = null, Func<int, string>? restore = null,
     Func<IMapEditorBackend, int, int, double, int?, string>? view = null,
-    Func<IMapEditorBackend, int, int, int, double, string>? addNurse = null)
+    Func<IMapEditorBackend, int, int, int, double, string>? addNurse = null,
+    Func<IMapEditorBackend, int, IReadOnlyCollection<(int X, int Y)>, int?, string>? paintCatch = null)
 {
+    /// <summary>Turns plain-ground cells of a zone into cells with encounters, copying the table of <paramref name="source"/> when the zone has none.</summary>
+    internal string PaintCatch(IMapEditorBackend backend, int zone, IReadOnlyCollection<(int X, int Y)> cells, int? source) =>
+        (paintCatch ?? throw new InvalidOperationException("Este juego no admite zonas de captura."))(backend, zone, cells, source);
+    internal bool CanPaintCatch => paintCatch is not null;
     /// <summary>Adds a Pokémon Center nurse on cell (x, y) of the zone, looking towards <paramref name="facing"/> (compass degrees).</summary>
     internal string AddNurse(IMapEditorBackend backend, int zone, int x, int y, double facing) =>
         (addNurse ?? throw new InvalidOperationException("Este juego no admite añadir enfermeras."))(backend, zone, x, y, facing);
@@ -54,6 +59,7 @@ internal sealed class Map3dsMover(Func<IMapEditorBackend, int, int, int, int, st
         }
         if (!config.XY && !config.ORAS) return null;
         var service = new Map3dsNpcMoveService(session);
+        var catchZones = config.XY ? new Map3dsCatchZoneService(session) : null;
         return new Map3dsMover((backend, zone, npc, x, y) =>
         {
             if (backend is not Gen6MapBackend gen6) throw new InvalidOperationException("El adaptador no admite escritura.");
@@ -71,6 +77,12 @@ internal sealed class Map3dsMover(Func<IMapEditorBackend, int, int, int, int, st
             if (backend is not Gen6MapBackend gen6) throw new InvalidOperationException("El adaptador no admite escritura.");
             var proposal = service.PreviewAddNurse(gen6, zone, x, y, facing);
             service.Apply(proposal);
+            return proposal.Action;
+        }, paintCatch: catchZones is null ? null : (backend, zone, cells, source) =>
+        {
+            if (backend is not Gen6MapBackend gen6) throw new InvalidOperationException("El adaptador no admite escritura.");
+            var proposal = catchZones.Preview(gen6, zone, cells, source);
+            catchZones.Apply(proposal);
             return proposal.Action;
         });
     }
