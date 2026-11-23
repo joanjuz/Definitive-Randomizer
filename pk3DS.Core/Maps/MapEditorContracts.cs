@@ -121,5 +121,14 @@ public interface IMapTrainerViews
 
 public sealed record MapMutationCheck(bool Allowed, string Reason);
 
+/// <summary>Optional part of an adapter that can add a Pokémon Center nurse copied from the game itself.</summary>
+public interface IMapNurseCreation
+{
+    /// <summary>Where the copied nurse comes from, or why the game has none to copy.</summary>
+    string NurseSummary { get; }
+    /// <summary>Checks a new nurse on cell (x, y) looking towards <paramref name="facing"/> (compass degrees). Nothing is written.</summary>
+    MapMutationCheck ValidateAddNurse(int zone, int x, int y, double facing);
+}
+
 /// <summary>Raised when a file does not have the layout an adapter verified.</summary>
 public sealed class MapFormatException(string message) : Exception(message);

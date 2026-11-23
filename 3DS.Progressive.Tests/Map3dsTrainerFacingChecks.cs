@@ -353,7 +353,7 @@ internal static class Map3dsTrainerFacingChecks
     /// Offset in the RomFS of the image where the whole content of <paramref name="file"/> is stored, or -1. The RomFS of
     /// a pk3DS rebuild uses the fixed zero key (as read by GameRomExtractionService); it is decrypted in memory, nothing is written.
     /// </summary>
-    private static long FindInImage(string image, string file)
+    internal static long FindInImage(string image, string file)
     {
         byte[] content = File.ReadAllBytes(file);
         using var stream = File.OpenRead(image);

@@ -90,6 +90,68 @@ internal sealed class Map3dsNpcMoveService
     }
 
     internal const string ViewActionId = "map3ds.npc.view";
+    internal const string NurseActionId = "map3ds.npc.add-nurse";
+
+    /// <summary>
+    /// Adds a Pokémon Center nurse on cell (x, y): a copy of the game's own nurse record (model and
+    /// script 2100) with a new ID, the cell and the facing. Same checks and history as a move.
+    /// </summary>
+    internal EditorProposal PreviewAddNurse(Gen6MapBackend backend, int zone, int x, int y, double facing)
+    {
+        var check = backend.ValidateAddNurse(zone, x, y, facing);
+        if (!check.Allowed) throw new InvalidOperationException(check.Reason);
+        var nurse = backend.Nurse ?? throw new InvalidOperationException(backend.NurseSummary);
+        int value = Gen6MapBackend.FacingValue(facing) ?? throw new InvalidOperationException("Dirección no verificada.");
+        int index = backend.ZoneEvents(zone).Count(e => e.Kind == MapEventKind.Npc);
+        var (source, output) = Rewrite(backend, zone, current => Gen6ZoneEdit.AddNpc(current, nurse.Record, x, y, value));
+        var inv = System.Globalization.CultureInfo.InvariantCulture;
+        string to = $"{x}, {y} · mira {Gen6MapBackend.DirectionName(facing)}";
+        var files = new List<FileChange> { new(_path, source, output) };
+        var changes = new List<BatchChange> { new(zone, $"Zona {zone:000}", $"NPC {index} · enfermera nueva", "—", to, "npc.add-nurse") };
+        int area = backend.Zone(zone).Area;
+        bool addModel = backend.AreaLoadsNurse(zone) == false;
+        if (addModel)
+        {
+            // Without the nurse's model in the area's model list the game freezes when the zone loads.
+            files.Add(AddAreaModel(backend, area));
+            changes.Add(new BatchChange(zone, $"Área {area}", "Lista de modelos", $"{Gen6AreaModels.Models(backend.ModelList(area)!).Count} modelos", $"+ modelo {nurse.Model}", "area.models"));
+        }
+        var parameters = new Dictionary<string, string>
+        {
+            { "ActionId", NurseActionId }, { "Game", _project.GameConfiguration.XY ? "XY" : "ORAS" },
+            { "Zone", zone.ToString(inv) }, { "Npc", index.ToString(inv) }, { "X", x.ToString(inv) }, { "Y", y.ToString(inv) }, { "Facing", value.ToString(inv) },
+            { "Script", Gen6Nurse.Script.ToString(inv) }, { "Model", nurse.Model.ToString(inv) },
+            { "TemplateZone", nurse.Zone.ToString(inv) }, { "TemplateNpc", nurse.Index.ToString(inv) },
+            { "Area", area.ToString(inv) }, { "AreaModelAdded", addModel ? "true" : "false" }, { "Gameplay", "not tested" },
+        };
+        return new EditorProposal(_owner, $"Añadir enfermera en la zona {zone:000} ({x}, {y})", 0, [.. files], [.. changes], parameters);
+    }
+
+    /// <summary>Path of the model lists per area (X/Y a/1/4/9, OR/AS a/1/3/7).</summary>
+    internal string ModelArchive => Path.Combine(_project.GameConfiguration.RomFS, Gen6MapBackend.ModelListArchive(_project.GameConfiguration.XY));
+
+    /// <summary>
+    /// Appends the nurse's entry (copied from the game's own lists) to the model list of <paramref name="area"/> and
+    /// rebuilds that archive, checking that the member is the one the editor read and every other member is unchanged.
+    /// </summary>
+    private FileChange AddAreaModel(Gen6MapBackend backend, int area)
+    {
+        var config = _project.GameConfiguration;
+        string path = ModelArchive;
+        byte[] entry = backend.NurseModelEntry ?? throw new InvalidOperationException("No hay una entrada única del modelo de la enfermera.");
+        byte[] source = File.ReadAllBytes(path);
+        byte[][] members = new GARC.MemGARC(source).Files;
+        if (area < 0 || area >= members.Length) throw new InvalidDataException("El área no existe en la lista de modelos.");
+        if (!members[area].AsSpan().SequenceEqual(backend.ModelList(area))) throw new InvalidDataException("La lista de modelos del archivo no coincide con la que leyó el editor. Vuelve a abrir el editor.");
+        var records = (byte[][])members.Clone();
+        records[area] = Gen6AreaModels.Add(members[area], entry);
+        var reference = config.GetGARCReference("encdata").GetRelativeGARC(config.XY ? 137 : 124, "npcmodels");
+        byte[] output = GarcTransaction.Build(source, reference, records, preserveRecordSize: false);
+        var reread = new GARC.MemGARC(output).Files;
+        for (int i = 0; i < reread.Length; i++)
+            if (!reread[i].AsSpan().SequenceEqual(records[i])) throw new InvalidDataException("La reconstrucción de la lista de modelos no coincide. No se guardó nada.");
+        return new FileChange(path, source, output);
+    }
 
     /// <summary>
     /// Reads the zone archive by fingerprint, checks the zone is the one the editor shows, applies
