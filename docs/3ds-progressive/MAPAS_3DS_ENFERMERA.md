@@ -110,9 +110,8 @@ El valor de permiso de la casilla se muestra junto con cuántos NPC de la zona e
 ## Limitaciones
 
 - **Aprobada en el juego solo en X**, dentro de la Ruta 2 (fuera de un Centro Pokémon). La primera versión, sin la lista de modelos, se congelaba al entrar en la ruta.
-  - No está comprobado que la secuencia del Centro funcione fuera de un Centro Pokémon.
-  - Su script coloca la cámara con valores pensados para los Centros y llama a la animación de la máquina curativa.
-  - Lo que ocurra fuera de un Centro (salto de cámara, animación ausente, bloqueo) solo se sabrá en el juego.
+  - En X la secuencia del Centro funcionó fuera de un Centro.
+  - Su script coloca la cámara con valores pensados para los Centros; en otros juegos y lugares no se ha comprobado.
 - **Rubí Omega / Zafiro Alfa:** el mecanismo está acreditado de forma estática, pero no se ha escrito ninguna copia real.
 - **Gen7 (Ultra Sol / Ultra Luna):** usa otro formato de eventos y de scripts. Necesita su propia investigación.
 - **Gráficos:** la vista previa es un marcador esquemático, no el modelo 3D de la enfermera.
