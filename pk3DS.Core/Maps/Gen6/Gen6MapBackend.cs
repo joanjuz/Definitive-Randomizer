@@ -15,7 +15,7 @@ public enum Gen6Title { XY, ORAS }
 /// matrices from mapMatrix and blocks from mapGR. Every file is read through
 /// the delegates, so the adapter never touches the project on disk.
 /// </summary>
-public sealed class Gen6MapBackend : IMapEditorBackend, IMapResourceProvider, IMapEventProvider, IMapMutationValidator, IMapTrainerViews
+public sealed class Gen6MapBackend : IMapEditorBackend, IMapResourceProvider, IMapEventProvider, IMapMutationValidator, IMapTrainerViews, IMapNurseCreation
 {
     private readonly Func<int, byte[]> _zone, _matrix, _block;
     private readonly int _matrixCount, _blockCount;
@@ -50,7 +50,7 @@ public sealed class Gen6MapBackend : IMapEditorBackend, IMapResourceProvider, IM
         _area = area; _areaCount = area is null ? 0 : areaCount;
         Capabilities = new(_area is not null, true, true, (_area is not null
             ? "Modelos y texturas reales de cada bloque (vista cenital aproximada), rejilla de permisos y eventos."
-            : "Rejilla de permisos y eventos.") + " Edición: posición, orientación y visión de NPC existentes (pendiente de prueba en el juego).");
+            : "Rejilla de permisos y eventos.") + " Edición: posición, orientación y visión de NPC existentes y añadir enfermera (pendiente de prueba en el juego).");
         var skipped = new List<(int, string)>();
         for (int i = 0; i < zoneCount; i++)
         {
@@ -247,6 +247,69 @@ public sealed class Gen6MapBackend : IMapEditorBackend, IMapResourceProvider, IM
         }
         if (FacingValue(facing) == FacingValue(view.Facing) && (sight is null || sight == view.Sight)) return new(false, "No hay cambios respecto al valor guardado.");
         return new(true, "Se puede escribir. El juego no se ha probado con este cambio: comprueba que el entrenador mira hacia esa dirección y te ve a esa distancia.");
+    }
+
+    private Gen6NurseTemplate? _nurse;
+    private bool _nurseSearched;
+    private int _npcCeiling = -1;
+
+    /// <summary>Nurse copied by «Añadir enfermera»: the first NPC with the nurse script, see <see cref="Gen6Nurse"/>.</summary>
+    public Gen6NurseTemplate? Nurse
+    {
+        get
+        {
+            lock (_gate)
+            {
+                if (!_nurseSearched) { _nurse = Gen6Nurse.Find(_zones.OrderBy(z => z.Key).Select(z => (z.Key, z.Value))); _nurseSearched = true; }
+                return _nurse;
+            }
+        }
+    }
+
+    /// <summary>Largest NPC count of any zone of this game: a new NPC never makes a zone go beyond what the game already has.</summary>
+    public int NpcCeiling
+    {
+        get
+        {
+            lock (_gate)
+            {
+                if (_npcCeiling < 0) _npcCeiling = _zones.Values.Select(z => z.Entities.Records.Count(r => r.Kind == MapEventKind.Npc)).DefaultIfEmpty(0).Max();
+                return _npcCeiling;
+            }
+        }
+    }
+
+    public string NurseSummary => Nurse is { } n
+        ? $"Copia la enfermera del Centro Pokémon de la zona {n.Zone:000} (NPC {n.Index}, modelo {n.Model}, script {Gen6Nurse.Script}; {n.Copies} enfermeras con ese script en el juego). " +
+          "El script es el del Centro Pokémon: saludo, pregunta, curación y despedida."
+        : $"No se encontró ninguna enfermera (script {Gen6Nurse.Script}) con un modelo único y quieta; no se puede añadir.";
+
+    public MapMutationCheck ValidateAddNurse(int zone, int x, int y, double facing)
+    {
+        if (Nurse is not { } nurse) return new(false, NurseSummary);
+        if (!_zones.ContainsKey(zone)) return new(false, "Zona no disponible.");
+        var events = ZoneEvents(zone);
+        if (events.Any(e => e.PositionNote?.Contains("no son casillas", StringComparison.Ordinal) == true))
+            return new(false, "Esta zona guarda posiciones que no son casillas; no se añaden NPC hasta verificar su formato.");
+        if (FacingValue(facing) is null) return new(false, "Solo hay cuatro direcciones: arriba, abajo, izquierda y derecha.");
+        var layout = Layout(zone);
+        if (x < 0 || y < 0 || x >= layout.Width * layout.BlockCells || y >= layout.Height * layout.BlockCells) return new(false, "La casilla está fuera de la matriz de la zona.");
+        int block = layout.BlockAt(x / layout.BlockCells, y / layout.BlockCells);
+        if (block < 0) return new(false, "La casilla está en una celda sin bloque de mapa.");
+        var taken = events.FirstOrDefault(e => e.Placed && x >= e.X && x < e.X + e.Width && y >= e.Y && y < e.Y + e.Height);
+        if (taken is not null) return new(false, $"La casilla ya la ocupa {taken.Label}.");
+        int count = events.Count(e => e.Kind == MapEventKind.Npc);
+        if (count + 1 > NpcCeiling) return new(false, $"La zona ya tiene {count} NPC; con uno más superaría el máximo que usa el juego ({NpcCeiling}).");
+        string ground = "";
+        if (Cells(block) is { } grid)
+        {
+            uint Value(int cx, int cy) => grid.Cells[((cy % layout.BlockCells) * grid.Width) + (cx % layout.BlockCells)];
+            uint value = Value(x, y);
+            int same = events.Count(e => e.Kind == MapEventKind.Npc && e.Placed && layout.BlockAt((int)e.X / layout.BlockCells, (int)e.Y / layout.BlockCells) is int b && b >= 0
+                && Cells(b) is { } g && g.Cells[(((int)e.Y % layout.BlockCells) * g.Width) + ((int)e.X % layout.BlockCells)] == value);
+            ground = $" Permiso de la casilla 0x{value.ToString("X8", CultureInfo.InvariantCulture)}: " + (same > 0 ? $"{same} NPC de esta zona están sobre casillas con el mismo valor." : "ningún NPC de esta zona está sobre una casilla con ese valor; comprueba que se puede llegar a hablar con ella.");
+        }
+        return new(true, $"Se puede añadir como NPC {count} (copia de la enfermera de la zona {nurse.Zone:000}).{ground} No se ha probado en el juego fuera de un Centro Pokémon: comprueba que aparece, que se puede hablar con ella y que cura al equipo.");
     }
 
     public IReadOnlyList<(int X, int Y)> SightCells(int zone, MapEventKind kind, int index, double facing, int sight)

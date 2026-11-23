@@ -83,6 +83,110 @@ public static class Gen6ZoneEdit
         _ = new Gen6Zone(output);
         return output;
     }
+
+    public const int NpcId = 0x00, NpcModel = 0x02, NpcMovement = 0x04, NpcFlag = 0x08, NpcScript = 0x0A;
+
+    /// <summary>
+    /// Copy of <paramref name="zone"/> with one more NPC after the last one. The record is
+    /// <paramref name="template"/> with its ID set to the new index (ID equals the index in every zone of
+    /// X and Alpha Sapphire), its facing and its cell. The NPC count, the declared length of the entity
+    /// table and the offsets of the later parts grow by one record; every other byte is kept, the
+    /// entity script included (it follows the records and is only moved).
+    /// </summary>
+    public static byte[] AddNpc(byte[] zone, ReadOnlySpan<byte> template, int x, int y, int facing)
+    {
+        const int size = Gen6ZoneEntities.NpcSize;
+        if (template.Length != size) throw new ArgumentException("La plantilla de NPC debe tener 0x30 bytes.", nameof(template));
+        if (x is < 0 or > 0xFFFF || y is < 0 or > 0xFFFF) throw new ArgumentOutOfRangeException(nameof(x), "Casilla fuera del rango de 16 bits.");
+        if (facing is < 0 or > 3) throw new ArgumentOutOfRangeException(nameof(facing), "Solo se escriben las cuatro direcciones verificadas (0–3).");
+        var parsed = new Gen6Zone(zone);
+        var records = parsed.Entities.Records;
+        int props = records.Count(r => r.Kind == MapEventKind.Prop), count = records.Count(r => r.Kind == MapEventKind.Npc);
+        if (count >= byte.MaxValue) throw new InvalidOperationException("La zona ya tiene el máximo de NPC que admite su recuento.");
+        var pack = parsed.Pack;
+        int table = pack.Start(1);
+        int insert = table + Gen6ZoneEntities.HeaderSize + (props * Gen6ZoneEntities.PropSize) + (count * size);
+
+        var output = new byte[zone.Length + size];
+        zone.AsSpan(0, insert).CopyTo(output);
+        var record = output.AsSpan(insert, size);
+        template.CopyTo(record);
+        BinaryPrimitives.WriteUInt16LittleEndian(record[NpcId..], (ushort)count);
+        BinaryPrimitives.WriteUInt16LittleEndian(record[NpcFacing..], (ushort)facing);
+        BinaryPrimitives.WriteUInt16LittleEndian(record[NpcX..], (ushort)x);
+        BinaryPrimitives.WriteUInt16LittleEndian(record[NpcY..], (ushort)y);
+        zone.AsSpan(insert).CopyTo(output.AsSpan(insert + size));
+        BinaryPrimitives.WriteInt32LittleEndian(output.AsSpan(table), BinaryPrimitives.ReadInt32LittleEndian(zone.AsSpan(table)) + size);
+        output[table + 5] = (byte)(count + 1);
+        for (int i = 2; i <= pack.Count; i++)
+        {
+            int at = 4 + (i * 4);
+            BinaryPrimitives.WriteInt32LittleEndian(output.AsSpan(at), BinaryPrimitives.ReadInt32LittleEndian(zone.AsSpan(at)) + size);
+        }
+
+        // Re-read and compare: the old bytes must be exactly the new ones without the inserted record,
+        // apart from the length, the NPC count and the offsets of the parts after the table.
+        var reread = new Gen6Zone(output);
+        bool Header(int i) => (i >= table && i < table + 4) || i == table + 5 || (i >= 12 && i < 4 + ((pack.Count + 1) * 4));
+        for (int i = 0; i < zone.Length; i++)
+        {
+            int j = i < insert ? i : i + size;
+            if (zone[i] != output[j] && !Header(i)) throw new InvalidOperationException("La inserción cambió bytes ajenos al NPC nuevo.");
+        }
+        if (reread.Pack.Count != pack.Count || reread.Entities.Records.Count != records.Count + 1)
+            throw new InvalidOperationException("La relectura de la zona no tiene la estructura esperada.");
+        foreach (var r in records)
+        {
+            var again = reread.Entities.Records.First(n => n.Kind == r.Kind && n.Index == r.Index);
+            if (!parsed.Entities.Bytes(r).SequenceEqual(reread.Entities.Bytes(again))) throw new InvalidOperationException($"La relectura cambió {r.Kind} {r.Index}.");
+        }
+        for (int p = 0; p < pack.Count; p++)
+            if (p != 1 && !pack.Part(p).SequenceEqual(reread.Pack.Part(p))) throw new InvalidOperationException($"La inserción cambió la parte {p} de la zona.");
+        return output;
+    }
+}
+
+/// <summary>A Pokémon Center nurse copied from the game itself.</summary>
+/// <param name="Zone">Zone the record was copied from.</param>
+/// <param name="Index">NPC index in that zone.</param>
+/// <param name="Model">Character model of the nurse.</param>
+/// <param name="Copies">Nurses with this script found in the game (all with the same model and record shape).</param>
+public sealed record Gen6NurseTemplate(int Zone, int Index, int Model, byte[] Record, int Copies);
+
+/// <summary>
+/// Finds the Pokémon Center nurse of a Gen6 game. Its talk script is <see cref="Script"/>: the engine
+/// sends script IDs 2100–2199 to one common script (X: <c>a/0/3/1</c> #43; Alpha Sapphire: <c>a/0/2/9</c> #63)
+/// whose case 2100 is the whole nurse sequence: greeting by time of day, yes/no, healing and farewell.
+/// Checked statically on X and Alpha Sapphire (code.bin range table and the common script); 16–17
+/// nurses per game use it. Nothing here proves the sequence outside a Pokémon Center.
+/// </summary>
+public static class Gen6Nurse
+{
+    public const int Script = 2100;
+
+    /// <summary>
+    /// First nurse found, or null when none exists or the nurses disagree on model or on the fields
+    /// that are copied unchanged (movement, flag), so a modified game is not guessed.
+    /// </summary>
+    public static Gen6NurseTemplate? Find(IEnumerable<(int Id, Gen6Zone Zone)> zones)
+    {
+        Gen6NurseTemplate? first = null;
+        int copies = 0;
+        foreach (var (id, zone) in zones)
+        {
+            var e = zone.Entities;
+            foreach (var r in e.Records)
+            {
+                if (r.Kind != MapEventKind.Npc || e.U16(r, Gen6ZoneEdit.NpcScript) != Script) continue;
+                int model = e.U16(r, Gen6ZoneEdit.NpcModel);
+                if (e.U16(r, Gen6ZoneEdit.NpcMovement) != 0 || e.U16(r, Gen6ZoneEdit.NpcFlag) != 0) return null;
+                if (first is null) first = new Gen6NurseTemplate(id, r.Index, model, e.Bytes(r).ToArray(), 0);
+                else if (first.Model != model) return null;
+                copies++;
+            }
+        }
+        return first is null ? null : first with { Copies = copies };
+    }
 }
 
 /// <summary>Location of one fixed-size entity record inside the zone file.</summary>

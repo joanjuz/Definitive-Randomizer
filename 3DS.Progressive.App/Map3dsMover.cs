@@ -12,8 +12,13 @@ namespace ThreeDS.Progressive;
 /// </summary>
 internal sealed class Map3dsMover(Func<IMapEditorBackend, int, int, int, int, string> move, Func<IMapEditorBackend> reload,
     Func<int, bool>? canRestore = null, Func<int, string>? restore = null,
-    Func<IMapEditorBackend, int, int, double, int?, string>? view = null)
+    Func<IMapEditorBackend, int, int, double, int?, string>? view = null,
+    Func<IMapEditorBackend, int, int, int, double, string>? addNurse = null)
 {
+    /// <summary>Adds a Pokémon Center nurse on cell (x, y) of the zone, looking towards <paramref name="facing"/> (compass degrees).</summary>
+    internal string AddNurse(IMapEditorBackend backend, int zone, int x, int y, double facing) =>
+        (addNurse ?? throw new InvalidOperationException("Este juego no admite añadir enfermeras."))(backend, zone, x, y, facing);
+    internal bool CanAddNurse => addNurse is not null;
     /// <summary>Writes a previewed facing (compass degrees) and, where the game has one, sight range.</summary>
     internal string SetView(IMapEditorBackend backend, int zone, int npc, double facing, int? sight) =>
         (view ?? throw new InvalidOperationException("Este juego no escribe la orientación."))(backend, zone, npc, facing, sight);
@@ -59,6 +64,12 @@ internal sealed class Map3dsMover(Func<IMapEditorBackend, int, int, int, int, st
         {
             if (backend is not Gen6MapBackend gen6) throw new InvalidOperationException("El adaptador no admite escritura.");
             var proposal = service.PreviewView(gen6, zone, npc, facing, sight);
+            service.Apply(proposal);
+            return proposal.Action;
+        }, addNurse: (backend, zone, x, y, facing) =>
+        {
+            if (backend is not Gen6MapBackend gen6) throw new InvalidOperationException("El adaptador no admite escritura.");
+            var proposal = service.PreviewAddNurse(gen6, zone, x, y, facing);
             service.Apply(proposal);
             return proposal.Action;
         });

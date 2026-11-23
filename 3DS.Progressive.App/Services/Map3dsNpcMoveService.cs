@@ -90,6 +90,32 @@ internal sealed class Map3dsNpcMoveService
     }
 
     internal const string ViewActionId = "map3ds.npc.view";
+    internal const string NurseActionId = "map3ds.npc.add-nurse";
+
+    /// <summary>
+    /// Adds a Pokémon Center nurse on cell (x, y): a copy of the game's own nurse record (model and
+    /// script 2100) with a new ID, the cell and the facing. Same checks and history as a move.
+    /// </summary>
+    internal EditorProposal PreviewAddNurse(Gen6MapBackend backend, int zone, int x, int y, double facing)
+    {
+        var check = backend.ValidateAddNurse(zone, x, y, facing);
+        if (!check.Allowed) throw new InvalidOperationException(check.Reason);
+        var nurse = backend.Nurse ?? throw new InvalidOperationException(backend.NurseSummary);
+        int value = Gen6MapBackend.FacingValue(facing) ?? throw new InvalidOperationException("Dirección no verificada.");
+        int index = backend.ZoneEvents(zone).Count(e => e.Kind == MapEventKind.Npc);
+        var (source, output) = Rewrite(backend, zone, current => Gen6ZoneEdit.AddNpc(current, nurse.Record, x, y, value));
+        var inv = System.Globalization.CultureInfo.InvariantCulture;
+        string to = $"{x}, {y} · mira {Gen6MapBackend.DirectionName(facing)}";
+        var changes = new[] { new BatchChange(zone, $"Zona {zone:000}", $"NPC {index} · enfermera nueva", "—", to, "npc.add-nurse") };
+        var parameters = new Dictionary<string, string>
+        {
+            { "ActionId", NurseActionId }, { "Game", _project.GameConfiguration.XY ? "XY" : "ORAS" },
+            { "Zone", zone.ToString(inv) }, { "Npc", index.ToString(inv) }, { "X", x.ToString(inv) }, { "Y", y.ToString(inv) }, { "Facing", value.ToString(inv) },
+            { "Script", Gen6Nurse.Script.ToString(inv) }, { "Model", nurse.Model.ToString(inv) },
+            { "TemplateZone", nurse.Zone.ToString(inv) }, { "TemplateNpc", nurse.Index.ToString(inv) }, { "Gameplay", "not tested" },
+        };
+        return new EditorProposal(_owner, $"Añadir enfermera en la zona {zone:000} ({x}, {y})", 0, [new FileChange(_path, source, output)], changes, parameters);
+    }
 
     /// <summary>
     /// Reads the zone archive by fingerprint, checks the zone is the one the editor shows, applies

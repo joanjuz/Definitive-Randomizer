@@ -53,6 +53,15 @@ internal sealed class Map3dsCanvas : FrameworkElement
     private static readonly Brush SightFill = Freeze(new SolidColorBrush(Color.FromArgb(0x55, 0xF4, 0xC9, 0x5D)));
     private static readonly Pen SightEdge = Freeze(new Pen(new SolidColorBrush(Color.FromArgb(0xCC, 0xF4, 0xC9, 0x5D)), 1));
     private static readonly Pen ArrowPen = Freeze(new Pen(new SolidColorBrush(Color.FromRgb(0xF4, 0xC9, 0x5D)), 2.5) { StartLineCap = PenLineCap.Round, EndLineCap = PenLineCap.Round });
+    private (int X, int Y, double Facing)? _pendingNurse;
+    /// <summary>Ghost of a nurse that would be added on a cell, with the direction it would face.</summary>
+    internal void SetPendingNurse((int X, int Y, double Facing)? nurse) { _pendingNurse = nurse; InvalidateVisual(); }
+    internal (int X, int Y, double Facing)? PendingNurse => _pendingNurse;
+    /// <summary>While true, a click picks a cell (<see cref="CellPicked"/>) instead of selecting an event.</summary>
+    internal bool PickingCell { get; set; }
+    internal event Action<int, int>? CellPicked;
+    /// <summary>Picks cell (x, y) as a click would while <see cref="PickingCell"/> is on.</summary>
+    internal void PickCell(int x, int y) { if (PickingCell) CellPicked?.Invoke(x, y); }
     internal event Action<MapEventView?>? EventPicked;
     internal event Action<string>? Hover;
     internal Map3dsLayers Layers { get; private set; } = Map3dsLayers.All;
@@ -87,7 +96,7 @@ internal sealed class Map3dsCanvas : FrameworkElement
     {
         if (!ReferenceEquals(resources, _resources)) { _blockImages.Clear(); lock (_pending) _graphics.Clear(); }
         if (zone != _zone) _generation++;
-        _resources = resources; _layout = layout; _events = events; Selected = null; _zone = zone; _view = null;
+        _resources = resources; _layout = layout; _events = events; Selected = null; _zone = zone; _view = null; _pendingNurse = null;
         Fit();
     }
 
@@ -274,6 +283,16 @@ internal sealed class Map3dsCanvas : FrameworkElement
             double rad = Math.Max(4, _scale * 0.5);
             dc.DrawEllipse(new SolidColorBrush(Color.FromArgb(0x99, 0xF4, 0xC9, 0x5D)), GhostPen, to, rad, rad);
         }
+        if (_pendingNurse is { } nurse)
+        {
+            var c = ToScreen(new Point(nurse.X + 0.5, nurse.Y + 0.5));
+            double rad = Math.Max(5, _scale * 0.55), arm = rad * 0.55, len = Math.Max(14, _scale * 1.4), a = nurse.Facing * Math.PI / 180;
+            dc.DrawEllipse(new SolidColorBrush(Color.FromArgb(0xCC, 0xF2, 0x8C, 0xB8)), GhostPen, c, rad, rad);
+            var cross = Freeze(new Pen(Brushes.White, Math.Max(1.5, rad * 0.3)));
+            dc.DrawLine(cross, new Point(c.X - arm, c.Y), new Point(c.X + arm, c.Y));
+            dc.DrawLine(cross, new Point(c.X, c.Y - arm), new Point(c.X, c.Y + arm));
+            dc.DrawLine(GhostPen, new Point(c.X + (Math.Sin(a) * rad), c.Y - (Math.Cos(a) * rad)), new Point(c.X + (Math.Sin(a) * len), c.Y - (Math.Cos(a) * len)));
+        }
         if (_view is { } v && v.Event.Placed && Layers.Shows(v.Event.Kind))
         {
             foreach (var (cx, cy) in v.Cells)
@@ -335,7 +354,12 @@ internal sealed class Map3dsCanvas : FrameworkElement
     protected override void OnMouseLeftButtonUp(MouseButtonEventArgs e)
     {
         ReleaseMouseCapture();
-        if (_panFrom is not null && !_panned)
+        if (_panFrom is not null && !_panned && PickingCell)
+        {
+            var cell = ToCell(e.GetPosition(this));
+            PickCell((int)Math.Floor(cell.X), (int)Math.Floor(cell.Y));
+        }
+        else if (_panFrom is not null && !_panned)
         {
             var hit = HitTest(e.GetPosition(this));
             Select(hit, false);
