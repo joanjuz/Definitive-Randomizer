@@ -189,6 +189,55 @@ public static class Gen6Nurse
     }
 }
 
+/// <summary>
+/// Character models an area loads: X/Y <c>a/1/4/9</c>, OR/AS <c>a/1/3/7</c>, one member per area (the u16 at 0x02 of the
+/// zone header). Each entry is 24 bytes with the model in its first u16. In every zone of X and Alpha Sapphire the
+/// models of the NPCs are in the list of the zone's area; an NPC whose model is missing there makes the game freeze
+/// when the zone loads (seen with a nurse added to Route 2 of X). «Enable Catch Zones» adds the nurse entry the same way.
+/// </summary>
+public static class Gen6AreaModels
+{
+    public const int EntrySize = 24;
+
+    public static IReadOnlyList<int> Models(ReadOnlySpan<byte> list)
+    {
+        if (list.Length % EntrySize != 0) throw new MapFormatException($"Lista de modelos de {list.Length} bytes, no múltiplo de {EntrySize}.");
+        var models = new int[list.Length / EntrySize];
+        for (int i = 0; i < models.Length; i++) models[i] = BinaryPrimitives.ReadUInt16LittleEndian(list[(i * EntrySize)..]);
+        return models;
+    }
+
+    /// <summary>The entry of <paramref name="model"/> in the lists, or null when no list has it or two lists disagree.</summary>
+    public static byte[]? Entry(IEnumerable<byte[]> lists, int model)
+    {
+        byte[]? found = null;
+        foreach (var list in lists)
+        {
+            if (list.Length % EntrySize != 0) return null;
+            for (int at = 0; at < list.Length; at += EntrySize)
+            {
+                if (BinaryPrimitives.ReadUInt16LittleEndian(list.AsSpan(at)) != model) continue;
+                var entry = list.AsSpan(at, EntrySize);
+                if (found is null) found = entry.ToArray();
+                else if (!entry.SequenceEqual(found)) return null;
+            }
+        }
+        return found;
+    }
+
+    /// <summary>Copy of <paramref name="list"/> with <paramref name="entry"/> appended; the existing entries are kept as they are.</summary>
+    public static byte[] Add(byte[] list, ReadOnlySpan<byte> entry)
+    {
+        if (entry.Length != EntrySize) throw new ArgumentException("La entrada de modelo debe tener 24 bytes.", nameof(entry));
+        int model = BinaryPrimitives.ReadUInt16LittleEndian(entry);
+        if (Models(list).Contains(model)) throw new InvalidOperationException($"El área ya carga el modelo {model}.");
+        var output = new byte[list.Length + EntrySize];
+        list.CopyTo(output, 0);
+        entry.CopyTo(output.AsSpan(list.Length));
+        return output;
+    }
+}
+
 /// <summary>Location of one fixed-size entity record inside the zone file.</summary>
 public readonly record struct Gen6EntityRecord(MapEventKind Kind, int Index, int Offset, int Size);
 

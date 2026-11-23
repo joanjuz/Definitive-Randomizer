@@ -3,7 +3,7 @@
 **Estado:**
 - Implementado para Pokémon X / Y y Rubí Omega / Zafiro Alfa.
 - Escritura comprobada en una copia real de X.
-- **Sin prueba dentro del juego.**
+- **Sin prueba dentro del juego aprobada.** La primera prueba del propietario (Ruta 2 de X) se congelaba al entrar en la ruta porque el área no cargaba el modelo de la enfermera; corregido, pendiente de una nueva prueba.
 - Ultra Sol / Ultra Luna, Sol / Luna y los juegos de DS no tienen esta función.
 
 ## Qué hace
@@ -55,6 +55,23 @@ En la tabla de entidades de la zona (parte 1 del paquete `ZO`) se añade un regi
   - El script de zona y el resto de partes.
 - **Verificación.** Se relee la zona y se comprueba byte a byte antes de guardar. El resto de zonas del GARC debe quedar idéntico.
 
+### Lista de modelos del área
+
+Cada área tiene la lista de modelos de personaje que carga el juego:
+
+- **Dónde está.** X / Y: `a/1/4/9`; Rubí Omega / Zafiro Alfa: `a/1/3/7`. Hay un miembro por área; el área es el u16 `0x02` de la cabecera de la zona.
+- **Formato.** Entradas de 24 bytes, con el modelo en el primer u16.
+- **Comprobado en los datos.** En todas las zonas con NPC de X (339) y de Zafiro Alfa (453), los modelos de sus NPC están en la lista de su área.
+- **Consecuencia.** Si el área no carga el modelo de la enfermera, el juego se congela al entrar en la zona. Ocurrió en la primera prueba jugable: una enfermera en la Ruta 2 de X sin esta entrada.
+- **Qué hace ahora la función.**
+  - Si falta, añade al final de la lista del área la entrada del modelo de la enfermera.
+  - La entrada se copia de las listas del propio juego, que tienen la misma en todos los Centros. Si no fuera única, la función no se ofrece.
+  - La lista es del área: el modelo se carga en todas las zonas que la comparten, y el aviso dice cuántas son.
+  - No se supera la lista más larga del juego (X: 28; Zafiro Alfa: 31).
+  - La zona y la lista se guardan en la misma entrada del historial y se deshacen juntas.
+- **Precedente.** «Enable Catch Zones» hace lo mismo al añadir su enfermera en la zona 338 de X: inserta el NPC y la entrada del modelo 59 en la lista del área 46.
+- **CRO.** No se usa CRO Expander ni se modifica ningún CRO: la función solo cambia datos.
+
 ## Casillas válidas
 
 Se rechaza la casilla:
@@ -69,27 +86,29 @@ El valor de permiso de la casilla se muestra junto con cuántos NPC de la zona e
 
 ## Pruebas
 
-- **`--map3ds-nurse-only`** (14 comprobaciones sintéticas):
+- **`--map3ds-nurse-only`** (19 comprobaciones sintéticas):
   - plantilla tomada del juego, y nada si no hay enfermera o no coinciden;
   - inserción byte a byte y rechazos;
-  - validación de casillas y relectura.
+  - validación de casillas y relectura;
+  - lista de modelos: añadir sin tocar las entradas existentes, entrada única, área que ya carga el modelo, lista ilegible o llena.
 - **`--map3ds-nurse-ui-only`** (7 comprobaciones fuera de pantalla):
   - botón solo con proyecto, panel y elección de casilla con clic;
   - casilla ocupada, vista previa sin escritura y dirección;
   - guardado por el proyecto y selección de la enfermera nueva.
-- **`--map3ds-add-nurse-probe`** en una copia real de X, zona 259 (Ruta 2), casilla (462, 458), mirando abajo. 7/7:
+- **`--map3ds-add-nurse-probe`** en una copia real de X, zona 259 (Ruta 2), casilla (462, 458), mirando abajo. 8/8:
   - la vista previa no escribe;
   - al reabrir aparece la enfermera (script 2100, modelo 59);
   - los demás registros, scripts y partes no cambian, ni las demás zonas;
+  - la lista del área 2 pasa de 13 a 14 modelos y las demás listas quedan idénticas;
   - queda entrada de historial;
-  - deshacer devuelve el SHA-256 original;
+  - deshacer devuelve el SHA-256 original de los dos archivos;
   - los cambios externos exigen recargar.
-- **`--map3ds-add-nurse-rebuild`:** la imagen 3DS reconstruida contiene byte a byte el archivo de zonas editado.
+- **`--map3ds-add-nurse-rebuild`:** la imagen 3DS reconstruida contiene byte a byte el archivo de zonas y la lista de modelos editados.
 - **Zafiro Alfa:** comprobación de solo lectura en una copia real. Encuentra la enfermera (zona 228, modelo 298, 16 enfermeras) sin escribir nada.
 
 ## Limitaciones
 
-- **Sin prueba en el juego.**
+- **Sin prueba en el juego.** La primera versión, sin la lista de modelos, se congelaba al entrar en la Ruta 2.
   - No está comprobado que la secuencia del Centro funcione fuera de un Centro Pokémon.
   - Su script coloca la cámara con valores pensados para los Centros y llama a la animación de la máquina curativa.
   - Lo que ocurra fuera de un Centro (salto de cámara, animación ausente, bloqueo) solo se sabrá en el juego.

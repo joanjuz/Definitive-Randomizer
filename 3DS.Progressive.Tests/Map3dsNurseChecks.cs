@@ -39,11 +39,25 @@ internal static class Map3dsNurseChecks
         ];
     }
 
-    internal static Gen6MapBackend Backend(byte[][] zones)
+    /// <summary>A 24-byte model-list entry like the game's: the model at 0x00 and 0x14, flags in between.</summary>
+    internal static byte[] ModelEntry(int model, byte flag = 1)
+    {
+        var e = new byte[Gen6AreaModels.EntrySize];
+        BinaryPrimitives.WriteUInt16LittleEndian(e, (ushort)model); e[2] = 1; e[3] = 2; e[6] = 1; e[7] = 1; e[8] = 1; e[9] = flag; e[10] = 1; e[11] = 1; e[17] = 2;
+        BinaryPrimitives.WriteUInt16LittleEndian(e.AsSpan(0x14), (ushort)model);
+        return e;
+    }
+
+    /// <summary>Area 0 (every synthetic zone) loads model 7 only; area 1 is a Pokémon Center list with the nurse.</summary>
+    internal static byte[][] ModelLists() => [ModelEntry(7), [.. ModelEntry(7), .. ModelEntry(NurseModel)]];
+
+    internal static Gen6MapBackend Backend(byte[][] zones, byte[][]? models = null, bool noModels = false)
     {
         var matrix = Map3dsGen6Checks.Matrix(2, 2, 0, 1, -1, 1);
         var blocks = new[] { Map3dsGen6Checks.Block(0x20u, odd: (15 * 40) + 30), Map3dsGen6Checks.Block(0x20u) };
-        return new Gen6MapBackend(Gen6Title.XY, zones.Length, i => zones[i], 1, _ => matrix, blocks.Length, i => blocks[i], ["", "", "", "Pueblo Prueba"]);
+        models ??= ModelLists();
+        return new Gen6MapBackend(Gen6Title.XY, zones.Length, i => zones[i], 1, _ => matrix, blocks.Length, i => blocks[i], ["", "", "", "Pueblo Prueba"],
+            modelListCount: noModels ? 0 : models.Length, modelList: noModels ? null : i => models[i]);
     }
 
     internal static void Run(Action<bool, string> check)
@@ -86,6 +100,25 @@ internal static class Map3dsNurseChecks
         var crowded = Map3dsGen6Checks.Zone(0, 3, Enumerable.Range(0, 255).Select(i => new Map3dsGen6Checks.SyntheticNpc(i % 80, i / 80)).ToArray());
         try { Gen6ZoneEdit.AddNpc(crowded, b.Nurse.Record, 1, 70, 1); } catch (InvalidOperationException) { full = true; }
         check(badTemplate && badFacing && badCell && full, "AddNpc_RefusesBadTemplatesDirectionsCellsAndFullCounts");
+
+        // Model lists: without the nurse's model in the area's list the game freezes on entering the zone.
+        var lists = ModelLists();
+        var appended = Gen6AreaModels.Add(lists[0], ModelEntry(NurseModel));
+        bool duplicate = false, badLength = false;
+        try { Gen6AreaModels.Add(lists[1], ModelEntry(NurseModel)); } catch (InvalidOperationException) { duplicate = true; }
+        try { Gen6AreaModels.Models(new byte[25]); } catch (MapFormatException) { badLength = true; }
+        check(Gen6AreaModels.Models(appended).SequenceEqual([7, NurseModel]) && appended.AsSpan(0, 24).SequenceEqual(lists[0]) && duplicate && badLength,
+            "AreaModels_AppendKeepsTheListAndRefusesDuplicatesAndBadLengths");
+        check(Gen6AreaModels.Entry(lists, NurseModel) is { } entry && entry.AsSpan().SequenceEqual(ModelEntry(NurseModel))
+            && Gen6AreaModels.Entry([.. lists, ModelEntry(NurseModel, flag: 0)], NurseModel) is null && Gen6AreaModels.Entry(lists, 99) is null,
+            "AreaModels_NurseEntryIsCopiedOnlyWhenEveryListAgrees");
+        check(b.AreaLoadsNurse(1) == false && b.NurseModelEntry is { Length: 24 } && b.ModelListCeiling == 2
+            && b.ValidateAddNurse(1, 31, 15, 180).Reason.Contains("Se añadirá el modelo 59 a la lista de modelos del área 0 (4 zonas la usan)"), "NurseCheck_MissingAreaModelIsAddedAndExplained");
+        check(Backend(zones, [lists[1], lists[1]]) is var loaded && loaded.AreaLoadsNurse(1) == true && loaded.ValidateAddNurse(1, 31, 15, 180) is { Allowed: true } l && !l.Reason.Contains("Se añadirá"),
+            "NurseCheck_AreaThatLoadsTheNurseNeedsNoModelChange");
+        check(Backend(zones, noModels: true).ValidateAddNurse(1, 31, 15, 180) is { Allowed: false } nm && nm.Reason.Contains("se congela")
+            && Backend(zones, [[.. ModelEntry(7), .. ModelEntry(8)], lists[1]]).ValidateAddNurse(1, 31, 15, 180) is { Allowed: false } fullList && fullList.Reason.Contains("máximo del juego"),
+            "NurseCheck_UnreadableOrFullModelListsAreRefused");
 
         // Validation of the cell.
         var free = b.ValidateAddNurse(1, 31, 15, 180);
@@ -166,6 +199,9 @@ internal static class Map3dsNurseChecks
         string archive = service.ZoneArchive;
         byte[] original = File.ReadAllBytes(archive);
         string originalHash = Convert.ToHexString(SHA256.HashData(original));
+        string modelArchive = service.ModelArchive;
+        byte[] originalModels = File.ReadAllBytes(modelArchive);
+        string originalModelsHash = Convert.ToHexString(SHA256.HashData(originalModels));
         var before = Gen6MapBackend.FromConfig(session.GameConfiguration);
         Console.WriteLine(before.NurseSummary + $" Máximo de NPC por zona: {before.NpcCeiling}.");
         if (x < 0)
@@ -180,8 +216,11 @@ internal static class Map3dsNurseChecks
         Console.WriteLine($"Zona {zone} ({before.Zones.First(z => z.Id == zone).Name}): {count} NPC · enfermera nueva en ({x}, {y}) mirando {Gen6MapBackend.DirectionName(facing)}");
         Console.WriteLine("Comprobación: " + before.ValidateAddNurse(zone, x, y, facing).Reason);
 
+        int area = before.Zone(zone).Area;
+        bool needsModel = before.AreaLoadsNurse(zone) == false;
+        Console.WriteLine($"Área {area}: " + (needsModel ? $"no carga el modelo {before.Nurse!.Model}; se añadirá a su lista" : "ya carga el modelo de la enfermera"));
         var proposal = service.PreviewAddNurse(before, zone, x, y, facing);
-        bool previewSafe = File.ReadAllBytes(archive).AsSpan().SequenceEqual(original);
+        bool previewSafe = File.ReadAllBytes(archive).AsSpan().SequenceEqual(original) && File.ReadAllBytes(modelArchive).AsSpan().SequenceEqual(originalModels);
         Console.WriteLine((previewSafe ? "PASS" : "FAIL") + " NurseReal_PreviewWritesNothing");
         service.Apply(proposal);
         var after = Gen6MapBackend.FromConfig(session.GameConfiguration);
@@ -200,16 +239,25 @@ internal static class Map3dsNurseChecks
         var membersAfter = new GARC.MemGARC(File.ReadAllBytes(archive)).Files;
         bool otherZones = membersAfter.Length == membersBefore.Length && Enumerable.Range(0, membersAfter.Length).All(i => i == zone || membersAfter[i].AsSpan().SequenceEqual(membersBefore[i]));
         Console.WriteLine((otherZones ? "PASS" : "FAIL") + " NurseReal_OtherZonesByteIdentical");
+        var listsBefore = new GARC.MemGARC(originalModels).Files;
+        var listsAfter = new GARC.MemGARC(File.ReadAllBytes(modelArchive)).Files;
+        bool models = listsAfter.Length == listsBefore.Length && after.AreaLoadsNurse(zone) == true
+            && Enumerable.Range(0, listsAfter.Length).All(i => i == area || listsAfter[i].AsSpan().SequenceEqual(listsBefore[i]))
+            && (needsModel
+                ? listsAfter[area].AsSpan(0, listsBefore[area].Length).SequenceEqual(listsBefore[area]) && listsAfter[area].AsSpan(listsBefore[area].Length).SequenceEqual(before.NurseModelEntry)
+                : listsAfter[area].AsSpan().SequenceEqual(listsBefore[area]));
+        Console.WriteLine((models ? "PASS" : "FAIL") + $" NurseReal_AreaModelListHasTheNurseAndOtherAreasAreIdentical ({Gen6AreaModels.Models(listsBefore[area]).Count} → {Gen6AreaModels.Models(listsAfter[area]).Count} modelos)");
         var entry = session.History.Read().Entries.Last();
         bool recorded = entry.Parameters.GetValueOrDefault("ActionId") == Map3dsNpcMoveService.NurseActionId && entry.Parameters.GetValueOrDefault("Gameplay") == "not tested";
         Console.WriteLine((recorded ? "PASS" : "FAIL") + $" NurseReal_HistoryEntry «{entry.Action}»");
         RestorePoints.Undo(session.History, session.ProjectRoot, entry.Id);
-        bool restored = Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(archive))) == originalHash;
-        Console.WriteLine((restored ? "PASS" : "FAIL") + " NurseReal_UndoRestoresTheOriginalArchive");
+        bool restored = Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(archive))) == originalHash
+            && Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(modelArchive))) == originalModelsHash;
+        Console.WriteLine((restored ? "PASS" : "FAIL") + " NurseReal_UndoRestoresBothOriginalArchives");
         bool stale = false;
         try { service.PreviewAddNurse(Gen6MapBackend.FromConfig(session.GameConfiguration), zone, x, y, facing); } catch (IOException) { stale = true; }
         Console.WriteLine((stale ? "PASS" : "FAIL") + " NurseReal_ChangesOutsideTheEditorRequireAReload");
-        if (!(previewSafe && present && kept && otherZones && recorded && restored && stale)) throw new InvalidDataException("La prueba real de «Añadir enfermera» falló.");
+        if (!(previewSafe && present && kept && otherZones && models && recorded && restored && stale)) throw new InvalidDataException("La prueba real de «Añadir enfermera» falló.");
         service.Refresh();
         service.Apply(service.PreviewAddNurse(Gen6MapBackend.FromConfig(session.GameConfiguration), zone, x, y, facing));
         Console.WriteLine("Enfermera añadida de nuevo en la copia para la prueba jugable · gameplay NOT tested");
@@ -229,14 +277,17 @@ internal static class Map3dsNurseChecks
         {
             var cfg = project.GameConfiguration;
             long at = Map3dsTrainerFacingChecks.FindInImage(image, Path.Combine(cfg.RomFS, cfg.GetGARCFileName("encdata")));
-            Console.WriteLine((at >= 0 ? "PASS" : "FAIL") + $" NurseRebuild_ImageContainsTheEditedZoneArchive (desplazamiento 0x{at:X} en el RomFS); gameplay NOT tested");
-            if (at < 0) throw new InvalidDataException("La imagen no contiene el archivo de zonas editado.");
+            long lists = Map3dsTrainerFacingChecks.FindInImage(image, Path.Combine(cfg.RomFS, Gen6MapBackend.ModelListArchive(cfg.XY)));
+            Console.WriteLine((at >= 0 ? "PASS" : "FAIL") + $" NurseRebuild_ImageContainsTheEditedZoneArchive (desplazamiento 0x{at:X} en el RomFS)");
+            Console.WriteLine((lists >= 0 ? "PASS" : "FAIL") + $" NurseRebuild_ImageContainsTheModelListArchive (desplazamiento 0x{lists:X} en el RomFS); gameplay NOT tested");
+            if (at < 0 || lists < 0) throw new InvalidDataException("La imagen no contiene los archivos editados.");
             return;
         }
         RealRebuildChecks.VerifyExisting(copyRoot, image, reextract);
         var backend = Gen6MapBackend.FromConfig(GameProjectSession.Open(reextract, false).GameConfiguration);
         var nurse = backend.ZoneEvents(zone).LastOrDefault(v => v.Kind == MapEventKind.Npc);
-        bool ok = nurse is not null && (int)nurse.X == x && (int)nurse.Y == y && nurse.Properties.First(p => p.Name == "Script").Value == Gen6Nurse.Script.ToString();
+        bool ok = nurse is not null && (int)nurse.X == x && (int)nurse.Y == y && nurse.Properties.First(p => p.Name == "Script").Value == Gen6Nurse.Script.ToString()
+            && backend.AreaLoadsNurse(zone) == true;
         Console.WriteLine((ok ? "PASS" : "FAIL") + $" NurseRebuild_ReextractedImageKeepsTheNurse; gameplay NOT tested");
         if (!ok) throw new InvalidDataException("La imagen reconstruida no conserva la enfermera.");
     }
