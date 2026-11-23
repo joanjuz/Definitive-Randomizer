@@ -1,6 +1,8 @@
 # Editor de mapas 3DS: orientación y visión de entrenadores existentes
 
-Estado: implementado en `feature/3ds-map-editor-trainer-facing`. Escritura verificada en copias reales; **la prueba dentro del juego está pendiente**.
+Estado: implementado en `feature/3ds-map-editor-trainer-facing`. Escritura verificada en copias reales.
+
+**Prueba dentro del juego:** aprobada por el propietario en **Ultra Luna** (Ruta 1, primer entrenador de la zona 0 girado de 270° a 90°: mira hacia el nuevo lado, detecta al jugador e inicia su combate). Sin prueba en el juego: Ultra Sol, X / Y y Rubí Omega / Zafiro Alfa.
 
 ## Alcance
 
@@ -68,4 +70,5 @@ Al seleccionar un entrenador aparece el panel «Orientación y visión» (Gen6) 
 - `--map3ds-trainer-facing-only` (19, sintética) y `--map3ds-trainer-facing-ui-only` (11, fuera de pantalla), las dos en el CI.
 - `--map3ds-trainer-facing-probe-gen6` / `-gen7`, en copias reales: vista previa sin escritura, reapertura, bytes cambiados, demás zonas o miembros idénticos, historial, deshacer o restaurar, y rechazo de los cambios externos.
 - `--map3ds-trainer-facing-rebuild`: imagen 3DS y verificación.
+- Regresión de mover NPC tras compartir `Rewrite` entre los servicios: `--map3ds-npc-move-probe` en copias de X y Zafiro Alfa (7/7 cada una, ida y vuelta: el archivo vuelve a su SHA-256 inicial) y `--map3ds-gen7-npc-move-probe` en Ultra Luna (9/9, mismo cambio de 24 bytes que en la validación anterior).
 - Evidencia: `--map3ds-gen6-facing-probe` y `--map3ds-gen7-event-dump`.
