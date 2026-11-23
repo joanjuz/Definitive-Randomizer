@@ -122,6 +122,7 @@ internal static class RunnerCatalog
         new("--map3ds-gen7-catch-zones-only","",RunnerCategory.Synthetic,true),
         new("--map3ds-gen7-catch-zones-ui-only","",RunnerCategory.Ui,true),
         new("--map3ds-gen7-catch-zone-probe","<copia USUM en carpeta de pruebas> <área> <x1> <y1> <x2> <y2> <tabla origen = área×1000+tabla>",RunnerCategory.Real,false),
+        new("--map3ds-gen7-catch-zone-ui-probe","<proyecto> <texto del nombre del área>",RunnerCategory.Real,false),
         new("--map3ds-gen7-catch-zone-rebuild","<copia con la zona de captura> <imagen 3DS nueva>",RunnerCategory.Real,false),
         new("--map3ds-gen7-encounter-research","<copia o extracción USUM> <salida.tsv>",RunnerCategory.Real,false),
         new("--map3ds-gen7-encounter-triangles","<copia o extracción USUM> <área> <atributo hex>",RunnerCategory.Real,false),
