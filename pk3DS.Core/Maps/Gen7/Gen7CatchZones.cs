@@ -22,13 +22,16 @@ public sealed record Gen7EncounterRegion(int ZoneFile, int Row, uint Table, uint
 {
     public bool Allows(uint attribute) => attribute < 32 && ((Mask >> (int)attribute) & 1) != 0;
 
-    /// <summary>Whether a point (a triangle centre) is inside the shape: box half sizes on X/Z in its own frame, the height as a tolerance.</summary>
+    /// <summary>
+    /// Whether a point is inside the shape. The box size is a half-extent in its own frame: read that way the 12 grass boxes
+    /// of Ultra Moon cover 99.8 % of their grass patch and no other patch (44.6 % read as the full width).
+    /// </summary>
     public bool Contains(Vector3 p)
     {
         if (Box)
         {
             var l = Vector3.Transform(p - Position, Quaternion.Inverse(Quaternion.Normalize(Rotation)));
-            return Math.Abs(l.X) <= Size.X / 2 && Math.Abs(l.Z) <= Size.Z / 2 && Math.Abs(l.Y) <= Math.Max(Size.Y, 1);
+            return Math.Abs(l.X) <= Size.X && Math.Abs(l.Z) <= Size.Z && Math.Abs(l.Y) <= Math.Max(Size.Y, 1);
         }
         float dx = p.X - Position.X, dz = p.Z - Position.Z;
         return (dx * dx) + (dz * dz) <= Radius * Radius && Math.Abs(p.Y - Position.Y) <= Math.Max(Height, 1);

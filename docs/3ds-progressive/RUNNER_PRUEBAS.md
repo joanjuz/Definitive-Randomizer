@@ -286,6 +286,10 @@ Necesitan extracciones, ROMs o carpetas de salida. Los argumentos concretos (ent
 | `--map3ds-gen7-encounter-research` | `<raíz> <salida.tsv>` | investigación de solo lectura: tablas, atributos de suelo y partes de ED por área, y para cada región los triángulos que cubre |
 | `--map3ds-gen7-encounter-triangles` | `<raíz> <área> <atributo>` | solo lectura: casillas con triángulos de un atributo |
 | `--map3ds-gen7-encounter-verify` | `<raíz>` | solo lectura: reconstrucción byte a byte de ED y EA en todas las áreas y escritura en memoria en Pueblo Lilii |
+| `--map3ds-gen7-encounter-overlap` | `<raíz> <área> <otra>` | solo lectura: matrices de las dos áreas, bloques compartidos y, por mancha de hierba de la primera, sus encuentros en la otra |
+| `--map3ds-gen7-encounter-candidates` | `<raíz>` | solo lectura: manchas de hierba donde el editor permite crear una zona de captura, por área |
+| `--map3ds-gen7-encounter-box-scale` | `<raíz>` | solo lectura: cobertura de cada caja de hierba leyendo su tamaño como ancho completo o como semieje |
+| `--map3ds-gen7-encounter-mask-bits` | `<raíz> <área>` | solo lectura: atributos que usan las máscaras originales y suelos del terreno propio de un área |
 | `--map3ds-gen7-encounter-plan` | `<raíz> <área> <x1> <y1> <x2> <y2>` | solo lectura: casillas de hierba del rectángulo y comprobación de la zona de captura |
 | `--map3ds-trainer-facing-rebuild` | `<copia> <imagen> <reextracción> <zona/área> <npc/n.º> <grados> [alcance]` | reconstruye la imagen 3DS, la reextrae y comprueba la orientación (y el alcance en Gen6). Con `-` en lugar de la carpeta de reextracción (sin espacio para una reextracción completa) solo comprueba que la imagen contiene byte a byte el archivo de campo editado |
 | `--map3ds-gen6-facing-probe` | `<carpeta extraída>` | evidencia de la orientación Gen6: para cada valor 0–7, proporción de casillas de la línea de visión iguales a la del entrenador en cada dirección; solo lectura |

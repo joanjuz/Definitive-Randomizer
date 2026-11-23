@@ -8,7 +8,7 @@
 | **Pokémon Y** | El mismo formato que X, comprobado en los datos de Y (estructura de zonas, tablas, valor de hierba y mapas de zonas idénticos). Sin prueba en el juego. |
 | **Rubí Omega** | **Prueba jugable aprobada** por el propietario en Villa Raíz (24 casillas, tabla de Ruta 101), ROM `OR-captura-villa-raiz.3ds`. |
 | **Zafiro Alfa** | **Prueba jugable aprobada** por el propietario en Villa Raíz (24 casillas, tabla de Ruta 101), ROM `AS-captura-villa-raiz.3ds`; copia real 11/11, sincronización EN y restauración exacta. |
-| **Ultra Luna** | Implementado (ver «Ultra Sol / Ultra Luna» más abajo). Escritura comprobada en una copia real limpia de Ultra Luna (Pueblo Lilii). **Sin prueba en el juego.** |
+| **Ultra Luna** | Implementado (ver «Ultra Sol / Ultra Luna» más abajo). **Sin prueba en el juego válida:** la primera imagen de prueba (Pueblo Lilii) se descartó porque aquella hierba es terreno de la Ruta 1 y la caja se escribió con el doble de tamaño. Con las reglas actuales no hay en Ultra Luna un sitio de hierba `0x1F` verificable. |
 | **Ultra Sol** | Mismo código; sus regiones son idénticas a las de Ultra Luna y sus tablas distintas. Sin copia real ni prueba en el juego. |
 | **Juegos DS** | Sin esta función de zonas de captura 3DS. |
 
@@ -113,6 +113,7 @@ La región indica qué **tabla** del área usa. Se comprobó en las 336 áreas d
 - **Regiones.** Están en la **parte 6 del paquete de eventos (ED)** del área, en un archivo por zona.
   - Cada registro mide 28 bytes: `{u32 6, u32 tabla, u32 máscara, 3 × u32, u32 desplazamiento de la forma}`.
   - La forma puede ser una caja de 48 bytes (posición, cuaternión y tamaño) o un cilindro de 28 bytes (posición, radio y altura).
+  - **El tamaño de la caja es un semieje** (la mitad del ancho). Leídas así, las 12 cajas de hierba de Ultra Luna cubren el 99,8 % de su mancha de hierba y ninguna otra; leídas como ancho completo, el 44,6 %.
   - Hay 231 regiones en 64 áreas, y ningún área tiene regiones sin tablas.
 - **Tablas.** Están en el **paquete EA** del área (slot 9): entradas de 768 bytes, de día y de noche.
   - Todos los índices de las regiones están dentro de su paquete.
@@ -120,14 +121,20 @@ La región indica qué **tabla** del área usa. Se comprobó en las 336 áreas d
 - **Máscara.** El bit `n` permite el atributo de suelo `n`.
   - Solo hay 1 máscara de 231 con un atributo ausente del suelo de su área.
   - Las cajas de hierba de la Ruta 1 (bit 31) cubren casi solo triángulos de atributo `0x1F`; las de agua (bit 8) cubren el atributo `0x08`.
-  - Un atributo sin región no da encuentros: Pueblo Lilii tiene 294 casillas de hierba `0x1F` y ninguna región.
+  - Atributos que usan las máscaras originales (regiones por bit): `0x00` 124, `0x16` 44, `0x08` 15, `0x12` 14, `0x1F` 12, `0x19` 8, `0x0A` 7, `0x14` 5, `0x15` 5 y otros con 1 o 2.
+  - La hierba `0x1F` solo existe en el terreno de la Ruta 1 y sus copias.
+- **Terreno compartido.** Un área también contiene el terreno de sus vecinas, para dibujarlo; a veces con los mismos bloques en la misma posición y a veces como copia con otros números de bloque. Pueblo Lilii comparte 8 bloques con la Ruta 1: sus 294 casillas de hierba son hierba de la Ruta 1, donde el jugador está en el área de la Ruta 1. El terreno propio de Pueblo Lilii tiene suelos `0x00`–`0x08`, sin hierba de encuentros.
 - **Ultra Sol y Ultra Luna:** las regiones (parte 6 de ED) son idénticas en las 336 áreas; las tablas difieren.
 - **Indicios no imprescindibles:** el campo `u32 0x38` de los datos de zona tiene los bits 0 y 2 en el 98 % de las zonas con regiones, pero también en zonas sin ellas. Pueblo Lilii tiene el mismo valor que la Ruta 1, así que no bloquea la prueba.
 
 ### Qué hace el editor
 
-1. **Casillas.** Se eligen casillas (de 105 unidades, como en el resto del editor) que tengan suelo de hierba `0x1F`, el de la Ruta 1. Cualquier otro suelo se rechaza.
-2. **Región.** Se añade una caja alineada con los ejes que cubre las casillas, con la máscara de `0x1F` y altura 500, como las originales. Si la caja abarca casillas de hierba no marcadas, se avisa: también tendrán encuentros.
+1. **Casillas.** Se eligen casillas (de 105 unidades, como en el resto del editor) que tengan suelo de hierba `0x1F`, el de la Ruta 1. Cualquier otro suelo se rechaza. También se rechaza el terreno de otra área:
+   - un bloque que carga otra área en la misma posición, salvo que el área ya tenga encuentros en él;
+   - la misma hierba (mismas coordenadas y altura) que tiene encuentros en otra área.
+
+   El panel marca con borde punteado las casillas disponibles y la capa «Encuentros» muestra en verde las que ya los tienen.
+2. **Región.** Se añade una caja alineada con los ejes que cubre las casillas (tamaño escrito como semieje), con la máscara de `0x1F` y altura 500, como las originales. Si la caja abarca casillas de hierba no marcadas, se avisa: también tendrán encuentros.
 3. **Tabla.** Se elige entre las tablas de las regiones de hierba del juego.
    - Si es de otra área, se copia al área. En un paquete original se rellena su entrada vacía, conservando el inicio de datos en 0x80.
    - Si es del área, se usa sin copiarla.
@@ -144,14 +151,15 @@ La región indica qué **tabla** del área usa. Se comprobó en las 336 áreas d
 
 ### Pruebas
 
-- **`--map3ds-gen7-catch-zones-only`** (13 comprobaciones sintéticas) y **`--map3ds-gen7-catch-zones-ui-only`** (3).
+- **`--map3ds-gen7-catch-zones-only`** (15 comprobaciones sintéticas) y **`--map3ds-gen7-catch-zones-ui-only`** (5).
 - **Copia real de Ultra Luna limpia, `--map3ds-gen7-catch-zone-probe`:** Pueblo Lilii, 61 casillas de hierba, tabla 0 de la Ruta 1. 8/8:
   - solo cambian los miembros de eventos y tablas del área 1;
   - el editor de encuentros pasa de 794 a 796 ubicaciones;
   - la restauración devuelve todos los miembros originales;
   - un editor con datos antiguos no puede escribir.
   - Verificado también con un lector independiente.
-- **Imagen 3DS reconstruida:** contiene byte a byte el archivo de campo editado.
+- **Imagen 3DS reconstruida:** contiene byte a byte el archivo de campo editado. **Descartada para la prueba jugable** (hierba de la Ruta 1 y caja escrita con el tamaño como ancho completo).
+- **`--map3ds-gen7-encounter-candidates`** (solo lectura): con las reglas actuales, en Ultra Luna solo queda una mancha `0x1F` sin encuentros, en el área 010 (una copia de la Ruta 1 cuyo uso en el juego no se conoce).
 
 ## Limitaciones
 

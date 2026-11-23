@@ -40,14 +40,16 @@ internal static class Map3dsGen7CatchZoneChecks
         return e;
     }
 
-    /// <summary>Collision block: grass 0x1F on X/Z 0–1050 and plain ground 0x01 on X 1050–2100, Z 0–1050.</summary>
-    internal static byte[] Block()
+    /// <summary>Collision block: grass 0x1F on X/Z 0–1050 and plain ground 0x01 on X 1050–2100, Z 0–1050, at height <paramref name="y"/>.</summary>
+    internal static byte[] Block(float y = 0)
     {
         (Vector3, Vector3, Vector3, uint)[] tris =
         [
             (new(0, 0, 0), new(1050, 0, 0), new(0, 0, 1050), 0x1F), (new(1050, 0, 0), new(1050, 0, 1050), new(0, 0, 1050), 0x1F),
             (new(1050, 0, 0), new(2100, 0, 0), new(1050, 0, 1050), 0x01), (new(2100, 0, 0), new(2100, 0, 1050), new(1050, 0, 1050), 0x01),
         ];
+        var up = new Vector3(0, y, 0);
+        tris = [.. tris.Select(t => (t.Item1 + up, t.Item2 + up, t.Item3 + up, t.Item4))];
         var col = new byte[8 + (tris.Length * 72)];
         BinaryPrimitives.WriteUInt32LittleEndian(col, Gen7Collision.Magic); BinaryPrimitives.WriteInt32LittleEndian(col.AsSpan(4), tris.Length);
         for (int i = 0; i < tris.Length; i++)
@@ -61,25 +63,29 @@ internal static class Map3dsGen7CatchZoneChecks
     }
 
     /// <summary>
-    /// Area 0: no regions, empty EA (the target). Area 1: one grass region (table 0, mask bit 31) over the grass and an EA with one
-    /// table (the source). Area 2: two region files (refused). All three use the collision block.
+    /// Area 0: no regions, empty EA (the target), on its own copy of the collision block (block 1). Area 1: one grass region
+    /// (table 0, mask bit 31) over the grass and an EA with one table (the source). Area 2: two region files (refused).
+    /// Area 3: no regions, on block 0 like areas 1 and 2 (terrain of another area, not offered).
     /// </summary>
     internal static Dictionary<int, byte[]> Files()
     {
         var tr = Map3dsGen6Checks.Pack("TR", Map3dsGen7Checks.Tr(1, 1, 4200, 0));
-        var grass = (0u, Gen7CatchZones.MaskOf(0x1F), new Vector3(525, 0, 525), new Vector3(1050, 500, 1050));
+        var own = Map3dsGen6Checks.Pack("TR", Map3dsGen7Checks.Tr(1, 1, 4200, 1));
+        var grass = (0u, Gen7CatchZones.MaskOf(0x1F), new Vector3(525, 0, 525), new Vector3(525, 500, 525));
         return new Dictionary<int, byte[]>
         {
-            [0] = Ed(RegionFile()), [2] = tr, [9] = Gen7CatchZones.Pack("EA", []),
+            [0] = Ed(RegionFile()), [2] = own, [9] = Gen7CatchZones.Pack("EA", []),
             [11] = Ed(RegionFile(grass)), [13] = tr, [20] = Gen7CatchZones.Pack("EA", [Entry(7)]),
             [22] = Ed(RegionFile(), RegionFile()), [24] = tr, [31] = Gen7CatchZones.Pack("EA", []),
+            [33] = Ed(RegionFile()), [35] = tr, [42] = Gen7CatchZones.Pack("EA", []),
         };
     }
 
     internal static Gen7MapBackend Backend(Dictionary<int, byte[]> files)
     {
-        var block = Block();
-        return new Gen7MapBackend("Prueba", 33, i => files.GetValueOrDefault(i, []), 1, _ => block);
+        // Block 1 (area 0's own terrain) is higher: it is not the same ground as block 0 of the other areas.
+        var block = Block(); var own = Block(1000);
+        return new Gen7MapBackend("Prueba", 44, i => files.GetValueOrDefault(i, []), 2, id => id == 1 ? own : block);
     }
 
     internal static void Run(Action<bool, string> check)
@@ -130,13 +136,18 @@ internal static class Map3dsGen7CatchZoneChecks
         var ok = b.ValidateCatchCells(0, [(2, 2), (3, 2)], source);
         var (plan, _) = b.PlanCatch(0, [(2, 2), (3, 2)], source);
         check(ok.Allowed && ok.Reason.Contains("Se copiará al área la tabla 0 del área 001") && plan is { NewTable: true, SourceArea: 1, Covered: 0, Mask: 0x80000000 }
-            && plan.Position == new Vector3(315, 0, 262.5f) && plan.Size == new Vector3(210, 500, 105), "Gen7Catch_PlanIsABoxOverTheCellsWithACopiedTable");
+            && plan.Position == new Vector3(315, 1000, 262.5f) && plan.Size == new Vector3(105, 500, 52.5f), "Gen7Catch_PlanIsABoxOverTheCellsWithACopiedTable");
         check(b.PlanCatch(0, [(2, 2), (4, 2)], source).Plan is { Covered: 1 } && b.ValidateCatchCells(0, [(2, 2), (4, 2)], source).Reason.Contains("1 casillas de hierba"),
             "Gen7Catch_GrassInsideTheBoxThatWasNotMarkedIsReported");
         check(b.ValidateCatchCells(0, [(12, 2)], source).Reason.Contains("no es suelo de hierba") && b.ValidateCatchCells(0, [(50, 50)], source).Reason.Contains("no tiene suelo")
             && b.ValidateCatchCells(0, [(2, 2)], null).Reason.Contains("Elige la tabla") && !b.ValidateCatchCells(0, [(2, 2)], 5).Allowed
             && b.ValidateCatchCells(2, [(2, 2)], source).Reason.Contains("una zona") && !b.ValidateCatchCells(0, [], source).Allowed,
             "Gen7Catch_OtherGroundMissingSourcesAndMultiZoneAreasAreRefused");
+        check(b.PaintableCells(0).Count == 100 && b.PaintableCells(1).Count == 0 && b.PaintableCells(3).Count == 0 && b.OtherOwner(1, (2, 2)) is null
+            && b.ValidateCatchCells(3, [(2, 2)], source).Reason.Contains("terreno de 001"),
+            "Gen7Catch_TerrainSharedWithAnotherAreaIsOnlyWrittenByTheAreaWithEncountersOnIt");
+        check(Gen7CatchZones.Regions(f[11])[0] is var v && v.Contains(new Vector3(1049, 0, 1049)) && !v.Contains(new Vector3(1060, 0, 525)) && !v.Contains(new Vector3(525, 0, -10)),
+            "Gen7Catch_BoxSizeIsAHalfExtent");
         check(b.PlanCatch(1, [(2, 2)], source).Plan is { NewTable: false, SourceTable: 0 } && b.ValidateCatchCells(1, [(2, 2)], source).Reason.Contains("Usará la tabla 0 que ya tiene el área"),
             "Gen7Catch_AnAreaCanReuseItsOwnTable");
         var g = new Dictionary<int, byte[]>(f) { [0] = Gen7CatchZones.AddRegion(f[0], 0, 0, plan!.Mask, plan.Position, plan.Size), [9] = ea1 };

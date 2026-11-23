@@ -404,6 +404,10 @@ if(args.Length==1&&args[0]=="--map3ds-gen7-catch-zones-ui-only")
 }
 if(args.Length==8&&args[0]=="--map3ds-gen7-catch-zone-probe"){Map3dsGen7CatchZoneChecks.Probe(args[1],int.Parse(args[2]),int.Parse(args[3]),int.Parse(args[4]),int.Parse(args[5]),int.Parse(args[6]),int.Parse(args[7]));return;}
 if(args.Length==3&&args[0]=="--map3ds-gen7-catch-zone-ui-probe"){Exception? failure=null;var thread=new Thread(()=>{try{var app=new ThreeDS.Progressive.App();app.InitializeComponent();WpfTestHost.SuppressStartup();ThreeDS.Progressive.StudioDialog.AutomatedChecks=true;Map3dsGen7CatchZoneChecks.UiProbe(args[1],args[2]);}catch(Exception ex){failure=ex;}});thread.SetApartmentState(ApartmentState.STA);thread.Start();thread.Join();if(failure is not null)System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(failure).Throw();return;}
+if(args.Length==4&&args[0]=="--map3ds-gen7-encounter-overlap"){Map3dsGen7EncounterResearch.Overlap(args[1],int.Parse(args[2]),int.Parse(args[3]));return;}
+if(args.Length==2&&args[0]=="--map3ds-gen7-encounter-candidates"){Map3dsGen7EncounterResearch.Candidates(args[1]);return;}
+if(args.Length==2&&args[0]=="--map3ds-gen7-encounter-box-scale"){Map3dsGen7EncounterResearch.BoxScale(args[1]);return;}
+if(args.Length==3&&args[0]=="--map3ds-gen7-encounter-mask-bits"){Map3dsGen7EncounterResearch.MaskBits(args[1],int.Parse(args[2]));return;}
 if(args.Length==3&&args[0]=="--map3ds-gen7-catch-zone-rebuild"){Map3dsGen7CatchZoneChecks.Rebuild(args[1],args[2]);return;}
 if(args.Length==3&&args[0]=="--map3ds-gen7-encounter-research"){Map3dsGen7EncounterResearch.Run(args[1],args[2]);return;}
 if(args.Length==2&&args[0]=="--map3ds-gen7-encounter-verify"){Map3dsGen7EncounterResearch.Verify(args[1]);return;}
