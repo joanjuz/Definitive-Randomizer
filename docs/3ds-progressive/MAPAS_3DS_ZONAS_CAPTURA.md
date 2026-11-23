@@ -8,7 +8,7 @@
 | **Pokémon Y** | El mismo formato que X, comprobado en los datos de Y (estructura de zonas, tablas, valor de hierba y mapas de zonas idénticos). Sin prueba en el juego. |
 | **Rubí Omega** | **Prueba jugable aprobada** por el propietario en Villa Raíz (24 casillas, tabla de Ruta 101), ROM `OR-captura-villa-raiz.3ds`. |
 | **Zafiro Alfa** | **Prueba jugable aprobada** por el propietario en Villa Raíz (24 casillas, tabla de Ruta 101), ROM `AS-captura-villa-raiz.3ds`; copia real 11/11, sincronización EN y restauración exacta. |
-| **Ultra Luna** | Implementado (ver «Ultra Sol / Ultra Luna» más abajo). **Sin prueba en el juego válida:** la primera imagen de prueba (Pueblo Lilii) se descartó porque aquella hierba es terreno de la Ruta 1 y la caja se escribió con el doble de tamaño. Con las reglas actuales no hay en Ultra Luna un sitio de hierba `0x1F` verificable. |
+| **Ultra Luna** | Implementado (ver «Ultra Sol / Ultra Luna» más abajo). **Sin prueba en el juego válida:** la primera imagen de prueba (Pueblo Lilii) se descartó porque aquella hierba es terreno de la Ruta 1 y la caja se escribió con el doble de tamaño. Segunda prueba preparada: arena `0x19` de la Ruta 13 con la tabla del Desierto de Haina (copia real 8/8 e imagen), pendiente del propietario. |
 | **Ultra Sol** | Mismo código; sus regiones son idénticas a las de Ultra Luna y sus tablas distintas. Sin copia real ni prueba en el juego. |
 | **Juegos DS** | Sin esta función de zonas de captura 3DS. |
 
@@ -122,20 +122,20 @@ La región indica qué **tabla** del área usa. Se comprobó en las 336 áreas d
   - Solo hay 1 máscara de 231 con un atributo ausente del suelo de su área.
   - Las cajas de hierba de la Ruta 1 (bit 31) cubren casi solo triángulos de atributo `0x1F`; las de agua (bit 8) cubren el atributo `0x08`.
   - Atributos que usan las máscaras originales (regiones por bit): `0x00` 124, `0x16` 44, `0x08` 15, `0x12` 14, `0x1F` 12, `0x19` 8, `0x0A` 7, `0x14` 5, `0x15` 5 y otros con 1 o 2.
-  - La hierba `0x1F` solo existe en el terreno de la Ruta 1 y sus copias.
+  - La hierba `0x1F` solo existe en el terreno de la Ruta 1 y sus copias. El suelo `0x00` es el de la hierba de casi todas las demás rutas; `0x16`, el de las de Ula-Ula y Poni; `0x19`, la arena del Desierto de Haina; `0x15`, el de algunas cuevas y colinas.
 - **Terreno compartido.** Un área también contiene el terreno de sus vecinas, para dibujarlo; a veces con los mismos bloques en la misma posición y a veces como copia con otros números de bloque. Pueblo Lilii comparte 8 bloques con la Ruta 1: sus 294 casillas de hierba son hierba de la Ruta 1, donde el jugador está en el área de la Ruta 1. El terreno propio de Pueblo Lilii tiene suelos `0x00`–`0x08`, sin hierba de encuentros.
 - **Ultra Sol y Ultra Luna:** las regiones (parte 6 de ED) son idénticas en las 336 áreas; las tablas difieren.
 - **Indicios no imprescindibles:** el campo `u32 0x38` de los datos de zona tiene los bits 0 y 2 en el 98 % de las zonas con regiones, pero también en zonas sin ellas. Pueblo Lilii tiene el mismo valor que la Ruta 1, así que no bloquea la prueba.
 
 ### Qué hace el editor
 
-1. **Casillas.** Se eligen casillas (de 105 unidades, como en el resto del editor) que tengan suelo de hierba `0x1F`, el de la Ruta 1. Cualquier otro suelo se rechaza. También se rechaza el terreno de otra área:
+1. **Casillas.** Se eligen casillas (de 105 unidades, como en el resto del editor) con uno de los suelos que alguna región original usa como único bit de su máscara: `0x00`, `0x15`, `0x16`, `0x19` y `0x1F`. Todas las casillas de una zona deben tener el mismo suelo. Los suelos que solo aparecen combinados (suelos de cueva) o que ninguna máscara usa se rechazan. También se rechaza el terreno de otra área:
    - un bloque que carga otra área en la misma posición, salvo que el área ya tenga encuentros en él;
    - la misma hierba (mismas coordenadas y altura) que tiene encuentros en otra área.
 
    El panel marca con borde punteado las casillas disponibles y la capa «Encuentros» muestra en verde las que ya los tienen.
-2. **Región.** Se añade una caja alineada con los ejes que cubre las casillas (tamaño escrito como semieje), con la máscara de `0x1F` y altura 500, como las originales. Si la caja abarca casillas de hierba no marcadas, se avisa: también tendrán encuentros.
-3. **Tabla.** Se elige entre las tablas de las regiones de hierba del juego.
+2. **Región.** Se añade una caja alineada con los ejes que cubre las casillas (tamaño escrito como semieje), con la máscara de ese suelo y altura 500. Si la caja abarca casillas de hierba no marcadas, se avisa: también tendrán encuentros.
+3. **Tabla.** Se elige entre las tablas de las regiones originales con uno de esos suelos (190 en Ultra Luna; el nombre indica el suelo).
    - Si es de otra área, se copia al área. En un paquete original se rellena su entrada vacía, conservando el inicio de datos en 0x80.
    - Si es del área, se usa sin copiarla.
 4. **Escritura.** ED y EA se reconstruyen byte a byte; si los originales no se reconstruyen exactamente, no se escribe. Se escriben en una sola reconstrucción del archivo de campo y en una sola entrada del historial.
@@ -144,14 +144,17 @@ La región indica qué **tabla** del área usa. Se comprobó en las 336 áreas d
 
 **Límites de esta primera versión:**
 
-- solo suelo `0x1F`;
+- solo los suelos `0x00`, `0x15`, `0x16`, `0x19` y `0x1F`, uno por zona;
 - solo áreas con un único archivo de regiones (309 de 336);
-- solo tablas de regiones de hierba;
-- regiones de caja.
+- solo tablas de regiones originales con esos suelos;
+- regiones de caja;
+- el editor no sabe dónde están los límites entre áreas que marca un warp de conexión: si una mancha cruza uno, hay que marcar solo el lado del área.
 
 ### Pruebas
 
-- **`--map3ds-gen7-catch-zones-only`** (15 comprobaciones sintéticas) y **`--map3ds-gen7-catch-zones-ui-only`** (5).
+- **`--map3ds-gen7-catch-zones-only`** (16 comprobaciones sintéticas) y **`--map3ds-gen7-catch-zones-ui-only`** (5).
+- **Segunda prueba, copia real limpia de Ultra Luna:** Ruta 13 (área 138), 72 casillas de arena `0x19` (X 183–193, Y 303–312, del lado de la ruta del warp al desierto), tabla 0 del Desierto de Haina. 8/8; verificado también con un lector independiente (miembros 1518 y 1527, solo la parte 6 de ED, tablas de pesca intactas, tabla nueva idéntica a la de Haina, semiejes 630 × 472,5). Imagen `UL-captura-ruta13-arena.3ds`. **Juego: pendiente.**
+- **Búsqueda de sitios** (solo lectura): `--map3ds-gen7-encounter-attribute-candidates`, `--map3ds-gen7-encounter-area-info` y `--map3ds-gen7-encounter-reach`. La mancha libre de Colina Dequilate está desconectada del suelo del área (decorado); la de la Ruta 13 está conectada con las entradas.
 - **Copia real de Ultra Luna limpia, `--map3ds-gen7-catch-zone-probe`:** Pueblo Lilii, 61 casillas de hierba, tabla 0 de la Ruta 1. 8/8:
   - solo cambian los miembros de eventos y tablas del área 1;
   - el editor de encuentros pasa de 794 a 796 ubicaciones;

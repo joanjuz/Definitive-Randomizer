@@ -49,6 +49,16 @@ public static class Gen7CatchZones
     /// mask bit 31 and covers triangles with attribute 0x1F.
     /// </summary>
     public const uint GrassAttribute = 0x1F;
+
+    /// <summary>
+    /// Ground attributes a new region can allow: those that vanilla Ultra Moon regions use as the only bit of their mask
+    /// (regions: 0x00 124, 0x16 44, 0x1F 12, 0x19 5, 0x15 5). Attributes only seen combined with others (cave floors) or
+    /// never seen in a mask are not written.
+    /// </summary>
+    public static readonly IReadOnlyList<uint> WritableAttributes = [0x00, 0x15, 0x16, 0x19, 0x1F];
+    public static bool IsWritable(uint attribute) => WritableAttributes.Contains(attribute);
+    /// <summary>The attribute of a single-bit mask, or null.</summary>
+    public static uint? AttributeOf(uint mask) => mask != 0 && (mask & (mask - 1)) == 0 ? (uint)System.Numerics.BitOperations.TrailingZeroCount(mask) : null;
     public static uint MaskOf(uint attribute) => 1u << (int)attribute;
 
     /// <summary>Parts of a BinLinker pack (two letters, u16 count, count+1 offsets).</summary>

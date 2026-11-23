@@ -80,11 +80,15 @@ public sealed partial class Gen7MapBackend : IMapCatchZones
     public IReadOnlyList<(int X, int Y)> GrassCells(int zone) =>
         GroundCells(zone).Where(c => c.Value.Any(g => g.Attribute == Gen7CatchZones.GrassAttribute)).Select(c => c.Key).OrderBy(c => c.Y).ThenBy(c => c.X).ToArray();
 
+    /// <summary>Cells whose ground has an attribute a new region can allow (<see cref="Gen7CatchZones.WritableAttributes"/>).</summary>
+    public IReadOnlyList<(int X, int Y)> WritableCells(int zone) =>
+        GroundCells(zone).Where(c => c.Value.Any(g => Gen7CatchZones.IsWritable(g.Attribute))).Select(c => c.Key).OrderBy(c => c.Y).ThenBy(c => c.X).ToArray();
+
     public IReadOnlyList<(int X, int Y)> PaintableCells(int zone)
     {
         if (!_worlds.ContainsKey(zone)) return [];
         var encounters = EncounterCells(zone).ToHashSet();
-        return GrassCells(zone).Where(c => !encounters.Contains(c) && OtherOwner(zone, c) is null).ToArray();
+        return WritableCells(zone).Where(c => !encounters.Contains(c) && OtherOwner(zone, c) is null).ToArray();
     }
 
     /// <summary>
@@ -99,29 +103,34 @@ public sealed partial class Gen7MapBackend : IMapCatchZones
     }
 
     private readonly Dictionary<(int Zone, int Col, int Row), bool> _ownsBlock = [];
-    private Dictionary<(int X, int Y), List<(int Area, float Height)>>? _grassEncounters;
+    private Dictionary<(int X, int Y), List<(int Area, uint Attribute, float Height)>>? _encounterGround;
 
-    /// <summary>Every grass cell (0x1F) with encounters in any area, with the area and the ground height.</summary>
-    private Dictionary<(int X, int Y), List<(int Area, float Height)>> GrassEncounterCells()
+    /// <summary>Every cell with encounters in any area: the area, and the allowed ground under it (attribute and height).</summary>
+    private Dictionary<(int X, int Y), List<(int Area, uint Attribute, float Height)>> EncounterGround()
     {
         lock (_catchGate)
         {
-            if (_grassEncounters is not null) return _grassEncounters;
-            var map = new Dictionary<(int, int), List<(int, float)>>();
+            if (_encounterGround is not null) return _encounterGround;
+            var map = new Dictionary<(int, int), List<(int, uint, float)>>();
             foreach (int area in _worlds.Keys)
             {
-                if (!EncounterRegions(area).Any(r => r.Allows(Gen7CatchZones.GrassAttribute))) continue;
+                var regions = EncounterRegions(area);
+                if (regions.Count == 0) continue;
                 var ground = GroundCells(area);
                 foreach (var c in EncounterCells(area))
-                    foreach (var g in ground[c].Where(g => g.Attribute == Gen7CatchZones.GrassAttribute))
+                    foreach (var g in ground[c].Where(g => regions.Any(r => r.Allows(g.Attribute))))
                     {
                         if (!map.TryGetValue(c, out var list)) map[c] = list = [];
-                        list.Add((area, g.Height));
+                        list.Add((area, g.Attribute, g.Height));
                     }
             }
-            return _grassEncounters = map;
+            return _encounterGround = map;
         }
     }
+
+    /// <summary>Read-only: cells whose ground has <paramref name="attribute"/>.</summary>
+    public IReadOnlyList<(int X, int Y)> CellsWithAttribute(int zone, uint attribute) =>
+        GroundCells(zone).Where(c => c.Value.Any(g => g.Attribute == attribute)).Select(c => c.Key).OrderBy(c => c.Y).ThenBy(c => c.X).ToArray();
 
     /// <summary>
     /// The area the ground of a cell is known to belong to when it is not <paramref name="zone"/>, or null when the cell can be
@@ -133,8 +142,8 @@ public sealed partial class Gen7MapBackend : IMapCatchZones
         // The same ground in another area (a copy of the terrain with other block ids) that already has encounters there.
         if (GroundCells(zone).TryGetValue(cell, out var mine))
         {
-            foreach (var (area, height) in GrassEncounterCells().GetValueOrDefault(cell) ?? [])
-                if (area != zone && mine.Any(g => g.Attribute == Gen7CatchZones.GrassAttribute && Math.Abs(g.Height - height) < 50))
+            foreach (var (area, attribute, height) in EncounterGround().GetValueOrDefault(cell) ?? [])
+                if (area != zone && mine.Any(g => g.Attribute == attribute && Math.Abs(g.Height - height) < 50))
                     return _entries.FirstOrDefault(e => e.Id == area)?.Name ?? $"{area:000}";
         }
         int col = (int)Math.Floor(cell.X / 40.0), row = (int)Math.Floor(cell.Y / 40.0);
@@ -157,7 +166,7 @@ public sealed partial class Gen7MapBackend : IMapCatchZones
 
     private IReadOnlyList<MapZoneEntry>? _sources;
 
-    /// <summary>Tables used by vanilla grass regions (mask of attribute 0x1F only), the only ones offered for new zones.</summary>
+    /// <summary>Tables used by vanilla regions whose mask is a single writable attribute, the only ones offered for new zones.</summary>
     public IReadOnlyList<MapZoneEntry> EncounterSources
     {
         get
@@ -165,13 +174,16 @@ public sealed partial class Gen7MapBackend : IMapCatchZones
             lock (_catchGate)
             {
                 if (_sources is not null) return _sources;
-                uint grass = Gen7CatchZones.MaskOf(Gen7CatchZones.GrassAttribute);
                 var list = new List<MapZoneEntry>();
                 foreach (var e in _entries)
                 {
                     byte[] ea = TableBytes(e.Id);
-                    foreach (uint t in EncounterRegions(e.Id).Where(r => r.Mask == grass && Gen7CatchZones.Table(ea, (int)r.Table) is not null).Select(r => r.Table).Distinct().Order())
-                        list.Add(new MapZoneEntry((e.Id * SourceStride) + (int)t, $"{e.Name} · tabla {t} (hierba)", e.Layout, "tabla de una región de hierba del juego"));
+                    foreach (var g in EncounterRegions(e.Id).Where(r => Gen7CatchZones.AttributeOf(r.Mask) is uint a && Gen7CatchZones.IsWritable(a) && Gen7CatchZones.Table(ea, (int)r.Table) is not null)
+                                 .GroupBy(r => r.Table).OrderBy(g => g.Key))
+                    {
+                        string soils = string.Join("/", g.Select(r => $"0x{Gen7CatchZones.AttributeOf(r.Mask):X2}").Distinct());
+                        list.Add(new MapZoneEntry((e.Id * SourceStride) + (int)g.Key, $"{e.Name} · tabla {g.Key} (suelo {soils})", e.Layout, "tabla de una región del juego"));
+                    }
                 }
                 return _sources = list;
             }
@@ -203,16 +215,23 @@ public sealed partial class Gen7MapBackend : IMapCatchZones
         var regions = EncounterRegions(zone);
         if (regions.Count >= MaxRegions) return (null, $"El área ya tiene {regions.Count} regiones de encuentro.");
         var ground = GroundCells(zone);
-        uint grass = Gen7CatchZones.GrassAttribute;
+        string writable = string.Join(", ", Gen7CatchZones.WritableAttributes.Select(a => $"0x{a:X2}"));
+        HashSet<uint>? common = null;
         foreach (var (x, y) in cells)
         {
             if (!ground.TryGetValue((x, y), out var under) || under.Count == 0) return (null, $"La casilla {x}, {y} no tiene suelo.");
-            if (!under.Any(g => g.Attribute == grass))
-                return (null, $"La casilla {x}, {y} no es suelo de hierba de encuentros (atributo 0x{grass:X2}); su suelo es {string.Join(", ", under.Select(g => $"0x{g.Attribute:X2}").Distinct())}. Otros suelos no están acreditados.");            if (OtherOwner(zone, (x, y)) is { } owner)
+            var soils = under.Select(g => g.Attribute).Where(Gen7CatchZones.IsWritable).ToHashSet();
+            if (soils.Count == 0)
+                return (null, $"La casilla {x}, {y} no tiene un suelo de encuentros admitido ({writable}); su suelo es {string.Join(", ", under.Select(g => $"0x{g.Attribute:X2}").Distinct())}. Otros suelos no están acreditados.");
+            if (OtherOwner(zone, (x, y)) is { } owner)
                 return (null, $"La casilla {x}, {y} es terreno de {owner}: el área lo carga como escenario (o es una copia del mismo terreno) y allí el jugador está en otra área, así que no se escribe.");
+            if (common is null) common = soils; else common.IntersectWith(soils);
         }
+        if (common is not { Count: 1 })
+            return (null, common is { Count: > 1 } ? "Las casillas tienen varios suelos admitidos superpuestos; elige casillas con uno solo." : "Las casillas tienen suelos distintos; una zona usa un solo tipo de suelo.");
+        uint grass = common.Single();
         if (sourceZone is not int source) return (null, "Elige la tabla de encuentros que usará la zona.");
-        if (!EncounterSources.Any(e => e.Id == source)) return (null, "Esa tabla no es de una región de hierba del juego.");
+        if (!EncounterSources.Any(e => e.Id == source)) return (null, "Esa tabla no es de una región del juego con un suelo admitido.");
         var (sourceArea, sourceTable) = SourceOf(source);
         if (Gen7CatchZones.Table(TableBytes(sourceArea), sourceTable) is not { Length: Gen7CatchZones.TableSize }) return (null, "La tabla de origen no tiene el tamaño esperado.");
         bool newTable = sourceArea != zone;
@@ -235,8 +254,9 @@ public sealed partial class Gen7MapBackend : IMapCatchZones
         string table = plan.NewTable
             ? $"Se copiará al área la tabla {plan.SourceTable} del área {plan.SourceArea:000} tal como está ahora (también si está randomizada); después se puede editar en «Encuentros»."
             : $"Usará la tabla {plan.SourceTable} que ya tiene el área.";
-        string extra = plan.Covered > 0 ? $" La región es un rectángulo: también tendrán encuentros {plan.Covered} casillas de hierba dentro de él que no están marcadas." : "";
-        return new(true, $"Se añadirá una región de encuentros (caja de {(plan.Size.X * 2).ToString("0", inv)} × {(plan.Size.Z * 2).ToString("0", inv)} unidades) sobre {plan.Cells} casillas de hierba 0x{Gen7CatchZones.GrassAttribute:X2}. {table}{extra} " +
+        uint soil = Gen7CatchZones.AttributeOf(plan.Mask) ?? 0;
+        string extra = plan.Covered > 0 ? $" La región es un rectángulo: también tendrán encuentros {plan.Covered} casillas del mismo suelo dentro de él que no están marcadas." : "";
+        return new(true, $"Se añadirá una región de encuentros (caja de {(plan.Size.X * 2).ToString("0", inv)} × {(plan.Size.Z * 2).ToString("0", inv)} unidades) sobre {plan.Cells} casillas de suelo 0x{soil:X2}. {table}{extra} " +
             "El suelo y los modelos no cambian. No se ha probado en el juego.");
     }
 }

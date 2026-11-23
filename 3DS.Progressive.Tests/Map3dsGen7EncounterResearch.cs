@@ -53,11 +53,12 @@ internal static class Map3dsGen7EncounterResearch
     internal static void Plan(string root, int area, int x1, int y1, int x2, int y2)
     {
         var b = Gen7MapBackend.FromConfig(GameProjectSession.Open(Path.GetFullPath(root), false).GameConfiguration);
-        Console.WriteLine($"Fuentes de hierba: {b.EncounterSources.Count} (p. ej. {string.Join("; ", b.EncounterSources.Take(3).Select(s => $"{s.Id} {s.Name}"))})");
+        Console.WriteLine($"Fuentes: {b.EncounterSources.Count}");
+        foreach (var src in b.EncounterSources) Console.WriteLine($"  fuente {src.Id}: {src.Name}");
         Console.WriteLine($"Área {area}: tablas {Gen7CatchZones.TableCount(b.TableBytes(area))}, regiones {b.EncounterRegions(area).Count}, casillas con encuentros {b.EncounterCells(area).Count}, casillas de hierba 0x1F {b.GrassCells(area).Count}");
-        var cells = b.GrassCells(area).Where(c => c.X >= x1 && c.X <= x2 && c.Y >= y1 && c.Y <= y2).ToArray();
-        Console.WriteLine($"Hierba en ({x1},{y1})–({x2},{y2}): {cells.Length} casillas: {string.Join(" ", cells.Select(c => $"{c.X},{c.Y}"))}");
-        int source = b.EncounterSources.First(s => s.Id / Gen7MapBackend.SourceStride == 0).Id;
+        var cells = b.PaintableCells(area).Where(c => c.X >= x1 && c.X <= x2 && c.Y >= y1 && c.Y <= y2).ToArray();
+        Console.WriteLine($"Casillas disponibles en ({x1},{y1})–({x2},{y2}): {cells.Length} casillas: {string.Join(" ", cells.Select(c => $"{c.X},{c.Y}"))}");
+        int source = (b.EncounterSources.FirstOrDefault(s => s.Name.Contains("0x19")) ?? b.EncounterSources.First()).Id;
         Console.WriteLine($"Con la fuente {source}: " + b.ValidateCatchCells(area, cells, source).Reason);
         foreach (var e in b.ZoneEvents(area).Where(e => e.Placed && (e.Kind == pk3DS.Core.Maps.MapEventKind.Warp || e.Kind == pk3DS.Core.Maps.MapEventKind.Npc)))
             Console.WriteLine($"  evento {e.Label} en casilla {e.X:0},{e.Y:0}");
@@ -167,6 +168,122 @@ internal static class Map3dsGen7EncounterResearch
             own[t.Attribute] = own.GetValueOrDefault(t.Attribute) + 1;
         }
         Console.WriteLine($"Área {area}, triángulos de bloques propios por atributo: " + string.Join(" ", own.OrderBy(k => k.Key).Select(kv => $"0x{kv.Key:X2}:{kv.Value}")));
+    }
+
+    /// <summary>
+    /// Read-only, per ground attribute used by vanilla masks: regions whose mask has only that bit or combined; then, per
+    /// area, patches of that ground on the area's own terrain without encounters (not another area's terrain), 12+ cells.
+    /// </summary>
+    internal static void AttributeCandidates(string root, string attributes)
+    {
+        var be = Gen7MapBackend.FromConfig(GameProjectSession.Open(Path.GetFullPath(root), false).GameConfiguration);
+        foreach (uint attr in attributes.Split(',').Select(x => Convert.ToUInt32(x, 16)))
+        {
+            uint bit = Gen7CatchZones.MaskOf(attr);
+            int only = 0, combined = 0; var maskAreas = new SortedSet<string>();
+            foreach (var z in be.Zones) foreach (var rg in be.EncounterRegions(z.Id)) if ((rg.Mask & bit) != 0) { if (rg.Mask == bit) only++; else combined++; maskAreas.Add(z.Name); }
+            Console.WriteLine($"== Atributo 0x{attr:X2}: regiones solo con este bit {only}, combinado {combined}; áreas: {string.Join(", ", maskAreas.Take(12))}{(maskAreas.Count > 12 ? " …" : "")}");
+            foreach (var z in be.Zones)
+            {
+                IReadOnlyList<(int X, int Y)> cells;
+                try { cells = be.CellsWithAttribute(z.Id, attr); } catch (Exception) { continue; }
+                if (cells.Count == 0) continue;
+                var enc = be.EncounterCells(z.Id).ToHashSet();
+                var free = cells.Where(c => !enc.Contains(c) && be.OtherOwner(z.Id, c) is null).ToHashSet();
+                int withEnc = cells.Count(enc.Contains);
+                var seen = new HashSet<(int, int)>(); var comps = new List<List<(int X, int Y)>>();
+                foreach (var st in free.OrderBy(c => c.Y).ThenBy(c => c.X))
+                {
+                    if (!seen.Add(st)) continue;
+                    var comp = new List<(int X, int Y)> { st }; var q = new Queue<(int X, int Y)>(); q.Enqueue(st);
+                    while (q.Count > 0) { var (x, y) = q.Dequeue(); foreach (var n in new[] { (x + 1, y), (x - 1, y), (x, y + 1), (x, y - 1) }) if (free.Contains(n) && seen.Add(n)) { comp.Add(n); q.Enqueue(n); } }
+                    if (comp.Count >= 12) comps.Add(comp);
+                }
+                if (comps.Count == 0 && withEnc == 0) continue;
+                Console.WriteLine($"{z.Name}\tregiones {be.EncounterRegions(z.Id).Count}\tarchivos {Gen7CatchZones.RegionFiles(be.EventBytes(z.Id))}\tcasillas 0x{attr:X2} {cells.Count}, con encuentros {withEnc}, libres propias {free.Count}"
+                    + string.Concat(comps.OrderByDescending(c => c.Count).Take(4).Select(c => $" | {c.Count} en X {c.Min(p => p.X)}–{c.Max(p => p.X)} Y {c.Min(p => p.Y)}–{c.Max(p => p.Y)}")));
+            }
+        }
+    }
+
+    /// <summary>
+    /// Read-only description of an area: matrix, placed events (kind and cell), regions (table, mask, cells it covers) and
+    /// the free patches of an attribute, to judge whether the player can reach a patch.
+    /// </summary>
+    internal static void AreaInfo(string root, int area, uint attr)
+    {
+        var be = Gen7MapBackend.FromConfig(GameProjectSession.Open(Path.GetFullPath(root), false).GameConfiguration);
+        var w = be.World(area);
+        Console.WriteLine($"{be.Zones.First(z => z.Id == area).Name}: matriz {w.Width}×{w.Height}: " + string.Join(" ", Enumerable.Range(0, w.Width * w.Height).Where(i => w.Blocks[i] >= 0).Select(i => $"({i % w.Width},{i / w.Width})={w.Blocks[i]}")));
+        foreach (var g in be.ZoneEvents(area).Where(e => e.Placed).GroupBy(e => e.Kind))
+            Console.WriteLine($"  {g.Key}: {g.Count()} en X {g.Min(e => e.X):0}–{g.Max(e => e.X):0} Y {g.Min(e => e.Y):0}–{g.Max(e => e.Y):0}: " + string.Join(" ", g.Take(30).Select(e => $"{e.X:0},{e.Y:0}")));
+        var ground = be.CellsWithAttribute(area, attr).ToHashSet();
+        foreach (var rg in be.EncounterRegions(area))
+        {
+            var cov = ground.Where(c => rg.Allows(attr) && rg.Contains(new Vector3((c.X + 0.5f) * 105, rg.Position.Y, (c.Y + 0.5f) * 105))).ToArray();
+            Console.WriteLine($"  región archivo {rg.ZoneFile} tabla {rg.Table} máscara 0x{rg.Mask:X8} centro {rg.Position.X / 105:0},{rg.Position.Z / 105:0} y {rg.Position.Y:0} " +
+                (rg.Box ? $"semiejes {rg.Size.X:0}×{rg.Size.Y:0}×{rg.Size.Z:0}" : $"cilindro r {rg.Radius:0} h {rg.Height:0}") + (cov.Length > 0 ? $"; casillas 0x{attr:X2} {cov.Length} en X {cov.Min(c => c.X)}–{cov.Max(c => c.X)} Y {cov.Min(c => c.Y)}–{cov.Max(c => c.Y)}" : ""));
+        }
+        var enc = be.EncounterCells(area).ToHashSet();
+        var free = ground.Where(c => !enc.Contains(c)).ToArray();
+        foreach (var grp in free.GroupBy(c => be.OtherOwner(area, c) ?? "(propias)"))
+            Console.WriteLine($"  libres 0x{attr:X2} {grp.Key}: {grp.Count()} en X {grp.Min(c => c.X)}–{grp.Max(c => c.X)} Y {grp.Min(c => c.Y)}–{grp.Max(c => c.Y)}");
+    }
+
+    /// <summary>
+    /// Read-only reachability hint: ground triangles connected by shared vertices (rounded to 1 unit) to the triangles under
+    /// the area's warps, without a step over <paramref name="step"/> units between neighbours. Prints, for each region and for
+    /// the free patches of <paramref name="attr"/>, how many of their cells are on connected ground. Connected ground does not
+    /// prove the player can walk there (walls, scripts); disconnected ground suggests scenery.
+    /// </summary>
+    internal static void Reach(string root, int area, uint attr, float step)
+    {
+        var be = Gen7MapBackend.FromConfig(GameProjectSession.Open(Path.GetFullPath(root), false).GameConfiguration);
+        var tris = be.GroundCollision(area);
+        (int, int, int) K(Vector3 v) => ((int)MathF.Round(v.X), (int)MathF.Round(v.Y), (int)MathF.Round(v.Z));
+        var byVertex = new Dictionary<(int, int, int), List<int>>();
+        for (int i = 0; i < tris.Count; i++)
+            foreach (var v in new[] { tris[i].A, tris[i].B, tris[i].C })
+            { var k = K(v); if (!byVertex.TryGetValue(k, out var l)) byVertex[k] = l = []; l.Add(i); }
+        Vector3 Centre(int i) => (tris[i].A + tris[i].B + tris[i].C) / 3;
+        bool Under(int i, float x, float z)
+        {
+            var t = tris[i];
+            float d = ((t.B.Z - t.C.Z) * (t.A.X - t.C.X)) + ((t.C.X - t.B.X) * (t.A.Z - t.C.Z));
+            if (Math.Abs(d) < 1e-6f) return false;
+            float u = (((t.B.Z - t.C.Z) * (x - t.C.X)) + ((t.C.X - t.B.X) * (z - t.C.Z))) / d, v = (((t.C.Z - t.A.Z) * (x - t.C.X)) + ((t.A.X - t.C.X) * (z - t.C.Z))) / d;
+            return u >= -1e-4f && v >= -1e-4f && 1 - u - v >= -1e-4f;
+        }
+        var reached = new bool[tris.Count]; var queue = new Queue<int>();
+        foreach (var e in be.ZoneEvents(area).Where(e => e.Placed && e.Kind == pk3DS.Core.Maps.MapEventKind.Warp))
+        {
+            float x = ((float)e.X + 0.5f) * 105, z = ((float)e.Y + 0.5f) * 105;
+            for (int i = 0; i < tris.Count; i++) if (!reached[i] && Under(i, x, z)) { reached[i] = true; queue.Enqueue(i); }
+        }
+        int starts = queue.Count;
+        while (queue.Count > 0)
+        {
+            int i = queue.Dequeue(); var ci = Centre(i);
+            foreach (var v in new[] { tris[i].A, tris[i].B, tris[i].C })
+                foreach (int j in byVertex[K(v)])
+                    if (!reached[j] && Math.Abs(Centre(j).Y - ci.Y) <= step) { reached[j] = true; queue.Enqueue(j); }
+        }
+        Console.WriteLine($"Triángulos {tris.Count}, de inicio (bajo warps) {starts}, conectados {reached.Count(x => x)}");
+        bool CellReached((int X, int Y) c)
+        {
+            float x = (c.X + 0.5f) * 105, z = (c.Y + 0.5f) * 105;
+            for (int i = 0; i < tris.Count; i++) if (reached[i] && tris[i].Attribute == attr && Under(i, x, z)) return true;
+            return false;
+        }
+        var ground = be.CellsWithAttribute(area, attr);
+        foreach (var rg in be.EncounterRegions(area).Where(rg => rg.Allows(attr)))
+        {
+            var cov = ground.Where(c => rg.Contains(new Vector3((c.X + 0.5f) * 105, rg.Position.Y, (c.Y + 0.5f) * 105))).ToArray();
+            Console.WriteLine($"  región tabla {rg.Table}: {cov.Length} casillas, conectadas {cov.Count(CellReached)}");
+        }
+        var enc = be.EncounterCells(area).ToHashSet();
+        var free = ground.Where(c => !enc.Contains(c) && be.OtherOwner(area, c) is null).ToArray();
+        Console.WriteLine($"  libres propias 0x{attr:X2}: {free.Length} casillas, conectadas {free.Count(CellReached)}");
     }
 
     /// <summary>Day and night summary of one encounter table of an area, with the game's species names (read-only).</summary>

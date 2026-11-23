@@ -290,6 +290,9 @@ Necesitan extracciones, ROMs o carpetas de salida. Los argumentos concretos (ent
 | `--map3ds-gen7-encounter-candidates` | `<raíz>` | solo lectura: manchas de hierba donde el editor permite crear una zona de captura, por área |
 | `--map3ds-gen7-encounter-box-scale` | `<raíz>` | solo lectura: cobertura de cada caja de hierba leyendo su tamaño como ancho completo o como semieje |
 | `--map3ds-gen7-encounter-mask-bits` | `<raíz> <área>` | solo lectura: atributos que usan las máscaras originales y suelos del terreno propio de un área |
+| `--map3ds-gen7-encounter-attribute-candidates` | `<raíz> <atributos>` | solo lectura: por suelo, regiones que lo usan y manchas libres en terreno propio de cada área |
+| `--map3ds-gen7-encounter-area-info` | `<raíz> <área> <atributo>` | solo lectura: matriz, eventos, regiones con las casillas que cubren y manchas libres del área |
+| `--map3ds-gen7-encounter-reach` | `<raíz> <área> <atributo> <escalón>` | solo lectura: casillas de regiones y manchas libres sobre suelo conectado con los warps (indicio de que se pueden pisar) |
 | `--map3ds-gen7-encounter-plan` | `<raíz> <área> <x1> <y1> <x2> <y2>` | solo lectura: casillas de hierba del rectángulo y comprobación de la zona de captura |
 | `--map3ds-trainer-facing-rebuild` | `<copia> <imagen> <reextracción> <zona/área> <npc/n.º> <grados> [alcance]` | reconstruye la imagen 3DS, la reextrae y comprueba la orientación (y el alcance en Gen6). Con `-` en lugar de la carpeta de reextracción (sin espacio para una reextracción completa) solo comprueba que la imagen contiene byte a byte el archivo de campo editado |
 | `--map3ds-gen6-facing-probe` | `<carpeta extraída>` | evidencia de la orientación Gen6: para cada valor 0–7, proporción de casillas de la línea de visión iguales a la del entrenador en cada dirección; solo lectura |

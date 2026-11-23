@@ -408,6 +408,9 @@ if(args.Length==4&&args[0]=="--map3ds-gen7-encounter-overlap"){Map3dsGen7Encount
 if(args.Length==2&&args[0]=="--map3ds-gen7-encounter-candidates"){Map3dsGen7EncounterResearch.Candidates(args[1]);return;}
 if(args.Length==2&&args[0]=="--map3ds-gen7-encounter-box-scale"){Map3dsGen7EncounterResearch.BoxScale(args[1]);return;}
 if(args.Length==3&&args[0]=="--map3ds-gen7-encounter-mask-bits"){Map3dsGen7EncounterResearch.MaskBits(args[1],int.Parse(args[2]));return;}
+if(args.Length==3&&args[0]=="--map3ds-gen7-encounter-attribute-candidates"){Map3dsGen7EncounterResearch.AttributeCandidates(args[1],args[2]);return;}
+if(args.Length==4&&args[0]=="--map3ds-gen7-encounter-area-info"){Map3dsGen7EncounterResearch.AreaInfo(args[1],int.Parse(args[2]),Convert.ToUInt32(args[3],16));return;}
+if(args.Length==5&&args[0]=="--map3ds-gen7-encounter-reach"){Map3dsGen7EncounterResearch.Reach(args[1],int.Parse(args[2]),Convert.ToUInt32(args[3],16),float.Parse(args[4],System.Globalization.CultureInfo.InvariantCulture));return;}
 if(args.Length==3&&args[0]=="--map3ds-gen7-catch-zone-rebuild"){Map3dsGen7CatchZoneChecks.Rebuild(args[1],args[2]);return;}
 if(args.Length==3&&args[0]=="--map3ds-gen7-encounter-research"){Map3dsGen7EncounterResearch.Run(args[1],args[2]);return;}
 if(args.Length==2&&args[0]=="--map3ds-gen7-encounter-verify"){Map3dsGen7EncounterResearch.Verify(args[1]);return;}

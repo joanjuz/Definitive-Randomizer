@@ -41,12 +41,12 @@ internal static class Map3dsGen7CatchZoneChecks
     }
 
     /// <summary>Collision block: grass 0x1F on X/Z 0–1050 and plain ground 0x01 on X 1050–2100, Z 0–1050, at height <paramref name="y"/>.</summary>
-    internal static byte[] Block(float y = 0)
+    internal static byte[] Block(float y = 0, uint plain = 0x01)
     {
         (Vector3, Vector3, Vector3, uint)[] tris =
         [
             (new(0, 0, 0), new(1050, 0, 0), new(0, 0, 1050), 0x1F), (new(1050, 0, 0), new(1050, 0, 1050), new(0, 0, 1050), 0x1F),
-            (new(1050, 0, 0), new(2100, 0, 0), new(1050, 0, 1050), 0x01), (new(2100, 0, 0), new(2100, 0, 1050), new(1050, 0, 1050), 0x01),
+            (new(1050, 0, 0), new(2100, 0, 0), new(1050, 0, 1050), plain), (new(2100, 0, 0), new(2100, 0, 1050), new(1050, 0, 1050), plain),
         ];
         var up = new Vector3(0, y, 0);
         tris = [.. tris.Select(t => (t.Item1 + up, t.Item2 + up, t.Item3 + up, t.Item4))];
@@ -137,9 +137,9 @@ internal static class Map3dsGen7CatchZoneChecks
         var (plan, _) = b.PlanCatch(0, [(2, 2), (3, 2)], source);
         check(ok.Allowed && ok.Reason.Contains("Se copiará al área la tabla 0 del área 001") && plan is { NewTable: true, SourceArea: 1, Covered: 0, Mask: 0x80000000 }
             && plan.Position == new Vector3(315, 1000, 262.5f) && plan.Size == new Vector3(105, 500, 52.5f), "Gen7Catch_PlanIsABoxOverTheCellsWithACopiedTable");
-        check(b.PlanCatch(0, [(2, 2), (4, 2)], source).Plan is { Covered: 1 } && b.ValidateCatchCells(0, [(2, 2), (4, 2)], source).Reason.Contains("1 casillas de hierba"),
+        check(b.PlanCatch(0, [(2, 2), (4, 2)], source).Plan is { Covered: 1 } && b.ValidateCatchCells(0, [(2, 2), (4, 2)], source).Reason.Contains("1 casillas del mismo suelo"),
             "Gen7Catch_GrassInsideTheBoxThatWasNotMarkedIsReported");
-        check(b.ValidateCatchCells(0, [(12, 2)], source).Reason.Contains("no es suelo de hierba") && b.ValidateCatchCells(0, [(50, 50)], source).Reason.Contains("no tiene suelo")
+        check(b.ValidateCatchCells(0, [(12, 2)], source).Reason.Contains("no tiene un suelo de encuentros admitido") && b.ValidateCatchCells(0, [(50, 50)], source).Reason.Contains("no tiene suelo")
             && b.ValidateCatchCells(0, [(2, 2)], null).Reason.Contains("Elige la tabla") && !b.ValidateCatchCells(0, [(2, 2)], 5).Allowed
             && b.ValidateCatchCells(2, [(2, 2)], source).Reason.Contains("una zona") && !b.ValidateCatchCells(0, [], source).Allowed,
             "Gen7Catch_OtherGroundMissingSourcesAndMultiZoneAreasAreRefused");
@@ -153,6 +153,14 @@ internal static class Map3dsGen7CatchZoneChecks
         var g = new Dictionary<int, byte[]>(f) { [0] = Gen7CatchZones.AddRegion(f[0], 0, 0, plan!.Mask, plan.Position, plan.Size), [9] = ea1 };
         var after = Backend(g);
         check(after.EncounterCells(0).OrderBy(c => c).SequenceEqual([(2, 2), (3, 2)]) && after.HasEncounterTable(0), "Gen7Catch_WrittenZoneReadsBackAsEncounterCells");
+        // Sand (0x19, the only bit of the Haina Desert masks) next to the grass: written with its own mask; mixed soils refused.
+        var sandBlock = Block(1000, 0x19); var plainBlock = Block();
+        var sand = new Gen7MapBackend("Prueba", 44, i => f.GetValueOrDefault(i, []), 2, id => id == 1 ? sandBlock : plainBlock);
+        var (sandPlan, _) = sand.PlanCatch(0, [(12, 2), (13, 2)], source);
+        check(sandPlan is { Mask: 0x02000000 } && sand.ValidateCatchCells(0, [(12, 2)], source).Reason.Contains("suelo 0x19")
+            && sand.ValidateCatchCells(0, [(2, 2), (12, 2)], source).Reason.Contains("suelos distintos") && sand.PaintableCells(0).Count == 200
+            && Gen7CatchZones.AttributeOf(0x80000000) == 0x1F && Gen7CatchZones.AttributeOf(0x80000001) is null && !Gen7CatchZones.IsWritable(0x01) && !Gen7CatchZones.IsWritable(0x12),
+            "Gen7Catch_OtherVanillaSingleBitSoilsAreWrittenWithTheirOwnMask");
     }
 
     internal static void RunUi(Action<bool, string> check)
@@ -179,7 +187,7 @@ internal static class Map3dsGen7CatchZoneChecks
             "Map3dsGen7CatchUi_PreviewAndSaveThroughTheProject");
         view.ShowCatchPanel(); view.Canvas.PickCell(12, 2);
         view.CatchSource!.SelectedValue = Gen7MapBackend.SourceStride; UiPump.Idle();
-        check(!view.PreviewCatch() && view.CatchResult!.Text.Contains("no es suelo de hierba") && calls.Count == 1, "Map3dsGen7CatchUi_OtherGroundCannotBeSaved");
+        check(!view.PreviewCatch() && view.CatchResult!.Text.Contains("no tiene un suelo de encuentros admitido") && calls.Count == 1, "Map3dsGen7CatchUi_OtherGroundCannotBeSaved");
     }
 
     /// <summary>
@@ -197,7 +205,7 @@ internal static class Map3dsGen7CatchZoneChecks
         byte[] original = File.ReadAllBytes(archive);
         string hash = Convert.ToHexString(SHA256.HashData(original));
         var before = Gen7MapBackend.FromConfig(session.GameConfiguration);
-        var cells = before.GrassCells(area).Where(c => c.X >= x1 && c.X <= x2 && c.Y >= y1 && c.Y <= y2).ToArray();
+        var cells = before.PaintableCells(area).Where(c => c.X >= x1 && c.X <= x2 && c.Y >= y1 && c.Y <= y2).ToArray();
         int editorBefore = new GameEncounterService(session).Entries.Count;
         Console.WriteLine($"Área {area} ({before.Zones.First(z => z.Id == area).Name}): {Gen7CatchZones.TableCount(before.TableBytes(area))} tablas, {before.EncounterRegions(area).Count} regiones; {cells.Length} casillas de hierba en el rectángulo; fuente {source}");
         Console.WriteLine("Comprobación: " + before.ValidateCatchCells(area, cells, source).Reason);
