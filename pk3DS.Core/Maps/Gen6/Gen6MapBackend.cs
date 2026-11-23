@@ -483,6 +483,26 @@ public sealed class Gen6MapBackend : IMapEditorBackend, IMapResourceProvider, IM
         return cells;
     }
 
+    public IReadOnlyList<(int X, int Y)> PaintableCells(int zone)
+    {
+        var layout = Layout(zone);
+        var cells = new List<(int, int)>();
+        for (int by = 0; by < layout.Height; by++)
+            for (int bx = 0; bx < layout.Width; bx++)
+            {
+                int block = layout.BlockAt(bx, by);
+                if (block < 0 || Cells(block) is not { } g) continue;
+                for (int cy = 0; cy < g.Height; cy++)
+                    for (int cx = 0; cx < g.Width; cx++)
+                    {
+                        if (g.Cells[(cy * g.Width) + cx] != Gen6CatchZones.Ground) continue;
+                        int x = (bx * layout.BlockCells) + cx, y = (by * layout.BlockCells) + cy;
+                        if (CellOwner(zone, x, y) == zone) cells.Add((x, y));
+                    }
+            }
+        return cells;
+    }
+
     /// <summary>Most cells written in one operation.</summary>
     public const int MaxCatchCells = 1600;
 

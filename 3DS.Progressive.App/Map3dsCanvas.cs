@@ -60,10 +60,11 @@ internal sealed class Map3dsCanvas : FrameworkElement
     /// <summary>While true, a click picks a cell (<see cref="CellPicked"/>) instead of selecting an event.</summary>
     internal bool PickingCell { get; set; }
     internal event Action<int, int>? CellPicked;
-    private (IReadOnlyList<(int X, int Y)> Existing, IReadOnlyCollection<(int X, int Y)> Pending)? _catch;
-    /// <summary>Cells that already produce encounters and cells chosen to get them.</summary>
-    internal void SetCatch((IReadOnlyList<(int X, int Y)> Existing, IReadOnlyCollection<(int X, int Y)> Pending)? cells) { _catch = cells; InvalidateVisual(); }
-    internal (IReadOnlyList<(int X, int Y)> Existing, IReadOnlyCollection<(int X, int Y)> Pending)? CatchOverlay => _catch;
+    private (IReadOnlyList<(int X, int Y)> Existing, IReadOnlyCollection<(int X, int Y)> Pending, IReadOnlyList<(int X, int Y)> Paintable)? _catch;
+    /// <summary>Cells that already produce encounters, cells chosen to get them and cells where a zone can be created.</summary>
+    internal void SetCatch((IReadOnlyList<(int X, int Y)> Existing, IReadOnlyCollection<(int X, int Y)> Pending, IReadOnlyList<(int X, int Y)> Paintable)? cells) { _catch = cells; InvalidateVisual(); }
+    internal (IReadOnlyList<(int X, int Y)> Existing, IReadOnlyCollection<(int X, int Y)> Pending, IReadOnlyList<(int X, int Y)> Paintable)? CatchOverlay => _catch;
+    private static readonly Pen CatchPaintableEdge = Freeze(new Pen(new SolidColorBrush(Color.FromArgb(0xAA, 0xB8, 0xF2, 0x4A)), 1) { DashStyle = DashStyles.Dot });
     private static readonly Brush CatchExisting = Freeze(new SolidColorBrush(Color.FromArgb(0x66, 0x3F, 0xB9, 0x50)));
     private static readonly Pen CatchExistingEdge = Freeze(new Pen(new SolidColorBrush(Color.FromArgb(0xCC, 0x2E, 0x8B, 0x3C)), 1));
     private static readonly Brush CatchPending = Freeze(new SolidColorBrush(Color.FromArgb(0xAA, 0xB8, 0xF2, 0x4A)));
@@ -293,6 +294,7 @@ internal sealed class Map3dsCanvas : FrameworkElement
         if (_catch is { } zoneCells)
         {
             var catchSize = new Size(_scale, _scale);
+            foreach (var (cx, cy) in zoneCells.Paintable) dc.DrawRectangle(null, CatchPaintableEdge, new Rect(ToScreen(new Point(cx, cy)), catchSize));
             foreach (var (cx, cy) in zoneCells.Existing) dc.DrawRectangle(CatchExisting, CatchExistingEdge, new Rect(ToScreen(new Point(cx, cy)), catchSize));
             foreach (var (cx, cy) in zoneCells.Pending) dc.DrawRectangle(CatchPending, GhostPen, new Rect(ToScreen(new Point(cx, cy)), catchSize));
         }

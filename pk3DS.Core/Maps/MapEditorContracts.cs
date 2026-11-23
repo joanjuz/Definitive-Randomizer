@@ -132,6 +132,8 @@ public interface IMapCatchZones
     IReadOnlyList<MapZoneEntry> EncounterSources { get; }
     /// <summary>Cells of the zone that already produce encounters (encounter value, owned by the zone).</summary>
     IReadOnlyList<(int X, int Y)> EncounterCells(int zone);
+    /// <summary>Cells of the zone where a catch zone can be created (the surface the adapter writes, owned by the zone, without encounters yet).</summary>
+    IReadOnlyList<(int X, int Y)> PaintableCells(int zone);
     /// <summary>Checks the cells and, for a zone without a table, the zone whose table is copied. Nothing is written.</summary>
     MapMutationCheck ValidateCatchCells(int zone, IReadOnlyCollection<(int X, int Y)> cells, int? sourceZone);
 }

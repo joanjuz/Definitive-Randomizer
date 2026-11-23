@@ -151,8 +151,16 @@ internal static class Map3dsGen7CatchZoneChecks
         var view = new Map3dsEditorView(Backend(f), new Map3dsMover((b, z, n, x, y) => "m", () => Backend(f),
             paintCatch: (b, z, cells, source) => { calls.Add((z, cells.Count, source)); return "Zona de captura"; }));
         view.Measure(new Size(1400, 860)); view.Arrange(new Rect(0, 0, 1400, 860)); view.UpdateLayout(); UiPump.Idle();
+        view.ShowZone(1);
+        bool shown = view.EncounterLayer is { IsChecked: true } && view.Canvas.CatchOverlay is { Existing.Count: > 0, Pending.Count: 0 };
+        view.EncounterLayer!.IsChecked = false;
+        bool hidden = view.Canvas.CatchOverlay is null;
+        view.EncounterLayer.IsChecked = true;
+        check(shown && hidden && view.Canvas.CatchOverlay is { Existing.Count: > 0 }, "Map3dsGen7CatchUi_EncounterLayerShowsEncounterCellsOutsideThePanel");
         view.ShowZone(0);
         check(view.CatchButton is not null && view.ShowCatchPanel() && view.CatchSource is { Items.Count: 1 }, "Map3dsGen7CatchUi_PanelOffersTheGameGrassTables");
+        check(view.CatchPaintable is { Count: > 0 } paint && paint.All(c => c.X < 10) && view.Canvas.CatchOverlay is { Paintable.Count: > 0 } o && o.Paintable.Count == paint.Count,
+            "Map3dsGen7CatchUi_PanelMarksTheCellsWhereAZoneCanBeCreated");
         view.Canvas.PickCell(2, 2); view.Canvas.PickCell(3, 2);
         view.CatchSource!.SelectedValue = Gen7MapBackend.SourceStride;
         UiPump.Idle();
@@ -220,6 +228,36 @@ internal static class Map3dsGen7CatchZoneChecks
         Console.WriteLine((stale ? "PASS" : "FAIL") + " Gen7CatchReal_AnEditorThatReadOldFilesCannotWrite");
         if (!(previewSafe && painted && table && others && editor && recorded && canRestore && restored && stale)) throw new InvalidDataException("La prueba real de zonas de captura de USUM falló.");
         Console.WriteLine("Zona de captura aplicada en la copia para la prueba jugable · gameplay NOT tested");
+    }
+
+    /// <summary>
+    /// Read-only: opens a real project in the map editor as the app does (project session, backend and mover) and walks
+    /// the catch-zone panel of every area named like <paramref name="name"/>, without saving anything.
+    /// </summary>
+    internal static void UiProbe(string copyRoot, string name)
+    {
+        var session = GameProjectSession.Open(Path.GetFullPath(copyRoot), false);
+        var view = new Map3dsEditorView(session);
+        view.Measure(new Size(1400, 860)); view.Arrange(new Rect(0, 0, 1400, 860)); view.UpdateLayout(); UiPump.Idle();
+        Console.WriteLine($"Botón «Zona de captura»: {(view.CatchButton is null ? "NO" : "sí")}; zonas en la lista: {view.Backend.Zones.Count}");
+        foreach (var z in view.Backend.Zones.Where(z => z.Name.Contains(name, StringComparison.CurrentCultureIgnoreCase)))
+        {
+            view.ShowZone(z.Id);
+            bool panel = view.ShowCatchPanel();
+            var overlay = view.Canvas.CatchOverlay;
+            var catchZones = (pk3DS.Core.Maps.IMapCatchZones)view.Backend;
+            var gen7 = view.Backend as Gen7MapBackend;
+            Console.WriteLine($"{z.Name} (id {z.Id}): panel {panel}, disponibles {view.CatchPaintable?.Count}, casillas con encuentros en el overlay {overlay?.Existing.Count}, fuentes {view.CatchSource?.Items.Count}, " +
+                $"hierba 0x1F {gen7?.GrassCells(z.Id).Count}, regiones {gen7?.EncounterRegions(z.Id).Count}, archivos de regiones {Gen7CatchZones.RegionFiles(gen7!.EventBytes(z.Id))}, tablas {Gen7CatchZones.TableCount(gen7.TableBytes(z.Id))}");
+            var grass = gen7.GrassCells(z.Id).Except(catchZones.EncounterCells(z.Id)).Take(2).ToArray();
+            if (grass.Length == 0) grass = [(5, 5)];
+            foreach (var (x, y) in grass) view.Canvas.PickCell(x, y);
+            if (view.CatchSource is { Items.Count: > 0 }) view.CatchSource.SelectedIndex = 0;
+            UiPump.Idle();
+            view.PreviewCatch();
+            Console.WriteLine($"   vista previa con {string.Join(" ", grass.Select(c => $"{c.X},{c.Y}"))}: {view.CatchResult?.Text}");
+        }
+        Console.WriteLine("Solo lectura: no se guardó nada.");
     }
 
     /// <summary>Rebuilds the copy into a 3DS image and checks the field archive is in it byte for byte.</summary>

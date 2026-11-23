@@ -80,6 +80,8 @@ public sealed partial class Gen7MapBackend : IMapCatchZones
     public IReadOnlyList<(int X, int Y)> GrassCells(int zone) =>
         GroundCells(zone).Where(c => c.Value.Any(g => g.Attribute == Gen7CatchZones.GrassAttribute)).Select(c => c.Key).OrderBy(c => c.Y).ThenBy(c => c.X).ToArray();
 
+    public IReadOnlyList<(int X, int Y)> PaintableCells(int zone) => GrassCells(zone).Except(EncounterCells(zone)).ToArray();
+
     public bool HasEncounterTable(int zone) => Gen7CatchZones.TableCount(TableBytes(zone)) > 0;
 
     /// <summary>In USUM a region always names its table, so the editor always asks which one.</summary>
