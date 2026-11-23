@@ -418,6 +418,8 @@ public sealed class Gen6MapBackend : IMapEditorBackend, IMapResourceProvider, IM
         return g.Cells[((y % layout.BlockCells) * g.Width) + (x % layout.BlockCells)];
     }
 
+    public bool RequiresTableSource(int zone) => !HasEncounterTable(zone);
+
     public bool HasEncounterTable(int zone)
     {
         var pack = Zone(zone).Pack;

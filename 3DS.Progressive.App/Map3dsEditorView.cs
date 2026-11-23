@@ -660,9 +660,9 @@ internal sealed class Map3dsEditorView : UserControl
         _details.Children.Add(rectButtons);
         _catchCount = new TextBlock { Foreground = Res("TextMain"), Margin = new Thickness(0, 6, 0, 0) };
         _details.Children.Add(_catchCount);
-        if (!zones.HasEncounterTable(zone))
+        if (zones.RequiresTableSource(zone))
         {
-            _details.Children.Add(new TextBlock { Text = "Esta zona no tiene tabla de encuentros. Se creará copiando la de:", TextWrapping = TextWrapping.Wrap, Foreground = Res("TextSoft"), Margin = new Thickness(0, 8, 0, 0) });
+            _details.Children.Add(new TextBlock { Text = zones.HasEncounterTable(zone) ? "Tabla de encuentros que usará la zona:" : "Esta zona no tiene tabla de encuentros. Se creará copiando la de:", TextWrapping = TextWrapping.Wrap, Foreground = Res("TextSoft"), Margin = new Thickness(0, 8, 0, 0) });
             _catchSource = new ComboBox { Margin = new Thickness(0, 4, 0, 0), DisplayMemberPath = nameof(MapZoneEntry.Name), SelectedValuePath = nameof(MapZoneEntry.Id), ItemsSource = zones.EncounterSources };
             System.Windows.Automation.AutomationProperties.SetName(_catchSource, "Zona de la que se copia la tabla de encuentros");
             _catchSource.SelectionChanged += (_, _) => CatchSelectionChanged();
