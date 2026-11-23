@@ -6,8 +6,10 @@
 | --- | --- |
 | **Pokémon X** | **Prueba en el juego aprobada por el propietario.** Pueblo Acuarela, 24 casillas nuevas (6 × 4), tabla copiada de la Ruta 2: producen encuentros salvajes. La aprobación cubre ese caso; no se extiende sola a otros terrenos. |
 | **Pokémon Y** | El mismo formato que X, comprobado en los datos de Y (estructura de zonas, tablas, valor de hierba y mapas de zonas idénticos). Sin prueba en el juego. |
-| **Rubí Omega / Zafiro Alfa** | Implementado con su propio formato. Escritura comprobada en una copia real de Rubí Omega. Sin prueba en el juego. |
-| **Ultra Sol / Ultra Luna, DS** | Sin esta función. |
+| **Rubí Omega** | **Prueba jugable aprobada** por el propietario en Villa Raíz (24 casillas, tabla de Ruta 101), ROM `OR-captura-villa-raiz.3ds`. |
+| **Zafiro Alfa** | **Prueba jugable aprobada** por el propietario en Villa Raíz (24 casillas, tabla de Ruta 101), ROM `AS-captura-villa-raiz.3ds`; copia real 11/11, sincronización EN y restauración exacta. |
+| **Ultra Sol / Ultra Luna** | No implementado. Investigación en solo lectura de tablas EA, malla de colisión y registros ED en rama experimental; no existe escritura acreditada. |
+| **Juegos DS** | Sin esta función de zonas de captura 3DS. |
 
 **Hierba visible:** no implementada y **fuera del roadmap activo por decisión del propietario**. Una zona de captura es funcional cuando el juego produce encuentros en sus casillas, aunque el escenario siga mostrando suelo normal. El editor señala en el mapa las casillas con encuentros (verde) y las marcadas (verde claro).
 
