@@ -7,9 +7,10 @@ using ThreeDS.Progressive.Models;
 namespace ThreeDS.Progressive.Services;
 
 /// <summary>
-/// Turns plain-ground cells of an X/Y zone into cells with wild encounters through the project history:
+/// Turns plain-ground cells of a Gen6 zone (X/Y or OR/AS) into cells with wild encounters through the project history:
 /// the map blocks (mapGR) get the encounter value on those cells and, when the zone has no encounter table,
-/// its part 3 receives a copy of another zone's table. Both archives are rebuilt and re-read and go into one
+/// its part 3 receives a copy of another zone's table (in OR/AS also the «EN» copy of the tables, last member of the
+/// same archive). Both archives are rebuilt and re-read and go into one
 /// history entry, so they are undone and rebuilt together.
 /// </summary>
 internal sealed class Map3dsCatchZoneService
@@ -21,7 +22,7 @@ internal sealed class Map3dsCatchZoneService
 
     internal Map3dsCatchZoneService(GameProjectSession project)
     {
-        if (!project.GameConfiguration.XY) throw new NotSupportedException("Las zonas de captura solo están verificadas en X/Y.");
+        if (!project.GameConfiguration.XY && !project.GameConfiguration.ORAS) throw new NotSupportedException("Las zonas de captura solo están verificadas en X/Y y Rubí Omega/Zafiro Alfa.");
         _project = project;
     }
 
@@ -39,7 +40,7 @@ internal sealed class Map3dsCatchZoneService
         var config = _project.GameConfiguration;
         var files = new List<FileChange>
         {
-            Rewrite(BlockArchive, config.GetGARCReference("mapGR"), byBlock.Keys, i => backend.BlockBytes(i), (i, current) => Gen6CatchZones.PaintBlock(current, byBlock[i])),
+            Rewrite(BlockArchive, config.GetGARCReference("mapGR"), byBlock.Keys, i => backend.BlockBytes(i), (i, current) => Gen6CatchZones.PaintBlock(current, byBlock[i], backend.CatchFormat)),
         };
         bool newTable = !backend.HasEncounterTable(zone);
         var inv = System.Globalization.CultureInfo.InvariantCulture;
@@ -51,14 +52,21 @@ internal sealed class Map3dsCatchZoneService
         {
             int source = sourceZone!.Value;
             byte[] table = backend.EncounterTable(source) ?? throw new InvalidOperationException("La zona de origen no tiene tabla.");
-            files.Add(Rewrite(ZoneArchive, config.GetGARCReference("encdata"), [zone], i => backend.ZoneBytes(i), (_, current) => Gen6CatchZones.AddTable(current, table)));
+            if (config.ORAS)
+            {
+                // The zone and the «EN» copy of every table are members of the same archive: one rewrite, one history entry.
+                int shared = backend.SharedTablesMember;
+                files.Add(Rewrite(ZoneArchive, config.GetGARCReference("encdata"), [zone, shared], i => i == shared ? backend.SharedTables : backend.ZoneBytes(i),
+                    (i, current) => i == shared ? Gen6CatchZones.AddSharedTable(current, backend.SharedZoneCount, zone, table) : Gen6CatchZones.AddTable(current, table, backend.CatchFormat)));
+            }
+            else files.Add(Rewrite(ZoneArchive, config.GetGARCReference("encdata"), [zone], i => backend.ZoneBytes(i), (_, current) => Gen6CatchZones.AddTable(current, table, backend.CatchFormat)));
             changes.Add(new BatchChange(zone, $"Zona {zone:000}", "Tabla de encuentros", "—", $"copia de la zona {source:000}", "catch.table"));
         }
         var parameters = new Dictionary<string, string>
         {
-            { "ActionId", ActionId }, { "Game", "XY" }, { "Zone", zone.ToString(inv) }, { "Cells", cells.Count.ToString(inv) },
+            { "ActionId", ActionId }, { "Game", config.XY ? "XY" : "ORAS" }, { "Zone", zone.ToString(inv) }, { "Cells", cells.Count.ToString(inv) },
             { "Blocks", string.Join(",", byBlock.Keys.Order().Select(b => b.ToString(inv))) },
-            { "Value", "0x" + Gen6CatchZones.EncounterGrass.ToString("X8", inv) },
+            { "Value", "0x" + backend.CatchFormat.EncounterGrass.ToString("X8", inv) },
             { "TableSource", newTable ? sourceZone!.Value.ToString(inv) : "existing" }, { "Gameplay", "not tested" },
         };
         return new EditorProposal(_owner, $"Zona de captura en la zona {zone:000} ({cells.Count} casillas)", 0, [.. files], [.. changes], parameters);

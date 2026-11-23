@@ -63,6 +63,47 @@ internal static class Map3dsCatchZoneChecks
         return (zones, matrices, blocks);
     }
 
+    /// <summary>OR/AS ZO pack: five parts, the table (0x104 bytes or empty) in part 3 and a 12-byte part 4.</summary>
+    private static byte[] ZoneOras(int matrix, Map3dsGen6Checks.SyntheticNpc[] npcs, byte[]? table)
+    {
+        var pack = Gen6Pack.Read(Map3dsGen6Checks.Zone(matrix, 3, npcs), "ZO");
+        return Map3dsGen6Checks.Pack("ZO", pack.Part(0).ToArray(), pack.Part(1).ToArray(), pack.Part(2).ToArray(), table ?? [], new byte[12]);
+    }
+
+    private static byte[] TableOras(byte marker)
+    {
+        var t = new byte[Gen6CatchFormat.ORAS.TableSize];
+        t[4] = 1; t[0x0E] = marker; t[0x0F] = 1; t[0x10] = 2; t[0x11] = 3;
+        return t;
+    }
+
+    /// <summary>«EN» pack mirroring <paramref name="zones"/>' part 3, as in the last member of the OR/AS zone archive.</summary>
+    internal static byte[] Shared(byte[][] zones)
+    {
+        var tables = zones.Select(z => Gen6CatchZones.Table(z) ?? []).ToArray();
+        int header = 4 + ((tables.Length + 1) * 4);
+        var data = new byte[header + tables.Sum(t => t.Length)];
+        data[0] = (byte)'E'; data[1] = (byte)'N';
+        BinaryPrimitives.WriteUInt16LittleEndian(data.AsSpan(2), (ushort)tables.Length);
+        int at = header;
+        for (int i = 0; i <= tables.Length; i++)
+        {
+            BinaryPrimitives.WriteInt32LittleEndian(data.AsSpan(4 + (i * 4)), at);
+            if (i < tables.Length) { tables[i].CopyTo(data, at); at += tables[i].Length; }
+        }
+        return data;
+    }
+
+    /// <summary>The X/Y layout of <see cref="Data"/> with OR/AS packs: zones 0–2, an opaque member and the «EN» member, grass 0x20004004 on (6, 5).</summary>
+    internal static (byte[][] Zones, byte[][] Matrices, byte[][] Blocks) DataOras()
+    {
+        var d = Data();
+        byte[][] zones = [ZoneOras(0, [new(12, 12)], TableOras(7)), ZoneOras(0, [new(50, 20)], null), ZoneOras(1, [new(1, 1)], null)];
+        byte[][] members = [.. zones, [0, 0, 0, 0], Shared(zones)];
+        byte[][] blocks = [Block((5, 5, 0x21), (6, 5, Gen6CatchFormat.ORAS.EncounterGrass)), d.Blocks[1], d.Blocks[2]];
+        return (members, d.Matrices, blocks);
+    }
+
     internal static Gen6MapBackend Backend((byte[][] Zones, byte[][] Matrices, byte[][] Blocks) d, Gen6Title game = Gen6Title.XY) =>
         new(game, d.Zones.Length, i => d.Zones[i], d.Matrices.Length, i => d.Matrices[i], d.Blocks.Length, i => d.Blocks[i], ["", "", "", "Pueblo Prueba"]);
 
@@ -109,8 +150,43 @@ internal static class Map3dsCatchZoneChecks
             "CatchCheck_OtherZonesWallsGrassAndEventsAreRefused");
         check(b.ValidateCatchCells(1, [(45, 5)], 0).Reason.Contains("aparece en 2 posiciones") && !b.ValidateCatchCells(0, [], null).Allowed && !b.ValidateCatchCells(0, [(90, 5)], null).Allowed
             && !b.ValidateCatchCells(0, Enumerable.Range(0, 1601).Select(i => (i % 40, i / 40)).ToArray(), null).Allowed, "CatchCheck_SharedBlocksEmptyOutsideAndTooManyAreRefused");
-        check(b.ValidateCatchCells(2, [(3, 3)], 0).Allowed && Backend(d, Gen6Title.ORAS).ValidateCatchCells(0, [(10, 10)], null).Reason.Contains("solo están verificadas en X/Y"),
-            "CatchCheck_InteriorOfASingleZoneIsAllowedAndOrasIsRefused");
+        check(b.ValidateCatchCells(2, [(3, 3)], 0).Allowed && Backend(d, Gen6Title.ORAS).ValidateCatchCells(0, [(10, 10)], null).Reason.Contains("en Rubí Omega/Zafiro Alfa tienen 5"),
+            "CatchCheck_InteriorOfASingleZoneIsAllowedAndXyPacksAreRefusedInOras");
+
+        // OR/AS: grass 0x20004004, five-part packs, and the «EN» copy of every table in the last member.
+        check(Gen6CatchFormat.Of(Gen6Title.XY) is { EncounterGrass: 0x20002004, TableSize: 0x188, PartCount: 4 }
+            && Gen6CatchFormat.Of(Gen6Title.ORAS) is { EncounterGrass: 0x20004004, TableSize: 0x104, PartCount: 5 }, "CatchFormat_ValuesAreReadPerFamily");
+        var o = DataOras();
+        var ob = Backend(o, Gen6Title.ORAS);
+        var orasPainted = new Gen6MapBlock(Gen6CatchZones.PaintBlock(o.Blocks[0], [(10, 10)], Gen6CatchFormat.ORAS));
+        check(orasPainted.Cells.Cells[(10 * 40) + 10] == 0x20004004 && ob.EncounterCells(0).SequenceEqual([(6, 5)]) && ob.HasEncounterTable(0) && !ob.HasEncounterTable(1)
+            && ob.EncounterSources.Select(e => e.Id).SequenceEqual([0]), "CatchOras_GrassValueTablesAndSources");
+        var orasTable = Gen6CatchZones.AddTable(o.Zones[1], TableOras(7), Gen6CatchFormat.ORAS);
+        var pb = Gen6Pack.Read(o.Zones[1], "ZO"); var pa = Gen6Pack.Read(orasTable, "ZO");
+        check(pa.Count == 5 && pa.Part(3).SequenceEqual(TableOras(7)) && pa.Part(4).SequenceEqual(pb.Part(4)) && pa.Start(4) == pb.Start(4) + 0x104 && pa.Start(3) == pb.Start(3)
+            && Enumerable.Range(0, 3).All(k => pa.Part(k).SequenceEqual(pb.Part(k))), "CatchOras_TableIsInsertedBeforePartFourWhichOnlyMoves");
+        bool xyOnOras = false, orasSize = false;
+        try { Gen6CatchZones.AddTable(o.Zones[1], Table(7), Gen6CatchFormat.XY); } catch (Exception ex) when (ex is ArgumentException or InvalidOperationException) { xyOnOras = true; }
+        try { Gen6CatchZones.AddTable(o.Zones[1], Table(7), Gen6CatchFormat.ORAS); } catch (ArgumentException) { orasSize = true; }
+        check(xyOnOras && orasSize, "CatchOras_XyFormatAndSizesAreRefused");
+        var slices = Gen6CatchZones.SharedSlices(o.Zones[4], 3)!;
+        var en = Gen6CatchZones.AddSharedTable(o.Zones[4], 3, 1, TableOras(7));
+        var after2 = Gen6CatchZones.SharedSlices(en, 3)!;
+        check(slices.Select(x => x.End - x.Start).SequenceEqual([0x104, 0, 0]) && after2.Select(x => x.End - x.Start).SequenceEqual([0x104, 0x104, 0])
+            && en.AsSpan(after2[1].Start, 0x104).SequenceEqual(TableOras(7)) && en.AsSpan(after2[0].Start, 0x104).SequenceEqual(TableOras(7)) && Gen6CatchZones.SharedSlices(o.Zones[4], 4) is null,
+            "CatchOras_SharedCopyGetsTheNewSliceAndKeepsTheOthers");
+        bool twiceShared = false;
+        try { Gen6CatchZones.AddSharedTable(o.Zones[4], 3, 0, TableOras(7)); } catch (InvalidOperationException) { twiceShared = true; }
+        check(twiceShared && ob.SharedTables is not null && ob.SharedZoneCount == 3 && ob.SharedTablesMember == 4, "CatchOras_SharedCopyIsFoundAndNotWrittenTwice");
+        check(ob.ValidateCatchCells(1, [(32, 2)], 0) is { Allowed: true } orasOk && orasOk.Reason.Contains("0x20004004") && orasOk.Reason.Contains("(EN)") && orasOk.Reason.Contains("No se ha probado"),
+            "CatchOras_ZoneWithoutTableIsAllowedWithTheSharedCopy");
+        var broken = (byte[])o.Zones[4].Clone(); broken[slices[0].Start + 0x20] ^= 0xFF;
+        byte[][] brokenMembers = [.. o.Zones[..4], broken];
+        byte[][] noShared = [.. o.Zones[..4], [0, 0, 0, 0]];
+        check(Backend((brokenMembers, o.Matrices, o.Blocks), Gen6Title.ORAS).ValidateCatchCells(1, [(32, 2)], 0).Reason.Contains("no coincide")
+            && Backend((brokenMembers, o.Matrices, o.Blocks), Gen6Title.ORAS).ValidateCatchCells(0, [(10, 10)], null).Reason.Contains("no coincide")
+            && Backend((noShared, o.Matrices, o.Blocks), Gen6Title.ORAS).ValidateCatchCells(1, [(32, 2)], 0).Reason.Contains("No se encuentra la copia compartida"),
+            "CatchOras_MismatchedOrMissingSharedCopyIsRefused");
 
         // Reading back the written data.
         byte[][] blocksAfter = [Gen6CatchZones.PaintBlock(d.Blocks[0], [(32, 2), (33, 2)]), d.Blocks[1], d.Blocks[2]];
@@ -149,6 +225,20 @@ internal static class Map3dsCatchZoneChecks
         view.EventList.SelectedIndex = 0;
         UiPump.Idle();
         check(!view.Canvas.PickingCell && view.CatchCells is null && view.Canvas.CatchOverlay is null, "Map3dsCatchUi_SelectingAnEventLeavesThePanel");
+
+        // OR/AS: same panel; the preview names the family's grass value and the «EN» copy.
+        var o = DataOras();
+        var orasCalls = new List<int?>();
+        var oras = new Map3dsEditorView(Backend(o, Gen6Title.ORAS), new Map3dsMover((b, z, n, x, y) => "m", () => Backend(o, Gen6Title.ORAS),
+            paintCatch: (b, z, cells, source) => { orasCalls.Add(source); return "Zona de captura"; }));
+        Layout(oras);
+        oras.ShowZone(1);
+        oras.ShowCatchPanel();
+        oras.Canvas.PickCell(32, 2);
+        oras.CatchSource!.SelectedValue = 0;
+        UiPump.Idle();
+        check(oras.Canvas.CatchOverlay is { Pending.Count: 1 } && oras.PreviewCatch() && oras.CatchResult!.Text.Contains("0x20004004") && oras.CatchResult.Text.Contains("(EN)")
+            && oras.SaveCatch() && orasCalls.SequenceEqual([(int?)0]), "Map3dsCatchUi_OrasPreviewNamesItsGrassAndSharedCopy");
     }
 
     private static void Layout(FrameworkElement content)
@@ -161,7 +251,7 @@ internal static class Map3dsCatchZoneChecks
     /// <paramref name="zone"/> (copying the table of <paramref name="source"/> if it has none); preview, commit, reopen,
     /// only those cells and that zone changed, undo of both archives, external changes; then reapplied.
     /// </summary>
-    internal static void Probe(string copyRoot, int zone, int x1, int y1, int x2, int y2, int source)
+    internal static void Probe(string copyRoot, int zone, int x1, int y1, int x2, int y2, int source, bool reapply = true)
     {
         string full = Path.GetFullPath(copyRoot);
         if (!full.Contains("Pruebas", StringComparison.OrdinalIgnoreCase)) throw new IOException("Por seguridad, la prueba solo escribe en una copia dentro de una carpeta de pruebas.");
@@ -171,6 +261,7 @@ internal static class Map3dsCatchZoneChecks
         byte[] zonesBefore = File.ReadAllBytes(zones), blocksBefore = File.ReadAllBytes(blocks);
         string zonesHash = Convert.ToHexString(SHA256.HashData(zonesBefore)), blocksHash = Convert.ToHexString(SHA256.HashData(blocksBefore));
         var before = Gen6MapBackend.FromConfig(session.GameConfiguration);
+        int editorBefore = new GameEncounterService(session).Entries.Count;
         var cells = new List<(int X, int Y)>();
         for (int y = y1; y <= y2; y++) for (int x = x1; x <= x2; x++) cells.Add((x, y));
         bool hadTable = before.HasEncounterTable(zone);
@@ -197,12 +288,29 @@ internal static class Map3dsCatchZoneChecks
             int grid = before.Block(bi)!.Pack.Start(0);
             var mine = cells.Where(c => layout.BlockAt(c.X / layout.BlockCells, c.Y / layout.BlockCells) == bi).Select(c => ((c.Y % 40) * 40) + (c.X % 40)).ToHashSet();
             return raw.Length == rawAfter.Length && Enumerable.Range(0, raw.Length).All(i => raw[i] == rawAfter[i] || (i >= grid + 4 && mine.Contains((i - grid - 4) / 4)))
-                && mine.All(k => o[k] == Gen6CatchZones.Ground && n[k] == Gen6CatchZones.EncounterGrass);
+                && mine.All(k => o[k] == Gen6CatchZones.Ground && n[k] == before.CatchFormat.EncounterGrass);
         });
-        Console.WriteLine((otherBlocks && onlyCells ? "PASS" : "FAIL") + $" CatchReal_OnlyTheChosenCellsOfBlocks {string.Join(",", touched.Order())}Changed");
+        Console.WriteLine((otherBlocks && onlyCells ? "PASS" : "FAIL") + $" CatchReal_OnlyTheChosenCellsOfBlocks {string.Join(",", touched.Order())}Changed"
+            + (otherBlocks ? "" : $" · otros bloques distintos: {string.Join(",", Enumerable.Range(0, Math.Min(ga.Length, gb.Length)).Where(i => !touched.Contains(i) && !ga[i].AsSpan().SequenceEqual(gb[i])).Take(8))} ({gb.Length} → {ga.Length})")
+            + (onlyCells ? "" : " · el bloque cambió fuera de las casillas"));
         var zb = new GARC.MemGARC(zonesBefore).Files; var za = new GARC.MemGARC(File.ReadAllBytes(zones)).Files;
-        bool otherZones = za.Length == zb.Length && Enumerable.Range(0, za.Length).All(i => (i == zone && !hadTable) || za[i].AsSpan().SequenceEqual(zb[i]));
-        Console.WriteLine((otherZones ? "PASS" : "FAIL") + " CatchReal_OtherZonesByteIdentical");
+        // In OR/AS the «EN» copy of the tables (last member) gets the new table too.
+        var allowed = new HashSet<int>(hadTable ? [] : session.GameConfiguration.ORAS ? [zone, before.SharedTablesMember] : [zone]);
+        var differing = Enumerable.Range(0, Math.Min(za.Length, zb.Length)).Where(i => !za[i].AsSpan().SequenceEqual(zb[i])).ToArray();
+        bool otherZones = za.Length == zb.Length && differing.All(allowed.Contains);
+        Console.WriteLine((otherZones ? "PASS" : "FAIL") + $" CatchReal_OtherZonesByteIdentical (miembros cambiados: {string.Join(",", differing)})");
+        // The existing encounter editor sees the new table (one more location) and can read every table.
+        var encounters = new GameEncounterService(session);
+        foreach (var e in encounters.Entries) _ = encounters.Read(e.Id);
+        bool editor = encounters.Entries.Count == editorBefore + (hadTable ? 0 : 1);
+        Console.WriteLine((editor ? "PASS" : "FAIL") + $" CatchReal_EncounterEditorListsTheTable ({editorBefore} → {encounters.Entries.Count} ubicaciones)");
+        bool shared = true;
+        if (session.GameConfiguration.ORAS)
+        {
+            try { Console.WriteLine($"Copia compartida EN: {CatchZoneRealCopyChecks.VerifyShared(session.GameConfiguration)} tablas idénticas a sus zonas"); }
+            catch (IOException ex) { shared = false; Console.WriteLine("Copia compartida EN: " + ex.Message); }
+            Console.WriteLine((shared ? "PASS" : "FAIL") + " CatchReal_SharedTablesMatchEveryZone");
+        }
         var entry = session.History.Read().Entries.Last();
         bool recorded = entry.Parameters.GetValueOrDefault("ActionId") == Map3dsCatchZoneService.ActionId && entry.Parameters.GetValueOrDefault("Gameplay") == "not tested";
         Console.WriteLine((recorded ? "PASS" : "FAIL") + $" CatchReal_HistoryEntry «{entry.Action}»");
@@ -215,7 +323,8 @@ internal static class Map3dsCatchZoneChecks
         RestorePoints.Undo(session.History, session.ProjectRoot, session.History.Read().Entries.Last().Id);
         Console.WriteLine((stale ? "PASS" : "FAIL") + " CatchReal_AnEditorThatReadOldFilesCannotWrite");
         bool restoredAgain = Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(zones))) == zonesHash && Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(blocks))) == blocksHash;
-        if (!(previewSafe && painted && table && otherBlocks && onlyCells && otherZones && recorded && restored && stale && restoredAgain)) throw new InvalidDataException("La prueba real de zonas de captura falló.");
+        if (!(previewSafe && painted && table && otherBlocks && onlyCells && otherZones && editor && shared && recorded && restored && stale && restoredAgain)) throw new InvalidDataException("La prueba real de zonas de captura falló.");
+        if (!reapply) { Console.WriteLine("La copia queda como estaba (sin el cambio)."); return; }
         service.Apply(service.Preview(Gen6MapBackend.FromConfig(session.GameConfiguration), zone, cells, source));
         Console.WriteLine("Zona de captura aplicada de nuevo en la copia para la prueba jugable · gameplay NOT tested");
     }

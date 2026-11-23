@@ -59,7 +59,7 @@ internal sealed class Map3dsMover(Func<IMapEditorBackend, int, int, int, int, st
         }
         if (!config.XY && !config.ORAS) return null;
         var service = new Map3dsNpcMoveService(session);
-        var catchZones = config.XY ? new Map3dsCatchZoneService(session) : null;
+        var catchZones = new Map3dsCatchZoneService(session);
         return new Map3dsMover((backend, zone, npc, x, y) =>
         {
             if (backend is not Gen6MapBackend gen6) throw new InvalidOperationException("El adaptador no admite escritura.");
@@ -78,7 +78,7 @@ internal sealed class Map3dsMover(Func<IMapEditorBackend, int, int, int, int, st
             var proposal = service.PreviewAddNurse(gen6, zone, x, y, facing);
             service.Apply(proposal);
             return proposal.Action;
-        }, paintCatch: catchZones is null ? null : (backend, zone, cells, source) =>
+        }, paintCatch: (backend, zone, cells, source) =>
         {
             if (backend is not Gen6MapBackend gen6) throw new InvalidOperationException("El adaptador no admite escritura.");
             var proposal = catchZones.Preview(gen6, zone, cells, source);

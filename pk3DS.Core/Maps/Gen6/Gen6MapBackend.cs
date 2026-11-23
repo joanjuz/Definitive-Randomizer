@@ -26,6 +26,7 @@ public sealed class Gen6MapBackend : IMapEditorBackend, IMapResourceProvider, IM
     private readonly object _gate = new();
     private readonly Func<int, byte[]>? _area;
     private readonly Func<int, byte[]>? _modelList;
+    private readonly int _zoneCount;
     private readonly int _modelListCount;
     private readonly int _areaCount;
     private readonly Dictionary<int, Dictionary<string, H3dTexture>?> _areaTextures = [];
@@ -49,12 +50,12 @@ public sealed class Gen6MapBackend : IMapEditorBackend, IMapResourceProvider, IM
         int blockCount, Func<int, byte[]> block, IReadOnlyList<string>? locationNames, int areaCount = 0, Func<int, byte[]>? area = null,
         int modelListCount = 0, Func<int, byte[]>? modelList = null)
     {
-        Game = game; _zone = zone; _matrix = matrix; _block = block; _matrixCount = matrixCount; _blockCount = blockCount;
+        Game = game; _zone = zone; _matrix = matrix; _block = block; _matrixCount = matrixCount; _blockCount = blockCount; _zoneCount = zoneCount;
         _modelList = modelList; _modelListCount = modelList is null ? 0 : modelListCount;
         _area = area; _areaCount = area is null ? 0 : areaCount;
         Capabilities = new(_area is not null, true, true, (_area is not null
             ? "Modelos y texturas reales de cada bloque (vista cenital aproximada), rejilla de permisos y eventos."
-            : "Rejilla de permisos y eventos.") + " Edición: posición, orientación y visión de NPC existentes, añadir enfermera y zonas de captura en X/Y.");
+            : "Rejilla de permisos y eventos.") + " Edición: posición, orientación y visión de NPC existentes, añadir enfermera y zonas de captura.");
         var skipped = new List<(int, string)>();
         for (int i = 0; i < zoneCount; i++)
         {
@@ -426,8 +427,39 @@ public sealed class Gen6MapBackend : IMapEditorBackend, IMapResourceProvider, IM
     /// <summary>Encounter table of a zone (part 3 of its pack), or null.</summary>
     public byte[]? EncounterTable(int zone) => Gen6CatchZones.Table(ZoneBytes(zone));
 
+    /// <summary>Grass value, table size and pack layout of this family.</summary>
+    public Gen6CatchFormat CatchFormat => Gen6CatchFormat.Of(Game);
+
+    /// <summary>
+    /// OR/AS only: the «EN» pack in the last member of the zone archive, with a copy of every zone's table, and the
+    /// number of zones it covers (the archive has two more members). Null in X/Y or when the member is not such a pack.
+    /// </summary>
+    public byte[]? SharedTables
+    {
+        get
+        {
+            if (Game != Gen6Title.ORAS || _zoneCount < 3) return null;
+            byte[] data;
+            try { data = _zone(_zoneCount - 1); } catch (Exception ex) when (ex is ArgumentException or IndexOutOfRangeException or System.IO.IOException) { return null; }
+            return Gen6CatchZones.SharedSlices(data, SharedZoneCount) is null ? null : (byte[])data.Clone();
+        }
+    }
+
+    public int SharedZoneCount => _zoneCount - 2;
+    public int SharedTablesMember => _zoneCount - 1;
+
+    /// <summary>Whether the «EN» copy of the zone's table matches its part 3 (both empty counts as a match).</summary>
+    private bool SharedMatches(byte[] shared, int zone)
+    {
+        var slices = Gen6CatchZones.SharedSlices(shared, SharedZoneCount);
+        if (slices is null || zone < 0 || zone >= slices.Count) return false;
+        var (start, end) = slices[zone];
+        var table = Gen6CatchZones.Table(ZoneBytes(zone)) ?? [];
+        return shared.AsSpan(start, end - start).SequenceEqual(table);
+    }
+
     public IReadOnlyList<MapZoneEntry> EncounterSources =>
-        _entries.Where(e => Zone(e.Id).Pack is var p && p.Count > Gen6CatchZones.TablePart && p.Length(Gen6CatchZones.TablePart) == Gen6CatchZones.TableSize).ToArray();
+        _entries.Where(e => Zone(e.Id).Pack is var p && p.Count == CatchFormat.PartCount && p.Length(Gen6CatchZones.TablePart) == CatchFormat.TableSize).ToArray();
 
     public IReadOnlyList<(int X, int Y)> EncounterCells(int zone)
     {
@@ -441,7 +473,7 @@ public sealed class Gen6MapBackend : IMapEditorBackend, IMapResourceProvider, IM
                 for (int cy = 0; cy < g.Height; cy++)
                     for (int cx = 0; cx < g.Width; cx++)
                     {
-                        if (g.Cells[(cy * g.Width) + cx] != Gen6CatchZones.EncounterGrass) continue;
+                        if (g.Cells[(cy * g.Width) + cx] != CatchFormat.EncounterGrass) continue;
                         int x = (bx * layout.BlockCells) + cx, y = (by * layout.BlockCells) + cy;
                         if (CellOwner(zone, x, y) == zone) cells.Add((x, y));
                     }
@@ -454,8 +486,9 @@ public sealed class Gen6MapBackend : IMapEditorBackend, IMapResourceProvider, IM
 
     public MapMutationCheck ValidateCatchCells(int zone, IReadOnlyCollection<(int X, int Y)> cells, int? sourceZone)
     {
-        if (Game != Gen6Title.XY) return new(false, "Las zonas de captura solo están verificadas en X/Y. Rubí Omega/Zafiro Alfa usa otro formato de tabla de encuentros.");
+        var format = CatchFormat;
         if (!_zones.ContainsKey(zone)) return new(false, "Zona no disponible.");
+        if (Zone(zone).Pack.Count != format.PartCount) return new(false, $"La zona tiene {Zone(zone).Pack.Count} partes; en {format.Name} tienen {format.PartCount}.");
         if (cells.Count == 0) return new(false, "Elige al menos una casilla.");
         if (cells.Distinct().Count() != cells.Count) return new(false, "Hay casillas repetidas.");
         if (cells.Count > MaxCatchCells) return new(false, $"Como máximo {MaxCatchCells} casillas por operación.");
@@ -477,21 +510,29 @@ public sealed class Gen6MapBackend : IMapEditorBackend, IMapResourceProvider, IM
             int block = layout.BlockAt(x / layout.BlockCells, y / layout.BlockCells);
             if (blocks.Add(block) && BlockUses(block) != 1) return new(false, $"El bloque {block} aparece en {BlockUses(block)} posiciones de las matrices del juego; cambiarlo afectaría a todas.");
         }
+        if (Game == Gen6Title.ORAS)
+        {
+            if (SharedTables is not { } shared) return new(false, "No se encuentra la copia compartida de las tablas de encuentros (EN) del último miembro del archivo de zonas; sin ella no se escribe.");
+            if (!SharedMatches(shared, zone)) return new(false, $"La copia compartida (EN) de la tabla de la zona {zone} no coincide con la de la zona; no se escribe.");
+            if (!HasEncounterTable(zone) && sourceZone is int src && _zones.ContainsKey(src) && !SharedMatches(shared, src))
+                return new(false, $"La copia compartida (EN) de la tabla de la zona {src} no coincide con la de la zona; elige otra o corrígela con el editor de encuentros.");
+        }
         string table;
         if (HasEncounterTable(zone))
         {
-            if (Zone(zone).Pack.Length(Gen6CatchZones.TablePart) != Gen6CatchZones.TableSize) return new(false, "La tabla de encuentros de la zona tiene un tamaño inesperado.");
+            if (Zone(zone).Pack.Length(Gen6CatchZones.TablePart) != format.TableSize) return new(false, "La tabla de encuentros de la zona tiene un tamaño inesperado.");
             table = "Usará la tabla de encuentros actual de la zona.";
         }
         else
         {
             if (sourceZone is not int source) return new(false, "La zona no tiene tabla de encuentros: elige la zona de la que se copiará.");
             if (source == zone || !_zones.ContainsKey(source) || !EncounterSources.Any(e => e.Id == source)) return new(false, $"La zona {source} no tiene una tabla de encuentros que se pueda copiar.");
-            table = $"La zona no tiene encuentros: se creará su tabla copiando la de la zona {source:000} tal como está ahora (también si está randomizada); después se puede editar en «Encuentros».";
+            table = $"La zona no tiene encuentros: se creará su tabla copiando la de la zona {source:000} tal como está ahora (también si está randomizada); después se puede editar en «Encuentros»."
+                + (Game == Gen6Title.ORAS ? " En Rubí Omega/Zafiro Alfa se añade también a la copia compartida de las tablas (EN)." : "");
         }
         int already = EncounterCells(zone).Count;
-        return new(true, $"Se pueden convertir {cells.Count} casillas de suelo normal en suelo con encuentros (0x{Gen6CatchZones.EncounterGrass:X8}) en {blocks.Count} bloque{(blocks.Count == 1 ? "" : "s")}; la zona ya tenía {already}. {table} " +
-            "La hierba no se verá: el modelo del mapa no cambia. No se ha probado en el juego.");
+        return new(true, $"Se pueden convertir {cells.Count} casillas de suelo normal en suelo con encuentros de {format.Name} (0x{format.EncounterGrass:X8}) en {blocks.Count} bloque{(blocks.Count == 1 ? "" : "s")}; la zona ya tenía {already}. {table} " +
+            "La hierba no se verá: el modelo del mapa no cambia." + (Game == Gen6Title.XY ? " Aprobado en el juego en X (Pueblo Acuarela)." : " No se ha probado en el juego."));
     }
 
     public IReadOnlyList<(int X, int Y)> SightCells(int zone, MapEventKind kind, int index, double facing, int sight)
