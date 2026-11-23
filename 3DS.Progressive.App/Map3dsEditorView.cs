@@ -8,6 +8,7 @@ using ThreeDS.Progressive.Services;
 using Brush = System.Windows.Media.Brush;
 using Button = System.Windows.Controls.Button;
 using CheckBox = System.Windows.Controls.CheckBox;
+using ComboBox = System.Windows.Controls.ComboBox;
 using ListBox = System.Windows.Controls.ListBox;
 using Orientation = System.Windows.Controls.Orientation;
 using TextBox = System.Windows.Controls.TextBox;
@@ -31,6 +32,18 @@ internal sealed class Map3dsEditorView : UserControl
     private Button? _moveSave, _moveRestore;
     private TextBlock? _moveResult;
     private (MapEventView Npc, int X, int Y)? _pendingMove;
+    private ComboBox? _viewDirection;
+    private TextBox? _viewAngle, _viewSight;
+    private Button? _viewSave;
+    private TextBlock? _viewResult;
+    private (MapEventView Npc, double Facing, int? Sight)? _pendingView;
+    internal ComboBox? ViewDirection => _viewDirection;
+    internal TextBox? ViewAngle => _viewAngle;
+    internal TextBox? ViewSight => _viewSight;
+    internal Button? ViewSave => _viewSave;
+    internal TextBlock? ViewResult => _viewResult;
+    internal (MapEventView Npc, double Facing, int? Sight)? PendingView => _pendingView;
+    private IMapTrainerViews? Views => _backend as IMapTrainerViews;
     private readonly Map3dsCanvas _canvas = new();
     private readonly ListBox _zones, _events;
     private readonly TextBox _search;
@@ -257,10 +270,20 @@ internal sealed class Map3dsEditorView : UserControl
             _details.Children.Add(row);
         }
         _moveX = _moveY = null; _moveSave = null; _moveResult = null; _moveRestore = null;
-        bool movable = _mover is not null && item.Kind == MapEventKind.Npc && item.Placed && item.Properties.Any(p => p.Writable);
-        if (!movable)
+        _viewDirection = null; _viewAngle = _viewSight = null; _viewSave = null; _viewResult = null; _pendingView = null;
+        var view = CurrentZone is int vz && item.Placed ? Views?.View(vz, item.Kind, item.Index) : null;
+        ShowViewOverlay(item, view?.Facing, view?.Sight, pending: false);
+        bool movable = _mover is not null && item.Kind == MapEventKind.Npc && item.Placed && item.Properties.Any(IsPositionField);
+        bool turnable = _mover is { CanSetView: true } && view is { FacingWritable: true };
+        if (!movable && !turnable)
         {
             _details.Children.Add(new TextBlock { Text = ReadOnlyNotice, Foreground = Res("TextSoft"), FontStyle = FontStyles.Italic, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 12, 0, 0) });
+            return;
+        }
+        if (turnable) _details.Children.Add(ViewPanel(item, view!));
+        if (!movable)
+        {
+            AddRestore(_details);
             return;
         }
         var box = new StackPanel { Margin = new Thickness(0, 14, 0, 0) };
@@ -287,13 +310,138 @@ internal sealed class Map3dsEditorView : UserControl
         _moveResult = new TextBlock { TextWrapping = TextWrapping.Wrap, Foreground = Res("TextSoft"), Margin = new Thickness(0, 6, 0, 0) };
         box.Children.Add(_moveResult);
         box.Children.Add(new TextBlock { Text = GameplayNotice, TextWrapping = TextWrapping.Wrap, Foreground = Res("TextSoft"), FontSize = 11, Margin = new Thickness(0, 6, 0, 0) });
+        AddRestore(box);
+        _details.Children.Add(box);
+    }
+
+    private static bool IsPositionField(MapEventProperty p) => p.Writable && (p.Name == "Casilla" || p.Name.StartsWith("Posición", StringComparison.Ordinal));
+
+    private void AddRestore(System.Windows.Controls.Panel box)
+    {
         if (CurrentZone is int restoreZone && _mover is not null && _mover.CanRestore(restoreZone))
         {
-            _moveRestore = Small("Restaurar estado anterior del área", () => RestoreArea(), "Volver, byte a byte, al estado del área antes del último movimiento");
+            _moveRestore = Small("Restaurar estado anterior del área", () => RestoreArea(), "Volver, byte a byte, al estado del área antes del último cambio");
             _moveRestore.Margin = new Thickness(0, 8, 0, 0);
             box.Children.Add(_moveRestore);
         }
-        _details.Children.Add(box);
+    }
+
+    private static readonly (string Name, string Arrow, double Degrees)[] Cardinal = [("Arriba", "↑", 0), ("Derecha", "→", 90), ("Abajo", "↓", 180), ("Izquierda", "←", 270)];
+
+    /// <summary>Facing (four directions or a free angle) and, where the game has one, sight range of the selected character.</summary>
+    private StackPanel ViewPanel(MapEventView item, MapTrainerView view)
+    {
+        var inv = System.Globalization.CultureInfo.InvariantCulture;
+        var box = new StackPanel { Margin = new Thickness(0, 14, 0, 0) };
+        box.Children.Add(new TextBlock { Text = view.Sight is null ? "Orientación del entrenador" : "Orientación y visión", FontWeight = FontWeights.SemiBold, Foreground = Res("TextMain") });
+        var row = new WrapPanel { Margin = new Thickness(0, 6, 0, 0) };
+        if (view.FreeAngle)
+        {
+            row.Children.Add(new TextBlock { Text = "Grados", Foreground = Res("TextSoft"), VerticalAlignment = VerticalAlignment.Center });
+            _viewAngle = new TextBox { Text = double.IsFinite(view.Facing) ? view.Facing.ToString("0.#", inv) : "", Width = 64, Margin = new Thickness(4, 0, 10, 0) };
+            System.Windows.Automation.AutomationProperties.SetName(_viewAngle, "Orientación en grados (0 arriba, 90 derecha, 180 abajo, 270 izquierda)");
+            row.Children.Add(_viewAngle);
+            foreach (var (name, arrow, deg) in Cardinal)
+                row.Children.Add(Small(arrow, () => { _viewAngle!.Text = deg.ToString(inv); PreviewView(item); }, "Mirar hacia " + name.ToLowerInvariant()));
+        }
+        else
+        {
+            row.Children.Add(new TextBlock { Text = "Mira hacia", Foreground = Res("TextSoft"), VerticalAlignment = VerticalAlignment.Center });
+            _viewDirection = new ComboBox { Width = 110, Margin = new Thickness(4, 0, 10, 0), DisplayMemberPath = "Name", SelectedValuePath = "Degrees",
+                ItemsSource = Cardinal.Select(c => new { c.Name, c.Degrees }).ToArray() };
+            _viewDirection.SelectedValue = view.Facing;
+            System.Windows.Automation.AutomationProperties.SetName(_viewDirection, "Dirección hacia la que mira");
+            row.Children.Add(_viewDirection);
+        }
+        box.Children.Add(row);
+        if (view.Sight is int sight)
+        {
+            var sightRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 6, 0, 0) };
+            sightRow.Children.Add(new TextBlock { Text = "Alcance (casillas)", Foreground = Res("TextSoft"), VerticalAlignment = VerticalAlignment.Center });
+            _viewSight = new TextBox { Text = sight.ToString(inv), Width = 48, Margin = new Thickness(4, 0, 0, 0), IsEnabled = view.SightWritable,
+                ToolTip = view.SightWritable ? $"1–{view.MaxSight}" : "Este NPC no tiene visión; no se le añade." };
+            System.Windows.Automation.AutomationProperties.SetName(_viewSight, "Alcance de visión en casillas");
+            sightRow.Children.Add(_viewSight);
+            box.Children.Add(sightRow);
+        }
+        var buttons = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 8, 0, 0) };
+        buttons.Children.Add(Small("Previsualizar", () => PreviewView(item), "Previsualizar la orientación en el mapa"));
+        _viewSave = Small("Guardar", () => SaveView(), "Guardar la orientación en el proyecto");
+        _viewSave.IsEnabled = false;
+        buttons.Children.Add(_viewSave);
+        buttons.Children.Add(Small("Cancelar", () => CancelView(item), "Cancelar el cambio de orientación"));
+        box.Children.Add(buttons);
+        _viewResult = new TextBlock { TextWrapping = TextWrapping.Wrap, Foreground = Res("TextSoft"), Margin = new Thickness(0, 6, 0, 0) };
+        box.Children.Add(_viewResult);
+        box.Children.Add(new TextBlock { Text = view.Note, TextWrapping = TextWrapping.Wrap, Foreground = Res("TextSoft"), FontSize = 11, Margin = new Thickness(0, 6, 0, 0) });
+        return box;
+    }
+
+    private void ShowViewOverlay(MapEventView item, double? facing, int? sight, bool pending)
+    {
+        if (facing is not double f || CurrentZone is not int zone || Views is not { } views) { _canvas.SetView(null); return; }
+        var cells = sight is int s && s > 0 ? views.SightCells(zone, item.Kind, item.Index, f, s) : [];
+        _canvas.SetView((item, f, cells, pending));
+    }
+
+    private void CancelView(MapEventView item)
+    {
+        _pendingView = null;
+        if (_viewSave is not null) _viewSave.IsEnabled = false;
+        if (_viewResult is not null) _viewResult.Text = "";
+        var view = CurrentZone is int zone ? Views?.View(zone, item.Kind, item.Index) : null;
+        ShowViewOverlay(item, view?.Facing, view?.Sight, pending: false);
+    }
+
+    /// <summary>Checks the new facing/sight and draws it on the map; nothing is written.</summary>
+    internal bool PreviewView(MapEventView npc)
+    {
+        if (_viewResult is null || _viewSave is null || CurrentZone is not int zone || Views is not { } views || views.View(zone, npc.Kind, npc.Index) is not { } view) return false;
+        _pendingView = null; _viewSave.IsEnabled = false;
+        double facing;
+        if (_viewAngle is not null)
+        {
+            if (!double.TryParse(_viewAngle.Text.Replace(',', '.'), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out facing) || !double.IsFinite(facing))
+            { _viewResult.Text = "Escribe un ángulo en grados."; return false; }
+            facing = ((facing % 360) + 360) % 360;
+        }
+        else if (_viewDirection?.SelectedValue is double d) facing = d;
+        else { _viewResult.Text = "Elige una dirección."; return false; }
+        int? sight = null;
+        if (_viewSight is { IsEnabled: true })
+        {
+            if (!int.TryParse(_viewSight.Text, out int s)) { _viewResult.Text = "Escribe un número entero de casillas."; return false; }
+            sight = s;
+        }
+        var check = views.ValidateView(zone, npc.Kind, npc.Index, facing, sight);
+        _viewResult.Text = check.Reason;
+        if (!check.Allowed) { ShowViewOverlay(npc, view.Facing, view.Sight, pending: false); return false; }
+        _pendingView = (npc, facing, sight);
+        ShowViewOverlay(npc, facing, sight ?? view.Sight, pending: true);
+        _viewSave.IsEnabled = true;
+        return true;
+    }
+
+    /// <summary>Commits the previewed facing/sight through the project history and reloads the zone from disk.</summary>
+    internal bool SaveView()
+    {
+        if (_mover is null || _pendingView is not { } change || CurrentZone is not int zone || _viewResult is null) return false;
+        try
+        {
+            string summary = _mover.SetView(_backend, zone, change.Npc.Index, change.Facing, change.Sight);
+            _backend = _mover.Reload();
+            _pendingView = null;
+            ShowZone(zone);
+            var turned = _current.FirstOrDefault(e => e.Kind == change.Npc.Kind && e.Index == change.Npc.Index);
+            _canvas.Select(turned, true); ShowDetails(turned); SyncList(turned);
+            _status.Text = summary + " · Puedes deshacerlo desde el historial.";
+            return true;
+        }
+        catch (Exception ex) when (ex is InvalidOperationException or InvalidDataException or IOException or ArgumentException)
+        {
+            _viewResult.Text = "No se guardó: " + ex.Message;
+            return false;
+        }
     }
 
     /// <summary>Puts the area back to its state before the last move made here (a new history entry) and reloads it.</summary>
@@ -304,7 +452,7 @@ internal sealed class Map3dsEditorView : UserControl
         {
             string summary = _mover.Restore(zone);
             _backend = _mover.Reload();
-            _pendingMove = null; _canvas.SetPendingMove(null);
+            _pendingMove = null; _canvas.SetPendingMove(null); _pendingView = null;
             ShowZone(zone);
             _status.Text = summary + " · Registrado en el historial.";
             return true;

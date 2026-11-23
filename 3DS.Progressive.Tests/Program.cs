@@ -361,6 +361,8 @@ if(args.Length is 4 or 5&&args[0]=="--map3ds-gen7-ui-probe")
     Exception? failure=null;var thread=new Thread(()=>{try{var app=new ThreeDS.Progressive.App();app.InitializeComponent();WpfTestHost.SuppressStartup();ThreeDS.Progressive.StudioDialog.AutomatedChecks=true;Map3dsGen7Checks.ProbeUi(args[1],args[2],int.Parse(args[3]),args.Length==5&&args[4]=="diagnostico");}catch(Exception ex){failure=ex;}});thread.SetApartmentState(ApartmentState.STA);thread.Start();thread.Join();if(failure is not null)System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(failure).Throw();return;
 }
 if(args.Length==5&&args[0]=="--map3ds-gen7-ground-probe"){Map3dsGen7Checks.GroundProbe(args[1],args[2],int.Parse(args[3]),int.Parse(args[4]));return;}
+if(args.Length==2&&args[0]=="--map3ds-gen6-facing-probe"){Map3dsGen6Checks.FacingProbe(args[1]);return;}
+if(args.Length==3&&args[0]=="--map3ds-gen7-event-dump"){Map3dsGen7Checks.EventDump(args[1],args[2]);return;}
 if(args.Length==2&&args[0]=="--map3ds-gen7-warps-probe"){Map3dsGen7Checks.WarpsProbe(args[1]);return;}
 if(args.Length==4&&args[0]=="--map3ds-gen7-npc-move-probe"){Map3dsGen7NpcMoveChecks.Probe(args[1],int.Parse(args[2]),int.Parse(args[3]));return;}
 if(args.Length==8&&args[0]=="--map3ds-gen7-npc-move-rebuild"){Map3dsGen7NpcMoveChecks.Rebuild(args[1],args[2],args[3],int.Parse(args[4]),int.Parse(args[5]),int.Parse(args[6]),int.Parse(args[7]));return;}
@@ -373,6 +375,14 @@ if(args.Length==1&&args[0]=="--map3ds-render-ui-only")
 }
 if(args.Length==8&&args[0]=="--map3ds-npc-move-rebuild"){Map3dsNpcMoveChecks.Rebuild(args[1],args[2],args[3],int.Parse(args[4]),int.Parse(args[5]),int.Parse(args[6]),int.Parse(args[7]));return;}
 if(args.Length==6&&args[0]=="--map3ds-npc-move-probe"){Map3dsNpcMoveChecks.Probe(args[1],int.Parse(args[2]),int.Parse(args[3]),int.Parse(args[4]),int.Parse(args[5]));return;}
+if(args.Length==1&&args[0]=="--map3ds-trainer-facing-only"){Map3dsTrainerFacingChecks.Run(Check);Console.WriteLine($"Completed {checks} 3DS trainer facing checks (synthetic).");return;}
+if(args.Length==1&&args[0]=="--map3ds-trainer-facing-ui-only")
+{
+    Exception? failure=null;var thread=new Thread(()=>{try{var app=new ThreeDS.Progressive.App();app.InitializeComponent();WpfTestHost.SuppressStartup();ThreeDS.Progressive.StudioDialog.AutomatedChecks=true;Map3dsTrainerFacingChecks.RunUi(Check);}catch(Exception ex){failure=ex;}});thread.SetApartmentState(ApartmentState.STA);thread.Start();thread.Join();if(failure is not null)System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(failure).Throw();Console.WriteLine($"Completed {checks} 3DS trainer facing UI checks (off-screen).");return;
+}
+if(args.Length is 5 or 6&&args[0]=="--map3ds-trainer-facing-probe-gen6"){Map3dsTrainerFacingChecks.ProbeGen6(args[1],int.Parse(args[2]),int.Parse(args[3]),double.Parse(args[4],System.Globalization.CultureInfo.InvariantCulture),args.Length==6?int.Parse(args[5]):null);return;}
+if(args.Length==5&&args[0]=="--map3ds-trainer-facing-probe-gen7"){Map3dsTrainerFacingChecks.ProbeGen7(args[1],int.Parse(args[2]),int.Parse(args[3]),double.Parse(args[4],System.Globalization.CultureInfo.InvariantCulture));return;}
+if(args.Length is 7 or 8&&args[0]=="--map3ds-trainer-facing-rebuild"){Map3dsTrainerFacingChecks.Rebuild(args[1],args[2],args[3],int.Parse(args[4]),int.Parse(args[5]),double.Parse(args[6],System.Globalization.CultureInfo.InvariantCulture),args.Length==8?int.Parse(args[7]):null);return;}
 if(args.Length==1&&args[0]=="--map3ds-gen6-only"){Map3dsGen6Checks.Run(Check);Console.WriteLine($"Completed {checks} Gen6 map and event reader checks (synthetic).");return;}
 if(args.Length==1&&args[0]=="--map3ds-gen6-ui-only")
 {

@@ -60,6 +60,29 @@ public static class Gen6ZoneEdit
         _ = new Gen6Zone(output); // still a valid zone
         return output;
     }
+
+    public const int NpcFacing = 0x0C, NpcSight = 0x0E;
+
+    /// <summary>
+    /// Copy of <paramref name="zone"/> with the facing (u16 0x0C, 0–3) and, when given, the sight range
+    /// (u16 0x0E) of NPC <paramref name="index"/>. Nothing else may change.
+    /// </summary>
+    public static byte[] SetNpcView(byte[] zone, int index, int facing, int? sight)
+    {
+        if (facing is < 0 or > 3) throw new ArgumentOutOfRangeException(nameof(facing), "Solo se escriben las cuatro direcciones verificadas (0–3).");
+        if (sight is < 0 or > 0xFFFF) throw new ArgumentOutOfRangeException(nameof(sight), "Alcance fuera del rango de 16 bits.");
+        var parsed = new Gen6Zone(zone);
+        var record = parsed.Entities.Records.FirstOrDefault(r => r.Kind == MapEventKind.Npc && r.Index == index);
+        if (record.Size == 0) throw new ArgumentOutOfRangeException(nameof(index), $"La zona no tiene NPC {index}.");
+        var output = (byte[])zone.Clone();
+        BinaryPrimitives.WriteUInt16LittleEndian(output.AsSpan(record.Offset + NpcFacing), (ushort)facing);
+        if (sight is int s) BinaryPrimitives.WriteUInt16LittleEndian(output.AsSpan(record.Offset + NpcSight), (ushort)s);
+        for (int i = 0; i < zone.Length; i++)
+            if (zone[i] != output[i] && (i < record.Offset + NpcFacing || i >= record.Offset + NpcSight + 2))
+                throw new InvalidOperationException("La escritura tocó bytes fuera de la orientación y la visión del NPC.");
+        _ = new Gen6Zone(output);
+        return output;
+    }
 }
 
 /// <summary>Location of one fixed-size entity record inside the zone file.</summary>

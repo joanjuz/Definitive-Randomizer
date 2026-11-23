@@ -46,6 +46,13 @@ internal sealed class Map3dsCanvas : FrameworkElement
     private (MapEventView Npc, int X, int Y)? _pendingMove;
     internal void SetPendingMove((MapEventView Npc, int X, int Y)? move) { _pendingMove = move; InvalidateVisual(); }
     private static readonly Pen GhostPen = Freeze(new Pen(Brushes.White, 2) { DashStyle = DashStyles.Dash });
+    private (MapEventView Event, double Facing, IReadOnlyList<(int X, int Y)> Cells, bool Pending)? _view;
+    /// <summary>Facing arrow and sight cells of one character; <c>Pending</c> draws them as a preview.</summary>
+    internal void SetView((MapEventView Event, double Facing, IReadOnlyList<(int X, int Y)> Cells, bool Pending)? view) { _view = view; InvalidateVisual(); }
+    internal (MapEventView Event, double Facing, IReadOnlyList<(int X, int Y)> Cells, bool Pending)? ViewOverlay => _view;
+    private static readonly Brush SightFill = Freeze(new SolidColorBrush(Color.FromArgb(0x55, 0xF4, 0xC9, 0x5D)));
+    private static readonly Pen SightEdge = Freeze(new Pen(new SolidColorBrush(Color.FromArgb(0xCC, 0xF4, 0xC9, 0x5D)), 1));
+    private static readonly Pen ArrowPen = Freeze(new Pen(new SolidColorBrush(Color.FromRgb(0xF4, 0xC9, 0x5D)), 2.5) { StartLineCap = PenLineCap.Round, EndLineCap = PenLineCap.Round });
     internal event Action<MapEventView?>? EventPicked;
     internal event Action<string>? Hover;
     internal Map3dsLayers Layers { get; private set; } = Map3dsLayers.All;
@@ -80,11 +87,11 @@ internal sealed class Map3dsCanvas : FrameworkElement
     {
         if (!ReferenceEquals(resources, _resources)) { _blockImages.Clear(); lock (_pending) _graphics.Clear(); }
         if (zone != _zone) _generation++;
-        _resources = resources; _layout = layout; _events = events; Selected = null; _zone = zone;
+        _resources = resources; _layout = layout; _events = events; Selected = null; _zone = zone; _view = null;
         Fit();
     }
 
-    internal void Clear() { _layout = null; _events = []; Selected = null; InvalidateVisual(); }
+    internal void Clear() { _layout = null; _events = []; Selected = null; _view = null; InvalidateVisual(); }
 
     internal void SetLayers(Map3dsLayers layers) { Layers = layers; InvalidateVisual(); }
 
@@ -266,6 +273,21 @@ internal sealed class Map3dsCanvas : FrameworkElement
             dc.DrawLine(GhostPen, from, to);
             double rad = Math.Max(4, _scale * 0.5);
             dc.DrawEllipse(new SolidColorBrush(Color.FromArgb(0x99, 0xF4, 0xC9, 0x5D)), GhostPen, to, rad, rad);
+        }
+        if (_view is { } v && v.Event.Placed && Layers.Shows(v.Event.Kind))
+        {
+            foreach (var (cx, cy) in v.Cells)
+                dc.DrawRectangle(SightFill, SightEdge, new Rect(ToScreen(new Point(cx, cy)), new Size(_scale, _scale)));
+            if (double.IsFinite(v.Facing))
+            {
+                double rad = v.Facing * Math.PI / 180, len = Math.Max(14, _scale * 1.4);
+                var c = ToScreen(new Point(v.Event.X + 0.5, v.Event.Y + 0.5));
+                var tip = new Point(c.X + (Math.Sin(rad) * len), c.Y - (Math.Cos(rad) * len));
+                var pen = v.Pending ? GhostPen : ArrowPen;
+                dc.DrawLine(pen, c, tip);
+                foreach (double side in new[] { -2.6, 2.6 })
+                    dc.DrawLine(pen, tip, new Point(tip.X - (Math.Sin(rad + side) * len * -0.35), tip.Y + (Math.Cos(rad + side) * len * -0.35)));
+            }
         }
         if (Selected is { Placed: true } s && Layers.Shows(s.Kind))
         {

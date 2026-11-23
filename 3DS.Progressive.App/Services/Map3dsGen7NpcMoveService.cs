@@ -43,28 +43,7 @@ internal sealed class Map3dsGen7NpcMoveService
         if (!check.Allowed) throw new InvalidOperationException(check.Reason);
         var r = backend.EventRef(area, index) ?? throw new InvalidOperationException("Evento desconocido.");
         var target = backend.MoveTarget(area, index, x, y);
-        byte[] source = GarcTransaction.ReadUnchanged(_path, _hash);
-        byte[][] records = new GARC.MemGARC(source).Files;
-        int member = area * Gen7MapBackend.SlotsPerWorld;
-        if (member >= records.Length) throw new InvalidDataException("El área no existe en el archivo.");
-        byte[] raw = records[member];
-        bool compressed = raw.Length > 0 && raw[0] == 0x11;
-        byte[] current = compressed ? Decompress(raw) : raw;
-        if (!current.AsSpan().SequenceEqual(backend.EventBytes(area)))
-            throw new InvalidDataException("El paquete de eventos del archivo no coincide con el que muestra el editor. Vuelve a abrir el editor.");
-        byte[] moved = Gen7ZoneEdit.MoveNpc(current, r.Zone, r.Row, target);
-        byte[] encoded = moved;
-        if (compressed)
-        {
-            encoded = GameCatchZoneService.Compress(moved);
-            if (!Decompress(encoded).AsSpan().SequenceEqual(moved)) throw new InvalidDataException("La recompresión no es reversible. No se guardó nada.");
-        }
-        records[member] = encoded;
-        byte[] output = GarcTransaction.Build(source, _reference, records, preserveRecordSize: false);
-        var before = new GARC.MemGARC(source).Files;
-        var after = new GARC.MemGARC(output).Files;
-        for (int i = 0; i < after.Length; i++)
-            if (i != member && !after[i].AsSpan().SequenceEqual(before[i])) throw new InvalidDataException("La reconstrucción cambió otro archivo de campo. No se guardó nada.");
+        var (source, raw, encoded, output) = Rewrite(backend, area, current => Gen7ZoneEdit.MoveNpc(current, r.Zone, r.Row, target));
         string from = $"{r.Position.X:0.#}, {r.Position.Z:0.#} (altura {r.Position.Y:0.#})", to = $"{target.X:0.#}, {target.Z:0.#} (altura {target.Y:0.#})";
         var changes = new[] { new BatchChange(area, $"Área {area:000}", $"NPC zona {r.Zone} fila {r.Row} · posición", from, to, "npc.position") };
         var inv = System.Globalization.CultureInfo.InvariantCulture;
@@ -77,6 +56,65 @@ internal sealed class Map3dsGen7NpcMoveService
         parameters["RestoreBlob"] = restoreKey;
         _pendingOriginal = (restoreKey, raw);
         return new EditorProposal(_owner, $"Mover NPC (zona {r.Zone}, fila {r.Row}) del área {area:000}", 0, [new FileChange(_path, source, output)], changes, parameters);
+    }
+
+    internal const string ViewActionId = "map3ds.gen7.trainer.facing";
+
+    /// <summary>
+    /// Turns an existing trainer (y and w of its rotation, Gen7ZoneEdit.TurnTrainer) through the same checks
+    /// as a move; the original member is kept for an exact restore. Nothing is written until <see cref="Apply"/>.
+    /// </summary>
+    internal EditorProposal PreviewView(Gen7MapBackend backend, int area, int index, double facing)
+    {
+        var check = backend.ValidateView(area, MapEventKind.Npc, index, facing, null);
+        if (!check.Allowed) throw new InvalidOperationException(check.Reason);
+        var r = backend.EventRef(area, index) ?? throw new InvalidOperationException("Evento desconocido.");
+        var view = backend.View(area, MapEventKind.Npc, index) ?? throw new InvalidOperationException("El entrenador no tiene orientación legible.");
+        var (source, raw, encoded, output) = Rewrite(backend, area, current => Gen7ZoneEdit.TurnTrainer(current, r.Zone, r.Row, facing));
+        var inv = System.Globalization.CultureInfo.InvariantCulture;
+        string from = Gen7MapBackend.TrainerDirection(view.Facing), to = Gen7MapBackend.TrainerDirection(facing);
+        var changes = new[] { new BatchChange(area, $"Área {area:000}", $"Entrenador zona {r.Zone} fila {r.Row} · orientación", from, to, "trainer.facing") };
+        var parameters = new Dictionary<string, string>
+        {
+            { "ActionId", ViewActionId }, { "Game", "USUM" }, { "Area", area.ToString(inv) }, { "LocalZone", r.Zone.ToString(inv) }, { "Row", r.Row.ToString(inv) },
+            { "From", view.Facing.ToString("0.###", inv) }, { "To", facing.ToString("0.###", inv) }, { "Gameplay", "not tested" },
+        };
+        string restoreKey = Convert.ToHexString(SHA256.HashData(encoded));
+        parameters["RestoreBlob"] = restoreKey;
+        _pendingOriginal = (restoreKey, raw);
+        return new EditorProposal(_owner, $"Girar entrenador (zona {r.Zone}, fila {r.Row}) del área {area:000} hacia {to}", 0, [new FileChange(_path, source, output)], changes, parameters);
+    }
+
+    /// <summary>
+    /// Reads the field archive by fingerprint, checks the area event pack is the one the editor shows, applies
+    /// <paramref name="edit"/> to it decompressed, recompresses it (checked to round-trip) and rebuilds the
+    /// archive, checking that every other member is unchanged.
+    /// </summary>
+    private (byte[] Source, byte[] Raw, byte[] Encoded, byte[] Output) Rewrite(Gen7MapBackend backend, int area, Func<byte[], byte[]> edit)
+    {
+        byte[] source = GarcTransaction.ReadUnchanged(_path, _hash);
+        byte[][] records = new GARC.MemGARC(source).Files;
+        int member = area * Gen7MapBackend.SlotsPerWorld;
+        if (member >= records.Length) throw new InvalidDataException("El área no existe en el archivo.");
+        byte[] raw = records[member];
+        bool compressed = raw.Length > 0 && raw[0] == 0x11;
+        byte[] current = compressed ? Decompress(raw) : raw;
+        if (!current.AsSpan().SequenceEqual(backend.EventBytes(area)))
+            throw new InvalidDataException("El paquete de eventos del archivo no coincide con el que muestra el editor. Vuelve a abrir el editor.");
+        byte[] edited = edit(current);
+        byte[] encoded = edited;
+        if (compressed)
+        {
+            encoded = GameCatchZoneService.Compress(edited);
+            if (!Decompress(encoded).AsSpan().SequenceEqual(edited)) throw new InvalidDataException("La recompresión no es reversible. No se guardó nada.");
+        }
+        records[member] = encoded;
+        byte[] output = GarcTransaction.Build(source, _reference, records, preserveRecordSize: false);
+        var before = new GARC.MemGARC(source).Files;
+        var after = new GARC.MemGARC(output).Files;
+        for (int i = 0; i < after.Length; i++)
+            if (i != member && !after[i].AsSpan().SequenceEqual(before[i])) throw new InvalidDataException("La reconstrucción cambió otro archivo de campo. No se guardó nada.");
+        return (source, raw, encoded, output);
     }
 
     private (string Key, byte[] Original)? _pendingOriginal;
@@ -116,7 +154,7 @@ internal sealed class Map3dsGen7NpcMoveService
         for (int i = 0; i < after.Length; i++)
             if (i != member && !after[i].AsSpan().SequenceEqual(before[i])) throw new InvalidDataException("La reconstrucción cambió otro archivo de campo. No se restauró nada.");
         var inv = System.Globalization.CultureInfo.InvariantCulture;
-        return new EditorProposal(_owner, $"Restaurar eventos del área {area:000} antes del último movimiento", 0, [new FileChange(_path, source, output)],
+        return new EditorProposal(_owner, $"Restaurar eventos del área {area:000} antes del último cambio", 0, [new FileChange(_path, source, output)],
             [new BatchChange(area, $"Área {area:000}", "Paquete de eventos", key[..12], Convert.ToHexString(SHA256.HashData(original))[..12], "npc.position.restore")],
             new Dictionary<string, string> { { "ActionId", ActionId + ".restore" }, { "Game", "USUM" }, { "Area", area.ToString(inv) } });
     }

@@ -333,6 +333,50 @@ internal static class Map3dsGen7Checks
     }
 
     /// <summary>Read-only: resolves every warp of a USUM copy and measures how consistent the links are.</summary>
+    /// <summary>Raw dump of every NPC (120 B) and trainer (84 B) record of a real copy, one CSV row per record (u32 words in hex).</summary>
+    internal static void EventDump(string root, string output)
+    {
+        var backend = Gen7MapBackend.FromConfig(Map3dsGen6Checks.OpenConfig(root));
+        using var csv = new StreamWriter(output);
+        foreach (var area in backend.Zones)
+        {
+            var ed = backend.EventPack(area.Id);
+            if (ed is null) continue;
+            foreach (var (pack, size, type) in new[] { (Gen7Events.NpcPack, 120, 1), (Gen7Events.TrainerPack, 84, 7) })
+            {
+                if (pack >= ed.Count || ed.Length(pack) == 0) continue;
+                var zones = Gen7Events.Container(ed.Part(pack).ToArray());
+                if (zones is null) continue;
+                for (int z = 0; z < zones.Count; z++)
+                {
+                    var file = zones.Part(z).ToArray();
+                    foreach (var r in Gen7Events.Records(file, size, type))
+                    {
+                        var words = Enumerable.Range(0, size / 4).Select(i => r.U32(i * 4).ToString("X8"));
+                        var shapes = Enumerable.Range(0, (size - 0x3C) / 4).Select(k => (int)r.U32(0x3C + (k * 4))).Select(o => o <= 0 || o + 4 > file.Length ? "-" : ShapeHex(file, o));
+                        csv.WriteLine($"{area.Id};{area.Name.Replace(';', ',')};{pack};{z};{r.Index};{file.Length};{string.Join(';', words)};{string.Join(';', shapes)};{(pack == Gen7Events.TrainerPack ? Convert.ToHexString(file) : "")}");
+                    }
+                }
+            }
+        }
+        Console.WriteLine($"Volcado en {output}");
+    }
+
+    private static string ShapeHex(byte[] file, int o)
+    {
+        int count = BinaryPrimitives.ReadInt32LittleEndian(file.AsSpan(o));
+        if (count is < 0 or > 64) return "?";
+        int[] sizes = [20, 40, 28, 36];
+        int len = 4 + (count * 4);
+        for (int i = 0; i < count && o + 4 + (i * 4) + 4 <= file.Length; i++)
+        {
+            int t = BinaryPrimitives.ReadInt32LittleEndian(file.AsSpan(o + 4 + (i * 4)));
+            len += t is >= 0 and <= 3 ? sizes[t] : 0;
+        }
+        len = Math.Min(len, file.Length - o);
+        return Convert.ToHexString(file, o, len);
+    }
+
     internal static void WarpsProbe(string root)
     {
         var backend = Gen7MapBackend.FromConfig(Map3dsGen6Checks.OpenConfig(root));

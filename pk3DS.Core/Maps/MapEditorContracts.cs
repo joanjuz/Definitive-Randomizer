@@ -101,6 +101,24 @@ public sealed record MapEventProperty(string Name, string Value, bool Writable =
 
 public sealed record MapMutation(MapEventKind Kind, int Index, string Property, int Value);
 
+/// <summary>
+/// Facing and sight of a character as its adapter reads them. <see cref="Facing"/> is a compass angle on
+/// the map: 0 up, 90 right, 180 down, 270 left. <see cref="Sight"/> is in cells and null when the format
+/// keeps it somewhere the adapter has not located. <see cref="FreeAngle"/> false means only the four
+/// cardinal directions exist.
+/// </summary>
+public sealed record MapTrainerView(double Facing, int? Sight, bool FacingWritable, bool SightWritable, bool FreeAngle, int MaxSight, string Note);
+
+/// <summary>Optional part of an adapter that reads, and may write, the facing and sight of characters.</summary>
+public interface IMapTrainerViews
+{
+    /// <summary>Null when the event is not a character whose facing the adapter knows.</summary>
+    MapTrainerView? View(int zone, MapEventKind kind, int index);
+    MapMutationCheck ValidateView(int zone, MapEventKind kind, int index, double facing, int? sight);
+    /// <summary>Cells covered by a sight of <paramref name="sight"/> cells facing <paramref name="facing"/>; empty when the sight shape is not known.</summary>
+    IReadOnlyList<(int X, int Y)> SightCells(int zone, MapEventKind kind, int index, double facing, int sight);
+}
+
 public sealed record MapMutationCheck(bool Allowed, string Reason);
 
 /// <summary>Raised when a file does not have the layout an adapter verified.</summary>
