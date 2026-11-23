@@ -27,7 +27,7 @@ internal static class Map3dsGen6Checks
         return data;
     }
 
-    internal sealed record SyntheticNpc(int X, int Y, int Model = 7, int Face = 1, int Sight = 3);
+    internal sealed record SyntheticNpc(int X, int Y, int Model = 7, int Face = 1, int Sight = 3, float Angle = 18f);
 
     internal static byte[] Zone(int matrix, int parent, SyntheticNpc[] npcs, (int X, int Y, int W, int H)[]? props = null,
         (int RawX, int RawY, int Dest, int Type)[]? warps = null, (int X, int Y, int W, int H)[]? triggers = null, int? badLength = null)
@@ -55,7 +55,7 @@ internal static class Map3dsGen6Checks
             BinaryPrimitives.WriteUInt16LittleEndian(e.AsSpan(o + 0x0C), (ushort)n.Face);
             BinaryPrimitives.WriteUInt16LittleEndian(e.AsSpan(o + 0x0E), (ushort)n.Sight);
             BinaryPrimitives.WriteUInt16LittleEndian(e.AsSpan(o + 0x28), (ushort)n.X); BinaryPrimitives.WriteUInt16LittleEndian(e.AsSpan(o + 0x2A), (ushort)n.Y);
-            BinaryPrimitives.WriteSingleLittleEndian(e.AsSpan(o + 0x2C), 18f);
+            BinaryPrimitives.WriteSingleLittleEndian(e.AsSpan(o + 0x2C), n.Angle);
             o += 0x30;
         }
         foreach (var w in warps)
@@ -134,10 +134,10 @@ internal static class Map3dsGen6Checks
             && events.Count(e => e.Kind == MapEventKind.Warp) == 2 && events.Count(e => e.Kind == MapEventKind.Trigger) == 1, "Gen6Map_ReadsEveryEntityKind");
         var npc = events.First(e => e.Kind == MapEventKind.Npc);
         check(npc.X == 45 && npc.Y == 12 && npc.Facing is null && npc.Properties.Any(p => p.Name == "Modelo" && p.Value == "7")
-            && npc.Properties.Any(p => p.Name == "Alcance de visión" && p.Value == "3") && npc.Properties.Any(p => p.Name == "Ángulo" && p.Value == "18°"),
+            && npc.Properties.Any(p => p.Name == "Alcance de visión" && p.Value == "3 casillas") && npc.Properties.Any(p => p.Name == "Ángulo" && p.Value == "18°"),
             "Gen6Map_NpcCellModelSightAndAngle");
-        check(npc.Properties.First(p => p.Name.StartsWith("Orientación")).Note?.Contains("no está verificada") == true,
-            "Gen6Map_NpcFacingIsShownRawUntilVerified");
+        check(npc.Properties.First(p => p.Name.StartsWith("Orientación")) is { Writable: false, Value: "abajo (valor 1)" } o && o.Note!.Contains("0x2C"),
+            "Gen6Map_NpcFacingWithAnAngleStaysReadOnly");
         var warp = events.First(e => e.Kind == MapEventKind.Warp);
         check(warp.X == 46 && warp.Y == 20 && warp.Width == 3 && warp.Properties.First(p => p.Name == "Tipo de coordenadas").Note is null, "Gen6Map_WarpCentreConvertsToItsCell");
         var loose = events.Where(e => e.Kind == MapEventKind.Warp).ElementAt(1);
@@ -193,6 +193,59 @@ internal static class Map3dsGen6Checks
         if (config.Version == GameVersion.Invalid) throw new InvalidDataException($"RomFS no reconocido ({count} GARC).");
         config.Initialize(romfs, exefs, 2);
         return config;
+    }
+
+    /// <summary>
+    /// Evidence for the NPC orientation field (0x0C): for every NPC with a sight range (0x0E &gt; 0), the share of
+    /// cells along a line of that length in each direction whose permission value equals the NPC's own cell.
+    /// A trainer looks over ground it can be approached on, so the real direction should score highest.
+    /// </summary>
+    internal static void FacingProbe(string root)
+    {
+        var backend = Gen6MapBackend.FromConfig(OpenConfig(root));
+        string[] dirs = ["arriba (-Y)", "abajo (+Y)", "izquierda (-X)", "derecha (+X)"];
+        (int dx, int dy)[] steps = [(0, -1), (0, 1), (-1, 0), (1, 0)];
+        var score = new double[8, 4];
+        var best = new int[8, 4];
+        var count = new int[8];
+        var sight = new Dictionary<int, int>();
+        foreach (var entry in backend.Zones)
+        {
+            var zone = backend.Zone(entry.Id);
+            var layout = backend.Layout(entry.Id);
+            uint? Cell(int x, int y)
+            {
+                if (x < 0 || y < 0) return null;
+                int block = layout.BlockAt(x / layout.BlockCells, y / layout.BlockCells);
+                if (block < 0 || backend.Cells(block) is not { } g) return null;
+                return g.Cells[((y % layout.BlockCells) * g.Width) + (x % layout.BlockCells)];
+            }
+            foreach (var r in zone.Entities.Records.Where(r => r.Kind == MapEventKind.Npc))
+            {
+                int facing = zone.Entities.U16(r, 0x0C), range = zone.Entities.U16(r, 0x0E);
+                sight[range] = sight.GetValueOrDefault(range) + 1;
+                if (range == 0 || facing > 7) continue;
+                int x = zone.Entities.U16(r, 0x28), y = zone.Entities.U16(r, 0x2A);
+                if (Cell(x, y) is not uint own) continue;
+                count[facing]++;
+                var s = new double[4];
+                for (int d = 0; d < 4; d++)
+                {
+                    int ok = 0;
+                    for (int k = 1; k <= range; k++) if (Cell(x + (steps[d].dx * k), y + (steps[d].dy * k)) == own) ok++;
+                    s[d] = (double)ok / range;
+                    score[facing, d] += s[d];
+                }
+                double max = s.Max();
+                for (int d = 0; d < 4; d++) if (s[d] == max && s.Count(v => v == max) == 1) best[facing, d]++;
+            }
+        }
+        Console.WriteLine($"{backend.Title}: NPC por alcance de visiÃ³n " + string.Join(", ", sight.OrderBy(k => k.Key).Select(k => $"{k.Key}:{k.Value}")));
+        for (int v = 0; v < 8; v++)
+        {
+            if (count[v] == 0) continue;
+            Console.WriteLine($"  valor {v} ({count[v]} con visiÃ³n): " + string.Join(" Â· ", Enumerable.Range(0, 4).Select(d => $"{dirs[d]} {score[v, d] / count[v]:P0} (mejor Ãºnica {best[v, d]})")));
+        }
     }
 
     /// <summary>Read-only pass over every zone of a real copy.</summary>

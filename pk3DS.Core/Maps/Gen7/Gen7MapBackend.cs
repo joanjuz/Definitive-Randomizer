@@ -20,7 +20,7 @@ namespace pk3DS.Core.Maps.Gen7;
 /// spans [c·size, (c+1)·size) on X and Z. Static objects (slot 4, "AS") are placed
 /// with the ED part 4 records; events come from the other ED parts (Gen7Events).
 /// </summary>
-public sealed class Gen7MapBackend : IMapEditorBackend, IMapResourceProvider, IMapEventProvider, IMapMutationValidator
+public sealed class Gen7MapBackend : IMapEditorBackend, IMapResourceProvider, IMapEventProvider, IMapMutationValidator, IMapTrainerViews
 {
     public const int SlotsPerWorld = 11;
     private readonly Func<int, byte[]> _world, _chunk;
@@ -148,6 +148,20 @@ public sealed class Gen7MapBackend : IMapEditorBackend, IMapResourceProvider, IM
                     props.Add(new("Campos +0x20 / +0x24 / +0x28", $"{N(r.U32(32))} / {N(r.U32(36))} / {N(r.U32(40))}", Note: "Sin verificar (posibles versión, banderas y condición)."));
                     props.Add(new("Forma de activación", r.U32(56) == 0 ? "sin forma" : $"datos en +0x{r.U32(56):X} del archivo de zona", Note: "Formas sin interpretar todavía."));
                 }
+                if (layout.Pack == Gen7Events.TrainerPack)
+                {
+                    var file = zones.Part(z);
+                    string? why = Gen7ZoneEdit.TurnRestriction(file, r);
+                    props.Add(Gen7ZoneEdit.Yaw(r) is double yaw
+                        ? new("Orientación", TrainerDirection(Gen7ZoneEdit.CompassOfYaw(yaw)), Writable: why is null, Note: why ?? TrainerFacingNote)
+                        : new("Orientación", "giro no vertical", Note: why));
+                    uint mv = r.U32(Gen7ZoneEdit.TrainerMovement);
+                    props.Add(new("Movimiento", mv == 0 || mv + 12 > file.Length ? "sin bloque"
+                        : $"tipo {N(BinaryPrimitives.ReadUInt32LittleEndian(file[(int)mv..]))} · animación {N(BinaryPrimitives.ReadUInt32LittleEndian(file[((int)mv + 4)..]))}",
+                        Note: "Bloque +0x3C: tipo 4 = quieto, 8 = con ruta. Solo lectura."));
+                    props.Add(new("Ruta de patrulla", r.U32(Gen7ZoneEdit.TrainerRoute) == 0 ? "no" : $"sí ({N(BinaryPrimitives.ReadUInt16LittleEndian(file[(int)r.U32(Gen7ZoneEdit.TrainerRoute)..]))} puntos)", Note: "Solo lectura."));
+                    props.Add(new("Alcance de visión", "no localizado", Note: TrainerSightNote));
+                }
                 bool inside = cx >= 0 && cy >= 0 && cx < w.Width * 40 && cy < w.Height * 40 && float.IsFinite(pos.X) && float.IsFinite(pos.Z);
                 if (layout.Pack == Gen7Events.NpcPack)
                     props.Add(new("Posición (editable)", $"casilla {Math.Floor(cx):0}, {Math.Floor(cy):0}", Writable: true,
@@ -196,6 +210,47 @@ public sealed class Gen7MapBackend : IMapEditorBackend, IMapResourceProvider, IM
 
     /// <summary>Cell centre in world units.</summary>
     public static (float X, float Z) CellCentre(int x, int y) => ((x + 0.5f) * UnitsPerCell, (y + 0.5f) * UnitsPerCell);
+
+    internal const string TrainerFacingNote = "Editable: ángulo libre. La rotación es un cuaternión sobre el eje vertical (+0x10); sin giro mira hacia abajo en el mapa. Deducido de los datos de Ultra Luna; pendiente de prueba en el juego.";
+    internal const string TrainerSightNote = "El registro de entrenador no tiene un campo de alcance identificado; su visión no se dibuja ni se edita.";
+
+    public static string TrainerDirection(double compass)
+    {
+        string[] names = ["arriba", "arriba-derecha", "derecha", "abajo-derecha", "abajo", "abajo-izquierda", "izquierda", "arriba-izquierda"];
+        double c = ((compass % 360) + 360) % 360;
+        return $"{c.ToString("0.#", System.Globalization.CultureInfo.InvariantCulture)}° ({names[(int)Math.Round(c / 45) % 8]})";
+    }
+
+    private (ReadOnlyMemory<byte> File, Gen7Record Record)? Trainer(int area, int index)
+    {
+        if (EventRef(area, index) is not { } r || r.Pack != Gen7Events.TrainerPack || EventPack(area) is not { } ed) return null;
+        var zones = Gen7Events.Container(ed.Part(Gen7Events.TrainerPack).ToArray());
+        if (zones is null || r.Zone >= zones.Count) return null;
+        var file = zones.Part(r.Zone).ToArray();
+        var rows = Gen7Events.Records(file, Gen7ZoneEdit.TrainerSize, Gen7ZoneEdit.TrainerType).ToList();
+        return r.Row < rows.Count ? (file, rows[r.Row]) : null;
+    }
+
+    public MapTrainerView? View(int zone, MapEventKind kind, int index)
+    {
+        if (kind != MapEventKind.Npc || Trainer(zone, index) is not var (file, rec)) return null;
+        string? why = Gen7ZoneEdit.TurnRestriction(file.Span, rec);
+        double facing = Gen7ZoneEdit.Yaw(rec) is double yaw ? Gen7ZoneEdit.CompassOfYaw(yaw) : double.NaN;
+        return new MapTrainerView(facing, null, why is null, false, true, 0, why ?? TrainerFacingNote);
+    }
+
+    public MapMutationCheck ValidateView(int zone, MapEventKind kind, int index, double facing, int? sight)
+    {
+        if (View(zone, kind, index) is not { } view) return new(false, "Solo se gira a los entrenadores; los NPC normales siguen en solo lectura para la orientación.");
+        if (!view.FacingWritable) return new(false, view.Note);
+        if (sight is not null) return new(false, TrainerSightNote);
+        if (!double.IsFinite(facing)) return new(false, "Escribe un ángulo en grados.");
+        double delta = Math.Abs((((facing - view.Facing) % 360) + 540) % 360 - 180);
+        if (delta < 0.5) return new(false, "No hay cambios respecto al valor guardado.");
+        return new(true, "Se puede escribir. El juego no se ha probado con este cambio: comprueba que el entrenador mira hacia esa dirección y que te ve al pasar delante.");
+    }
+
+    public IReadOnlyList<(int X, int Y)> SightCells(int zone, MapEventKind kind, int index, double facing, int sight) => [];
 
     public MapMutationCheck Validate(int zone, MapMutation mutation) =>
         new(false, "Solo se admite mover NPC (posición). Los demás campos no tienen escritura verificada.");

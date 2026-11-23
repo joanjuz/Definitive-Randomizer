@@ -48,28 +48,8 @@ internal sealed class Map3dsNpcMoveService
     {
         var check = backend.ValidateMove(zone, MapEventKind.Npc, npc, x, y);
         if (!check.Allowed) throw new InvalidOperationException(check.Reason);
-        byte[] source = GarcTransaction.ReadUnchanged(_path, _hash);
-        byte[][] records = new GARC.MemGARC(source).Files;
-        if (zone < 0 || zone >= records.Length) throw new InvalidDataException("La zona no existe en el archivo.");
-        byte[] raw = records[zone];
-        bool compressed = raw.Length > 0 && raw[0] == 0x11;
-        byte[] current = compressed ? Decompress(raw) : raw;
-        if (!current.AsSpan().SequenceEqual(backend.ZoneBytes(zone)))
-            throw new InvalidDataException("La zona del archivo no coincide con la que muestra el editor. Vuelve a abrir el editor.");
         var before = backend.ZoneEvents(zone).First(e => e.Kind == MapEventKind.Npc && e.Index == npc);
-        byte[] moved = Gen6ZoneEdit.MoveNpc(current, npc, x, y);
-        byte[] encoded = moved;
-        if (compressed)
-        {
-            encoded = GameCatchZoneService.Compress(moved);
-            if (!Decompress(encoded).AsSpan().SequenceEqual(moved)) throw new InvalidDataException("La recompresión de la zona no es reversible. No se guardó nada.");
-        }
-        records[zone] = encoded;
-        byte[] output = GarcTransaction.Build(source, _reference, records, preserveRecordSize: false);
-        var reread = new GARC.MemGARC(output).Files;
-        for (int i = 0; i < reread.Length; i++)
-            if (i != zone && !reread[i].AsSpan().SequenceEqual(new GARC.MemGARC(source).Files[i]))
-                throw new InvalidDataException("La reconstrucción cambió otra zona. No se guardó nada.");
+        var (source, output) = Rewrite(backend, zone, current => Gen6ZoneEdit.MoveNpc(current, npc, x, y));
         string from = $"{before.X:0}, {before.Y:0}", to = $"{x}, {y}";
         var changes = new[] { new BatchChange(zone, $"Zona {zone:000}", $"NPC {npc} · casilla", from, to, "npc.position") };
         var parameters = new Dictionary<string, string>
@@ -79,6 +59,68 @@ internal sealed class Map3dsNpcMoveService
             { "From", from }, { "To", to }, { "Gameplay", "not tested" },
         };
         return new EditorProposal(_owner, $"Mover NPC {npc} de la zona {zone:000} a {to}", 0, [new FileChange(_path, source, output)], changes, parameters);
+    }
+
+    /// <summary>
+    /// Changes the facing and, when given, the sight range of an existing NPC (u16 0x0C and 0x0E of its record)
+    /// through the same checks as a move. Nothing is written until <see cref="Apply"/>.
+    /// </summary>
+    internal EditorProposal PreviewView(Gen6MapBackend backend, int zone, int npc, double facing, int? sight)
+    {
+        var check = backend.ValidateView(zone, MapEventKind.Npc, npc, facing, sight);
+        if (!check.Allowed) throw new InvalidOperationException(check.Reason);
+        var view = backend.View(zone, MapEventKind.Npc, npc) ?? throw new InvalidOperationException("El NPC no tiene orientación legible.");
+        int value = Gen6MapBackend.FacingValue(facing) ?? throw new InvalidOperationException("Dirección no verificada.");
+        int? newSight = sight is int s && s != view.Sight ? s : null;
+        var (source, output) = Rewrite(backend, zone, current => Gen6ZoneEdit.SetNpcView(current, npc, value, newSight));
+        var inv = System.Globalization.CultureInfo.InvariantCulture;
+        var changes = new List<BatchChange>();
+        if (Gen6MapBackend.FacingValue(view.Facing) != value)
+            changes.Add(new BatchChange(zone, $"Zona {zone:000}", $"NPC {npc} · orientación", Gen6MapBackend.DirectionName(view.Facing), Gen6MapBackend.DirectionName(facing), "npc.facing"));
+        if (newSight is int ns)
+            changes.Add(new BatchChange(zone, $"Zona {zone:000}", $"NPC {npc} · alcance de visión", (view.Sight ?? 0).ToString(inv), ns.ToString(inv), "npc.sight"));
+        var parameters = new Dictionary<string, string>
+        {
+            { "ActionId", ViewActionId }, { "Game", _project.GameConfiguration.XY ? "XY" : "ORAS" },
+            { "Zone", zone.ToString(inv) }, { "Npc", npc.ToString(inv) }, { "Facing", value.ToString(inv) },
+            { "Sight", (newSight ?? view.Sight ?? 0).ToString(inv) }, { "Gameplay", "not tested" },
+        };
+        string what = string.Join(" y ", changes.Select(c => c.Field.Split(" · ")[1]));
+        return new EditorProposal(_owner, $"Cambiar {what} del NPC {npc} de la zona {zone:000}", 0, [new FileChange(_path, source, output)], changes, parameters);
+    }
+
+    internal const string ViewActionId = "map3ds.npc.view";
+
+    /// <summary>
+    /// Reads the zone archive by fingerprint, checks the zone is the one the editor shows, applies
+    /// <paramref name="edit"/> to the decompressed zone, recompresses it (checked to round-trip) and
+    /// rebuilds the archive, checking that every other zone is unchanged.
+    /// </summary>
+    private (byte[] Source, byte[] Output) Rewrite(Gen6MapBackend backend, int zone, Func<byte[], byte[]> edit)
+    {
+        byte[] source = GarcTransaction.ReadUnchanged(_path, _hash);
+        byte[][] records = new GARC.MemGARC(source).Files;
+        if (zone < 0 || zone >= records.Length) throw new InvalidDataException("La zona no existe en el archivo.");
+        byte[] raw = records[zone];
+        bool compressed = raw.Length > 0 && raw[0] == 0x11;
+        byte[] current = compressed ? Decompress(raw) : raw;
+        if (!current.AsSpan().SequenceEqual(backend.ZoneBytes(zone)))
+            throw new InvalidDataException("La zona del archivo no coincide con la que muestra el editor. Vuelve a abrir el editor.");
+        byte[] edited = edit(current);
+        byte[] encoded = edited;
+        if (compressed)
+        {
+            encoded = GameCatchZoneService.Compress(edited);
+            if (!Decompress(encoded).AsSpan().SequenceEqual(edited)) throw new InvalidDataException("La recompresión de la zona no es reversible. No se guardó nada.");
+        }
+        records[zone] = encoded;
+        byte[] output = GarcTransaction.Build(source, _reference, records, preserveRecordSize: false);
+        var reread = new GARC.MemGARC(output).Files;
+        var original = new GARC.MemGARC(source).Files;
+        for (int i = 0; i < reread.Length; i++)
+            if (i != zone && !reread[i].AsSpan().SequenceEqual(original[i]))
+                throw new InvalidDataException("La reconstrucción cambió otra zona. No se guardó nada.");
+        return (source, output);
     }
 
     internal void Apply(EditorProposal proposal)

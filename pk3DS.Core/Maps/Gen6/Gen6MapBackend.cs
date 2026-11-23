@@ -15,7 +15,7 @@ public enum Gen6Title { XY, ORAS }
 /// matrices from mapMatrix and blocks from mapGR. Every file is read through
 /// the delegates, so the adapter never touches the project on disk.
 /// </summary>
-public sealed class Gen6MapBackend : IMapEditorBackend, IMapResourceProvider, IMapEventProvider, IMapMutationValidator
+public sealed class Gen6MapBackend : IMapEditorBackend, IMapResourceProvider, IMapEventProvider, IMapMutationValidator, IMapTrainerViews
 {
     private readonly Func<int, byte[]> _zone, _matrix, _block;
     private readonly int _matrixCount, _blockCount;
@@ -50,7 +50,7 @@ public sealed class Gen6MapBackend : IMapEditorBackend, IMapResourceProvider, IM
         _area = area; _areaCount = area is null ? 0 : areaCount;
         Capabilities = new(_area is not null, true, true, (_area is not null
             ? "Modelos y texturas reales de cada bloque (vista cenital aproximada), rejilla de permisos y eventos."
-            : "Rejilla de permisos y eventos.") + " Edición: posición de NPC existentes (pendiente de prueba en el juego).");
+            : "Rejilla de permisos y eventos.") + " Edición: posición, orientación y visión de NPC existentes (pendiente de prueba en el juego).");
         var skipped = new List<(int, string)>();
         for (int i = 0; i < zoneCount; i++)
         {
@@ -196,6 +196,74 @@ public sealed class Gen6MapBackend : IMapEditorBackend, IMapResourceProvider, IM
     }
 
     private static string N(int v) => v.ToString(CultureInfo.InvariantCulture);
+
+    /// <summary>Highest sight written; the largest trainer sight seen in Alpha Sapphire is 8.</summary>
+    public const int MaxSight = 8;
+    internal const string FacingNote = "Editable: 0 arriba, 1 abajo, 2 izquierda, 3 derecha. Correspondencia deducida de los datos de X y Zafiro Alfa (la línea de visión de los entrenadores recorre casillas transitables); pendiente de prueba en el juego.";
+    internal const string SightNote = "Editable (1–8 casillas en línea recta hacia donde mira); pendiente de prueba en el juego.";
+
+    /// <summary>Compass angle of an NPC facing value, or null when the value has no verified direction.</summary>
+    public static double? FacingDegrees(int value) => value switch { 0 => 0, 1 => 180, 2 => 270, 3 => 90, _ => null };
+
+    /// <summary>Facing value of a compass angle; only the four verified directions.</summary>
+    public static int? FacingValue(double degrees)
+    {
+        double d = ((degrees % 360) + 360) % 360;
+        foreach (int v in new[] { 0, 1, 2, 3 })
+            if (Math.Abs(d - FacingDegrees(v)!.Value) < 0.01) return v;
+        return null;
+    }
+
+    public static string DirectionName(double degrees) => ((((int)Math.Round(degrees) % 360) + 360) % 360) switch
+    {
+        0 => "arriba", 90 => "derecha", 180 => "abajo", 270 => "izquierda", var d => $"{d}°",
+    };
+
+    private (Gen6ZoneEntities Entities, Gen6EntityRecord Record)? Npc(int zone, int index)
+    {
+        if (!_zones.TryGetValue(zone, out var z)) return null;
+        var r = z.Entities.Records.FirstOrDefault(x => x.Kind == MapEventKind.Npc && x.Index == index);
+        return r.Size == 0 ? null : (z.Entities, r);
+    }
+
+    public MapTrainerView? View(int zone, MapEventKind kind, int index)
+    {
+        if (kind != MapEventKind.Npc || Npc(zone, index) is not var (e, r)) return null;
+        int facing = e.U16(r, 0x0C), sight = e.U16(r, 0x0E);
+        bool turnable = FacingDegrees(facing) is not null && e.F32(r, 0x2C) == 0 && ZoneEvents(zone).Any(v => v.Kind == kind && v.Index == index && v.Placed);
+        return new MapTrainerView(FacingDegrees(facing) ?? double.NaN, sight, turnable, turnable && sight > 0 && sight <= MaxSight, false, MaxSight,
+            turnable ? FacingNote : "La orientación de este NPC no se puede escribir (valor sin dirección verificada, ángulo en 0x2C o posición no verificada).");
+    }
+
+    public MapMutationCheck ValidateView(int zone, MapEventKind kind, int index, double facing, int? sight)
+    {
+        if (View(zone, kind, index) is not { } view) return new(false, "Solo los NPC tienen orientación y visión.");
+        if (!view.FacingWritable) return new(false, view.Note);
+        if (FacingValue(facing) is null) return new(false, "Solo hay cuatro direcciones: arriba, abajo, izquierda y derecha.");
+        if (sight is int s && s != view.Sight)
+        {
+            if (!view.SightWritable) return new(false, view.Sight == 0 ? "Este NPC no tiene visión; no se le añade." : "El alcance de este NPC no se puede escribir.");
+            if (s < 1 || s > MaxSight) return new(false, $"El alcance debe estar entre 1 y {MaxSight} casillas.");
+        }
+        if (FacingValue(facing) == FacingValue(view.Facing) && (sight is null || sight == view.Sight)) return new(false, "No hay cambios respecto al valor guardado.");
+        return new(true, "Se puede escribir. El juego no se ha probado con este cambio: comprueba que el entrenador mira hacia esa dirección y te ve a esa distancia.");
+    }
+
+    public IReadOnlyList<(int X, int Y)> SightCells(int zone, MapEventKind kind, int index, double facing, int sight)
+    {
+        var view = ZoneEvents(zone).FirstOrDefault(v => v.Kind == kind && v.Index == index);
+        if (view is not { Placed: true } || FacingValue(facing) is not int f || sight <= 0) return [];
+        var layout = Layout(zone);
+        (int dx, int dy) = f switch { 0 => (0, -1), 1 => (0, 1), 2 => (-1, 0), _ => (1, 0) };
+        var cells = new List<(int, int)>();
+        for (int k = 1; k <= Math.Min(sight, 64); k++)
+        {
+            int x = (int)view.X + (dx * k), y = (int)view.Y + (dy * k);
+            if (x < 0 || y < 0 || x >= layout.Width * layout.BlockCells || y >= layout.Height * layout.BlockCells) break;
+            cells.Add((x, y));
+        }
+        return cells;
+    }
     private static string Hex(int v) => "0x" + v.ToString("X4", CultureInfo.InvariantCulture);
 
     private MapEventView Describe(Gen6ZoneEntities e, Gen6EntityRecord r)
@@ -211,8 +279,12 @@ public sealed class Gen6MapBackend : IMapEditorBackend, IMapResourceProvider, IM
                 p.Add(new("Movimiento", N(e.U16(r, 0x04))));
                 p.Add(new("Bandera de aparición", Hex(e.U16(r, 0x08))));
                 p.Add(new("Script", N(e.U16(r, 0x0A))));
-                p.Add(new("Orientación (valor)", N(e.U16(r, 0x0C)), Note: "Valores 0–7 en el juego; su correspondencia con las direcciones aún no está verificada."));
-                p.Add(new("Alcance de visión", N(e.U16(r, 0x0E))));
+                int facing = e.U16(r, 0x0C), sight = e.U16(r, 0x0E);
+                bool turnable = FacingDegrees(facing) is not null && e.F32(r, 0x2C) == 0;
+                p.Add(new("Orientación", FacingDegrees(facing) is double deg ? $"{DirectionName(deg)} (valor {N(facing)})" : $"valor {N(facing)} (sin verificar)", Writable: turnable,
+                    Note: turnable ? FacingNote : FacingDegrees(facing) is null ? "Solo los valores 0–3 tienen dirección verificada; los demás quedan en solo lectura." : "Este NPC tiene un ángulo en 0x2C; no se cambia su orientación hasta verificar cómo se combinan."));
+                p.Add(new("Alcance de visión", sight == 0 ? "0 (no busca al jugador)" : $"{N(sight)} casillas", Writable: turnable && sight > 0 && sight <= MaxSight,
+                    Note: sight == 0 ? "Sin visión: no se le añade porque no se ha verificado qué script de combate usaría." : SightNote));
                 p.Add(new("Casilla", $"{N(x)}, {N(y)}", Writable: true, Note: "Editable: se puede mover a otra casilla con bloque de la zona."));
                 p.Add(new("Ángulo", e.F32(r, 0x2C).ToString("0.##", CultureInfo.InvariantCulture) + "°"));
                 return new(r.Kind, r.Index, x, y, 1, 1, null, $"NPC {r.Index} · modelo {e.U16(r, 0x02)}", p);
