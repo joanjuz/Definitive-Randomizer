@@ -390,6 +390,13 @@ if(args.Length==1&&args[0]=="--map3ds-nurse-ui-only")
 }
 if(args.Length is 5 or 6&&args[0]=="--map3ds-add-nurse-probe"){Map3dsNurseChecks.Probe(args[1],int.Parse(args[2]),int.Parse(args[3]),int.Parse(args[4]),args.Length==6?double.Parse(args[5],System.Globalization.CultureInfo.InvariantCulture):180);return;}
 if(args.Length==7&&args[0]=="--map3ds-add-nurse-rebuild"){Map3dsNurseChecks.Rebuild(args[1],args[2],args[3],int.Parse(args[4]),int.Parse(args[5]),int.Parse(args[6]));return;}
+if(args.Length==1&&args[0]=="--map3ds-catch-zones-only"){Map3dsCatchZoneChecks.Run(Check);Console.WriteLine($"Completed {checks} 3DS catch zone checks (synthetic).");return;}
+if(args.Length==1&&args[0]=="--map3ds-catch-zones-ui-only")
+{
+    Exception? failure=null;var thread=new Thread(()=>{try{var app=new ThreeDS.Progressive.App();app.InitializeComponent();WpfTestHost.SuppressStartup();ThreeDS.Progressive.StudioDialog.AutomatedChecks=true;Map3dsCatchZoneChecks.RunUi(Check);}catch(Exception ex){failure=ex;}});thread.SetApartmentState(ApartmentState.STA);thread.Start();thread.Join();if(failure is not null)System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(failure).Throw();Console.WriteLine($"Completed {checks} 3DS catch zone UI checks (off-screen).");return;
+}
+if(args.Length==8&&args[0]=="--map3ds-catch-zone-probe"){Map3dsCatchZoneChecks.Probe(args[1],int.Parse(args[2]),int.Parse(args[3]),int.Parse(args[4]),int.Parse(args[5]),int.Parse(args[6]),int.Parse(args[7]));return;}
+if(args.Length==3&&args[0]=="--map3ds-catch-zone-rebuild"){Map3dsCatchZoneChecks.Rebuild(args[1],args[2]);return;}
 if(args.Length==1&&args[0]=="--map3ds-gen6-only"){Map3dsGen6Checks.Run(Check);Console.WriteLine($"Completed {checks} Gen6 map and event reader checks (synthetic).");return;}
 if(args.Length==1&&args[0]=="--map3ds-gen6-ui-only")
 {

@@ -56,6 +56,18 @@ internal sealed class Map3dsEditorView : UserControl
     internal ComboBox? NurseDirection => _nurseDirection;
     internal TextBlock? NurseResult => _nurseResult;
     internal (int X, int Y, double Facing)? PendingNurse => _pendingNurse;
+    private Button? _catchButton, _catchSave;
+    private TextBox? _catchX1, _catchY1, _catchX2, _catchY2;
+    private ComboBox? _catchSource;
+    private TextBlock? _catchResult, _catchCount;
+    private HashSet<(int X, int Y)>? _catchCells;
+    private bool _catchChecked;
+    internal Button? CatchButton => _catchButton;
+    internal Button? CatchSave => _catchSave;
+    internal ComboBox? CatchSource => _catchSource;
+    internal TextBlock? CatchResult => _catchResult;
+    internal IReadOnlyCollection<(int X, int Y)>? CatchCells => _catchCells;
+    internal (TextBox X1, TextBox Y1, TextBox X2, TextBox Y2)? CatchRectangle => _catchX1 is null ? null : (_catchX1, _catchY1!, _catchX2!, _catchY2!);
     private readonly Map3dsCanvas _canvas = new();
     private readonly ListBox _zones, _events;
     private readonly TextBox _search;
@@ -156,6 +168,12 @@ internal sealed class Map3dsEditorView : UserControl
         bar.Children.Add(Small("−", () => _canvas.ZoomCentered(1 / 1.25), "Alejar"));
         bar.Children.Add(Small("+", () => _canvas.ZoomCentered(1.25), "Acercar"));
         bar.Children.Add(Small("Encajar", () => _canvas.Fit(), "Encajar la zona en la vista"));
+        if (_mover is { CanPaintCatch: true } && backend is IMapCatchZones)
+        {
+            _catchButton = Small("Zona de captura", () => ShowCatchPanel(), "Convertir casillas de suelo en casillas con encuentros salvajes");
+            _catchButton.Margin = new Thickness(12, 0, 6, 0);
+            bar.Children.Add(_catchButton);
+        }
         if (_mover is { CanAddNurse: true } && backend is IMapNurseCreation)
         {
             _nurseButton = Small("Añadir enfermera", () => ShowNursePanel(), "Añadir una enfermera de Centro Pokémon que cura al equipo");
@@ -193,6 +211,7 @@ internal sealed class Map3dsEditorView : UserControl
         _canvas.EventPicked += item => { ShowDetails(item); SyncList(item); };
         _canvas.CellPicked += (x, y) =>
         {
+            if (_catchCells is not null) { ToggleCatchCell(x, y); return; }
             if (_nurseX is null || _nurseY is null) return;
             _nurseX.Text = x.ToString(System.Globalization.CultureInfo.InvariantCulture);
             _nurseY.Text = y.ToString(System.Globalization.CultureInfo.InvariantCulture);
@@ -280,6 +299,8 @@ internal sealed class Map3dsEditorView : UserControl
         _details.Children.Clear();
         _canvas.PickingCell = false; _canvas.SetPendingNurse(null);
         _nurseX = _nurseY = null; _nurseDirection = null; _nurseSave = null; _nurseResult = null; _pendingNurse = null;
+        _catchCells = null; _catchX1 = _catchY1 = _catchX2 = _catchY2 = null; _catchSource = null; _catchSave = null; _catchResult = _catchCount = null; _catchChecked = false;
+        _canvas.SetCatch(null);
         if (item is null)
         {
             _details.Children.Add(new TextBlock { Text = "Selecciona un evento en el mapa o en la lista.", TextWrapping = TextWrapping.Wrap, Foreground = Res("TextSoft") });
@@ -605,6 +626,125 @@ internal sealed class Map3dsEditorView : UserControl
         catch (Exception ex) when (ex is InvalidOperationException or InvalidDataException or IOException or ArgumentException)
         {
             _nurseResult.Text = "No se guardó: " + ex.Message;
+            return false;
+        }
+    }
+    /// <summary>Panel to turn plain-ground cells into cells with wild encounters: cells by click or rectangle, table source, preview and save.</summary>
+    internal bool ShowCatchPanel()
+    {
+        if (_mover is not { CanPaintCatch: true } || _backend is not IMapCatchZones zones || CurrentZone is not int zone) return false;
+        _canvas.Select(null, false); SyncList(null);
+        ShowDetails(null);
+        _details.Children.Clear();
+        _catchCells = [];
+        _details.Children.Add(new TextBlock { Text = "Zona de captura", FontWeight = FontWeights.SemiBold, FontSize = 15, Foreground = Res("TextMain") });
+        _details.Children.Add(new TextBlock { Text = "Las casillas verdes ya tienen encuentros. Haz clic en casillas de suelo normal para marcarlas (otro clic las quita) o añade un rectángulo.",
+            TextWrapping = TextWrapping.Wrap, Foreground = Res("TextSoft"), Margin = new Thickness(0, 4, 0, 0) });
+        var rect = new WrapPanel { Margin = new Thickness(0, 8, 0, 0) };
+        TextBox Number(string name)
+        {
+            var t = new TextBox { Width = 48, Margin = new Thickness(4, 0, 8, 4) };
+            System.Windows.Automation.AutomationProperties.SetName(t, name);
+            return t;
+        }
+        rect.Children.Add(new TextBlock { Text = "Desde", Foreground = Res("TextSoft"), VerticalAlignment = VerticalAlignment.Center });
+        rect.Children.Add(_catchX1 = Number("X inicial del rectángulo"));
+        rect.Children.Add(_catchY1 = Number("Y inicial del rectángulo"));
+        rect.Children.Add(new TextBlock { Text = "hasta", Foreground = Res("TextSoft"), VerticalAlignment = VerticalAlignment.Center });
+        rect.Children.Add(_catchX2 = Number("X final del rectángulo"));
+        rect.Children.Add(_catchY2 = Number("Y final del rectángulo"));
+        _details.Children.Add(rect);
+        var rectButtons = new StackPanel { Orientation = Orientation.Horizontal };
+        rectButtons.Children.Add(Small("Añadir rectángulo", () => AddCatchRectangle(), "Añadir todas las casillas del rectángulo"));
+        rectButtons.Children.Add(Small("Vaciar", () => { _catchCells?.Clear(); CatchSelectionChanged(); }, "Quitar todas las casillas marcadas"));
+        _details.Children.Add(rectButtons);
+        _catchCount = new TextBlock { Foreground = Res("TextMain"), Margin = new Thickness(0, 6, 0, 0) };
+        _details.Children.Add(_catchCount);
+        if (!zones.HasEncounterTable(zone))
+        {
+            _details.Children.Add(new TextBlock { Text = "Esta zona no tiene tabla de encuentros. Se creará copiando la de:", TextWrapping = TextWrapping.Wrap, Foreground = Res("TextSoft"), Margin = new Thickness(0, 8, 0, 0) });
+            _catchSource = new ComboBox { Margin = new Thickness(0, 4, 0, 0), DisplayMemberPath = nameof(MapZoneEntry.Name), SelectedValuePath = nameof(MapZoneEntry.Id), ItemsSource = zones.EncounterSources };
+            System.Windows.Automation.AutomationProperties.SetName(_catchSource, "Zona de la que se copia la tabla de encuentros");
+            _catchSource.SelectionChanged += (_, _) => CatchSelectionChanged();
+            _details.Children.Add(_catchSource);
+        }
+        else _details.Children.Add(new TextBlock { Text = "La zona ya tiene tabla de encuentros; se usará esa.", TextWrapping = TextWrapping.Wrap, Foreground = Res("TextSoft"), Margin = new Thickness(0, 8, 0, 0) });
+        var buttons = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 8, 0, 0) };
+        buttons.Children.Add(Small("Previsualizar", () => PreviewCatch(), "Comprobar las casillas sin escribir nada"));
+        _catchSave = Small("Guardar", () => SaveCatch(), "Guardar la zona de captura en el proyecto");
+        _catchSave.IsEnabled = false;
+        buttons.Children.Add(_catchSave);
+        buttons.Children.Add(Small("Cancelar", () => ShowDetails(null), "Cancelar la zona de captura"));
+        _details.Children.Add(buttons);
+        _catchResult = new TextBlock { TextWrapping = TextWrapping.Wrap, Foreground = Res("TextSoft"), Margin = new Thickness(0, 6, 0, 0) };
+        _details.Children.Add(_catchResult);
+        _details.Children.Add(new TextBlock { Text = "Solo cambian los permisos de las casillas (y la tabla si no existía): la hierba nueva no se ve en el juego. " + GameplayNotice,
+            TextWrapping = TextWrapping.Wrap, Foreground = Res("TextSoft"), FontSize = 11, Margin = new Thickness(0, 6, 0, 0) });
+        _canvas.PickingCell = true;
+        CatchSelectionChanged();
+        _status.Text = $"Zona {zone:000}: marca las casillas de la zona de captura.";
+        return true;
+    }
+
+    private void ToggleCatchCell(int x, int y)
+    {
+        if (_catchCells is null) return;
+        if (!_catchCells.Remove((x, y))) _catchCells.Add((x, y));
+        CatchSelectionChanged();
+    }
+
+    /// <summary>Adds every cell of the rectangle typed in the panel.</summary>
+    internal bool AddCatchRectangle()
+    {
+        if (_catchCells is null || _catchX1 is null || _catchResult is null) return false;
+        if (!int.TryParse(_catchX1.Text, out int x1) || !int.TryParse(_catchY1!.Text, out int y1) || !int.TryParse(_catchX2!.Text, out int x2) || !int.TryParse(_catchY2!.Text, out int y2))
+        { _catchResult.Text = "Escribe números enteros para las dos esquinas."; return false; }
+        if (Math.Abs(x2 - x1) + 1 > 64 || Math.Abs(y2 - y1) + 1 > 64) { _catchResult.Text = "El rectángulo puede medir como máximo 64 × 64 casillas."; return false; }
+        for (int y = Math.Min(y1, y2); y <= Math.Max(y1, y2); y++)
+            for (int x = Math.Min(x1, x2); x <= Math.Max(x1, x2); x++) _catchCells.Add((x, y));
+        CatchSelectionChanged();
+        return true;
+    }
+
+    /// <summary>Any change of the cells or the source needs a new preview before saving.</summary>
+    private void CatchSelectionChanged()
+    {
+        if (_catchCells is null || CurrentZone is not int zone || _backend is not IMapCatchZones zones) return;
+        _catchChecked = false;
+        if (_catchSave is not null) _catchSave.IsEnabled = false;
+        if (_catchCount is not null) _catchCount.Text = $"{_catchCells.Count} casillas marcadas";
+        _canvas.SetCatch((zones.EncounterCells(zone), _catchCells.ToArray()));
+    }
+
+    /// <summary>Checks the marked cells (and the table source); nothing is written.</summary>
+    internal bool PreviewCatch()
+    {
+        if (_catchCells is null || _catchResult is null || _catchSave is null || CurrentZone is not int zone || _backend is not IMapCatchZones zones) return false;
+        int? source = _catchSource?.SelectedValue is int s ? s : null;
+        var check = zones.ValidateCatchCells(zone, _catchCells.ToArray(), source);
+        _catchResult.Text = check.Reason;
+        _catchChecked = check.Allowed;
+        _catchSave.IsEnabled = check.Allowed;
+        return check.Allowed;
+    }
+
+    /// <summary>Writes the previewed cells through the project history and reloads the zone from disk.</summary>
+    internal bool SaveCatch()
+    {
+        if (_mover is null || _catchCells is not { Count: > 0 } cells || !_catchChecked || CurrentZone is not int zone || _catchResult is null) return false;
+        try
+        {
+            int? source = _catchSource?.SelectedValue is int s ? s : null;
+            string summary = _mover.PaintCatch(_backend, zone, cells.ToArray(), source);
+            _backend = _mover.Reload();
+            ShowZone(zone);
+            ShowCatchPanel();
+            _status.Text = summary + " · Puedes deshacerlo desde el historial.";
+            return true;
+        }
+        catch (Exception ex) when (ex is InvalidOperationException or InvalidDataException or IOException or ArgumentException)
+        {
+            _catchResult.Text = "No se guardó: " + ex.Message;
             return false;
         }
     }

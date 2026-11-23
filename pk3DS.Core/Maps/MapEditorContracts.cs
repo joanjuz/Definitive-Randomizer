@@ -121,6 +121,19 @@ public interface IMapTrainerViews
 
 public sealed record MapMutationCheck(bool Allowed, string Reason);
 
+/// <summary>Optional part of an adapter that can turn plain-ground cells into cells with wild encounters.</summary>
+public interface IMapCatchZones
+{
+    /// <summary>Whether the zone already has an encounter table.</summary>
+    bool HasEncounterTable(int zone);
+    /// <summary>Zones with an encounter table that can be copied into a zone without one (id and name).</summary>
+    IReadOnlyList<MapZoneEntry> EncounterSources { get; }
+    /// <summary>Cells of the zone that already produce encounters (encounter value, owned by the zone).</summary>
+    IReadOnlyList<(int X, int Y)> EncounterCells(int zone);
+    /// <summary>Checks the cells and, for a zone without a table, the zone whose table is copied. Nothing is written.</summary>
+    MapMutationCheck ValidateCatchCells(int zone, IReadOnlyCollection<(int X, int Y)> cells, int? sourceZone);
+}
+
 /// <summary>Optional part of an adapter that can add a Pokémon Center nurse copied from the game itself.</summary>
 public interface IMapNurseCreation
 {

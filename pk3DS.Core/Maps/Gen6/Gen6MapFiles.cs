@@ -65,6 +65,35 @@ public sealed class Gen6MapMatrix
             blocks[i] = v == 0xFFFF ? -1 : v;
         }
         Blocks = blocks;
+        // Exterior matrices: after the blocks, a zone map with one u16 zone per 10×10 cells (4×4 per block),
+        // then one more u16 per block. The part is exactly 8 + 36 per block in the 20 such matrices of X and
+        // the 22 of Alpha Sapphire, and every zone in the map is one of the zones that use the matrix.
+        // Interior matrices (most of them) have no zone map.
+        if (head.Length == 8 + (area * 36))
+        {
+            var zones = new int[area * ZoneCellsPerBlock * ZoneCellsPerBlock];
+            int at = 8 + (area * 2);
+            for (int i = 0; i < zones.Length; i++)
+            {
+                int v = BinaryPrimitives.ReadUInt16LittleEndian(head[(at + (i * 2))..]);
+                zones[i] = v == 0xFFFF ? -1 : v;
+            }
+            ZoneMap = zones;
+        }
+    }
+
+    /// <summary>Sub-cells of the zone map per block side: each covers 10×10 cells.</summary>
+    public const int ZoneCellsPerBlock = 4;
+    /// <summary>Zone of every 10×10 cells, row by row ((4·Width) × (4·Height)), or null when the matrix has no zone map.</summary>
+    public IReadOnlyList<int>? ZoneMap { get; }
+
+    /// <summary>Zone that owns cell (x, y) of the matrix, -1 for none, null when the matrix has no zone map.</summary>
+    public int? ZoneAt(int x, int y)
+    {
+        if (ZoneMap is null) return null;
+        int step = BlockCells / ZoneCellsPerBlock, w = Width * ZoneCellsPerBlock;
+        if (x < 0 || y < 0 || x >= Width * BlockCells || y >= Height * BlockCells) return -1;
+        return ZoneMap[((y / step) * w) + (x / step)];
     }
 
     public MapLayout ToLayout() => new(Width, Height, BlockCells, Blocks);
