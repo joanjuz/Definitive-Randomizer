@@ -1,4 +1,4 @@
-# Editor de mapas 3DS: zonas de captura (Gen6)
+# Editor de mapas 3DS: zonas de captura (Gen6 y Ultra Sol / Ultra Luna)
 
 **Estado:**
 
@@ -8,7 +8,8 @@
 | **Pokémon Y** | El mismo formato que X, comprobado en los datos de Y (estructura de zonas, tablas, valor de hierba y mapas de zonas idénticos). Sin prueba en el juego. |
 | **Rubí Omega** | **Prueba jugable aprobada** por el propietario en Villa Raíz (24 casillas, tabla de Ruta 101), ROM `OR-captura-villa-raiz.3ds`. |
 | **Zafiro Alfa** | **Prueba jugable aprobada** por el propietario en Villa Raíz (24 casillas, tabla de Ruta 101), ROM `AS-captura-villa-raiz.3ds`; copia real 11/11, sincronización EN y restauración exacta. |
-| **Ultra Sol / Ultra Luna** | No implementado. Investigación en solo lectura de tablas EA, malla de colisión y registros ED en rama experimental; no existe escritura acreditada. |
+| **Ultra Luna** | Implementado (ver «Ultra Sol / Ultra Luna» más abajo). Escritura comprobada en una copia real limpia de Ultra Luna (Pueblo Lilii). **Sin prueba en el juego.** |
+| **Ultra Sol** | Mismo código; sus regiones son idénticas a las de Ultra Luna y sus tablas distintas. Sin copia real ni prueba en el juego. |
 | **Juegos DS** | Sin esta función de zonas de captura 3DS. |
 
 **Hierba visible:** no implementada y **fuera del roadmap activo por decisión del propietario**. Una zona de captura es funcional cuando el juego produce encuentros en sus casillas, aunque el escenario siga mostrando suelo normal. El editor señala en el mapa las casillas con encuentros (verde) y las marcadas (verde claro).
@@ -95,6 +96,62 @@ El editor usa solo valores y estructuras leídos de los juegos.
 | Rubí Omega | zona 6, Villa Raíz, sin tabla: 24 casillas (92–97, 172–175) y tabla de la Ruta 101 | 11/11. Cambian solo los miembros 6 y 537 (`EN`) y 24 casillas del bloque 6. El editor de encuentros pasa de 150 a 151 ubicaciones y las 151 copias `EN` coinciden con sus zonas. Deshacer devuelve los dos archivos originales. Verificado por separado con un lector propio |
 
 - **`--map3ds-catch-zone-rebuild`:** las imágenes 3DS contienen byte a byte los archivos editados.
+
+## Ultra Sol / Ultra Luna
+
+El mecanismo es distinto del de Gen6. No hay rejilla de casillas.
+
+### Qué produce un encuentro
+
+Un Pokémon salvaje aparece al pisar un triángulo del suelo cuando se cumplen dos condiciones:
+
+- el **atributo** del triángulo (malla de colisión, parte 6 de cada bloque) está permitido por la **máscara** de una **región de encuentros**;
+- la forma de esa región lo cubre.
+
+La región indica qué **tabla** del área usa. Se comprobó en las 336 áreas de Ultra Luna:
+
+- **Regiones.** Están en la **parte 6 del paquete de eventos (ED)** del área, en un archivo por zona.
+  - Cada registro mide 28 bytes: `{u32 6, u32 tabla, u32 máscara, 3 × u32, u32 desplazamiento de la forma}`.
+  - La forma puede ser una caja de 48 bytes (posición, cuaternión y tamaño) o un cilindro de 28 bytes (posición, radio y altura).
+  - Hay 231 regiones en 64 áreas, y ningún área tiene regiones sin tablas.
+- **Tablas.** Están en el **paquete EA** del área (slot 9): entradas de 768 bytes, de día y de noche.
+  - Todos los índices de las regiones están dentro de su paquete.
+  - En los paquetes originales los datos empiezan en 0x80, y un área sin encuentros tiene una sola entrada vacía.
+- **Máscara.** El bit `n` permite el atributo de suelo `n`.
+  - Solo hay 1 máscara de 231 con un atributo ausente del suelo de su área.
+  - Las cajas de hierba de la Ruta 1 (bit 31) cubren casi solo triángulos de atributo `0x1F`; las de agua (bit 8) cubren el atributo `0x08`.
+  - Un atributo sin región no da encuentros: Pueblo Lilii tiene 294 casillas de hierba `0x1F` y ninguna región.
+- **Ultra Sol y Ultra Luna:** las regiones (parte 6 de ED) son idénticas en las 336 áreas; las tablas difieren.
+- **Indicios no imprescindibles:** el campo `u32 0x38` de los datos de zona tiene los bits 0 y 2 en el 98 % de las zonas con regiones, pero también en zonas sin ellas. Pueblo Lilii tiene el mismo valor que la Ruta 1, así que no bloquea la prueba.
+
+### Qué hace el editor
+
+1. **Casillas.** Se eligen casillas (de 105 unidades, como en el resto del editor) que tengan suelo de hierba `0x1F`, el de la Ruta 1. Cualquier otro suelo se rechaza.
+2. **Región.** Se añade una caja alineada con los ejes que cubre las casillas, con la máscara de `0x1F` y altura 500, como las originales. Si la caja abarca casillas de hierba no marcadas, se avisa: también tendrán encuentros.
+3. **Tabla.** Se elige entre las tablas de las regiones de hierba del juego.
+   - Si es de otra área, se copia al área. En un paquete original se rellena su entrada vacía, conservando el inicio de datos en 0x80.
+   - Si es del área, se usa sin copiarla.
+4. **Escritura.** ED y EA se reconstruyen byte a byte; si los originales no se reconstruyen exactamente, no se escribe. Se escriben en una sola reconstrucción del archivo de campo y en una sola entrada del historial.
+5. **Restauración.** Como el archivo de campo supera el tamaño de los puntos de restauración, los dos miembros originales se guardan juntos para restaurar el área. El GARC se reescribe con alineación de 4 bytes, igual que en cualquier otro guardado del proyecto; por eso el archivo puede no ser idéntico al volcado original aunque todos sus miembros lo sean.
+6. **Compatibilidad.** El editor de encuentros muestra la tabla nueva (día y noche) y la randomización la incluye.
+
+**Límites de esta primera versión:**
+
+- solo suelo `0x1F`;
+- solo áreas con un único archivo de regiones (309 de 336);
+- solo tablas de regiones de hierba;
+- regiones de caja.
+
+### Pruebas
+
+- **`--map3ds-gen7-catch-zones-only`** (13 comprobaciones sintéticas) y **`--map3ds-gen7-catch-zones-ui-only`** (3).
+- **Copia real de Ultra Luna limpia, `--map3ds-gen7-catch-zone-probe`:** Pueblo Lilii, 61 casillas de hierba, tabla 0 de la Ruta 1. 8/8:
+  - solo cambian los miembros de eventos y tablas del área 1;
+  - el editor de encuentros pasa de 794 a 796 ubicaciones;
+  - la restauración devuelve todos los miembros originales;
+  - un editor con datos antiguos no puede escribir.
+  - Verificado también con un lector independiente.
+- **Imagen 3DS reconstruida:** contiene byte a byte el archivo de campo editado.
 
 ## Limitaciones
 
