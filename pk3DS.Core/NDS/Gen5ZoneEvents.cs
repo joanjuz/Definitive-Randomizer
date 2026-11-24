@@ -47,7 +47,18 @@ public sealed record Gen5MapProfile(
         0xEC1CB686, 0x65AC968E, 0x308E1CC6, 0x6B00C87E, 0x0AA75AEC, 0x7638D5C9,
         89, 29, 6, "314F7AD2F7AF6162163EAFAD1502B6C4C791A6D52877E88F2D8FE3B3C5F1B849");
 
-    public static IReadOnlyList<Gen5MapProfile> All { get; } = [Black, White];
+    /// <summary>
+    /// Pokémon White 2 USA/EUR rev. 0 (IRDO/0, SHA-1 b5d7490b…). The Black and White formats with their own tables, measured on its dump: 615 headers
+    /// (ids up to 614, beyond Platinum's 593), events in a/1/2/6 (616), scripts in a/0/5/6 (1 289), 416 matrices (largest side 29), 1 065 blocks,
+    /// 409 texture sets, location names in text 109. +22 is again the only field with which every warp leads to an existing warp (1 084 of 1 089; the other 5
+    /// have destination 65535); every grid warp sits at a tile centre; collision shows the same pattern (4 % on NPC tiles against 75 % overall).
+    /// </summary>
+    public static Gen5MapProfile White2 { get; } = new("IRDO", 0, "Blanco 2", "a/1/2/6", "a/0/5/6",
+        615, 616, 416, 1065, 409, 1289,
+        0xC6B5EB86, 0xE31AF7F0, 0x0A549232, 0xFE1792B9, 0x35283BC1, 0xEA1E0890,
+        109, 29, 6, "8EBA7880BCBE0A4470BAE51415FF2D6964B679E5DDCB75D3E1CDEA164E4B8E92");
+
+    public static IReadOnlyList<Gen5MapProfile> All { get; } = [Black, White, White2];
     public static Gen5MapProfile? For(string gameCode, int revision) => All.FirstOrDefault(p => p.GameCode == gameCode && p.Revision == revision);
     public static Gen5MapProfile? For(NdsHeader header) => For(header.GameCode, header.Version);
     public static Gen5MapProfile Require(NdsRom rom, string area) => For(rom.Header)
@@ -164,7 +175,7 @@ public sealed class Gen5ZoneEvents : INdsEventData
         int at = 5;
         if (has) for (int i = 0; i < count; i++, at += 2) Put16(bytes, at, Low16(U32(m, 8 + count * 4 + i * 4)));
         for (int i = 0; i < count; i++, at += 2) Put16(bytes, at, Low16(U32(m, 8 + i * 4)));
-        return PlatinumMapLayout.ParseMatrix(bytes, map.Id, map.Matrix);
+        return PlatinumMapLayout.ParseMatrix(bytes, map.Id, map.Matrix, Profile.MaxMatrixSide, _maps.Length);
         static int Low16(uint v) => v == 0xFFFFFFFF ? 0xFFFF : v < 0xFFFF ? (int)v : throw new InvalidDataException("Identificador de matriz Gen5 fuera de rango.");
     }
 

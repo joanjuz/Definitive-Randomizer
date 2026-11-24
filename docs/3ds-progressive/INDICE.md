@@ -22,6 +22,7 @@ Punto de entrada a `docs/3ds-progressive/`. Muchos documentos son **registros hi
 | Editor DS multigeneracional: HeartGold (IPKE/0) con un adaptador de cabeceras propio — mapa con texturas (también interiores), NPC, visión de entrenadores, objetos, warps y activadores existentes; Poké Ball del suelo protegidas; sin NPC nuevos | [NDS_EDITOR_GEN4_HEARTGOLD.md](NDS_EDITOR_GEN4_HEARTGOLD.md) |
 | Editor DS Gen5: Pokémon Negro (IRBO/0) con un lector propio — mapa con terreno texturizado, NPC y orientación de entrenadores, objetos, warps y activadores existentes; contratos `INdsEventData`/`INdsEventProfile` compartidos con Gen4 | [NDS_EDITOR_GEN5_NEGRO.md](NDS_EDITOR_GEN5_NEGRO.md) |
 | Editor DS Gen5: Pokémon Blanco, edición española (IRAS/0), con el lector de Negro y perfil propio — tablas de mapa idénticas a Negro verificadas, scripts y textos propios | [NDS_EDITOR_GEN5_BLANCO.md](NDS_EDITOR_GEN5_BLANCO.md) |
+| Editor DS Gen5: Pokémon Blanco 2 (IRDO/0) con el lector Gen5 y perfil propio — 615 mapas, límite de identificadores de mapa por número de cabeceras del juego | [NDS_EDITOR_GEN5_BLANCO2.md](NDS_EDITOR_GEN5_BLANCO2.md) |
 | Editor DS: lectores NSBMD/NSBTX, recursos de mapa y render cenital por software (Platino) | [NDS_MAP_RENDER_LECTORES.md](NDS_MAP_RENDER_LECTORES.md) |
 | Editor de mapas 3DS Gen6 (X/Y, OR/AS): zonas, matriz, rejilla de permisos y eventos, solo lectura | [MAPAS_3DS_GEN6.md](MAPAS_3DS_GEN6.md) |
 | Editor de mapas 3DS Gen7 (Ultra Sol/Ultra Luna): mundos, matriz TR y modelos GFL2, solo lectura | [MAPAS_3DS_GEN7.md](MAPAS_3DS_GEN7.md) |
