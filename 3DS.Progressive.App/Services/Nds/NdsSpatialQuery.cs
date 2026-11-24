@@ -76,7 +76,7 @@ internal sealed class NdsSpatialQuery
     }
     private static string Name(PlatinumEvent e) => e.Kind switch
     {
-        PlatinumEventKind.Npc when e.Type == 3 => $"NPC objeto de suelo {e.Index}",
+        PlatinumEventKind.Npc when e.IsGroundItem => $"NPC objeto de suelo {e.Index}",
         PlatinumEventKind.Npc => $"NPC {e.Index}",
         PlatinumEventKind.Object => $"objeto de fondo {e.Index}",
         PlatinumEventKind.Warp => $"warp {e.Index}",
