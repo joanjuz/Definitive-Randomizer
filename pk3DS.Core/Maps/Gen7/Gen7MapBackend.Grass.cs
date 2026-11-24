@@ -103,11 +103,13 @@ public sealed partial class Gen7MapBackend
             }
         if (covered.Count == 0) return (null, "La mancha no cubre ninguna casilla.");
         var heights = new List<float>();
+        var ground = GroundCells(area);
         foreach (var (x, y) in covered)
         {
-            var (px, pz) = CellCentre(x, y);
-            if (GroundHeight(area, px, pz, template.Min.Y) is not float h) return (null, $"La casilla {x}, {y} bajo la hierba no tiene suelo.");
-            heights.Add(h);
+            if (!ground.TryGetValue((x, y), out var under) || under.Count == 0) return (null, $"La casilla {x}, {y} bajo la hierba no tiene suelo.");
+            float low = under.Min(g => g.Height), high = under.Max(g => g.Height);
+            if (high - low > MaxGrassGroundSpread) return (null, $"La casilla {x}, {y} tiene varios niveles de suelo (puente, escalón o techo); la hierba se apoyaría en uno solo.");
+            heights.Add((low + high) / 2);
         }
         float spread = heights.Max() - heights.Min();
         if (spread > MaxGrassGroundSpread) return (null, $"El suelo bajo la mancha tiene {spread:0} unidades de desnivel (máximo {MaxGrassGroundSpread:0}); la hierba es un modelo plano.");
@@ -121,4 +123,98 @@ public sealed partial class Gen7MapBackend
     public byte[] BlockWithGrass(Gen7GrassPlan plan) => Gen7VisibleGrass.AddGrass(BlockBytes(plan.TargetBlock), BlockBytes(plan.TemplateBlock), plan.Delta);
 
     private byte[][] BlockParts(int id) => Gen7VisibleGrass.BlockParts(BlockBytes(id));
+
+    /// <summary>Areas whose block matrix contains the block (where its grass is seen in the game).</summary>
+    public IReadOnlyList<int> AreasWithBlock(int block) => _worlds.Where(w => w.Value.Blocks.Contains(block)).Select(w => w.Key).Order().ToArray();
+
+    /// <summary>
+    /// A readable name for a template: the place whose grass it is (the first area that uses its block), its size in
+    /// cells and its texture family; null when no area uses the block (vanilla data that the game does not show).
+    /// </summary>
+    public string? GrassTemplateName(Gen7GrassTemplate template)
+    {
+        var areas = AreasWithBlock(template.Block);
+        if (areas.Count == 0) return null;
+        string place = string.Join(", ", areas.Select(a => _areaNames.TryGetValue(a, out var n) && !string.IsNullOrWhiteSpace(n) ? n : $"área {a:000}").Distinct().Take(2));
+        int w = (int)Math.Round(template.Size.X / UnitsPerCell), h = (int)Math.Round(template.Size.Z / UnitsPerCell);
+        string family = template.Textures.FirstOrDefault(t => !t.EndsWith("_a2", StringComparison.Ordinal) && !t.EndsWith("_a", StringComparison.Ordinal)) ?? template.Textures.FirstOrDefault() ?? "";
+        return $"Hierba alta de {place} · {w} × {h} casillas · {family}";
+    }
+
+    /// <summary>
+    /// Templates offered for an area: textures present in the area and the block used by the game. A patch that is
+    /// another one moved (for example one added by this editor) is the same template and is offered once, by its lowest
+    /// block id.
+    /// </summary>
+    public IReadOnlyList<(Gen7GrassTemplate Template, string Name)> GrassChoices(int area)
+    {
+        var kept = new List<Gen7GrassTemplate>();
+        foreach (var t in GrassTemplatesFor(area).OrderBy(t => t.Block))
+            if (!kept.Any(k => SamePatch(k, t))) kept.Add(t);
+        return kept.Select(t => (t, GrassTemplateName(t))).Where(c => c.Item2 is not null).Select(c => (c.t, c.Item2!)).ToArray();
+    }
+
+    /// <summary>Whether two templates are the same patch at different places: same materials and textures, and every vertex moved by one offset.</summary>
+    public bool SamePatch(Gen7GrassTemplate a, Gen7GrassTemplate b)
+    {
+        if (!a.Textures.SequenceEqual(b.Textures) || Vector3.Distance(a.Size, b.Size) > 0.05f) return false;
+        var ma = Gfl2File.ReadModel(BlockParts(a.Block)[Gen7VisibleGrass.GrassPart]);
+        var mb = Gfl2File.ReadModel(BlockParts(b.Block)[Gen7VisibleGrass.GrassPart]);
+        if (ma.Meshes.Count != mb.Meshes.Count || !ma.Materials.Select(m => m.Name).SequenceEqual(mb.Materials.Select(m => m.Name))) return false;
+        var offset = b.Min - a.Min;
+        for (int m = 0; m < ma.Meshes.Count; m++)
+        {
+            var pa = ma.Meshes[m].Read(PicaAttribute.Position); var pb = mb.Meshes[m].Read(PicaAttribute.Position);
+            if (pa is null || pb is null || pa.Length != pb.Length) return false;
+            for (int v = 0; v < pa.Length; v++)
+                if (Vector3.Distance(new Vector3(pb[v].X, pb[v].Y, pb[v].Z), new Vector3(pa[v].X, pa[v].Y, pa[v].Z) + offset) > 0.05f) return false;
+        }
+        return true;
+    }
+
+    /// <summary>Cells under the visible grass of the area: the bounding box of every grass mesh of the blocks of its matrix.</summary>
+    public IReadOnlyList<(int X, int Y)> VisibleGrassCells(int area)
+    {
+        if (!_worlds.TryGetValue(area, out var w)) return [];
+        var cells = new HashSet<(int, int)>();
+        foreach (int id in w.Blocks.Where(b => b >= 0 && b < _chunkCount).Distinct())
+        {
+            byte[] grass;
+            try { grass = BlockParts(id)[Gen7VisibleGrass.GrassPart]; } catch (MapFormatException) { continue; }
+            if (!Gen7VisibleGrass.IsGrassModel(grass)) continue;
+            foreach (var mesh in Gfl2File.ReadModel(grass).Meshes)
+            {
+                if (mesh.Read(PicaAttribute.Position) is not { Length: > 0 } pos) continue;
+                float x0 = pos.Min(v => v.X), x1 = pos.Max(v => v.X), z0 = pos.Min(v => v.Z), z1 = pos.Max(v => v.Z);
+                for (int x = (int)Math.Floor(x0 / UnitsPerCell); x <= (int)Math.Floor(x1 / UnitsPerCell); x++)
+                    for (int y = (int)Math.Floor(z0 / UnitsPerCell); y <= (int)Math.Floor(z1 / UnitsPerCell); y++)
+                    {
+                        float px = (x + 0.5f) * UnitsPerCell, pz = (y + 0.5f) * UnitsPerCell;
+                        if (px >= x0 && px <= x1 && pz >= z0 && pz <= z1) cells.Add((x, y));
+                    }
+            }
+        }
+        return cells.OrderBy(c => c.Item2).ThenBy(c => c.Item1).ToArray();
+    }
+
+    /// <summary>World rectangle (X, Z, width, depth) the planned patch occupies.</summary>
+    public (float X, float Z, float Width, float Depth) GrassFootprint(Gen7GrassPlan plan)
+    {
+        var t = GrassTemplates.First(g => g.Block == plan.TemplateBlock);
+        return (t.Min.X + plan.Delta.X, t.Min.Z + plan.Delta.Z, t.Size.X, t.Size.Z);
+    }
+
+    /// <summary>
+    /// The real grass model of the plan (the template moved), drawn from above with the area's textures over the square
+    /// that contains the patch, as the graphic layer draws the blocks; transparent where there is no grass.
+    /// </summary>
+    public (MapBlockImage Image, float X, float Z, float Span) GrassPreviewImage(Gen7GrassPlan plan, int size)
+    {
+        var moved = Gen7VisibleGrass.Translate(BlockParts(plan.TemplateBlock)[Gen7VisibleGrass.GrassPart], plan.Delta);
+        var model = Gfl2File.ReadModel(moved);
+        var (x, z, width, depth) = GrassFootprint(plan);
+        float span = Math.Max(width, depth);
+        var render = Gen6.Gen6TopDownRenderer.Render([model], name => Texture(plan.Area, name), size, x, z, span);
+        return (new MapBlockImage(render.Size, render.Pixels, render.Triangles, render.Untextured), x, z, span);
+    }
 }

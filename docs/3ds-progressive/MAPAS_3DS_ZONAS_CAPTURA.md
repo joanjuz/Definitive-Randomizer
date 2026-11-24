@@ -9,13 +9,13 @@
 | **Rubí Omega** | **Prueba jugable aprobada** por el propietario en Villa Raíz (24 casillas, tabla de Ruta 101), ROM `OR-captura-villa-raiz.3ds`. |
 | **Zafiro Alfa** | **Prueba jugable aprobada** por el propietario en Villa Raíz (24 casillas, tabla de Ruta 101), ROM `AS-captura-villa-raiz.3ds`; copia real 11/11, sincronización EN y restauración exacta. |
 | **Ultra Luna** | **Prueba jugable aprobada** por el propietario en la Ruta 13: 72 casillas de arena `0x19` junto a la entrada al Desierto de Haina, con la tabla 0 del desierto (ROM `UL-captura-ruta13-arena.3ds`). La primera prueba, en Pueblo Lilii, se descartó: aquella hierba es terreno de la Ruta 1 y la caja se escribió con el doble de tamaño. |
-| **Ultra Sol** | El mismo caso que Ultra Luna (Ruta 13 y tabla 0 del Desierto de Haina de Ultra Sol): copia real limpia 8/8 y ROM `US-captura-ruta13-arena.3ds`. **Pendiente de la prueba del propietario.** |
+| **Ultra Sol** | **Prueba jugable aprobada** por el propietario: el mismo caso que Ultra Luna (Ruta 13 y tabla 0 del Desierto de Haina de Ultra Sol), ROM `US-captura-ruta13-arena.3ds`. |
 | **Juegos DS** | Sin esta función de zonas de captura 3DS. |
 
 **Hierba visible:**
 
 - **Gen6 (X/Y, OR/AS):** no implementada y **fuera del roadmap por decisión del propietario**. Una zona de captura es funcional cuando el juego produce encuentros en sus casillas, aunque el escenario siga mostrando suelo normal.
-- **Ultra Sol / Ultra Luna:** **prioridad del propietario**, porque sin ella la zona no se distingue en el juego. Hay una primera versión con prueba jugable pendiente; ver «Hierba visible en Ultra Sol / Ultra Luna».
+- **Ultra Sol / Ultra Luna:** **prioridad del propietario, solo en USUM**, porque sin ella la zona no se distingue en el juego. Disponible en el editor con «Añadir hierba visible»; prueba jugable aprobada en Pueblo Lilii (Ultra Luna). Ver «Hierba visible en Ultra Sol / Ultra Luna».
 
 El editor señala en el mapa las casillas con encuentros (verde) y las marcadas (verde claro).
 
@@ -210,22 +210,68 @@ La zona de captura de esas casillas se añade aparte, con el servicio de zonas d
 - los 143 modelos de hierba se desplazan y se releen;
 - con desplazamiento cero quedan idénticos.
 
-### Prueba preparada (pendiente del propietario)
+### Prueba jugable aprobada
 
-- **Pueblo Lilii, bloque 23** (su césped del oeste): plantilla del bloque 19, unas 6 × 6 casillas, y debajo una zona con la tabla 0 del Cementerio de Hauoli.
-- **El suelo de ese césped es `0x01`, que ninguna región original usa solo.** Por eso esa zona es **experimental**: la prueba dirá si el juego acepta una máscara de ese suelo. Está marcada así en el historial, y el editor no ofrece ese suelo.
-- Copia real 8/8, verificación independiente (solo cambia la parte 1 del bloque 23, idéntica a la plantilla salvo 512 `float` por eje) e imagen con los dos archivos editados.
+- **Pueblo Lilii, bloque 23** (su césped del oeste): plantilla del bloque 19, unas 6 × 6 casillas, y debajo una zona con la tabla 0 del Cementerio de Hauoli. ROM `UL-hierba-pueblo-lilii.3ds`.
+- **Aprobada por el propietario:** la hierba se ve y salen encuentros.
+- **El suelo de ese césped es `0x01`, que ninguna región original usa solo.** La zona se escribió con una opción **experimental**, marcada en el historial. La aprobación cubre ese caso; **el editor no ofrece ese suelo**, porque no demuestra que cualquier suelo `0x01` sea seguro.
+
+### En el editor: «Añadir hierba visible»
+
+Un botón de la barra del editor de mapas, **solo en Ultra Sol / Ultra Luna** y con un proyecto abierto.
+
+1. **Plantilla.** Se elige en una lista de manchas originales cuyas texturas tiene el área, con un nombre legible: el lugar donde está esa hierba en el juego, su tamaño en casillas y la textura. Por ejemplo, «Hierba alta de Mar de Melemele, Ciudad Hauoli · 6 × 6 casillas».
+   - No se ofrecen bloques que el juego no usa.
+   - Una mancha que es copia desplazada de otra (por ejemplo, una añadida con el editor) cuenta como la misma plantilla.
+   - Si el área no tiene las texturas de ninguna hierba, el panel lo dice y no deja continuar.
+2. **Posición.** Clic en el mapa (o la casilla escrita) para el centro de la mancha.
+3. **Vista previa, sin escribir nada:**
+   - el **modelo de hierba real visto desde arriba** con las texturas del área, dibujado por el mismo renderizador que la capa gráfica (aproximado: sin iluminación ni animación);
+   - el rectángulo que ocupará (ámbar si es válido, rojo y con el motivo si no lo es);
+   - el contorno del bloque que cambia;
+   - las casillas debajo con un suelo admitido para una zona de captura;
+   - la hierba visible que ya existe.
+
+   El texto indica el bloque, las casillas y el desnivel, si otras áreas cargan ese bloque (la hierba también se verá desde ellas), cuántas casillas ya tienen encuentros y si debajo hay suelo admitido. Si no lo hay, la hierba será solo decorativa.
+4. **«Guardar»** escribe con el servicio, por el historial, y recarga el mapa.
+5. **«Deshacer la última hierba de esta área»** devuelve el archivo de bloques byte a byte desde el punto de restauración (también desde el historial).
+
+**Hierba visible y zona de captura son operaciones distintas.** Los dos paneles muestran un resumen del área:
+
+- la hierba visible propia y cuántas de esas casillas tienen encuentros;
+- la que está en terreno de áreas vecinas;
+- las casillas con encuentros sin hierba visible, como la arena, el agua o las cuevas, que tampoco la tienen en el juego.
+
+**Comprobaciones antes de escribir:**
+
+- plantilla original de una malla;
+- texturas en el área;
+- bloque con la estructura verificada y sin hierba;
+- la mancha cabe en el bloque;
+- suelo bajo cada casilla, sin varios niveles (puentes o techos) y con un desnivel máximo de 30;
+- el archivo de bloques coincide con el que leyó el editor.
+
+**Pruebas:**
+
+- `--map3ds-gen7-grass-editor-only` (9 sintéticas, con un modelo GFL2 sintético que lee el lector del proyecto).
+- `--map3ds-gen7-grass-editor-ui-only` (8 de interfaz).
+- `--map3ds-gen7-grass-editor-probe` en copias reales de Ultra Luna y Ultra Sol (Pueblo Lilii, bloque 24), 7/7:
+  - la vista previa no escribe;
+  - el guardado solo cambia el bloque destino;
+  - al reabrir aparece la hierba y las zonas de captura no cambian;
+  - el deshacer desde el panel devuelve el archivo byte a byte.
 
 ### Limitaciones
 
 - Solo plantillas de una malla, y solo en bloques sin hierba; añadir una malla a un modelo de hierba existente queda fuera.
 - No añade texturas. Áreas sin texturas `encgrass` (por ejemplo, la Ruta 13) no admiten hierba visible en esta versión, y la arena del desierto tampoco tiene hierba en el juego original.
 - La hierba es un modelo plano: no se adapta a pendientes.
-- Todavía no está en el panel del editor; se aplica con el servicio y el runner.
-- **Sin prueba en el juego**: no se sabe aún si se dibuja y se mueve como la original al caminar.
+- Aprobada en el juego en un caso (Pueblo Lilii, Ultra Luna); otros sitios no se han probado.
+- Los encuentros bajo la hierba se crean con «Zona de captura» y solo con los suelos acreditados. El suelo `0x01` del caso aprobado no se ofrece.
+- El resumen de hierba visible usa la caja de cada mancha y es aproximado.
 
 ## Limitaciones
 
-- Aprobadas en el juego: Pueblo Acuarela en X, Villa Raíz en Rubí Omega y Zafiro Alfa, y la arena de la Ruta 13 en Ultra Luna. Y y Ultra Sol, pendientes.
+- Aprobadas en el juego: Pueblo Acuarela en X, Villa Raíz en Rubí Omega y Zafiro Alfa, y la arena de la Ruta 13 en Ultra Luna y Ultra Sol. Y, pendiente.
 - Solo se escribe la hierba normal de cada familia. Otros tipos de encuentro (flores, hierba oscura, cuevas, agua) quedan fuera mientras no se acredite su valor.
 - Quitar encuentros a casillas existentes no forma parte de esta versión; lo hecho se deshace desde el historial.

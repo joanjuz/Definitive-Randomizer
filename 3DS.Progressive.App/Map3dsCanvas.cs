@@ -68,6 +68,16 @@ internal sealed class Map3dsCanvas : FrameworkElement
     private static readonly Brush CatchExisting = Freeze(new SolidColorBrush(Color.FromArgb(0x66, 0x3F, 0xB9, 0x50)));
     private static readonly Pen CatchExistingEdge = Freeze(new Pen(new SolidColorBrush(Color.FromArgb(0xCC, 0x2E, 0x8B, 0x3C)), 1));
     private static readonly Brush CatchPending = Freeze(new SolidColorBrush(Color.FromArgb(0xAA, 0xB8, 0xF2, 0x4A)));
+    private Map3dsGrassOverlay? _grass;
+    /// <summary>Visible-grass preview (USUM): block bounds, the patch's area and its real model seen from above.</summary>
+    internal void SetGrass(Map3dsGrassOverlay? grass) { _grass = grass; InvalidateVisual(); }
+    internal Map3dsGrassOverlay? GrassOverlay => _grass;
+    private static readonly Pen GrassBlockEdge = Freeze(new Pen(new SolidColorBrush(Color.FromArgb(0xDD, 0x5B, 0x9B, 0xF0)), 2) { DashStyle = DashStyles.Dash });
+    private static readonly Pen GrassValidEdge = Freeze(new Pen(new SolidColorBrush(Color.FromArgb(0xFF, 0xF4, 0xC9, 0x5D)), 2));
+    private static readonly Brush GrassValidFill = Freeze(new SolidColorBrush(Color.FromArgb(0x30, 0xF4, 0xC9, 0x5D)));
+    private static readonly Pen GrassInvalidEdge = Freeze(new Pen(new SolidColorBrush(Color.FromArgb(0xFF, 0xE5, 0x48, 0x4D)), 2) { DashStyle = DashStyles.Dash });
+    private static readonly Brush GrassInvalidFill = Freeze(new SolidColorBrush(Color.FromArgb(0x30, 0xE5, 0x48, 0x4D)));
+    private static readonly Pen GrassVisibleEdge = Freeze(new Pen(new SolidColorBrush(Color.FromArgb(0xAA, 0x4F, 0xC9, 0xB5)), 1) { DashStyle = DashStyles.Dot });
     /// <summary>Picks cell (x, y) as a click would while <see cref="PickingCell"/> is on.</summary>
     internal void PickCell(int x, int y) { if (PickingCell) CellPicked?.Invoke(x, y); }
     internal event Action<MapEventView?>? EventPicked;
@@ -104,7 +114,7 @@ internal sealed class Map3dsCanvas : FrameworkElement
     {
         if (!ReferenceEquals(resources, _resources)) { _blockImages.Clear(); lock (_pending) _graphics.Clear(); }
         if (zone != _zone) _generation++;
-        _resources = resources; _layout = layout; _events = events; Selected = null; _zone = zone; _view = null; _pendingNurse = null; _catch = null;
+        _resources = resources; _layout = layout; _events = events; Selected = null; _zone = zone; _view = null; _pendingNurse = null; _catch = null; _grass = null;
         Fit();
     }
 
@@ -298,6 +308,16 @@ internal sealed class Map3dsCanvas : FrameworkElement
             foreach (var (cx, cy) in zoneCells.Existing) dc.DrawRectangle(CatchExisting, CatchExistingEdge, new Rect(ToScreen(new Point(cx, cy)), catchSize));
             foreach (var (cx, cy) in zoneCells.Pending) dc.DrawRectangle(CatchPending, GhostPen, new Rect(ToScreen(new Point(cx, cy)), catchSize));
         }
+        if (_grass is { } grass)
+        {
+            Rect R(Rect cells) => new(ToScreen(cells.TopLeft), new Size(cells.Width * _scale, cells.Height * _scale));
+            var cell = new Size(_scale, _scale);
+            foreach (var (cx, cy) in grass.Visible) dc.DrawRectangle(null, GrassVisibleEdge, new Rect(ToScreen(new Point(cx, cy)), cell));
+            if (grass.Block is { } block) dc.DrawRectangle(null, GrassBlockEdge, R(block));
+            if (grass.Image is { } image && grass.ImageRect is { } at) dc.DrawImage(image, R(at));
+            foreach (var (cx, cy) in grass.Soil) dc.DrawRectangle(null, CatchPaintableEdge, new Rect(ToScreen(new Point(cx, cy)), cell));
+            if (grass.Footprint is { } foot) dc.DrawRectangle(grass.Valid ? GrassValidFill : GrassInvalidFill, grass.Valid ? GrassValidEdge : GrassInvalidEdge, R(foot));
+        }
         if (_pendingNurse is { } nurse)
         {
             var c = ToScreen(new Point(nurse.X + 0.5, nurse.Y + 0.5));
@@ -413,3 +433,11 @@ internal sealed record Map3dsLayers(bool Cells, bool Blocks, bool Npcs, bool Pro
         _ => Triggers,
     };
 }
+
+/// <summary>
+/// Visible-grass preview in cell units: the target block, the patch's bounding rectangle (valid or not), the real grass
+/// model drawn from above over <see cref="ImageRect"/>, the cells under it whose ground admits a catch zone and the
+/// cells that already have visible grass in the area.
+/// </summary>
+internal sealed record Map3dsGrassOverlay(Rect? Block, Rect? Footprint, ImageSource? Image, Rect? ImageRect,
+    IReadOnlyList<(int X, int Y)> Soil, IReadOnlyList<(int X, int Y)> Visible, bool Valid);

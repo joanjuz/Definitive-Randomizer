@@ -87,6 +87,27 @@ internal sealed class Map3dsGen7VisibleGrassService
         return encoded;
     }
 
+    /// <summary>The newest visible-grass entry of the area that its restore point can still undo, or null.</summary>
+    internal HistoryEntry? LastUndoable(int area)
+    {
+        string a = area.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        foreach (var entry in _project.History.Read().Entries.Reverse())
+        {
+            if (entry.Parameters.GetValueOrDefault("UndoOf") is string undone && Guid.TryParse(undone, out _)) continue;
+            if (entry.Parameters.GetValueOrDefault("ActionId") != ActionId || entry.Parameters.GetValueOrDefault("Area") != a) continue;
+            return RestorePoints.WhyNot(_project.History.StorageDirectory, _project.ProjectRoot, entry.Id) is null ? entry : null;
+        }
+        return null;
+    }
+
+    /// <summary>Puts the block archive back, byte for byte, as it was before the area's last visible grass (a new history entry).</summary>
+    internal string Undo(int area)
+    {
+        var entry = LastUndoable(area) ?? throw new InvalidOperationException("No hay hierba visible de esta área que se pueda deshacer (o un cambio posterior lo impide).");
+        RestorePoints.Undo(_project.History, _project.ProjectRoot, entry.Id);
+        return "Deshecho: " + entry.Action;
+    }
+
     internal void Apply(EditorProposal proposal)
     {
         if (proposal.Owner != _owner) throw new InvalidOperationException("La propuesta pertenece a otro editor.");
