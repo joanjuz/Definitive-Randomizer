@@ -46,7 +46,7 @@ internal sealed record NdsEventOperation(string Kind, NdsNpcEdit? Move, NdsNpcAd
 internal sealed record NdsEventDocument(string Format, int Version, string Game, int Revision, string SourcePath, string SourceSha256,
     IReadOnlyList<NdsNpcEdit> Edits, IReadOnlyList<string> Audit, IReadOnlyList<NdsEventOperation>? Operations = null);
 /// <summary>A save that has been decided but not installed (see <c>NdsEventSession.Stage</c>).</summary>
-internal sealed record NdsEventStage(Guid Owner, int Revision, List<NdsEventOperation> Operations, List<string> Audit, PlatinumEvents Next);
+internal sealed record NdsEventStage(Guid Owner, int Revision, List<NdsEventOperation> Operations, List<string> Audit, INdsEventData Next);
 internal sealed record NdsEventProposal(Guid Owner, int Revision, NdsEventOperation Operation, bool Undo, IReadOnlyList<Gen5Change> Changes, IReadOnlyList<string>? Lines = null)
 {
     internal bool IsStructural => Operation.Kind is NdsEventOperation.AddKind or NdsEventOperation.RemoveKind;
@@ -60,11 +60,11 @@ internal sealed class NdsEventSession
     private readonly Guid _owner = Guid.NewGuid();
     private readonly object _gate = new();
     private readonly NdsRom _rom;
-    private readonly PlatinumEvents _original;
+    private readonly INdsEventData _original;
     private readonly string _sha256;
     private List<NdsEventOperation> _ops = [];
     private List<string> _audit = [];
-    internal PlatinumEvents Data { get; private set; }
+    internal INdsEventData Data { get; private set; }
     internal int Revision { get; private set; }
     internal bool HasHistory => _audit.Count > 0;
     internal bool CanUndo => _ops.Count > 0;
@@ -78,7 +78,7 @@ internal sealed class NdsEventSession
     internal string? LastCheckpoint { get; private set; }
     internal string SourcePath => _rom.Path;
 
-    internal NdsEventSession(NdsRom rom, PlatinumEvents verifiedData)
+    internal NdsEventSession(NdsRom rom, INdsEventData verifiedData)
     {
         _rom = rom; _original = Data = verifiedData;
         CheckPath(rom.Path);
@@ -110,7 +110,7 @@ internal sealed class NdsEventSession
         }
     }
     private static string KindName(string kind) => kind switch { "Object" => "Objeto", "Warp" => "Warp", _ => "Activador" };
-    private static IReadOnlyList<Gen5Change> EventDifferences(NdsEventFieldEdit edit, PlatinumEvents data)
+    private static IReadOnlyList<Gen5Change> EventDifferences(NdsEventFieldEdit edit, INdsEventData data)
     {
         var changes = new List<Gen5Change>(); string name = $"Mapa {edit.Map} · {KindName(edit.Kind)} {edit.Index}"; var (b, a) = (edit.Before, edit.After);
         if (b.X != a.X) changes.Add(new(name, "Coordenada X", b.X, a.X));
@@ -140,7 +140,7 @@ internal sealed class NdsEventSession
         {
             if (!IsAddedNpc(map, index)) throw new InvalidOperationException("Solo se pueden eliminar NPC añadidos por el editor; los del juego original no se eliminan.");
             var npc = Data.Npc(map, index); byte[] record = Convert.FromHexString(npc.Raw);
-            _ = Data.RemoveNpc(map, index, record);
+            _ = Structural(Data).RemoveNpc(map, index, record);
             var removal = new NdsNpcRemoval(map, index, npc.Raw); int count = Data.NpcCount(map);
             return new(_owner, Revision, NdsEventOperation.OfRemove(removal), false, [new($"Mapa {map} · NPC añadido {index}", "Cantidad de NPC", count, count - 1)],
                 [$"Mapa {map} · eliminar el NPC añadido (índice {index}, ID {npc.Id})", $"  X {npc.X} · Y {npc.Y} · gráfico {npc.Graphics}", index < count - 1 ? $"  Los NPC añadidos posteriores pasan del índice {index + 1}… al {index}…" : "  Es el último NPC del bloque.", $"  Cantidad de NPC: {count} → {count - 1}"]);
@@ -191,8 +191,9 @@ internal sealed class NdsEventSession
             undo ? "  Cantidad de NPC: " + (add.Index + 1) + " → " + add.Index : "  Cantidad de NPC: " + add.Index + " → " + (add.Index + 1)];
     }
     /// <summary>Applies one addition, with its script binding, re-checking every rule (used by preview and by replay).</summary>
-    private static PlatinumEvents ApplyAddition(PlatinumEvents from, NdsNpcAddition add, byte[] record)
+    private static INdsEventData ApplyAddition(INdsEventData data, NdsNpcAddition add, byte[] record)
     {
+        var from = Structural(data);
         if (add.Script is not { } b) return from.AddNpc(add.Map, record);
         var map = from.Map(add.Map); int recordScript = record[10] | record[11] << 8, recordId = record[0] | record[1] << 8;
         if (b.ScriptFile != map.ScriptFile) throw new InvalidOperationException("El script no pertenece al archivo de scripts del mapa.");
@@ -288,8 +289,8 @@ internal sealed class NdsEventSession
     }
     internal IReadOnlyList<NdsEventOperation> History() { lock (_gate) return _ops.ToList().AsReadOnly(); }
     /// <summary>The event data of a state when it differs from the original (what a persistent project stores), without re-reading the ROM.</summary>
-    internal byte[]? EventBytesIfChanged(PlatinumEvents data) { byte[] bytes = data.Bytes(); return bytes.AsSpan().SequenceEqual(_original.Bytes()) ? null : bytes; }
-    internal byte[]? ScriptBytesIfChanged(PlatinumEvents data) { byte[] bytes = data.ScriptArchiveBytes(); return bytes.AsSpan().SequenceEqual(_original.ScriptArchiveBytes()) ? null : bytes; }
+    internal byte[]? EventBytesIfChanged(INdsEventData data) { byte[] bytes = data.Bytes(); return bytes.AsSpan().SequenceEqual(_original.Bytes()) ? null : bytes; }
+    internal byte[]? ScriptBytesIfChanged(INdsEventData data) { byte[] bytes = data.ScriptArchiveBytes(); return bytes.AsSpan().SequenceEqual(_original.ScriptArchiveBytes()) ? null : bytes; }
     /// <summary>
     /// Installs a history read from a persistent project. It is replayed on the original data with every rule, and the result must be, byte for byte, the event
     /// data and the script archive the project stored (null means "the original"); otherwise nothing is installed.
@@ -299,7 +300,7 @@ internal sealed class NdsEventSession
         lock (_gate)
         {
             if (operations.Count > 10000 || audit.Count > 20000 || audit.Any(s => s is null || s.Length > 2048)) throw new InvalidDataException("El historial de eventos del proyecto supera los límites admitidos.");
-            PlatinumEvents next;
+            INdsEventData next;
             // Whatever stops the replay (a record that is not the expected one, a coordinate out of range) means the same: this history is not of this data.
             try { next = Replay(operations); }
             catch (Exception ex) when (ex is InvalidOperationException or ArgumentException) { throw new InvalidDataException("El historial de eventos del proyecto no se puede reproducir: " + ex.Message, ex); }
@@ -342,7 +343,7 @@ internal sealed class NdsEventSession
             document.Audit is null || (document.Edits?.Count ?? 0) > 10000 || (document.Operations?.Count ?? 0) > 10000 || document.Audit.Count > 20000 || document.Audit.Any(s => s is null || s.Length > 2048))
             throw new InvalidDataException("Checkpoint de eventos incompatible, truncado o de otra ROM.");
     }
-    private PlatinumEvents Replay(IReadOnlyList<NdsEventOperation> operations)
+    private INdsEventData Replay(IReadOnlyList<NdsEventOperation> operations)
     {
         var result = _original;
         foreach (var operation in operations)
@@ -372,7 +373,7 @@ internal sealed class NdsEventSession
                     if (remove.Index < _original.NpcCount(remove.Map) || remove.Index >= result.NpcCount(remove.Map)) throw new InvalidDataException("Solo se pueden eliminar NPC añadidos por el editor.");
                     byte[] expected;
                     try { expected = Convert.FromHexString(remove.RecordHex); } catch (FormatException ex) { throw new InvalidDataException("Registro de NPC ilegible en el checkpoint.", ex); }
-                    try { result = result.RemoveNpc(remove.Map, remove.Index, expected); }
+                    try { result = Structural(result).RemoveNpc(remove.Map, remove.Index, expected); }
                     catch (InvalidOperationException ex) { throw new InvalidDataException(ex.Message, ex); }
                     break;
                 case NdsEventOperation.EventKind:
@@ -405,7 +406,7 @@ internal sealed class NdsEventSession
     /// Combines the scripts appended by this history with a script archive written by another DS module (randomizer options also edit scr_seq).
     /// A member changed by both is refused: the two edits are never mixed blindly.
     /// </summary>
-    internal byte[] MergeScriptArchive(byte[] theirs, PlatinumEvents? state = null)
+    internal byte[] MergeScriptArchive(byte[] theirs, INdsEventData? state = null)
     {
         lock (_gate)
         {
@@ -439,6 +440,12 @@ internal sealed class NdsEventSession
                 throw new InvalidDataException("Los scripts añadidos no persistieron en la ROM reconstruida.");
         }
     }
+    /// <summary>
+    /// The data of a game where NPC and scripts can be added (Platinum). Any other game refuses here, whatever asked for it (a checkpoint, a project or a
+    /// call that does not come from the interface).
+    /// </summary>
+    private static PlatinumEvents Structural(INdsEventData data) =>
+        data is PlatinumEvents { Profile.SupportsNpcCreation: true } gen4 ? gen4 : throw new InvalidOperationException($"En {data.Profile.Label} no se añaden ni se eliminan NPC ni scripts.");
     internal void Reset() { lock (_gate) { Data = _original; _ops.Clear(); _audit.Clear(); LastCheckpoint = null; Revision++; } }
 
     internal static NdsEventDocument ReadDocument(string path)

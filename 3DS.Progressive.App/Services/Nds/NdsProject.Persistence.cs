@@ -218,7 +218,7 @@ internal sealed partial class NdsProject
     /// A script archive written by another DS module must combine with the scripts the event history appended. Checked when the operation is confirmed, not
     /// only when exporting: a conflict found days later, at export time, could not be undone.
     /// </summary>
-    private void RequireCompatibleScripts(IReadOnlyDictionary<string, byte[]> files, PlatinumEvents? eventState = null)
+    private void RequireCompatibleScripts(IReadOnlyDictionary<string, byte[]> files, INdsEventData? eventState = null)
     {
         if (_events is not { } session || !files.TryGetValue(EventScriptPath, out var theirs)) return;
         if (session.ScriptBytesIfChanged(eventState ?? session.Data) is null) return;
