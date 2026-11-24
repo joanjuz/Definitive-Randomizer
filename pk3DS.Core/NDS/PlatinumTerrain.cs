@@ -41,29 +41,51 @@ public sealed class PlatinumTerrain
         var profile = Gen4EventProfile.Require(rom, "Terreno");
         byte[] bytes = rom.ReadFile(profile.LandDataPath);
         if (Gen5Data.Crc32(bytes) != profile.LandDataCrc32) throw new InvalidDataException($"Terreno {profile.Key}: land_data no coincide con el archivo acreditado.");
-        var terrain = ParseNarc(bytes);
+        var terrain = ParseNarc(bytes, profile.LandDataHasSoundSection);
         if (terrain.Count != profile.LandFileCount) throw new InvalidDataException($"Terreno {profile.Key}: número inesperado de miembros de land_data.");
         return terrain;
     }
 
-    /// <summary>Structural parser (fixtures); does not identify or authorize a ROM. Use <see cref="Open"/> for game data.</summary>
-    public static PlatinumTerrain ParseNarc(byte[] narcBytes)
+    /// <summary>
+    /// Structural parser (fixtures); does not identify or authorize a ROM. Use <see cref="Open"/> for game data. <paramref name="soundSection"/> reads the
+    /// HeartGold layout (<see cref="Gen4EventProfile.LandDataHasSoundSection"/>).
+    /// </summary>
+    public static PlatinumTerrain ParseNarc(byte[] narcBytes, bool soundSection = false)
     {
         var narc = Narc.Read(narcBytes);
         var attributes = new ushort[narc.Files.Count][]; var props = new int[attributes.Length]; var models = new int[attributes.Length]; var bdhc = new int[attributes.Length];
         for (int i = 0; i < attributes.Length; i++)
         {
-            var file = narc.Files[i];
-            if (file.Length < HeaderSize + AttributesSize) throw new InvalidDataException("land_data truncado: " + i);
-            uint terrain = BinaryPrimitives.ReadUInt32LittleEndian(file), p = BinaryPrimitives.ReadUInt32LittleEndian(file.AsSpan(4)),
-                 m = BinaryPrimitives.ReadUInt32LittleEndian(file.AsSpan(8)), b = BinaryPrimitives.ReadUInt32LittleEndian(file.AsSpan(12));
-            if (terrain != AttributesSize || (ulong)HeaderSize + terrain + p + m + b != (ulong)file.Length)
-                throw new InvalidDataException("Cabecera de land_data inconsistente con su longitud: " + i);
+            var file = narc.Files[i]; int start = AttributesStart(file, soundSection, i);
+            uint p = BinaryPrimitives.ReadUInt32LittleEndian(file.AsSpan(4)), m = BinaryPrimitives.ReadUInt32LittleEndian(file.AsSpan(8)), b = BinaryPrimitives.ReadUInt32LittleEndian(file.AsSpan(12));
             var values = new ushort[TileCount];
-            for (int t = 0; t < TileCount; t++) values[t] = BinaryPrimitives.ReadUInt16LittleEndian(file.AsSpan(HeaderSize + t * 2));
+            for (int t = 0; t < TileCount; t++) values[t] = BinaryPrimitives.ReadUInt16LittleEndian(file.AsSpan(start + t * 2));
             attributes[i] = values; props[i] = (int)p; models[i] = (int)m; bdhc[i] = (int)b;
         }
         return new(attributes, props, models, bdhc);
+    }
+
+    /// <summary>HeartGold: signature of the background-sound section that follows the four section sizes.</summary>
+    public const ushort SoundSectionSignature = 0x1234;
+    /// <summary>
+    /// Where the terrain attributes of a land_data member start, after checking that its sections add up to its length: 0x10 in Diamond and Platinum
+    /// (four u32 sizes: attributes, props, model, BDHC); in HeartGold the sizes are followed by u16 0x1234, u16 n and n bytes of background sound.
+    /// </summary>
+    public static int AttributesStart(byte[] file, bool soundSection, int index)
+    {
+        if (file.Length < HeaderSize + AttributesSize) throw new InvalidDataException("land_data truncado: " + index);
+        int start = HeaderSize;
+        if (soundSection)
+        {
+            if (file.Length < HeaderSize + 4 + AttributesSize || BinaryPrimitives.ReadUInt16LittleEndian(file.AsSpan(HeaderSize)) != SoundSectionSignature)
+                throw new InvalidDataException("land_data sin la sección de sonido de HeartGold: " + index);
+            start = HeaderSize + 4 + BinaryPrimitives.ReadUInt16LittleEndian(file.AsSpan(HeaderSize + 2));
+        }
+        uint terrain = BinaryPrimitives.ReadUInt32LittleEndian(file), p = BinaryPrimitives.ReadUInt32LittleEndian(file.AsSpan(4)),
+             m = BinaryPrimitives.ReadUInt32LittleEndian(file.AsSpan(8)), b = BinaryPrimitives.ReadUInt32LittleEndian(file.AsSpan(12));
+        if (terrain != AttributesSize || (ulong)start + terrain + p + m + b != (ulong)file.Length)
+            throw new InvalidDataException("Cabecera de land_data inconsistente con su longitud: " + index);
+        return start;
     }
 
     private PlatinumTerrain(ushort[][] attributes, int[] props, int[] models, int[] bdhc) { _attributes = attributes; _propBytes = props; _modelBytes = models; _bdhcBytes = bdhc; }
