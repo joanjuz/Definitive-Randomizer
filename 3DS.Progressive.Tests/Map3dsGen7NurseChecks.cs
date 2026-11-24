@@ -71,6 +71,9 @@ internal static class Map3dsGen7NurseChecks
     /// <summary>The Center machine as in Ultra Moon: object 2 on the counter to the side of a nurse at 2100,0,2100.</summary>
     internal static byte[] Machine(uint id = 701) => Static(id, 2, new Vector3(2264.7f, 80, 2120.7f), new Quaternion(0, -0.366f, 0, -0.9306f));
 
+    /// <summary>The Center counter as in Ultra Moon: object 5 exactly where the nurse stands, without rotation.</summary>
+    internal static byte[] Counter(uint id = 702) => Static(id, 5, new Vector3(2100, 0, 2100), Quaternion.Identity);
+
     /// <summary>An object "SM" pack: id and a model part, 0x100 bytes in all.</summary>
     internal static byte[] ObjectModel(ushort id, byte fill = 0x3C)
     {
@@ -134,11 +137,11 @@ internal static class Map3dsGen7NurseChecks
         var areas = new Dictionary<int, byte[]>();
         void Area(int a, byte[] ed, byte[] ac, byte[] objects)
         { areas[a * 11] = ed; areas[(a * 11) + 2] = tr; areas[(a * 11) + 3] = ac; areas[(a * 11) + 4] = objects; areas[(a * 11) + 9] = Gen7CatchZones.Pack("EA", []); }
-        Area(0, Ed([NpcFile(Standing(1, 66, 5030, c, 111), Standing(2, 64, 5400, c + new Vector3(300, 0, 0)))], [Machine()]), Characters("66", "64", "135"), ObjectPack(2, 5));
+        Area(0, Ed([NpcFile(Standing(1, 66, 5030, c, 111), Standing(2, 64, 5400, c + new Vector3(300, 0, 0)))], [Machine(), Counter()]), Characters("66", "64", "135"), ObjectPack(2, 5));
         Area(1, Ed([NpcFile(Standing(1, 5, 0, new Vector3(157.5f, 0, 157.5f)))], [Static(303, 77, new Vector3(1800, 0, 900), Quaternion.Identity)], new Vector3(1522.5f, 0, 577.5f)),
             Characters("5", "135"), ObjectPack(77));
         Area(2, Ed([NpcFile(), NpcFile()]), Characters("135"), ObjectPack(77));
-        Area(3, Ed([NpcFile(Standing(3, 66, 5030, c, 111))], [Machine(702)]), Characters("66", "135"), ObjectPack(2, 5));
+        Area(3, Ed([NpcFile(Standing(3, 66, 5030, c, 111))], [Machine(702), Counter(701)]), Characters("66", "135"), ObjectPack(2, 5));
         Area(4, Ed([NpcFile()]), Characters([.. Enumerable.Range(200, 37).Select(i => i.ToString())]), ObjectPack(77));
         return areas;
     }
@@ -166,7 +169,9 @@ internal static class Map3dsGen7NurseChecks
         var t = b.NurseTemplate;
         check(t is { Count: 2, Model: 66, Script: 5030 } && Gen7Nurse.CharacterName(t.Character) == "66" && Gen7Nurse.FirstPoint(t.Talk) == new Vector3(0, 0, 130)
             && b.NurseSummary.Contains("2 enfermeras") && b.NurseSummary.Contains("máquina de curación"), "Gen7Nurse_TemplateIsTheGameNurseWithItsModel");
-        check(Vector3.Distance(t!.MachineOffset, new Vector3(164.7f, 0, 20.7f)) < 0.01f && Gen7Nurse.ObjectId(t.MachineModel) == 2
+        check(Vector3.Distance(t!.CounterOffset, Vector3.Zero) < 0.01f && Math.Abs(t.CounterTurn.W) > 0.999f && Gen7Nurse.ObjectId(t.CounterModel) == 5
+            && Gen7Events.Records([.. BitConverter.GetBytes(1), .. t.Counter], 56, 4).Single().U32(0x30) == 5, "Gen7Nurse_TemplateHasTheCenterCounterUnderHer");
+        check(Vector3.Distance(t!.MachineOffset, new Vector3(164.7f, 80, 20.7f)) < 0.01f && Gen7Nurse.ObjectId(t.MachineModel) == 2
             && Gen7Events.Records([.. BitConverter.GetBytes(1), .. t.Machine], 56, 4).Single().U32(0x30) == 2, "Gen7Nurse_TemplateHasTheCenterHealingMachine");
         check(Gen7Nurse.DataStart(30) == 0x80 && Gen7Nurse.DataStart(31) == 0x100 && Gen7Nurse.DataStart(37) == 0x100, "Gen7Nurse_CharacterPackDataStartFollowsTheGame");
 
@@ -190,14 +195,18 @@ internal static class Map3dsGen7NurseChecks
             "Gen7Nurse_OtherNpcsAndPartsKeepTheirBytes");
         check(ac is not null && Gen7Nurse.Characters(ac).SequenceEqual(["5", "135", "66"]) && Gen7CatchZones.Parts(ac, "AC")[^1].AsSpan().SequenceEqual(t!.Character),
             "Gen7Nurse_AreaLoadsTheNurseModel");
-        // Machine: object 2 next to her, turned with her, on the ground, with its model added to the area objects.
+        // Machine: object 2 on the counter beside her, turned with her; counter (object 5) under her; both models added.
         var statics = Gen7Events.Records(Gen7CatchZones.Parts(Gen7CatchZones.Parts(ed, "ED")[4], "ES")[0], 56, 4).ToList();
         var machine = statics[^1];
-        var expected = plan!.Position + Vector3.Transform(new Vector3(164.7f, 0, 20.7f), q);
-        check(plan.Machine is { } mpos && Vector3.Distance(mpos, new Vector3(expected.X, 0, expected.Z)) < 0.01f && plan.MachineEventId == 701 && plan.AddsObject
-            && statics.Count == 2 && statics[0].Bytes.AsSpan().SequenceEqual(Gen7Events.Records(Gen7CatchZones.Parts(Gen7CatchZones.Parts(areas[11], "ED")[4], "ES")[0], 56, 4).First().Bytes)
+        var expected = plan!.Position + Vector3.Transform(new Vector3(164.7f, 80, 20.7f), q);
+        var counter = statics[^1]; machine = statics[^2];
+        check(plan.Machine is { } mpos && Vector3.Distance(mpos, expected) < 0.01f && plan.MachineEventId == 701 && plan.AddsObject
+            && plan.Counter is { } cpos && Vector3.Distance(cpos, plan.Position) < 0.01f && plan.CounterEventId == 702 && plan.AddsCounterModel
+            && statics.Count == 3 && statics[0].Bytes.AsSpan().SequenceEqual(Gen7Events.Records(Gen7CatchZones.Parts(Gen7CatchZones.Parts(areas[11], "ED")[4], "ES")[0], 56, 4).First().Bytes)
             && machine.U32(0x30) == 2 && machine.U32(0x2C) == 701 && Vector3.Distance(machine.Position, mpos) < 0.01f
-            && objs is not null && Gen7Nurse.Objects(objs).SequenceEqual([77, 2]) && Gen7CatchZones.Parts(objs, "AS")[^1].AsSpan().SequenceEqual(t.MachineModel),
+            && counter.U32(0x30) == 5 && counter.U32(0x2C) == 702 && Vector3.Distance(counter.Position, plan.Position) < 0.01f && Math.Abs(counter.F(0x14) - q.Y) < 1e-6
+            && objs is not null && Gen7Nurse.Objects(objs).SequenceEqual([77, 2, 5]) && Gen7CatchZones.Parts(objs, "AS")[^2].AsSpan().SequenceEqual(t.MachineModel)
+            && Gen7CatchZones.Parts(objs, "AS")[^1].AsSpan().SequenceEqual(t.CounterModel),
             "Gen7Nurse_HealingMachineIsPlacedNextToHerWithItsModel");
         // Field gimmick: the target zone gets the Pokémon Center module (only its byte changes); a Center keeps it.
         var zonesAfter = b.NurseZoneEdit(plan!);
@@ -297,6 +306,11 @@ internal static class Map3dsGen7NurseChecks
         var machine = staticsAfter.LastOrDefault(r => r.U32(0x30) == Gen7Nurse.MachineObject);
         bool machineOk = machine is not null && staticsAfter.Count(r => r.U32(0x30) == 2) == Math.Max(machinesBefore, 1) && Gen7Nurse.Objects(after.ObjectBytes(area)).Contains((int)Gen7Nurse.MachineObject)
             && Gen7CatchZones.Parts(after.ObjectBytes(area), "AS").Any(p => p.AsSpan().SequenceEqual(after.NurseTemplate!.MachineModel));
+        var counterRec = staticsAfter.LastOrDefault(r => r.U32(0x30) == Gen7Nurse.CounterObject);
+        machineOk = machineOk && counterRec is not null && staticsAfter.Count(r => r.U32(0x30) == 5) == 1 && Gen7Nurse.Objects(after.ObjectBytes(area)).Contains((int)Gen7Nurse.CounterObject)
+            && Gen7CatchZones.Parts(after.ObjectBytes(area), "AS").Any(p => p.AsSpan().SequenceEqual(after.NurseTemplate!.CounterModel))
+            && after.ObjectBytes(area).Length <= Gen7Nurse.MaxObjectBytes;
+        Console.WriteLine((machineOk ? "PASS" : "FAIL") + $" Gen7NurseReal_AreaHasTheCounterTheMachineAndTheirModels (mostrador {counterRec?.U32(0x2C)} en {counterRec?.Position}; {after.ObjectBytes(area).Length} B de objetos)");
         Console.WriteLine((machineOk ? "PASS" : "FAIL") + $" Gen7NurseReal_AreaHasTheHealingMachineAndItsModel (estático {machine?.U32(0x2C)} en {machine?.Position}; objetos {Gen7Nurse.Objects(before.ObjectBytes(area)).Count} → {Gen7Nurse.Objects(after.ObjectBytes(area)).Count})");
         var mb = new GARC.MemGARC(original).Files; var ma = new GARC.MemGARC(File.ReadAllBytes(archive)).Files;
         int ev = area * Gen7MapBackend.SlotsPerWorld, ch = ev + Gen7MapBackend.CharacterSlot, ob = ev + Gen7MapBackend.ObjectSlot;

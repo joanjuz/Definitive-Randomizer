@@ -108,14 +108,22 @@ internal sealed class Map3dsGen7NurseService
         if (plan.Machine is { } mp)
             changes.Add(new BatchChange(area, $"Área {area:000}", "Objetos estáticos", "sin máquina de curación",
                 $"máquina de curación (estático {plan.MachineEventId}) en la casilla {Math.Floor(mp.X / Gen7MapBackend.UnitsPerCell)}, {Math.Floor(mp.Z / Gen7MapBackend.UnitsPerCell)}", "nurse.machine"));
-        if (objects is not null) changes.Add(new BatchChange(area, $"Área {area:000}", "Modelos de objetos", "sin el objeto 2", $"+ objeto 2 ({plan.Objects} objetos)", "nurse.machine-model"));
+        if (plan.Counter is { } cp)
+            changes.Add(new BatchChange(area, $"Área {area:000}", "Objetos estáticos", "sin mostrador del Centro",
+                $"mostrador del Centro (estático {plan.CounterEventId}) bajo la enfermera, en la casilla {Math.Floor(cp.X / Gen7MapBackend.UnitsPerCell)}, {Math.Floor(cp.Z / Gen7MapBackend.UnitsPerCell)}", "nurse.counter"));
+        if (objects is not null)
+        {
+            string added = string.Join(" y ", new[] { plan.AddsObject ? "objeto 2" : null, plan.AddsCounterModel ? "objeto 5" : null }.Where(x => x is not null));
+            changes.Add(new BatchChange(area, $"Área {area:000}", "Modelos de objetos", "sin " + added, $"+ {added} ({plan.Objects} objetos)", "nurse.machine-model"));
+        }
         if (plan.Zone >= 0) changes.Add(new BatchChange(area, $"Zona {plan.Zone}", "Módulo de campo (gimmick, +0x0E)", Gen7Nurse.NoGimmick.ToString(inv), $"{Gen7Nurse.PokecenGimmick} (Centro Pokémon)", "nurse.gimmick"));
         var parameters = new Dictionary<string, string>
         {
             { "ActionId", ActionId }, { "Game", "USUM" }, { "Area", area.ToString(inv) }, { "Cell", where }, { "Facing", plan.Compass.ToString("0.##", inv) },
             { "EventId", plan.EventId.ToString(inv) }, { "Model", Gen7Nurse.Model.ToString(inv) }, { "Script", Gen7Nurse.Script.ToString(inv) },
             { "AddsModel", characters is not null ? "yes" : "no" }, { "Machine", plan.Machine is null ? "existing" : plan.MachineEventId.ToString(inv) },
-            { "AddsMachineModel", objects is not null ? "yes" : "no" }, { "Gimmick", plan.Zone >= 0 ? $"zona {plan.Zone}: 0 → 3" : "sin cambios" },
+            { "AddsMachineModel", plan.AddsObject ? "yes" : "no" }, { "Counter", plan.Counter is null ? "existing" : plan.CounterEventId.ToString(inv) },
+            { "AddsCounterModel", plan.AddsCounterModel ? "yes" : "no" }, { "Gimmick", plan.Zone >= 0 ? $"zona {plan.Zone}: 0 → 3" : "sin cambios" },
             { "RestoreBlob", key }, { "Gameplay", "not tested" },
         };
         return new EditorProposal(_owner, $"Enfermera en el área {area:000} (casilla {where})", 0, [.. files], [.. changes], parameters);

@@ -139,7 +139,11 @@ Investigado con los datos de los dos juegos, sin trasladar nada de Gen6.
   - 9: Festival Plaza, y otros en zonas sueltas.
   - El módulo 3 es `FieldGimmickPokecen.cro`. Contiene `monsterball_loc_01…06`, las texturas `com_bm_pcounter_poke01…06` de la máquina y la lectura del equipo: es quien coloca las Poké Balls y pone los iconos en la máquina.
   - La rama de curación de 5030 llama a funciones del motor que no usa ningún otro script común; son las de ese módulo.
-  - **Sin él, el juego se congela nada más decir «Sí»**, aunque la máquina esté en el área (v2).
+  - Sin él, el juego se congela nada más decir «Sí», aunque la máquina esté en el área (v2).
+- **Mostrador del Centro (objeto estático 5).** Su «SM» (`com_bm_pcounter`, 440 064 bytes) es el que contiene las articulaciones `monsterball_loc_01…06` y las texturas `com_bm_pcounter_poke01…06` que busca el módulo. La máquina (objeto 2) no las contiene.
+  - Está en los 15 Centros y en ningún otro sitio. El registro es idéntico en todos: exactamente en la posición de la enfermera y con su mismo giro, sin forma de colisión (la colisión del mostrador es la de la sala).
+  - La máquina está encima, a 80 unidades de altura.
+  - **Sin el mostrador, con módulo y máquina, el emulador se cuelga por completo al decir «Sí»** (v3): se corta la música y hay que cerrar el proceso.
   - El Árbol de Combate cura con otra rutina (caso 5660), sin esa animación.
 - **Carga del modelo.** El slot 3 de cada área es un paquete «AC» con **un paquete «CP» por modelo de personaje**, nombrado con el número del modelo.
   - En las 300 áreas con NPC o entrenadores de cada juego, el «AC» contiene los modelos de todos ellos.
@@ -160,7 +164,12 @@ Hasta tres miembros del archivo de campo (`a/0/8/3` en Ultra Luna, `a/0/8/2` en 
    - sus dos formas al final, con la de conversación girada con ella.
 
    Los demás NPC solo desplazan 120 bytes la posición de sus formas. Antes de escribir se comprueba la estructura y después se relee todo.
-2. **Máquina de curación**, si el área no tiene una: copia del estático de la máquina del Centro, como allí respecto a la enfermera (girada con ella) pero apoyada en el suelo, con el id 701 si está libre. Su «SM» se añade al paquete de objetos si falta, con datos desde la cabecera redondeada a 0x80 (336/336 áreas), sin pasar de 25 objetos ni de 1 070 592 bytes. Los estáticos existentes solo desplazan su forma 56 bytes.
+2. **Mostrador y máquina de curación**, si el área no tiene ninguno:
+   - copia de los dos estáticos del Centro, colocados respecto a la enfermera como allí y girados con ella: el mostrador bajo ella y la máquina encima, a 80 de altura;
+   - ids 701 y 702, o los siguientes libres;
+   - sus «SM» se añaden al paquete de objetos si faltan, con datos desde la cabecera redondeada a 0x80 (336/336 áreas), sin pasar de 25 objetos ni de 1 070 592 bytes. En Pueblo Lilii quedan 16 objetos y 1 057 408 bytes;
+   - los estáticos existentes solo desplazan su forma 56 bytes por estático;
+   - se rechaza un área con solo una de las dos piezas.
 3. **Modelos de personaje del área:** si el área no carga el modelo 66, se añade al final la copia exacta de su CP. El inicio de datos sigue la regla del juego. No se supera el área más cargada del juego (37 modelos, 7 344 640 bytes).
 
 4. **Tabla de zonas:** si la zona del área no tiene módulo de campo (0), su byte `+0x0E` pasa a 3. No cambia ningún otro byte. Se rechaza si la zona ya usa otro módulo, porque una zona solo carga uno, y si el área tiene más de una zona.
@@ -196,7 +205,7 @@ La vista previa es un marcador con la dirección, no el modelo 3D.
 
 ### Pruebas
 
-- **`--map3ds-gen7-nurse-only`** (16 sintéticas):
+- **`--map3ds-gen7-nurse-only`** (17 sintéticas):
   - plantilla;
   - regla del inicio de datos;
   - plan;
@@ -206,16 +215,16 @@ La vista previa es un marcador con la dirección, no el modelo 3D.
   - rechazos: casilla ocupada, NPC delante, warp, sin suelo, sin suelo donde se habla, varias zonas, área llena;
   - enfermeras distintas no se copian;
   - una enfermera añadida se reconoce y se puede añadir otra;
-  - la máquina, con su modelo;
+  - el mostrador bajo ella y la máquina encima, con sus modelos;
   - el módulo del Centro en la zona (solo cambia ese byte), y el rechazo si la zona usa otro módulo;
   - el cruce de un paso con una valla.
 - **`--map3ds-gen7-nurse-ui-only`** (5 de interfaz).
-- **`--map3ds-gen7-nurse-probe`** en copias reales de **Ultra Luna limpia y Ultra Sol** (Pueblo Lilii, casilla 148, 115, mirando a la derecha), 10/10:
+- **`--map3ds-gen7-nurse-probe`** en copias reales de **Ultra Luna limpia y Ultra Sol** (Pueblo Lilii, casilla 148, 115, mirando a la derecha), 11/11:
   - la vista previa no escribe;
   - hay exactamente un NPC más, la enfermera;
   - los demás NPC no cambian;
   - el área carga su modelo (30 → 31);
-  - la máquina, estático 701, junto a ella, con su modelo en el «AS» (14 → 15);
+  - el mostrador (estático 702) bajo ella y la máquina (701) encima, con sus modelos en el «AS» (14 → 16 objetos, 1 057 408 bytes);
   - solo cambian los miembros de eventos, personajes y objetos del área;
   - la zona 16 carga el módulo del Centro (gimmick 0 → 3, un solo byte; comprobado también con el lector independiente);
   - se registra en el historial;
@@ -225,7 +234,8 @@ La vista previa es un marcador con la dirección, no el modelo 3D.
 - **Imagen 3DS de Ultra Luna:**
   - v1, sin máquina: se congelaba al curar.
   - v2, con máquina y sin módulo: se congelaba nada más decir «Sí». Además, la enfermera quedaba detrás de una valla.
-  - **v3**, con módulo del Centro y en la casilla 148, 115: juego pendiente.
+  - v3, con módulo del Centro y en la casilla 148, 115: el emulador se cuelga por completo al decir «Sí» (faltaba el mostrador).
+  - **v4**, con el mostrador: juego pendiente.
 
 ## Limitaciones
 
@@ -235,7 +245,7 @@ La vista previa es un marcador con la dirección, no el modelo 3D.
 - **Rubí Omega / Zafiro Alfa:** el mecanismo está acreditado de forma estática, pero no se ha escrito ninguna copia real.
 - **Gen7 (Ultra Sol / Ultra Luna):** sin prueba en el juego.
   - La rutina de curación lleva la cámara a una posición fija del Centro, (2449,7; 388,4; 2098,4) mirando hacia (1920,4; 152,7; 2100,9), y espera a que llegue. Fuera del Centro la cámara apuntará a otro sitio durante la animación.
-  - La máquina va en el suelo, porque fuera no hay mostrador.
+  - El mostrador del Centro se ve en el exterior, alrededor de la enfermera, y no tiene colisión propia: se puede atravesar.
   - El módulo del Centro se carga en toda la zona y nunca se ha usado fuera de un Centro. Podría afectar a la memoria o a la carga de la zona.
   - No se añade en zonas que ya usan otro módulo (ascensores, Árbol de Combate, Festival Plaza…).
   - Solo áreas de una zona de NPC.

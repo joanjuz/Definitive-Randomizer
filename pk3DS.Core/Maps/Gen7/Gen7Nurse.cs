@@ -13,11 +13,16 @@ namespace pk3DS.Core.Maps.Gen7;
 /// <param name="Body">Body shape list (record +0x74), relative as <paramref name="Talk"/>.</param>
 /// <param name="Character">The "CP" pack of her model in the area character pack ("AC", slot 3).</param>
 /// <param name="Machine">Static record (ED part 4, 56 bytes) of the healing machine, at the origin without rotation.</param>
-/// <param name="MachineOffset">Where the machine stands relative to a nurse without rotation (Pokémon Center counter).</param>
+/// <param name="MachineOffset">Where the machine stands relative to a nurse without rotation (on the counter, 80 units up).</param>
 /// <param name="MachineTurn">Machine rotation relative to the nurse's.</param>
 /// <param name="MachineModel">The "SM" pack of object 2 (the machine) in the area object pack ("AS", slot 4).</param>
+/// <param name="Counter">Static record of the Pokémon Center counter (object 5), at the origin without rotation.</param>
+/// <param name="CounterOffset">Where the counter stands relative to the nurse (in every Center, exactly where she stands).</param>
+/// <param name="CounterTurn">Counter rotation relative to the nurse's.</param>
+/// <param name="CounterModel">The "SM" pack of object 5 (the counter, with the ball joints and screens the Pokémon Center module drives).</param>
 public sealed record Gen7NurseTemplate(byte[] Record, byte[] Talk, byte[] Body, byte[] Character, uint Model, uint Script, int Count,
-    byte[] Machine, Vector3 MachineOffset, Quaternion MachineTurn, byte[] MachineModel);
+    byte[] Machine, Vector3 MachineOffset, Quaternion MachineTurn, byte[] MachineModel,
+    byte[] Counter, Vector3 CounterOffset, Quaternion CounterTurn, byte[] CounterModel);
 
 /// <summary>
 /// Pokémon Center nurse of Ultra Sun / Ultra Moon. Every Center has one NPC (ED part 1, 120 bytes) with model 66 and
@@ -47,6 +52,14 @@ public static class Gen7Nurse
     /// Without it the first nurse added in Ultra Moon froze when asked to heal.
     /// </summary>
     public const uint MachineObject = 2;
+
+    /// <summary>
+    /// Static object 5: the Pokémon Center counter (SM «com_bm_pcounter», 440 064 bytes). It holds the joints
+    /// <c>monsterball_loc_01…06</c> and the screen textures <c>com_bm_pcounter_poke01…06</c> that the Pokémon Center
+    /// field module (FieldGimmickPokecen.cro) looks up to place the party's balls and icons; it is in the 15 Centers and
+    /// nowhere else, always where the nurse stands. Without it the game hung completely on «Sí» (third gameplay copy).
+    /// </summary>
+    public const uint CounterObject = 5;
 
     /// <summary>
     /// Field gimmick of a zone: byte +0x0E of its 84-byte zone record (zonedata member 0). It selects the field module the
@@ -166,14 +179,20 @@ public static class Gen7Nurse
         return result;
     }
 
-    /// <summary>The machine record placed next to a nurse at <paramref name="nurse"/> turned to <paramref name="compass"/>, standing on <paramref name="groundY"/>.</summary>
-    public static (byte[] Record, Vector3 Position) PlaceMachine(Gen7NurseTemplate t, Vector3 nurse, double compass, float groundY, uint eventId)
+    /// <summary>The machine record placed as in a Center, on the counter, next to a nurse at <paramref name="nurse"/> turned to <paramref name="compass"/>.</summary>
+    public static (byte[] Record, Vector3 Position) PlaceMachine(Gen7NurseTemplate t, Vector3 nurse, double compass, uint eventId) =>
+        PlaceStatic(t.Machine, t.MachineOffset, t.MachineTurn, nurse, compass, eventId);
+
+    /// <summary>The counter record placed as in a Center: where the nurse stands, turned with her.</summary>
+    public static (byte[] Record, Vector3 Position) PlaceCounter(Gen7NurseTemplate t, Vector3 nurse, double compass, uint eventId) =>
+        PlaceStatic(t.Counter, t.CounterOffset, t.CounterTurn, nurse, compass, eventId);
+
+    private static (byte[] Record, Vector3 Position) PlaceStatic(byte[] template, Vector3 offsetFromNurse, Quaternion turn, Vector3 nurse, double compass, uint eventId)
     {
         var q = Facing(compass);
-        var offset = Vector3.Transform(new Vector3(t.MachineOffset.X, 0, t.MachineOffset.Z), q);
-        var position = new Vector3(nurse.X + offset.X, groundY, nurse.Z + offset.Z);
-        var rot = Quaternion.Normalize(q * t.MachineTurn);
-        var record = (byte[])t.Machine.Clone();
+        var position = nurse + Vector3.Transform(offsetFromNurse, q);
+        var rot = Quaternion.Normalize(q * turn);
+        var record = (byte[])template.Clone();
         BinaryPrimitives.WriteSingleLittleEndian(record.AsSpan(Position), position.X);
         BinaryPrimitives.WriteSingleLittleEndian(record.AsSpan(Position + 4), position.Y);
         BinaryPrimitives.WriteSingleLittleEndian(record.AsSpan(Position + 8), position.Z);
