@@ -363,6 +363,16 @@ if(args.Length==1&&args[0]=="--nds-gen4-hgss-ui-only")
 }
 if(args.Length==2&&args[0]=="--nds-gen4-hgss-measure"){NdsGen4HeartGoldChecks.Probe(null,args[1]);return;}
 if(args.Length==3&&args[0]=="--nds-gen4-hgss-probe"){NdsGen4HeartGoldChecks.Probe(args[1],args[2]);return;}
+if(args.Length==1&&args[0]=="--nds-gen5-black-only"){NdsGen5BlackChecks.Run(Check);Console.WriteLine($"Completed {checks} DS Black map editor checks (synthetic).");return;}
+if(args.Length==1&&args[0]=="--nds-gen5-black-ui-only")
+{
+    Exception? failure=null;var thread=new Thread(()=>{try{var app=new ThreeDS.Progressive.App();app.InitializeComponent();WpfTestHost.SuppressStartup();ThreeDS.Progressive.StudioDialog.AutomatedChecks=true;NdsGen5BlackChecks.RunUi(Check);}catch(Exception ex){failure=ex;}});thread.SetApartmentState(ApartmentState.STA);thread.Start();thread.Join();if(failure is not null)System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(failure).Throw();Console.WriteLine($"Completed {checks} DS Black map editor UI checks (off-screen).");return;
+}
+if(args.Length==3&&args[0]=="--nds-gen5-black-probe"){NdsGen5BlackChecks.Probe(args[1],args[2]);return;}
+if(args.Length==3&&args[0]=="--nds-gen5-black-view-probe")
+{
+    Exception? failure=null;var thread=new Thread(()=>{try{var app=new ThreeDS.Progressive.App();app.InitializeComponent();WpfTestHost.SuppressStartup();ThreeDS.Progressive.StudioDialog.AutomatedChecks=true;NdsGen5BlackChecks.ViewProbe(args[1],args[2]);}catch(Exception ex){failure=ex;}});thread.SetApartmentState(ApartmentState.STA);thread.Start();thread.Join();if(failure is not null)System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(failure).Throw();return;
+}
 if(args.Length>=3&&args[0]=="--nds-map-render-gallery-probe")
 {
     foreach(var r in NdsMapRenderGallery.Probe(args[1],args[2],args.Length>3?args[3..]:null))

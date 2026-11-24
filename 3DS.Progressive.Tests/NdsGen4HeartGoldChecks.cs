@@ -161,7 +161,7 @@ internal static class NdsGen4HeartGoldChecks
             var doc = NdsEventSession.ReadDocument(first);
             check(doc is { Game: "IPKE", Revision: 0, Version: 4 }, "Hgss_CheckpointNamesHeartGold");
             var reopened = new NdsEventSession(rom, f.Read()); reopened.Load(doc, first);
-            check(reopened.Data.Npc(Map, Trainer) is { Direction: 0, Sight: 7 } && reopened.Data.Profile == HeartGold, "Hgss_CheckpointReopens");
+            check(reopened.Data.Npc(Map, Trainer) is { Direction: 0, Sight: 7 } && Equals(reopened.Data.Profile, HeartGold), "Hgss_CheckpointReopens");
             check(Throws<InvalidDataException>(() => new NdsEventSession(rom, f.Read()).Load(doc with { Game = "ADAE", Revision = 5 }, first)), "Hgss_ADiamondCheckpointIsRefusedOnHeartGold");
             string built = Path.Combine(temp, "editado.nds"); rom.Save(built, new Dictionary<int, byte[]> { [rom.File(HeartGold.EventPath).Id] = session.Replacement()! }); session.VerifyExport(built);
             using (var b = NdsRom.Open(built))
@@ -257,10 +257,10 @@ internal static class NdsGen4HeartGoldChecks
         using (var project = NdsProject.Open(copy, false))
         {
             var events = project.Events; var data = events.Data;
-            if (data.Profile != HeartGold) throw new Exception("The copy did not open with the HeartGold profile");
+            if (!Equals(data.Profile, HeartGold)) throw new Exception("The copy did not open with the HeartGold profile");
             var (terrain, terrainNote) = project.LoadTerrain(); var (props, propsNote) = project.LoadProps(); var (assets, assetsNote) = project.LoadMapAssets();
             if (terrain is null || props is null || assets is null) throw new Exception($"Terrain, props or graphics did not open: {terrainNote} {propsNote} {assetsNote}");
-            int indoor = data.Maps.Count(m => assets.Area(m.Id).IndoorModels);
+            int indoor = data.Maps.Count(m => ((PlatinumMapAssets)assets).Area(m.Id).IndoorModels);
             Console.WriteLine($"PASS Hgss_TerrainPropsAndGraphicsOpen: {terrain.Count} land blocks, {indoor} maps with indoor models");
 
             var saves = new List<string>();

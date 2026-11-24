@@ -16,11 +16,11 @@ internal static class NdsMapRenderGallery
     internal static IReadOnlyList<Result> Probe(string output, string source, IReadOnlyList<string>? prefixes = null)
     {
         if (Directory.Exists(output) || File.Exists(output)) throw new IOException("Usa una carpeta nueva de salida."); Directory.CreateDirectory(output);
-        string copy = Path.Combine(output, "Platino-copia.nds"); File.Copy(source, copy); string hash = Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(source)));
+        string copy = Path.Combine(output, "copia.nds"); File.Copy(source, copy); string hash = Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(source)));
         var results = new List<Result>();
         using (var project = NdsProject.Open(copy, false))
         {
-            var data = project.Events.Data; var terrain = project.LoadTerrain().Terrain!; var props = project.LoadProps().Props!; var assets = project.LoadMapAssets().Assets!;
+            var data = project.Events.Data; var terrain = project.LoadTerrain().Terrain!; var props = project.LoadProps().Props; var assets = project.LoadMapAssets().Assets!;
             prefixes ??= ["T01", "C01", "C03", "C04", "C05", "C07", "C09", "T01R0101", "C01PC0101", "C03GYM0101", "C05R0101", "D05R0101", "D16", "R210A", "R209", "L01"];
             foreach (var prefix in prefixes)
             {
@@ -34,18 +34,24 @@ internal static class NdsMapRenderGallery
         return results;
     }
 
-    private static Result Render(string output, PlatinumEvents data, PlatinumTerrain terrain, PlatinumLandProps props, PlatinumMapAssets assets, PlatinumMap map)
+    private static Result Render(string output, INdsEventData data, PlatinumTerrain terrain, PlatinumLandProps? props, INdsMapGraphics assets, PlatinumMap map)
     {
         var layout = data.Layout(map.Id);
         var cells = layout.Cells.Where(c => c.HeaderId == map.Id && c.LandDataId != PlatinumTerrain.EmptyLandId).ToList();
         if (cells.Count == 0) cells = layout.Cells.Where(c => c.LandDataId != PlatinumTerrain.EmptyLandId).ToList();
+        // A matrix without stored headers (most of Gen 5, whose overworld is 29×27 blocks): the blocks around the map's own events.
+        var own = data.Events(map.Id); if (cells.Count > 40 && own.Count > 0)
+        {
+            int x0 = own.Min(e => e.X) / 32 - 1, x1 = own.Max(e => e.X) / 32 + 1, y0 = own.Min(e => e.Y) / 32 - 1, y1 = own.Max(e => e.Y) / 32 + 1;
+            cells = cells.Where(c => c.BlockX >= x0 && c.BlockX <= x1 && c.BlockY >= y0 && c.BlockY <= y1).ToList();
+        }
         int bx0 = cells.Min(c => c.BlockX), by0 = cells.Min(c => c.BlockY), bw = cells.Max(c => c.BlockX) - bx0 + 1, bh = cells.Max(c => c.BlockY) - by0 + 1;
         int ppt = bw * bh > 12 ? 4 : 8, block = 32 * ppt, width = bw * block, height = bh * block;
         var full = new uint[width * height]; var propMask = new bool[bw * 32, bh * 32]; var blocked = new bool[bw * 32, bh * 32]; var owned = new bool[bw * 32, bh * 32];
         int triangles = 0, untextured = 0, skipped = 0; var clock = System.Diagnostics.Stopwatch.StartNew();
         foreach (var cell in cells)
         {
-            var scene = assets.BlockScene(cell.LandDataId, cell.HeaderId, props.Props(cell.LandDataId), out var skip); skipped += skip.Count;
+            var scene = assets.BlockScene(cell.LandDataId, cell.HeaderId, props is not null && props.Contains(cell.LandDataId) ? props.Props(cell.LandDataId) : [], out var skip); skipped += skip.Count;
             int terrainModels = assets.LandModel(cell.LandDataId).Count;
             var all = new NitroTopDownRenderer(block, block, -256, -256, ppt / 16f, 0xFF202830); var only = new NitroTopDownRenderer(32 * 4, 32 * 4, -256, -256, 4 / 16f, 0);
             foreach (var (placed, i) in scene.Select((s, i) => (s, i))) { all.Draw(placed); if (i >= terrainModels) only.Draw(placed); }
@@ -58,7 +64,7 @@ internal static class NdsMapRenderGallery
                     int gx = (cell.BlockX - bx0) * 32 + tx, gz = (cell.BlockY - by0) * 32 + tz, covered = 0;
                     for (int py = 0; py < 4; py++) for (int px = 0; px < 4; px++) if (only.Pixels[(tz * 4 + py) * 128 + tx * 4 + px] != 0) covered++;
                     propMask[gx, gz] = covered >= 8; owned[gx, gz] = true;
-                    blocked[gx, gz] = (terrain.Attribute(cell.LandDataId, tx, tz) & PlatinumTerrain.CollisionMask) != 0;
+                    blocked[gx, gz] = terrain.Contains(cell.LandDataId) && (terrain.Attribute(cell.LandDataId, tx, tz) & PlatinumTerrain.CollisionMask) != 0;
                 }
         }
         long ms = clock.ElapsedMilliseconds;

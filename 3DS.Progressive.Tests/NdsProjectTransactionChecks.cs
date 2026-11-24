@@ -119,7 +119,7 @@ internal static class NdsProjectTransactionChecks
         }
         NdsEventProposal Nurse(NdsProject project, out int scriptFile)
         {
-            var events = project.Events; var data = events.Data; var template = NdsNpcStructurePlanner.NurseTemplate(data, out _)!; var route = data.Maps.First(m => m.InternalName == "R201"); scriptFile = route.ScriptFile;
+            var events = project.Events; var data = events.Data.Gen4(); var template = NdsNpcStructurePlanner.NurseTemplate(data, out _)!; var route = data.Maps.First(m => m.InternalName == "R201"); scriptFile = route.ScriptFile;
             var model = new NdsMapCanvasModel(data.Layout(route.Id), data.Events(route.Id), project.LoadTerrain().Terrain, data.Bounds(route.Id)); var anchor = data.Events(route.Id).First(e => e.Kind == PlatinumEventKind.Npc);
             for (int r = 1; r <= 12; r++) for (int dx = -r; dx <= r; dx++) foreach (int dy in new[] { -r, r })
             {
