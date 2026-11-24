@@ -47,9 +47,16 @@ public sealed class PlatinumMapLayout
     /// Like <see cref="ParseMatrix(ReadOnlySpan{byte}, int, int)"/> with the largest side of the game's matrices (<see cref="Gen4EventProfile.MaxMatrixSide"/>:
     /// 30 in Diamond and Platinum, 47 in HeartGold, whose overworld matrix is 47 × 17 blocks).
     /// </summary>
-    public static PlatinumMapLayout ParseMatrix(ReadOnlySpan<byte> bytes, int mapId, int matrixId, int maxSide)
+    public static PlatinumMapLayout ParseMatrix(ReadOnlySpan<byte> bytes, int mapId, int matrixId, int maxSide) => ParseMatrix(bytes, mapId, matrixId, maxSide, PlatinumEvents.HeaderCount);
+    /// <summary>
+    /// Like <see cref="ParseMatrix(ReadOnlySpan{byte}, int, int, int)"/> with the number of map headers of the game: the map id must name one of them. The
+    /// Gen 4 overloads keep Platinum's 593 (every Gen 4 game has fewer headers); White 2 has 615, so a Gen 5 reader passes its own count. The id is only
+    /// compared with the header ids stored in the matrix; nothing is sized by it.
+    /// </summary>
+    public static PlatinumMapLayout ParseMatrix(ReadOnlySpan<byte> bytes, int mapId, int matrixId, int maxSide, int headerCount)
     {
-        if ((uint)mapId >= PlatinumEvents.HeaderCount) throw new ArgumentOutOfRangeException(nameof(mapId));
+        if (headerCount is < 1 or > 0xFFFF) throw new ArgumentOutOfRangeException(nameof(headerCount));
+        if ((uint)mapId >= (uint)headerCount) throw new ArgumentOutOfRangeException(nameof(mapId));
         if (matrixId < 0) throw new ArgumentOutOfRangeException(nameof(matrixId));
         if (maxSide is < 1 or > 255) throw new ArgumentOutOfRangeException(nameof(maxSide));
         return new(bytes, mapId, matrixId, maxSide);
