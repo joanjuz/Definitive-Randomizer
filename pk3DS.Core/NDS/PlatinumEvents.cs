@@ -17,9 +17,17 @@ public sealed record PlatinumMap(int Id, string Name, string InternalName, int E
 public sealed record PlatinumEvent(PlatinumEventKind Kind, int Index, int Id, int X, int Y, int Z, int Script, int Type, int Direction,
     int Graphics, int Movement, int Flag, int Sight, int RangeX, int RangeY, int Destination, int Anchor, string Raw)
 {
+    /// <summary>
+    /// A ground item: type 3 (Diamond, Platinum) or, where the game places item balls as normal NPC (HeartGold), an NPC whose script is an item ball.
+    /// Ground items are listed with the objects and are never moved or turned by the editor.
+    /// </summary>
+    public bool IsGroundItem => Kind == PlatinumEventKind.Npc && (Type == 3 || ScriptedGroundItem);
+    /// <summary>Set by the reader of a game whose item balls are NPC of type 0 with an item-ball script (<see cref="Gen4EventProfile.ItemBallsAreScriptedNpc"/>).</summary>
+    public bool ScriptedGroundItem { get; init; }
     public string Description => Kind switch
     {
         PlatinumEventKind.Npc when Type == 3 => "NPC · objeto de suelo (referencia de script)",
+        PlatinumEventKind.Npc when ScriptedGroundItem => "NPC · Poké Ball de objeto (script de objeto de suelo)",
         PlatinumEventKind.Npc => "NPC existente",
         PlatinumEventKind.Object when Type == 2 => "Evento de fondo · objeto oculto",
         PlatinumEventKind.Object => "Evento de fondo / cartel",
@@ -67,10 +75,12 @@ public static class PlatinumTrainerVision
     /// <summary>Battle script ranges of the engine (Script_GetTrainerID): 3000+ single battles, 5000+ double battles. Returns the trainer id or null.</summary>
     public static int? TrainerId(int script) => script switch { >= 5000 and < 6000 => script - 5000 + 1, >= 3000 and < 5000 => script - 3000 + 1, _ => null };
     /// <summary>Why <paramref name="npc"/> cannot have its sight edited, or null when it can.</summary>
-    public static string? SightRefusal(PlatinumEvent npc) =>
+    public static string? SightRefusal(PlatinumEvent npc) => SightRefusal(npc, MaxAccreditedSight);
+    /// <summary>Like <see cref="SightRefusal(PlatinumEvent)"/> with the largest sight of the game (<see cref="Gen4EventProfile.MaxTrainerSight"/>).</summary>
+    public static string? SightRefusal(PlatinumEvent npc, int maxSight) =>
         npc.Kind != PlatinumEventKind.Npc ? "no es un NPC"
         : !ChecksSight(npc.Type) ? $"el juego no comprueba la visión de este NPC (tipo {npc.Type}: {(npc.Type == 0 ? "no es entrenador" : npc.Type == 3 ? "objeto de suelo" : "tipo no identificado")}); su campo +14 no es un alcance"
-        : npc.Sight > MaxAccreditedSight ? $"su alcance guardado ({npc.Sight}) supera el máximo acreditado ({MaxAccreditedSight})" : null;
+        : npc.Sight > maxSight ? $"su alcance guardado ({npc.Sight}) supera el máximo acreditado ({maxSight})" : null;
 }
 /// <summary>Editable values of a background object (X, Y, Facing), warp (X, Y, Destination, Anchor) or trigger (X, Y, Width, Length). Fields the kind lacks are null.</summary>
 public sealed record PlatinumEventValues(int X, int Y, int? Destination = null, int? Anchor = null, int? Width = null, int? Length = null, int? Facing = null);
@@ -140,7 +150,7 @@ public sealed class PlatinumEvents
             try { return rom.ReadFile(path); }
             catch (FileNotFoundException ex) { throw new InvalidDataException($"Eventos {key}: falta la tabla {path}.", ex); }
         }
-        byte[] arm9 = rom.ReadArm9(), names = Table(NamesPath), matrices = Table(MatrixPath), scripts = Table(profile.ScriptPath);
+        byte[] arm9 = rom.ReadArm9(), names = Table(profile.MapNamesPath), matrices = Table(profile.MapMatrixPath), scripts = Table(profile.ScriptPath);
         if (Gen5Data.Crc32(arm9) != profile.Arm9Crc32 || Gen5Data.Crc32(names) != profile.NamesCrc32 || Gen5Data.Crc32(matrices) != profile.MatricesCrc32 || Gen5Data.Crc32(scripts) != profile.ScriptsCrc32)
             throw new InvalidDataException($"Eventos {key}: ARM9, nombres, matrices o scripts no coinciden con las tablas acreditadas.");
         byte[] headers = arm9.AsSpan(profile.HeaderOffset, profile.HeaderCount * 24).ToArray();
@@ -186,10 +196,10 @@ public sealed class PlatinumEvents
                 if (U16(_events, at + 6) != 0) continue;
                 _graphics.Add(U16(_events, at + 2)); _movements.Add(U16(_events, at + 4));
             }
-        _maps = new PlatinumMap[headers.Length / 24];
+        _maps = new PlatinumMap[headers.Length / 24]; var layout = profile.HeaderLayout;
         for (int id = 0; id < _maps.Length; id++)
         {
-            int at = id * 24, matrix = U16(headers, at + 2), script = U16(headers, at + 4), ev = U16(headers, at + 16), label = headers[at + 18];
+            int at = id * 24, matrix = U16(headers, at + layout.Matrix), script = U16(headers, at + layout.Scripts), ev = U16(headers, at + layout.Events), label = headers[at + layout.Label];
             if (matrix >= matrices.Files.Count || script >= _scripts.Files.Count || ev >= archive.Files.Count)
                 throw new InvalidDataException("Referencia de mapa fuera de sus tablas.");
             var m = matrices.Files[matrix]; Need(m, 0, 5);
@@ -231,7 +241,8 @@ public sealed class PlatinumEvents
                 int at = _starts[map.EventFile] + block.Offset + i * Strides[kind]; byte[] r = _events.AsSpan(at, Strides[kind]).ToArray();
                 result.Add(kind switch
                 {
-                    1 => new((PlatinumEventKind)kind, i, U16(r, 0), I16(r, 24), I16(r, 26), I32(r, 28), U16(r, 10), U16(r, 6), U16(r, 12), U16(r, 2), U16(r, 4), U16(r, 8), U16(r, 14), U16(r, 20), U16(r, 22), -1, -1, Convert.ToHexString(r)),
+                    1 => new((PlatinumEventKind)kind, i, U16(r, 0), I16(r, 24), I16(r, 26), I32(r, 28), U16(r, 10), U16(r, 6), U16(r, 12), U16(r, 2), U16(r, 4), U16(r, 8), U16(r, 14), U16(r, 20), U16(r, 22), -1, -1, Convert.ToHexString(r))
+                    { ScriptedGroundItem = Profile.ItemBallsAreScriptedNpc && U16(r, 6) == 0 && U16(r, 10) is >= 7000 and < 8000 },
                     2 => new((PlatinumEventKind)kind, i, i, I16(r, 0), I16(r, 2), I32(r, 8), 0, 0, 0, 0, 0, 0, 0, 0, 0, U16(r, 4), U16(r, 6), Convert.ToHexString(r)),
                     0 => new((PlatinumEventKind)kind, i, i, I16(r, 4), I16(r, 8), I32(r, 12), U16(r, 0), U16(r, 2), U16(r, 16), 0, 0, 0, 0, 0, 0, -1, -1, Convert.ToHexString(r)),
                     _ => new((PlatinumEventKind)kind, i, i, I16(r, 2), I16(r, 4), U16(r, 10), U16(r, 0), 0, 0, 0, 0, U16(r, 14), 0, U16(r, 6), U16(r, 8), -1, -1, Convert.ToHexString(r)),
@@ -242,7 +253,7 @@ public sealed class PlatinumEvents
     }
 
     /// <summary>Read-only matrix layout of a map's own matrix (no writes, no events).</summary>
-    public PlatinumMapLayout Layout(int mapId) { var map = Map(mapId); return PlatinumMapLayout.ParseMatrix(_matrixFiles.Files[map.Matrix], map.Id, map.Matrix); }
+    public PlatinumMapLayout Layout(int mapId) { var map = Map(mapId); return PlatinumMapLayout.ParseMatrix(_matrixFiles.Files[map.Matrix], map.Id, map.Matrix, Profile.MaxMatrixSide); }
     public PlatinumMap Map(int mapId) => mapId >= 0 && mapId < _maps.Length ? _maps[mapId] : throw new ArgumentOutOfRangeException(nameof(mapId));
     public PlatinumEvent Npc(int mapId, int index) => Events(mapId).FirstOrDefault(e => e.Kind == PlatinumEventKind.Npc && e.Index == index)
         ?? throw new ArgumentOutOfRangeException(nameof(index), "NPC inexistente.");
@@ -260,6 +271,7 @@ public sealed class PlatinumEvents
     {
         var npc = Npc(mapId, index); var bounds = Bounds(mapId);
         if (!Matches(npc, expected)) throw new InvalidOperationException("El NPC cambió desde la vista previa.");
+        if (Profile.ItemBallsAreScriptedNpc && Profile.IsGroundItem(npc) && values != expected) throw new InvalidOperationException($"En {Profile.Label} los objetos de suelo no se mueven ni se giran.");
         if (values.X < 0 || values.X >= bounds.Width || values.Y < 0 || values.Y >= bounds.Height || values.Direction is < 0 or > 3)
             throw new ArgumentOutOfRangeException(nameof(values), "Coordenadas fuera de la matriz o dirección fuera de 0–3.");
         if (expected.Movement.HasValue != values.Movement.HasValue || expected.Sight.HasValue != values.Sight.HasValue)
@@ -268,7 +280,7 @@ public sealed class PlatinumEvents
             throw new ArgumentOutOfRangeException(nameof(values), "El tipo de movimiento solo cambia entre «mirar fijo» (14–17) y debe coincidir con la dirección propuesta.");
         if (values.Sight is int sight)
         {
-            string? refusal = PlatinumTrainerVision.SightRefusal(npc) ?? (sight is < 0 or > PlatinumTrainerVision.MaxAccreditedSight ? $"debe estar entre 0 y {PlatinumTrainerVision.MaxAccreditedSight}" : null);
+            string? refusal = Profile.SightRefusal(npc) ?? (sight < 0 || sight > Profile.MaxTrainerSight ? $"debe estar entre 0 y {Profile.MaxTrainerSight}" : null);
             if (refusal is not null) throw new ArgumentOutOfRangeException(nameof(values), $"Alcance de visión no admitido: {refusal}.");
         }
         byte[] output = (byte[])_events.Clone(); int file = Map(mapId).EventFile;
@@ -495,7 +507,7 @@ public sealed class PlatinumEvents
     private bool IsAccreditedEventEdit() =>
         EventsHash() == Profile.EventsEditableSha256 &&
         _maps.Select(m => m.Id).All(id => Events(id).All(e =>
-            e.Kind == PlatinumEventKind.Npc ? !PlatinumTrainerVision.ChecksSight(e.Type) || e.Sight <= PlatinumTrainerVision.MaxAccreditedSight
+            e.Kind == PlatinumEventKind.Npc ? !PlatinumTrainerVision.ChecksSight(e.Type) || e.Sight <= Profile.MaxTrainerSight
             : e.Kind != PlatinumEventKind.Warp || e.Anchor == PlatinumEventFields.DynamicAnchor || WarpTargetExists(e.Destination, e.Anchor)));
     /// <summary>Whether a destination header and warp index name an existing warp (what the engine places the player on).</summary>
     public bool WarpTargetExists(int header, int anchor) =>
@@ -503,7 +515,7 @@ public sealed class PlatinumEvents
     /// <summary>A ROM rebuilt with turned trainers or edited sight: the editable fingerprint of the profile, and every trainer sight within the accredited range.</summary>
     private bool IsAccreditedVisionEdit() =>
         EditableHash() == Profile.EditableEventsSha256 &&
-        _maps.Select(m => m.Id).All(id => Events(id).All(e => e.Kind != PlatinumEventKind.Npc || !PlatinumTrainerVision.ChecksSight(e.Type) || e.Sight <= PlatinumTrainerVision.MaxAccreditedSight));
+        _maps.Select(m => m.Id).All(id => Events(id).All(e => e.Kind != PlatinumEventKind.Npc || !PlatinumTrainerVision.ChecksSight(e.Type) || e.Sight <= Profile.MaxTrainerSight));
     public string WarpStatus(PlatinumEvent warp)
     {
         if (warp.Kind != PlatinumEventKind.Warp) throw new ArgumentException("No es un warp.");

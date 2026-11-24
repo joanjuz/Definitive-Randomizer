@@ -37,23 +37,29 @@ public sealed class PlatinumMapLayout
     {
         var events = PlatinumEvents.Open(rom);
         var map = events.Map(mapId);
-        var matrices = Narc.Read(rom.ReadFile(PlatinumEvents.MatrixPath));
-        return ParseMatrix(matrices.Files[map.Matrix], map.Id, map.Matrix);
+        var matrices = Narc.Read(rom.ReadFile(events.Profile.MapMatrixPath));
+        return ParseMatrix(matrices.Files[map.Matrix], map.Id, map.Matrix, events.Profile.MaxMatrixSide);
     }
 
     /// <summary>Structural fixture parser only; does not authorize a ROM. Use Open for game data.</summary>
-    public static PlatinumMapLayout ParseMatrix(ReadOnlySpan<byte> bytes, int mapId, int matrixId)
+    public static PlatinumMapLayout ParseMatrix(ReadOnlySpan<byte> bytes, int mapId, int matrixId) => ParseMatrix(bytes, mapId, matrixId, MaxDimension);
+    /// <summary>
+    /// Like <see cref="ParseMatrix(ReadOnlySpan{byte}, int, int)"/> with the largest side of the game's matrices (<see cref="Gen4EventProfile.MaxMatrixSide"/>:
+    /// 30 in Diamond and Platinum, 47 in HeartGold, whose overworld matrix is 47 × 17 blocks).
+    /// </summary>
+    public static PlatinumMapLayout ParseMatrix(ReadOnlySpan<byte> bytes, int mapId, int matrixId, int maxSide)
     {
         if ((uint)mapId >= PlatinumEvents.HeaderCount) throw new ArgumentOutOfRangeException(nameof(mapId));
         if (matrixId < 0) throw new ArgumentOutOfRangeException(nameof(matrixId));
-        return new(bytes, mapId, matrixId);
+        if (maxSide is < 1 or > 255) throw new ArgumentOutOfRangeException(nameof(maxSide));
+        return new(bytes, mapId, matrixId, maxSide);
     }
 
-    private PlatinumMapLayout(ReadOnlySpan<byte> bytes, int mapId, int matrixId)
+    private PlatinumMapLayout(ReadOnlySpan<byte> bytes, int mapId, int matrixId, int maxSide)
     {
         if (bytes.Length < 5) throw new InvalidDataException("Matriz truncada.");
         int width = bytes[0], height = bytes[1], headers = bytes[2], altitudes = bytes[3], prefixLength = bytes[4];
-        if (width is < 1 or > MaxDimension || height is < 1 or > MaxDimension || headers > 1 || altitudes > 1 || prefixLength > MaxPrefixLength)
+        if (width < 1 || width > maxSide || height < 1 || height > maxSide || headers > 1 || altitudes > 1 || prefixLength > MaxPrefixLength)
             throw new InvalidDataException("Dimensiones, secciones o prefijo de matriz desconocidos.");
         int count = width * height, start = 5 + prefixLength;
         if (bytes.Length != start + count * (2 + headers * 2 + altitudes))
