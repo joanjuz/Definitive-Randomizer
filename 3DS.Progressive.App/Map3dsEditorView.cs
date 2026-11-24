@@ -61,6 +61,8 @@ internal sealed class Map3dsEditorView : UserControl
     private ComboBox? _catchSource;
     private TextBlock? _catchResult, _catchCount;
     private HashSet<(int X, int Y)>? _catchCells;
+    private IReadOnlyList<(int X, int Y)>? _catchPaintable;
+    internal IReadOnlyList<(int X, int Y)>? CatchPaintable => _catchPaintable;
     private bool _catchChecked;
     internal Button? CatchButton => _catchButton;
     internal Button? CatchSave => _catchSave;
@@ -158,6 +160,13 @@ internal sealed class Map3dsEditorView : UserControl
                 ToolTip = Map3dsCanvas.DiagnosticNotice };
             diag.Checked += (_, _) => ApplyLayers(); diag.Unchecked += (_, _) => ApplyLayers();
             _layerBoxes["Diagnostic"] = diag; bar.Children.Add(diag);
+        }
+        if (backend is IMapCatchZones)
+        {
+            var encounters = new CheckBox { Content = "Encuentros", IsChecked = true, Foreground = Res("TextMain"), Margin = new Thickness(0, 0, 12, 0), VerticalAlignment = VerticalAlignment.Center,
+                ToolTip = "Casillas que producen encuentros salvajes (verde)" };
+            encounters.Checked += (_, _) => ShowEncounterLayer(); encounters.Unchecked += (_, _) => ShowEncounterLayer();
+            _layerBoxes["Encounters"] = encounters; bar.Children.Add(encounters);
         }
         foreach (var (key, label) in new[] { ("Cells", "Permisos"), ("Blocks", "Bloques"), ("Npcs", "NPC"), ("Props", "Objetos"), ("Warps", "Warps"), ("Triggers", "Activadores") })
         {
@@ -262,6 +271,7 @@ internal sealed class Map3dsEditorView : UserControl
             _current = _backend.Events.ZoneEvents(zone);
             CurrentZone = zone;
             _canvas.SetZone(_backend.Resources, layout, _current, zone);
+            _encounterCells = null;
             var entry = _backend.Zones.First(z => z.Id == zone);
             _zoneTitle.Text = entry.Name;
             if (!Equals(_zones.SelectedItem, entry) && _zones.Items.Contains(entry)) { _zones.SelectedItem = entry; _zones.ScrollIntoView(entry); }
@@ -300,7 +310,7 @@ internal sealed class Map3dsEditorView : UserControl
         _canvas.PickingCell = false; _canvas.SetPendingNurse(null);
         _nurseX = _nurseY = null; _nurseDirection = null; _nurseSave = null; _nurseResult = null; _pendingNurse = null;
         _catchCells = null; _catchX1 = _catchY1 = _catchX2 = _catchY2 = null; _catchSource = null; _catchSave = null; _catchResult = _catchCount = null; _catchChecked = false;
-        _canvas.SetCatch(null);
+        ShowEncounterLayer();
         if (item is null)
         {
             _details.Children.Add(new TextBlock { Text = "Selecciona un evento en el mapa o en la lista.", TextWrapping = TextWrapping.Wrap, Foreground = Res("TextSoft") });
@@ -638,8 +648,15 @@ internal sealed class Map3dsEditorView : UserControl
         _details.Children.Clear();
         _catchCells = [];
         _details.Children.Add(new TextBlock { Text = "Zona de captura", FontWeight = FontWeights.SemiBold, FontSize = 15, Foreground = Res("TextMain") });
-        _details.Children.Add(new TextBlock { Text = "Las casillas verdes ya tienen encuentros. Haz clic en casillas de suelo normal para marcarlas (otro clic las quita) o añade un rectángulo.",
+        _catchPaintable = zones.PaintableCells(zone);
+        _details.Children.Add(new TextBlock { Text = "Las casillas verdes ya tienen encuentros; las de borde punteado son donde se puede crear una zona. Haz clic en ellas para marcarlas (otro clic las quita) o añade un rectángulo.",
             TextWrapping = TextWrapping.Wrap, Foreground = Res("TextSoft"), Margin = new Thickness(0, 4, 0, 0) });
+        _details.Children.Add(new TextBlock
+        {
+            Text = _catchPaintable.Count > 0 ? $"{_catchPaintable.Count} casillas disponibles en esta zona."
+                : "Esta zona no tiene casillas donde crear una zona de captura (suelo del tipo que se puede escribir y que pertenezca a la zona). Si hay varias entradas con el mismo nombre en la lista, prueba con otra.",
+            TextWrapping = TextWrapping.Wrap, Foreground = Res(_catchPaintable.Count > 0 ? "TextMain" : "TextSoft"), FontWeight = _catchPaintable.Count > 0 ? FontWeights.Normal : FontWeights.SemiBold, Margin = new Thickness(0, 4, 0, 0),
+        });
         var rect = new WrapPanel { Margin = new Thickness(0, 8, 0, 0) };
         TextBox Number(string name)
         {
@@ -660,9 +677,9 @@ internal sealed class Map3dsEditorView : UserControl
         _details.Children.Add(rectButtons);
         _catchCount = new TextBlock { Foreground = Res("TextMain"), Margin = new Thickness(0, 6, 0, 0) };
         _details.Children.Add(_catchCount);
-        if (!zones.HasEncounterTable(zone))
+        if (zones.RequiresTableSource(zone))
         {
-            _details.Children.Add(new TextBlock { Text = "Esta zona no tiene tabla de encuentros. Se creará copiando la de:", TextWrapping = TextWrapping.Wrap, Foreground = Res("TextSoft"), Margin = new Thickness(0, 8, 0, 0) });
+            _details.Children.Add(new TextBlock { Text = zones.HasEncounterTable(zone) ? "Tabla de encuentros que usará la zona:" : "Esta zona no tiene tabla de encuentros. Se creará copiando la de:", TextWrapping = TextWrapping.Wrap, Foreground = Res("TextSoft"), Margin = new Thickness(0, 8, 0, 0) });
             _catchSource = new ComboBox { Margin = new Thickness(0, 4, 0, 0), DisplayMemberPath = nameof(MapZoneEntry.Name), SelectedValuePath = nameof(MapZoneEntry.Id), ItemsSource = zones.EncounterSources };
             System.Windows.Automation.AutomationProperties.SetName(_catchSource, "Zona de la que se copia la tabla de encuentros");
             _catchSource.SelectionChanged += (_, _) => CatchSelectionChanged();
@@ -684,6 +701,28 @@ internal sealed class Map3dsEditorView : UserControl
         CatchSelectionChanged();
         _status.Text = $"Zona {zone:000}: marca las casillas de la zona de captura.";
         return true;
+    }
+
+    private IReadOnlyList<(int X, int Y)>? _encounterCells;
+    internal CheckBox? EncounterLayer => _layerBoxes.GetValueOrDefault("Encounters");
+
+    /// <summary>Cells with encounters of the zone shown, read once per zone.</summary>
+    private IReadOnlyList<(int X, int Y)> EncounterCellsOfZone()
+    {
+        if (_encounterCells is null && CurrentZone is int zone && _backend is IMapCatchZones zones)
+        {
+            try { _encounterCells = zones.EncounterCells(zone); }
+            catch (Exception ex) when (ex is MapFormatException or ArgumentException or InvalidOperationException) { _encounterCells = []; }
+        }
+        return _encounterCells ?? [];
+    }
+
+    /// <summary>The «Encuentros» layer outside the catch-zone panel: the cells that already produce encounters.</summary>
+    private void ShowEncounterLayer()
+    {
+        if (_catchCells is not null) return;
+        bool on = _layerBoxes.TryGetValue("Encounters", out var box) && box.IsChecked == true;
+        _canvas.SetCatch(on && CurrentZone is not null && _backend is IMapCatchZones ? (EncounterCellsOfZone(), [], []) : null);
     }
 
     private void ToggleCatchCell(int x, int y)
@@ -713,7 +752,7 @@ internal sealed class Map3dsEditorView : UserControl
         _catchChecked = false;
         if (_catchSave is not null) _catchSave.IsEnabled = false;
         if (_catchCount is not null) _catchCount.Text = $"{_catchCells.Count} casillas marcadas";
-        _canvas.SetCatch((zones.EncounterCells(zone), _catchCells.ToArray()));
+        _canvas.SetCatch((EncounterCellsOfZone(), _catchCells.ToArray(), _catchPaintable ?? []));
     }
 
     /// <summary>Checks the marked cells (and the table source); nothing is written.</summary>
@@ -737,6 +776,7 @@ internal sealed class Map3dsEditorView : UserControl
             int? source = _catchSource?.SelectedValue is int s ? s : null;
             string summary = _mover.PaintCatch(_backend, zone, cells.ToArray(), source);
             _backend = _mover.Reload();
+            _encounterCells = null;
             ShowZone(zone);
             ShowCatchPanel();
             _status.Text = summary + " · Puedes deshacerlo desde el historial.";

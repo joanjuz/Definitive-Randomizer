@@ -126,10 +126,14 @@ public interface IMapCatchZones
 {
     /// <summary>Whether the zone already has an encounter table.</summary>
     bool HasEncounterTable(int zone);
+    /// <summary>Whether a source table must be chosen (Gen6: zones without a table; USUM: always, a region names its table).</summary>
+    bool RequiresTableSource(int zone);
     /// <summary>Zones with an encounter table that can be copied into a zone without one (id and name).</summary>
     IReadOnlyList<MapZoneEntry> EncounterSources { get; }
     /// <summary>Cells of the zone that already produce encounters (encounter value, owned by the zone).</summary>
     IReadOnlyList<(int X, int Y)> EncounterCells(int zone);
+    /// <summary>Cells of the zone where a catch zone can be created (the surface the adapter writes, owned by the zone, without encounters yet).</summary>
+    IReadOnlyList<(int X, int Y)> PaintableCells(int zone);
     /// <summary>Checks the cells and, for a zone without a table, the zone whose table is copied. Nothing is written.</summary>
     MapMutationCheck ValidateCatchCells(int zone, IReadOnlyCollection<(int X, int Y)> cells, int? sourceZone);
 }

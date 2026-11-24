@@ -20,7 +20,7 @@ namespace pk3DS.Core.Maps.Gen7;
 /// spans [c·size, (c+1)·size) on X and Z. Static objects (slot 4, "AS") are placed
 /// with the ED part 4 records; events come from the other ED parts (Gen7Events).
 /// </summary>
-public sealed class Gen7MapBackend : IMapEditorBackend, IMapResourceProvider, IMapEventProvider, IMapMutationValidator, IMapTrainerViews
+public sealed partial class Gen7MapBackend : IMapEditorBackend, IMapResourceProvider, IMapEventProvider, IMapMutationValidator, IMapTrainerViews
 {
     public const int SlotsPerWorld = 11;
     private readonly Func<int, byte[]> _world, _chunk;

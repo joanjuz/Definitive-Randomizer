@@ -224,7 +224,7 @@ internal static class Map3dsCatchZoneChecks
             && view.Status.Text.Contains("historial") && view.CatchCells is { Count: 0 }, "Map3dsCatchUi_SaveCommitsThroughTheProjectAndReopensThePanel");
         view.EventList.SelectedIndex = 0;
         UiPump.Idle();
-        check(!view.Canvas.PickingCell && view.CatchCells is null && view.Canvas.CatchOverlay is null, "Map3dsCatchUi_SelectingAnEventLeavesThePanel");
+        check(!view.Canvas.PickingCell && view.CatchCells is null && view.Canvas.CatchOverlay is null or { Pending.Count: 0, Paintable.Count: 0 }, "Map3dsCatchUi_SelectingAnEventLeavesThePanel");
 
         // OR/AS: same panel; the preview names the family's grass value and the «EN» copy.
         var o = DataOras();

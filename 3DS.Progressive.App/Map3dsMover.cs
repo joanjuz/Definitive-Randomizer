@@ -34,12 +34,19 @@ internal sealed class Map3dsMover(Func<IMapEditorBackend, int, int, int, int, st
     internal bool CanRestore(int zone) => canRestore?.Invoke(zone) == true;
     internal string Restore(int zone) => restore?.Invoke(zone) ?? throw new InvalidOperationException("Este juego deshace los movimientos desde el historial.");
 
+    private static bool Try(Func<bool> check)
+    {
+        try { return check(); } catch (Exception ex) when (ex is IOException or InvalidDataException) { return false; }
+    }
+
     internal static Map3dsMover? For(GameProjectSession session)
     {
         var config = session.GameConfiguration;
         if (config.USUM)
         {
             var gen7 = new Map3dsGen7NpcMoveService(session);
+            var gen7Catch = new Map3dsGen7CatchZoneService(session);
+            bool CatchRestorable(int area) { try { return gen7Catch.CanRestore(area); } catch (Exception ex) when (ex is IOException or InvalidDataException) { return false; } }
             return new Map3dsMover((backend, area, index, x, y) =>
             {
                 if (backend is not pk3DS.Core.Maps.Gen7.Gen7MapBackend b7) throw new InvalidOperationException("El adaptador no admite escritura.");
@@ -47,13 +54,24 @@ internal sealed class Map3dsMover(Func<IMapEditorBackend, int, int, int, int, st
                 gen7.Apply(proposal);
                 return proposal.Action;
             }, () => { gen7.Refresh(); return pk3DS.Core.Maps.Gen7.Gen7MapBackend.FromConfig(config); },
-            area => { try { return gen7.CanRestore(area); } catch (Exception ex) when (ex is IOException or InvalidDataException) { return false; } },
-            area => { var p = gen7.PreviewRestore(area); gen7.Apply(p); return p.Action; },
+            area => CatchRestorable(area) || (Try(() => gen7.CanRestore(area))),
+            area =>
+            {
+                // The last change of the area decides which originals match: a catch zone (events and tables) or an NPC move.
+                if (CatchRestorable(area)) { var c = gen7Catch.PreviewRestore(area); gen7Catch.Apply(c); return c.Action; }
+                var p = gen7.PreviewRestore(area); gen7.Apply(p); return p.Action;
+            },
             (backend, area, index, facing, _) =>
             {
                 if (backend is not pk3DS.Core.Maps.Gen7.Gen7MapBackend b7) throw new InvalidOperationException("El adaptador no admite escritura.");
                 var proposal = gen7.PreviewView(b7, area, index, facing);
                 gen7.Apply(proposal);
+                return proposal.Action;
+            }, paintCatch: (backend, area, cells, source) =>
+            {
+                if (backend is not pk3DS.Core.Maps.Gen7.Gen7MapBackend b7) throw new InvalidOperationException("El adaptador no admite escritura.");
+                var proposal = gen7Catch.Preview(b7, area, cells, source);
+                gen7Catch.Apply(proposal);
                 return proposal.Action;
             });
         }

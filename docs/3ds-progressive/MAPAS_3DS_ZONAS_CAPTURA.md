@@ -1,4 +1,4 @@
-# Editor de mapas 3DS: zonas de captura (Gen6)
+# Editor de mapas 3DS: zonas de captura (Gen6 y Ultra Sol / Ultra Luna)
 
 **Estado:**
 
@@ -8,10 +8,11 @@
 | **Pokémon Y** | El mismo formato que X, comprobado en los datos de Y (estructura de zonas, tablas, valor de hierba y mapas de zonas idénticos). Sin prueba en el juego. |
 | **Rubí Omega** | **Prueba jugable aprobada** por el propietario en Villa Raíz (24 casillas, tabla de Ruta 101), ROM `OR-captura-villa-raiz.3ds`. |
 | **Zafiro Alfa** | **Prueba jugable aprobada** por el propietario en Villa Raíz (24 casillas, tabla de Ruta 101), ROM `AS-captura-villa-raiz.3ds`; copia real 11/11, sincronización EN y restauración exacta. |
-| **Ultra Sol / Ultra Luna** | No implementado. Investigación en solo lectura de tablas EA, malla de colisión y registros ED en rama experimental; no existe escritura acreditada. |
+| **Ultra Luna** | **Prueba jugable aprobada** por el propietario en la Ruta 13: 72 casillas de arena `0x19` junto a la entrada al Desierto de Haina, con la tabla 0 del desierto (ROM `UL-captura-ruta13-arena.3ds`). La primera prueba, en Pueblo Lilii, se descartó: aquella hierba es terreno de la Ruta 1 y la caja se escribió con el doble de tamaño. |
+| **Ultra Sol** | El mismo caso que Ultra Luna (Ruta 13 y tabla 0 del Desierto de Haina de Ultra Sol): copia real limpia 8/8 y ROM `US-captura-ruta13-arena.3ds`. **Pendiente de la prueba del propietario.** |
 | **Juegos DS** | Sin esta función de zonas de captura 3DS. |
 
-**Hierba visible:** no implementada y **fuera del roadmap activo por decisión del propietario**. Una zona de captura es funcional cuando el juego produce encuentros en sus casillas, aunque el escenario siga mostrando suelo normal. El editor señala en el mapa las casillas con encuentros (verde) y las marcadas (verde claro).
+**Hierba visible:** en Gen6, no implementada y **fuera del roadmap por decisión del propietario**. En Ultra Sol / Ultra Luna pasa a ser **prioridad del propietario** (sin ella la zona no se distingue en el juego); se trabaja aparte. Una zona de captura es funcional cuando el juego produce encuentros en sus casillas, aunque el escenario siga mostrando suelo normal. El editor señala en el mapa las casillas con encuentros (verde) y las marcadas (verde claro).
 
 ## Qué hace
 
@@ -96,8 +97,75 @@ El editor usa solo valores y estructuras leídos de los juegos.
 
 - **`--map3ds-catch-zone-rebuild`:** las imágenes 3DS contienen byte a byte los archivos editados.
 
+## Ultra Sol / Ultra Luna
+
+El mecanismo es distinto del de Gen6. No hay rejilla de casillas.
+
+### Qué produce un encuentro
+
+Un Pokémon salvaje aparece al pisar un triángulo del suelo cuando se cumplen dos condiciones:
+
+- el **atributo** del triángulo (malla de colisión, parte 6 de cada bloque) está permitido por la **máscara** de una **región de encuentros**;
+- la forma de esa región lo cubre.
+
+La región indica qué **tabla** del área usa. Se comprobó en las 336 áreas de Ultra Luna:
+
+- **Regiones.** Están en la **parte 6 del paquete de eventos (ED)** del área, en un archivo por zona.
+  - Cada registro mide 28 bytes: `{u32 6, u32 tabla, u32 máscara, 3 × u32, u32 desplazamiento de la forma}`.
+  - La forma puede ser una caja de 48 bytes (posición, cuaternión y tamaño) o un cilindro de 28 bytes (posición, radio y altura).
+  - **El tamaño de la caja es un semieje** (la mitad del ancho). Leídas así, las 12 cajas de hierba de Ultra Luna cubren el 99,8 % de su mancha de hierba y ninguna otra; leídas como ancho completo, el 44,6 %.
+  - Hay 231 regiones en 64 áreas, y ningún área tiene regiones sin tablas.
+- **Tablas.** Están en el **paquete EA** del área (slot 9): entradas de 768 bytes, de día y de noche.
+  - Todos los índices de las regiones están dentro de su paquete.
+  - En los paquetes originales los datos empiezan en 0x80, y un área sin encuentros tiene una sola entrada vacía.
+- **Máscara.** El bit `n` permite el atributo de suelo `n`.
+  - Solo hay 1 máscara de 231 con un atributo ausente del suelo de su área.
+  - Las cajas de hierba de la Ruta 1 (bit 31) cubren casi solo triángulos de atributo `0x1F`; las de agua (bit 8) cubren el atributo `0x08`.
+  - Atributos que usan las máscaras originales (regiones por bit): `0x00` 124, `0x16` 44, `0x08` 15, `0x12` 14, `0x1F` 12, `0x19` 8, `0x0A` 7, `0x14` 5, `0x15` 5 y otros con 1 o 2.
+  - La hierba `0x1F` solo existe en el terreno de la Ruta 1 y sus copias. El suelo `0x00` es el de la hierba de casi todas las demás rutas; `0x16`, el de las de Ula-Ula y Poni; `0x19`, la arena del Desierto de Haina; `0x15`, el de algunas cuevas y colinas.
+- **Terreno compartido.** Un área también contiene el terreno de sus vecinas, para dibujarlo; a veces con los mismos bloques en la misma posición y a veces como copia con otros números de bloque. Pueblo Lilii comparte 8 bloques con la Ruta 1: sus 294 casillas de hierba son hierba de la Ruta 1, donde el jugador está en el área de la Ruta 1. El terreno propio de Pueblo Lilii tiene suelos `0x00`–`0x08`, sin hierba de encuentros.
+- **Ultra Sol y Ultra Luna:** las regiones (parte 6 de ED) son idénticas en las 336 áreas; las tablas difieren.
+- **Indicios no imprescindibles:** el campo `u32 0x38` de los datos de zona tiene los bits 0 y 2 en el 98 % de las zonas con regiones, pero también en zonas sin ellas. Pueblo Lilii tiene el mismo valor que la Ruta 1, así que no bloquea la prueba.
+
+### Qué hace el editor
+
+1. **Casillas.** Se eligen casillas (de 105 unidades, como en el resto del editor) con uno de los suelos que alguna región original usa como único bit de su máscara: `0x00`, `0x15`, `0x16`, `0x19` y `0x1F`. Todas las casillas de una zona deben tener el mismo suelo. Los suelos que solo aparecen combinados (suelos de cueva) o que ninguna máscara usa se rechazan. También se rechaza el terreno de otra área:
+   - un bloque que carga otra área en la misma posición, salvo que el área ya tenga encuentros en él;
+   - la misma hierba (mismas coordenadas y altura) que tiene encuentros en otra área.
+
+   El panel marca con borde punteado las casillas disponibles y la capa «Encuentros» muestra en verde las que ya los tienen.
+2. **Región.** Se añade una caja alineada con los ejes que cubre las casillas (tamaño escrito como semieje), con la máscara de ese suelo y altura 500. Si la caja abarca casillas de hierba no marcadas, se avisa: también tendrán encuentros.
+3. **Tabla.** Se elige entre las tablas de las regiones originales con uno de esos suelos (190 en Ultra Luna; el nombre indica el suelo).
+   - Si es de otra área, se copia al área. En un paquete original se rellena su entrada vacía, conservando el inicio de datos en 0x80.
+   - Si es del área, se usa sin copiarla.
+4. **Escritura.** ED y EA se reconstruyen byte a byte; si los originales no se reconstruyen exactamente, no se escribe. Se escriben en una sola reconstrucción del archivo de campo y en una sola entrada del historial.
+5. **Restauración.** Como el archivo de campo supera el tamaño de los puntos de restauración, los dos miembros originales se guardan juntos para restaurar el área. El GARC se reescribe con alineación de 4 bytes, igual que en cualquier otro guardado del proyecto; por eso el archivo puede no ser idéntico al volcado original aunque todos sus miembros lo sean.
+6. **Compatibilidad.** El editor de encuentros muestra la tabla nueva (día y noche) y la randomización la incluye.
+
+**Límites de esta primera versión:**
+
+- solo los suelos `0x00`, `0x15`, `0x16`, `0x19` y `0x1F`, uno por zona;
+- solo áreas con un único archivo de regiones (309 de 336);
+- solo tablas de regiones originales con esos suelos;
+- regiones de caja;
+- el editor no sabe dónde están los límites entre áreas que marca un warp de conexión: si una mancha cruza uno, hay que marcar solo el lado del área.
+
+### Pruebas
+
+- **`--map3ds-gen7-catch-zones-only`** (16 comprobaciones sintéticas) y **`--map3ds-gen7-catch-zones-ui-only`** (5).
+- **Segunda prueba, copia real limpia de Ultra Luna (aprobada en el juego por el propietario):** Ruta 13 (área 138), 72 casillas de arena `0x19` (X 183–193, Y 303–312, del lado de la ruta del warp al desierto), tabla 0 del Desierto de Haina. 8/8; verificado también con un lector independiente (miembros 1518 y 1527, solo la parte 6 de ED, tablas de pesca intactas, tabla nueva idéntica a la de Haina, semiejes 630 × 472,5). Imagen `UL-captura-ruta13-arena.3ds`. **Aprobada en el juego.** Ultra Sol: el mismo caso, copia real 8/8 e imagen `US-captura-ruta13-arena.3ds`, pendiente.
+- **Búsqueda de sitios** (solo lectura): `--map3ds-gen7-encounter-attribute-candidates`, `--map3ds-gen7-encounter-area-info` y `--map3ds-gen7-encounter-reach`. La mancha libre de Colina Dequilate está desconectada del suelo del área (decorado); la de la Ruta 13 está conectada con las entradas.
+- **Copia real de Ultra Luna limpia, `--map3ds-gen7-catch-zone-probe`:** Pueblo Lilii, 61 casillas de hierba, tabla 0 de la Ruta 1. 8/8:
+  - solo cambian los miembros de eventos y tablas del área 1;
+  - el editor de encuentros pasa de 794 a 796 ubicaciones;
+  - la restauración devuelve todos los miembros originales;
+  - un editor con datos antiguos no puede escribir.
+  - Verificado también con un lector independiente.
+- **Imagen 3DS reconstruida:** contiene byte a byte el archivo de campo editado. **Descartada para la prueba jugable** (hierba de la Ruta 1 y caja escrita con el tamaño como ancho completo).
+- **`--map3ds-gen7-encounter-candidates`** (solo lectura): con las reglas actuales, en Ultra Luna solo queda una mancha `0x1F` sin encuentros, en el área 010 (una copia de la Ruta 1 cuyo uso en el juego no se conoce).
+
 ## Limitaciones
 
-- Solo se acreditan en el juego las 24 casillas de Pueblo Acuarela en X. Y, Rubí Omega y Zafiro Alfa están pendientes de prueba jugable.
+- Aprobadas en el juego: Pueblo Acuarela en X, Villa Raíz en Rubí Omega y Zafiro Alfa, y la arena de la Ruta 13 en Ultra Luna. Y y Ultra Sol, pendientes.
 - Solo se escribe la hierba normal de cada familia. Otros tipos de encuentro (flores, hierba oscura, cuevas, agua) quedan fuera mientras no se acredite su valor.
 - Quitar encuentros a casillas existentes no forma parte de esta versión; lo hecho se deshace desde el historial.
