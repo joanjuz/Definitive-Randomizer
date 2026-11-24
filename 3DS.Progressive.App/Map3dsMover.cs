@@ -55,6 +55,8 @@ internal sealed class Map3dsMover(Func<IMapEditorBackend, int, int, int, int, st
             var gen7 = new Map3dsGen7NpcMoveService(session);
             var gen7Catch = new Map3dsGen7CatchZoneService(session);
             var gen7Grass = new Map3dsGen7VisibleGrassService(session);
+            var gen7Nurse = new Map3dsGen7NurseService(session);
+            bool NurseRestorable(int area) { try { return gen7Nurse.CanRestore(area); } catch (Exception ex) when (ex is IOException or InvalidDataException) { return false; } }
             bool CatchRestorable(int area) { try { return gen7Catch.CanRestore(area); } catch (Exception ex) when (ex is IOException or InvalidDataException) { return false; } }
             return new Map3dsMover((backend, area, index, x, y) =>
             {
@@ -63,10 +65,12 @@ internal sealed class Map3dsMover(Func<IMapEditorBackend, int, int, int, int, st
                 gen7.Apply(proposal);
                 return proposal.Action;
             }, () => { gen7.Refresh(); return pk3DS.Core.Maps.Gen7.Gen7MapBackend.FromConfig(config); },
-            area => CatchRestorable(area) || (Try(() => gen7.CanRestore(area))),
+            area => NurseRestorable(area) || CatchRestorable(area) || (Try(() => gen7.CanRestore(area))),
             area =>
             {
-                // The last change of the area decides which originals match: a catch zone (events and tables) or an NPC move.
+                // The last change of the area decides which originals match: a nurse (events and characters), a catch zone
+                // (events and tables) or an NPC move.
+                if (NurseRestorable(area)) { var n = gen7Nurse.PreviewRestore(area); gen7Nurse.Apply(n); return n.Action; }
                 if (CatchRestorable(area)) { var c = gen7Catch.PreviewRestore(area); gen7Catch.Apply(c); return c.Action; }
                 var p = gen7.PreviewRestore(area); gen7.Apply(p); return p.Action;
             },
@@ -75,6 +79,12 @@ internal sealed class Map3dsMover(Func<IMapEditorBackend, int, int, int, int, st
                 if (backend is not pk3DS.Core.Maps.Gen7.Gen7MapBackend b7) throw new InvalidOperationException("El adaptador no admite escritura.");
                 var proposal = gen7.PreviewView(b7, area, index, facing);
                 gen7.Apply(proposal);
+                return proposal.Action;
+            }, addNurse: (backend, area, x, y, facing) =>
+            {
+                if (backend is not pk3DS.Core.Maps.Gen7.Gen7MapBackend b7) throw new InvalidOperationException("El adaptador no admite escritura.");
+                var proposal = gen7Nurse.Preview(b7, area, x, y, facing);
+                gen7Nurse.Apply(proposal);
                 return proposal.Action;
             }, paintCatch: (backend, area, cells, source) =>
             {
