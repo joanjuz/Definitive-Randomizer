@@ -62,7 +62,7 @@ En la copia de HeartGold (IPKE), los eventos están en `a/0/3/2`: 491 miembros c
 
 Gen5 (Negro, Blanco, Negro 2 y Blanco 2) usa otros contenedores y registros. Tendrá un lector propio y no comparte nada de este perfil.
 
-## Comprobaciones
+## Comprobaciones automatizadas
 
 - `--nds-gen4-profile-only` (23 comprobaciones sintéticas) y `--nds-gen4-profile-ui-only` (5 fuera de pantalla). Ambas están en el CI.
 - `--nds-gen4-map-editor-probe <carpeta nueva> <Diamante ADAE/5 privado>`, sobre una copia real. Comprueba las huellas, el censo (559 mapas, 3.160 NPC y 1.118 warps, todos resueltos salvo los 6 dinámicos) y la apertura de terreno, estructuras y gráficos. Después hace estas ediciones:
@@ -73,4 +73,20 @@ Gen5 (Negro, Blanco, Negro 2 y Blanco 2) usa otros contenedores y registros. Ten
 - `--nds-map-render-gallery-probe` con Diamante: 16 mapas renderizados (ciudades, interiores, cuevas y rutas), con modelos y eventos alineados y sin triángulos sin textura en ciudades e interiores.
 - Regresión de Platino sobre copia real: sondas de eventos, visión, objetos/warps/activadores, NPC nuevos, scripts y render, todas en verde. La ROM de validación de objetos, warps y activadores regenerada con este código es idéntica byte a byte a la preparada anteriormente.
 
-**Validación jugable pendiente.** Ninguna de estas comprobaciones sustituye una prueba en el juego. Para Diamante no se declara validación jugable hasta que el propietario la confirme.
+Ninguna de estas comprobaciones sustituye una prueba en el juego.
+
+## Validación jugable (24-11-2026)
+
+El propietario probó en el juego la ROM generada por la sonda (`Diamante-eventos.nds`, desde Diamante ADAE/5) y aprobó las cinco comprobaciones:
+
+| Comprobación | Resultado en el juego |
+|---|---|
+| NPC 4 de Hojaverde girado | orientación correcta |
+| Warp 0 de Hojaverde con otro destino | lleva a la casa T01R0201 |
+| Objeto oculto movido de X 107 a X 108 | se recoge en la nueva casilla |
+| Activador ampliado a 9 × 1 | se dispara en toda su anchura |
+| Entrenador 0 de la Ruta 202 en «mirar fijo» hacia arriba | orientación correcta |
+
+La aprobación cubre **solo estas cinco operaciones en Diamante ADAE/5**. No se extiende a Perla, otras revisiones de Diamante, HeartGold ni otras funciones que no se ensayaron. Las comprobaciones automatizadas de las secciones anteriores se mantienen aparte: son pruebas sintéticas, de interfaz y sobre copia real, no jugables.
+
+La misma fecha, el propietario aprobó en Platino CPUE/1 las tres comprobaciones del PR #117 (warp modificado, objeto oculto desplazado y activador ampliado), con la ROM `Platino-eventos.nds`.
