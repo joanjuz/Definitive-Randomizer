@@ -5,7 +5,9 @@
 - Escritura comprobada en una copia real de X.
 - **Prueba en el juego aprobada por el propietario en Pokémon X** (Ruta 2, imagen v2): la enfermera aparece, se puede hablar con ella, cura al equipo y el juego no se congela. La primera versión, sin la entrada del modelo en la lista del área, se congelaba al entrar en la ruta.
 - Sin prueba en el juego: Y, Rubí Omega y Zafiro Alfa.
-- **Ultra Sol / Ultra Luna:** implementado, con su propio mecanismo (ver «Ultra Sol / Ultra Luna» más abajo). Escritura comprobada en copias reales de los dos juegos. **Prueba jugable pendiente** en Ultra Luna (Pueblo Lilii).
+- **Ultra Sol / Ultra Luna:** implementado, con su propio mecanismo (ver «Ultra Sol / Ultra Luna» más abajo). Escritura comprobada en copias reales de los dos juegos.
+  - **Primera prueba jugable** en Ultra Luna (Pueblo Lilii): la enfermera aparecía y hablaba, pero el juego se congelaba al aceptar curar. Faltaba la máquina de curación.
+  - **Segunda versión**, con la máquina: pendiente de prueba.
 - Sol / Luna y los juegos de DS no tienen esta función.
 
 ## Qué hace
@@ -124,6 +126,11 @@ Investigado con los datos de los dos juegos, sin trasladar nada de Gen6.
   - El GARC `a/0/9/2` guarda scripts comunes ordenados por rangos, cada uno con su tabla de casos. El miembro 3 atiende los casos −1 y 5030–5035, y su caso 5030 es la rutina de la enfermera.
   - El juego despacha estos números desde cualquier área: hay NPC con números de rangos comunes también fuera de los Centros, incluso en exteriores.
   - El script de zona («ZS», slot 7) no la incluye, así que no se toca.
+- **Máquina de curación.** La rama de curación de la rutina busca en el área el **objeto estático 2**, la máquina del mostrador (llamada al motor con la constante 2), y anima las Poké Balls sobre ella.
+  - Las 21 áreas donde el juego cura con esa escena la tienen: los 15 Centros, el Árbol de Combate, el Paraíso Æther (2), el Estadio Royale, Ciudad Hauoli y Ciudad Konikoni.
+  - Su modelo «SM» del paquete de objetos («AS», slot 4) es idéntico en todas.
+  - Se identifica por el objeto y no por el id de evento (701 o 702, según el área).
+  - **Sin ella, el juego se congela al aceptar curar:** ocurrió en la primera prueba jugable.
 - **Carga del modelo.** El slot 3 de cada área es un paquete «AC» con **un paquete «CP» por modelo de personaje**, nombrado con el número del modelo.
   - En las 300 áreas con NPC o entrenadores de cada juego, el «AC» contiene los modelos de todos ellos.
   - El CP «66» es idéntico en los 15 Centros y en los dos juegos.
@@ -134,7 +141,7 @@ Investigado con los datos de los dos juegos, sin trasladar nada de Gen6.
 
 ### Qué escribe
 
-Dos miembros del archivo de campo (`a/0/8/3` en Ultra Luna, `a/0/8/2` en Ultra Sol), en una sola reconstrucción y una sola entrada del historial.
+Hasta tres miembros del archivo de campo (`a/0/8/3` en Ultra Luna, `a/0/8/2` en Ultra Sol): eventos, personajes y objetos del área,, en una sola reconstrucción y una sola entrada del historial.
 
 1. **Paquete de eventos del área:** se añade la copia de la enfermera del juego al final del archivo de NPC, con:
    - la posición de la casilla, a la altura de su suelo;
@@ -143,16 +150,18 @@ Dos miembros del archivo de campo (`a/0/8/3` en Ultra Luna, `a/0/8/2` en Ultra S
    - sus dos formas al final, con la de conversación girada con ella.
 
    Los demás NPC solo desplazan 120 bytes la posición de sus formas. Antes de escribir se comprueba la estructura y después se relee todo.
-2. **Modelos de personaje del área:** si el área no carga el modelo 66, se añade al final la copia exacta de su CP. El inicio de datos sigue la regla del juego. No se supera el área más cargada del juego (37 modelos, 7 344 640 bytes).
+2. **Máquina de curación**, si el área no tiene una: copia del estático de la máquina del Centro, como allí respecto a la enfermera (girada con ella) pero apoyada en el suelo, con el id 701 si está libre. Su «SM» se añade al paquete de objetos si falta, con datos desde la cabecera redondeada a 0x80 (336/336 áreas), sin pasar de 25 objetos ni de 1 070 592 bytes. Los estáticos existentes solo desplazan su forma 56 bytes.
+3. **Modelos de personaje del área:** si el área no carga el modelo 66, se añade al final la copia exacta de su CP. El inicio de datos sigue la regla del juego. No se supera el área más cargada del juego (37 modelos, 7 344 640 bytes).
 
-Los dos miembros originales se guardan juntos para restaurar el área exactamente, porque el archivo supera los puntos de restauración del historial, como en las zonas de captura.
+Los tres miembros originales se guardan juntos para restaurar el área exactamente, porque el archivo supera los puntos de restauración del historial, como en las zonas de captura.
 
 **Casillas válidas:**
 - suelo de un solo nivel en la casilla;
 - suelo a la misma altura en la casilla desde la que se habla;
 - sin NPC ni entrenadores en ninguna de las dos;
 - sin warps (puertas) a menos de 1,5 casillas;
-- áreas con una sola zona de NPC (309 de 336).
+- áreas con una sola zona de NPC (309 de 336);
+- la casilla de la máquina, si hay que añadirla: con suelo a la misma altura, libre y fuera del sitio desde el que se habla.
 
 Si las enfermeras del juego no coincidieran, la función no se ofrecería.
 
@@ -167,7 +176,7 @@ La vista previa es un marcador con la dirección, no el modelo 3D.
 
 ### Pruebas
 
-- **`--map3ds-gen7-nurse-only`** (10 sintéticas):
+- **`--map3ds-gen7-nurse-only`** (13 sintéticas, con la máquina):
   - plantilla;
   - regla del inicio de datos;
   - plan;
@@ -178,17 +187,20 @@ La vista previa es un marcador con la dirección, no el modelo 3D.
   - enfermeras distintas no se copian;
   - una enfermera añadida se reconoce y se puede añadir otra.
 - **`--map3ds-gen7-nurse-ui-only`** (5 de interfaz).
-- **`--map3ds-gen7-nurse-probe`** en copias reales de **Ultra Luna limpia y Ultra Sol** (Pueblo Lilii, casilla 148, 118, mirando a la derecha), 8/8:
+- **`--map3ds-gen7-nurse-probe`** en copias reales de **Ultra Luna limpia y Ultra Sol** (Pueblo Lilii, casilla 148, 118, mirando a la derecha), 9/9:
   - la vista previa no escribe;
   - hay exactamente un NPC más, la enfermera;
   - los demás NPC no cambian;
   - el área carga su modelo (30 → 31);
-  - solo cambian los miembros de eventos y de personajes del área;
+  - la máquina, estático 701, junto a ella, con su modelo en el «AS» (14 → 15);
+  - solo cambian los miembros de eventos, personajes y objetos del área;
   - se registra en el historial;
   - la restauración es exacta;
   - un editor con datos antiguos no puede escribir.
   - Verificado también con un lector independiente: la enfermera nueva solo difiere de la del Centro en posición, giro e id, y el CP añadido es el del Centro byte a byte.
-- **Imagen 3DS de Ultra Luna:** `UL-enfermera-pueblo-lilii.3ds`, con el archivo de campo editado. Juego pendiente.
+- **Imagen 3DS de Ultra Luna:**
+  - v1, sin máquina: se congelaba al curar.
+  - **v2**, `UL-enfermera-pueblo-lilii-v2.3ds`: juego pendiente.
 
 ## Limitaciones
 
@@ -197,7 +209,8 @@ La vista previa es un marcador con la dirección, no el modelo 3D.
   - Su script coloca la cámara con valores pensados para los Centros; en otros juegos y lugares no se ha comprobado.
 - **Rubí Omega / Zafiro Alfa:** el mecanismo está acreditado de forma estática, pero no se ha escrito ninguna copia real.
 - **Gen7 (Ultra Sol / Ultra Luna):** sin prueba en el juego.
-  - La rutina de curación está pensada para el mostrador del Centro: fuera de él, la cámara o la animación de la máquina pueden comportarse distinto. Sus llamadas al motor no tienen nombre en los datos y no se pudo comprobar sin jugar.
+  - La rutina de curación lleva la cámara a una posición fija del Centro, (2449,7; 388,4; 2098,4) mirando hacia (1920,4; 152,7; 2100,9), y espera a que llegue. Fuera del Centro la cámara apuntará a otro sitio durante la animación.
+  - La máquina va en el suelo, porque fuera no hay mostrador.
   - Solo áreas de una zona de NPC.
   - No se encontró en el código la tabla que asocia los números de script a los scripts comunes; el despacho global se apoya en los datos.
 - **Gráficos:** la vista previa es un marcador esquemático, no el modelo 3D de la enfermera.

@@ -127,6 +127,7 @@ internal static class RunnerCatalog
         new("--map3ds-gen7-nurse-probe","<copia> <área> <x> <y> <dirección>",RunnerCategory.Real,false),
         new("--map3ds-gen7-nurse-plan","<copia o extracción USUM> <área> <x> <y> <direcciones separadas por comas>",RunnerCategory.Real,false),
         new("--map3ds-gen7-nurse-restore","<copia> <área>",RunnerCategory.Real,false),
+        new("--map3ds-gen7-area-names","<copia o extracción USUM> <áreas separadas por comas>",RunnerCategory.Real,false),
         new("--map3ds-gen7-grass-editor-only","",RunnerCategory.Synthetic,true),
         new("--map3ds-gen7-grass-editor-ui-only","",RunnerCategory.Ui,true),
         new("--map3ds-gen7-grass-editor-probe","<copia> <área> <x> <y> <bloque plantilla>",RunnerCategory.Real,false),
