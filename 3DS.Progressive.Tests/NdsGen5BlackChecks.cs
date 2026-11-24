@@ -60,8 +60,8 @@ internal static class NdsGen5BlackChecks
     internal static void Run(Action<bool, string> check)
     {
         // ---- profiles: Black only; nothing of Gen 4 applies
-        check(Gen5MapProfile.For("IRBO", 0) == Black && Gen5MapProfile.For("IRAS", 0) == Gen5MapProfile.White && Gen5MapProfile.For("IRDO", 0) is null && Gen5MapProfile.For("IREO", 0) is null && Gen5MapProfile.For("IRBO", 1) is null,
-            "Gen5_BlackAndWhiteHaveAProfile_NotBlack2White2OrOtherRevisions");
+        check(Gen5MapProfile.For("IRBO", 0) == Black && Gen5MapProfile.For("IRAS", 0) == Gen5MapProfile.White && Gen5MapProfile.For("IRDO", 0) == Gen5MapProfile.White2 && Gen5MapProfile.For("IREO", 0) is null && Gen5MapProfile.For("IRBO", 1) is null,
+            "Gen5_BlackWhiteAndWhite2HaveAProfile_NotBlack2OrOtherRevisions");
         check(Equals(NdsEventProfiles.For("IRBO", 0), Black) && Equals(NdsEventProfiles.For("CPUE", 1), Gen4EventProfile.Platinum) && Gen4EventProfile.For("IRBO", 0) is null && NdsEventProfiles.SupportedLabels.Contains("Negro IRBO/0"),
             "Gen5_TheRegistryNamesBothGenerations");
         check(Black is { EventPath: "a/1/2/5", ScriptPath: "a/0/5/7", HeaderCount: 427, EventFileCount: 428, LocationNamesText: 89, SupportsNpcCreation: false, EditsObjectFacing: false, MaxTrainerSight: 0 }
