@@ -50,26 +50,22 @@ public sealed class PlatinumLandProps
         var profile = Gen4EventProfile.Require(rom, "Estructuras");
         byte[] bytes = rom.ReadFile(profile.LandDataPath);
         if (Gen5Data.Crc32(bytes) != profile.LandDataCrc32) throw new InvalidDataException($"Estructuras {profile.Key}: land_data no coincide con el archivo acreditado.");
-        var props = ParseNarc(bytes);
+        var props = ParseNarc(bytes, profile.LandDataHasSoundSection);
         if (props.Count != profile.LandFileCount) throw new InvalidDataException($"Estructuras {profile.Key}: número inesperado de miembros de land_data.");
         return props;
     }
 
-    /// <summary>Structural parser (fixtures); does not identify or authorize a ROM.</summary>
-    public static PlatinumLandProps ParseNarc(byte[] narcBytes)
+    /// <summary>Structural parser (fixtures); does not identify or authorize a ROM. <paramref name="soundSection"/>: HeartGold layout (see <see cref="PlatinumTerrain.AttributesStart"/>).</summary>
+    public static PlatinumLandProps ParseNarc(byte[] narcBytes, bool soundSection = false)
     {
         var narc = Narc.Read(narcBytes); var all = new PlatinumMapProp[narc.Files.Count][]; var trailing = new int[all.Length];
         for (int i = 0; i < all.Length; i++)
         {
-            var file = narc.Files[i];
-            if (file.Length < PlatinumTerrain.HeaderSize + PlatinumTerrain.AttributesSize) throw new InvalidDataException("land_data truncado: " + i);
-            uint terrain = BinaryPrimitives.ReadUInt32LittleEndian(file), props = BinaryPrimitives.ReadUInt32LittleEndian(file.AsSpan(4)),
-                 model = BinaryPrimitives.ReadUInt32LittleEndian(file.AsSpan(8)), bdhc = BinaryPrimitives.ReadUInt32LittleEndian(file.AsSpan(12));
-            if (terrain != PlatinumTerrain.AttributesSize || (ulong)PlatinumTerrain.HeaderSize + terrain + props + model + bdhc != (ulong)file.Length)
-                throw new InvalidDataException("Cabecera de land_data inconsistente con su longitud: " + i);
+            var file = narc.Files[i]; int attributes = PlatinumTerrain.AttributesStart(file, soundSection, i);
+            uint props = BinaryPrimitives.ReadUInt32LittleEndian(file.AsSpan(4));
             // The engine reads size / 48 entries and ignores a remainder (one member of the original game has 2 spare bytes).
             int count = (int)(props / EntrySize); trailing[i] = (int)(props % EntrySize);
-            var list = new PlatinumMapProp[count]; int start = PlatinumTerrain.HeaderSize + PlatinumTerrain.AttributesSize;
+            var list = new PlatinumMapProp[count]; int start = attributes + PlatinumTerrain.AttributesSize;
             for (int k = 0; k < count; k++)
             {
                 int o = start + k * EntrySize; int S(int at) => BinaryPrimitives.ReadInt32LittleEndian(file.AsSpan(o + at, 4));

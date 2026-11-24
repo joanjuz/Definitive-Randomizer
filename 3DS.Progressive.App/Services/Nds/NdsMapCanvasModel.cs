@@ -101,7 +101,7 @@ internal sealed class NdsMapCanvasModel
     {
         var shape = e.Kind switch
         {
-            PlatinumEventKind.Npc when e.Type == 3 => NdsMarkerShape.GroundObject,
+            PlatinumEventKind.Npc when e.IsGroundItem => NdsMarkerShape.GroundObject,
             PlatinumEventKind.Npc => NdsMarkerShape.Npc,
             PlatinumEventKind.Object => NdsMarkerShape.BackgroundObject,
             PlatinumEventKind.Warp => NdsMarkerShape.Warp,

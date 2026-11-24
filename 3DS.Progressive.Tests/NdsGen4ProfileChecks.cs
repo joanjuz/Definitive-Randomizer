@@ -27,8 +27,8 @@ internal static class NdsGen4ProfileChecks
     {
         // ---- profiles: identity, nothing shared that differs
         check(Gen4EventProfile.For("CPUE", 1) == Platinum && Gen4EventProfile.For("ADAE", 5) == Diamond, "Gen4Profile_MeasuredGamesHaveAProfile");
-        check(Gen4EventProfile.For("ADAE", 4) is null && Gen4EventProfile.For("APAE", 5) is null && Gen4EventProfile.For("CPUE", 0) is null && Gen4EventProfile.For("IPKE", 0) is null && Gen4EventProfile.For("IRBO", 0) is null,
-            "Gen4Profile_OtherRevisionsPearlHeartGoldAndGen5HaveNone");
+        check(Gen4EventProfile.For("ADAE", 4) is null && Gen4EventProfile.For("APAE", 5) is null && Gen4EventProfile.For("CPUE", 0) is null && Gen4EventProfile.For("IPGE", 0) is null && Gen4EventProfile.For("IRBO", 0) is null,
+            "Gen4Profile_OtherRevisionsPearlSoulSilverAndGen5HaveNone");
         check(Diamond.EventPath != Platinum.EventPath && Diamond.ScriptPath != Platinum.ScriptPath && Diamond.LandDataPath != Platinum.LandDataPath && Diamond.HeaderOffset != Platinum.HeaderOffset
             && Diamond.HeaderCount == 559 && Platinum.HeaderCount == 593 && Diamond.LocationNamesText == 382 && Platinum.LocationNamesText == 433, "Gen4Profile_PathsTablesAndTextsAreTheirOwn");
         check(Platinum.SupportsNpcCreation && !Diamond.SupportsNpcCreation && Platinum.MaxObjectFacing == 6 && Diamond.MaxObjectFacing == 5, "Gen4Profile_NpcCreationAndFacingFollowTheAccreditedData");

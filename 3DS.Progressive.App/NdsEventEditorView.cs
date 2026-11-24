@@ -280,15 +280,15 @@ internal sealed class NdsEventEditorView : UserControl
     {
         if (_event is not { } npc || _map is null || !NdsTrainerVision.CanTurn(npc)) { _facingBox.Visibility = Visibility.Collapsed; _canvas.SetFacing(null); return; }
         _facingBox.Visibility = Visibility.Visible;
-        bool trainer = PlatinumTrainerVision.SightRefusal(npc) is null;
+        bool trainer = _session.Data.Profile.SightRefusal(npc) is null;
         int x = TryField(_x, out int vx) ? vx : npc.X, y = TryField(_y, out int vy) ? vy : npc.Y, dir = TryField(_direction, out int vd) ? vd : npc.Direction;
         int? sight = trainer ? (TryField(_sight, out int vs) ? vs : npc.Sight) : null;
         var state = new NdsFacingState(npc, npc.X, npc.Y, npc.Direction, trainer ? npc.Sight : null, x, y, dir, sight);
         for (int d = 0; d < 4; d++) EditorPresentation.StyleAction(_turn[d], d == dir ? EditorPresentation.ActionRole.Primary : EditorPresentation.ActionRole.Tertiary);
-        _sightRow.IsEnabled = trainer && !_busy; _sightMinus.IsEnabled = trainer && sight > 0; _sightPlus.IsEnabled = trainer && sight < PlatinumTrainerVision.MaxAccreditedSight;
+        _sightRow.IsEnabled = trainer && !_busy; _sightMinus.IsEnabled = trainer && sight > 0; _sightPlus.IsEnabled = trainer && sight < _session.Data.Profile.MaxTrainerSight;
         _sightHelp.Text = trainer
-            ? $"De 0 a {PlatinumTrainerVision.MaxAccreditedSight} (el máximo que usa el juego original). Es la distancia en línea recta a la que detecta al jugador; 0 = no detecta. No es el rango de paseo X/Y."
-            : "No aplica: " + PlatinumTrainerVision.SightRefusal(npc) + ".";
+            ? $"De 0 a {_session.Data.Profile.MaxTrainerSight} (el máximo que usa el juego original). Es la distancia en línea recta a la que detecta al jugador; 0 = no detecta. No es el rango de paseo X/Y."
+            : "No aplica: " + _session.Data.Profile.SightRefusal(npc) + ".";
         string Describe(int d, int? s) => PlatinumTrainerVision.DirectionName(d) + (s is int v ? $" · visión {v}" : "");
         _facingState.Text = state.Changed ? $"Guardado: {Describe(npc.Direction, state.SavedSight)}\nPropuesta: {Describe(dir, sight)}" : $"Guardado: {Describe(npc.Direction, state.SavedSight)} (sin cambios)";
         var notes = NdsTrainerVision.Notes(npc).ToList(); if (trainer) notes.Add(NdsTrainerVision.GeometricNotice);
@@ -304,8 +304,8 @@ internal sealed class NdsEventEditorView : UserControl
     }
     internal void StepSight(int delta)
     {
-        if (_busy || _event is not { } npc || PlatinumTrainerVision.SightRefusal(npc) is not null) return;
-        int value = Math.Clamp((TryField(_sight, out int s) ? s : npc.Sight) + delta, 0, PlatinumTrainerVision.MaxAccreditedSight);
+        if (_busy || _event is not { } npc || _session.Data.Profile.SightRefusal(npc) is not null) return;
+        int value = Math.Clamp((TryField(_sight, out int s) ? s : npc.Sight) + delta, 0, _session.Data.Profile.MaxTrainerSight);
         _sight.Text = value.ToString(CultureInfo.InvariantCulture); PreviewFacing();
     }
     private void PreviewFacing()
@@ -321,7 +321,7 @@ internal sealed class NdsEventEditorView : UserControl
         if (_event is not { } npc || _busy) return;
         _updating = true;
         _x.Text = npc.X.ToString(CultureInfo.InvariantCulture); _y.Text = npc.Y.ToString(CultureInfo.InvariantCulture); _direction.Text = npc.Direction.ToString(CultureInfo.InvariantCulture);
-        _sight.Text = PlatinumTrainerVision.SightRefusal(npc) is null ? npc.Sight.ToString(CultureInfo.InvariantCulture) : "";
+        _sight.Text = _session.Data.Profile.SightRefusal(npc) is null ? npc.Sight.ToString(CultureInfo.InvariantCulture) : "";
         _updating = false; _dirty = false; InvalidatePreview(); UpdateFacing(); _status.Text = "Valores guardados restaurados en los campos; no se ha guardado nada.";
     }
     private UIElement BuildLegend()
@@ -784,7 +784,7 @@ internal sealed class NdsEventEditorView : UserControl
         _dirty = false; InvalidatePreview(); _map = map; _updating = true;
         var events = map is null ? Array.Empty<PlatinumEvent>() : _session.Data.Events(map.Id).ToArray();
         _tables[0].ItemsSource = events.Where(e => e.Kind == PlatinumEventKind.Npc).ToArray();
-        _tables[1].ItemsSource = events.Where(e => e.Kind == PlatinumEventKind.Object || e.Kind == PlatinumEventKind.Npc && e.Type == 3).ToArray();
+        _tables[1].ItemsSource = events.Where(e => e.Kind == PlatinumEventKind.Object || e.Kind == PlatinumEventKind.Npc && e.IsGroundItem).ToArray();
         _tables[2].ItemsSource = events.Where(e => e.Kind == PlatinumEventKind.Warp).ToArray();
         _tables[3].ItemsSource = events.Where(e => e.Kind == PlatinumEventKind.Trigger || e.Script != 0).ToArray();
         foreach (var table in _tables) table.SelectedItem = table.Items.Cast<PlatinumEvent>().FirstOrDefault();
@@ -802,7 +802,7 @@ internal sealed class NdsEventEditorView : UserControl
         bool editable = item is not null && NdsNpcMovePlanner.IsDraggable(item);
         _x.IsReadOnly = _y.IsReadOnly = !editable; _direction.IsReadOnly = item?.Kind != PlatinumEventKind.Npc || !editable; _preview.IsEnabled = editable;
         _x.Text = item?.X.ToString(CultureInfo.InvariantCulture) ?? ""; _y.Text = item?.Y.ToString(CultureInfo.InvariantCulture) ?? ""; _direction.Text = item?.Direction.ToString(CultureInfo.InvariantCulture) ?? "";
-        _sight.Text = item is not null && PlatinumTrainerVision.SightRefusal(item) is null ? item.Sight.ToString(CultureInfo.InvariantCulture) : "";
+        _sight.Text = item is not null && _session.Data.Profile.SightRefusal(item) is null ? item.Sight.ToString(CultureInfo.InvariantCulture) : "";
         _selection.Text = item is null ? "Selecciona un evento" : $"{item.Description} · índice {item.Index} · ID {item.Id}";
         _script.IsEnabled = item?.Script > 0; _warp.IsEnabled = item is { Kind: PlatinumEventKind.Warp } w && CanNavigate(w);
         _details.Text = _map is null ? "Sin mapas." : $"Mapa {_map.Id}: {_map.Name}\nInterno: {_map.InternalName}\nEvento NARC: {_map.EventFile} · scripts: {_map.ScriptFile} · matriz: {_map.Matrix}\nDimensiones: {_map.Width} × {_map.Height} baldosas. No se validan colisiones ni jugabilidad.\n";
@@ -1010,7 +1010,7 @@ internal sealed class NdsEventEditorView : UserControl
             var npc = _event; int direction = Parse(_direction);
             // A fixed-look NPC turns for good only if its LOOK_* movement turns with it (as the game's own scripts do); the session drops unchanged fields.
             int? movement = PlatinumTrainerVision.IsFixedLook(npc.Movement) && direction is >= 0 and <= 3 ? PlatinumTrainerVision.FixedLookFor(direction) : null;
-            int? sight = PlatinumTrainerVision.SightRefusal(npc) is null ? Parse(_sight) : null;
+            int? sight = _session.Data.Profile.SightRefusal(npc) is null ? Parse(_sight) : null;
             ShowProposal(_session.Preview(_map.Id, npc.Index, new(Parse(_x), Parse(_y), direction, movement, sight)));
             _status.Text = _pending!.Changes.Count == 0 ? "Sin diferencias." : "Revisa las diferencias y guarda un checkpoint nuevo. La ROM fuente no se modifica.";
         }

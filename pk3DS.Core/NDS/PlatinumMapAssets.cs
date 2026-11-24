@@ -9,7 +9,8 @@ using pk3DS.Core.NDS.Nitro;
 namespace pk3DS.Core.NDS;
 
 /// <summary>What one map header loads (pret/pokeplatinum, docs/maps/file_format_specifications.md and overlay005/area_data.c).</summary>
-public sealed record PlatinumAreaInfo(int Area, int PropArchive, int MapTextureArchive, int LightArchive, IReadOnlyList<int> PropModels);
+/// <remarks><c>IndoorModels</c>: HeartGold indoor area (byte +6 = 0), whose prop models come from the indoor archive of the profile.</remarks>
+public sealed record PlatinumAreaInfo(int Area, int PropArchive, int MapTextureArchive, int LightArchive, IReadOnlyList<int> PropModels, bool IndoorModels = false);
 
 /// <summary>
 /// Read-only access to the graphics resources of Platinum CPUE/1 maps: header → area (area_data) → terrain textures (map_tex_set), prop model list
@@ -25,8 +26,11 @@ public sealed class PlatinumMapAssets
     public const uint AreaDataCrc32 = 0x1B96433F, AreaBuildCrc32 = 0xA511632E, AreaBuildTexturesCrc32 = 0x50AA2DA7, MapTexturesCrc32 = 0xE869CBCB, BuildModelCrc32 = 0xF850843C;
     private readonly byte[] _headers;
     private readonly Narc _area, _areaBuild, _areaBuildTextures, _mapTextures, _buildModels, _land;
+    /// <summary>HeartGold: the prop models of indoor areas; null in Diamond and Platinum.</summary>
+    private readonly Narc? _indoorModels;
+    private readonly Gen4EventProfile _profile;
     private readonly Dictionary<int, NitroTextureSet> _mapTextureSets = new(), _propTextureSets = new();
-    private readonly Dictionary<int, IReadOnlyList<NitroModel>> _propModels = new(), _landModels = new();
+    private readonly Dictionary<int, IReadOnlyList<NitroModel>> _propModels = new(), _indoorPropModels = new(), _landModels = new();
 
     public static PlatinumMapAssets Open(NdsRom rom)
     {
@@ -38,17 +42,28 @@ public sealed class PlatinumMapAssets
             return bytes;
         }
         byte[] arm9 = rom.ReadArm9();
-        return new(arm9.AsSpan(profile.HeaderOffset, profile.HeaderCount * 24).ToArray(), Pinned(AreaDataPath, profile.AreaDataCrc32), Pinned(AreaBuildPath, profile.AreaBuildCrc32),
-            Pinned(AreaBuildTexturesPath, profile.AreaBuildTexturesCrc32), Pinned(MapTexturesPath, profile.MapTexturesCrc32), Pinned(BuildModelPath, profile.BuildModelCrc32), Pinned(profile.LandDataPath, profile.LandDataCrc32));
+        return new(profile, arm9.AsSpan(profile.HeaderOffset, profile.HeaderCount * 24).ToArray(), Pinned(profile.AreaDataPath, profile.AreaDataCrc32), Pinned(profile.AreaBuildPath, profile.AreaBuildCrc32),
+            Pinned(profile.AreaBuildTexturesPath, profile.AreaBuildTexturesCrc32), Pinned(profile.MapTexturesPath, profile.MapTexturesCrc32), Pinned(profile.BuildModelPath, profile.BuildModelCrc32), Pinned(profile.LandDataPath, profile.LandDataCrc32),
+            profile.IndoorBuildModelPath is { } indoor ? Pinned(indoor, profile.IndoorBuildModelCrc32) : null);
     }
 
-    /// <summary>Structural constructor (fixtures and the real ROM): headers table (24 bytes per header) and the six archives.</summary>
+    /// <summary>Structural constructor (fixtures and the real ROM) with the Platinum layout: headers table (24 bytes per header) and the six archives.</summary>
     public PlatinumMapAssets(byte[] headers, byte[] areaData, byte[] areaBuild, byte[] areaBuildTextures, byte[] mapTextures, byte[] buildModels, byte[] landData)
+        : this(Gen4EventProfile.Platinum, headers, areaData, areaBuild, areaBuildTextures, mapTextures, buildModels, landData, null) { }
+
+    /// <summary>
+    /// Structural constructor with the header, area and land_data layout of <paramref name="profile"/>; does not identify or authorize a ROM.
+    /// <paramref name="indoorBuildModels"/> is required exactly when the profile has an indoor model archive (HeartGold).
+    /// </summary>
+    public PlatinumMapAssets(Gen4EventProfile profile, byte[] headers, byte[] areaData, byte[] areaBuild, byte[] areaBuildTextures, byte[] mapTextures, byte[] buildModels, byte[] landData, byte[]? indoorBuildModels)
     {
         if (headers.Length == 0 || headers.Length % 24 != 0) throw new InvalidDataException("Tabla de cabeceras truncada.");
+        _profile = profile ?? throw new ArgumentNullException(nameof(profile));
+        if ((profile.IndoorBuildModelPath is null) != (indoorBuildModels is null)) throw new ArgumentException("El archivo de modelos interiores solo existe en el perfil que lo declara.", nameof(indoorBuildModels));
         _headers = (byte[])headers.Clone();
         _area = Narc.Read(areaData); _areaBuild = Narc.Read(areaBuild); _areaBuildTextures = Narc.Read(areaBuildTextures);
         _mapTextures = Narc.Read(mapTextures); _buildModels = Narc.Read(buildModels); _land = Narc.Read(landData);
+        _indoorModels = indoorBuildModels is null ? null : Narc.Read(indoorBuildModels);
     }
 
     public int HeaderCount => _headers.Length / 24;
@@ -57,29 +72,42 @@ public sealed class PlatinumMapAssets
     public PlatinumAreaInfo Area(int header)
     {
         if (header < 0 || header >= HeaderCount) throw new ArgumentOutOfRangeException(nameof(header));
-        int area = _headers[header * 24];
+        int area = _headers[header * 24 + _profile.HeaderLayout.Area];
         if (area >= _area.Files.Count) throw new InvalidDataException($"La cabecera {header} usa un área inexistente ({area}).");
         var a = _area.Files[area]; if (a.Length < 8) throw new InvalidDataException("Datos de área truncados.");
-        int props = U16(a, 0), textures = U16(a, 2), light = U16(a, 6);
+        // HeartGold: +4 dynamic textures, +6 u8 outdoor flag (0 = indoor models), +7 u8 light; Diamond and Platinum: +6 u16 light.
+        bool indoor = _indoorModels is not null && a[6] == 0;
+        int props = U16(a, 0), textures = U16(a, 2), light = _indoorModels is not null ? a[7] : U16(a, 6);
         if (props >= _areaBuild.Files.Count || props >= _areaBuildTextures.Files.Count || textures >= _mapTextures.Files.Count) throw new InvalidDataException($"El área {area} apunta fuera de sus archivos.");
         var list = _areaBuild.Files[props]; int count = list.Length >= 2 ? U16(list, 0) : -1;
         if (count < 0 || 2 + count * 2 > list.Length) throw new InvalidDataException("Lista de modelos del área truncada.");
         var models = Enumerable.Range(0, count).Select(i => U16(list, 2 + i * 2)).ToArray();
-        if (models.Any(m => m >= _buildModels.Files.Count)) throw new InvalidDataException("La lista del área nombra un modelo inexistente.");
-        return new(area, props, textures, light, models);
+        if (models.Any(m => m >= (indoor ? _indoorModels! : _buildModels).Files.Count)) throw new InvalidDataException("La lista del área nombra un modelo inexistente.");
+        return new(area, props, textures, light, models, indoor);
     }
 
     public NitroTextureSet MapTextures(int archive) => _mapTextureSets.TryGetValue(archive, out var set) ? set : _mapTextureSets[archive] = NitroTextureSet.FromBtx(Member(_mapTextures, archive));
     public NitroTextureSet PropTextures(int archive) => _propTextureSets.TryGetValue(archive, out var set) ? set : _propTextureSets[archive] = NitroTextureSet.FromBtx(Member(_areaBuildTextures, archive));
     public IReadOnlyList<NitroModel> PropModel(int id) => _propModels.TryGetValue(id, out var m) ? m : _propModels[id] = NitroModels.Read(Member(_buildModels, id));
+    /// <summary>A prop model from the archive the area loads: the indoor archive for HeartGold indoor areas, the usual one otherwise.</summary>
+    public IReadOnlyList<NitroModel> PropModel(int id, bool indoor) => !indoor ? PropModel(id)
+        : _indoorPropModels.TryGetValue(id, out var m) ? m : _indoorPropModels[id] = NitroModels.Read(Member(_indoorModels ?? throw new InvalidOperationException("Este juego no tiene modelos interiores aparte."), id));
+    public int IndoorBuildModelCount => _indoorModels?.Files.Count ?? 0;
     /// <summary>The terrain model (NSBMD) of a land_data block: the section between the props and the BDHC.</summary>
     public IReadOnlyList<NitroModel> LandModel(int land) => _landModels.TryGetValue(land, out var m) ? m : _landModels[land] = NitroModels.Read(LandModelBytes(land));
     public byte[] LandModelBytes(int land)
     {
         var b = Member(_land, land); if (b.Length < 16) throw new InvalidDataException("Bloque de land_data truncado.");
+        // Same tolerance as always (the sections must fit; padding after them is allowed); HeartGold only moves the start past its sound section.
+        long start = 16;
+        if (_profile.LandDataHasSoundSection)
+        {
+            if (b.Length < 20 || U16(b, 16) != PlatinumTerrain.SoundSectionSignature) throw new InvalidDataException($"Bloque de land_data {land} sin la sección de sonido de HeartGold.");
+            start = 20 + U16(b, 18);
+        }
         long attributes = U32(b, 0), props = U32(b, 4), model = U32(b, 8);
-        if (attributes != 0x800 || 16 + attributes + props + model > b.Length) throw new InvalidDataException($"Bloque de land_data {land} con secciones fuera de rango.");
-        return b.AsSpan((int)(16 + attributes + props), (int)model).ToArray();
+        if (attributes != 0x800 || start + attributes + props + model > b.Length) throw new InvalidDataException($"Bloque de land_data {land} con secciones fuera de rango.");
+        return b.AsSpan((int)(start + attributes + props), (int)model).ToArray();
     }
     /// <summary>
     /// The models of one matrix block as the engine places them, in map units relative to the block centre (1 tile = 16 units): the land_data terrain model
@@ -99,7 +127,7 @@ public sealed class PlatinumMapAssets
             var transform = System.Numerics.Matrix4x4.CreateScale(prop.RawScaleX / 4096f, prop.RawScaleY / 4096f, prop.RawScaleZ / 4096f)
                 * System.Numerics.Matrix4x4.CreateRotationX(Angle(prop.RawRotationX)) * System.Numerics.Matrix4x4.CreateRotationY(Angle(prop.RawRotationY)) * System.Numerics.Matrix4x4.CreateRotationZ(Angle(prop.RawRotationZ))
                 * System.Numerics.Matrix4x4.CreateTranslation(prop.RawX / 4096f, prop.RawY / 4096f, prop.RawZ / 4096f);
-            foreach (var model in PropModel(prop.ModelId)) scene.Add(new(model, transform, propTextures));
+            foreach (var model in PropModel(prop.ModelId, area.IndoorModels)) scene.Add(new(model, transform, propTextures));
         }
         skipped = notes; return scene;
     }
