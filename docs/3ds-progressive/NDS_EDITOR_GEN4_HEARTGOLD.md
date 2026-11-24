@@ -75,7 +75,19 @@ Cada tabla está fijada por CRC32 en `Gen4EventProfile.HeartGold`, incluido el A
 
 **Limitación visual conocida.** En la Meseta Añil (T10), el edificio principal se dibuja como una zona negra. No afecta a la edición. Puede estar relacionado con las texturas dinámicas del área (byte +4), que el render cenital no carga.
 
-**Validación jugable pendiente.** Ninguna de estas comprobaciones sustituye una prueba en el juego. Para HeartGold no se declara validación jugable hasta que el propietario la confirme.
+Ninguna de estas comprobaciones sustituye una prueba en el juego.
+
+## Validación jugable
+
+El propietario probó en el juego la ROM `HeartGold-eventos.nds` generada por la sonda y **aprobó las cinco comprobaciones** en HeartGold IPKE/0:
+
+1. Puerta de la casa del suroeste de Pueblo Primavera, que lleva a la casa del rival.
+2. Activador de la salida oeste ampliado a 2 × 7.
+3. NPC 1 de la Ruta 29 mirando arriba.
+4. Objeto oculto de la Ruta 30 movido una casilla.
+5. Entrenador 47 de la Ruta 30 mirando arriba.
+
+La aprobación cubre solo estas cinco operaciones en IPKE/0. No se extiende a SoulSilver, otras revisiones ni funciones que no se ensayaron.
 
 ## Fuera de alcance
 
