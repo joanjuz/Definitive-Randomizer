@@ -1,11 +1,12 @@
-# Editor de mapas 3DS: «Añadir enfermera» (Gen6)
+# Editor de mapas 3DS: «Añadir enfermera» (Gen6 y Ultra Sol / Ultra Luna)
 
 **Estado:**
 - Implementado para Pokémon X / Y y Rubí Omega / Zafiro Alfa.
 - Escritura comprobada en una copia real de X.
 - **Prueba en el juego aprobada por el propietario en Pokémon X** (Ruta 2, imagen v2): la enfermera aparece, se puede hablar con ella, cura al equipo y el juego no se congela. La primera versión, sin la entrada del modelo en la lista del área, se congelaba al entrar en la ruta.
 - Sin prueba en el juego: Y, Rubí Omega y Zafiro Alfa.
-- Ultra Sol / Ultra Luna, Sol / Luna y los juegos de DS no tienen esta función.
+- **Ultra Sol / Ultra Luna:** implementado, con su propio mecanismo (ver «Ultra Sol / Ultra Luna» más abajo). Escritura comprobada en copias reales de los dos juegos. **Prueba jugable pendiente** en Ultra Luna (Pueblo Lilii).
+- Sol / Luna y los juegos de DS no tienen esta función.
 
 ## Qué hace
 
@@ -107,11 +108,96 @@ El valor de permiso de la casilla se muestra junto con cuántos NPC de la zona e
 - **`--map3ds-add-nurse-rebuild`:** la imagen 3DS reconstruida contiene byte a byte el archivo de zonas y la lista de modelos editados.
 - **Zafiro Alfa:** comprobación de solo lectura en una copia real. Encuentra la enfermera (zona 228, modelo 298, 16 enfermeras) sin escribir nada.
 
+## Ultra Sol / Ultra Luna
+
+Investigado con los datos de los dos juegos, sin trasladar nada de Gen6.
+
+### Cómo funciona en el juego
+
+- **Las enfermeras.** Hay 15, una por Centro Pokémon, y son el mismo NPC: registro de 120 bytes de la parte 1 del paquete de eventos (ED), con **modelo 66** (`+0x34`) y **script 5030** (`+0x38`).
+  - Solo cambian el número de evento (`+0x2C`) y la posición de sus formas. Todos los Centros tienen la misma planta.
+  - En 3 Centros, la zona de conversación está desplazada 2,3 unidades; se tolera.
+- **Formas.** Dos listas de formas:
+  - la zona de conversación, un cilindro de radio 80, 130 unidades delante;
+  - el cuerpo, un cilindro de radio 50 en su posición.
+- **El script de curación es común.**
+  - El GARC `a/0/9/2` guarda scripts comunes ordenados por rangos, cada uno con su tabla de casos. El miembro 3 atiende los casos −1 y 5030–5035, y su caso 5030 es la rutina de la enfermera.
+  - El juego despacha estos números desde cualquier área: hay NPC con números de rangos comunes también fuera de los Centros, incluso en exteriores.
+  - El script de zona («ZS», slot 7) no la incluye, así que no se toca.
+- **Carga del modelo.** El slot 3 de cada área es un paquete «AC» con **un paquete «CP» por modelo de personaje**, nombrado con el número del modelo.
+  - En las 300 áreas con NPC o entrenadores de cada juego, el «AC» contiene los modelos de todos ellos.
+  - El CP «66» es idéntico en los 15 Centros y en los dos juegos.
+  - Es el equivalente de la lista de modelos de Gen6: una enfermera en un área que no carga su modelo necesita su CP.
+- **Archivo de NPC.** Formato: número de NPC, registros de 120 bytes y las formas de cada NPC, en orden y contiguas (307/307 archivos).
+- **Ids de evento.** Únicos en la zona y sin coincidir con otros tipos de evento (307/307).
+- **Paquete «AC».** Datos desde la cabecera redondeada a 0x80 (0x80 hasta 30 modelos y 0x100 a partir de 31; 311/311 áreas) y partes de tamaño múltiplo de 0x80.
+
+### Qué escribe
+
+Dos miembros del archivo de campo (`a/0/8/3` en Ultra Luna, `a/0/8/2` en Ultra Sol), en una sola reconstrucción y una sola entrada del historial.
+
+1. **Paquete de eventos del área:** se añade la copia de la enfermera del juego al final del archivo de NPC, con:
+   - la posición de la casilla, a la altura de su suelo;
+   - el giro de la orientación elegida;
+   - el siguiente número de evento libre;
+   - sus dos formas al final, con la de conversación girada con ella.
+
+   Los demás NPC solo desplazan 120 bytes la posición de sus formas. Antes de escribir se comprueba la estructura y después se relee todo.
+2. **Modelos de personaje del área:** si el área no carga el modelo 66, se añade al final la copia exacta de su CP. El inicio de datos sigue la regla del juego. No se supera el área más cargada del juego (37 modelos, 7 344 640 bytes).
+
+Los dos miembros originales se guardan juntos para restaurar el área exactamente, porque el archivo supera los puntos de restauración del historial, como en las zonas de captura.
+
+**Casillas válidas:**
+- suelo de un solo nivel en la casilla;
+- suelo a la misma altura en la casilla desde la que se habla;
+- sin NPC ni entrenadores en ninguna de las dos;
+- sin warps (puertas) a menos de 1,5 casillas;
+- áreas con una sola zona de NPC (309 de 336).
+
+Si las enfermeras del juego no coincidieran, la función no se ofrecería.
+
+### En el editor
+
+Es el mismo panel «Añadir enfermera» de Gen6: casilla con un clic o escrita, dirección, vista previa, guardado por el historial y restauración desde el NPC. El texto de la vista previa indica:
+- el número de evento;
+- la casilla desde la que se le habla;
+- si el área ya carga el modelo o si se añadirá, con el total de modelos y de bytes frente al máximo del juego.
+
+La vista previa es un marcador con la dirección, no el modelo 3D.
+
+### Pruebas
+
+- **`--map3ds-gen7-nurse-only`** (10 sintéticas):
+  - plantilla;
+  - regla del inicio de datos;
+  - plan;
+  - registro movido y girado;
+  - NPC y partes intactos;
+  - modelo añadido o ya cargado;
+  - rechazos: casilla ocupada, NPC delante, warp, sin suelo, sin suelo donde se habla, varias zonas, área llena;
+  - enfermeras distintas no se copian;
+  - una enfermera añadida se reconoce y se puede añadir otra.
+- **`--map3ds-gen7-nurse-ui-only`** (5 de interfaz).
+- **`--map3ds-gen7-nurse-probe`** en copias reales de **Ultra Luna limpia y Ultra Sol** (Pueblo Lilii, casilla 148, 118, mirando a la derecha), 8/8:
+  - la vista previa no escribe;
+  - hay exactamente un NPC más, la enfermera;
+  - los demás NPC no cambian;
+  - el área carga su modelo (30 → 31);
+  - solo cambian los miembros de eventos y de personajes del área;
+  - se registra en el historial;
+  - la restauración es exacta;
+  - un editor con datos antiguos no puede escribir.
+  - Verificado también con un lector independiente: la enfermera nueva solo difiere de la del Centro en posición, giro e id, y el CP añadido es el del Centro byte a byte.
+- **Imagen 3DS de Ultra Luna:** `UL-enfermera-pueblo-lilii.3ds`, con el archivo de campo editado. Juego pendiente.
+
 ## Limitaciones
 
 - **Aprobada en el juego solo en X**, dentro de la Ruta 2 (fuera de un Centro Pokémon). La primera versión, sin la lista de modelos, se congelaba al entrar en la ruta.
   - En X la secuencia del Centro funcionó fuera de un Centro.
   - Su script coloca la cámara con valores pensados para los Centros; en otros juegos y lugares no se ha comprobado.
 - **Rubí Omega / Zafiro Alfa:** el mecanismo está acreditado de forma estática, pero no se ha escrito ninguna copia real.
-- **Gen7 (Ultra Sol / Ultra Luna):** usa otro formato de eventos y de scripts. Necesita su propia investigación.
+- **Gen7 (Ultra Sol / Ultra Luna):** sin prueba en el juego.
+  - La rutina de curación está pensada para el mostrador del Centro: fuera de él, la cámara o la animación de la máquina pueden comportarse distinto. Sus llamadas al motor no tienen nombre en los datos y no se pudo comprobar sin jugar.
+  - Solo áreas de una zona de NPC.
+  - No se encontró en el código la tabla que asocia los números de script a los scripts comunes; el despacho global se apoya en los datos.
 - **Gráficos:** la vista previa es un marcador esquemático, no el modelo 3D de la enfermera.
