@@ -44,15 +44,14 @@ public sealed class PlatinumLandProps
 
     public int Count => _props.Length;
 
-    /// <summary>CPUE/1 only: requires the profile and the pinned CRC32 of the unmodified land_data archive (same contract as PlatinumTerrain).</summary>
+    /// <summary>Measured profiles only: requires the pinned CRC32 of the unmodified land_data archive (same contract as PlatinumTerrain).</summary>
     public static PlatinumLandProps Open(NdsRom rom)
     {
-        if (rom.Header.GameCode != "CPUE" || rom.Header.Version != 1 || rom.Header.IsDsiEnhanced)
-            throw new InvalidDataException("Estructuras: se requiere Platino CPUE/1; no se aplican perfiles de otros juegos.");
-        byte[] bytes = rom.ReadFile(PlatinumTerrain.LandDataPath);
-        if (Gen5Data.Crc32(bytes) != PlatinumTerrain.LandDataCrc32) throw new InvalidDataException("Estructuras CPUE/1: land_data no coincide con el archivo acreditado.");
+        var profile = Gen4EventProfile.Require(rom, "Estructuras");
+        byte[] bytes = rom.ReadFile(profile.LandDataPath);
+        if (Gen5Data.Crc32(bytes) != profile.LandDataCrc32) throw new InvalidDataException($"Estructuras {profile.Key}: land_data no coincide con el archivo acreditado.");
         var props = ParseNarc(bytes);
-        if (props.Count != PlatinumTerrain.FileCount) throw new InvalidDataException("Estructuras CPUE/1: número inesperado de miembros de land_data.");
+        if (props.Count != profile.LandFileCount) throw new InvalidDataException($"Estructuras {profile.Key}: número inesperado de miembros de land_data.");
         return props;
     }
 

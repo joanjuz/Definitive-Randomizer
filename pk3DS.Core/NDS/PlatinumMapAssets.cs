@@ -30,17 +30,16 @@ public sealed class PlatinumMapAssets
 
     public static PlatinumMapAssets Open(NdsRom rom)
     {
-        if (rom.Header.GameCode != "CPUE" || rom.Header.Version != 1 || rom.Header.IsDsiEnhanced)
-            throw new InvalidDataException("Gráficos de mapa: se requiere Platino CPUE/1; no se aplican perfiles de otros juegos.");
+        var profile = Gen4EventProfile.Require(rom, "Gráficos de mapa");
         byte[] Pinned(string path, uint crc)
         {
             byte[] bytes = rom.ReadFile(path);
-            if (Gen5Data.Crc32(bytes) != crc) throw new InvalidDataException($"Gráficos de mapa CPUE/1: {path} no coincide con el archivo acreditado.");
+            if (Gen5Data.Crc32(bytes) != crc) throw new InvalidDataException($"Gráficos de mapa {profile.Key}: {path} no coincide con el archivo acreditado.");
             return bytes;
         }
         byte[] arm9 = rom.ReadArm9();
-        return new(arm9.AsSpan(PlatinumEvents.HeaderOffset, PlatinumEvents.HeaderCount * 24).ToArray(), Pinned(AreaDataPath, AreaDataCrc32), Pinned(AreaBuildPath, AreaBuildCrc32),
-            Pinned(AreaBuildTexturesPath, AreaBuildTexturesCrc32), Pinned(MapTexturesPath, MapTexturesCrc32), Pinned(BuildModelPath, BuildModelCrc32), Pinned(PlatinumTerrain.LandDataPath, PlatinumTerrain.LandDataCrc32));
+        return new(arm9.AsSpan(profile.HeaderOffset, profile.HeaderCount * 24).ToArray(), Pinned(AreaDataPath, profile.AreaDataCrc32), Pinned(AreaBuildPath, profile.AreaBuildCrc32),
+            Pinned(AreaBuildTexturesPath, profile.AreaBuildTexturesCrc32), Pinned(MapTexturesPath, profile.MapTexturesCrc32), Pinned(BuildModelPath, profile.BuildModelCrc32), Pinned(profile.LandDataPath, profile.LandDataCrc32));
     }
 
     /// <summary>Structural constructor (fixtures and the real ROM): headers table (24 bytes per header) and the six archives.</summary>

@@ -125,28 +125,44 @@ public sealed class PlatinumEvents
     public IReadOnlyCollection<int> AccreditedGraphics => _graphics;
     public IReadOnlyCollection<int> AccreditedMovements => _movements;
 
+    /// <summary>The game whose tables this instance holds (Platinum for structural fixtures). It decides paths, fingerprints and what may be written.</summary>
+    public Gen4EventProfile Profile { get; }
+
+    /// <summary>
+    /// Opens the event tables of a ROM with a measured profile (<see cref="Gen4EventProfile.All"/>): game code and revision, then every table pinned by CRC32
+    /// and the event archive by the fingerprints of its original data. Any other game, revision or altered table is refused.
+    /// </summary>
     public static PlatinumEvents Open(NdsRom rom, IReadOnlyList<string>? locationNames = null)
     {
-        if (rom.Header.GameCode != "CPUE" || rom.Header.Version != 1 || rom.Header.IsDsiEnhanced)
-            throw new InvalidDataException("Eventos: se requiere Platino CPUE/1; no se aplican perfiles de otros juegos.");
-        byte[] arm9 = rom.ReadArm9(), names = rom.ReadFile(NamesPath), matrices = rom.ReadFile(MatrixPath), scripts = rom.ReadFile(ScriptPath);
-        if (Gen5Data.Crc32(arm9) != 0x4D104949 || Gen5Data.Crc32(names) != NamesCrc32 || Gen5Data.Crc32(matrices) != MatricesCrc32 || Gen5Data.Crc32(scripts) != 0x6D482515)
-            throw new InvalidDataException("Eventos CPUE/1: ARM9, nombres, matrices o scripts no coinciden con las tablas acreditadas.");
-        var result = Parse(arm9.AsSpan(HeaderOffset, HeaderCount * 24).ToArray(), names, rom.ReadFile(EventPath), matrices, scripts, locationNames);
-        if (Gen5Data.Crc32(arm9.AsSpan(HeaderOffset, HeaderCount * 24).ToArray()) != HeadersCrc32 || result._maps.Length != HeaderCount ||
-            result._blocks.Count != 534 || result._scripts.Files.Count != 1124 || (result.NormalizedHash() != NormalizedEventsSha256 && !result.IsAccreditedVisionEdit() && !result.IsAccreditedEventEdit()))
-            throw new InvalidDataException("Eventos CPUE/1: las tablas o los bytes no editables no coinciden con el perfil.");
+        var profile = Gen4EventProfile.Require(rom, "Eventos"); string key = profile.Key;
+        byte[] Table(string path)
+        {
+            try { return rom.ReadFile(path); }
+            catch (FileNotFoundException ex) { throw new InvalidDataException($"Eventos {key}: falta la tabla {path}.", ex); }
+        }
+        byte[] arm9 = rom.ReadArm9(), names = Table(NamesPath), matrices = Table(MatrixPath), scripts = Table(profile.ScriptPath);
+        if (Gen5Data.Crc32(arm9) != profile.Arm9Crc32 || Gen5Data.Crc32(names) != profile.NamesCrc32 || Gen5Data.Crc32(matrices) != profile.MatricesCrc32 || Gen5Data.Crc32(scripts) != profile.ScriptsCrc32)
+            throw new InvalidDataException($"Eventos {key}: ARM9, nombres, matrices o scripts no coinciden con las tablas acreditadas.");
+        byte[] headers = arm9.AsSpan(profile.HeaderOffset, profile.HeaderCount * 24).ToArray();
+        var result = Parse(profile, headers, names, Table(profile.EventPath), matrices, scripts, locationNames);
+        if (Gen5Data.Crc32(headers) != profile.HeadersCrc32 || result._maps.Length != profile.HeaderCount ||
+            result._blocks.Count != profile.EventFileCount || result._scripts.Files.Count != profile.ScriptFileCount || (result.NormalizedHash() != profile.NormalizedEventsSha256 && !result.IsAccreditedVisionEdit() && !result.IsAccreditedEventEdit()))
+            throw new InvalidDataException($"Eventos {key}: las tablas o los bytes no editables no coinciden con el perfil.");
         return result;
     }
 
-    /// <summary>Structural parser for binary fixtures; does not identify or authorize a ROM. Open enforces the CPUE/1 profile.</summary>
+    /// <summary>Structural parser for binary fixtures (Platinum profile); does not identify or authorize a ROM. Open enforces a measured profile.</summary>
     public static PlatinumEvents Parse(byte[] headers, byte[] names, byte[] events, byte[] matrices, byte[] scripts, IReadOnlyList<string>? labels = null) =>
-        new(headers, names, events, matrices, scripts, labels);
+        new(Gen4EventProfile.Platinum, headers, names, events, matrices, scripts, labels);
+    /// <summary>Structural parser with the rules of <paramref name="profile"/> (fixtures of another game); does not identify or authorize a ROM.</summary>
+    public static PlatinumEvents Parse(Gen4EventProfile profile, byte[] headers, byte[] names, byte[] events, byte[] matrices, byte[] scripts, IReadOnlyList<string>? labels = null) =>
+        new(profile, headers, names, events, matrices, scripts, labels);
 
-    private PlatinumEvents(byte[] headers, byte[] names, byte[] events, byte[] matricesBytes, byte[] scripts, IReadOnlyList<string>? labels)
+    private PlatinumEvents(Gen4EventProfile profile, byte[] headers, byte[] names, byte[] events, byte[] matricesBytes, byte[] scripts, IReadOnlyList<string>? labels)
     {
         if (headers.Length == 0 || headers.Length % 24 != 0 || names.Length != headers.Length / 24 * 16)
             throw new InvalidDataException("Cabeceras o nombres de mapa truncados.");
+        Profile = profile ?? throw new ArgumentNullException(nameof(profile));
         _headers = (byte[])headers.Clone(); _names = (byte[])names.Clone(); _matrices = (byte[])matricesBytes.Clone();
         _scriptBytes = (byte[])scripts.Clone(); _labels = labels?.ToArray(); _events = (byte[])events.Clone();
         var archive = Narc.Read(_events); var matrices = _matrixFiles = Narc.Read(matricesBytes); _scripts = Narc.Read(scripts);
@@ -298,7 +314,7 @@ public sealed class PlatinumEvents
         switch (kind)
         {
             case PlatinumEventKind.Object:
-                if (values.Facing is not (>= 0 and <= PlatinumEventFields.MaxFacing)) throw new ArgumentOutOfRangeException(nameof(values), "Dirección de interacción fuera de 0–6.");
+                if (values.Facing is not int facing || facing < 0 || facing > Profile.MaxObjectFacing) throw new ArgumentOutOfRangeException(nameof(values), $"Dirección de interacción fuera de 0–{Profile.MaxObjectFacing}.");
                 BinaryPrimitives.WriteInt32LittleEndian(output.AsSpan(at + 4), values.X); BinaryPrimitives.WriteInt32LittleEndian(output.AsSpan(at + 8), values.Y);
                 Put16(output, at + 16, values.Facing.Value);
                 break;
@@ -335,6 +351,7 @@ public sealed class PlatinumEvents
     public IReadOnlyList<string> ValidateNewNpc(int mapId, byte[] record, int? allowedScript = null)
     {
         var problems = new List<string>(); var map = Map(mapId);
+        if (!Profile.SupportsNpcCreation) { problems.Add($"en {Profile.Label} no se crean NPC: solo se acreditaron en Platino CPUE/1"); return problems; }
         if (record.Length != 32) { problems.Add("el registro de NPC debe medir 32 bytes"); return problems; }
         int id = U16(record, 0), gfx = U16(record, 2), movement = U16(record, 4), type = U16(record, 6), flag = U16(record, 8), script = U16(record, 10), direction = U16(record, 12), x = I16(record, 24), y = I16(record, 26);
         var existing = Events(mapId).Where(e => e.Kind == PlatinumEventKind.Npc).ToList();
@@ -367,7 +384,7 @@ public sealed class PlatinumEvents
         member.AsSpan(0, end).CopyTo(grown); record.CopyTo(grown, end); member.AsSpan(end).CopyTo(grown.AsSpan(end + 32));
         Put32(grown, offset - 4, (uint)(count + 1));
         archive.Files[file] = grown;
-        var next = new PlatinumEvents(_headers, _names, archive.Write(), _matrices, _scriptBytes, _labels);
+        var next = new PlatinumEvents(Profile, _headers, _names, archive.Write(), _matrices, _scriptBytes, _labels);
         var before = Narc.Read(_events).Files; var after = Narc.Read(next._events).Files;
         bool others = after.Count == before.Count && Enumerable.Range(0, before.Count).All(i => i == file || before[i].AsSpan().SequenceEqual(after[i]));
         var added = next.Events(mapId).Where(e => e.Kind == PlatinumEventKind.Npc).ToList();
@@ -391,7 +408,7 @@ public sealed class PlatinumEvents
         member.AsSpan(0, at).CopyTo(shrunk); member.AsSpan(at + 32).CopyTo(shrunk.AsSpan(at));
         Put32(shrunk, offset - 4, (uint)(count - 1));
         archive.Files[file] = shrunk;
-        var next = new PlatinumEvents(_headers, _names, archive.Write(), _matrices, _scriptBytes, _labels);
+        var next = new PlatinumEvents(Profile, _headers, _names, archive.Write(), _matrices, _scriptBytes, _labels);
         var before = Narc.Read(_events).Files; var after = Narc.Read(next._events).Files;
         bool others = after.Count == before.Count && Enumerable.Range(0, before.Count).All(i => i == file || before[i].AsSpan().SequenceEqual(after[i]));
         var remaining = next.Events(mapId).Where(e => e.Kind == PlatinumEventKind.Npc).Select(e => e.Raw).ToList();
@@ -421,9 +438,10 @@ public sealed class PlatinumEvents
     /// </summary>
     public PlatinumEvents WithAppendedScript(int mapId, byte[] code, out int number)
     {
+        if (!Profile.SupportsNpcCreation) throw new InvalidOperationException($"En {Profile.Label} no se añaden scripts: solo se acreditaron en Platino CPUE/1.");
         int file = Map(mapId).ScriptFile; var archive = Narc.Read(_scriptBytes); var before = archive.Files.Select(f => (byte[])f.Clone()).ToList();
         archive.Files[file] = PlatinumScriptFile.AppendEntry(archive.Files[file], code, out number);
-        var next = new PlatinumEvents(_headers, _names, _events, _matrices, archive.Write(), _labels);
+        var next = new PlatinumEvents(Profile, _headers, _names, _events, _matrices, archive.Write(), _labels);
         var after = Narc.Read(next._scriptBytes).Files;
         if (after.Count != before.Count || !Enumerable.Range(0, before.Count).All(i => i == file || before[i].AsSpan().SequenceEqual(after[i])) || !next._events.AsSpan().SequenceEqual(_events))
             throw new InvalidDataException("La ampliación del archivo de scripts alteró otros miembros; se descarta.");
@@ -431,7 +449,7 @@ public sealed class PlatinumEvents
     }
     public PlatinumEvents WithEvents(byte[] events)
     {
-        var next = new PlatinumEvents(_headers, _names, events, _matrices, _scriptBytes, _labels);
+        var next = new PlatinumEvents(Profile, _headers, _names, events, _matrices, _scriptBytes, _labels);
         if (next.EventsHash() != EventsHash()) throw new InvalidDataException("La edición altera bytes ajenos a los campos editables de los eventos.");
         return next;
     }
@@ -475,7 +493,7 @@ public sealed class PlatinumEvents
     }
     /// <summary>A ROM rebuilt with edited objects, warps or triggers: the events fingerprint of the profile, the trainer sight range and every warp destination valid.</summary>
     private bool IsAccreditedEventEdit() =>
-        EventsHash() == EventsEditableSha256 &&
+        EventsHash() == Profile.EventsEditableSha256 &&
         _maps.Select(m => m.Id).All(id => Events(id).All(e =>
             e.Kind == PlatinumEventKind.Npc ? !PlatinumTrainerVision.ChecksSight(e.Type) || e.Sight <= PlatinumTrainerVision.MaxAccreditedSight
             : e.Kind != PlatinumEventKind.Warp || e.Anchor == PlatinumEventFields.DynamicAnchor || WarpTargetExists(e.Destination, e.Anchor)));
@@ -484,7 +502,7 @@ public sealed class PlatinumEvents
         header >= 0 && header < _maps.Length && anchor >= 0 && anchor != PlatinumEventFields.DynamicAnchor && anchor < _blocks[_maps[header].EventFile][2].Count;
     /// <summary>A ROM rebuilt with turned trainers or edited sight: the editable fingerprint of the profile, and every trainer sight within the accredited range.</summary>
     private bool IsAccreditedVisionEdit() =>
-        EditableHash() == EditableEventsSha256 &&
+        EditableHash() == Profile.EditableEventsSha256 &&
         _maps.Select(m => m.Id).All(id => Events(id).All(e => e.Kind != PlatinumEventKind.Npc || !PlatinumTrainerVision.ChecksSight(e.Type) || e.Sight <= PlatinumTrainerVision.MaxAccreditedSight));
     public string WarpStatus(PlatinumEvent warp)
     {
@@ -498,8 +516,8 @@ public sealed class PlatinumEvents
     {
         int archive = Map(mapId).ScriptFile, entry = reference;
         // Only the two item ranges already identified in this profile. Other common scripts stay unresolved.
-        if (reference is >= 7000 and < 8000) { archive = 404; entry = reference - 7000 + 1; }
-        else if (reference is >= 8000 and < 8800) { archive = 408; entry = reference - 8000 + 1; }
+        if (reference is >= 7000 and < 8000) { archive = Profile.ItemBallScriptArchive; entry = reference - 7000 + 1; }
+        else if (reference is >= 8000 and < 8800) { archive = Profile.HiddenItemScriptArchive; entry = reference - 8000 + 1; }
         if (reference == 0) return new(reference, archive, null, null, "Sin script asignado.", "");
         if (entry is <= 0 or >= 2000 || archive >= _scripts.Files.Count)
             return new(reference, archive, null, null, "Referencia común/externa sin resolver; no se interpreta como índice local.", "");
