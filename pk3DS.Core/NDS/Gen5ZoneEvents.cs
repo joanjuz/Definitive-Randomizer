@@ -37,7 +37,17 @@ public sealed record Gen5MapProfile(
         0xEC1CB686, 0x65AC968E, 0x308E1CC6, 0x6B00C87E, 0x0AA75AEC, 0x0D4E6B38,
         89, 29, 6, "314F7AD2F7AF6162163EAFAD1502B6C4C791A6D52877E88F2D8FE3B3C5F1B849");
 
-    public static IReadOnlyList<Gen5MapProfile> All { get; } = [Black];
+    /// <summary>
+    /// Pokémon White, Spanish edition rev. 0 (IRAS/0, SHA-1 4cc963ca…). Measured on its own dump: headers, matrices, map blocks, zone events, terrain
+    /// textures and the area table are byte-identical to Black's (same CRC32 and the same events fingerprint); its scripts (a/0/5/7) and texts are its own
+    /// (location names in Spanish, text 89). Two building archives (a/2/2/6, a/2/2/9) differ, but the editor does not read them.
+    /// </summary>
+    public static Gen5MapProfile White { get; } = new("IRAS", 0, "Blanco", "a/1/2/5", "a/0/5/7",
+        427, 428, 255, 649, 282, 899,
+        0xEC1CB686, 0x65AC968E, 0x308E1CC6, 0x6B00C87E, 0x0AA75AEC, 0x7638D5C9,
+        89, 29, 6, "314F7AD2F7AF6162163EAFAD1502B6C4C791A6D52877E88F2D8FE3B3C5F1B849");
+
+    public static IReadOnlyList<Gen5MapProfile> All { get; } = [Black, White];
     public static Gen5MapProfile? For(string gameCode, int revision) => All.FirstOrDefault(p => p.GameCode == gameCode && p.Revision == revision);
     public static Gen5MapProfile? For(NdsHeader header) => For(header.GameCode, header.Version);
     public static Gen5MapProfile Require(NdsRom rom, string area) => For(rom.Header)
@@ -92,7 +102,7 @@ public sealed class Gen5ZoneEvents : INdsEventData
         }
         byte[] headers = Pinned(Gen5MapProfile.HeadersPath, p.HeadersCrc32), matrices = Pinned(Gen5MapProfile.MatrixPath, p.MatricesCrc32), scripts = Pinned(p.ScriptPath, p.ScriptsCrc32);
         var result = Parse(p, headers, rom.ReadFile(p.EventPath), matrices, scripts, locationNames);
-        if (result._maps.Length != p.HeaderCount || result._blocks.Length != p.EventFileCount || result._matrixFiles.Files.Count != p.MatrixCount || !result.IsAccredited())
+        if (result._maps.Length != p.HeaderCount || result._blocks.Length != p.EventFileCount || result._matrixFiles.Files.Count != p.MatrixCount || Narc.Read(scripts).Files.Count != p.ScriptFileCount || !result.IsAccredited())
             throw new InvalidDataException($"Eventos {key}: las tablas o los bytes no editables no coinciden con el perfil.");
         return result;
     }
