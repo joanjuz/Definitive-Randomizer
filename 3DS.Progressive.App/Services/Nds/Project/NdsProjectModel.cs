@@ -29,7 +29,7 @@ internal sealed record NdsProjectOperationRecord(string Action, uint? Seed, Json
 }
 
 /// <summary>
-/// Event history of Pokémon Platinum (CPUE/1), in the shape of the checkpoints v1, v2 and v3 so that those files import into a project and can be exported again.
+/// Event history of a game with a measured event profile (Platinum CPUE/1, Diamond ADAE/5), in the shape of the checkpoints v1, v2 and v3 so that those files import into a project and can be exported again.
 /// <c>Operations</c> is always the ordered list (a v1 checkpoint's moves are converted); <c>ImportedFrom</c> records the checkpoint version it came from, if any.
 /// </summary>
 internal sealed record NdsProjectEvents(IReadOnlyList<NdsEventOperation> Operations, IReadOnlyList<string> Audit, int? ImportedFrom = null)
@@ -51,9 +51,10 @@ internal sealed record NdsProjectEvents(IReadOnlyList<NdsEventOperation> Operati
         return new(operations.ToList().AsReadOnly(), document.Audit.ToList().AsReadOnly(), document.Version);
     }
 
-    internal NdsEventDocument ToCheckpoint(string sourcePath, string sourceSha256) => CheckpointVersion == 1
-        ? new(NdsEventSession.Format, 1, "CPUE", 1, sourcePath, sourceSha256, Operations.Select(o => o.Move!).ToList().AsReadOnly(), Audit)
-        : new(NdsEventSession.Format, CheckpointVersion, "CPUE", 1, sourcePath, sourceSha256, Array.Empty<NdsNpcEdit>(), Audit, Operations);
+    /// <summary>The checkpoint of this history for the ROM of <paramref name="game"/> and <paramref name="revision"/> (Platinum CPUE/1 unless stated).</summary>
+    internal NdsEventDocument ToCheckpoint(string sourcePath, string sourceSha256, string game = "CPUE", int revision = 1) => CheckpointVersion == 1
+        ? new(NdsEventSession.Format, 1, game, revision, sourcePath, sourceSha256, Operations.Select(o => o.Move!).ToList().AsReadOnly(), Audit)
+        : new(NdsEventSession.Format, CheckpointVersion, game, revision, sourcePath, sourceSha256, Array.Empty<NdsNpcEdit>(), Audit, Operations);
 }
 
 /// <summary>Where a stored table comes from. The container names blobs by kind and key.</summary>

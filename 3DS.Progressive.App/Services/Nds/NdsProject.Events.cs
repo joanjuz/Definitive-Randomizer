@@ -7,10 +7,15 @@ namespace ThreeDS.Progressive.Services.Nds;
 internal sealed partial class NdsProject
 {
     private NdsEventSession? _events;
-    internal bool SupportsEventProfile => Identity.Profile is { GameCode: "CPUE", Version: 1 };
-    internal NdsEventSession Events => _events ??= SupportsEventProfile
-        ? new NdsEventSession(_rom, PlatinumEvents.Open(_rom, _gen4!.Text(433)))
-        : throw new InvalidDataException("Eventos fase 1: solo Pokémon Platino CPUE/1, con tablas acreditadas.");
+    /// <summary>The measured map and event profile of this ROM (Platinum CPUE/1, Diamond ADAE/5), or null: no other game or revision has one.</summary>
+    internal Gen4EventProfile? EventProfile => Gen4EventProfile.For(Identity.Profile.GameCode, Identity.Profile.Version);
+    internal bool SupportsEventProfile => EventProfile is not null;
+    /// <summary>Paths of the event and script archives in this game (Platinum names them otherwise than Diamond).</summary>
+    private string EventArchivePath => (EventProfile ?? Gen4EventProfile.Platinum).EventPath;
+    private string EventScriptPath => (EventProfile ?? Gen4EventProfile.Platinum).ScriptPath;
+    internal NdsEventSession Events => _events ??= EventProfile is { } profile
+        ? new NdsEventSession(_rom, PlatinumEvents.Open(_rom, _gen4!.Text(profile.LocationNamesText)))
+        : throw new InvalidDataException($"Eventos: solo {Gen4EventProfile.SupportedLabels}, con tablas acreditadas.");
     /// <summary>Uses an event session built elsewhere instead of opening the one of the ROM. Only the checks need it: a synthetic ROM has no accredited event tables.</summary>
     internal void AdoptEventSession(NdsEventSession session) => _events = _events is null ? session : throw new InvalidOperationException("La sesión de eventos ya está abierta.");
     private PlatinumTerrain? _terrain; private string? _terrainNote; private bool _terrainRead;
@@ -59,9 +64,9 @@ internal sealed partial class NdsProject
         try
         {
             document = NdsEventSession.ReadDocument(path);
-            if (document.Format != NdsEventSession.Format || document.Version is not (1 or 2 or 3 or 4 or 5) || document.Game != "CPUE" || document.Revision != 1 ||
+            if (document.Format != NdsEventSession.Format || document.Version is not (1 or 2 or 3 or 4 or 5) || Gen4EventProfile.For(document.Game, document.Revision) is null ||
                 string.IsNullOrWhiteSpace(document.SourcePath) || !document.SourcePath.EndsWith(".nds", StringComparison.OrdinalIgnoreCase))
-                throw new InvalidDataException("Checkpoint de eventos no compatible con Platino CPUE/1.");
+                throw new InvalidDataException($"Checkpoint de eventos no compatible: solo {Gen4EventProfile.SupportedLabels}.");
         }
         catch (JsonException ex) { throw new InvalidDataException("El checkpoint de eventos está truncado o no es JSON válido.", ex); }
         var project = Open(document.SourcePath, allowRomhack);

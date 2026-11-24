@@ -50,6 +50,6 @@ Fuente: `pret/pokeplatinum` (`struct_defs/events.h`, `location.h`, `overlay005/f
 | Sintética | `--nds-event-editing-only` (en el CI) | 41 PASS |
 | WPF fuera de pantalla | `--nds-event-editing-ui-only` (en el CI) | 12 PASS |
 | Copia real CPUE/1 | `--nds-event-editing-probe <carpeta nueva> <ROM>` | PASS: huella del original, tres ediciones en Hojaverde, checkpoint v5, reapertura, exportación (solo cambia el archivo de eventos), reapertura de la ROM exportada en el editor, restauración con SHA-256 idéntico |
-| Juego en emulador | — | **pendiente del propietario** (instrucciones en el `MANUAL.txt` del probe) |
+| Juego, por el propietario (24-11-2026) | ROM `Platino-eventos.nds` del probe | **3/3 aprobadas** en Platino CPUE/1: warp modificado, objeto oculto desplazado y activador ampliado. Solo cubre estas tres operaciones |
 
 Se adaptaron las comprobaciones que fijaban la regla anterior («warps, objetos y activadores no se arrastran ni se editan») al contrato nuevo. Siguen comprobando que los NPC de objetos de suelo no se mueven y que la navegación a un destino existente se valida.

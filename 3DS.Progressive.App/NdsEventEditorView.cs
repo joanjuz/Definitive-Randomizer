@@ -90,6 +90,8 @@ internal sealed class NdsEventEditorView : UserControl
         SetResourceReference(BackgroundProperty, "Bg"); SetResourceReference(ForegroundProperty, "TextMain");
         var root = new DockPanel(); Content = root;
         var header = new StackPanel(); DockPanel.SetDock(header, Dock.Top); root.Children.Add(header);
+        var profile = session.Data.Profile; _title.Text = "Eventos · " + profile.Label;
+        if (!profile.SupportsNpcCreation) _intro.Text = $"Mueve y gira NPC existentes, ajusta la visión de los entrenadores, mueve objetos de fondo, warps y activadores, cambia el destino de un warp o el tamaño de un activador; los scripts solo se consultan. En {profile.GameName} no se crean, duplican, pegan ni eliminan NPC.";
         header.Children.Add(_title); header.Children.Add(_intro);
         header.Children.Add(_saveHelp);
         var footer = new StackPanel(); DockPanel.SetDock(footer, Dock.Bottom); root.Children.Add(footer);
@@ -424,6 +426,9 @@ internal sealed class NdsEventEditorView : UserControl
 
     private UIElement BuildStructureBar()
     {
+        // Creating NPC (and the nurse script) is only accredited in Platinum: elsewhere no control that would look operative is shown, and no shortcut is bound.
+        if (!_session.Data.Profile.SupportsNpcCreation)
+            return new TextBlock { Text = $"NPC: en {_session.Data.Profile.Label} solo se mueven y giran los existentes (añadir, duplicar, pegar o eliminar NPC no está acreditado en este juego).", TextWrapping = TextWrapping.Wrap, Margin = new Thickness(6, 0, 0, 6), VerticalAlignment = VerticalAlignment.Center, FontSize = 12 };
         var bar = new WrapPanel { Margin = new Thickness(6, 0, 0, 0) }; AccessibleName(bar, "Eventos DS · operaciones de NPC"); bar.Children.Add(new TextBlock { Text = "NPC:", VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 6, 6) });
         var menu = new ContextMenu();
         foreach (var (button, tip, action) in new (Button, string, Action)[] {
@@ -716,7 +721,7 @@ internal sealed class NdsEventEditorView : UserControl
     internal const double UsefulMapHeight = 240, MinimumMapHeight = 180, ShortWindowHeight = 620, CompactWidth = 850;
     private bool _brief, _adapting;
     private readonly ScrollViewer _bodyScroll = new() { VerticalScrollBarVisibility = ScrollBarVisibility.Auto, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled, Focusable = false };
-    private readonly TextBlock _title = new() { Text = "Eventos · Platino CPUE/1", FontSize = 23, FontWeight = FontWeights.SemiBold };
+    private readonly TextBlock _title = new() { Text = "Eventos", FontSize = 23, FontWeight = FontWeights.SemiBold };
     private readonly TextBlock _intro = new() { Text = "Mueve, añade, duplica y copia NPC (también entre mapas, como copia básica). Mueve objetos de fondo, warps y activadores, cambia el destino de un warp o el tamaño de un activador; los scripts solo se consultan. Los NPC del juego original no se eliminan.", TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 6, 0, 4) };
     internal ScrollViewer WorkingArea => _bodyScroll;
     private void Adapt()
@@ -868,7 +873,7 @@ internal sealed class NdsEventEditorView : UserControl
         _eventBox.SetResourceReference(Border.BorderBrushProperty, "Stroke"); _eventBox.SetResourceReference(Border.BackgroundProperty, "Panel");
         var stack = new StackPanel(); stack.Children.Add(_eventTitle);
         _objectRow.Children.Add(new TextBlock { Text = "Se usa…", Margin = new Thickness(0, 6, 0, 0) }); _objectRow.Children.Add(_objectFacing);
-        _objectFacing.ItemsSource = Enumerable.Range(0, PlatinumEventFields.MaxFacing + 1).Select(f => new Choice(f, PlatinumEventFields.FacingName(f))).ToList();
+        _objectFacing.ItemsSource = Enumerable.Range(0, _session.Data.Profile.MaxObjectFacing + 1).Select(f => new Choice(f, PlatinumEventFields.FacingName(f))).ToList();
         _objectFacing.SelectionChanged += (_, _) => EventFieldChanged(); AccessibleName(_objectFacing, "Eventos DS · objeto · dirección de interacción");
         _warpRow.Children.Add(new TextBlock { Text = "Lleva al mapa", Margin = new Thickness(0, 6, 0, 0) }); _warpRow.Children.Add(_warpMap);
         _warpRow.Children.Add(new TextBlock { Text = "Llega al warp", Margin = new Thickness(0, 6, 0, 0) }); _warpRow.Children.Add(_warpAnchor);

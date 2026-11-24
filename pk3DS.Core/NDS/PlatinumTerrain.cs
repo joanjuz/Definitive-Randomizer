@@ -35,15 +35,14 @@ public sealed class PlatinumTerrain
 
     public int Count => _attributes.Length;
 
-    /// <summary>CPUE/1 only: requires the profile and the pinned CRC32 of the unmodified land_data archive.</summary>
+    /// <summary>Measured profiles only (<see cref="Gen4EventProfile"/>): requires the pinned CRC32 of the unmodified land_data archive of that game.</summary>
     public static PlatinumTerrain Open(NdsRom rom)
     {
-        if (rom.Header.GameCode != "CPUE" || rom.Header.Version != 1 || rom.Header.IsDsiEnhanced)
-            throw new InvalidDataException("Terreno: se requiere Platino CPUE/1; no se aplican perfiles de otros juegos.");
-        byte[] bytes = rom.ReadFile(LandDataPath);
-        if (Gen5Data.Crc32(bytes) != LandDataCrc32) throw new InvalidDataException("Terreno CPUE/1: land_data no coincide con el archivo acreditado.");
+        var profile = Gen4EventProfile.Require(rom, "Terreno");
+        byte[] bytes = rom.ReadFile(profile.LandDataPath);
+        if (Gen5Data.Crc32(bytes) != profile.LandDataCrc32) throw new InvalidDataException($"Terreno {profile.Key}: land_data no coincide con el archivo acreditado.");
         var terrain = ParseNarc(bytes);
-        if (terrain.Count != FileCount) throw new InvalidDataException("Terreno CPUE/1: número inesperado de miembros de land_data.");
+        if (terrain.Count != profile.LandFileCount) throw new InvalidDataException($"Terreno {profile.Key}: número inesperado de miembros de land_data.");
         return terrain;
     }
 

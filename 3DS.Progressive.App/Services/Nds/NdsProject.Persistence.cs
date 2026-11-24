@@ -166,11 +166,11 @@ internal sealed partial class NdsProject
         catch (Exception ex) when (ex is not OutOfMemoryException) { throw new InvalidDataException("El proyecto contiene una tabla que no existe en esta ROM: " + ex.Message, ex); }
         if (document.State.Arm9 is not null && _gen4 is null) throw new InvalidDataException("El proyecto contiene un ARM9 modificado y en este juego el ARM9 no se modifica.");
         var events = document.Meta.Events; bool hasEvents = events is { Operations.Count: > 0 } or { Audit.Count: > 0 } || document.State.EventData is not null || document.State.EventScripts is not null;
-        if (hasEvents && !SupportsEventProfile) throw new InvalidDataException("El proyecto contiene eventos y esta ROM no es Pokémon Platino CPUE/1.");
+        if (hasEvents && !SupportsEventProfile) throw new InvalidDataException($"El proyecto contiene eventos y esta ROM no tiene un perfil de eventos ({Gen4EventProfile.SupportedLabels}).");
         if (hasEvents)
         {
             // Both the events and another module changed the script archive: they must still combine, exactly as they will when exporting.
-            if (document.State.EventScripts is { } mine && document.State.Files.TryGetValue(PlatinumEvents.ScriptPath, out var others))
+            if (document.State.EventScripts is { } mine && document.State.Files.TryGetValue(EventScriptPath, out var others))
                 try { Events.RequireMergeable(mine, others); }
                 catch (Exception ex) when (ex is InvalidOperationException or InvalidDataException) { throw new InvalidDataException("El proyecto contiene dos ediciones del mismo archivo de scripts: " + ex.Message, ex); }
             // The last check that can refuse: the history is replayed and must give the stored bytes. The event session changes only if it does.
@@ -220,7 +220,7 @@ internal sealed partial class NdsProject
     /// </summary>
     private void RequireCompatibleScripts(IReadOnlyDictionary<string, byte[]> files, PlatinumEvents? eventState = null)
     {
-        if (_events is not { } session || !files.TryGetValue(PlatinumEvents.ScriptPath, out var theirs)) return;
+        if (_events is not { } session || !files.TryGetValue(EventScriptPath, out var theirs)) return;
         if (session.ScriptBytesIfChanged(eventState ?? session.Data) is null) return;
         _ = session.MergeScriptArchive(theirs, eventState);
     }

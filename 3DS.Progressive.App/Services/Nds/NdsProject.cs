@@ -326,7 +326,7 @@ internal sealed partial class NdsProject : IDisposable
         if (preview.Owner != _id || preview.Revision != Revision)
             throw new InvalidOperationException("La vista previa pertenece a otra ROM o quedó desactualizada. Genérala de nuevo.");
         // A script archive of this operation must combine with the scripts the events appended; refused now, not when exporting.
-        if (preview.Result.Files.ContainsKey(PlatinumEvents.ScriptPath)) RequireCompatibleScripts(preview.Result.Files);
+        if (preview.Result.Files.ContainsKey(EventScriptPath)) RequireCompatibleScripts(preview.Result.Files);
         var operation = new NdsOperation(preview.Action, preview.Seed, preview.Result.Changes, preview.Recipe);
         void Install()
         {
@@ -380,9 +380,9 @@ internal sealed partial class NdsProject : IDisposable
             throw new IOException("Ya existe el registro de cambios: " + log);
         var all = _history.SelectMany(o => o.Changes).ToArray();
         var exportFiles = new Dictionary<string, byte[]>(_files);
-        if (_events?.Replacement() is { } eventBytes) exportFiles[PlatinumEvents.EventPath] = eventBytes;
+        if (_events?.Replacement() is { } eventBytes) exportFiles[EventArchivePath] = eventBytes;
         if (_events?.ScriptReplacement() is { } scriptBytes)
-            exportFiles[PlatinumEvents.ScriptPath] = exportFiles.TryGetValue(PlatinumEvents.ScriptPath, out var otherScripts) ? _events.MergeScriptArchive(otherScripts) : scriptBytes;
+            exportFiles[EventScriptPath] = exportFiles.TryGetValue(EventScriptPath, out var otherScripts) ? _events.MergeScriptArchive(otherScripts) : scriptBytes;
         var result = new Gen5RandomizerResult(exportFiles, all, new Dictionary<int, byte[]>(_overlays))
         {
             RecompressOverlays = new HashSet<int>(_recompress),
@@ -421,7 +421,7 @@ internal sealed partial class NdsProject : IDisposable
         }
         if (_events?.HasHistory == true)
         {
-            text.AppendLine("\n== Eventos CPUE/1 · checkpoints independientes de Global/Batch");
+            text.AppendLine($"\n== Eventos {_events.Data.Profile.Key} · checkpoints independientes de Global/Batch");
             foreach (string entry in _events.Audit) text.AppendLine(entry);
             text.AppendLine(_events.LastCheckpoint is { } checkpoint ? "Checkpoint: " + checkpoint : "Proyecto persistente, generación " + SavedGeneration);
         }

@@ -120,6 +120,8 @@ dotnet .\3DS.Progressive.Tests\bin\Release\net10.0-windows\3DS.Progressive.Tests
 | `--map3ds-gen6-only` | — | lectores de mapas Gen6 (paquetes ZO/MM/GR, entidades, matriz y rejilla de permisos) con archivos sintéticos; adaptador de solo lectura; sí |
 | `--nds-event-editing-only` | — | edición de objetos de fondo, warps y activadores: escritura byte a byte, destinos, campos protegidos, checkpoint v5 y proyecto con lector 3; sintética; sí |
 | `--nds-event-editing-ui-only` | — | panel contextual de objetos, warps y activadores, arrastre en el mapa y guardado; sí |
+| `--nds-gen4-profile-only` | — | perfiles de mapas y eventos Gen4 (Platino CPUE/1, Diamante ADAE/5): rutas, huellas, campos escribibles, rechazo de NPC nuevos y de scripts añadidos en Diamante, checkpoints con su juego, exportación y detector; sintética; sí |
+| `--nds-gen4-profile-ui-only` | — | editor de eventos con una sesión de Diamante: título, aviso sin controles de NPC nuevos, direcciones de interacción propias y vista previa sin escritura; sí |
 | `--nds-map-render-only` | — | lectores NSBTX/NSBMD, rasterizador cenital y resolvedor de recursos de mapa con archivos Nitro sintéticos; sí |
 | `--nds-trainer-vision-only` | — | orientación y visión de entrenadores existentes: contratos del motor, escritura byte a byte, checkpoints v1–v4, proyecto (lector 2) y geometría de la visión; sintética; sí |
 | `--performance-only` | — |  |
@@ -318,6 +320,7 @@ Necesitan extracciones, ROMs o carpetas de salida. Los argumentos concretos (ent
 | `--map3ds-gen7-event-dump` | `<carpeta extraída USUM> <CSV>` | volcado de los registros de NPC (120 B) y entrenador (84 B) de todas las áreas, con sus formas y el archivo de zona del entrenador; solo lectura |
 | `--map3ds-gen6-probe` | `<carpeta nueva> <carpeta extraída de X/Y u OR/AS>` | solo lectura: lee todas las zonas, matrices y bloques GR de una copia, cuenta eventos por tipo y su posición respecto a la matriz, y comprueba que los GARC de origen no cambian |
 | `--nds-event-editing-probe` | `<carpeta nueva> <ROM privada Platino CPUE/1>` | edita un warp, un objeto y un activador de Hojaverde, guarda (v5), reabre, exporta, reabre la ROM exportada y restaura; escribe `MANUAL.txt` |
+| `--nds-gen4-map-editor-probe` | `<carpeta nueva> <ROM privada Diamante ADAE/5>` | copia la fuente; comprueba huellas, warps, terreno, estructuras y gráficos; en Hojaverde gira un NPC, cambia el destino del warp 0, mueve un objeto de fondo y amplía un activador, y gira un entrenador de la Ruta 202; guarda, reabre, exporta, reabre la ROM exportada, restaura y compara SHA-256; escribe `MANUAL.txt` |
 | `--nds-map-render-probe` | `<carpeta nueva> <ROM privada Platino CPUE/1>` | solo lectura: decodifica todas las texturas de mapa y de edificios, lee los 666 modelos de terreno y los 590 de edificios, comprueba los materiales de Hojaverde y guarda un atlas y el render cenital del bloque (privados) |
 | `--nds-trainer-vision-probe` | `<carpeta nueva> <ROM privada Platino CPUE/1>` | copia la fuente; comprueba las huellas y el censo de entrenadores; gira un entrenador «mirar fijo» de la Ruta 202 y amplía su visión, guarda (checkpoint v4), reabre, exporta, reabre la ROM exportada en el editor, restaura y compara SHA-256; escribe `MANUAL.txt` |
 | `--nds-gen5-items-probe` | 2 o más |  |

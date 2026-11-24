@@ -316,8 +316,8 @@ internal sealed class NdsEventSession
     internal static bool HasVisionFields(NdsEventOperation? o) => o?.Move is { } m && (m.Before?.HasVisionFields == true || m.After?.HasVisionFields == true);
     private NdsEventDocument Build(List<NdsEventOperation> ops, List<string> audit) =>
         VersionFor(ops) == 1
-            ? new(Format, 1, "CPUE", 1, SourcePath, _sha256, ops.Select(o => o.Move!).ToList().AsReadOnly(), audit.AsReadOnly())
-            : new(Format, VersionFor(ops), "CPUE", 1, SourcePath, _sha256, Array.Empty<NdsNpcEdit>(), audit.AsReadOnly(), ops.AsReadOnly());
+            ? new(Format, 1, _original.Profile.GameCode, _original.Profile.Revision, SourcePath, _sha256, ops.Select(o => o.Move!).ToList().AsReadOnly(), audit.AsReadOnly())
+            : new(Format, VersionFor(ops), _original.Profile.GameCode, _original.Profile.Revision, SourcePath, _sha256, Array.Empty<NdsNpcEdit>(), audit.AsReadOnly(), ops.AsReadOnly());
     private static IReadOnlyList<NdsEventOperation> Operations(NdsEventDocument document) =>
         document.Version >= 2 ? document.Operations! : document.Edits.Select(NdsEventOperation.OfMove).ToList();
     internal void Load(NdsEventDocument document, string checkpoint)
@@ -337,7 +337,7 @@ internal sealed class NdsEventSession
               && (document.Version == 5 ? document.Operations.Any(IsEventEdit) : !document.Operations.Any(IsEventEdit))
               && (document.Version == 4 ? document.Operations.Any(HasVisionFields) : document.Version == 5 || !document.Operations.Any(HasVisionFields))
               && (document.Version switch { 3 => document.Operations.Any(o => o?.Add?.Script is not null), 2 => document.Operations.All(o => o?.Add?.Script is null), _ => true });
-        if (document.Format != Format || !shape || document.Game != "CPUE" || document.Revision != 1 ||
+        if (document.Format != Format || !shape || document.Game != _original.Profile.GameCode || document.Revision != _original.Profile.Revision ||
             document.SourceSha256 != _sha256 || !Path.GetFullPath(document.SourcePath).Equals(SourcePath, StringComparison.OrdinalIgnoreCase) ||
             document.Audit is null || (document.Edits?.Count ?? 0) > 10000 || (document.Operations?.Count ?? 0) > 10000 || document.Audit.Count > 20000 || document.Audit.Any(s => s is null || s.Length > 2048))
             throw new InvalidDataException("Checkpoint de eventos incompatible, truncado o de otra ROM.");
@@ -433,8 +433,8 @@ internal sealed class NdsEventSession
         lock (_gate)
         {
             using var rom = NdsRom.Open(path);
-            if (!rom.ReadFile(PlatinumEvents.EventPath).SequenceEqual(Data.Bytes())) throw new InvalidDataException("Los eventos no persistieron en la ROM reconstruida.");
-            var written = Narc.Read(rom.ReadFile(PlatinumEvents.ScriptPath)).Files; var mine = Narc.Read(Data.ScriptArchiveBytes()).Files; var original = Narc.Read(_original.ScriptArchiveBytes()).Files;
+            if (!rom.ReadFile(Data.Profile.EventPath).SequenceEqual(Data.Bytes())) throw new InvalidDataException("Los eventos no persistieron en la ROM reconstruida.");
+            var written = Narc.Read(rom.ReadFile(Data.Profile.ScriptPath)).Files; var mine = Narc.Read(Data.ScriptArchiveBytes()).Files; var original = Narc.Read(_original.ScriptArchiveBytes()).Files;
             if (written.Count != mine.Count || Enumerable.Range(0, mine.Count).Any(i => !mine[i].AsSpan().SequenceEqual(original[i]) && !written[i].AsSpan().SequenceEqual(mine[i])))
                 throw new InvalidDataException("Los scripts añadidos no persistieron en la ROM reconstruida.");
         }
