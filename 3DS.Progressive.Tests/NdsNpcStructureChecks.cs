@@ -163,7 +163,7 @@ internal static class NdsNpcStructureChecks
 
             // Removing NPC that the editor added (any position), never originals
             var s8 = new NdsEventSession(rom, f.Read()); string q1 = Path.Combine(temp, "q1.ndsevents.json"), q2 = Path.Combine(temp, "q2.ndsevents.json"), q3 = Path.Combine(temp, "q3.ndsevents.json"), q4 = Path.Combine(temp, "q4.ndsevents.json");
-            s8.Save(s8.PreviewAdd(1, rec), q1); s8.Save(s8.PreviewAdd(1, Record(s8.Data, 1, 41, 121, 878)), q2); byte[] withTwo = s8.Data.Bytes();
+            s8.Save(s8.PreviewAdd(1, rec), q1); s8.Save(s8.PreviewAdd(1, Record(s8.Data.Gen4(), 1, 41, 121, 878)), q2); byte[] withTwo = s8.Data.Bytes();
             check(s8.OriginalNpcCount(1) == 4 && s8.IsAddedNpc(1, 4) && s8.IsAddedNpc(1, 5) && !s8.IsAddedNpc(1, 3) && !s8.IsAddedNpc(1, 6), "NpcStructure_SessionKnowsWhichNpcItAdded");
             Reject<InvalidOperationException>(() => s8.PreviewRemoveAdded(1, 0), check, "NpcStructure_OriginalNpcCannotBeRemoved");
             var removeFirst = s8.PreviewRemoveAdded(1, 4);
@@ -242,7 +242,7 @@ internal static class NdsNpcStructureChecks
             int maxNpc = events.Data.Maps.Select(m => events.Data.NpcCount(m.Id)).Max();
             Require(maxNpc == PlatinumEvents.MaxVanillaNpcCount, "NpcStructureReal_ObservedMaximumMatchesTheConstant");
             var tpl = events.Data.Events(map.Id).First(e => e.Kind == PlatinumEventKind.Npc && e.Type == 0); int before = events.Data.NpcCount(map.Id);
-            int id = NdsNpcStructurePlanner.NextFreeId(events.Data, map.Id);
+            int id = NdsNpcStructurePlanner.NextFreeId(events.Data.Gen4(), map.Id);
             byte[] record = PlatinumEvents.NewNpcRecord(tpl, id, tpl.Graphics, tpl.Movement, tpl.Direction, tpl.X + 1, tpl.Y);
             Require(events.Data.ValidateNewNpc(map.Id, record).Count == 0, "NpcStructureReal_NewRecordPassesTheStructuralRules");
             var proposal = events.PreviewAdd(map.Id, record);

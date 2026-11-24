@@ -18,7 +18,7 @@ public sealed record PlatinumAreaInfo(int Area, int PropArchive, int MapTextureA
 /// CRC32 (as land_data already was); nothing is written and nothing is cached across instances. The decoded geometry and images are never stored by the
 /// application: they are rebuilt from the user's own ROM.
 /// </summary>
-public sealed class PlatinumMapAssets
+public sealed class PlatinumMapAssets : INdsMapGraphics
 {
     public const string AreaDataPath = "fielddata/areadata/area_data.narc", AreaBuildPath = "fielddata/areadata/area_build_model/area_build.narc",
         AreaBuildTexturesPath = "fielddata/areadata/area_build_model/areabm_texset.narc", MapTexturesPath = "fielddata/areadata/area_map_tex/map_tex_set.narc",

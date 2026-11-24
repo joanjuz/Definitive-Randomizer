@@ -15,7 +15,7 @@ internal sealed class NdsMapRenderCache
 {
     /// <summary>Largest image: 16 pixels per tile (one map unit per pixel), 512×512 per 32×32 block. Smallest: 1 pixel per tile.</summary>
     internal const int PixelsPerTile = 16, BlockPixels = 32 * PixelsPerTile, MinimumPixels = 32, BudgetBytes = 96 * 1024 * 1024, MaximumQueue = 1024;
-    private readonly PlatinumMapAssets _assets; private readonly PlatinumLandProps? _props;
+    private readonly INdsMapGraphics _assets; private readonly PlatinumLandProps? _props;
     private readonly object _gate = new();
     private readonly Dictionary<(int Land, int Header, int Size), BitmapSource?> _done = new();
     private readonly LinkedList<(int, int, int)> _order = new();
@@ -26,7 +26,7 @@ internal sealed class NdsMapRenderCache
     /// <summary>Raised (on the worker thread) when a requested block finished rendering.</summary>
     internal event Action? Rendered;
 
-    internal NdsMapRenderCache(PlatinumMapAssets assets, PlatinumLandProps? props) { _assets = assets; _props = props; }
+    internal NdsMapRenderCache(INdsMapGraphics assets, PlatinumLandProps? props) { _assets = assets; _props = props; }
 
     /// <summary>The image size used for a block drawn <paramref name="screenPixels"/> wide: the next power of two, between 32 and 512.</summary>
     internal static int SizeFor(double screenPixels)

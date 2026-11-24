@@ -19,10 +19,12 @@ public sealed record Gen4EventProfile(
     uint AreaDataCrc32, uint AreaBuildCrc32, uint AreaBuildTexturesCrc32, uint MapTexturesCrc32, uint BuildModelCrc32,
     int LocationNamesText, int ItemBallScriptArchive, int HiddenItemScriptArchive, int MaxObjectFacing,
     string NormalizedEventsSha256, string EditableEventsSha256, string EventsEditableSha256,
-    bool SupportsNpcCreation)
+    bool SupportsNpcCreation) : INdsEventProfile
 {
     public const string NamesPath = "fielddata/maptable/mapname.bin", MatrixPath = "fielddata/mapmatrix/map_matrix.narc";
     public string Key => $"{GameCode}/{Revision}";
+    /// <summary>BG_EVENT_DIR of the Gen 4 decompilations: the names of <see cref="PlatinumEventFields.FacingName"/> apply.</summary>
+    public bool EditsObjectFacing => true;
 
     // ---- Values that differ in HeartGold. Platinum and Diamond keep the defaults, which are the values the editor always used for them.
     /// <summary>Where each field sits in a 24-byte map header (Sinnoh: Diamond and Platinum; Johto: HeartGold).</summary>

@@ -222,7 +222,7 @@ internal sealed class NdsWorkspaceView:UserControl
             else if(route=="History")content=HistoryPage();
             else if(route=="Events")
             {
-                if(!Project!.SupportsEventProfile)content=Notice("Eventos",$"Editor de mapas y eventos: solo {Gen4EventProfile.SupportedLabels}, con tablas acreditadas. Otros títulos y revisiones no están implementados.");
+                if(!Project!.SupportsEventProfile)content=Notice("Eventos",$"Editor de mapas y eventos: solo {NdsEventProfiles.SupportedLabels}, con tablas acreditadas. Otros títulos y revisiones no están implementados.");
                 else
                 {
                     SetBusy(true,$"Leyendo mapas y eventos de {Project.EventProfile!.GameName}…");

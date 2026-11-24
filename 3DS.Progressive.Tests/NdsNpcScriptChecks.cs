@@ -110,7 +110,7 @@ internal static class NdsNpcScriptChecks
         {
             string source = Path.Combine(temp, "source.nds"); File.WriteAllBytes(source, f.Rom()); string sourceHash = Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(source)));
             using var rom = NdsRom.Open(source); var session = new NdsEventSession(rom, f.Read());
-            var (script, binding) = NdsNpcStructurePlanner.BindingFor(session.Data, Clip(1, 0), 2, NdsBehaviourMode.WithBehaviour, 31);
+            var (script, binding) = NdsNpcStructurePlanner.BindingFor(session.Data.Gen4(), Clip(1, 0), 2, NdsBehaviourMode.WithBehaviour, 31);
             var record = PlatinumEvents.NewNpcRecord(data.Npc(1, 0), 31, 33, 0, 0, 10, 10); Put(record, 10, script);
             check(script == 2 && binding is { Mode: NdsScriptBinding.Append, ScriptFile: 1, Number: 2 } && binding.CodeHex == Convert.ToHexString(PlatinumScriptFile.NurseScript(31)), "NpcScript_BindingRetargetsTheNurseToTheNewLocalId");
             var proposal = session.PreviewAdd(2, record, binding);
@@ -137,7 +137,7 @@ internal static class NdsNpcScriptChecks
             check(session.Data.Bytes().SequenceEqual(eventsBefore) && session.Data.ScriptArchiveBytes().SequenceEqual(scriptsBefore) && session.ScriptReplacement() is null && NdsEventSession.ReadDocument(Path.Combine(temp, "undo.ndsevents.json")).Version == 1, "NpcScript_UndoRestoresEventsAndScriptsExactly");
 
             // share a message script in the same file: nothing is written to the scripts
-            var (shared, shareBinding) = NdsNpcStructurePlanner.BindingFor(session.Data, Clip(1, 1), 1, NdsBehaviourMode.ShareScript, 24);
+            var (shared, shareBinding) = NdsNpcStructurePlanner.BindingFor(session.Data.Gen4(), Clip(1, 1), 1, NdsBehaviourMode.ShareScript, 24);
             var shareRecord = PlatinumEvents.NewNpcRecord(data.Npc(1, 1), 24, 33, 0, 0, 111, 876); Put(shareRecord, 10, shared);
             session.Save(session.PreviewAdd(1, shareRecord, shareBinding), Path.Combine(temp, "share.ndsevents.json"));
             check(shared == 2 && session.Data.Npc(1, 4) is { Id: 24, Script: 2 } && session.ScriptReplacement() is null && NdsEventSession.ReadDocument(Path.Combine(temp, "share.ndsevents.json")).Version == 3, "NpcScript_SharingAMessageScriptWritesNoScript");
@@ -236,7 +236,7 @@ internal static class NdsNpcScriptChecks
         object report;
         using (var project = NdsProject.Open(copy, false))
         {
-            var events = project.Events; var data = events.Data; byte[] eventsBefore = data.Bytes(), scriptsBefore = data.ScriptArchiveBytes();
+            var events = project.Events; var data = events.Data.Gen4(); byte[] eventsBefore = data.Bytes(), scriptsBefore = data.ScriptArchiveBytes();
             int nurses = 0; foreach (var m in data.Maps.GroupBy(m => m.EventFile).Select(g => g.First())) foreach (var e in data.Events(m.Id).Where(e => e.Kind == PlatinumEventKind.Npc && e.Script is >= 1 and < 2000)) if (data.ClassifyScript(m.Id, e.Script) is { Pattern: PlatinumScriptPattern.PokecenterNurse } i && i.LocalIdReference == e.Id) nurses++;
             Require(nurses == 18, "NpcScriptReal_EighteenNursesUseTheSameRecognisedScript");
             var pc = data.Maps.First(m => m.InternalName == "C01PC0101"); var nurse = data.Events(pc.Id).First(e => e.Kind == PlatinumEventKind.Npc && data.ClassifyScript(pc.Id, e.Script) is { Pattern: PlatinumScriptPattern.PokecenterNurse });
@@ -273,7 +273,7 @@ internal static class NdsNpcScriptChecks
         object nurseReport;
         using (var project = NdsProject.Open(copy, false))
         {
-            var events = project.Events; var data = events.Data; byte[] eventsBefore = data.Bytes(), scriptsBefore = data.ScriptArchiveBytes();
+            var events = project.Events; var data = events.Data.Gen4(); byte[] eventsBefore = data.Bytes(), scriptsBefore = data.ScriptArchiveBytes();
             var template = NdsNpcStructurePlanner.NurseTemplate(data, out int count);
             Require(template is not null && count == 18 && data.Map(template.SourceMap).InternalName.Contains("PC"), "NurseReal_TemplateIsOneOfTheEighteenRomNurses");
             var route = data.Maps.First(m => m.InternalName == "R201");

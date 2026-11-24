@@ -32,7 +32,7 @@ internal static class NdsTrainerVision
         PlatinumTrainerVision.SeesAllDirections(npc.Type) ? [0, 1, 2, 3] : direction is >= 0 and <= 3 ? [direction] : [];
 
     /// <summary>Only existing NPC that the move tool also accepts can be turned (not ground items, objects, warps or triggers).</summary>
-    internal static bool CanTurn(PlatinumEvent e) => e.Kind == PlatinumEventKind.Npc && !e.IsGroundItem;
+    internal static bool CanTurn(PlatinumEvent e) => e.Kind == PlatinumEventKind.Npc && !e.IsGroundItem && e.EditLock is null;
 
     /// <summary>
     /// Tiles a trainer at (<paramref name="x"/>, <paramref name="y"/>) could see with this direction and range. Tiles outside the matrix are not listed.
@@ -63,9 +63,23 @@ internal static class NdsTrainerVision
     }
 
     /// <summary>Plain-language notes for the inspector: what kind of trainer this is, whether the facing lasts in the game, and what the overlay is.</summary>
-    internal static IReadOnlyList<string> Notes(PlatinumEvent npc)
+    internal static IReadOnlyList<string> Notes(PlatinumEvent npc) => Notes(npc, gen5: false);
+    /// <summary>
+    /// The notes of a selected NPC. In Gen 5 only what the data accredit is said: the type and script as numbers, the fixed-look rule (an inference
+    /// checked against the original data, pending the in-game test); trainer detection and the script-to-trainer mapping are Gen 4 facts and are not claimed.
+    /// </summary>
+    internal static IReadOnlyList<string> Notes(PlatinumEvent npc, bool gen5)
     {
         var notes = new List<string>();
+        if (gen5)
+        {
+            notes.Add(npc.Type == 0 ? "NPC (tipo 0): solo se cambia hacia dónde mira." : $"Tipo {npc.Type}, script {npc.Script}: en Gen5 no se interpretan la visión ni el combate; solo se cambia hacia dónde mira.");
+            if (PlatinumTrainerVision.IsFixedLook(npc.Movement)) notes.Add($"Mira fijo (movimiento {npc.Movement}): al girarlo también cambia su movimiento a la dirección nueva (14–17). Regla deducida de los datos del juego, pendiente de prueba jugable.");
+            else if (npc.Movement == 0) notes.Add("Sin movimiento propio: conserva la dirección guardada.");
+            else notes.Add($"Su movimiento ({npc.Movement}) puede hacerle girar o caminar: la dirección guardada puede ser solo la inicial.");
+            notes.Add("Un script puede girarlo durante el juego.");
+            return notes;
+        }
         if (!PlatinumTrainerVision.ChecksSight(npc.Type)) notes.Add(npc.Type == 0 ? "No es un entrenador que detecte al jugador: solo se cambia hacia dónde mira." : $"Tipo {npc.Type}: el juego no comprueba su visión; solo se cambia hacia dónde mira.");
         else if (PlatinumTrainerVision.SeesAllDirections(npc.Type)) notes.Add("Entrenador que ve en las cuatro direcciones (tipo 2): la dirección no cambia lo que detecta; el alcance se aplica en las cuatro.");
         else if (PlatinumTrainerVision.TurnsByItself(npc.Type)) notes.Add($"Entrenador que gira solo (tipo {npc.Type}): detecta en la dirección a la que mira en cada momento; la guardada es la inicial.");

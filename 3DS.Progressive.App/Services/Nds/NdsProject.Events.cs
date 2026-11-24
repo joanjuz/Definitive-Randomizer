@@ -7,15 +7,18 @@ namespace ThreeDS.Progressive.Services.Nds;
 internal sealed partial class NdsProject
 {
     private NdsEventSession? _events;
-    /// <summary>The measured map and event profile of this ROM (Platinum CPUE/1, Diamond ADAE/5), or null: no other game or revision has one.</summary>
-    internal Gen4EventProfile? EventProfile => Gen4EventProfile.For(Identity.Profile.GameCode, Identity.Profile.Version);
+    /// <summary>The measured map and event profile of this ROM (Gen 4: Platinum, Diamond, HeartGold; Gen 5: Black), or null: no other game or revision has one.</summary>
+    internal INdsEventProfile? EventProfile => NdsEventProfiles.For(Identity.Profile.GameCode, Identity.Profile.Version);
     internal bool SupportsEventProfile => EventProfile is not null;
-    /// <summary>Paths of the event and script archives in this game (Platinum names them otherwise than Diamond).</summary>
+    /// <summary>Paths of the event and script archives in this game (each game names them its own way).</summary>
     private string EventArchivePath => (EventProfile ?? Gen4EventProfile.Platinum).EventPath;
     private string EventScriptPath => (EventProfile ?? Gen4EventProfile.Platinum).ScriptPath;
-    internal NdsEventSession Events => _events ??= EventProfile is { } profile
-        ? new NdsEventSession(_rom, PlatinumEvents.Open(_rom, _gen4!.Text(profile.LocationNamesText)))
-        : throw new InvalidDataException($"Eventos: solo {Gen4EventProfile.SupportedLabels}, con tablas acreditadas.");
+    internal NdsEventSession Events => _events ??= EventProfile switch
+    {
+        Gen4EventProfile p when _gen4 is not null => new NdsEventSession(_rom, PlatinumEvents.Open(_rom, _gen4.Text(p.LocationNamesText))),
+        Gen5MapProfile p when _gen5 is not null => new NdsEventSession(_rom, Gen5ZoneEvents.Open(_rom, _gen5.Text(p.LocationNamesText))),
+        _ => throw new InvalidDataException($"Eventos: solo {NdsEventProfiles.SupportedLabels}, con tablas acreditadas."),
+    };
     /// <summary>Uses an event session built elsewhere instead of opening the one of the ROM. Only the checks need it: a synthetic ROM has no accredited event tables.</summary>
     internal void AdoptEventSession(NdsEventSession session) => _events = _events is null ? session : throw new InvalidOperationException("La sesión de eventos ya está abierta.");
     private PlatinumTerrain? _terrain; private string? _terrainNote; private bool _terrainRead;
@@ -24,7 +27,7 @@ internal sealed partial class NdsProject
     {
         if (!_terrainRead)
         {
-            try { _terrain = PlatinumTerrain.Open(_rom); }
+            try { _terrain = EventProfile is Gen5MapProfile ? Gen5MapGraphics.Open(_rom).Terrain() : PlatinumTerrain.Open(_rom); }
             catch (Exception ex) when (ex is InvalidDataException or FileNotFoundException or IOException) { _terrainNote = ex.Message; }
             _terrainRead = true;
         }
@@ -36,19 +39,19 @@ internal sealed partial class NdsProject
     {
         if (!_propsRead)
         {
-            try { _props = PlatinumLandProps.Open(_rom); }
+            try { _props = EventProfile is Gen5MapProfile ? throw new InvalidDataException("Estructuras Gen5: los edificios de cada bloque se cuentan, pero sus modelos no están acreditados; no se muestran.") : PlatinumLandProps.Open(_rom); }
             catch (Exception ex) when (ex is InvalidDataException or FileNotFoundException or IOException) { _propsNote = ex.Message; }
             _propsRead = true;
         }
         return (_props, _propsNote);
     }
-    private PlatinumMapAssets? _assets; private string? _assetsNote; private bool _assetsRead;
+    private INdsMapGraphics? _assets; private string? _assetsNote; private bool _assetsRead;
     /// <summary>Read-only map graphics (terrain and prop models, textures). Missing or unaccredited data never blocks the event editor.</summary>
-    internal (PlatinumMapAssets? Assets, string? Note) LoadMapAssets()
+    internal (INdsMapGraphics? Assets, string? Note) LoadMapAssets()
     {
         if (!_assetsRead)
         {
-            try { _assets = PlatinumMapAssets.Open(_rom); }
+            try { _assets = EventProfile is Gen5MapProfile ? Gen5MapGraphics.Open(_rom) : PlatinumMapAssets.Open(_rom); }
             catch (Exception ex) when (ex is InvalidDataException or FileNotFoundException or IOException or ArgumentException) { _assetsNote = ex.Message; }
             _assetsRead = true;
         }
@@ -64,9 +67,9 @@ internal sealed partial class NdsProject
         try
         {
             document = NdsEventSession.ReadDocument(path);
-            if (document.Format != NdsEventSession.Format || document.Version is not (1 or 2 or 3 or 4 or 5) || Gen4EventProfile.For(document.Game, document.Revision) is null ||
+            if (document.Format != NdsEventSession.Format || document.Version is not (1 or 2 or 3 or 4 or 5) || NdsEventProfiles.For(document.Game, document.Revision) is null ||
                 string.IsNullOrWhiteSpace(document.SourcePath) || !document.SourcePath.EndsWith(".nds", StringComparison.OrdinalIgnoreCase))
-                throw new InvalidDataException($"Checkpoint de eventos no compatible: solo {Gen4EventProfile.SupportedLabels}.");
+                throw new InvalidDataException($"Checkpoint de eventos no compatible: solo {NdsEventProfiles.SupportedLabels}.");
         }
         catch (JsonException ex) { throw new InvalidDataException("El checkpoint de eventos está truncado o no es JSON válido.", ex); }
         var project = Open(document.SourcePath, allowRomhack);

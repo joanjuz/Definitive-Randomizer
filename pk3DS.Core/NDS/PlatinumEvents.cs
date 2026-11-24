@@ -24,6 +24,11 @@ public sealed record PlatinumEvent(PlatinumEventKind Kind, int Index, int Id, in
     public bool IsGroundItem => Kind == PlatinumEventKind.Npc && (Type == 3 || ScriptedGroundItem);
     /// <summary>Set by the reader of a game whose item balls are NPC of type 0 with an item-ball script (<see cref="Gen4EventProfile.ItemBallsAreScriptedNpc"/>).</summary>
     public bool ScriptedGroundItem { get; init; }
+    /// <summary>
+    /// Set by a reader when it presents a record it will not write (in Gen 5: rail positions and special warps); the editor shows it, explains the reason
+    /// and offers no edit. Never set by the Gen 4 readers.
+    /// </summary>
+    public string? EditLock { get; init; }
     public string Description => Kind switch
     {
         PlatinumEventKind.Npc when Type == 3 => "NPC · objeto de suelo (referencia de script)",
@@ -106,8 +111,10 @@ public sealed record PlatinumScriptLink(int Reference, int Archive, int? Entry, 
 /// CPUE/1 only. Binary facts researched against DSPRE, independently implemented and checked against the owner's dump.
 /// No DSPRE code/assets included. NdsRom/Narc own container parsing; fixed-size event edits patch the original NARC bytes.
 /// </summary>
-public sealed class PlatinumEvents
+public sealed class PlatinumEvents : INdsEventData
 {
+    INdsEventProfile INdsEventData.Profile => Profile;
+    INdsEventData INdsEventData.WithEvents(byte[] events) => WithEvents(events);
     public const string EventPath = "fielddata/eventdata/zone_event.narc";
     public const string NamesPath = "fielddata/maptable/mapname.bin";
     public const string MatrixPath = "fielddata/mapmatrix/map_matrix.narc";

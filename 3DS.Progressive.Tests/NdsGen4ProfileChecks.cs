@@ -72,7 +72,7 @@ internal static class NdsGen4ProfileChecks
             var doc = NdsEventSession.ReadDocument(first);
             check(doc.Game == "ADAE" && doc.Revision == 5 && doc.Version == 1, "Gen4Profile_DiamondCheckpointNamesItsGame");
             var reopened = new NdsEventSession(rom, ReadDiamond(f)); reopened.Load(doc, first);
-            check(reopened.Data.Npc(0, 0).X == npc.X + 1 && reopened.Data.Profile == Diamond, "Gen4Profile_DiamondCheckpointReopens");
+            check(reopened.Data.Npc(0, 0).X == npc.X + 1 && Equals(reopened.Data.Profile, Diamond), "Gen4Profile_DiamondCheckpointReopens");
             check(Throws<InvalidDataException>(() => new NdsEventSession(rom, ReadDiamond(f)).Load(doc with { Game = "CPUE", Revision = 1 }, first)), "Gen4Profile_APlatinumCheckpointIsRefusedOnDiamond");
             string eventEdit = Path.Combine(temp, "2.ndsevents.json"); var trig = session.Data.Event(0, PlatinumEventKind.Trigger, 0);
             session.Save(session.PreviewEvent(0, PlatinumEventKind.Trigger, 0, PlatinumEvents.EventValues(trig) with { Width = trig.RangeX + 1 }), eventEdit);
@@ -141,7 +141,7 @@ internal static class NdsGen4ProfileChecks
         using (var project = NdsProject.Open(copy, false))
         {
             var events = project.Events; var data = events.Data;
-            if (data.Profile != Diamond) throw new Exception("The copy did not open with the Diamond profile");
+            if (!Equals(data.Profile, Diamond)) throw new Exception("The copy did not open with the Diamond profile");
             if (data.NormalizedHash() != Diamond.NormalizedEventsSha256 || data.EditableHash() != Diamond.EditableEventsSha256 || data.EventsHash() != Diamond.EventsEditableSha256) throw new Exception("Fingerprints of the original differ from the profile");
             var all = data.Maps.Select(m => m.EventFile).Distinct().SelectMany(file => data.Events(data.Maps.First(m => m.EventFile == file).Id)).ToList();
             int warps = all.Count(e => e.Kind == PlatinumEventKind.Warp), dynamic = all.Count(e => e.Kind == PlatinumEventKind.Warp && e.Anchor == PlatinumEventFields.DynamicAnchor);

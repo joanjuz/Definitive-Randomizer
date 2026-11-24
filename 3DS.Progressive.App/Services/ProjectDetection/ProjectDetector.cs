@@ -200,9 +200,9 @@ internal static class ProjectDetector
         var evidence = new List<string> { $"Formato {document.Format} · versión {document.Version} · juego {document.Game}/{document.Revision} · {(document.Operations?.Count ?? document.Edits?.Count ?? 0)} operaciones" };
         if (document.Version is < 1 or > 3)
             return Result(DetectionStatus.Unsupported, path, $"Checkpoint de eventos de versión {document.Version}: esta aplicación lee las versiones 1, 2 y 3. Puede ser de una versión más reciente.", DetectedPlatform.NintendoDS, DetectedKind.DsEventCheckpoint, evidence: evidence);
-        var eventProfile = Gen4EventProfile.For(document.Game ?? "", document.Revision);
+        var eventProfile = NdsEventProfiles.For(document.Game ?? "", document.Revision);
         if (eventProfile is null)
-            return Result(DetectionStatus.Unsupported, path, $"Checkpoint de eventos para {document.Game} revisión {document.Revision}: el editor de eventos existe para {Gen4EventProfile.SupportedLabels}.", DetectedPlatform.NintendoDS, DetectedKind.DsEventCheckpoint, evidence: evidence);
+            return Result(DetectionStatus.Unsupported, path, $"Checkpoint de eventos para {document.Game} revisión {document.Revision}: el editor de eventos existe para {NdsEventProfiles.SupportedLabels}.", DetectedPlatform.NintendoDS, DetectedKind.DsEventCheckpoint, evidence: evidence);
         if (string.IsNullOrWhiteSpace(document.SourcePath) || !document.SourcePath.EndsWith(".nds", StringComparison.OrdinalIgnoreCase))
             return Result(DetectionStatus.Incomplete, path, "El checkpoint no indica una ROM de origen .nds válida.", DetectedPlatform.NintendoDS, DetectedKind.DsEventCheckpoint, evidence: evidence);
         if (!nameIsCheckpoint)

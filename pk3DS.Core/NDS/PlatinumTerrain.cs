@@ -3,6 +3,7 @@ using System;
 using System.Buffers.Binary;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 
 namespace pk3DS.Core.NDS;
 
@@ -30,7 +31,9 @@ public sealed class PlatinumTerrain
     public const uint LandDataCrc32 = 0xE1E68D47;
     public const int FileCount = 666, HeaderSize = 0x10, AttributesSize = 0x800, TilesPerSide = 32, TileCount = 1024;
     public const ushort CollisionMask = 0x8000, BehaviorMask = 0xFF, EmptyLandId = 0xFFFF;
-    private readonly ushort[][] _attributes;
+    private readonly ushort[]?[] _attributes;
+    /// <summary>Null for land_data read from a Gen 4 ROM; for terrain built from another format, where its collision comes from (shown in samples).</summary>
+    private readonly string? _source;
     private readonly int[] _propBytes, _modelBytes, _bdhcBytes;
 
     public int Count => _attributes.Length;
@@ -88,9 +91,20 @@ public sealed class PlatinumTerrain
         return start;
     }
 
-    private PlatinumTerrain(ushort[][] attributes, int[] props, int[] models, int[] bdhc) { _attributes = attributes; _propBytes = props; _modelBytes = models; _bdhcBytes = bdhc; }
+    private PlatinumTerrain(ushort[]?[] attributes, int[] props, int[] models, int[] bdhc, string? source = null) { _attributes = attributes; _propBytes = props; _modelBytes = models; _bdhcBytes = bdhc; _source = source; }
 
-    public bool Contains(int landId) => (uint)landId < (uint)_attributes.Length;
+    /// <summary>
+    /// Terrain of another map format in this presentation form (read-only): one 32×32 array per block with bit 15 = collision and the low byte = behaviour,
+    /// or null for a block whose terrain is not known (its tiles are Unknown, never free). <paramref name="source"/> says where the collision comes from.
+    /// </summary>
+    public static PlatinumTerrain FromAttributes(IReadOnlyList<ushort[]?> blocks, string source)
+    {
+        if (blocks.Any(b => b is not null && b.Length != TileCount)) throw new ArgumentException("Cada bloque tiene 32×32 atributos.", nameof(blocks));
+        var copy = blocks.Select(b => b is null ? null : (ushort[])b.Clone()).ToArray(); var zero = new int[copy.Length];
+        return new(copy, zero, zero, zero, source ?? throw new ArgumentNullException(nameof(source)));
+    }
+
+    public bool Contains(int landId) => (uint)landId < (uint)_attributes.Length && _attributes[landId] is not null;
     public int PropBytes(int landId) => _propBytes[landId];
     public int ModelBytes(int landId) => _modelBytes[landId];
     public int BdhcBytes(int landId) => _bdhcBytes[landId];
@@ -100,7 +114,7 @@ public sealed class PlatinumTerrain
         if (!Contains(landId)) throw new ArgumentOutOfRangeException(nameof(landId));
         if ((uint)localX >= TilesPerSide) throw new ArgumentOutOfRangeException(nameof(localX));
         if ((uint)localZ >= TilesPerSide) throw new ArgumentOutOfRangeException(nameof(localZ));
-        return _attributes[landId][localZ * TilesPerSide + localX];
+        return _attributes[landId]![localZ * TilesPerSide + localX];
     }
 
     /// <summary>Allocation-free status of a tile (same rules as <see cref="Sample"/>); for bulk work such as overlays.</summary>
@@ -109,7 +123,7 @@ public sealed class PlatinumTerrain
         if (x < 0 || y < 0 || x >= layout.TileWidth || y >= layout.TileHeight) return PlatinumTerrainStatus.Unknown;
         int id = layout.Cell(x / TilesPerSide, y / TilesPerSide).LandDataId;
         if (id == EmptyLandId || !Contains(id)) return PlatinumTerrainStatus.Unknown;
-        return (_attributes[id][y % TilesPerSide * TilesPerSide + x % TilesPerSide] & CollisionMask) != 0 ? PlatinumTerrainStatus.Blocked : PlatinumTerrainStatus.ClearOfCollision;
+        return (_attributes[id]![y % TilesPerSide * TilesPerSide + x % TilesPerSide] & CollisionMask) != 0 ? PlatinumTerrainStatus.Blocked : PlatinumTerrainStatus.ClearOfCollision;
     }
 
     /// <summary>Terrain fact for an event-space tile of a matrix. Unknown never means free.</summary>
@@ -118,8 +132,11 @@ public sealed class PlatinumTerrain
         if (x < 0 || y < 0 || x >= layout.TileWidth || y >= layout.TileHeight) return new(PlatinumTerrainStatus.Unknown, null, null, "fuera de la matriz");
         var at = layout.Locate(x, y); int id = at.Cell.LandDataId;
         if (id == EmptyLandId) return new(PlatinumTerrainStatus.Unknown, null, null, "celda de la matriz sin land_data (ID 0xFFFF)");
-        if (!Contains(id)) return new(PlatinumTerrainStatus.Unknown, id, null, $"ID de land_data {id} fuera de la tabla ({Count})");
+        if (!Contains(id)) return new(PlatinumTerrainStatus.Unknown, id, null, (uint)id < (uint)Count ? $"bloque {id} sin permisos interpretados" : $"ID de land_data {id} fuera de la tabla ({Count})");
         ushort attribute = Attribute(id, at.LocalX, at.LocalY);
+        if (_source is not null)
+            return new((attribute & CollisionMask) != 0 ? PlatinumTerrainStatus.Blocked : PlatinumTerrainStatus.ClearOfCollision, id, attribute,
+                $"bloque {id}, colisión {(attribute & CollisionMask) >> 15} según {_source}; el resto del permiso no se interpreta");
         return new((attribute & CollisionMask) != 0 ? PlatinumTerrainStatus.Blocked : PlatinumTerrainStatus.ClearOfCollision, id, attribute,
             $"land_data {id}, atributo 0x{attribute:X4} (bit de colisión {(attribute & CollisionMask) >> 15}, comportamiento 0x{attribute & BehaviorMask:X2} sin interpretar)");
     }

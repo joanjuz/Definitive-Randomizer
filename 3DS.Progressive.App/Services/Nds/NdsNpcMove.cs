@@ -34,7 +34,7 @@ internal sealed record NdsNpcMovePlan(PlatinumEvent Npc, int FromX, int FromY, i
 internal static class NdsNpcMovePlanner
 {
     /// <summary>Existing NPC records (not ground-object NPCs), background objects, warps and triggers can be dragged.</summary>
-    internal static bool IsDraggable(PlatinumEvent e) => e.Kind == PlatinumEventKind.Npc ? !e.IsGroundItem : true;
+    internal static bool IsDraggable(PlatinumEvent e) => e.EditLock is null && (e.Kind == PlatinumEventKind.Npc ? !e.IsGroundItem : true);
 
     internal static NdsNpcMovePlan Plan(NdsMapCanvasModel model, PlatinumEvent npc, int x, int y)
     {
