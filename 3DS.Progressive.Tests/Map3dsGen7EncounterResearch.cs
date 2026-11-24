@@ -403,6 +403,23 @@ internal static class Map3dsGen7EncounterResearch
         Console.WriteLine($"Eventos bajo la hierba: {(ev.Length == 0 ? "ninguno" : string.Join(", ", ev.Select(e => e.Label)))}");
     }
 
+    /// <summary>Read-only: centres (every <paramref name="step"/> cells) where a template can be placed in the area, grouped by block.</summary>
+    internal static void GrassScan(string root, int area, int template, int step)
+    {
+        var be = Gen7MapBackend.FromConfig(GameProjectSession.Open(Path.GetFullPath(root), false).GameConfiguration);
+        var w = be.World(area); var reasons = new Dictionary<string, int>(); var ok = new Dictionary<int, List<(int, int, int)>>();
+        for (int y = 0; y < w.Height * 40; y += step)
+            for (int x = 0; x < w.Width * 40; x += step)
+            {
+                var (plan, reason) = be.PlanGrass(area, (x, y), template);
+                if (plan is null) { string k = reason.Split(':')[0].Split('(')[0]; reasons[k] = reasons.GetValueOrDefault(k) + 1; continue; }
+                if (!ok.TryGetValue(plan.TargetBlock, out var l)) ok[plan.TargetBlock] = l = [];
+                l.Add((x, y, plan.Covered.Count));
+            }
+        foreach (var kv in ok) Console.WriteLine($"bloque {kv.Key}: {kv.Value.Count} centros, p. ej. {string.Join(" ", kv.Value.Take(6).Select(c => $"{c.Item1},{c.Item2}"))}");
+        foreach (var kv in reasons.OrderByDescending(k => k.Value).Take(8)) Console.WriteLine($"  rechazo «{kv.Key}»: {kv.Value}");
+    }
+
     /// <summary>Day and night summary of one encounter table of an area, with the game's species names (read-only).</summary>
     internal static void Species(string root, int area, int table)
     {

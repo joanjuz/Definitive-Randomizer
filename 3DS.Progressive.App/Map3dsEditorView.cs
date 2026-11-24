@@ -21,7 +21,7 @@ namespace ThreeDS.Progressive;
 /// <see cref="IMapEditorBackend"/>; each family provides its own adapter.
 /// While an adapter is read-only, no control writes anything.
 /// </summary>
-internal sealed class Map3dsEditorView : UserControl
+internal sealed partial class Map3dsEditorView : UserControl
 {
     internal const string ReadOnlyNotice = "Solo lectura: este juego todavía no tiene campos de eventos con escritura verificada.";
     internal const string GameplayNotice = "Escritura verificada en el archivo, pero aún no probada en el juego. Guarda en una copia de trabajo y compruébalo en el emulador.";
@@ -183,6 +183,7 @@ internal sealed class Map3dsEditorView : UserControl
             _catchButton.Margin = new Thickness(12, 0, 6, 0);
             bar.Children.Add(_catchButton);
         }
+        AddGrassButton(bar, backend);
         if (_mover is { CanAddNurse: true } && backend is IMapNurseCreation)
         {
             _nurseButton = Small("Añadir enfermera", () => ShowNursePanel(), "Añadir una enfermera de Centro Pokémon que cura al equipo");
@@ -221,6 +222,7 @@ internal sealed class Map3dsEditorView : UserControl
         _canvas.CellPicked += (x, y) =>
         {
             if (_catchCells is not null) { ToggleCatchCell(x, y); return; }
+            if (_grassActive) { GrassCellPicked(x, y); return; }
             if (_nurseX is null || _nurseY is null) return;
             _nurseX.Text = x.ToString(System.Globalization.CultureInfo.InvariantCulture);
             _nurseY.Text = y.ToString(System.Globalization.CultureInfo.InvariantCulture);
@@ -308,6 +310,7 @@ internal sealed class Map3dsEditorView : UserControl
     {
         _details.Children.Clear();
         _canvas.PickingCell = false; _canvas.SetPendingNurse(null);
+        ResetGrass();
         _nurseX = _nurseY = null; _nurseDirection = null; _nurseSave = null; _nurseResult = null; _pendingNurse = null;
         _catchCells = null; _catchX1 = _catchY1 = _catchX2 = _catchY2 = null; _catchSource = null; _catchSave = null; _catchResult = _catchCount = null; _catchChecked = false;
         ShowEncounterLayer();
@@ -657,6 +660,13 @@ internal sealed class Map3dsEditorView : UserControl
                 : "Esta zona no tiene casillas donde crear una zona de captura (suelo del tipo que se puede escribir y que pertenezca a la zona). Si hay varias entradas con el mismo nombre en la lista, prueba con otra.",
             TextWrapping = TextWrapping.Wrap, Foreground = Res(_catchPaintable.Count > 0 ? "TextMain" : "TextSoft"), FontWeight = _catchPaintable.Count > 0 ? FontWeights.Normal : FontWeights.SemiBold, Margin = new Thickness(0, 4, 0, 0),
         });
+        if (_backend is pk3DS.Core.Maps.Gen7.Gen7MapBackend gen7)
+        {
+            string grassNote;
+            try { grassNote = GrassEncounterSummary(gen7, zone) + " La zona de captura solo cambia dónde salen Pokémon; la hierba que se ve se añade con «Añadir hierba visible»."; }
+            catch (Exception ex) when (ex is MapFormatException or InvalidOperationException) { grassNote = ""; }
+            if (grassNote.Length > 0) _details.Children.Add(new TextBlock { Text = grassNote, TextWrapping = TextWrapping.Wrap, Foreground = Res("TextSoft"), FontSize = 11.5, Margin = new Thickness(0, 4, 0, 0) });
+        }
         var rect = new WrapPanel { Margin = new Thickness(0, 8, 0, 0) };
         TextBox Number(string name)
         {
