@@ -397,6 +397,7 @@ if(args.Length==1&&args[0]=="--map3ds-catch-zones-ui-only")
 }
 if(args.Length is 8 or 9&&args[0]=="--map3ds-catch-zone-probe"&&(args.Length==8||args[8]=="--sin-dejar")){Map3dsCatchZoneChecks.Probe(args[1],int.Parse(args[2]),int.Parse(args[3]),int.Parse(args[4]),int.Parse(args[5]),int.Parse(args[6]),int.Parse(args[7]),args.Length==8);return;}
 if(args.Length==3&&args[0]=="--map3ds-catch-zone-rebuild"){Map3dsCatchZoneChecks.Rebuild(args[1],args[2]);return;}
+if(args.Length==3&&args[0]=="--map3ds-gen7-encounter-research"){Map3dsGen7EncounterResearch.Run(args[1],args[2]);return;}
 if(args.Length==1&&args[0]=="--map3ds-gen6-only"){Map3dsGen6Checks.Run(Check);Console.WriteLine($"Completed {checks} Gen6 map and event reader checks (synthetic).");return;}
 if(args.Length==1&&args[0]=="--map3ds-gen6-ui-only")
 {
