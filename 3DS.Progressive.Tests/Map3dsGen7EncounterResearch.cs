@@ -1,3 +1,4 @@
+using pk3DS.Core.Maps.Ctr;
 using System.Numerics;
 using System.IO;
 using pk3DS.Core;
@@ -284,6 +285,122 @@ internal static class Map3dsGen7EncounterResearch
         var enc = be.EncounterCells(area).ToHashSet();
         var free = ground.Where(c => !enc.Contains(c) && be.OtherOwner(area, c) is null).ToArray();
         Console.WriteLine($"  libres propias 0x{attr:X2}: {free.Length} casillas, conectadas {free.Count(CellReached)}");
+    }
+
+    /// <summary>
+    /// Read-only: the encounter-grass model of map blocks (part 1 of the block pack, "Map07_encgrass01"). For one block
+    /// (or every block when <paramref name="block"/> is -1, summarised): meshes, vertex count, attribute formats and the
+    /// world bounding box of each mesh, with the cells of the block whose ground is a writable soil under it.
+    /// </summary>
+    internal static void GrassModels(string root, int block)
+    {
+        var config = GameProjectSession.Open(Path.GetFullPath(root), false).GameConfiguration;
+        var map = new GARC.LazyGARC(File.ReadAllBytes(Path.Combine(config.RomFS, "a/0/8/6")));
+        int count = map.FileCount;
+        var formats = new Dictionary<string, int>(); var meshCounts = new Dictionary<int, int>(); int models = 0;
+        for (int id = block < 0 ? 0 : block; id < (block < 0 ? count : block + 1); id++)
+        {
+            byte[] data = map[id];
+            if (data.Length < 8 || data[0] != (byte)'B' || data[1] != (byte)'G') continue;
+            var pack = pk3DS.Core.Maps.Gen6.Gen6Pack.Read(data, "BG");
+            if (pack.Count < 2 || pack.Length(1) < 4 || System.Buffers.Binary.BinaryPrimitives.ReadUInt32LittleEndian(pack.Part(1)) != Gfl2File.ModelMagic) continue;
+            if (block >= 0) Console.WriteLine($"Bloque {id}: parte 1 de {pack.Length(1)} B");
+            var ms = new[] { Gfl2File.ReadModel(pack.Part(1)) };
+            foreach (var m in ms)
+            {
+                models++;
+                meshCounts[m.Meshes.Count] = meshCounts.GetValueOrDefault(m.Meshes.Count) + 1;
+                for (int k = 0; k < m.Meshes.Count; k++)
+                {
+                    var mesh = m.Meshes[k];
+                    string f = string.Join(",", mesh.Attributes.Select(x => $"{x.Name}:{x.Format}x{x.Elements}*{x.Scale:0.###}")) + $" stride {mesh.Stride}";
+                    formats[f] = formats.GetValueOrDefault(f) + 1;
+                    if (block < 0) continue;
+                    var pos = mesh.Read(PicaAttribute.Position)!;
+                    float minX = pos.Min(v => v.X), maxX = pos.Max(v => v.X), minY = pos.Min(v => v.Y), maxY = pos.Max(v => v.Y), minZ = pos.Min(v => v.Z), maxZ = pos.Max(v => v.Z);
+                    Console.WriteLine($"  malla {k}: material {m.Materials[mesh.Material].Name} texturas {string.Join("/", m.Materials[mesh.Material].TextureNames.Where(t => t.Length > 0))}; vértices {mesh.VertexCount}, triángulos {mesh.Triangles().Count()}; X {minX:0}–{maxX:0} ({minX / 105:0}–{maxX / 105:0}) Y {minY:0}–{maxY:0} Z {minZ:0}–{maxZ:0} ({minZ / 105:0}–{maxZ / 105:0})");
+                }
+            }
+        }
+        Console.WriteLine($"Modelos de hierba: {models}; mallas por modelo: {string.Join(" ", meshCounts.OrderBy(k => k.Key).Select(k => $"{k.Key}:{k.Value}"))}");
+        foreach (var f in formats.OrderByDescending(k => k.Value)) Console.WriteLine($"  formato {f.Key}: {f.Value} mallas");
+    }
+
+    /// <summary>
+    /// Read-only ground map of a rectangle of cells: one character per cell for the attribute of its ground (0-9, A-Z for
+    /// 0x0A-0x23, '.' without ground, '*' several attributes), with NPCs (n) and warps (w) over it, and the height range.
+    /// </summary>
+    internal static void GroundMap(string root, int area, int x1, int y1, int x2, int y2)
+    {
+        var be = Gen7MapBackend.FromConfig(GameProjectSession.Open(Path.GetFullPath(root), false).GameConfiguration);
+        var attr = new Dictionary<(int, int), HashSet<uint>>();
+        for (uint a = 0; a < 0x27; a++) foreach (var c in be.CellsWithAttribute(area, a)) { if (!attr.TryGetValue(c, out var set)) attr[c] = set = []; set.Add(a); }
+        var ev = new Dictionary<(int, int), char>();
+        foreach (var e in be.ZoneEvents(area).Where(e => e.Placed)) ev[((int)Math.Floor(e.X), (int)Math.Floor(e.Y))] = e.Kind == pk3DS.Core.Maps.MapEventKind.Warp ? 'w' : e.Kind == pk3DS.Core.Maps.MapEventKind.Npc ? 'n' : ev.GetValueOrDefault(((int)Math.Floor(e.X), (int)Math.Floor(e.Y)), 'p');
+        const string digits = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+        Console.WriteLine("     " + string.Concat(Enumerable.Range(x1, x2 - x1 + 1).Select(x => x % 10 == 0 ? (char)('0' + (x / 10 % 10)) : ' ')));
+        for (int y = y1; y <= y2; y++)
+        {
+            var line = new System.Text.StringBuilder($"{y,4} ");
+            for (int x = x1; x <= x2; x++)
+                line.Append(ev.TryGetValue((x, y), out var k) ? k : !attr.TryGetValue((x, y), out var set) ? '.' : set.Count > 1 ? '*' : digits[(int)set.First()]);
+            Console.WriteLine(line);
+        }
+        foreach (var e in be.ZoneEvents(area).Where(e => e.Placed && e.X >= x1 && e.X <= x2 + 1 && e.Y >= y1 && e.Y <= y2 + 1)) Console.WriteLine($"  {e.Label} en {e.X:0.#},{e.Y:0.#}");
+        for (int bx = x1 / 40; bx <= x2 / 40; bx++) for (int by = y1 / 40; by <= y2 / 40; by++)
+            Console.WriteLine($"  bloque ({bx},{by}) = {be.World(area).Blocks[(by * be.World(area).Width) + bx]}, lo cargan también: {string.Join(", ", be.AreasSharingBlock(area, bx, by))}");
+    }
+
+    /// <summary>
+    /// Read-only check of <see cref="Gen7VisibleGrass"/> on every block of a real copy: block packs rebuild byte for byte,
+    /// every grass model is recognised, moved by an offset (positions read back moved, every other byte equal) and a zero
+    /// offset gives the same bytes.
+    /// </summary>
+    internal static void GrassVerify(string root)
+    {
+        var config = GameProjectSession.Open(Path.GetFullPath(root), false).GameConfiguration;
+        var map = new GARC.LazyGARC(File.ReadAllBytes(Path.Combine(config.RomFS, "a/0/8/6")));
+        int blocks = 0, rebuilt = 0, grass = 0, moved = 0, zero = 0, single = 0; var failures = new List<string>();
+        var delta = new System.Numerics.Vector3(1234.5f, 7.25f, -321f);
+        for (int id = 0; id < map.FileCount; id++)
+        {
+            byte[] data = map[id];
+            if (data.Length < 8 || data[0] != (byte)'B' || data[1] != (byte)'G') continue;
+            blocks++;
+            byte[][] parts;
+            try { parts = Gen7VisibleGrass.BlockParts(data); rebuilt++; } catch (Exception ex) { failures.Add($"bloque {id}: {ex.Message}"); continue; }
+            if (parts[1].Length == 0) continue;
+            if (!Gen7VisibleGrass.IsGrassModel(parts[1])) { failures.Add($"bloque {id}: parte 1 no reconocida"); continue; }
+            grass++;
+            if (Gen7VisibleGrass.MeshCount(parts[1]) == 1) single++;
+            try
+            {
+                var (min, max) = Gen7VisibleGrass.Bounds(parts[1]);
+                var t = Gen7VisibleGrass.Translate(parts[1], delta);
+                var (min2, max2) = Gen7VisibleGrass.Bounds(t);
+                if (System.Numerics.Vector3.Distance(min2, min + delta) < 0.05f && System.Numerics.Vector3.Distance(max2, max + delta) < 0.05f) moved++;
+                else failures.Add($"bloque {id}: caja movida incorrecta");
+                if (Gen7VisibleGrass.Translate(parts[1], System.Numerics.Vector3.Zero).AsSpan().SequenceEqual(parts[1])) zero++;
+            }
+            catch (Exception ex) { failures.Add($"bloque {id}: {ex.Message}"); }
+        }
+        Console.WriteLine($"Bloques {blocks}: reconstruidos byte a byte {rebuilt}; modelos de hierba {grass} (de una malla {single}); movidos y releídos {moved}; desplazamiento cero idéntico {zero}");
+        foreach (var f in failures.Take(20)) Console.WriteLine("  " + f);
+    }
+
+    /// <summary>Read-only: the plan of a visible grass patch (template centred on a cell) and the templates the area can use.</summary>
+    internal static void GrassPlan(string root, int area, int x, int y, int template)
+    {
+        var be = Gen7MapBackend.FromConfig(GameProjectSession.Open(Path.GetFullPath(root), false).GameConfiguration);
+        Console.WriteLine("Plantillas con texturas del área: " + string.Join("; ", be.GrassTemplatesFor(area).Select(t => $"{t.Block} ({t.Size.X:0}×{t.Size.Z:0}, {string.Join("/", t.Textures)})")));
+        var (plan, reason) = be.PlanGrass(area, (x, y), template);
+        if (plan is null) { Console.WriteLine("No: " + reason); return; }
+        Console.WriteLine($"Bloque {plan.TargetBlock} ({plan.Col},{plan.Row}); desplazamiento {plan.Delta.X:0.#},{plan.Delta.Y:0.#},{plan.Delta.Z:0.#}; {plan.Covered.Count} casillas X {plan.Covered.Min(c => c.X)}–{plan.Covered.Max(c => c.X)} Y {plan.Covered.Min(c => c.Y)}–{plan.Covered.Max(c => c.Y)}; desnivel {plan.GroundSpread:0.#}; también lo cargan {string.Join(", ", plan.Sharing)}");
+        var soils = new Dictionary<uint, int>();
+        foreach (var c in plan.Covered) for (uint a = 0; a < 0x27; a++) if (be.CellsWithAttribute(area, a).Contains(c)) soils[a] = soils.GetValueOrDefault(a) + 1;
+        Console.WriteLine("Suelos bajo la hierba: " + string.Join(" ", soils.Select(k => $"0x{k.Key:X2}:{k.Value}")));
+        var ev = be.ZoneEvents(area).Where(e => e.Placed && plan.Covered.Contains(((int)Math.Floor(e.X), (int)Math.Floor(e.Y)))).ToArray();
+        Console.WriteLine($"Eventos bajo la hierba: {(ev.Length == 0 ? "ninguno" : string.Join(", ", ev.Select(e => e.Label)))}");
     }
 
     /// <summary>Day and night summary of one encounter table of an area, with the game's species names (read-only).</summary>

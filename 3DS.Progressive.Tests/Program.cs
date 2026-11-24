@@ -411,6 +411,13 @@ if(args.Length==3&&args[0]=="--map3ds-gen7-encounter-mask-bits"){Map3dsGen7Encou
 if(args.Length==3&&args[0]=="--map3ds-gen7-encounter-attribute-candidates"){Map3dsGen7EncounterResearch.AttributeCandidates(args[1],args[2]);return;}
 if(args.Length==4&&args[0]=="--map3ds-gen7-encounter-area-info"){Map3dsGen7EncounterResearch.AreaInfo(args[1],int.Parse(args[2]),Convert.ToUInt32(args[3],16));return;}
 if(args.Length==5&&args[0]=="--map3ds-gen7-encounter-reach"){Map3dsGen7EncounterResearch.Reach(args[1],int.Parse(args[2]),Convert.ToUInt32(args[3],16),float.Parse(args[4],System.Globalization.CultureInfo.InvariantCulture));return;}
+if(args.Length==3&&args[0]=="--map3ds-gen7-grass-models"){Map3dsGen7EncounterResearch.GrassModels(args[1],int.Parse(args[2]));return;}
+if(args.Length==7&&args[0]=="--map3ds-gen7-ground-map"){Map3dsGen7EncounterResearch.GroundMap(args[1],int.Parse(args[2]),int.Parse(args[3]),int.Parse(args[4]),int.Parse(args[5]),int.Parse(args[6]));return;}
+if(args.Length==2&&args[0]=="--map3ds-gen7-grass-verify"){Map3dsGen7EncounterResearch.GrassVerify(args[1]);return;}
+if(args.Length==1&&args[0]=="--map3ds-gen7-visible-grass-only"){Map3dsGen7VisibleGrassChecks.Run(Check);Console.WriteLine($"Completed {checks} USUM visible grass checks (synthetic).");return;}
+if(args.Length==8&&args[0]=="--map3ds-gen7-visible-grass-probe"){Map3dsGen7VisibleGrassChecks.Probe(args[1],int.Parse(args[2]),int.Parse(args[3]),int.Parse(args[4]),int.Parse(args[5]),args[6],int.Parse(args[7]));return;}
+if(args.Length==6&&args[0]=="--map3ds-gen7-grass-plan"){Map3dsGen7EncounterResearch.GrassPlan(args[1],int.Parse(args[2]),int.Parse(args[3]),int.Parse(args[4]),int.Parse(args[5]));return;}
+if(args.Length==3&&args[0]=="--map3ds-gen7-image-blocks"){Map3dsGen7CatchZoneChecks.ImageContainsBlocks(args[1],args[2]);return;}
 if(args.Length==3&&args[0]=="--map3ds-gen7-catch-zone-rebuild"){Map3dsGen7CatchZoneChecks.Rebuild(args[1],args[2]);return;}
 if(args.Length==3&&args[0]=="--map3ds-gen7-encounter-research"){Map3dsGen7EncounterResearch.Run(args[1],args[2]);return;}
 if(args.Length==2&&args[0]=="--map3ds-gen7-encounter-verify"){Map3dsGen7EncounterResearch.Verify(args[1]);return;}

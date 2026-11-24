@@ -112,7 +112,17 @@ public static class Gfl2File
     }
 
     /// <summary>One model blob (magic 0x15122117).</summary>
-    public static H3dModel ReadModel(ReadOnlySpan<byte> data)
+    public static H3dModel ReadModel(ReadOnlySpan<byte> data) => ReadModel(data, null);
+
+    /// <summary>Where the editable values of a model blob are: bounding box, transform and each vertex buffer.</summary>
+    public static Gfl2ModelLayout ReadLayout(ReadOnlySpan<byte> data)
+    {
+        var layout = new Gfl2ModelLayout();
+        ReadModel(data, layout);
+        return layout;
+    }
+
+    private static H3dModel ReadModel(ReadOnlySpan<byte> data, Gfl2ModelLayout? layout)
     {
         if (data.Length < 0x40 || BinaryPrimitives.ReadUInt32LittleEndian(data) != ModelMagic) throw new MapFormatException("No es un modelo GFL2.");
         var r = new Reader(data);
@@ -120,7 +130,9 @@ public static class Gfl2File
         r.Skip(16); // "gfmodel" section header
 
         Table(ref r); Table(ref r); var materialNames = Table(ref r); var meshNames = Table(ref r);
+        if (layout is not null) { layout.BoundingBox = r.Position; layout.MeshNames = meshNames.Length; }
         r.Skip(32); // bounding box
+        if (layout is not null) layout.Transform = r.Position;
         var m = new float[16];
         for (int i = 0; i < 16; i++) m[i] = r.F32();
         var transform = new Matrix4x4(m[0], m[1], m[2], m[3], m[4], m[5], m[6], m[7], m[8], m[9], m[10], m[11], m[12], m[13], m[14], m[15]);
@@ -216,6 +228,7 @@ public static class Gfl2File
                     else if (c.Register == 0x228) indexCount = (int)c.Value;
                     else if (c.Register == 0x25E) mode = (int)((c.Value >> 8) & 3);
                 }
+                layout?.Buffers.Add(new Gfl2VertexBuffer(r.Position, sizes[s].VertexLength, stride, attrs));
                 var vertices = r.Bytes(sizes[s].VertexLength).ToArray();
                 int indexStart = r.Position;
                 bool wide = (indexAddress >> 31) != 0;
@@ -270,3 +283,17 @@ public static class Gfl2File
         return (list, stride);
     }
 }
+
+/// <summary>Offsets inside a GFL2 model blob (see <see cref="Gfl2File.ReadLayout"/>).</summary>
+public sealed class Gfl2ModelLayout
+{
+    /// <summary>Offset of the 32-byte bounding box (min x, y, z, w; max x, y, z, w as floats).</summary>
+    public int BoundingBox { get; internal set; } = -1;
+    /// <summary>Offset of the 4×4 float transform (reference point of a field model).</summary>
+    public int Transform { get; internal set; } = -1;
+    public int MeshNames { get; internal set; }
+    public List<Gfl2VertexBuffer> Buffers { get; } = [];
+}
+
+/// <summary>One vertex buffer of a model blob: offset, length, stride and attribute layout.</summary>
+public sealed record Gfl2VertexBuffer(int Offset, int Length, int Stride, IReadOnlyList<PicaAttribute> Attributes);

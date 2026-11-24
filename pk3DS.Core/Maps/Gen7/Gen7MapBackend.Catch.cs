@@ -200,7 +200,11 @@ public sealed partial class Gen7MapBackend : IMapCatchZones
     }
 
     /// <summary>The write a set of cells would need, or the reason it cannot be done.</summary>
-    public (Gen7CatchPlan? Plan, string Reason) PlanCatch(int zone, IReadOnlyCollection<(int X, int Y)> cells, int? sourceZone)
+    /// <param name="experimentalSoil">
+    /// Only for in-game experiments outside the editor: allows that one ground attribute even if no vanilla region uses it
+    /// alone, and skips the shared-terrain rule. The editor never passes it.
+    /// </param>
+    public (Gen7CatchPlan? Plan, string Reason) PlanCatch(int zone, IReadOnlyCollection<(int X, int Y)> cells, int? sourceZone, uint? experimentalSoil = null)
     {
         if (!_worlds.ContainsKey(zone)) return (null, "Área no disponible.");
         if (cells.Count == 0) return (null, "Elige al menos una casilla.");
@@ -220,10 +224,10 @@ public sealed partial class Gen7MapBackend : IMapCatchZones
         foreach (var (x, y) in cells)
         {
             if (!ground.TryGetValue((x, y), out var under) || under.Count == 0) return (null, $"La casilla {x}, {y} no tiene suelo.");
-            var soils = under.Select(g => g.Attribute).Where(Gen7CatchZones.IsWritable).ToHashSet();
+            var soils = under.Select(g => g.Attribute).Where(a => experimentalSoil is uint e ? a == e : Gen7CatchZones.IsWritable(a)).ToHashSet();
             if (soils.Count == 0)
-                return (null, $"La casilla {x}, {y} no tiene un suelo de encuentros admitido ({writable}); su suelo es {string.Join(", ", under.Select(g => $"0x{g.Attribute:X2}").Distinct())}. Otros suelos no están acreditados.");
-            if (OtherOwner(zone, (x, y)) is { } owner)
+                return (null, $"La casilla {x}, {y} no tiene un suelo de encuentros admitido ({(experimentalSoil is uint ex ? $"0x{ex:X2}" : writable)}); su suelo es {string.Join(", ", under.Select(g => $"0x{g.Attribute:X2}").Distinct())}. Otros suelos no están acreditados.");
+            if (experimentalSoil is null && OtherOwner(zone, (x, y)) is { } owner)
                 return (null, $"La casilla {x}, {y} es terreno de {owner}: el área lo carga como escenario (o es una copia del mismo terreno) y allí el jugador está en otra área, así que no se escribe.");
             if (common is null) common = soils; else common.IntersectWith(soils);
         }
