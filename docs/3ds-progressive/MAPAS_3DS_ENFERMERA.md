@@ -122,29 +122,22 @@ Investigado con los datos de los dos juegos, sin trasladar nada de Gen6.
 - **Formas.** Dos listas de formas:
   - la zona de conversación, un cilindro de radio 80, 130 unidades delante;
   - el cuerpo, un cilindro de radio 50 en su posición.
-- **El script de curación es común.**
-  - El GARC `a/0/9/2` guarda scripts comunes ordenados por rangos, cada uno con su tabla de casos. El miembro 3 atiende los casos −1 y 5030–5035, y su caso 5030 es la rutina de la enfermera.
-  - El juego despacha estos números desde cualquier área: hay NPC con números de rangos comunes también fuera de los Centros, incluso en exteriores.
-  - El script de zona («ZS», slot 7) no la incluye, así que no se toca.
-- **Máquina de curación.** La rama de curación de la rutina busca en el área el **objeto estático 2**, la máquina del mostrador (llamada al motor con la constante 2), y anima las Poké Balls sobre ella.
-  - Las 21 áreas donde el juego cura con esa escena la tienen: los 15 Centros, el Árbol de Combate, el Paraíso Æther (2), el Estadio Royale, Ciudad Hauoli y Ciudad Konikoni.
-  - Su modelo «SM» del paquete de objetos («AS», slot 4) es idéntico en todas.
-  - Se identifica por el objeto y no por el id de evento (701 o 702, según el área).
-  - Faltaba en la primera prueba jugable (v1).
-- **Módulo de campo del Centro.** El byte `+0x0E` del registro de 84 bytes de cada zona (`zonedata`, miembro 0) elige el módulo de campo («gimmick») que el juego carga en la zona:
-  - 0: ninguno (305 zonas de Ultra Luna);
-  - **3: Centro Pokémon**, solo en los 15 Centros;
-  - 5: ascensores (Monte Lanakila, Paraíso Æther);
-  - 6: Árbol de Combate;
-  - 9: Festival Plaza, y otros en zonas sueltas.
-  - El módulo 3 es `FieldGimmickPokecen.cro`. Contiene `monsterball_loc_01…06`, las texturas `com_bm_pcounter_poke01…06` de la máquina y la lectura del equipo: es quien coloca las Poké Balls y pone los iconos en la máquina.
-  - La rama de curación de 5030 llama a funciones del motor que no usa ningún otro script común; son las de ese módulo.
-  - Sin él, el juego se congela nada más decir «Sí», aunque la máquina esté en el área (v2).
-- **Mostrador del Centro (objeto estático 5).** Su «SM» (`com_bm_pcounter`, 440 064 bytes) es el que contiene las articulaciones `monsterball_loc_01…06` y las texturas `com_bm_pcounter_poke01…06` que busca el módulo. La máquina (objeto 2) no las contiene.
-  - Está en los 15 Centros y en ningún otro sitio. El registro es idéntico en todos: exactamente en la posición de la enfermera y con su mismo giro, sin forma de colisión (la colisión del mostrador es la de la sala).
-  - La máquina está encima, a 80 unidades de altura.
-  - **Sin el mostrador, con módulo y máquina, el emulador se cuelga por completo al decir «Sí»** (v3): se corta la música y hay que cerrar el proceso.
-  - El Árbol de Combate cura con otra rutina (caso 5660), sin esa animación.
+- **Scripts comunes.** El GARC `a/0/9/2` guarda scripts comunes ordenados por rangos, cada uno con su tabla de casos. El juego los ejecuta por número desde cualquier área: hay NPC con números de rangos comunes fuera de sus áreas, y el script de zona de la Ruta 1 (área 47) lanza el caso 30571, del rango de otra área, con la función «ejecutar script».
+- **La curación del Centro (caso 5030) no sirve fuera de un Centro.** Su rama «Sí» necesita tres piezas que solo tienen los Centros:
+  - el módulo de campo del Centro: el byte `+0x0E` de la zona en `zonedata` debe valer 3 (`FieldGimmickPokecen.cro`), y solo lo tienen las 15 zonas de los Centros;
+  - el mostrador, estático 5 (SM `com_bm_pcounter`, 440 064 bytes): el módulo coloca en él las Poké Balls (`monsterball_loc_01…06`) y los iconos del equipo (`com_bm_pcounter_poke01…06`);
+  - la máquina, estático 2, encima del mostrador.
+
+  Probado en el juego con las cuatro primeras copias:
+  - **v1, sin máquina:** se congela al aceptar curar.
+  - **v2, sin módulo:** se congela nada más decir «Sí».
+  - **v3, sin mostrador:** el emulador se cuelga por completo.
+  - **v4, con el mostrador:** Pueblo Lilii no carga, probablemente por memoria. El pueblo carga unos 12,7 MB entre texturas, personajes, objetos y bloques, frente a los 4–4,6 MB de un Centro.
+  - **v5, la v4 en una sala pequeña (área 43):** cura, pero es pesada y solo vale en áreas ligeras. Se descartó.
+- **La curación de Lylia (caso 30571).** Es el caso 30571 del miembro 80, la curación que ofrece Lylia: pregunta, fundido a negro, sintonía y la misma llamada de curar que usa el Centro.
+  - No usa máquina, mostrador ni módulo.
+  - El miembro 80 es idéntico en Ultra Sol y Ultra Luna.
+  - **La enfermera añadida usa esta rutina** (idea del propietario). Sus frases son las de Lylia, no las de la enfermera.
 - **Carga del modelo.** El slot 3 de cada área es un paquete «AC» con **un paquete «CP» por modelo de personaje**, nombrado con el número del modelo.
   - En las 300 áreas con NPC o entrenadores de cada juego, el «AC» contiene los modelos de todos ellos.
   - El CP «66» es idéntico en los 15 Centros y en los dos juegos.
@@ -152,29 +145,23 @@ Investigado con los datos de los dos juegos, sin trasladar nada de Gen6.
 - **Archivo de NPC.** Formato: número de NPC, registros de 120 bytes y las formas de cada NPC, en orden y contiguas (307/307 archivos).
 - **Ids de evento.** Únicos en la zona y sin coincidir con otros tipos de evento (307/307).
 - **Paquete «AC».** Datos desde la cabecera redondeada a 0x80 (0x80 hasta 30 modelos y 0x100 a partir de 31; 311/311 áreas) y partes de tamaño múltiplo de 0x80.
+- **Paredes.** La parte 7 de cada bloque es un paquete «BG» de mallas con el formato de colisión de la parte 6. Sus triángulos verticales son paredes y vallas.
 
 ### Qué escribe
 
-Hasta tres miembros del archivo de campo (`a/0/8/3` en Ultra Luna, `a/0/8/2` en Ultra Sol): eventos, personajes y objetos del área. Además, un byte de la tabla de zonas (`a/0/7/7`). Todo va en una sola entrada del historial.
+Hasta dos miembros del archivo de campo (`a/0/8/3` en Ultra Luna, `a/0/8/2` en Ultra Sol): eventos y personajes del área, en una sola reconstrucción y una sola entrada del historial.
 
 1. **Paquete de eventos del área:** se añade la copia de la enfermera del juego al final del archivo de NPC, con:
    - la posición de la casilla, a la altura de su suelo;
    - el giro de la orientación elegida;
    - el siguiente número de evento libre;
+   - el **script 30571**;
    - sus dos formas al final, con la de conversación girada con ella.
 
    Los demás NPC solo desplazan 120 bytes la posición de sus formas. Antes de escribir se comprueba la estructura y después se relee todo.
-2. **Mostrador y máquina de curación**, si el área no tiene ninguno:
-   - copia de los dos estáticos del Centro, colocados respecto a la enfermera como allí y girados con ella: el mostrador bajo ella y la máquina encima, a 80 de altura;
-   - ids 701 y 702, o los siguientes libres;
-   - sus «SM» se añaden al paquete de objetos si faltan, con datos desde la cabecera redondeada a 0x80 (336/336 áreas), sin pasar de 25 objetos ni de 1 070 592 bytes. En Pueblo Lilii quedan 16 objetos y 1 057 408 bytes;
-   - los estáticos existentes solo desplazan su forma 56 bytes por estático;
-   - se rechaza un área con solo una de las dos piezas.
-3. **Modelos de personaje del área:** si el área no carga el modelo 66, se añade al final la copia exacta de su CP. El inicio de datos sigue la regla del juego. No se supera el área más cargada del juego (37 modelos, 7 344 640 bytes).
+2. **Modelos de personaje del área:** si el área no carga el modelo 66, se añade al final la copia exacta de su CP. El inicio de datos sigue la regla del juego. No se supera el área más cargada del juego (37 modelos, 7 344 640 bytes).
 
-4. **Tabla de zonas:** si la zona del área no tiene módulo de campo (0), su byte `+0x0E` pasa a 3. No cambia ningún otro byte. Se rechaza si la zona ya usa otro módulo, porque una zona solo carga uno, y si el área tiene más de una zona.
-
-Los miembros originales (incluido el de la tabla de zonas) se guardan juntos para restaurar el área exactamente, porque el archivo supera los puntos de restauración del historial, como en las zonas de captura.
+Los dos miembros originales se guardan juntos para restaurar el área exactamente, porque el archivo supera los puntos de restauración del historial, como en las zonas de captura.
 
 **Casillas válidas:**
 - suelo de un solo nivel en la casilla;
@@ -182,60 +169,53 @@ Los miembros originales (incluido el de la tabla de zonas) se guardan juntos par
 - sin NPC ni entrenadores en ninguna de las dos;
 - sin warps (puertas) a menos de 1,5 casillas;
 - áreas con una sola zona de NPC (309 de 336);
-- la casilla de la máquina, si hay que añadirla: con suelo a la misma altura, libre y fuera del sitio desde el que se habla;
 - **sin paredes ni vallas** entre la enfermera y la casilla desde la que se habla;
 - **la casilla desde la que se habla, alcanzable a pie** desde la llegada de algún warp del área, pasando entre casillas vecinas con suelo sin cruzar paredes.
-  - Las paredes son los triángulos verticales de la parte 7 de cada bloque: un paquete «BG» de mallas con el formato de colisión de la parte 6, vistas desde arriba como segmentos.
   - En la v2, la casilla 148, 118 de Pueblo Lilii quedaba detrás de una valla. Ahora se rechaza; la 148, 115, la que eligió el propietario, se acepta.
   - Auditoría con `--map3ds-gen7-reach-audit` en Ultra Luna: las 15 enfermeras de los Centros son alcanzables.
     - De todos los NPC con zona de conversación, lo son 1574 de 1866.
     - Los demás están detrás de mostradores, en escenas o en zonas a las que se llega por el borde.
     - La regla puede rechazar casillas válidas, pero no acepta las inaccesibles.
 
-Si las enfermeras del juego no coincidieran, la función no se ofrecería.
+Si las enfermeras del juego no coincidieran, la función no se ofrecería. La plantilla se toma solo de las enfermeras de los Centros (script 5030); las añadidas no cuentan.
 
 ### En el editor
 
 Es el mismo panel «Añadir enfermera» de Gen6: casilla con un clic o escrita, dirección, vista previa, guardado por el historial y restauración desde el NPC. El texto de la vista previa indica:
 - el número de evento;
 - la casilla desde la que se le habla;
-- si el área ya carga el modelo o si se añadirá, con el total de modelos y de bytes frente al máximo del juego.
+- si el área ya carga el modelo o si se añadirá, con el total de modelos y de bytes frente al máximo del juego;
+- que cura con la rutina 30571.
 
 La vista previa es un marcador con la dirección, no el modelo 3D.
 
 ### Pruebas
 
-- **`--map3ds-gen7-nurse-only`** (17 sintéticas):
+- **`--map3ds-gen7-nurse-only`** (11 sintéticas):
   - plantilla;
   - regla del inicio de datos;
   - plan;
-  - registro movido y girado;
+  - registro movido y girado, con el script 30571;
   - NPC y partes intactos;
   - modelo añadido o ya cargado;
   - rechazos: casilla ocupada, NPC delante, warp, sin suelo, sin suelo donde se habla, varias zonas, área llena;
   - enfermeras distintas no se copian;
-  - una enfermera añadida se reconoce y se puede añadir otra;
-  - el mostrador bajo ella y la máquina encima, con sus modelos;
-  - el módulo del Centro en la zona (solo cambia ese byte), y el rechazo si la zona usa otro módulo;
+  - una segunda enfermera se puede añadir y la plantilla sigue siendo la de los Centros;
   - el cruce de un paso con una valla.
 - **`--map3ds-gen7-nurse-ui-only`** (5 de interfaz).
-- **`--map3ds-gen7-nurse-probe`** en copias reales de **Ultra Luna limpia y Ultra Sol** (Pueblo Lilii, casilla 148, 115, mirando a la derecha), 11/11:
+- **`--map3ds-gen7-nurse-probe`** en copias reales de **Ultra Luna limpia y Ultra Sol** (Pueblo Lilii, casilla 148, 115, mirando a la derecha), 8/8:
   - la vista previa no escribe;
-  - hay exactamente un NPC más, la enfermera;
+  - hay exactamente un NPC más, la enfermera, con el script 30571;
   - los demás NPC no cambian;
   - el área carga su modelo (30 → 31);
-  - el mostrador (estático 702) bajo ella y la máquina (701) encima, con sus modelos en el «AS» (14 → 16 objetos, 1 057 408 bytes);
-  - solo cambian los miembros de eventos, personajes y objetos del área;
-  - la zona 16 carga el módulo del Centro (gimmick 0 → 3, un solo byte; comprobado también con el lector independiente);
+  - solo cambian los miembros de eventos y personajes del área;
   - se registra en el historial;
   - la restauración es exacta;
   - un editor con datos antiguos no puede escribir.
-  - Verificado también con un lector independiente: la enfermera nueva solo difiere de la del Centro en posición, giro e id, y el CP añadido es el del Centro byte a byte.
 - **Imagen 3DS de Ultra Luna:**
-  - v1, sin máquina: se congelaba al curar.
-  - v2, con máquina y sin módulo: se congelaba nada más decir «Sí». Además, la enfermera quedaba detrás de una valla.
-  - v3, con módulo del Centro y en la casilla 148, 115: el emulador se cuelga por completo al decir «Sí» (faltaba el mostrador).
-  - **v4**, con el mostrador: juego pendiente.
+  - v1–v5, con la curación del Centro: ver más arriba.
+  - **v6**, con la curación de Lylia, `UL-enfermera-pueblo-lilii-v6.3ds`: **aprobada en el juego por el propietario** (24-11-2026). En Pueblo Lilii, casilla 148, 115, cura al equipo y el juego sigue con normalidad. Dice las frases de Lylia.
+  - Ultra Sol: copia real 8/8, sin prueba en el juego.
 
 ## Limitaciones
 
@@ -243,11 +223,9 @@ La vista previa es un marcador con la dirección, no el modelo 3D.
   - En X la secuencia del Centro funcionó fuera de un Centro.
   - Su script coloca la cámara con valores pensados para los Centros; en otros juegos y lugares no se ha comprobado.
 - **Rubí Omega / Zafiro Alfa:** el mecanismo está acreditado de forma estática, pero no se ha escrito ninguna copia real.
-- **Gen7 (Ultra Sol / Ultra Luna):** sin prueba en el juego.
-  - La rutina de curación lleva la cámara a una posición fija del Centro, (2449,7; 388,4; 2098,4) mirando hacia (1920,4; 152,7; 2100,9), y espera a que llegue. Fuera del Centro la cámara apuntará a otro sitio durante la animación.
-  - El mostrador del Centro se ve en el exterior, alrededor de la enfermera, y no tiene colisión propia: se puede atravesar.
-  - El módulo del Centro se carga en toda la zona y nunca se ha usado fuera de un Centro. Podría afectar a la memoria o a la carga de la zona.
-  - No se añade en zonas que ya usan otro módulo (ascensores, Árbol de Combate, Festival Plaza…).
+- **Gen7 (Ultra Sol / Ultra Luna):** aprobada en el juego solo en **Ultra Luna**, en Pueblo Lilii (v6).
+  - Ultra Sol tiene el mismo cambio comprobado en una copia real, sin prueba en el juego.
+  - Sus frases son las de Lylia, no las de la enfermera del Centro.
   - Solo áreas de una zona de NPC.
-  - No se encontró en el código la tabla que asocia los números de script a los scripts comunes; el despacho global se apoya en los datos.
+  - No se encontró en el código la tabla que asocia los números de script a los scripts comunes; el despacho global se apoya en los datos (incluido el script de zona que lanza el caso 30571 desde otra área).
 - **Gráficos:** la vista previa es un marcador esquemático, no el modelo 3D de la enfermera.

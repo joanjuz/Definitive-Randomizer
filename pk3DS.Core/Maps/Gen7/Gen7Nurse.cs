@@ -12,17 +12,7 @@ namespace pk3DS.Core.Maps.Gen7;
 /// <param name="Talk">Talk-range shape list (record +0x70), stored relative to the nurse: positions minus hers.</param>
 /// <param name="Body">Body shape list (record +0x74), relative as <paramref name="Talk"/>.</param>
 /// <param name="Character">The "CP" pack of her model in the area character pack ("AC", slot 3).</param>
-/// <param name="Machine">Static record (ED part 4, 56 bytes) of the healing machine, at the origin without rotation.</param>
-/// <param name="MachineOffset">Where the machine stands relative to a nurse without rotation (on the counter, 80 units up).</param>
-/// <param name="MachineTurn">Machine rotation relative to the nurse's.</param>
-/// <param name="MachineModel">The "SM" pack of object 2 (the machine) in the area object pack ("AS", slot 4).</param>
-/// <param name="Counter">Static record of the Pokémon Center counter (object 5), at the origin without rotation.</param>
-/// <param name="CounterOffset">Where the counter stands relative to the nurse (in every Center, exactly where she stands).</param>
-/// <param name="CounterTurn">Counter rotation relative to the nurse's.</param>
-/// <param name="CounterModel">The "SM" pack of object 5 (the counter, with the ball joints and screens the Pokémon Center module drives).</param>
-public sealed record Gen7NurseTemplate(byte[] Record, byte[] Talk, byte[] Body, byte[] Character, uint Model, uint Script, int Count,
-    byte[] Machine, Vector3 MachineOffset, Quaternion MachineTurn, byte[] MachineModel,
-    byte[] Counter, Vector3 CounterOffset, Quaternion CounterTurn, byte[] CounterModel);
+public sealed record Gen7NurseTemplate(byte[] Record, byte[] Talk, byte[] Body, byte[] Character, uint Model, uint Script, int Count);
 
 /// <summary>
 /// Pokémon Center nurse of Ultra Sun / Ultra Moon. Every Center has one NPC (ED part 1, 120 bytes) with model 66 and
@@ -40,167 +30,20 @@ public sealed record Gen7NurseTemplate(byte[] Record, byte[] Talk, byte[] Body, 
 public static class Gen7Nurse
 {
     public const uint Model = 66, Script = 5030;
+
+    /// <summary>
+    /// Script the added nurse runs: common script 30571 (a/0/9/2 member 80), Lillie's healing on Route 1. It asks, fades to
+    /// black, plays the healing jingle, heals the party (the same engine call as the Center) and fades back, with no
+    /// machine, counter or Pokémon Center field module. The zone script of Route 1 (area 47) starts it by number, so the
+    /// game runs it from an area other than the one its range belongs to. The Center routine 5030 is not used: outside a
+    /// Center it needs the Center field module, the counter (object 5) and the machine (object 2), and the counter alone
+    /// made Iki Town fail to load (four gameplay copies). Her lines are therefore Lillie's, not the nurse's. Approved in
+    /// Ultra Moon by the owner (Iki Town, 2026-11-24).
+    /// </summary>
+    public const uint HealScript = 30571;
     public const int Position = 0x04, Rotation = 0x10, EventId = 0x2C, ModelField = 0x34, ScriptField = 0x38;
     /// <summary>Largest character pack and most character models of an area in the game (both versions).</summary>
     public const int MaxCharacterBytes = 7_344_640, MaxCharacters = 37;
-
-    /// <summary>
-    /// Healing machine: static object 2 (ED part 4, 56-byte records: type 4, position, rotation, event id +0x2C, object
-    /// +0x30, shape offset +0x34). The nurse's healing branch looks it up (native call with the constant 2) and animates
-    /// the balls on it; every area where the game heals with that scene has one (the 15 Centers, Battle Tree, Aether
-    /// Paradise, Battle Royal Dome and two more, 21/21) with the same "SM" model in its object pack ("AS", slot 4).
-    /// Without it the first nurse added in Ultra Moon froze when asked to heal.
-    /// </summary>
-    public const uint MachineObject = 2;
-
-    /// <summary>
-    /// Static object 5: the Pokémon Center counter (SM «com_bm_pcounter», 440 064 bytes). It holds the joints
-    /// <c>monsterball_loc_01…06</c> and the screen textures <c>com_bm_pcounter_poke01…06</c> that the Pokémon Center
-    /// field module (FieldGimmickPokecen.cro) looks up to place the party's balls and icons; it is in the 15 Centers and
-    /// nowhere else, always where the nurse stands. Without it the game hung completely on «Sí» (third gameplay copy).
-    /// </summary>
-    public const uint CounterObject = 5;
-
-    /// <summary>
-    /// Field gimmick of a zone: byte +0x0E of its 84-byte zone record (zonedata member 0). It selects the field module the
-    /// game loads in the zone: 0 none (305 zones of Ultra Moon), 3 the Pokémon Center (the 15 Centers and no other zone,
-    /// FieldGimmickPokecen.cro), 5 lifts (Mount Lanakila, Aether Paradise), 6 battle facilities (Battle Tree), 9 Festival
-    /// Plaza... The nurse's healing branch calls engine functions that no other script uses (they belong to that module),
-    /// so outside a Center the game froze right after «Sí» until the zone had gimmick 3.
-    /// </summary>
-    public const int ZoneSize = 84, GimmickOffset = 0x0E;
-    public const byte NoGimmick = 0, PokecenGimmick = 3;
-
-    /// <summary>The zone records with the gimmick byte of <paramref name="zone"/> set; every other byte is checked unchanged.</summary>
-    public static byte[] SetGimmick(byte[] zones, int zone, byte gimmick)
-    {
-        if (zones.Length % ZoneSize != 0) throw new MapFormatException("La tabla de zonas no mide un múltiplo de 84 bytes.");
-        if (zone < 0 || (zone + 1) * ZoneSize > zones.Length) throw new ArgumentOutOfRangeException(nameof(zone));
-        var output = (byte[])zones.Clone();
-        output[(zone * ZoneSize) + GimmickOffset] = gimmick;
-        for (int i = 0; i < zones.Length; i++)
-            if (i != (zone * ZoneSize) + GimmickOffset && output[i] != zones[i]) throw new InvalidOperationException("La escritura tocó otro byte de la tabla de zonas.");
-        return output;
-    }
-    public const int StaticSize = 56, StaticType = 4, StaticObject = 0x30, StaticShape = 0x34;
-    /// <summary>Largest object pack and most objects of an area in the game (both versions).</summary>
-    public const int MaxObjectBytes = 1_070_592, MaxObjects = 25;
-
-    /// <summary>Object id of an "SM" pack: the u16 at the start of its first part.</summary>
-    public static int? ObjectId(byte[] sm)
-    {
-        try
-        {
-            var parts = Gen7CatchZones.Parts(sm, "SM");
-            return parts.Length > 0 && parts[0].Length >= 2 ? BinaryPrimitives.ReadUInt16LittleEndian(parts[0]) : null;
-        }
-        catch (MapFormatException) { return null; }
-    }
-
-    /// <summary>Object ids of an area object pack, checked to rebuild byte for byte.</summary>
-    public static IReadOnlyList<int?> Objects(byte[] objects)
-    {
-        if (!Gen7CatchZones.RoundTrips(objects, "AS")) throw new MapFormatException("El paquete de objetos del área no se reconstruye byte a byte.");
-        return Gen7CatchZones.Parts(objects, "AS").Select(ObjectId).ToArray();
-    }
-
-    /// <summary>The object pack with <paramref name="sm"/> appended (data start = header rounded to 0x80, 336/336 areas), or the same bytes when the object is there.</summary>
-    public static byte[] AddObject(byte[] objects, byte[] sm)
-    {
-        int id = ObjectId(sm) ?? throw new ArgumentException("El paquete del objeto no tiene número.", nameof(sm));
-        var ids = Objects(objects);
-        if (ids.Contains(id)) return objects;
-        if (sm.Length % 0x80 != 0) throw new ArgumentException("El paquete del objeto no mide un múltiplo de 0x80.", nameof(sm));
-        var old = Gen7CatchZones.Parts(objects, "AS");
-        if (Gen7CatchZones.DataStart(objects) != DataStart(old.Length)) throw new InvalidOperationException("El inicio de datos del paquete de objetos no sigue la regla del juego.");
-        var parts = old.Append(sm).ToArray();
-        if (parts.Length > MaxObjects) throw new InvalidOperationException($"El área tendría {parts.Length} objetos; el juego no pasa de {MaxObjects}.");
-        byte[] output = Gen7CatchZones.Pack("AS", parts, DataStart(parts.Length));
-        if (output.Length > MaxObjectBytes) throw new InvalidOperationException($"Los objetos del área ocuparían {output.Length} bytes; el juego no pasa de {MaxObjectBytes}.");
-        var reread = Gen7CatchZones.Parts(output, "AS");
-        if (reread.Length != old.Length + 1 || !old.Select((p, i) => p.AsSpan().SequenceEqual(reread[i])).All(x => x) || !reread[^1].AsSpan().SequenceEqual(sm))
-            throw new InvalidOperationException("La relectura del paquete de objetos no coincide.");
-        return output;
-    }
-
-    /// <summary>
-    /// Copy of the area event pack with one more static object in zone file <paramref name="zoneFile"/> of part 4: the
-    /// record goes after the existing ones, whose shape offsets (+0x34) move by one record with the data after them.
-    /// </summary>
-    public static byte[] AddStatic(byte[] ed, int zoneFile, byte[] record)
-    {
-        if (record.Length != StaticSize || BinaryPrimitives.ReadUInt32LittleEndian(record) != StaticType || BinaryPrimitives.ReadUInt32LittleEndian(record.AsSpan(StaticShape)) != 0)
-            throw new ArgumentException("El registro no es un objeto estático sin formas.", nameof(record));
-        if (!Gen7CatchZones.RoundTrips(ed, "ED")) throw new InvalidOperationException("El paquete de eventos no tiene la estructura verificada.");
-        var parts = Gen7CatchZones.Parts(ed, "ED");
-        if (parts.Length <= Gen7Events.StaticPack) throw new InvalidOperationException("El paquete de eventos no tiene parte de objetos estáticos.");
-        var inner = parts[Gen7Events.StaticPack];
-        string magic = Encoding.ASCII.GetString(inner, 0, 2);
-        if (!Gen7CatchZones.RoundTrips(inner, magic)) throw new InvalidOperationException("La parte de objetos estáticos no tiene la estructura verificada.");
-        var files = Gen7CatchZones.Parts(inner, magic);
-        if (zoneFile < 0 || zoneFile >= files.Length) throw new ArgumentOutOfRangeException(nameof(zoneFile));
-        var old = files[zoneFile];
-        int n = old.Length >= 4 ? BinaryPrimitives.ReadInt32LittleEndian(old) : 0;
-        int records = 4 + (n * StaticSize);
-        if (n < 0 || records > Math.Max(old.Length, 4)) throw new InvalidOperationException("El archivo de objetos estáticos no tiene la estructura verificada.");
-        for (int i = 0; i < n; i++)
-        {
-            int o = BinaryPrimitives.ReadInt32LittleEndian(old.AsSpan(4 + (i * StaticSize) + StaticShape));
-            if (o != 0 && (o < records || o >= old.Length)) throw new InvalidOperationException("Las formas de los objetos estáticos no siguen a los registros; no se escribe.");
-        }
-        int tail = Math.Max(old.Length - records, 0);
-        var output = new byte[records + StaticSize + tail];
-        BinaryPrimitives.WriteInt32LittleEndian(output, n + 1);
-        for (int i = 0; i < n; i++)
-        {
-            int at = 4 + (i * StaticSize);
-            old.AsSpan(at, StaticSize).CopyTo(output.AsSpan(at));
-            int o = BinaryPrimitives.ReadInt32LittleEndian(old.AsSpan(at + StaticShape));
-            if (o != 0) BinaryPrimitives.WriteInt32LittleEndian(output.AsSpan(at + StaticShape), o + StaticSize);
-        }
-        record.CopyTo(output, records);
-        if (tail > 0) old.AsSpan(records, tail).CopyTo(output.AsSpan(records + StaticSize));
-
-        files[zoneFile] = output;
-        parts[Gen7Events.StaticPack] = Gen7CatchZones.Pack(magic, files, Gen7CatchZones.DataStart(inner));
-        byte[] result = Gen7CatchZones.Pack("ED", parts, Gen7CatchZones.DataStart(ed));
-        var oldParts = Gen7CatchZones.Parts(ed, "ED"); var newParts = Gen7CatchZones.Parts(result, "ED");
-        for (int i = 0; i < oldParts.Length; i++)
-            if (i != Gen7Events.StaticPack && !oldParts[i].AsSpan().SequenceEqual(newParts[i])) throw new InvalidOperationException("La escritura cambió otra parte del paquete de eventos.");
-        var readBack = Gen7Events.Records(output, StaticSize, StaticType).ToList();
-        if (readBack.Count != n + 1 || !readBack[n].Bytes.AsSpan().SequenceEqual(record)) throw new InvalidOperationException("El objeto estático nuevo no se relee igual.");
-        for (int i = 0; i < n; i++)
-        {
-            int at = 4 + (i * StaticSize);
-            if (!old.AsSpan(at, StaticShape).SequenceEqual(output.AsSpan(at, StaticShape)) || !old.AsSpan(at + StaticShape + 4, StaticSize - StaticShape - 4).SequenceEqual(output.AsSpan(at + StaticShape + 4, StaticSize - StaticShape - 4)))
-                throw new InvalidOperationException("La escritura cambió un objeto estático existente.");
-        }
-        if (tail > 0 && !old.AsSpan(records, tail).SequenceEqual(output.AsSpan(records + StaticSize, tail))) throw new InvalidOperationException("La escritura cambió las formas de los objetos estáticos.");
-        return result;
-    }
-
-    /// <summary>The machine record placed as in a Center, on the counter, next to a nurse at <paramref name="nurse"/> turned to <paramref name="compass"/>.</summary>
-    public static (byte[] Record, Vector3 Position) PlaceMachine(Gen7NurseTemplate t, Vector3 nurse, double compass, uint eventId) =>
-        PlaceStatic(t.Machine, t.MachineOffset, t.MachineTurn, nurse, compass, eventId);
-
-    /// <summary>The counter record placed as in a Center: where the nurse stands, turned with her.</summary>
-    public static (byte[] Record, Vector3 Position) PlaceCounter(Gen7NurseTemplate t, Vector3 nurse, double compass, uint eventId) =>
-        PlaceStatic(t.Counter, t.CounterOffset, t.CounterTurn, nurse, compass, eventId);
-
-    private static (byte[] Record, Vector3 Position) PlaceStatic(byte[] template, Vector3 offsetFromNurse, Quaternion turn, Vector3 nurse, double compass, uint eventId)
-    {
-        var q = Facing(compass);
-        var position = nurse + Vector3.Transform(offsetFromNurse, q);
-        var rot = Quaternion.Normalize(q * turn);
-        var record = (byte[])template.Clone();
-        BinaryPrimitives.WriteSingleLittleEndian(record.AsSpan(Position), position.X);
-        BinaryPrimitives.WriteSingleLittleEndian(record.AsSpan(Position + 4), position.Y);
-        BinaryPrimitives.WriteSingleLittleEndian(record.AsSpan(Position + 8), position.Z);
-        float[] r4 = [rot.X, rot.Y, rot.Z, rot.W];
-        for (int k = 0; k < 4; k++) BinaryPrimitives.WriteSingleLittleEndian(record.AsSpan(Rotation + (k * 4)), r4[k]);
-        BinaryPrimitives.WriteUInt32LittleEndian(record.AsSpan(EventId), eventId);
-        return (record, position);
-    }
 
     /// <summary>Name of a "CP" pack: the ASCII model number at the start of its first part.</summary>
     public static string? CharacterName(byte[] cp)
@@ -310,6 +153,7 @@ public static class Gen7Nurse
         float[] rot = [q.X, q.Y, q.Z, q.W];
         for (int k = 0; k < 4; k++) BinaryPrimitives.WriteSingleLittleEndian(record.AsSpan(Rotation + (k * 4)), rot[k]);
         BinaryPrimitives.WriteUInt32LittleEndian(record.AsSpan(EventId), eventId);
+        BinaryPrimitives.WriteUInt32LittleEndian(record.AsSpan(ScriptField), HealScript);
         // Relative talk offset (template nurse without rotation) turned by the yaw about the vertical axis.
         var rel = FirstPoint(t.Talk);
         var turned = Vector3.Transform(rel, q);

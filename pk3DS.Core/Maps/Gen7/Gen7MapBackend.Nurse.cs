@@ -11,41 +11,14 @@ namespace pk3DS.Core.Maps.Gen7;
 
 /// <summary>What adding a nurse would write: the record's place, its event id and whether the area must load her model.</summary>
 /// <param name="Talk">Centre of the talk range (where the player stands to talk to her).</param>
-/// <param name="Machine">Where the healing machine goes, or null when the area already has the Center statics (objects 2 and 5).</param>
-/// <param name="Counter">Where the Pokémon Center counter goes (object 5, under her), or null with <paramref name="Machine"/>.</param>
-/// <param name="Zone">Global zone of the area (zonedata) whose field gimmick becomes the Pokémon Center's, or -1 when it already is.</param>
-public sealed record Gen7NursePlan(int Area, int ZoneFile, Vector3 Position, double Compass, uint EventId, Vector3 Talk, bool AddsCharacter, int CharacterBytes, int Characters,
-    Vector3? Machine = null, uint MachineEventId = 0, bool AddsObject = false, int ObjectBytes = 0, int Objects = 0, int Zone = -1,
-    Vector3? Counter = null, uint CounterEventId = 0, bool AddsCounterModel = false);
+public sealed record Gen7NursePlan(int Area, int ZoneFile, Vector3 Position, double Compass, uint EventId, Vector3 Talk, bool AddsCharacter, int CharacterBytes, int Characters);
 
 /// <summary>Pokémon Center nurse (see <see cref="Gen7Nurse"/>).</summary>
 public sealed partial class Gen7MapBackend : IMapNurseCreation
 {
     /// <summary>Character pack of an area (slot 3, decompressed).</summary>
     public byte[] CharacterBytes(int area) => (byte[])_world((area * SlotsPerWorld) + CharacterSlot).Clone();
-    public const int CharacterSlot = 3, ObjectSlot = 4;
-
-    /// <summary>Zone records (zonedata member 0, 84 bytes per zone), read for the field gimmick; null when not available.</summary>
-    public byte[]? ZoneData { get; set; }
-
-    /// <summary>Object pack of an area (slot 4, decompressed).</summary>
-    public byte[] ObjectBytes(int area) => (byte[])_world((area * SlotsPerWorld) + ObjectSlot).Clone();
-
-    /// <summary>Static object records (ED part 4) of an area, every zone file.</summary>
-    private static List<Gen7Record> Statics(byte[] ed)
-    {
-        var list = new List<Gen7Record>();
-        var parts = Gen7CatchZones.Parts(ed, "ED");
-        if (parts.Length <= Gen7Events.StaticPack || parts[Gen7Events.StaticPack].Length < 8) return list;
-        var container = Gen7Events.Container(parts[Gen7Events.StaticPack]);
-        if (container is null) return list;
-        for (int z = 0; z < container.Count; z++)
-        {
-            var file = container.Part(z).ToArray();
-            if (file.Length >= 4) list.AddRange(Gen7Events.Records(file, Gen7Nurse.StaticSize, Gen7Nurse.StaticType));
-        }
-        return list;
-    }
+    public const int CharacterSlot = 3;
 
     private Gen7NurseTemplate? _nurse;
     private string? _nurseReason;
@@ -71,10 +44,6 @@ public sealed partial class Gen7MapBackend : IMapNurseCreation
     private (Gen7NurseTemplate?, string?) FindNurse()
     {
         byte[]? record = null, talk = null, body = null, character = null;
-        // Center statics, in each nurse's frame: [0] the healing machine (object 2), [1] the counter (object 5).
-        uint[] staticObjects = [Gen7Nurse.MachineObject, Gen7Nurse.CounterObject];
-        string[] staticNames = ["máquina de curación", "mostrador del Centro"];
-        var sRecord = new byte[]?[2]; var sModel = new byte[]?[2]; var sOffset = new Vector3[2]; var sTurn = new Quaternion[2];
         int count = 0;
         foreach (int area in _worlds.Keys.Order())
         {
@@ -118,38 +87,9 @@ public sealed partial class Gen7MapBackend : IMapNurseCreation
                         }
                     }
                     count++; here = true;
-                    // The machine and the counter of this nurse's area, in her frame (offset and relative turn).
-                    for (int si = 0; si < 2; si++)
-                    {
-                        var m = Statics(ed).FirstOrDefault(st => st.U32(Gen7Nurse.StaticObject) == staticObjects[si]);
-                        if (m is null) continue;
-                        var mpos = new Vector3(m.F(Gen7Nurse.Position), m.F(Gen7Nurse.Position + 4), m.F(Gen7Nurse.Position + 8));
-                        var mrot = new Quaternion(m.F(Gen7Nurse.Rotation), m.F(Gen7Nurse.Rotation + 4), m.F(Gen7Nurse.Rotation + 8), m.F(Gen7Nurse.Rotation + 12));
-                        var inv = Quaternion.Inverse(rot);
-                        var off = Vector3.Transform(mpos - pos, inv);
-                        var turn = Quaternion.Normalize(inv * mrot);
-                        var mraw = (byte[])m.Bytes.Clone();
-                        for (int k = 0; k < 28; k++) mraw[Gen7Nurse.Position + k] = 0;
-                        for (int k = 0; k < 4; k++) mraw[Gen7Nurse.EventId + k] = 0;
-                        if (sRecord[si] is null) { sRecord[si] = mraw; sOffset[si] = off; sTurn[si] = turn; }
-                        else if (!mraw.AsSpan().SequenceEqual(sRecord[si]) || Vector3.Distance(off, sOffset[si]) > ShapeTolerance || Math.Abs(Quaternion.Dot(turn, sTurn[si])) < 0.999f)
-                            return (null, $"La {staticNames[si]} del área {area:000} no está como en los demás Centros; no se ofrece la enfermera.");
-                    }
                 }
             }
             if (!here) continue;
-            try
-            {
-                var packs = Gen7CatchZones.Parts(ObjectBytes(area), "AS");
-                for (int si = 0; si < 2; si++)
-                {
-                    var sm = packs.FirstOrDefault(pk => Gen7Nurse.ObjectId(pk) == (int)staticObjects[si]);
-                    if (sm is null) continue;
-                    if (sModel[si] is null) sModel[si] = sm;
-                    else if (!sm.AsSpan().SequenceEqual(sModel[si])) return (null, $"El modelo de la {staticNames[si]} no es igual en todos los Centros; no se ofrece.");
-                }
-            }
-            catch (MapFormatException ex) { return (null, "No se pudieron leer los modelos de objetos del Centro: " + ex.Message); }
             try
             {
                 var cp = Gen7CatchZones.Parts(CharacterBytes(area), "AC").FirstOrDefault(p => Gen7Nurse.CharacterName(p) == Gen7Nurse.Model.ToString(CultureInfo.InvariantCulture));
@@ -160,15 +100,9 @@ public sealed partial class Gen7MapBackend : IMapNurseCreation
             catch (MapFormatException ex) { return (null, "No se pudo leer el modelo de la enfermera: " + ex.Message); }
         }
         if (record is null || character is null) return (null, "El juego no tiene enfermeras de Centro Pokémon reconocibles (modelo 66, script 5030).");
-        for (int si = 0; si < 2; si++)
-        {
-            if (sRecord[si] is null || sModel[si] is null) return (null, $"Los Centros del juego no tienen una {staticNames[si]} reconocible (objeto {staticObjects[si]}); sin ella la curación se congela, así que no se ofrece.");
-            BinaryPrimitives.WriteSingleLittleEndian(sRecord[si]!.AsSpan(Gen7Nurse.Rotation + 12), 1);
-        }
         // The template stands at the origin without rotation (written again by Gen7Nurse.Place).
         BinaryPrimitives.WriteSingleLittleEndian(record.AsSpan(Gen7Nurse.Rotation + 12), 1);
-        return (new Gen7NurseTemplate(record, talk!, body!, character, Gen7Nurse.Model, Gen7Nurse.Script, count, sRecord[0]!, sOffset[0], sTurn[0], sModel[0]!,
-            sRecord[1]!, sOffset[1], sTurn[1], sModel[1]!), null);
+        return (new Gen7NurseTemplate(record, talk!, body!, character, Gen7Nurse.Model, Gen7Nurse.Script, count), null);
     }
 
     /// <summary>
@@ -192,7 +126,7 @@ public sealed partial class Gen7MapBackend : IMapNurseCreation
     public const float ShapeTolerance = 5f;
 
     public string NurseSummary => NurseTemplate is { } n
-        ? $"Copia la enfermera de Centro Pokémon del propio juego ({n.Count} enfermeras idénticas: modelo {n.Model} y rutina común de curación {n.Script}) y, si el área no tiene una, la máquina de curación que usa esa rutina (objeto {Gen7Nurse.MachineObject}). Si el área no carga sus modelos, se añaden."
+        ? $"Copia la enfermera de Centro Pokémon del propio juego ({n.Count} enfermeras idénticas, modelo {n.Model}) con la curación de Lylia del juego (rutina común {Gen7Nurse.HealScript}: fundido, sintonía y equipo curado, sin máquina ni mostrador; dice las frases de Lylia). Si el área no carga su modelo, se añade a los modelos de personaje del área."
         : _nurseReason ?? "No hay enfermera que copiar.";
 
     public MapMutationCheck ValidateAddNurse(int zone, int x, int y, double facing)
@@ -203,16 +137,8 @@ public sealed partial class Gen7MapBackend : IMapNurseCreation
         string model = plan.AddsCharacter
             ? $" El área no carga el modelo de la enfermera: se añadirá a sus modelos de personaje ({plan.Characters} modelos, {plan.CharacterBytes / 1024} KB; el juego llega a {Gen7Nurse.MaxCharacters} y {Gen7Nurse.MaxCharacterBytes / 1024} KB)."
             : " El área ya carga el modelo de la enfermera.";
-        string machine = plan.Machine is { } mp
-            ? $" Con ella se colocan, como en los Centros, el mostrador del Centro (estático {plan.CounterEventId}, bajo ella) y la máquina de curación encima (estático {plan.MachineEventId}, casilla {Math.Floor(mp.X / UnitsPerCell)}, {Math.Floor(mp.Z / UnitsPerCell)}), necesarios para curar" +
-              (plan.AddsObject || plan.AddsCounterModel ? $"; sus modelos se añadirán a los objetos del área ({plan.Objects} objetos, {plan.ObjectBytes / 1024} KB; el juego llega a {Gen7Nurse.MaxObjects} y {Gen7Nurse.MaxObjectBytes / 1024} KB)." : ".")
-            : " El área ya tiene el mostrador y la máquina de curación.";
-        model += machine;
-        model += plan.Zone >= 0
-            ? $" La zona {plan.Zone} pasará a cargar el módulo de campo del Centro Pokémon (gimmick {Gen7Nurse.PokecenGimmick}), que usa la curación."
-            : " La zona ya carga el módulo del Centro Pokémon.";
         return new(true, $"Se añadirá una enfermera (evento {plan.EventId}) en la casilla {x}, {y}, a altura {plan.Position.Y.ToString("0.#", inv)}, mirando hacia {TrainerDirection(plan.Compass)}; se le habla desde la casilla {Math.Floor(plan.Talk.X / UnitsPerCell)}, {Math.Floor(plan.Talk.Z / UnitsPerCell)}.{model} " +
-            "Usa la rutina común de curación del juego. No se ha probado en el juego.");
+            $"Cura con la rutina común {Gen7Nurse.HealScript} del juego (la curación de Lylia, con sus frases).");
     }
 
     private readonly Dictionary<int, List<(Vector2 A, Vector2 B)>> _walls = [];
@@ -417,70 +343,6 @@ public sealed partial class Gen7MapBackend : IMapNurseCreation
         uint eventId = maxNpc + 1;
         while (used.Contains(eventId)) eventId++;
 
-        // Healing machine: added next to her when the area has none (the healing branch looks it up and animates it).
-        Vector3? machinePos = null, counterPos = null; uint machineId = 0, counterId = 0;
-        List<Gen7Record> statics;
-        try { statics = Statics(ed); } catch (MapFormatException) { return (null, "Los objetos estáticos del área no tienen la estructura verificada."); }
-        bool hasMachine = statics.Any(st => st.U32(Gen7Nurse.StaticObject) == Gen7Nurse.MachineObject);
-        bool hasCounter = statics.Any(st => st.U32(Gen7Nurse.StaticObject) == Gen7Nurse.CounterObject);
-        if (hasMachine != hasCounter)
-            return (null, "El área tiene solo una de las dos piezas del Centro (máquina de curación u mostrador); no se añade la enfermera ahí.");
-        if (!hasMachine)
-        {
-            var staticFiles = Gen7Events.Container(edParts[Gen7Events.StaticPack]);
-            if (staticFiles is null || staticFiles.Count != 1) return (null, "El área tiene varias zonas de objetos estáticos; por ahora no se añade la máquina de curación.");
-            var (_, mp) = Gen7Nurse.PlaceMachine(t, position, facing, 0);
-            var mcell = ((int)Math.Floor(mp.X / UnitsPerCell), (int)Math.Floor(mp.Z / UnitsPerCell));
-            if (Level(mcell, "de la máquina de curación", out why) is not float mh) return (null, why + " Elige otra dirección o casilla (la máquina va al lado de la enfermera).");
-            if (Math.Abs(mh - h) > 30) return (null, $"La casilla de la máquina de curación ({mcell.Item1}, {mcell.Item2}) está a otra altura; elige otra dirección o casilla.");
-            _ = mh;
-            foreach (var e in refs.Values)
-            {
-                var p = new Vector2(e.Position.X, e.Position.Z);
-                if (e.Pack is Gen7Events.NpcPack or Gen7Events.TrainerPack or Gen7Events.WarpPack && Vector2.Distance(p, new(mp.X, mp.Z)) < UnitsPerCell * 0.75f)
-                    return (null, "La casilla de la máquina de curación la ocupa otro evento; elige otra dirección o casilla.");
-            }
-            if (Vector2.Distance(new(mp.X, mp.Z), new(talk.X, talk.Z)) < UnitsPerCell * 0.75f) return (null, "La máquina de curación quedaría donde se habla con la enfermera.");
-            foreach (var st in statics) used.Add(st.U32(Gen7Nurse.EventId));
-            machineId = 701;
-            while (used.Contains(machineId) || machineId == eventId) machineId++;
-            counterId = machineId + 1;
-            while (used.Contains(counterId) || counterId == eventId) counterId++;
-            machinePos = mp;
-            counterPos = Gen7Nurse.PlaceCounter(t, position, facing, 0).Position;
-        }
-
-        // Field gimmick: the healing branch needs the Pokémon Center module, loaded by zones with gimmick 3.
-        if (ZoneData is not { } zd) return (null, "No se pudo leer la tabla de zonas (campo de gimmick).");
-        var areaZones = _zoneTable.Values.Where(zi => zi.Area == zone).Select(zi => zi.Zone).ToArray();
-        if (areaZones.Length != 1) return (null, $"El área tiene {areaZones.Length} zonas del juego; por ahora la enfermera solo se añade en áreas de una zona.");
-        int gz = areaZones[0];
-        if ((gz + 1) * Gen7Nurse.ZoneSize > zd.Length) return (null, "La zona no está en la tabla de zonas.");
-        byte gimmick = zd[(gz * Gen7Nurse.ZoneSize) + Gen7Nurse.GimmickOffset];
-        if (gimmick is not (Gen7Nurse.NoGimmick or Gen7Nurse.PokecenGimmick))
-            return (null, $"La zona {gz} ya usa otro módulo de campo (gimmick {gimmick}: ascensor, instalación de combate, Festival...); la curación de la enfermera necesita el del Centro Pokémon y no pueden convivir.");
-        int setZone = gimmick == Gen7Nurse.NoGimmick ? gz : -1;
-
-        int objectBytes = 0, objects = 0; bool addsObject = false, addsCounter = false;
-        if (machinePos is not null)
-        {
-            byte[] objs;
-            try { objs = ObjectBytes(zone); } catch (Exception ex) when (ex is MapFormatException or ArgumentException) { return (null, "No se pudieron leer los objetos del área."); }
-            IReadOnlyList<int?> ids;
-            try { ids = Gen7Nurse.Objects(objs); } catch (MapFormatException ex) { return (null, ex.Message); }
-            addsObject = !ids.Contains((int)Gen7Nurse.MachineObject);
-            addsCounter = !ids.Contains((int)Gen7Nurse.CounterObject);
-            objectBytes = objs.Length; objects = ids.Count;
-            try
-            {
-                var with = objs;
-                if (addsObject) { with = Gen7Nurse.AddObject(with, t.MachineModel); objects++; }
-                if (addsCounter) { with = Gen7Nurse.AddObject(with, t.CounterModel); objects++; }
-                objectBytes = with.Length;
-            }
-            catch (InvalidOperationException ex) { return (null, ex.Message + " (el mostrador del Centro ocupa 430 KB)"); }
-        }
-
         byte[] ac;
         try { ac = CharacterBytes(zone); }
         catch (Exception ex) when (ex is MapFormatException or ArgumentException) { return (null, "No se pudieron leer los modelos de personaje del área."); }
@@ -493,34 +355,16 @@ public sealed partial class Gen7MapBackend : IMapNurseCreation
             try { var withNurse = Gen7Nurse.AddCharacter(ac, t.Character); bytes = withNurse.Length; characters++; }
             catch (InvalidOperationException ex) { return (null, ex.Message); }
         }
-        return (new Gen7NursePlan(zone, 0, position, facing, eventId, talk, adds, bytes, characters, machinePos, machineId, addsObject, objectBytes, objects, setZone,
-            counterPos, counterId, addsCounter), "");
+        return (new Gen7NursePlan(zone, 0, position, facing, eventId, talk, adds, bytes, characters), "");
     }
 
-    /// <summary>
-    /// The area event pack (nurse and, when needed, healing machine) and, when they are added, the character and object
-    /// packs the plan writes (each checked by its writer).
-    /// </summary>
-    /// <summary>The zone records with the plan's zone set to the Pokémon Center gimmick, or null when nothing changes.</summary>
-    public byte[]? NurseZoneEdit(Gen7NursePlan plan) =>
-        plan.Zone < 0 ? null : Gen7Nurse.SetGimmick(ZoneData ?? throw new InvalidOperationException("Sin tabla de zonas."), plan.Zone, Gen7Nurse.PokecenGimmick);
-
-    public (byte[] Events, byte[]? Characters, byte[]? Objects) NurseEdits(Gen7NursePlan plan)
+    /// <summary>The area event pack and, when the model is added, character pack the plan writes (both checked by their writers).</summary>
+    public (byte[] Events, byte[]? Characters) NurseEdits(Gen7NursePlan plan)
     {
         var t = NurseTemplate ?? throw new InvalidOperationException(NurseSummary);
         var (record, talk, body) = Gen7Nurse.Place(t, plan.Position, plan.Compass, plan.EventId);
         byte[] ed = Gen7Nurse.AddNpc(EventBytes(plan.Area), plan.ZoneFile, record, talk, body);
-        byte[]? objects = null;
-        if (plan.Machine is not null)
-        {
-            ed = Gen7Nurse.AddStatic(ed, 0, Gen7Nurse.PlaceMachine(t, plan.Position, plan.Compass, plan.MachineEventId).Record);
-            ed = Gen7Nurse.AddStatic(ed, 0, Gen7Nurse.PlaceCounter(t, plan.Position, plan.Compass, plan.CounterEventId).Record);
-            var objs = ObjectBytes(plan.Area);
-            if (plan.AddsObject) objs = Gen7Nurse.AddObject(objs, t.MachineModel);
-            if (plan.AddsCounterModel) objs = Gen7Nurse.AddObject(objs, t.CounterModel);
-            if (plan.AddsObject || plan.AddsCounterModel) objects = objs;
-        }
         byte[]? ac = plan.AddsCharacter ? Gen7Nurse.AddCharacter(CharacterBytes(plan.Area), t.Character) : null;
-        return (ed, ac, objects);
+        return (ed, ac);
     }
 }
