@@ -200,8 +200,9 @@ internal static class ProjectDetector
         var evidence = new List<string> { $"Formato {document.Format} · versión {document.Version} · juego {document.Game}/{document.Revision} · {(document.Operations?.Count ?? document.Edits?.Count ?? 0)} operaciones" };
         if (document.Version is < 1 or > 3)
             return Result(DetectionStatus.Unsupported, path, $"Checkpoint de eventos de versión {document.Version}: esta aplicación lee las versiones 1, 2 y 3. Puede ser de una versión más reciente.", DetectedPlatform.NintendoDS, DetectedKind.DsEventCheckpoint, evidence: evidence);
-        if (document.Game != "CPUE" || document.Revision != 1)
-            return Result(DetectionStatus.Unsupported, path, $"Checkpoint de eventos para {document.Game} revisión {document.Revision}: solo existe el editor de eventos de Platino USA (CPUE rev. 1).", DetectedPlatform.NintendoDS, DetectedKind.DsEventCheckpoint, evidence: evidence);
+        var eventProfile = Gen4EventProfile.For(document.Game ?? "", document.Revision);
+        if (eventProfile is null)
+            return Result(DetectionStatus.Unsupported, path, $"Checkpoint de eventos para {document.Game} revisión {document.Revision}: el editor de eventos existe para {Gen4EventProfile.SupportedLabels}.", DetectedPlatform.NintendoDS, DetectedKind.DsEventCheckpoint, evidence: evidence);
         if (string.IsNullOrWhiteSpace(document.SourcePath) || !document.SourcePath.EndsWith(".nds", StringComparison.OrdinalIgnoreCase))
             return Result(DetectionStatus.Incomplete, path, "El checkpoint no indica una ROM de origen .nds válida.", DetectedPlatform.NintendoDS, DetectedKind.DsEventCheckpoint, evidence: evidence);
         if (!nameIsCheckpoint)
@@ -212,9 +213,9 @@ internal static class ProjectDetector
         evidence.AddRange(source.Evidence);
         if (source.Kind != DetectedKind.DsRom || source.Status is DetectionStatus.Incomplete or DetectionStatus.Unknown)
             return Result(DetectionStatus.Incomplete, path, "El checkpoint es válido, pero su ROM de origen no se puede leer como ROM de Nintendo DS: " + source.Message, DetectedPlatform.NintendoDS, DetectedKind.DsEventCheckpoint, evidence: evidence, source: document.SourcePath);
-        var game = NdsIdentity.Profiles.FirstOrDefault(p => p.GameCode == "CPUE" && p.Version == 1)!.Game;
+        var game = NdsIdentity.Profiles.First(p => p.GameCode == eventProfile.GameCode && p.Version == eventProfile.Revision).Game;
         if (source.Status != DetectionStatus.Compatible || !source.Game.Equals(game, StringComparison.Ordinal))
-            return Result(DetectionStatus.Unsupported, path, "La ROM de origen del checkpoint no es Platino USA (CPUE rev. 1): " + source.Message, DetectedPlatform.NintendoDS, DetectedKind.DsEventCheckpoint, evidence: evidence, source: document.SourcePath);
+            return Result(DetectionStatus.Unsupported, path, $"La ROM de origen del checkpoint no es {game} ({eventProfile.Key}): " + source.Message, DetectedPlatform.NintendoDS, DetectedKind.DsEventCheckpoint, evidence: evidence, source: document.SourcePath);
         return Result(DetectionStatus.Compatible, path, $"Checkpoint de eventos de {game}.", DetectedPlatform.NintendoDS, DetectedKind.DsEventCheckpoint, game,
             evidence.Append("El SHA-256 de la ROM de origen y la reproducción de las operaciones los verifica el motor DS al cargar."), document.SourcePath);
     }
