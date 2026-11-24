@@ -60,8 +60,8 @@ internal static class NdsGen5BlackChecks
     internal static void Run(Action<bool, string> check)
     {
         // ---- profiles: Black only; nothing of Gen 4 applies
-        check(Gen5MapProfile.For("IRBO", 0) == Black && Gen5MapProfile.For("IRAS", 0) is null && Gen5MapProfile.For("IRDO", 0) is null && Gen5MapProfile.For("IREO", 0) is null && Gen5MapProfile.For("IRBO", 1) is null,
-            "Gen5_OnlyBlackHasAProfile_NotWhiteBlack2White2OrOtherRevisions");
+        check(Gen5MapProfile.For("IRBO", 0) == Black && Gen5MapProfile.For("IRAS", 0) == Gen5MapProfile.White && Gen5MapProfile.For("IRDO", 0) is null && Gen5MapProfile.For("IREO", 0) is null && Gen5MapProfile.For("IRBO", 1) is null,
+            "Gen5_BlackAndWhiteHaveAProfile_NotBlack2White2OrOtherRevisions");
         check(Equals(NdsEventProfiles.For("IRBO", 0), Black) && Equals(NdsEventProfiles.For("CPUE", 1), Gen4EventProfile.Platinum) && Gen4EventProfile.For("IRBO", 0) is null && NdsEventProfiles.SupportedLabels.Contains("Negro IRBO/0"),
             "Gen5_TheRegistryNamesBothGenerations");
         check(Black is { EventPath: "a/1/2/5", ScriptPath: "a/0/5/7", HeaderCount: 427, EventFileCount: 428, LocationNamesText: 89, SupportsNpcCreation: false, EditsObjectFacing: false, MaxTrainerSight: 0 }
@@ -138,8 +138,8 @@ internal static class NdsGen5BlackChecks
             string source = Path.Combine(temp, "negro.nds"); File.WriteAllBytes(source, f.Rom()); string sourceHash = NdsMapCanvasChecks.Sha(source);
             using var rom = NdsRom.Open(source);
             check(Throws<InvalidDataException>(() => Gen5ZoneEvents.Open(rom)) && Throws<Exception>(() => Gen5MapGraphics.Open(rom)), "Gen5_UnaccreditedBlackTablesAreRefused");
-            string white = Path.Combine(temp, "blanco.nds"); File.WriteAllBytes(white, f.Rom("IRAS", 0));
-            using (var other = NdsRom.Open(white)) check(Throws<InvalidDataException>(() => Gen5ZoneEvents.Open(other)) && Throws<InvalidDataException>(() => Gen5MapGraphics.Open(other)), "Gen5_WhiteIsNotOpenedWithBlacksProfile");
+            string white2 = Path.Combine(temp, "blanco2.nds"); File.WriteAllBytes(white2, f.Rom("IRDO", 0));
+            using (var other = NdsRom.Open(white2)) check(Throws<InvalidDataException>(() => Gen5ZoneEvents.Open(other)) && Throws<InvalidDataException>(() => Gen5MapGraphics.Open(other)), "Gen5_White2IsNotOpenedWithBlacksProfile");
             var session = new NdsEventSession(rom, f.Read());
             string first = Path.Combine(temp, "1.ndsevents.json"); session.Save(session.Preview(Town, Trainer, new(t.X, t.Y, 0, 14)), first);
             var doc = NdsEventSession.ReadDocument(first);
@@ -161,7 +161,8 @@ internal static class NdsGen5BlackChecks
             var ok = ProjectDetector.Detect(ProjectDetectorChecks.Checkpoint(roms, "negro.ndsevents.json", bSource, 1, "IRBO", 0));
             check(ok is { Status: DetectionStatus.Compatible, Kind: DetectedKind.DsEventCheckpoint } && ok.Game.Contains("Negro"), "Gen5_DetectorAcceptsABlackCheckpoint");
             check(ProjectDetector.Detect(ProjectDetectorChecks.Checkpoint(roms, "cruzado.ndsevents.json", pSource, 1, "IRBO", 0)).Status == DetectionStatus.Unsupported
-                && ProjectDetector.Detect(ProjectDetectorChecks.Checkpoint(roms, "blanco.ndsevents.json", bSource, 1, "IRAS", 0)).Status == DetectionStatus.Unsupported, "Gen5_DetectorRefusesMixedGamesAndWhite");
+                && ProjectDetector.Detect(ProjectDetectorChecks.Checkpoint(roms, "blanco.ndsevents.json", bSource, 1, "IRAS", 0)).Status == DetectionStatus.Unsupported
+                && ProjectDetector.Detect(ProjectDetectorChecks.Checkpoint(roms, "blanco2.ndsevents.json", bSource, 1, "IRDO", 0)).Status == DetectionStatus.Unsupported, "Gen5_DetectorRefusesMixedGames_WhiteOnBlackAndWhite2");
         }
         finally { Directory.Delete(temp, true); }
     }

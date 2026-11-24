@@ -369,6 +369,12 @@ if(args.Length==1&&args[0]=="--nds-gen5-black-ui-only")
     Exception? failure=null;var thread=new Thread(()=>{try{var app=new ThreeDS.Progressive.App();app.InitializeComponent();WpfTestHost.SuppressStartup();ThreeDS.Progressive.StudioDialog.AutomatedChecks=true;NdsGen5BlackChecks.RunUi(Check);}catch(Exception ex){failure=ex;}});thread.SetApartmentState(ApartmentState.STA);thread.Start();thread.Join();if(failure is not null)System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(failure).Throw();Console.WriteLine($"Completed {checks} DS Black map editor UI checks (off-screen).");return;
 }
 if(args.Length==3&&args[0]=="--nds-gen5-black-probe"){NdsGen5BlackChecks.Probe(args[1],args[2]);return;}
+if(args.Length==1&&args[0]=="--nds-gen5-white-only"){NdsGen5WhiteChecks.Run(Check);Console.WriteLine($"Completed {checks} DS White map editor checks (synthetic).");return;}
+if(args.Length==1&&args[0]=="--nds-gen5-white-ui-only")
+{
+    Exception? failure=null;var thread=new Thread(()=>{try{var app=new ThreeDS.Progressive.App();app.InitializeComponent();WpfTestHost.SuppressStartup();ThreeDS.Progressive.StudioDialog.AutomatedChecks=true;NdsGen5WhiteChecks.RunUi(Check);}catch(Exception ex){failure=ex;}});thread.SetApartmentState(ApartmentState.STA);thread.Start();thread.Join();if(failure is not null)System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(failure).Throw();Console.WriteLine($"Completed {checks} DS White map editor UI checks (off-screen).");return;
+}
+if(args.Length==4&&args[0]=="--nds-gen5-white-probe"){NdsGen5WhiteChecks.Probe(args[1],args[2],args[3]);return;}
 if(args.Length==3&&args[0]=="--nds-gen5-black-view-probe")
 {
     Exception? failure=null;var thread=new Thread(()=>{try{var app=new ThreeDS.Progressive.App();app.InitializeComponent();WpfTestHost.SuppressStartup();ThreeDS.Progressive.StudioDialog.AutomatedChecks=true;NdsGen5BlackChecks.ViewProbe(args[1],args[2]);}catch(Exception ex){failure=ex;}});thread.SetApartmentState(ApartmentState.STA);thread.Start();thread.Join();if(failure is not null)System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(failure).Throw();return;
