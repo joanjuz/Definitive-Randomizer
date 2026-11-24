@@ -18,6 +18,7 @@ Punto de entrada a `docs/3ds-progressive/`. Muchos documentos son **registros hi
 | NPC DS con comportamiento (enfermera, scripts compartidos), checkpoint v3 y diseño de entrenadores nuevos | [NDS_NPC_SCRIPTS_PHASE6.md](NDS_NPC_SCRIPTS_PHASE6.md) |
 | Editor DS A1: «Añadir enfermera» funcional desde una plantilla real de la ROM (Platino) | [NDS_ANADIR_ENFERMERA_A1.md](NDS_ANADIR_ENFERMERA_A1.md) |
 | Editor DS: edición de objetos de fondo, warps (destino validado) y activadores existentes, checkpoint v5 y proyecto con lector 3 (Platino) | [NDS_EVENTOS_OBJETOS_WARPS_ACTIVADORES.md](NDS_EVENTOS_OBJETOS_WARPS_ACTIVADORES.md) |
+| Editor DS multigeneracional: perfil Gen4 de Diamante (ADAE/5) con el editor de Platino — mapa con texturas, NPC, visión de entrenadores, objetos, warps y activadores existentes; sin NPC nuevos | [NDS_EDITOR_GEN4_DIAMANTE.md](NDS_EDITOR_GEN4_DIAMANTE.md) |
 | Editor DS: lectores NSBMD/NSBTX, recursos de mapa y render cenital por software (Platino) | [NDS_MAP_RENDER_LECTORES.md](NDS_MAP_RENDER_LECTORES.md) |
 | Editor de mapas 3DS Gen6 (X/Y, OR/AS): zonas, matriz, rejilla de permisos y eventos, solo lectura | [MAPAS_3DS_GEN6.md](MAPAS_3DS_GEN6.md) |
 | Editor de mapas 3DS Gen7 (Ultra Sol/Ultra Luna): mundos, matriz TR y modelos GFL2, solo lectura | [MAPAS_3DS_GEN7.md](MAPAS_3DS_GEN7.md) |
