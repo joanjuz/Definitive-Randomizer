@@ -289,5 +289,15 @@ internal static class Map3dsGen7CatchZoneChecks
         long at = Map3dsTrainerFacingChecks.FindInImage(image, Path.Combine(cfg.RomFS, cfg.GetGARCFileName("encdata")));
         Console.WriteLine((at >= 0 ? "PASS" : "FAIL") + $" Gen7CatchRebuild_ImageContainsTheFieldArchive (0x{at:X}); gameplay NOT tested");
         if (at < 0) throw new InvalidDataException("La imagen no contiene el archivo de campo editado.");
+        ImageContainsBlocks(copyRoot, image);
+    }
+
+    /// <summary>Checks the map block archive (a/0/8/6, visible grass) is in the image byte for byte, without rebuilding.</summary>
+    internal static void ImageContainsBlocks(string copyRoot, string image)
+    {
+        var cfg = GameProjectSession.Open(copyRoot, false).GameConfiguration;
+        long blocks = Map3dsTrainerFacingChecks.FindInImage(image, Path.Combine(cfg.RomFS, "a", "0", "8", "6"));
+        Console.WriteLine((blocks >= 0 ? "PASS" : "FAIL") + $" Gen7CatchRebuild_ImageContainsTheBlockArchive (0x{blocks:X}); gameplay NOT tested");
+        if (blocks < 0) throw new InvalidDataException("La imagen no contiene el archivo de bloques editado.");
     }
 }

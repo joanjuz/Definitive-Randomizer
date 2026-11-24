@@ -41,9 +41,10 @@ internal sealed class Map3dsGen7CatchZoneService
     private static string Key(byte[] events, byte[] tables) => Convert.ToHexString(SHA256.HashData([.. events, .. tables]));
 
     /// <summary>Builds the change without writing anything.</summary>
-    internal EditorProposal Preview(Gen7MapBackend backend, int area, IReadOnlyCollection<(int X, int Y)> cells, int? source)
+    /// <param name="experimentalSoil">Only for in-game experiments (test runner); see <see cref="Gen7MapBackend.PlanCatch"/>.</param>
+    internal EditorProposal Preview(Gen7MapBackend backend, int area, IReadOnlyCollection<(int X, int Y)> cells, int? source, uint? experimentalSoil = null)
     {
-        var (plan, reason) = backend.PlanCatch(area, cells, source);
+        var (plan, reason) = backend.PlanCatch(area, cells, source, experimentalSoil);
         if (plan is null) throw new InvalidOperationException(reason);
         byte[] entry = Gen7CatchZones.Table(backend.TableBytes(plan.SourceArea), plan.SourceTable) ?? throw new InvalidOperationException("La tabla de origen no existe.");
         byte[] source0 = File.ReadAllBytes(_path);
@@ -81,6 +82,7 @@ internal sealed class Map3dsGen7CatchZoneService
             { "SourceArea", plan.SourceArea.ToString(inv) }, { "SourceTable", plan.SourceTable.ToString(inv) }, { "Mask", "0x" + plan.Mask.ToString("X8", inv) },
             { "Box", $"{plan.Position.X.ToString("0.##", inv)},{plan.Position.Y.ToString("0.##", inv)},{plan.Position.Z.ToString("0.##", inv)} {plan.Size.X.ToString("0", inv)}x{plan.Size.Y.ToString("0", inv)}x{plan.Size.Z.ToString("0", inv)}" },
             { "RestoreBlob", key }, { "Gameplay", "not tested" },
+            { "Experimental", experimentalSoil is uint e ? $"suelo 0x{e:X2} sin precedente; regla de terreno compartido omitida" : "no" },
         };
         return new EditorProposal(_owner, $"Zona de captura en el área {area:000} ({plan.Cells} casillas)", 0, [new FileChange(_path, source0, output)], [.. changes], parameters);
     }

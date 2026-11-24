@@ -12,7 +12,12 @@
 | **Ultra Sol** | El mismo caso que Ultra Luna (Ruta 13 y tabla 0 del Desierto de Haina de Ultra Sol): copia real limpia 8/8 y ROM `US-captura-ruta13-arena.3ds`. **Pendiente de la prueba del propietario.** |
 | **Juegos DS** | Sin esta función de zonas de captura 3DS. |
 
-**Hierba visible:** en Gen6, no implementada y **fuera del roadmap por decisión del propietario**. En Ultra Sol / Ultra Luna pasa a ser **prioridad del propietario** (sin ella la zona no se distingue en el juego); se trabaja aparte. Una zona de captura es funcional cuando el juego produce encuentros en sus casillas, aunque el escenario siga mostrando suelo normal. El editor señala en el mapa las casillas con encuentros (verde) y las marcadas (verde claro).
+**Hierba visible:**
+
+- **Gen6 (X/Y, OR/AS):** no implementada y **fuera del roadmap por decisión del propietario**. Una zona de captura es funcional cuando el juego produce encuentros en sus casillas, aunque el escenario siga mostrando suelo normal.
+- **Ultra Sol / Ultra Luna:** **prioridad del propietario**, porque sin ella la zona no se distingue en el juego. Hay una primera versión con prueba jugable pendiente; ver «Hierba visible en Ultra Sol / Ultra Luna».
+
+El editor señala en el mapa las casillas con encuentros (verde) y las marcadas (verde claro).
 
 ## Qué hace
 
@@ -163,6 +168,61 @@ La región indica qué **tabla** del área usa. Se comprobó en las 336 áreas d
   - Verificado también con un lector independiente.
 - **Imagen 3DS reconstruida:** contiene byte a byte el archivo de campo editado. **Descartada para la prueba jugable** (hierba de la Ruta 1 y caja escrita con el tamaño como ancho completo).
 - **`--map3ds-gen7-encounter-candidates`** (solo lectura): con las reglas actuales, en Ultra Luna solo queda una mancha `0x1F` sin encuentros, en el área 010 (una copia de la Ruta 1 cuyo uso en el juego no se conoce).
+
+## Hierba visible en Ultra Sol / Ultra Luna
+
+### Qué es la hierba que se ve
+
+La hierba alta **no está ligada a las regiones de encuentros**: es un modelo aparte.
+
+| Recurso | Dónde | Datos de Ultra Luna |
+| --- | --- | --- |
+| Modelo de hierba | **Parte 1 del bloque** del archivo de bloques (`a/0/8/6`, paquete «BG» de 8 partes, miembros LZ11) | 143 de 852 bloques. Siempre un modelo GFL2, `Map07_encgrass01`, con un material de sombreador `Kusa` por mancha y una malla por mancha (`blc00`, `blc01`…) |
+| Texturas | Parte 0 del BG del área (slot 1 del archivo de campo) | 55 áreas tienen texturas `encgrass` |
+| Posiciones | Vértices `float32` ya en coordenadas del mundo | La transformación del modelo solo es un punto de referencia |
+
+- Las mallas coinciden con las manchas de suelo de encuentros. Por ejemplo, las de la Ruta 1 cubren las mismas casillas que su suelo `0x1F`.
+- La parte 6 del bloque es la colisión (el suelo y sus atributos).
+- La parte 7 existe en todos los bloques y no es específica de la hierba.
+- Un bloque puede estar en las matrices de varias áreas: su hierba se ve desde todas ellas.
+
+### Qué hace esta primera versión
+
+`Map3dsGen7VisibleGrassService` copia una **mancha original de una sola malla** (23 plantillas en Ultra Luna) en la parte 1 de un **bloque que no tiene hierba**:
+
+- desplaza todos los vértices, la caja envolvente y el punto de referencia;
+- el resto de bytes es el original;
+- antes de escribir comprueba que el bloque se reconstruye byte a byte;
+- solo cambia ese miembro del archivo de bloques, recomprimido y comprobado;
+- el archivo (unos 77 MB) cabe en los puntos de restauración, así que **el historial lo deshace byte a byte**.
+
+**Comprobaciones previas:**
+
+- el área tiene las texturas de la plantilla;
+- la mancha cabe entera en el bloque;
+- el desnivel del suelo debajo es como máximo de 30 unidades; la base de la hierba se coloca a la altura media del suelo.
+
+La zona de captura de esas casillas se añade aparte, con el servicio de zonas de captura. **La hierba sola no produce encuentros.**
+
+**Verificación con datos reales** (`--map3ds-gen7-grass-verify`, Ultra Luna y Ultra Sol limpias):
+
+- los 852 bloques se reconstruyen byte a byte;
+- los 143 modelos de hierba se desplazan y se releen;
+- con desplazamiento cero quedan idénticos.
+
+### Prueba preparada (pendiente del propietario)
+
+- **Pueblo Lilii, bloque 23** (su césped del oeste): plantilla del bloque 19, unas 6 × 6 casillas, y debajo una zona con la tabla 0 del Cementerio de Hauoli.
+- **El suelo de ese césped es `0x01`, que ninguna región original usa solo.** Por eso esa zona es **experimental**: la prueba dirá si el juego acepta una máscara de ese suelo. Está marcada así en el historial, y el editor no ofrece ese suelo.
+- Copia real 8/8, verificación independiente (solo cambia la parte 1 del bloque 23, idéntica a la plantilla salvo 512 `float` por eje) e imagen con los dos archivos editados.
+
+### Limitaciones
+
+- Solo plantillas de una malla, y solo en bloques sin hierba; añadir una malla a un modelo de hierba existente queda fuera.
+- No añade texturas. Áreas sin texturas `encgrass` (por ejemplo, la Ruta 13) no admiten hierba visible en esta versión, y la arena del desierto tampoco tiene hierba en el juego original.
+- La hierba es un modelo plano: no se adapta a pendientes.
+- Todavía no está en el panel del editor; se aplica con el servicio y el runner.
+- **Sin prueba en el juego**: no se sabe aún si se dibuja y se mueve como la original al caminar.
 
 ## Limitaciones
 
