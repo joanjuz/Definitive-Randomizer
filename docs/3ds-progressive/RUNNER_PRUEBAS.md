@@ -293,6 +293,7 @@ Necesitan extracciones, ROMs o carpetas de salida. Los argumentos concretos (ent
 | `--map3ds-gen7-nurse-plan` | `<raíz> <área> <x> <y> <direcciones>` | solo lectura: plantilla de la enfermera y comprobación de una casilla en varias direcciones |
 | `--map3ds-gen7-nurse-restore` | `<copia> <área>` | restaura los NPC y modelos del área antes de la última enfermera, si sus originales están guardados |
 | `--map3ds-gen7-area-names` | `<raíz> <áreas>` | solo lectura: nombre de cada área en el editor |
+| `--map3ds-gen7-reach-audit` | `<raíz> <áreas separadas por comas o all>` | solo lectura: NPC del juego cuya zona de conversación es alcanzable a pie desde los warps (regla de paredes de la enfermera) |
 | `--map3ds-gen7-visible-grass-probe` | `<copia> <área> <x> <y> <plantilla> <suelo> <fuente>` | escribe en una copia de pruebas una mancha de hierba original (bloque plantilla de una malla) centrada en una casilla: vista previa, guardado, solo cambia el bloque destino, deshacer del historial byte a byte, editor con datos antiguos; con suelo (hex) añade la zona de captura bajo la hierba (experimental si ninguna región original usa ese suelo solo) |
 | `--map3ds-gen7-image-blocks` | `<copia> <imagen>` | busca en la imagen 3DS, byte a byte, el archivo de bloques (a/0/8/6) de la copia |
 | `--map3ds-gen7-grass-models` | `<raíz> <bloque o -1>` | solo lectura: mallas del modelo de hierba de un bloque (o resumen de todos) con su extensión y formato |

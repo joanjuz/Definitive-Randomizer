@@ -583,7 +583,9 @@ public sealed partial class Gen7MapBackend : IMapEditorBackend, IMapResourceProv
         var table = ReadZoneTable(config);
         var names = new Dictionary<int, string>();
         foreach (var z in table.Values.Where(z => z.Listed).OrderBy(z => z.Zone)) names.TryAdd(z.Area, z.Name);
-        return new Gen7MapBackend("Pokémon Ultra Sol / Ultra Luna", worlds.FileCount, W, chunks.FileCount, C, names, table);
+        byte[]? zoneData = null;
+        try { zoneData = config.GetlzGARCData("zonedata")[0]; } catch (Exception ex) when (ex is ArgumentException or IndexOutOfRangeException or System.IO.IOException) { }
+        return new Gen7MapBackend("Pokémon Ultra Sol / Ultra Luna", worlds.FileCount, W, chunks.FileCount, C, names, table) { ZoneData = zoneData };
     }
 
     /// <summary>

@@ -5,14 +5,16 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
 using System.Numerics;
+using pk3DS.Core.Maps.Gen6;
 
 namespace pk3DS.Core.Maps.Gen7;
 
 /// <summary>What adding a nurse would write: the record's place, its event id and whether the area must load her model.</summary>
 /// <param name="Talk">Centre of the talk range (where the player stands to talk to her).</param>
 /// <param name="Machine">Where the healing machine goes, or null when the area already has one (static object 2).</param>
+/// <param name="Zone">Global zone of the area (zonedata) whose field gimmick becomes the Pokémon Center's, or -1 when it already is.</param>
 public sealed record Gen7NursePlan(int Area, int ZoneFile, Vector3 Position, double Compass, uint EventId, Vector3 Talk, bool AddsCharacter, int CharacterBytes, int Characters,
-    Vector3? Machine = null, uint MachineEventId = 0, bool AddsObject = false, int ObjectBytes = 0, int Objects = 0);
+    Vector3? Machine = null, uint MachineEventId = 0, bool AddsObject = false, int ObjectBytes = 0, int Objects = 0, int Zone = -1);
 
 /// <summary>Pokémon Center nurse (see <see cref="Gen7Nurse"/>).</summary>
 public sealed partial class Gen7MapBackend : IMapNurseCreation
@@ -20,6 +22,9 @@ public sealed partial class Gen7MapBackend : IMapNurseCreation
     /// <summary>Character pack of an area (slot 3, decompressed).</summary>
     public byte[] CharacterBytes(int area) => (byte[])_world((area * SlotsPerWorld) + CharacterSlot).Clone();
     public const int CharacterSlot = 3, ObjectSlot = 4;
+
+    /// <summary>Zone records (zonedata member 0, 84 bytes per zone), read for the field gimmick; null when not available.</summary>
+    public byte[]? ZoneData { get; set; }
 
     /// <summary>Object pack of an area (slot 4, decompressed).</summary>
     public byte[] ObjectBytes(int area) => (byte[])_world((area * SlotsPerWorld) + ObjectSlot).Clone();
@@ -191,8 +196,135 @@ public sealed partial class Gen7MapBackend : IMapNurseCreation
               (plan.AddsObject ? $"; su modelo se añadirá a los objetos del área ({plan.Objects} objetos, {plan.ObjectBytes / 1024} KB; el juego llega a {Gen7Nurse.MaxObjects} y {Gen7Nurse.MaxObjectBytes / 1024} KB)." : ".")
             : " El área ya tiene máquina de curación.";
         model += machine;
+        model += plan.Zone >= 0
+            ? $" La zona {plan.Zone} pasará a cargar el módulo de campo del Centro Pokémon (gimmick {Gen7Nurse.PokecenGimmick}), que usa la curación."
+            : " La zona ya carga el módulo del Centro Pokémon.";
         return new(true, $"Se añadirá una enfermera (evento {plan.EventId}) en la casilla {x}, {y}, a altura {plan.Position.Y.ToString("0.#", inv)}, mirando hacia {TrainerDirection(plan.Compass)}; se le habla desde la casilla {Math.Floor(plan.Talk.X / UnitsPerCell)}, {Math.Floor(plan.Talk.Z / UnitsPerCell)}.{model} " +
             "Usa la rutina común de curación del juego. No se ha probado en el juego.");
+    }
+
+    private readonly Dictionary<int, List<(Vector2 A, Vector2 B)>> _walls = [];
+
+    /// <summary>
+    /// Walls of the area seen from above: the vertical triangles of block part 7 (a «BG» pack whose sub-meshes have the
+    /// collision layout of part 6; in Pueblo Lilii sub-mesh 0 holds the fences, all of its triangles vertical), each
+    /// reduced to the segment between its two farthest points on the ground plane.
+    /// </summary>
+    public IReadOnlyList<(Vector2 A, Vector2 B)> WallSegments(int area)
+    {
+        lock (_catchGate) if (_walls.TryGetValue(area, out var cached)) return cached;
+        var list = new List<(Vector2, Vector2)>();
+        if (_worlds.TryGetValue(area, out var w))
+            foreach (int id in w.Blocks.Where(b => b >= 0 && b < _chunkCount).Distinct())
+            {
+                try
+                {
+                    var data = _chunk(id);
+                    if (data.Length < 8 || data[0] != 'B' || data[1] != 'G') continue;
+                    var pack = Gen6Pack.Read(data, "BG");
+                    if (pack.Count <= 7 || pack.Length(7) < 8) continue;
+                    var p7 = pack.Part(7).ToArray();
+                    if (p7[0] != 'B' || p7[1] != 'G') continue;
+                    var subs = Gen6Pack.Read(p7, "BG");
+                    for (int k = 0; k < subs.Count; k++)
+                    {
+                        if (subs.Length(k) < 8 || BinaryPrimitives.ReadUInt32LittleEndian(subs.Part(k)) != Gen7Collision.Magic) continue;
+                        foreach (var t in Gen7Collision.Read(subs.Part(k)))
+                        {
+                            var n = Vector3.Cross(t.B - t.A, t.C - t.A);
+                            if (n.LengthSquared() <= 0 || Math.Abs(n.Y) / n.Length() >= 0.3f) continue;
+                            Vector2[] pts = [new(t.A.X, t.A.Z), new(t.B.X, t.B.Z), new(t.C.X, t.C.Z)];
+                            var best = (pts[0], pts[1]);
+                            foreach (var (i, j) in new[] { (0, 2), (1, 2) })
+                                if (Vector2.DistanceSquared(pts[i], pts[j]) > Vector2.DistanceSquared(best.Item1, best.Item2)) best = (pts[i], pts[j]);
+                            if (Vector2.DistanceSquared(best.Item1, best.Item2) > 1) list.Add(best);
+                        }
+                    }
+                }
+                catch (MapFormatException) { }
+            }
+        lock (_catchGate) _walls[area] = list;
+        return list;
+    }
+
+    /// <summary>
+    /// Read-only audit of the reachability rule on the game's own NPCs: for every NPC of the area with a talk range, whether
+    /// the cell of that range is reachable on foot (null when the area has no warp arrival on ground).
+    /// </summary>
+    public (int Npcs, int Reachable, List<string> Unreachable)? ReachabilityAudit(int area)
+    {
+        var ground = GroundCells(area);
+        var reach = Reachable(area, ground, WallSegments(area));
+        if (reach is null) return null;
+        int n = 0, ok = 0; var bad = new List<string>();
+        byte[][] files;
+        try
+        {
+            var parts = Gen7CatchZones.Parts(EventBytes(area), "ED");
+            files = Gen7CatchZones.Parts(parts[Gen7Events.NpcPack], System.Text.Encoding.ASCII.GetString(parts[Gen7Events.NpcPack], 0, 2));
+        }
+        catch (Exception ex) when (ex is MapFormatException or IndexOutOfRangeException or ArgumentException) { return null; }
+        foreach (var file in files)
+        {
+            if (file.Length < 4) continue;
+            foreach (var r in Gen7Events.Records(file, Gen7ZoneEdit.NpcSize, Gen7ZoneEdit.NpcType))
+            {
+                int off = (int)r.U32(Gen7ZoneEdit.NpcTalkShape);
+                if (off <= 0 || off >= file.Length) continue;
+                Vector3 tp;
+                try { tp = Gen7Nurse.FirstPoint(Gen7Nurse.ShapeList(file, off)); } catch (Exception ex) when (ex is MapFormatException or ArgumentException or IndexOutOfRangeException) { continue; }
+                var cell = ((int)Math.Floor(tp.X / UnitsPerCell), (int)Math.Floor(tp.Z / UnitsPerCell));
+                if (!ground.ContainsKey(cell)) continue;
+                n++;
+                if (reach.Contains(cell)) ok++; else bad.Add($"evento {r.U32(Gen7Nurse.EventId)} modelo {r.U32(Gen7Nurse.ModelField)} en {cell}");
+            }
+        }
+        return (n, ok, bad);
+    }
+
+    public static bool Crosses(Vector2 p, Vector2 q, Vector2 a, Vector2 b)
+    {
+        static float Side(Vector2 o, Vector2 u, Vector2 v) => ((u.X - o.X) * (v.Y - o.Y)) - ((u.Y - o.Y) * (v.X - o.X));
+        float d1 = Side(a, b, p), d2 = Side(a, b, q), d3 = Side(p, q, a), d4 = Side(p, q, b);
+        return ((d1 > 0 && d2 < 0) || (d1 < 0 && d2 > 0)) && ((d3 > 0 && d4 < 0) || (d3 < 0 && d4 > 0));
+    }
+
+    /// <summary>
+    /// Cells reachable on foot from where the player arrives (the arrival point of every warp of the area), moving between
+    /// neighbouring cells with ground without crossing a wall; null when the area has no warp arrival on ground.
+    /// </summary>
+    private HashSet<(int X, int Y)>? Reachable(int area, Dictionary<(int X, int Y), List<(uint Attribute, float Height)>> ground, IReadOnlyList<(Vector2 A, Vector2 B)> walls)
+    {
+        var seeds = Warps(area).Select(wp => ((int)Math.Floor(wp.Arrival.X / UnitsPerCell), (int)Math.Floor(wp.Arrival.Z / UnitsPerCell))).Where(ground.ContainsKey).Distinct().ToList();
+        if (seeds.Count == 0) return null;
+        // Walls indexed by the cells their bounding box touches, to test each step against the nearby ones only.
+        var near = new Dictionary<(int, int), List<int>>();
+        for (int i = 0; i < walls.Count; i++)
+        {
+            var (a, b) = walls[i];
+            for (int x = (int)Math.Floor(Math.Min(a.X, b.X) / UnitsPerCell) - 1; x <= (int)Math.Floor(Math.Max(a.X, b.X) / UnitsPerCell) + 1; x++)
+                for (int y = (int)Math.Floor(Math.Min(a.Y, b.Y) / UnitsPerCell) - 1; y <= (int)Math.Floor(Math.Max(a.Y, b.Y) / UnitsPerCell) + 1; y++)
+                {
+                    if (!near.TryGetValue((x, y), out var l)) near[(x, y)] = l = [];
+                    l.Add(i);
+                }
+        }
+        var seen = new HashSet<(int X, int Y)>(seeds);
+        var queue = new Queue<(int X, int Y)>(seeds);
+        while (queue.Count > 0)
+        {
+            var c = queue.Dequeue();
+            var from = new Vector2((c.X + 0.5f) * UnitsPerCell, (c.Y + 0.5f) * UnitsPerCell);
+            foreach (var (dx, dy) in new[] { (1, 0), (-1, 0), (0, 1), (0, -1) })
+            {
+                var n = (c.X + dx, c.Y + dy);
+                if (seen.Contains(n) || !ground.ContainsKey(n)) continue;
+                var to = new Vector2((n.Item1 + 0.5f) * UnitsPerCell, (n.Item2 + 0.5f) * UnitsPerCell);
+                if (near.TryGetValue(c, out var idx) && idx.Any(i => Crosses(from, to, walls[i].A, walls[i].B))) continue;
+                seen.Add(n); queue.Enqueue(n);
+            }
+        }
+        return seen;
     }
 
     /// <summary>The nurse a cell and direction would add, or why not.</summary>
@@ -230,6 +362,13 @@ public sealed partial class Gen7MapBackend : IMapNurseCreation
         var talkCell = ((int)Math.Floor(talk.X / UnitsPerCell), (int)Math.Floor(talk.Z / UnitsPerCell));
         if (Level(talkCell, "desde la que se le habla", out why) is not float th) return (null, why);
         if (Math.Abs(th - h) > 30) return (null, $"La casilla desde la que se le habla ({talkCell.Item1}, {talkCell.Item2}) está a otra altura; elige otra dirección o casilla.");
+
+        // Walls and fences (block part 7): she must be talked to across no wall, from a cell the player can walk to.
+        var walls = WallSegments(zone);
+        if (walls.Any(wl => Crosses(new(cx, cz), new(talk.X, talk.Z), wl.A, wl.B)))
+            return (null, "Hay una pared o valla entre la enfermera y la casilla desde la que se le habla; elige otra dirección o casilla.");
+        if (Reachable(zone, ground, walls) is { } reach && !reach.Contains(talkCell))
+            return (null, $"No se puede llegar andando a la casilla desde la que se le habla ({talkCell.Item1}, {talkCell.Item2}) desde las entradas del área: hay paredes o vallas por medio. Elige otra casilla.");
 
         ZoneEvents(zone);
         Dictionary<int, (int Pack, int Zone, int Row, Vector3 Position)> refs;
@@ -291,6 +430,17 @@ public sealed partial class Gen7MapBackend : IMapNurseCreation
             machinePos = new Vector3(mp.X, mh, mp.Z);
         }
 
+        // Field gimmick: the healing branch needs the Pokémon Center module, loaded by zones with gimmick 3.
+        if (ZoneData is not { } zd) return (null, "No se pudo leer la tabla de zonas (campo de gimmick).");
+        var areaZones = _zoneTable.Values.Where(zi => zi.Area == zone).Select(zi => zi.Zone).ToArray();
+        if (areaZones.Length != 1) return (null, $"El área tiene {areaZones.Length} zonas del juego; por ahora la enfermera solo se añade en áreas de una zona.");
+        int gz = areaZones[0];
+        if ((gz + 1) * Gen7Nurse.ZoneSize > zd.Length) return (null, "La zona no está en la tabla de zonas.");
+        byte gimmick = zd[(gz * Gen7Nurse.ZoneSize) + Gen7Nurse.GimmickOffset];
+        if (gimmick is not (Gen7Nurse.NoGimmick or Gen7Nurse.PokecenGimmick))
+            return (null, $"La zona {gz} ya usa otro módulo de campo (gimmick {gimmick}: ascensor, instalación de combate, Festival...); la curación de la enfermera necesita el del Centro Pokémon y no pueden convivir.");
+        int setZone = gimmick == Gen7Nurse.NoGimmick ? gz : -1;
+
         int objectBytes = 0, objects = 0; bool addsObject = false;
         if (machinePos is not null)
         {
@@ -319,13 +469,17 @@ public sealed partial class Gen7MapBackend : IMapNurseCreation
             try { var withNurse = Gen7Nurse.AddCharacter(ac, t.Character); bytes = withNurse.Length; characters++; }
             catch (InvalidOperationException ex) { return (null, ex.Message); }
         }
-        return (new Gen7NursePlan(zone, 0, position, facing, eventId, talk, adds, bytes, characters, machinePos, machineId, addsObject, objectBytes, objects), "");
+        return (new Gen7NursePlan(zone, 0, position, facing, eventId, talk, adds, bytes, characters, machinePos, machineId, addsObject, objectBytes, objects, setZone), "");
     }
 
     /// <summary>
     /// The area event pack (nurse and, when needed, healing machine) and, when they are added, the character and object
     /// packs the plan writes (each checked by its writer).
     /// </summary>
+    /// <summary>The zone records with the plan's zone set to the Pokémon Center gimmick, or null when nothing changes.</summary>
+    public byte[]? NurseZoneEdit(Gen7NursePlan plan) =>
+        plan.Zone < 0 ? null : Gen7Nurse.SetGimmick(ZoneData ?? throw new InvalidOperationException("Sin tabla de zonas."), plan.Zone, Gen7Nurse.PokecenGimmick);
+
     public (byte[] Events, byte[]? Characters, byte[]? Objects) NurseEdits(Gen7NursePlan plan)
     {
         var t = NurseTemplate ?? throw new InvalidOperationException(NurseSummary);

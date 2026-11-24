@@ -143,10 +143,21 @@ internal static class Map3dsGen7NurseChecks
         return areas;
     }
 
-    internal static Gen7MapBackend Backend(Dictionary<int, byte[]> areas)
+    /// <summary>Zone records: zone z belongs to area z; the Centers (areas 0 and 3) have the Pokémon Center gimmick.</summary>
+    internal static byte[] Zones(params (int Zone, byte Gimmick)[] changes)
+    {
+        var z = new byte[5 * Gen7Nurse.ZoneSize];
+        for (int i = 0; i < 5; i++) { z[(i * 84) + 1] = (byte)(0x10 + i); z[(i * 84) + 0x40] = 0x22; }
+        z[(0 * 84) + Gen7Nurse.GimmickOffset] = Gen7Nurse.PokecenGimmick; z[(3 * 84) + Gen7Nurse.GimmickOffset] = Gen7Nurse.PokecenGimmick;
+        foreach (var (zone, g) in changes) z[(zone * 84) + Gen7Nurse.GimmickOffset] = g;
+        return z;
+    }
+
+    internal static Gen7MapBackend Backend(Dictionary<int, byte[]> areas, byte[]? zones = null)
     {
         var block = Map3dsGen7GrassEditorChecks.MapBlock([], Map3dsGen7GrassEditorChecks.Ground());
-        return new Gen7MapBackend("Prueba", 55, i => areas.GetValueOrDefault(i, []), 1, _ => block);
+        var table = Enumerable.Range(0, 5).ToDictionary(i => i, i => new Gen7ZoneInfo(i, i, $"Zona {i}", true));
+        return new Gen7MapBackend("Prueba", 55, i => areas.GetValueOrDefault(i, []), 1, _ => block, null, table) { ZoneData = zones ?? Zones() };
     }
 
     internal static void Run(Action<bool, string> check)
@@ -188,8 +199,19 @@ internal static class Map3dsGen7NurseChecks
             && machine.U32(0x30) == 2 && machine.U32(0x2C) == 701 && Vector3.Distance(machine.Position, mpos) < 0.01f
             && objs is not null && Gen7Nurse.Objects(objs).SequenceEqual([77, 2]) && Gen7CatchZones.Parts(objs, "AS")[^1].AsSpan().SequenceEqual(t.MachineModel),
             "Gen7Nurse_HealingMachineIsPlacedNextToHerWithItsModel");
+        // Field gimmick: the target zone gets the Pokémon Center module (only its byte changes); a Center keeps it.
+        var zonesAfter = b.NurseZoneEdit(plan!);
+        check(plan!.Zone == 1 && b.ValidateAddNurse(1, 5, 5, 90).Reason.Contains("módulo de campo del Centro Pokémon") && zonesAfter is not null
+            && zonesAfter[(1 * 84) + 0x0E] == 3 && Enumerable.Range(0, zonesAfter.Length).Where(i => i != (1 * 84) + 0x0E).All(i => zonesAfter[i] == b.ZoneData![i]),
+            "Gen7Nurse_TargetZoneLoadsThePokemonCenterModule");
+        var (otherGimmick, r10) = Backend(areas, Zones((1, 5))).PlanNurse(1, 5, 5, 90);
+        check(otherGimmick is null && r10.Contains("módulo de campo"), "Gen7Nurse_ZoneWithAnotherModuleIsRefused " + r10);
+        // Walls seen from above: a step crosses a fence only when the two segments properly intersect.
+        var fenceA = new Vector2(0, 0); var fenceB = new Vector2(100, 100);
+        check(Gen7MapBackend.Crosses(new(0, 100), new(100, 0), fenceA, fenceB) && !Gen7MapBackend.Crosses(new(0, 100), new(40, 90), fenceA, fenceB)
+            && !Gen7MapBackend.Crosses(new(200, 0), new(200, 100), fenceA, fenceB), "Gen7Nurse_StepAcrossAFenceIsDetected");
         var (inCenter, _) = b.PlanNurse(3, 5, 5, 180);
-        check(inCenter is { AddsCharacter: false, Machine: null } && b.NurseEdits(inCenter).Characters is null && b.NurseEdits(inCenter).Objects is null,
+        check(inCenter is { AddsCharacter: false, Machine: null, Zone: -1 } && b.NurseEdits(inCenter).Characters is null && b.NurseEdits(inCenter).Objects is null && b.NurseZoneEdit(inCenter) is null,
             "Gen7Nurse_AreaThatAlreadyLoadsTheModelAndHasAMachineKeepsThem");
         var (machineOff, r9) = b.PlanNurse(1, 5, 8, 270);
         check(machineOff is null && r9.Contains("máquina de curación"), "Gen7Nurse_MachineNeedsGroundBesideHer " + r9);
@@ -203,9 +225,9 @@ internal static class Map3dsGen7NurseChecks
         check(occupied is null && r1.Contains("ocupa") && front is null && r2.Contains("ocupa") && warp is null && r3.Contains("warp") && noGround is null && r4.Contains("no tiene suelo")
             && talkOff is null && r5.Contains("desde la que se le habla") && zones is null && r6.Contains("2 zonas") && full is null && r7.Contains("37"), "Gen7Nurse_InvalidPlacesAreRefused | " + string.Join(" | ", r1, r2, r3, r4, r5, r6, r7));
         var added = new Dictionary<int, byte[]>(areas) { [11] = ed, [14] = ac!, [15] = objs! };
-        var b2 = Backend(added);
+        var b2 = Backend(added, zonesAfter);
         var (second, r8) = b2.PlanNurse(1, 9, 5, 270);
-        check(b2.NurseTemplate is { Count: 3 } && second is { EventId: 3, AddsCharacter: false, Machine: null } && b2.NurseEdits(second).Characters is null && b2.NurseEdits(second).Objects is null,
+        check(b2.NurseTemplate is { Count: 3 } && second is { EventId: 3, AddsCharacter: false, Machine: null, Zone: -1 } && b2.NurseEdits(second).Characters is null && b2.NurseEdits(second).Objects is null,
             "Gen7Nurse_AnAddedNurseIsRecognisedAndASecondOneCanBeAdded " + r8);
         var lone = Areas(); lone[3 * 11] = Ed([NpcFile(Standing(3, 66, 5030, new Vector3(2100, 0, 2100), 112))]);
         check(Backend(lone).NurseTemplate is null && Backend(lone).NurseSummary.Contains("no son todas iguales"), "Gen7Nurse_DifferentNursesAreNotCopied");
@@ -217,6 +239,7 @@ internal static class Map3dsGen7NurseChecks
         var calls = new List<(int Zone, int X, int Y, double Facing)>();
         var mover = new Map3dsMover((b, z, n, x, y) => "m", () => Backend(areas), addNurse: (b, z, x, y, f) => { calls.Add((z, x, y, f)); return $"Enfermera en el área {z:000}"; });
         var view = new Map3dsEditorView(Backend(areas), mover);
+        _ = Zones();
         view.Measure(new Size(1400, 860)); view.Arrange(new Rect(0, 0, 1400, 860)); view.UpdateLayout(); UiPump.Idle();
         var noProject = new Map3dsEditorView(Backend(areas));
         check(view.NurseButton is not null && noProject.NurseButton is null, "Map3dsGen7NurseUi_ButtonOnlyWithAProjectThatCanWrite");
@@ -244,6 +267,7 @@ internal static class Map3dsGen7NurseChecks
         var service = new Map3dsGen7NurseService(session);
         string archive = service.FieldArchive;
         byte[] original = File.ReadAllBytes(archive);
+        byte[] zoneFileBefore = File.ReadAllBytes(service.ZoneArchive);
         var before = Gen7MapBackend.FromConfig(session.GameConfiguration);
         Console.WriteLine(before.NurseSummary);
         var check0 = before.ValidateAddNurse(area, x, y, facing);
@@ -251,7 +275,7 @@ internal static class Map3dsGen7NurseChecks
         if (!check0.Allowed) throw new InvalidOperationException(check0.Reason);
         var npcsBefore = before.ZoneEvents(area).Where(e => e.Kind == MapEventKind.Npc).ToList();
         var proposal = service.Preview(before, area, x, y, facing);
-        bool previewSafe = File.ReadAllBytes(archive).AsSpan().SequenceEqual(original);
+        bool previewSafe = File.ReadAllBytes(archive).AsSpan().SequenceEqual(original) && File.ReadAllBytes(service.ZoneArchive).AsSpan().SequenceEqual(zoneFileBefore);
         Console.WriteLine((previewSafe ? "PASS" : "FAIL") + " Gen7NurseReal_PreviewWritesNothing");
         service.Apply(proposal);
         var after = Gen7MapBackend.FromConfig(session.GameConfiguration);
@@ -279,19 +303,26 @@ internal static class Map3dsGen7NurseChecks
         var differing = Enumerable.Range(0, Math.Min(ma.Length, mb.Length)).Where(i => !ma[i].AsSpan().SequenceEqual(mb[i])).ToArray();
         bool membersOk = ma.Length == mb.Length && differing.All(i => i == ev || i == ch || i == ob) && differing.Contains(ev);
         Console.WriteLine((membersOk ? "PASS" : "FAIL") + $" Gen7NurseReal_OnlyTheAreaEventsCharactersAndObjectsChanged (miembros {string.Join(",", differing)})");
+        var zonesBefore = before.ZoneData!; var zonesNow = after.ZoneData!;
+        int gz = before.ZoneTable.Values.Single(z => z.Area == area).Zone;
+        var zoneDiff = Enumerable.Range(0, Math.Min(zonesBefore.Length, zonesNow.Length)).Where(i => zonesBefore[i] != zonesNow[i]).ToArray();
+        bool gimmick = zonesNow[(gz * 84) + 0x0E] == Gen7Nurse.PokecenGimmick && (zoneDiff.Length == 0 && zonesBefore[(gz * 84) + 0x0E] == 3 || zoneDiff.SequenceEqual([(gz * 84) + 0x0E]));
+        Console.WriteLine((gimmick ? "PASS" : "FAIL") + $" Gen7NurseReal_ZoneLoadsThePokemonCenterModule (zona {gz}: gimmick {zonesBefore[(gz * 84) + 0x0E]} → {zonesNow[(gz * 84) + 0x0E]}; bytes cambiados {zoneDiff.Length})");
+        byte[] zoneOriginal = zoneFileBefore;
         var entry = session.History.Read().Entries.Last();
         bool recorded = entry.Parameters.GetValueOrDefault("ActionId") == Map3dsGen7NurseService.ActionId;
         Console.WriteLine((recorded ? "PASS" : "FAIL") + $" Gen7NurseReal_HistoryEntry «{entry.Action}»");
         bool canRestore = service.CanRestore(area);
         service.Apply(service.PreviewRestore(area));
         var restoredMembers = new GARC.MemGARC(File.ReadAllBytes(archive)).Files;
-        bool restored = restoredMembers.Length == mb.Length && Enumerable.Range(0, mb.Length).All(i => restoredMembers[i].AsSpan().SequenceEqual(mb[i]));
+        bool restored = restoredMembers.Length == mb.Length && Enumerable.Range(0, mb.Length).All(i => restoredMembers[i].AsSpan().SequenceEqual(mb[i]))
+            && new GARC.MemGARC(File.ReadAllBytes(service.ZoneArchive)).Files[0].AsSpan().SequenceEqual(new GARC.MemGARC(zoneOriginal).Files[0]);
         Console.WriteLine((canRestore && restored ? "PASS" : "FAIL") + " Gen7NurseReal_RestorePutsBackEveryOriginalMember");
         service.Apply(service.Preview(Gen7MapBackend.FromConfig(session.GameConfiguration), area, x, y, facing));
         bool stale = false;
         try { service.Preview(before, area, x, y, facing); } catch (Exception ex) when (ex is InvalidDataException or InvalidOperationException) { stale = true; }
         Console.WriteLine((stale ? "PASS" : "FAIL") + " Gen7NurseReal_AnEditorThatReadOldFilesCannotWrite");
-        if (!(previewSafe && one && others && model && machineOk && membersOk && recorded && canRestore && restored && stale)) throw new InvalidDataException("La prueba real de la enfermera de USUM falló.");
+        if (!(previewSafe && one && others && model && machineOk && gimmick && membersOk && recorded && canRestore && restored && stale)) throw new InvalidDataException("La prueba real de la enfermera de USUM falló.");
         Console.WriteLine("Enfermera aplicada en la copia para la prueba jugable · gameplay NOT tested");
     }
 }

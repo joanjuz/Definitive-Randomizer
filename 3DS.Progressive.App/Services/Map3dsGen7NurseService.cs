@@ -14,7 +14,8 @@ namespace ThreeDS.Progressive.Services;
 /// area·11 + 3) and the machine's "SM" pack in the area object pack (member area·11 + 4) when missing. The members are
 /// recompressed (checked to round-trip) in one rebuild of the archive, every other member is checked unchanged, and the
 /// three original members are kept together so the area can be restored exactly (the archive is too large for the
-/// history's restore points).
+/// history's restore points). When the area's zone has no field gimmick, its gimmick byte in the zone records (zonedata
+/// member 0) becomes the Pokémon Center's in the same history entry; that member is kept with the others.
 /// </summary>
 internal sealed class Map3dsGen7NurseService
 {
@@ -22,9 +23,10 @@ internal sealed class Map3dsGen7NurseService
     internal const string ActionId = "map3ds.gen7.nurse.add";
     private readonly GameProjectSession _project;
     private readonly string _path;
-    private readonly GARCReference _reference;
+    private readonly GARCReference _reference, _zoneReference;
+    private readonly string _zonePath;
     private readonly Guid _owner = Guid.NewGuid();
-    private (string Key, byte[] Events, byte[] Characters, byte[] Objects)? _pending;
+    private (string Key, byte[] Events, byte[] Characters, byte[] Objects, byte[] Zones)? _pending;
 
     internal Map3dsGen7NurseService(GameProjectSession project)
     {
@@ -33,7 +35,11 @@ internal sealed class Map3dsGen7NurseService
         _project = project;
         _path = Path.Combine(config.RomFS, config.GetGARCFileName("encdata"));
         _reference = config.GetGARCReference("encdata");
+        _zonePath = Path.Combine(config.RomFS, config.GetGARCFileName("zonedata"));
+        _zoneReference = config.GetGARCReference("zonedata");
     }
+
+    internal string ZoneArchive => _zonePath;
 
     internal string FieldArchive => _path;
     private string OriginalsFolder => Path.Combine(_project.History.StorageDirectory, "map3ds-originales", "enfermeras");
@@ -41,7 +47,7 @@ internal sealed class Map3dsGen7NurseService
     private static int EventsMember(int area) => area * Gen7MapBackend.SlotsPerWorld;
     private static int CharactersMember(int area) => (area * Gen7MapBackend.SlotsPerWorld) + Gen7MapBackend.CharacterSlot;
     private static int ObjectsMember(int area) => (area * Gen7MapBackend.SlotsPerWorld) + Gen7MapBackend.ObjectSlot;
-    private static string Key(byte[] events, byte[] characters, byte[] objects) => Convert.ToHexString(SHA256.HashData([.. events, .. characters, .. objects]));
+    private static string Key(byte[] events, byte[] characters, byte[] objects, byte[] zones) => Convert.ToHexString(SHA256.HashData([.. events, .. characters, .. objects, .. zones]));
 
     /// <summary>Builds the change without writing anything.</summary>
     internal EditorProposal Preview(Gen7MapBackend backend, int area, int x, int y, double facing)
@@ -69,9 +75,30 @@ internal sealed class Map3dsGen7NurseService
             || (objects is not null && !Decode(after[ob]).AsSpan().SequenceEqual(objects)))
             throw new InvalidDataException("La relectura no coincide con la propuesta. No se guardó nada.");
 
+        // Zone records: the Pokémon Center field gimmick for the area's zone when it has none.
+        byte[] zoneSource = File.ReadAllBytes(_zonePath);
+        byte[][] zoneRecords = new GARC.MemGARC(zoneSource).Files;
+        if (zoneRecords.Length == 0 || backend.ZoneData is null || !Decode(zoneRecords[0]).AsSpan().SequenceEqual(backend.ZoneData))
+            throw new InvalidDataException("La tabla de zonas no coincide con la que leyó el editor. Vuelve a abrir el editor.");
+        byte[] zoneOriginal = zoneRecords[0];
+        var files = new List<FileChange> { new(_path, source, output) };
+        byte[] zoneAfter = zoneOriginal;
+        if (backend.NurseZoneEdit(plan) is { } zones)
+        {
+            var zoneBefore = (byte[][])zoneRecords.Clone();
+            zoneRecords[0] = Encode(zoneRecords[0], zones);
+            byte[] zoneOutput = GarcTransaction.Build(zoneSource, _zoneReference, zoneRecords, preserveRecordSize: false);
+            var zoneCheck = new GARC.MemGARC(zoneOutput).Files;
+            if (zoneCheck.Length != zoneBefore.Length || !Decode(zoneCheck[0]).AsSpan().SequenceEqual(zones)
+                || Enumerable.Range(1, zoneCheck.Length - 1).Any(i => !zoneCheck[i].AsSpan().SequenceEqual(zoneBefore[i])))
+                throw new InvalidDataException("La reconstrucción de la tabla de zonas no coincide. No se guardó nada.");
+            zoneAfter = zoneCheck[0];
+            files.Add(new FileChange(_zonePath, zoneSource, zoneOutput));
+        }
+
         var inv = System.Globalization.CultureInfo.InvariantCulture;
-        string key = Key(after[ev], after[ch], after[ob]);
-        _pending = (key, original[ev], original[ch], original[ob]);
+        string key = Key(after[ev], after[ch], after[ob], zoneAfter);
+        _pending = (key, original[ev], original[ch], original[ob], zoneOriginal);
         string where = $"{Math.Floor(plan.Position.X / Gen7MapBackend.UnitsPerCell)}, {Math.Floor(plan.Position.Z / Gen7MapBackend.UnitsPerCell)}";
         var changes = new List<BatchChange>
         {
@@ -82,14 +109,16 @@ internal sealed class Map3dsGen7NurseService
             changes.Add(new BatchChange(area, $"Área {area:000}", "Objetos estáticos", "sin máquina de curación",
                 $"máquina de curación (estático {plan.MachineEventId}) en la casilla {Math.Floor(mp.X / Gen7MapBackend.UnitsPerCell)}, {Math.Floor(mp.Z / Gen7MapBackend.UnitsPerCell)}", "nurse.machine"));
         if (objects is not null) changes.Add(new BatchChange(area, $"Área {area:000}", "Modelos de objetos", "sin el objeto 2", $"+ objeto 2 ({plan.Objects} objetos)", "nurse.machine-model"));
+        if (plan.Zone >= 0) changes.Add(new BatchChange(area, $"Zona {plan.Zone}", "Módulo de campo (gimmick, +0x0E)", Gen7Nurse.NoGimmick.ToString(inv), $"{Gen7Nurse.PokecenGimmick} (Centro Pokémon)", "nurse.gimmick"));
         var parameters = new Dictionary<string, string>
         {
             { "ActionId", ActionId }, { "Game", "USUM" }, { "Area", area.ToString(inv) }, { "Cell", where }, { "Facing", plan.Compass.ToString("0.##", inv) },
             { "EventId", plan.EventId.ToString(inv) }, { "Model", Gen7Nurse.Model.ToString(inv) }, { "Script", Gen7Nurse.Script.ToString(inv) },
             { "AddsModel", characters is not null ? "yes" : "no" }, { "Machine", plan.Machine is null ? "existing" : plan.MachineEventId.ToString(inv) },
-            { "AddsMachineModel", objects is not null ? "yes" : "no" }, { "RestoreBlob", key }, { "Gameplay", "not tested" },
+            { "AddsMachineModel", objects is not null ? "yes" : "no" }, { "Gimmick", plan.Zone >= 0 ? $"zona {plan.Zone}: 0 → 3" : "sin cambios" },
+            { "RestoreBlob", key }, { "Gameplay", "not tested" },
         };
-        return new EditorProposal(_owner, $"Enfermera en el área {area:000} (casilla {where})", 0, [new FileChange(_path, source, output)], [.. changes], parameters);
+        return new EditorProposal(_owner, $"Enfermera en el área {area:000} (casilla {where})", 0, [.. files], [.. changes], parameters);
     }
 
     private static byte[] Decode(byte[] raw)
@@ -108,12 +137,15 @@ internal sealed class Map3dsGen7NurseService
         return encoded;
     }
 
-    private (byte[] Source, byte[][] Records, string Key) Current(int area)
+    private (byte[] Source, byte[][] Records, byte[] ZoneSource, byte[][] ZoneRecords, string Key) Current(int area)
     {
         byte[] source = File.ReadAllBytes(_path);
         byte[][] records = new GARC.MemGARC(source).Files;
         if (ObjectsMember(area) >= records.Length) throw new InvalidDataException("El área no existe en el archivo.");
-        return (source, records, Key(records[EventsMember(area)], records[CharactersMember(area)], records[ObjectsMember(area)]));
+        byte[] zoneSource = File.ReadAllBytes(_zonePath);
+        byte[][] zoneRecords = new GARC.MemGARC(zoneSource).Files;
+        if (zoneRecords.Length == 0) throw new InvalidDataException("La tabla de zonas está vacía.");
+        return (source, records, zoneSource, zoneRecords, Key(records[EventsMember(area)], records[CharactersMember(area)], records[ObjectsMember(area)], zoneRecords[0]));
     }
 
     /// <summary>Whether the area's current events and characters come from a nurse added here and can be put back exactly.</summary>
@@ -122,11 +154,11 @@ internal sealed class Map3dsGen7NurseService
     /// <summary>Puts back, byte for byte, the event and character members the area had before its last nurse (a new history entry).</summary>
     internal EditorProposal PreviewRestore(int area)
     {
-        var (source, records, key) = Current(area);
+        var (source, records, zoneSource, zoneRecords, key) = Current(area);
         string folder = Path.Combine(OriginalsFolder, key);
         if (!Directory.Exists(folder)) throw new InvalidOperationException("No hay estado anterior guardado para la enfermera actual de esta área.");
         byte[] events = File.ReadAllBytes(Path.Combine(folder, "eventos.bin")), characters = File.ReadAllBytes(Path.Combine(folder, "personajes.bin")),
-            objects = File.ReadAllBytes(Path.Combine(folder, "objetos.bin"));
+            objects = File.ReadAllBytes(Path.Combine(folder, "objetos.bin")), zones = File.ReadAllBytes(Path.Combine(folder, "zonas.bin"));
         _ = Gen7CatchZones.Parts(Decode(events), "ED"); _ = Gen7Nurse.Characters(Decode(characters)); _ = Gen7Nurse.Objects(Decode(objects));
         int ev = EventsMember(area), ch = CharactersMember(area), ob = ObjectsMember(area);
         var original = (byte[][])records.Clone();
@@ -135,8 +167,19 @@ internal sealed class Map3dsGen7NurseService
         var after = new GARC.MemGARC(output).Files;
         for (int i = 0; i < after.Length; i++)
             if (i != ev && i != ch && i != ob && !after[i].AsSpan().SequenceEqual(original[i])) throw new InvalidDataException("La reconstrucción cambió otro archivo de campo. No se restauró nada.");
+        var files = new List<FileChange> { new(_path, source, output) };
+        if (!zoneRecords[0].AsSpan().SequenceEqual(zones))
+        {
+            var zoneBefore = (byte[][])zoneRecords.Clone();
+            zoneRecords[0] = zones;
+            byte[] zoneOutput = GarcTransaction.Build(zoneSource, _zoneReference, zoneRecords, preserveRecordSize: false);
+            var zoneCheck = new GARC.MemGARC(zoneOutput).Files;
+            if (zoneCheck.Length != zoneBefore.Length || Enumerable.Range(1, zoneCheck.Length - 1).Any(i => !zoneCheck[i].AsSpan().SequenceEqual(zoneBefore[i])))
+                throw new InvalidDataException("La reconstrucción de la tabla de zonas cambió otro miembro. No se restauró nada.");
+            files.Add(new FileChange(_zonePath, zoneSource, zoneOutput));
+        }
         var inv = System.Globalization.CultureInfo.InvariantCulture;
-        return new EditorProposal(_owner, $"Restaurar NPC, objetos y modelos del área {area:000} antes de la última enfermera", 0, [new FileChange(_path, source, output)],
+        return new EditorProposal(_owner, $"Restaurar NPC, objetos, modelos y zona del área {area:000} antes de la última enfermera", 0, [.. files],
             [new BatchChange(area, $"Área {area:000}", "NPC, objetos estáticos y modelos", key[..12], "estado anterior", "nurse.restore")],
             new Dictionary<string, string> { { "ActionId", ActionId + ".restore" }, { "Game", "USUM" }, { "Area", area.ToString(inv) } });
     }
@@ -152,6 +195,7 @@ internal sealed class Map3dsGen7NurseService
             if (!File.Exists(Path.Combine(folder, "eventos.bin"))) File.WriteAllBytes(Path.Combine(folder, "eventos.bin"), keep.Events);
             if (!File.Exists(Path.Combine(folder, "personajes.bin"))) File.WriteAllBytes(Path.Combine(folder, "personajes.bin"), keep.Characters);
             if (!File.Exists(Path.Combine(folder, "objetos.bin"))) File.WriteAllBytes(Path.Combine(folder, "objetos.bin"), keep.Objects);
+            if (!File.Exists(Path.Combine(folder, "zonas.bin"))) File.WriteAllBytes(Path.Combine(folder, "zonas.bin"), keep.Zones);
         }
         _project.History.Commit(proposal.Files, Module, proposal.Action, proposal.Changes, proposal.Parameters);
     }

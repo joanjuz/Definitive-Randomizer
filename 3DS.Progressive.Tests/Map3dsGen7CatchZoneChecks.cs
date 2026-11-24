@@ -289,6 +289,9 @@ internal static class Map3dsGen7CatchZoneChecks
         long at = Map3dsTrainerFacingChecks.FindInImage(image, Path.Combine(cfg.RomFS, cfg.GetGARCFileName("encdata")));
         Console.WriteLine((at >= 0 ? "PASS" : "FAIL") + $" Gen7CatchRebuild_ImageContainsTheFieldArchive (0x{at:X}); gameplay NOT tested");
         if (at < 0) throw new InvalidDataException("La imagen no contiene el archivo de campo editado.");
+        long zones = Map3dsTrainerFacingChecks.FindInImage(image, Path.Combine(cfg.RomFS, cfg.GetGARCFileName("zonedata")));
+        Console.WriteLine((zones >= 0 ? "PASS" : "FAIL") + $" Gen7CatchRebuild_ImageContainsTheZoneTable (0x{zones:X})");
+        if (zones < 0) throw new InvalidDataException("La imagen no contiene la tabla de zonas de la copia.");
         ImageContainsBlocks(copyRoot, image);
     }
 

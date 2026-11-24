@@ -47,6 +47,28 @@ public static class Gen7Nurse
     /// Without it the first nurse added in Ultra Moon froze when asked to heal.
     /// </summary>
     public const uint MachineObject = 2;
+
+    /// <summary>
+    /// Field gimmick of a zone: byte +0x0E of its 84-byte zone record (zonedata member 0). It selects the field module the
+    /// game loads in the zone: 0 none (305 zones of Ultra Moon), 3 the Pokémon Center (the 15 Centers and no other zone,
+    /// FieldGimmickPokecen.cro), 5 lifts (Mount Lanakila, Aether Paradise), 6 battle facilities (Battle Tree), 9 Festival
+    /// Plaza... The nurse's healing branch calls engine functions that no other script uses (they belong to that module),
+    /// so outside a Center the game froze right after «Sí» until the zone had gimmick 3.
+    /// </summary>
+    public const int ZoneSize = 84, GimmickOffset = 0x0E;
+    public const byte NoGimmick = 0, PokecenGimmick = 3;
+
+    /// <summary>The zone records with the gimmick byte of <paramref name="zone"/> set; every other byte is checked unchanged.</summary>
+    public static byte[] SetGimmick(byte[] zones, int zone, byte gimmick)
+    {
+        if (zones.Length % ZoneSize != 0) throw new MapFormatException("La tabla de zonas no mide un múltiplo de 84 bytes.");
+        if (zone < 0 || (zone + 1) * ZoneSize > zones.Length) throw new ArgumentOutOfRangeException(nameof(zone));
+        var output = (byte[])zones.Clone();
+        output[(zone * ZoneSize) + GimmickOffset] = gimmick;
+        for (int i = 0; i < zones.Length; i++)
+            if (i != (zone * ZoneSize) + GimmickOffset && output[i] != zones[i]) throw new InvalidOperationException("La escritura tocó otro byte de la tabla de zonas.");
+        return output;
+    }
     public const int StaticSize = 56, StaticType = 4, StaticObject = 0x30, StaticShape = 0x34;
     /// <summary>Largest object pack and most objects of an area in the game (both versions).</summary>
     public const int MaxObjectBytes = 1_070_592, MaxObjects = 25;
