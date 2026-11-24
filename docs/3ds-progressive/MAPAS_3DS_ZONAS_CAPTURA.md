@@ -8,11 +8,11 @@
 | **Pokémon Y** | El mismo formato que X, comprobado en los datos de Y (estructura de zonas, tablas, valor de hierba y mapas de zonas idénticos). Sin prueba en el juego. |
 | **Rubí Omega** | **Prueba jugable aprobada** por el propietario en Villa Raíz (24 casillas, tabla de Ruta 101), ROM `OR-captura-villa-raiz.3ds`. |
 | **Zafiro Alfa** | **Prueba jugable aprobada** por el propietario en Villa Raíz (24 casillas, tabla de Ruta 101), ROM `AS-captura-villa-raiz.3ds`; copia real 11/11, sincronización EN y restauración exacta. |
-| **Ultra Luna** | Implementado (ver «Ultra Sol / Ultra Luna» más abajo). **Sin prueba en el juego válida:** la primera imagen de prueba (Pueblo Lilii) se descartó porque aquella hierba es terreno de la Ruta 1 y la caja se escribió con el doble de tamaño. Segunda prueba preparada: arena `0x19` de la Ruta 13 con la tabla del Desierto de Haina (copia real 8/8 e imagen), pendiente del propietario. |
-| **Ultra Sol** | Mismo código; sus regiones son idénticas a las de Ultra Luna y sus tablas distintas. Sin copia real ni prueba en el juego. |
+| **Ultra Luna** | **Prueba jugable aprobada** por el propietario en la Ruta 13: 72 casillas de arena `0x19` junto a la entrada al Desierto de Haina, con la tabla 0 del desierto (ROM `UL-captura-ruta13-arena.3ds`). La primera prueba, en Pueblo Lilii, se descartó: aquella hierba es terreno de la Ruta 1 y la caja se escribió con el doble de tamaño. |
+| **Ultra Sol** | El mismo caso que Ultra Luna (Ruta 13 y tabla 0 del Desierto de Haina de Ultra Sol): copia real limpia 8/8 y ROM `US-captura-ruta13-arena.3ds`. **Pendiente de la prueba del propietario.** |
 | **Juegos DS** | Sin esta función de zonas de captura 3DS. |
 
-**Hierba visible:** no implementada y **fuera del roadmap activo por decisión del propietario**. Una zona de captura es funcional cuando el juego produce encuentros en sus casillas, aunque el escenario siga mostrando suelo normal. El editor señala en el mapa las casillas con encuentros (verde) y las marcadas (verde claro).
+**Hierba visible:** en Gen6, no implementada y **fuera del roadmap por decisión del propietario**. En Ultra Sol / Ultra Luna pasa a ser **prioridad del propietario** (sin ella la zona no se distingue en el juego); se trabaja aparte. Una zona de captura es funcional cuando el juego produce encuentros en sus casillas, aunque el escenario siga mostrando suelo normal. El editor señala en el mapa las casillas con encuentros (verde) y las marcadas (verde claro).
 
 ## Qué hace
 
@@ -153,7 +153,7 @@ La región indica qué **tabla** del área usa. Se comprobó en las 336 áreas d
 ### Pruebas
 
 - **`--map3ds-gen7-catch-zones-only`** (16 comprobaciones sintéticas) y **`--map3ds-gen7-catch-zones-ui-only`** (5).
-- **Segunda prueba, copia real limpia de Ultra Luna:** Ruta 13 (área 138), 72 casillas de arena `0x19` (X 183–193, Y 303–312, del lado de la ruta del warp al desierto), tabla 0 del Desierto de Haina. 8/8; verificado también con un lector independiente (miembros 1518 y 1527, solo la parte 6 de ED, tablas de pesca intactas, tabla nueva idéntica a la de Haina, semiejes 630 × 472,5). Imagen `UL-captura-ruta13-arena.3ds`. **Juego: pendiente.**
+- **Segunda prueba, copia real limpia de Ultra Luna (aprobada en el juego por el propietario):** Ruta 13 (área 138), 72 casillas de arena `0x19` (X 183–193, Y 303–312, del lado de la ruta del warp al desierto), tabla 0 del Desierto de Haina. 8/8; verificado también con un lector independiente (miembros 1518 y 1527, solo la parte 6 de ED, tablas de pesca intactas, tabla nueva idéntica a la de Haina, semiejes 630 × 472,5). Imagen `UL-captura-ruta13-arena.3ds`. **Aprobada en el juego.** Ultra Sol: el mismo caso, copia real 8/8 e imagen `US-captura-ruta13-arena.3ds`, pendiente.
 - **Búsqueda de sitios** (solo lectura): `--map3ds-gen7-encounter-attribute-candidates`, `--map3ds-gen7-encounter-area-info` y `--map3ds-gen7-encounter-reach`. La mancha libre de Colina Dequilate está desconectada del suelo del área (decorado); la de la Ruta 13 está conectada con las entradas.
 - **Copia real de Ultra Luna limpia, `--map3ds-gen7-catch-zone-probe`:** Pueblo Lilii, 61 casillas de hierba, tabla 0 de la Ruta 1. 8/8:
   - solo cambian los miembros de eventos y tablas del área 1;
@@ -166,6 +166,6 @@ La región indica qué **tabla** del área usa. Se comprobó en las 336 áreas d
 
 ## Limitaciones
 
-- Solo se acreditan en el juego las 24 casillas de Pueblo Acuarela en X. Y, Rubí Omega y Zafiro Alfa están pendientes de prueba jugable.
+- Aprobadas en el juego: Pueblo Acuarela en X, Villa Raíz en Rubí Omega y Zafiro Alfa, y la arena de la Ruta 13 en Ultra Luna. Y y Ultra Sol, pendientes.
 - Solo se escribe la hierba normal de cada familia. Otros tipos de encuentro (flores, hierba oscura, cuevas, agua) quedan fuera mientras no se acredite su valor.
 - Quitar encuentros a casillas existentes no forma parte de esta versión; lo hecho se deshace desde el historial.
