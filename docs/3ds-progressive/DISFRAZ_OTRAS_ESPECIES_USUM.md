@@ -45,7 +45,7 @@ Retirar restaura las cuatro instrucciones originales y deja el bloque desactivad
   - Editor: historial, deshacer exacto y Global Template.
 - `native/3ds/disguise-usum/generate.py --check` (CI): la plantilla coincide con `disguise.s` y con el prototipo validado.
 
-## Pendiente
+## Estado
 
-- Confirmar en el juego el mod generado por el instalador definitivo, con la rutina en `0xFC980` en lugar de `0xFC978`.
-- Casos que el propietario no ha detallado: golpes múltiples, Rompemoldes, dobles con dos usuarios y Transformación.
+- **Confirmado en juego por el propietario (25-11-2026)** con el mod generado por el instalador definitivo (rutina en `0xFC980`), en Ultra Sol y Ultra Luna.
+- Sin detallar por separado: golpes múltiples, Rompemoldes, dobles con dos usuarios de Disfraz y Transformación.
