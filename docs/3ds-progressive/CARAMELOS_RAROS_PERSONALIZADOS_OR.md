@@ -38,9 +38,10 @@ Estados: **original** (se puede instalar), **instalado** (se puede retirar), **p
 
 | Juego | Estado |
 |---|---|
-| Rubí Omega (`000400000011C400`, perfil anterior) | Implementado; probado sobre copia real; **pendiente de prueba jugable** |
+| Rubí Omega (`000400000011C400`, perfil anterior) | Implementado; **confirmado en juego por el propietario** (25-11-2026) |
 | Zafiro Alfa | Sin investigar: se rechaza con ese motivo |
-| X, Y, Sol, Luna, Ultra Sol, Ultra Luna | Sin investigar: la opción no aparece |
+| Ultra Sol, Ultra Luna | Implementación propia en `Bag.cro`: [CARAMELOS_RAROS_PERSONALIZADOS_USUM.md](CARAMELOS_RAROS_PERSONALIZADOS_USUM.md) |
+| X, Y, Sol, Luna | Sin investigar: la opción no aparece |
 | Rubí Omega con la actualización 1.4 instalada en el emulador o la consola | No acreditado: la actualización sustituye `code.bin` |
 
 ## Convivencia
@@ -54,6 +55,6 @@ Estados: **original** (se puede instalar), **instalado** (se puede retirar), **p
 - `--rare-candy-only` (CI, sintético, 53): ubicación de la rutina, llamadas solo a funciones con huella, rechazos de identidad y evidencia, instalación sin modificar las entradas, rangos escritos, hashes, CRR ordenada, doble aplicación, parcial, conflictos, parche de referencia externo, restauración exacta, editor con historial, reapertura, vista previa caducada, captura para Global Template y reproducción rechazada sobre archivos no acreditados.
 - `--rare-candy-real <extracción OR> <salida> [<referencia>]` (copia real, solo lectura, 9): instalación y retirada exacta; con la referencia privada, `DllBag.cro` y `static.crr` resultan idénticos byte a byte a los del parche original y `code.bin` solo difiere en sus restos no alcanzables.
 - `--rare-candy-project <copia del proyecto> <imagen> <reextracción>` (copia real, 22): convivencia anterior, instalación desde el editor, deshacer exacto, reproducción desde Global Template con los mismos bytes, rebuild completo y reextracción idéntica (658 archivos) con el parche reconocido.
-- Ninguna ejecuta el juego. La prueba jugable está pendiente del propietario.
+- Ninguna ejecuta el juego. El propietario confirmó en juego la ROM de prueba (25-11-2026).
 
 Procedencia y licencia: [RARE_CANDY_MULTIUSE_OR.md](../third-party/RARE_CANDY_MULTIUSE_OR.md). Fuente ARM: [`native/3ds/rare-candy-multiuse`](../../native/3ds/rare-candy-multiuse/README.md).

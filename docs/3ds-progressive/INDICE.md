@@ -81,7 +81,8 @@ Punto de entrada a `docs/3ds-progressive/`. Muchos documentos son **registros hi
 - Megaevoluciones y habilidades en USUM (diagnóstico, investigación abierta): [MEGAS_HABILIDADES_USUM_DIAGNOSTICO.md](MEGAS_HABILIDADES_USUM_DIAGNOSTICO.md).
 - Mega Ability Sync en USUM (habilidad de las megaevoluciones entre dos juegos; confirmado en un combate real el 13/11/2026 con el parche en los dos): [MEGA_ABILITY_SYNC_USUM.md](MEGA_ABILITY_SYNC_USUM.md).
 - Capacidades de parches (informe de solo lectura): [CAPACIDADES_DE_PARCHES.md](CAPACIDADES_DE_PARCHES.md).
-- Caramelos Raros personalizados en Rubí Omega (usar varios a la vez desde la Bolsa; pendiente de prueba jugable): [CARAMELOS_RAROS_PERSONALIZADOS_OR.md](CARAMELOS_RAROS_PERSONALIZADOS_OR.md).
+- Caramelos Raros personalizados en Rubí Omega (usar varios a la vez desde la Bolsa; confirmado en juego por el propietario): [CARAMELOS_RAROS_PERSONALIZADOS_OR.md](CARAMELOS_RAROS_PERSONALIZADOS_OR.md).
+- Caramelos Raros personalizados en Ultra Sol y Ultra Luna (`Bag.cro`, ventana de cantidad de la tienda, compatible con las mentas; prototipo confirmado en juego): [CARAMELOS_RAROS_PERSONALIZADOS_USUM.md](CARAMELOS_RAROS_PERSONALIZADOS_USUM.md).
 - Perfiles compartibles (juegos 3DS): [PERFILES_COMPARTIBLES.md](PERFILES_COMPARTIBLES.md) y su contrato [SHAREABLE_PROFILE_V1.md](../contracts/SHAREABLE_PROFILE_V1.md).
 - Global Template y Batch 3DS: [HITO_16_GLOBAL_TEMPLATE_BATCH.md](HITO_16_GLOBAL_TEMPLATE_BATCH.md), [GLOBAL_TEMPLATE_APLICACION_20261020.md](GLOBAL_TEMPLATE_APLICACION_20261020.md), [MODIFICACIONES_MANUALES_GLOBAL.md](MODIFICACIONES_MANUALES_GLOBAL.md)
 - Creador de templates: [CREADOR_TEMPLATES.md](CREADOR_TEMPLATES.md), [ITERACION_74_PLANTILLAS_VALIDACION.md](ITERACION_74_PLANTILLAS_VALIDACION.md)

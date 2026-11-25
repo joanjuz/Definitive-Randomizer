@@ -158,9 +158,10 @@ internal sealed class SystemsView : UserControl
         {
             // Read-only state; install and removal stay in the editor with preview and history.
             var (candyState,candyText)=GameRareCandyMultiUseService.InspectProject(_project);
-            var candy=Card("Caramelos Raros personalizados · Rubí Omega",
+            bool candyUsum=_project.GameConfiguration.USUM;
+            var candy=Card(candyUsum?"Caramelos Raros personalizados · Ultra Sol / Ultra Luna":"Caramelos Raros personalizados · Rubí Omega",
                 "Al usar un Caramelo Raro desde la Bolsa, el juego pregunta cuántos quieres usar y los aplica seguidos.",
-                GameRareCandyMultiUseService.HowItWorks+" Instalar o retirar se hace en el editor, con vista previa e historial; después hay que reconstruir la ROM.","Parche de código");
+                (candyUsum?GameRareCandyMultiUseService.HowItWorksUsum:GameRareCandyMultiUseService.HowItWorks)+" Instalar o retirar se hace en el editor, con vista previa e historial; después hay que reconstruir la ROM.","Parche de código");
             candy.Name="RareCandyMultiUseCard";
             var candyBox=(StackPanel)candy.Child;
             var candyStatus=new TextBlock{Text=candyText,TextWrapping=TextWrapping.Wrap,Margin=new Thickness(0,0,0,8)};
