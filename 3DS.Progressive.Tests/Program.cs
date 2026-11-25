@@ -167,6 +167,11 @@ if(args.Length==3&&args[0]=="--mega-ability-sync-real")
     MegaAbilitySyncChecks.RunReal(args[1],args[2],Check);
     Console.WriteLine($"Completed {checks} Mega Ability Sync checks on real files (read only).");return;
 }
+if(args.Length is 2 or 3&&args[0]=="--usum-bag-coexistence-real")
+{
+    UsumBagCoexistenceChecks.RunReal(args[1],args.Length==3?args[2]:null,Check);
+    Console.WriteLine($"Completed {checks} USUM Bag.cro coexistence checks on real files (in memory; not in game).");return;
+}
 if(args.Length==1&&args[0]=="--patch-capability-only")
 {
     PatchCapabilityChecks.Run(Check,Reject);

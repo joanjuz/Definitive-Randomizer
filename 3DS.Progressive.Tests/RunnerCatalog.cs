@@ -26,6 +26,7 @@ internal static class RunnerCatalog
         new("--player-caps-recipe-only","",RunnerCategory.Synthetic,true),
         new("--profiles-only","",RunnerCategory.Ui,true),
         new("--patch-capability-only","",RunnerCategory.Ui,true),
+        new("--usum-bag-coexistence-real","<RomFS USUM original> [<Bag.cro con otro parche>]",RunnerCategory.Real,false),
         new("--mega-diagnostic-only","",RunnerCategory.Ui,true),
         new("--mega-ability-sync-only","",RunnerCategory.Synthetic,true),
         new("--stable-polish-only","",RunnerCategory.Ui,true),
