@@ -78,11 +78,14 @@ internal sealed class NdsEventEditorView : UserControl
     internal event Action? Changed;
 
     // Read-only map graphics; null when the ROM's archives are not the accredited CPUE/1 ones. The graphic layer is optional and off by default.
-    private readonly NdsMapRenderCache? _renders; private readonly string? _rendersNote;
+    private NdsMapRenderCache? _renders; private readonly string? _rendersNote;
+    private readonly INdsMapGraphics? _assets;
+    /// <summary>Gen 5 preview season (spring, summer, autumn, winter); shown only when the buildings and their season groups are readable.</summary>
+    internal readonly ComboBox SeasonSelect = new() { Width = 110, Margin = new Thickness(0, 0, 10, 0), ItemsSource = new[] { "Primavera", "Verano", "Otoño", "Invierno" }, SelectedIndex = 0, Visibility = Visibility.Collapsed };
     internal NdsEventEditorView(NdsEventSession session, PlatinumTerrain? terrain = null, string? terrainUnavailable = null, PlatinumLandProps? props = null, string? propsUnavailable = null,
         INdsMapGraphics? assets = null, string? assetsUnavailable = null)
     {
-        _session = session; _terrain = terrain; _props = props; _propsNote = propsUnavailable;
+        _session = session; _terrain = terrain; _props = props; _propsNote = propsUnavailable; _assets = assets;
         _renders = assets is null ? null : new NdsMapRenderCache(assets, props); _rendersNote = assetsUnavailable;
         _terrainNote.Text = terrain is null
             ? "Terreno: no disponible" + (string.IsNullOrWhiteSpace(terrainUnavailable) ? "" : " (" + terrainUnavailable + ")") + ". Se muestran solo eventos y matriz; las casillas no se consideran libres ni bloqueadas."
@@ -161,6 +164,16 @@ internal sealed class NdsEventEditorView : UserControl
     }
     internal const string GraphicNotice = "Vista gráfica desde arriba: terreno y edificios dibujados con los modelos y texturas de tu ROM, sin la cámara inclinada, la iluminación ni las animaciones del juego. Los marcadores y colisiones siguen siendo esquemáticos.";
     private readonly TextBlock _notice = new() { Text = NdsMapCanvasControl.SchematicNotice, FontWeight = FontWeights.SemiBold, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 4, 0, 0) };
+    /// <summary>
+    /// Changes the Gen 5 preview season. The assets are shared, so the season is set under the lock the render worker holds; a new cache replaces the old
+    /// one, whose images belong to the previous season (a render already running finishes into the discarded cache).
+    /// </summary>
+    internal void SetSeason(Gen5MapGraphics gen5, int season)
+    {
+        lock (gen5) { if (gen5.Season == season) return; gen5.Season = season; }
+        _renders = new NdsMapRenderCache(gen5, _props); _canvas.Renders = _renders; _canvas.InvalidateVisual();
+    }
+    internal NdsMapRenderCache? Renders => _renders;
     private void BuildCenter()
     {
         _canvas.Renders = _renders;
@@ -204,6 +217,16 @@ internal sealed class NdsEventEditorView : UserControl
                 AutomationProperties.SetHelpText(box, (string)box.ToolTip);
             }
             box.Checked += (_, _) => ApplyLayers(); box.Unchecked += (_, _) => ApplyLayers(); _layerBar.Children.Add(box);
+        }
+        if (_assets is Gen5MapGraphics { DrawsBuildings: true } gen5)
+        {
+            // Preview only: the season changes which texture set and pack the graphic layer loads; nothing in the ROM or the project changes.
+            SeasonSelect.Visibility = Visibility.Visible;
+            SeasonSelect.ToolTip = "Estación de la vista gráfica (solo vista previa; no modifica la ROM). Las áreas exteriores con estaciones cargan la variante de la estación; los interiores no cambian.";
+            AccessibleName(SeasonSelect, "Eventos DS · estación de la vista gráfica"); AutomationProperties.SetHelpText(SeasonSelect, (string)SeasonSelect.ToolTip);
+            SeasonSelect.SelectionChanged += (_, _) => SetSeason(gen5, Math.Max(0, SeasonSelect.SelectedIndex));
+            _layerBar.Children.Add(new TextBlock { Text = "Estación:", VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 4, 0), FontSize = 12 });
+            _layerBar.Children.Add(SeasonSelect);
         }
         foreach (var (box, tip) in new[] { (_visionSelected, "Visión del NPC seleccionado: flecha de orientación y casillas que alcanza (guardado y propuesto)."), (_visionAll, "Visión guardada de todos los entrenadores visibles (tenue).") })
         {

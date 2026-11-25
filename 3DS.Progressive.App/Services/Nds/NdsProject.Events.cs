@@ -39,7 +39,7 @@ internal sealed partial class NdsProject
     {
         if (!_propsRead)
         {
-            try { _props = EventProfile is Gen5MapProfile ? throw new InvalidDataException("Estructuras Gen5: los edificios de cada bloque se cuentan, pero sus modelos no están acreditados; no se muestran.") : PlatinumLandProps.Open(_rom); }
+            try { _props = EventProfile is Gen5MapProfile ? throw new InvalidDataException("Estructuras Gen5: los edificios se dibujan con sus modelos en la capa «Modelos/texturas» (solo lectura); esta capa de marcadores es de Gen4.") : PlatinumLandProps.Open(_rom); }
             catch (Exception ex) when (ex is InvalidDataException or FileNotFoundException or IOException) { _propsNote = ex.Message; }
             _propsRead = true;
         }
