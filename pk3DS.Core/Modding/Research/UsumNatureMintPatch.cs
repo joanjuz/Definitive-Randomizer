@@ -21,7 +21,15 @@ public static class UsumNatureMintPatch
         if(Convert.ToHexString(SHA256.HashData(bag))==profile.BagSha256)
             return new(UsumMintState.NotInstalled,"No instalado; Bag.cro coincide con el perfil.");
         int marker=bag.AsSpan().IndexOf("DGMINT1\0"u8);
-        if(marker<0)return new(UsumMintState.Incompatible,"Bag.cro desconocido, ya modificado o de otra revisión.");
+        bool anchored=profile.BagSha256==UsumBagAnchors.OriginalBagSha256;
+        if(marker<0)
+        {
+            // Another Bag.cro patch may coexist: the mint anchors, the original hook instructions and the CRO hashes decide.
+            if(anchored&&UsumBagAnchors.MintAnchorsIntact(bag,out _)&&SitesOriginal(bag)&&HashesConsistent(bag))
+                return new(UsumMintState.NotInstalled,"No instalado; Bag.cro tiene otras modificaciones que no afectan a las mentas.");
+            return new(UsumMintState.Incompatible,"Bag.cro desconocido, ya modificado o de otra revisión."+
+                (anchored&&!UsumBagAnchors.MintAnchorsIntact(bag,out string why)?" "+why:""));
+        }
         int start=marker-MarkerOffset;
         try {
             if(start<0||start+0x400>bag.Length||bag.AsSpan(marker+8).IndexOf("DGMINT1\0"u8)>=0)
@@ -33,12 +41,17 @@ public static class UsumNatureMintPatch
             for(int i=0;i<Sites.Length;i++)
                 if(BitConverter.ToUInt32(bag,Sites[i])!=Branch(Sites[i],start+Entries[i],i<2))
                     throw new InvalidDataException("Uno de los hooks de mentas cambió externamente.");
-            if(!Digest(bag,start).AsSpan().SequenceEqual(bag.AsSpan(start+DigestOffset,32)))
-                throw new InvalidDataException("Bag.cro tiene cambios posteriores a la instalación reconocida.");
+            // The digest covers the whole Bag.cro as it was right after installing. A later, unrelated patch changes it;
+            // that is accepted when every mint anchor is still intact.
+            bool untouched=Digest(bag,start).AsSpan().SequenceEqual(bag.AsSpan(start+DigestOffset,32));
+            if(!untouched&&!(anchored&&UsumBagAnchors.MintAnchorsIntact(bag,out _)))
+                throw new InvalidDataException("Bag.cro tiene cambios posteriores a la instalación reconocida."+
+                    (anchored&&!UsumBagAnchors.MintAnchorsIntact(bag,out string why)?" "+why:""));
             var checkedImage=(byte[])bag.Clone();
             if(!CroSegmentExpander.TryUpdateHashes(checkedImage,out string error)||!checkedImage.AsSpan().SequenceEqual(bag))
                 throw new InvalidDataException("Integridad CRO incorrecta: "+error);
-            return new(UsumMintState.Installed,"Instalado y reconocido · 21 mentas · naturaleza real.",start);
+            return new(UsumMintState.Installed,"Instalado y reconocido · 21 mentas · naturaleza real."+
+                (untouched?"":" Bag.cro tiene además otras modificaciones compatibles."),start);
         } catch(InvalidDataException ex){return new(UsumMintState.Modified,ex.Message);}
     }
     public static byte[] Prepare(byte[] bag,UsumNatureMintProfile profile)
@@ -61,6 +74,16 @@ public static class UsumNatureMintPatch
         var verify=Inspect(result,profile);
         if(verify.State!=UsumMintState.Installed)throw new InvalidDataException(verify.Detail);
         return result;
+    }
+    private static bool SitesOriginal(byte[] bag)
+    {
+        for(int i=0;i<Sites.Length;i++)if(Sites[i]+4>bag.Length||BitConverter.ToUInt32(bag,Sites[i])!=Originals[i])return false;
+        return true;
+    }
+    private static bool HashesConsistent(byte[] bag)
+    {
+        var copy=(byte[])bag.Clone();
+        return CroSegmentExpander.TryUpdateHashes(copy,out _)&&copy.AsSpan().SequenceEqual(bag);
     }
     private static byte[] Digest(byte[] bag,int start)
     {
