@@ -154,6 +154,22 @@ internal sealed class SystemsView : UserControl
             var tutors=Card("Tutores BP · ORAS","Qué movimientos enseñan los tutores de ORAS y cuántos BP cuestan, a mano o randomizados.","Edita y randomiza los 60 movimientos de tutor y sus precios. Sincroniza las listas de compatibilidad y la tabla de tienda.");
             AddButton((StackPanel)tutors.Child,"Abrir tutores ORAS",()=>_navigate("Tutor6"));stack.Children.Add(tutors);
         }
+        if(ProjectFeatureAvailability.Supports(_project,"RareCandyMultiUse"))
+        {
+            // Read-only state; install and removal stay in the editor with preview and history.
+            var (candyState,candyText)=GameRareCandyMultiUseService.InspectProject(_project);
+            var candy=Card("Caramelos Raros personalizados · Rubí Omega",
+                "Al usar un Caramelo Raro desde la Bolsa, el juego pregunta cuántos quieres usar y los aplica seguidos.",
+                GameRareCandyMultiUseService.HowItWorks+" Instalar o retirar se hace en el editor, con vista previa e historial; después hay que reconstruir la ROM.","Parche de código");
+            candy.Name="RareCandyMultiUseCard";
+            var candyBox=(StackPanel)candy.Child;
+            var candyStatus=new TextBlock{Text=candyText,TextWrapping=TextWrapping.Wrap,Margin=new Thickness(0,0,0,8)};
+            candyStatus.SetResourceReference(TextBlock.ForegroundProperty,"TextSoft");
+            System.Windows.Automation.AutomationProperties.SetName(candyStatus,"Estado de Caramelos Raros personalizados: "+candyText);
+            candyBox.Children.Insert(Math.Min(2,candyBox.Children.Count),candyStatus);
+            AddButton(candyBox,"Abrir Caramelos Raros personalizados",()=>_navigate("RareCandyMultiUse")).IsEnabled=candyState!=GameRareCandyMultiUseService.CardState.Unavailable;
+            stack.Children.Add(candy);
+        }
 
         var cap=Card("Player Level Caps · USUM",
             "Pone un nivel máximo a tu equipo que sube a medida que avanzas en la historia.",
