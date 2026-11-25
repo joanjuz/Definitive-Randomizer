@@ -53,6 +53,7 @@ internal static class SectionCatalog
         new("PersistentItems","Persistent Items","Mechanics","consumibles objetos tras el combate"),
         new("MegaAbilitySync","Mega Ability Sync","Mechanics","megaevoluciones habilidades combates entre dos juegos multijugador"),
         new("DisguiseUnlock","Habilidades especiales · Disfraz","Mechanics","habilidades especiales disfraz mimikyu golpe protector"),
+        new("RksUnlock","Habilidades especiales · Sistema Alfa","Mechanics","habilidades especiales sistema alfa silvally memoria tipo"),
         new("MultitypeUnlock","Habilidades especiales · Multitipo","Mechanics","habilidades especiales multitipo arceus tabla tipo"),
         new("RareCandyMultiUse","Caramelos Raros personalizados","Mechanics","caramelo raro cantidad usar varios nivel bolsa"),
         new("Extraction","Extraer ROM","RomTools","extraer descifrar cxi 3ds"),

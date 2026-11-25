@@ -10,22 +10,19 @@ internal static class MultitypeUnlockChecks
 {
     private const ulong US = 0x00040000001B5000, UM = 0x00040000001B5100;
 
-    private static (byte[] Code, MultitypeUnlockProfile[] Profiles) Synthetic()
+    /// <summary>Synthetic code.bin with the Multitype and RKS System sites of both games in their original state.</summary>
+    internal static (byte[] Code, MultitypeUnlockProfile[] Profiles) Synthetic()
     {
         byte[] code = new byte[0x5A4000]; new Random(5).NextBytes(code);
-        var profiles = new List<MultitypeUnlockProfile>();
         foreach (var real in Mt.Profiles)
-        {
-            Mt.OriginalBytes.CopyTo(code.AsSpan(real.Type1Site)); Mt.OriginalBytes.CopyTo(code.AsSpan(real.Type2Site));
-        }
-        foreach (var real in Mt.Profiles)
-        {
-            byte[] window = code.AsSpan(real.WindowStart, real.WindowLength).ToArray();
-            foreach (var p in Mt.Profiles) foreach (int s in new[] { p.Type1Site, p.Type2Site })
-                if (s >= real.WindowStart && s + 8 <= real.WindowStart + real.WindowLength && (s == real.Type1Site || s == real.Type2Site)) window.AsSpan(s - real.WindowStart, 8).Clear();
-            profiles.Add(real with { WindowHash = Convert.ToHexString(SHA256.HashData(window)) });
-        }
-        return (code, profiles.ToArray());
+            foreach (int site in new[] { real.Type1Site, real.Type2Site })
+            {
+                Mt.OriginalBytes.CopyTo(code.AsSpan(site));
+                BitConverter.GetBytes(0x1A000007u).CopyTo(code, site + 0x10); // bne → Personal path
+                BitConverter.GetBytes(0xE1550001u).CopyTo(code, site + 0x24); // cmp r5, r1 (Silvally)
+            }
+        var profiles = Mt.Profiles.Select(real => real with { WindowHash = Convert.ToHexString(SHA256.HashData(Mt.MaskedWindow(code, real))) }).ToArray();
+        return (code, profiles);
     }
 
     private static byte[] Ncch(ulong title) { byte[] n = new byte[0x200]; "NCCH"u8.CopyTo(n.AsSpan(0x100)); BitConverter.GetBytes(title).CopyTo(n, 0x118); return n; }

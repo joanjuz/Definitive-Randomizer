@@ -167,6 +167,16 @@ if(args.Length==3&&args[0]=="--mega-ability-sync-real")
     MegaAbilitySyncChecks.RunReal(args[1],args[2],Check);
     Console.WriteLine($"Completed {checks} Mega Ability Sync checks on real files (read only).");return;
 }
+if(args.Length==1&&args[0]=="--rks-only")
+{
+    RksUnlockChecks.Run(Check,Reject);
+    Console.WriteLine($"Completed {checks} RKS System unlock checks (synthetic; not in game).");return;
+}
+if(args.Length==5&&args[0]=="--rks-real")
+{
+    RksUnlockChecks.RunReal(args[1],args[2],args[3],args[4],Check);
+    Console.WriteLine($"Completed {checks} RKS System unlock checks on real files (in memory; not in game).");return;
+}
 if(args.Length==1&&args[0]=="--disguise-only")
 {
     DisguiseUnlockChecks.Run(Check,Reject);
