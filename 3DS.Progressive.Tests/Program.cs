@@ -167,6 +167,16 @@ if(args.Length==3&&args[0]=="--mega-ability-sync-real")
     MegaAbilitySyncChecks.RunReal(args[1],args[2],Check);
     Console.WriteLine($"Completed {checks} Mega Ability Sync checks on real files (read only).");return;
 }
+if(args.Length==1&&args[0]=="--disguise-only")
+{
+    DisguiseUnlockChecks.Run(Check,Reject);
+    Console.WriteLine($"Completed {checks} Disguise unlock checks (synthetic; not in game).");return;
+}
+if(args.Length==4&&args[0]=="--disguise-real")
+{
+    DisguiseUnlockChecks.RunReal(args[1],args[2],args[3],Check);
+    Console.WriteLine($"Completed {checks} Disguise unlock checks on real files (in memory; not in game).");return;
+}
 if(args.Length==1&&args[0]=="--multitype-only")
 {
     MultitypeUnlockChecks.Run(Check,Reject);

@@ -26,6 +26,8 @@ internal static class RunnerCatalog
         new("--player-caps-recipe-only","",RunnerCategory.Synthetic,true),
         new("--profiles-only","",RunnerCategory.Ui,true),
         new("--patch-capability-only","",RunnerCategory.Ui,true),
+        new("--disguise-only","",RunnerCategory.Synthetic,true),
+        new("--disguise-real","<RomFS US original> <RomFS UM original> <ExeFS UM original>",RunnerCategory.Real,false),
         new("--multitype-only","",RunnerCategory.Synthetic,true),
         new("--multitype-real","<ExeFS US original> <ExeFS UM original> <RomFS UM original> <salida nueva para el mod IPS>",RunnerCategory.Real,false),
         new("--rare-candy-only","",RunnerCategory.Synthetic,true),
