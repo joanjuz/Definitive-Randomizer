@@ -89,6 +89,8 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'Mint source/template mismatch' }
           & $mintPython native/3ds/rare-candy-multiuse/generate.py --check
           if ($LASTEXITCODE -ne 0) { throw 'Rare Candy source/template mismatch' }
+          & $mintPython native/3ds/rare-candy-usum/generate.py --check
+          if ($LASTEXITCODE -ne 0) { throw 'USUM Rare Candy source/template mismatch' }
           dotnet ./3DS.Progressive.Tests/bin/Release/net10.0-windows/3DS.Progressive.Tests.dll --usum-mints-arm-fixtures validation-logs/mints-arm
           if ($LASTEXITCODE -ne 0) { throw 'Mint ARM fixtures failed' }
           & $mintPython native/3ds/nature-mints/verify_arm.py validation-logs/mints-arm

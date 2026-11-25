@@ -232,10 +232,11 @@ internal static class RareCandyMultiUseChecks
             try { _ = new GameRareCandyMultiUseService(f.Session, files.Profile); check(false, "RareCandyService_AlphaSapphireIsRefusedWithItsReason"); }
             catch (InvalidDataException e) { check(e.Message.Contains("Zafiro Alfa") && e.Message.Contains("No se modificó ningún archivo"), "RareCandyService_AlphaSapphireIsRefusedWithItsReason"); }
         }
-        foreach (var version in new[] { pk3DS.Core.GameVersion.XY, pk3DS.Core.GameVersion.USUM })
+        foreach (var version in new[] { pk3DS.Core.GameVersion.XY, pk3DS.Core.GameVersion.SM, pk3DS.Core.GameVersion.USUM })
             using (var f = new Fixture(version))
             {
-                bool refused; try { _ = new GameRareCandyMultiUseService(f.Session); refused = false; } catch (NotSupportedException) { refused = true; }
+                // XY and Sun/Moon are not supported; a USUM project without NCCH header or Bag.cro is not offered either.
+                bool refused; try { _ = new GameRareCandyMultiUseService(f.Session); refused = false; } catch (Exception e) when (e is NotSupportedException or FileNotFoundException or InvalidDataException) { refused = true; }
                 check(refused && !ProjectFeatureAvailability.Supports(f.Session, "RareCandyMultiUse"), "RareCandyService_NotOfferedFor" + version);
             }
     }

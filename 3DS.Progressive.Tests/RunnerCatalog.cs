@@ -28,6 +28,7 @@ internal static class RunnerCatalog
         new("--patch-capability-only","",RunnerCategory.Ui,true),
         new("--rare-candy-only","",RunnerCategory.Synthetic,true),
         new("--rare-candy-project","<copia privada del proyecto Rubí Omega> <imagen 3DS nueva> <carpeta nueva de reextracción>",RunnerCategory.Real,false),
+        new("--rare-candy-usum-real","<RomFS Ultra Sol original> <RomFS Ultra Luna original> [<Bag.cro del prototipo validado>]",RunnerCategory.Real,false),
         new("--rare-candy-real","<extracción de Rubí Omega> <salida nueva> [<referencia descomprimida>]",RunnerCategory.Real,false),
         new("--usum-bag-coexistence-real","<RomFS USUM original> [<Bag.cro con otro parche>]",RunnerCategory.Real,false),
         new("--mega-diagnostic-only","",RunnerCategory.Ui,true),

@@ -171,7 +171,13 @@ if(args.Length==1&&args[0]=="--rare-candy-only")
 {
     RareCandyMultiUseChecks.Run(Check,Reject);
     RareCandyMultiUseChecks.RunService(Check);
+    RareCandyUsumChecks.Run(Check,Reject);
     Console.WriteLine($"Completed {checks} Rare Candy multi-use checks (synthetic; not in game).");return;
+}
+if(args.Length is 3 or 4&&args[0]=="--rare-candy-usum-real")
+{
+    RareCandyUsumChecks.RunReal(args[1],args[2],args.Length==4?args[3]:null,Check);
+    Console.WriteLine($"Completed {checks} USUM Rare Candy multi-use checks on real files (in memory and temporary fixtures; not in game).");return;
 }
 if(args.Length==4&&args[0]=="--rare-candy-project")
 {
