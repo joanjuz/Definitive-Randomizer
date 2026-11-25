@@ -36,9 +36,12 @@ Las dos opciones comparten perfiles y huella de las funciones (`MultitypeUnlockP
   - Genera los mods IPS de prueba.
 - Regresiones sin fallos: Multitipo 26 y 13 reales, Disfraz 9, Caramelos Raros 69, mentas 98, Mega Ability Sync 165, capacidades 129, guía 233, manual general 113.
 
-## Sin comprobar (no se promete)
+## Estado
+
+- **Confirmado en juego por el propietario (25-11-2026)** en Ultra Sol y Ultra Luna, con los mods «solo Sistema Alfa» y «Sistema Alfa + Multitipo» generados por el instalador.
+
+## Sin detallar por separado
 
 - **Multiataque:** el tipo del movimiento se decide en `Battle.cro`; no se ha analizado si depende de la especie.
 - **Cambio de Memoria en mitad del combate, Truco y Desarme:** la inmunidad de la Memoria en Silvally probablemente es por especie; en otras especies la Memoria podría retirarse.
 - **Formas:** Silvally sigue cambiando de forma con la Memoria (otra función); las demás especies no cambian de forma.
-- Prueba jugable pendiente.
