@@ -40,6 +40,8 @@
 
 `--patch-capability-only` verifica el informe de capacidades de Player Level Caps (solo lectura): estado de cada punto de enganche, nivel (verificada, compatible por adaptación, conflicto, no acreditada), simulación de la instalación, acuerdo con el instalador, transacción fallida, deshacer y la vista WPF fuera de pantalla.
 
+`--rks-only` verifica Sistema Alfa en otras especies (USUM) y su convivencia con Multitipo: las 4 configuraciones, los dos órdenes de instalación y retirada con bytes exactos, estados parciales y palabras ajenas. `--rks-real <ExeFS US> <ExeFS UM> <RomFS UM> <salida>` repite la matriz con los `code.bin` reales, comprueba mentas, Shiny Rate y Player Level Caps, y los dos editores juntos (historial, deshacer y Global Template), y genera los mods IPS de prueba. Ninguna ejecuta el juego.
+
 `--disguise-only` verifica Disfraz en otras especies (USUM): destinos de la rutina, rechazos y editor sin escritura. `--disguise-real <RomFS US> <RomFS UM> <ExeFS UM>` instala, retira y reinstala sobre copias reales en memoria, comprueba Player Level Caps y Mega Ability Sync en los dos órdenes y Persistent Items, y el editor con historial, deshacer y Global Template. Ninguna ejecuta el juego.
 
 `--multitype-only` verifica Multitipo en otras especies (USUM) con un `code.bin` sintético: 16 bytes escritos, estados, rechazos, retirada exacta y el editor (historial, Global Template, deshacer). `--multitype-real <ExeFS US> <ExeFS UM> <RomFS UM> <salida>` usa copias reales en memoria (perfiles, Shiny Rate, mentas, Player Level Caps en los dos órdenes) y genera los `code.ips` de prueba. Ninguna ejecuta el juego.
