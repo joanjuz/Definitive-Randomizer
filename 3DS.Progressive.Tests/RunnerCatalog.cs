@@ -26,6 +26,8 @@ internal static class RunnerCatalog
         new("--player-caps-recipe-only","",RunnerCategory.Synthetic,true),
         new("--profiles-only","",RunnerCategory.Ui,true),
         new("--patch-capability-only","",RunnerCategory.Ui,true),
+        new("--multitype-only","",RunnerCategory.Synthetic,true),
+        new("--multitype-real","<ExeFS US original> <ExeFS UM original> <RomFS UM original> <salida nueva para el mod IPS>",RunnerCategory.Real,false),
         new("--rare-candy-only","",RunnerCategory.Synthetic,true),
         new("--rare-candy-project","<copia privada del proyecto Rubí Omega> <imagen 3DS nueva> <carpeta nueva de reextracción>",RunnerCategory.Real,false),
         new("--rare-candy-usum-real","<RomFS Ultra Sol original> <RomFS Ultra Luna original> [<Bag.cro del prototipo validado>]",RunnerCategory.Real,false),
