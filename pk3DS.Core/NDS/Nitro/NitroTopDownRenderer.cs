@@ -1,6 +1,7 @@
 #nullable enable
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Numerics;
 
 namespace pk3DS.Core.NDS.Nitro;
@@ -23,6 +24,31 @@ public sealed class NitroTopDownRenderer
     /// <summary>Triangles drawn and triangles whose texture or palette was not found (drawn flat with the material colour, never invented).</summary>
     public int Drawn { get; private set; }
     public int Untextured { get; private set; }
+    /// <summary>
+    /// Mix texels with partial alpha over the image instead of drawing them opaque (off by default, which keeps the Gen 4 images as they were validated).
+    /// Gen 5 needs it: its tree shadows are translucent A3I5 layers under sparse canopies, drawn opaque they become dark patches.
+    /// </summary>
+    public bool BlendTranslucentTexels { get; init; }
+    private enum Pass { All, Opaque, Translucent }
+    private Pass _pass = Pass.All;
+
+    /// <summary>
+    /// Draws a whole scene. With <see cref="BlendTranslucentTexels"/>, in two passes: every opaque texel first, then the translucent ones mixed over the
+    /// result (depth-tested, never written). Without it, exactly as <see cref="Draw"/> one model after another.
+    /// </summary>
+    public void DrawScene(IEnumerable<NitroPlacedModel> scene)
+    {
+        var list = scene as IReadOnlyList<NitroPlacedModel> ?? scene.ToList();
+        if (!BlendTranslucentTexels) { foreach (var placed in list) Draw(placed); return; }
+        int drawn = Drawn, untextured = Untextured;
+        try
+        {
+            _pass = Pass.Opaque; foreach (var placed in list) Draw(placed);
+            drawn = Drawn; untextured = Untextured;
+            _pass = Pass.Translucent; foreach (var placed in list) Draw(placed);
+        }
+        finally { _pass = Pass.All; Drawn = drawn; Untextured = untextured; }
+    }
 
     /// <param name="originX">Map units at the left edge.</param><param name="originZ">Map units at the top edge.</param><param name="pixelsPerUnit">Scale.</param>
     public NitroTopDownRenderer(int width, int height, float originX, float originZ, float pixelsPerUnit, uint background = 0)
@@ -82,7 +108,20 @@ public sealed class NitroTopDownRenderer
                     float s = (w0 * ua.X + w1 * ub.X + w2 * uc.X) * (material?.ScaleS ?? 1), t = (w0 * ua.Y + w1 * ub.Y + w2 * uc.Y) * (material?.ScaleT ?? 1);
                     colour = Sample(tex.Image, tex.Info, s, t);
                     if (colour >> 24 == 0) continue;
+                    if (_pass != Pass.All)
+                    {
+                        bool translucent = colour >> 24 < 255;
+                        if (translucent != (_pass == Pass.Translucent)) continue;
+                        if (translucent)
+                        {
+                            // A translucent texel (A3I5/A5I3: shadows, glass) is mixed over the opaque image and keeps no depth, so it never hides a surface.
+                            if (vertexColour) colour = Modulate(colour, Blend(ca, cb, cc, w0, w1, w2));
+                            _pixels[i] = Over(colour, _pixels[i], (int)(colour >> 24) * alpha / 255);
+                            continue;
+                        }
+                    }
                 }
+                else if (_pass == Pass.Translucent) continue;
                 else colour = flat;
                 if (vertexColour) colour = Modulate(colour, Blend(ca, cb, cc, w0, w1, w2));
                 if (alpha < 255) colour = Over(colour, _pixels[i], alpha);

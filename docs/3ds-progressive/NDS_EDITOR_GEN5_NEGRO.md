@@ -62,7 +62,7 @@ No hay decompilación pública de la capa de mapas de Negro, Blanco, Negro 2 o B
 | Función | Negro IRBO/0 |
 |---|---|
 | Lista de mapas con su nombre de lugar; matriz, terreno (colisión inferida) y modelo de terreno con texturas | sí |
-| Estructuras (edificios, árboles y otros modelos de cada bloque) | **no**: se cuentan, pero no se dibujan (ver limitaciones) |
+| Estructuras (edificios, árboles y otros modelos de cada bloque) | se dibujan en la capa gráfica (solo lectura), con selector de estación; ver [NDS_GEN5_EDIFICIOS_ESTACIONES.md](NDS_GEN5_EDIFICIOS_ESTACIONES.md) |
 | Mover y girar NPC de casilla | sí |
 | Orientación de entrenadores (con «mirar fijo») | sí |
 | Alcance de visión | se muestra el valor, pero ni se dibuja ni se edita |
@@ -94,8 +94,8 @@ La huella de eventos (`EditableEventsSha256`) borra solo los campos escribibles 
 
 ## Limitaciones
 
-- **Estructuras.** Cada bloque lista sus edificios (16 bytes: posición, rotación y modelo), pero no está acreditado a qué archivo o paquete se refiere el modelo. Donde el terreno tiene un hueco para un edificio o un grupo de árboles, el render deja el fondo.
-- **Estaciones.** La cabecera nombra un conjunto de texturas, y la tabla de áreas (`a/0/1/0`) tiene variantes por estación que no se aplican: se dibuja el conjunto de la cabecera.
+- **Estructuras.** Resuelto en [NDS_GEN5_EDIFICIOS_ESTACIONES.md](NDS_GEN5_EDIFICIOS_ESTACIONES.md): el id es big-endian, el área de la cabecera elige el paquete `AB` y la Z almacenada está invertida. Los edificios se dibujan en solo lectura; no se editan.
+- **Estaciones.** La cabecera nombra el área de primavera; el juego suma la estación (ver [NDS_GEN5_EDIFICIOS_ESTACIONES.md](NDS_GEN5_EDIFICIOS_ESTACIONES.md)). El editor ofrece un selector de estación solo para la vista previa.
 - **Visión de entrenadores.** El valor está en +14, pero su comportamiento en Gen5 no se comprobó en el juego. No se dibuja ni se edita.
 - **Dirección de interacción de los objetos de fondo.** Los valores 0–6 no tienen un significado acreditado en Gen5. No se cambia.
 - **Raíles.** Los registros con posición de raíl usan otro sistema de coordenadas y no se editan.

@@ -27,9 +27,14 @@ public interface INdsMapGraphics
 /// section that is not interpreted. Terrain textures come from the texture set (a/0/1/4) a header names at +2.
 /// <para>
 /// Collision is an inference from the data: bit 0 of byte 6 of a tile's permission is set on 78 % of all tiles of Black but only on 5 % of the tiles where a
-/// grid NPC stands (doors, where warps stand, have it on 66 %). Nothing else of the permission is interpreted. Buildings are listed per block but their
-/// models are not drawn: which archive and pack a block's building ids refer to is not accredited.
+/// grid NPC stands (doors, where warps stand, have it on 66 %). Nothing else of the permission is interpreted.
 /// </para>
+/// <para>
+/// Buildings (read-only, see <see cref="Gen5BuildingProfile"/>): each block lists its buildings; the header's area (+2) picks a pack of BMD0 models and
+/// its texture set, and every building is drawn with its position and yaw. A building whose pack or id cannot be resolved is reported, never guessed.
+/// When the building archives are missing or are not the accredited ones, the terrain is drawn alone and the buildings are reported as before.
+/// </para>
+/// <para><see cref="Season"/> is a preview choice only (nothing is written): seasonal areas load the texture set and pack of the chosen season.</para>
 /// </summary>
 public sealed class Gen5MapGraphics : INdsMapGraphics
 {
@@ -37,6 +42,21 @@ public sealed class Gen5MapGraphics : INdsMapGraphics
     private readonly Narc _blocks, _textures;
     private readonly Dictionary<int, NitroTextureSet> _sets = new();
     private readonly Dictionary<int, IReadOnlyList<NitroModel>> _models = new();
+    private readonly Gen5BuildingArchives? _buildings;
+    /// <summary>Bounded caches (parsed packs with their textures, decoded building models): switching maps never holds more than this.</summary>
+    public const int PackCacheLimit = 12, ModelCacheLimit = 384;
+    private readonly BoundedCache<(bool Interior, int Pack), (Gen5BuildingPack Pack, NitroTextureSet Textures)> _packs = new(PackCacheLimit);
+    private readonly BoundedCache<(bool Interior, int Pack, int Id), IReadOnlyList<NitroModel>> _buildingModels = new(ModelCacheLimit);
+    private int _season;
+    /// <summary>Why the buildings are not drawn (archives missing or not accredited), or null when they are.</summary>
+    public string? BuildingsUnavailable { get; }
+    public bool DrawsBuildings => _buildings is not null;
+    /// <summary>Preview season (0 spring — the area every header names —, 1 summer, 2 autumn, 3 winter). Only changes what is drawn.</summary>
+    public int Season
+    {
+        get => _season;
+        set => _season = value is >= 0 and < Gen5BuildingProfile.Seasons ? value : throw new ArgumentOutOfRangeException(nameof(value));
+    }
 
     public static Gen5MapGraphics Open(NdsRom rom)
     {
@@ -47,22 +67,38 @@ public sealed class Gen5MapGraphics : INdsMapGraphics
             if (Gen5Data.Crc32(bytes) != crc) throw new InvalidDataException($"Gráficos de mapa {p.Key}: {path} no coincide con el archivo acreditado.");
             return bytes;
         }
-        var g = new Gen5MapGraphics(Pinned(Gen5MapProfile.HeadersPath, p.HeadersCrc32), Pinned(Gen5MapProfile.BlocksPath, p.BlocksCrc32), Pinned(Gen5MapProfile.TexturesPath, p.TexturesCrc32));
+        byte[] headers = Pinned(Gen5MapProfile.HeadersPath, p.HeadersCrc32), blocks = Pinned(Gen5MapProfile.BlocksPath, p.BlocksCrc32), textures = Pinned(Gen5MapProfile.TexturesPath, p.TexturesCrc32);
+        // The buildings never block the terrain: a missing or different archive only leaves them undrawn, with the reason.
+        Gen5BuildingArchives? buildings = null; string? unavailable = null;
+        try { buildings = Gen5BuildingArchives.Open(rom, p); }
+        catch (Exception ex) when (ex is InvalidDataException or FileNotFoundException or IOException or ArgumentException) { unavailable = ex.Message; }
+        var g = new Gen5MapGraphics(headers, blocks, textures, buildings, unavailable);
         if (g.HeaderCount != p.HeaderCount || g.LandCount != p.BlockCount || g._textures.Files.Count != p.TextureSetCount) throw new InvalidDataException($"Gráficos de mapa {p.Key}: número inesperado de cabeceras, bloques o texturas.");
+        if (buildings is not null && buildings.Profile.AreaCount != g._textures.Files.Count) throw new InvalidDataException($"Gráficos de mapa {p.Key}: la tabla de áreas no corresponde a los conjuntos de texturas.");
         return g;
     }
 
-    /// <summary>Structural constructor (fixtures and the real ROM): the header archive, the map blocks and the texture sets.</summary>
-    public Gen5MapGraphics(byte[] headersNarc, byte[] blocks, byte[] textures)
+    /// <summary>Structural constructor (fixtures and the real ROM): the header archive, the map blocks and the texture sets; the buildings are optional.</summary>
+    public Gen5MapGraphics(byte[] headersNarc, byte[] blocks, byte[] textures, Gen5BuildingArchives? buildings = null, string? buildingsUnavailable = null)
     {
         var h = Narc.Read(headersNarc);
         if (h.Files.Count != 1 || h.Files[0].Length == 0 || h.Files[0].Length % Gen5ZoneEvents.HeaderSize != 0) throw new InvalidDataException("Tabla de cabeceras Gen5 desconocida.");
-        _headers = h.Files[0]; _blocks = Narc.Read(blocks); _textures = Narc.Read(textures);
+        _headers = h.Files[0]; _blocks = Narc.Read(blocks); _textures = Narc.Read(textures); _buildings = buildings;
+        BuildingsUnavailable = buildings is null ? buildingsUnavailable ?? "faltan los archivos de edificios" : null;
     }
 
     public int LandCount => _blocks.Files.Count;
     public int HeaderCount => _headers.Length / Gen5ZoneEvents.HeaderSize;
-    public int TextureSet(int header) => header >= 0 && header < HeaderCount ? U16(_headers, header * Gen5ZoneEvents.HeaderSize + 2) : throw new ArgumentOutOfRangeException(nameof(header));
+    /// <summary>The area a header names at +2 (for seasonal areas, the spring one).</summary>
+    public int Area(int header) => header >= 0 && header < HeaderCount ? U16(_headers, header * Gen5ZoneEvents.HeaderSize + 2) : throw new ArgumentOutOfRangeException(nameof(header));
+    /// <summary>The area loaded in the preview <see cref="Season"/>; without building archives, the header's own area as before.</summary>
+    public int LoadedArea(int header) => _buildings is { } b ? b.Profile.SeasonalArea(Area(header), _season) : Area(header);
+    /// <summary>The terrain texture set (a/0/1/4) of the loaded area: +2 of its area record, which equals the area index in every area of the three games.</summary>
+    public int TextureSet(int header)
+    {
+        int area = LoadedArea(header);
+        return _buildings is { } b && area < b.Profile.AreaCount ? U16(b.Areas, area * Gen5BuildingProfile.AreaSize + 2) : area;
+    }
 
     /// <summary>The sections of a block, after checking that the offsets are ordered and end where the member ends.</summary>
     public static (string Kind, byte[][] Sections) Block(byte[] b)
@@ -89,8 +125,13 @@ public sealed class Gen5MapGraphics : INdsMapGraphics
     }
     /// <summary>Collision as inferred (see the class remarks): bit 0 of byte 6 of the tile's permission.</summary>
     public static bool Collides(byte[] permissions, int localX, int localY) => (permissions[4 + 8 * (localY * 32 + localX) + 6] & 1) != 0;
-    /// <summary>Buildings listed by a block (u32 count, 16 bytes each). Counted for the record of what is not drawn.</summary>
+    /// <summary>Buildings listed by a block (u32 count, 16 bytes each).</summary>
     public static int BuildingCount(byte[] block) { var (_, s) = Block(block); var list = s[^1]; return list.Length >= 4 ? (int)U32(list, 0) : 0; }
+    /// <summary>The buildings of a block (its last section).</summary>
+    public static IReadOnlyList<Gen5Building> Buildings(byte[] block) => Gen5Building.Read(Block(block).Sections[^1]);
+    public IReadOnlyList<Gen5Building> BlockBuildings(int land) => Buildings(Member(_blocks, land));
+    /// <summary>The building pack of the header's loaded area, or null when it has none (or there are no building archives).</summary>
+    public (int Pack, bool Interior)? BuildingPack(int header) => _buildings?.Profile.Pack(_buildings.Areas, LoadedArea(header));
 
     /// <summary>
     /// The terrain of every block in the shared presentation form: bit 15 set where the tile collides (inference above), low byte 0 (tile behaviour is not
@@ -112,14 +153,49 @@ public sealed class Gen5MapGraphics : INdsMapGraphics
     public IReadOnlyList<NitroModel> LandModel(int land) => _models.TryGetValue(land, out var m) ? m : _models[land] = NitroModels.Read(Block(Member(_blocks, land)).Sections[0]);
     private NitroTextureSet Set(int index) => _sets.TryGetValue(index, out var s) ? s : _sets[index] = NitroTextureSet.FromBtx(Member(_textures, index));
 
-    /// <summary>The terrain model of a block as the engine places it (block-centred, 16 units per tile), with the header's terrain textures. Buildings are reported, not drawn.</summary>
+    /// <summary>
+    /// The terrain model of a block as the engine places it (block-centred, 16 units per tile) with the loaded area's terrain textures, then each building
+    /// of the block: the model its id names in the area's pack, turned by its yaw and moved to its position, with the pack's textures. <paramref name="props"/>
+    /// belongs to Gen 4 and is ignored. Buildings that cannot be resolved are listed in <paramref name="skipped"/> and not drawn.
+    /// </summary>
     public IReadOnlyList<NitroPlacedModel> BlockScene(int land, int header, IReadOnlyList<PlatinumMapProp> props, out IReadOnlyList<string> skipped)
     {
         var set = Set(TextureSet(header)); var scene = LandModel(land).Select(m => new NitroPlacedModel(m, System.Numerics.Matrix4x4.Identity, set)).ToList();
-        int buildings = BuildingCount(Member(_blocks, land));
-        skipped = buildings > 0 ? [$"bloque {land}: {buildings} estructuras no se dibujan (modelos de edificios Gen5 no acreditados)"] : [];
-        return scene;
+        var buildings = BlockBuildings(land); var notes = new List<string>();
+        if (buildings.Count == 0) { skipped = notes; return scene; }
+        if (_buildings is null) { skipped = [$"bloque {land}: {buildings.Count} estructuras no se dibujan ({BuildingsUnavailable})"]; return scene; }
+        if (BuildingPack(header) is not { } pack) { skipped = [$"bloque {land}: {buildings.Count} estructuras no se dibujan (el área {LoadedArea(header)} no tiene paquete de edificios)"]; return scene; }
+        var (models, textures) = Pack(pack.Interior, pack.Pack);
+        foreach (var b in buildings)
+        {
+            if (models.Model(b.Id) is not { } bytes)
+            {
+                notes.Add($"edificio {b.Index} del bloque {land}: el id {b.Id} {(models.IsAmbiguous(b.Id) ? "es ambiguo" : "no está")} en el paquete {(pack.Interior ? "interior" : "exterior")} {pack.Pack}");
+                continue;
+            }
+            IReadOnlyList<NitroModel> model;
+            try { model = _buildingModels.Get((pack.Interior, pack.Pack, b.Id), () => NitroModels.Read(bytes)); }
+            catch (Exception ex) when (ex is InvalidDataException or ArgumentException or IndexOutOfRangeException) { notes.Add($"edificio {b.Index} del bloque {land}: el modelo {b.Id} no se puede leer ({ex.Message})"); continue; }
+            var transform = Placement(b);
+            foreach (var m in model) scene.Add(new(m, transform, textures));
+        }
+        skipped = notes; return scene;
     }
+    /// <summary>
+    /// Yaw about the vertical axis, then the position in map units (fx32 1.19.12). The stored Z grows to the NORTH, the opposite of the terrain model, the
+    /// permissions and the events: it is negated. Measured on every block with buildings: with −Z, 91.1 % (Black) and 92.7 % (White 2) of the tiles the
+    /// buildings cover are blocked in the permissions (75.7 % and 79.7 % of all tiles are), and 4× more warps touch a building (its doors); with +Z,
+    /// 72.2 % and 76.5 %, below chance. The yaw turns counter-clockwise seen from above, as documented. The statistics cannot tell the two directions apart
+    /// (most turned buildings are symmetric); the off-centre mall of Route 9 (id 146, yaw 0x4000) does: counter-clockwise it stands on its terrain
+    /// footprint with the door on its warp, clockwise it covers the end of the road.
+    /// </summary>
+    public static System.Numerics.Matrix4x4 Placement(Gen5Building b) =>
+        System.Numerics.Matrix4x4.CreateRotationY(b.Yaw / 65536f * MathF.Tau) * System.Numerics.Matrix4x4.CreateTranslation(b.RawX / 4096f, b.RawY / 4096f, -b.RawZ / 4096f);
+    private (Gen5BuildingPack Pack, NitroTextureSet Textures) Pack(bool interior, int pack) => _packs.Get((interior, pack), () =>
+        (new Gen5BuildingPack(Member(interior ? _buildings!.InteriorPacks : _buildings!.ExteriorPacks, pack)),
+         NitroTextureSet.FromBtx(Member(interior ? _buildings.InteriorTextures : _buildings.ExteriorTextures, pack))));
+    /// <summary>Entries currently held by the bounded building caches.</summary>
+    public (int Packs, int Models) CachedBuildings => (_packs.Count, _buildingModels.Count);
     public bool TerrainTexturesBind(int land, int header)
     {
         var set = Set(TextureSet(header));

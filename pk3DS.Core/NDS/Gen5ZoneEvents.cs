@@ -40,7 +40,8 @@ public sealed record Gen5MapProfile(
     /// <summary>
     /// Pokémon White, Spanish edition rev. 0 (IRAS/0, SHA-1 4cc963ca…). Measured on its own dump: headers, matrices, map blocks, zone events, terrain
     /// textures and the area table are byte-identical to Black's (same CRC32 and the same events fingerprint); its scripts (a/0/5/7) and texts are its own
-    /// (location names in Spanish, text 89). Two building archives (a/2/2/6, a/2/2/9) differ, but the editor does not read them.
+    /// (location names in Spanish, text 89). Its exterior building packs and their textures (a/2/2/9, a/1/7/6) differ, and so does a/2/2/6 (images):
+    /// the buildings have their own profile, <see cref="Gen5BuildingProfile.White"/>.
     /// </summary>
     public static Gen5MapProfile White { get; } = new("IRAS", 0, "Blanco", "a/1/2/5", "a/0/5/7",
         427, 428, 255, 649, 282, 899,

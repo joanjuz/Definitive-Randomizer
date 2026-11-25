@@ -110,8 +110,9 @@ internal sealed class NdsMapRenderCache
         lock (_assets)
         {
             var scene = _assets.BlockScene(land, header, _props is not null && _props.Contains(land) ? _props.Props(land) : [], out skipped);
-            renderer = new NitroTopDownRenderer(work, work, -BlockPixels / 2f, -BlockPixels / 2f, work / (float)BlockPixels, 0);
-            foreach (var placed in scene) renderer.Draw(placed);
+            // Gen 5 only: translucent texels (tree shadows) are mixed after the opaque ones; Gen 4 images stay exactly as they were.
+            renderer = new NitroTopDownRenderer(work, work, -BlockPixels / 2f, -BlockPixels / 2f, work / (float)BlockPixels, 0) { BlendTranslucentTexels = _assets is Gen5MapGraphics };
+            renderer.DrawScene(scene);
         }
         problem = skipped.Count > 0 || renderer.Untextured > 0 ? string.Join("; ", skipped.Append(renderer.Untextured > 0 ? $"{renderer.Untextured} triángulos sin textura" : "").Where(s => s.Length > 0)) : null;
         var bitmap = BitmapSource.Create(size, size, 96, 96, PixelFormats.Bgra32, null, NitroTopDownRenderer.Downsample(renderer.Pixels, work, factor), size * 4); bitmap.Freeze();
