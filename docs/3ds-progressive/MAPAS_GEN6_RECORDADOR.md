@@ -2,7 +2,7 @@
 
 **Estado, continuación del PR #144, 26-11-2026:** identificados el NPC, su script y los enlaces nativos en X e Y de forma independiente. Resuelta estáticamente la selección de Story96 y el despacho del menú auténtico. Preparado un experimento reversible de X fuera de Pueblo Fresco, con persistencia, deshacer, coexistencia con enfermera y reconstrucción/reextracción verificadas. **La operación permanece deshabilitada en producción:** el recorrido completo en juego sigue pendiente en X y en Y.
 
-Se generó una imagen experimental privada de X; no se modificaron extracciones originales ni partidas. No se realizó una prueba en el emulador. No se incorpora contenido comercial como fixture. ORAS y Gen7 quedan excluidos.
+Se generó una imagen experimental privada de X; no se modificaron extracciones originales ni partidas. Se intentó el arranque en un Citra portátil aislado, sin llegar a validar el servicio en juego; el propietario realizará la prueba manual. No se incorpora contenido comercial como fixture. ORAS y Gen7 quedan excluidos.
 
 ## Plantilla original comprobada
 
@@ -237,7 +237,7 @@ Solo tras confirmar el flujo jugable se podrá acreditar un perfil X y completar
 
 El botón sigue oculto por diseño. Utilizar la imagen experimental privada ya preparada, sin modificar la instalación o el guardado habitual:
 
-1. Crear una instancia portátil o un perfil de emulador de prueba con directorio de usuario independiente. Copiar allí una partida autorizada de X, conservando el original y un respaldo; comprobar la ruta de guardado antes de arrancar. No se ha seleccionado ni abierto un emulador en esta investigación.
+1. Crear una instancia portátil o un perfil de emulador de prueba con directorio de usuario independiente. Copiar allí una partida autorizada de X, conservando el original y un respaldo; comprobar la ruta de guardado antes de arrancar. Se preparó Citra Nightly 2104 portátil en `artifacts/e144` de la carpeta principal del proyecto, con una copia verificada del guardado de X. El primer arranque no reconoció `main` por faltar el archivo hermano `00000001.metadata`; se restauró solo la copia y se incorporó ese metadato. Un segundo arranque registra carga de `DllTitle`/`DllSequence`, sin acreditar acceso al campo ni al servicio. El guardado original se comprobó intacto. El propietario se hará cargo de la prueba manual; no se continúa la automatización del juego.
 2. Verificar el SHA-256 de `X-recordador-ruta2.3ds` contra el indicado arriba y abrir esa imagen en la instancia de prueba.
 3. Llegar a Ruta 2 (zona interna 259). Buscar el modelo 54 en la casilla del mapa X=463, Y=458, orientado hacia abajo. Entrar/salir y comprobar aparición, colisiones y ausencia de congelación. Si el acceso visual a esa casilla presenta un problema, registrarlo y preparar otra copia con una casilla validada; no cambiar la extracción original.
 4. Hablar llevando una Escama Corazón y un Pokémon con un movimiento recuperable. Confirmar que aparece el selector original de Pokémon y después la lista original de movimientos. Anotar especie, nivel, movimiento disponible y cantidad inicial del objeto 93.
