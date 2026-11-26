@@ -147,5 +147,13 @@ public interface IMapNurseCreation
     MapMutationCheck ValidateAddNurse(int zone, int x, int y, double facing);
 }
 
+/// <summary>Optional X/Y service copied only after its executable and common script are accredited.</summary>
+public interface IMapReminderCreation
+{
+    bool CanAddReminder { get; }
+    string ReminderSummary { get; }
+    MapMutationCheck ValidateAddReminder(int zone, int x, int y, double facing);
+}
+
 /// <summary>Raised when a file does not have the layout an adapter verified.</summary>
 public sealed class MapFormatException(string message) : Exception(message);

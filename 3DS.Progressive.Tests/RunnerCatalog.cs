@@ -123,6 +123,8 @@ internal static class RunnerCatalog
         new("--map3ds-trainer-facing-probe-gen6","<copia X/Y u OR/AS en carpeta de pruebas> <zona> <npc> <grados 0/90/180/270> [alcance]",RunnerCategory.Real,false),
         new("--map3ds-trainer-facing-probe-gen7","<copia USUM en carpeta de pruebas> <área> <n.º de entrenador> <grados>",RunnerCategory.Real,false),
         new("--map3ds-nurse-only","",RunnerCategory.Synthetic,true),
+        new("--map3ds-reminder-only","",RunnerCategory.Synthetic,true),
+        new("--map3ds-reminder-ui-only","",RunnerCategory.Ui,true),
         new("--map3ds-nurse-ui-only","",RunnerCategory.Ui,true),
         new("--map3ds-add-nurse-probe","<copia X/Y u OR/AS en carpeta de pruebas> <zona o -1> <x o -1> <y> [grados 0/90/180/270]",RunnerCategory.Real,false),
         new("--map3ds-add-nurse-rebuild","<copia con la enfermera> <imagen 3DS nueva> <carpeta nueva de reextracción o -> <zona> <x> <y>",RunnerCategory.Real,false),

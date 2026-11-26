@@ -49,13 +49,22 @@ internal sealed partial class Map3dsEditorView : UserControl
     private ComboBox? _nurseDirection;
     private TextBlock? _nurseResult;
     private (int X, int Y, double Facing)? _pendingNurse;
+    private bool _addingReminder;
+    private Button? _reminderButton;
+    internal Button? ReminderButton => _reminderButton;
+    internal Button? ReminderSave => _addingReminder ? _nurseSave : null;
+    internal TextBox? ReminderX => _addingReminder ? _nurseX : null;
+    internal TextBox? ReminderY => _addingReminder ? _nurseY : null;
+    internal ComboBox? ReminderDirection => _addingReminder ? _nurseDirection : null;
+    internal TextBlock? ReminderResult => _addingReminder ? _nurseResult : null;
+    internal (int X, int Y, double Facing)? PendingReminder => _addingReminder ? _pendingNurse : null;
     internal Button? NurseButton => _nurseButton;
     internal Button? NurseSave => _nurseSave;
     internal TextBox? NurseX => _nurseX;
     internal TextBox? NurseY => _nurseY;
     internal ComboBox? NurseDirection => _nurseDirection;
     internal TextBlock? NurseResult => _nurseResult;
-    internal (int X, int Y, double Facing)? PendingNurse => _pendingNurse;
+    internal (int X, int Y, double Facing)? PendingNurse => _addingReminder ? null : _pendingNurse;
     private Button? _catchButton, _catchSave;
     private TextBox? _catchX1, _catchY1, _catchX2, _catchY2;
     private ComboBox? _catchSource;
@@ -98,7 +107,7 @@ internal sealed partial class Map3dsEditorView : UserControl
     internal static IMapEditorBackend CreateBackend(GameProjectSession session)
     {
         var config = session.GameConfiguration;
-        if (config.XY || config.ORAS) return Gen6MapBackend.FromConfig(config);
+        if (config.XY || config.ORAS) return Gen6MoveReminderProfile.CreateBackend(config);
         if (config.USUM) return pk3DS.Core.Maps.Gen7.Gen7MapBackend.FromConfig(config);
         throw new NotSupportedException("El editor de mapas 3DS todavía no admite este juego. Sol/Luna está en desarrollo.");
     }
@@ -190,6 +199,12 @@ internal sealed partial class Map3dsEditorView : UserControl
             _nurseButton.Margin = new Thickness(12, 0, 6, 0);
             bar.Children.Add(_nurseButton);
         }
+        if (_mover is { CanAddReminder: true } && backend is IMapReminderCreation { CanAddReminder: true })
+        {
+            _reminderButton = Small("Añadir recordador", () => ShowReminderPanel(), "Añadir el recordador de movimientos original de Pokémon X/Y");
+            _reminderButton.Margin = new Thickness(0, 0, 6, 0);
+            bar.Children.Add(_reminderButton);
+        }
         _legend = new TextBlock { Text = Map3dsCanvas.SchematicNotice, TextWrapping = TextWrapping.Wrap, Foreground = Res("TextSoft"), FontSize = 11.5, Margin = new Thickness(0, 6, 0, 0) };
         DockPanel.SetDock(_legend, Dock.Bottom); centre.Children.Add(_legend);
         var frame = new Border { BorderBrush = Res("Stroke"), BorderThickness = new Thickness(1), Child = _canvas };
@@ -226,7 +241,7 @@ internal sealed partial class Map3dsEditorView : UserControl
             if (_nurseX is null || _nurseY is null) return;
             _nurseX.Text = x.ToString(System.Globalization.CultureInfo.InvariantCulture);
             _nurseY.Text = y.ToString(System.Globalization.CultureInfo.InvariantCulture);
-            PreviewNurse();
+            PreviewServiceNpc();
         };
         _canvas.Hover += text => _status.Text = text;
         ShowDetails(null);
@@ -312,6 +327,7 @@ internal sealed partial class Map3dsEditorView : UserControl
         _canvas.PickingCell = false; _canvas.SetPendingNurse(null);
         ResetGrass();
         _nurseX = _nurseY = null; _nurseDirection = null; _nurseSave = null; _nurseResult = null; _pendingNurse = null;
+        _addingReminder = false;
         _catchCells = null; _catchX1 = _catchY1 = _catchX2 = _catchY2 = null; _catchSource = null; _catchSave = null; _catchResult = _catchCount = null; _catchChecked = false;
         ShowEncounterLayer();
         if (item is null)
@@ -564,71 +580,106 @@ internal sealed partial class Map3dsEditorView : UserControl
     /// <summary>Panel to place a new nurse: cell (typed or clicked on the map), direction, preview and save.</summary>
     internal bool ShowNursePanel()
     {
-        if (_mover is not { CanAddNurse: true } || _backend is not IMapNurseCreation nurses || CurrentZone is not int zone) return false;
+        if (_mover is not { CanAddNurse: true } || _backend is not IMapNurseCreation nurses) return false;
+        return ShowServiceNpcPanel(false, nurses.NurseSummary);
+    }
+
+    internal bool ShowReminderPanel()
+    {
+        if (_mover is not { CanAddReminder: true } || _backend is not IMapReminderCreation { CanAddReminder: true } reminder) return false;
+        return ShowServiceNpcPanel(true, reminder.ReminderSummary);
+    }
+
+    /// <summary>Both service NPCs share placement controls; their validation and script selection stay separate.</summary>
+    private bool ShowServiceNpcPanel(bool reminder, string summary)
+    {
+        if (CurrentZone is not int zone) return false;
         _canvas.Select(null, false); SyncList(null);
         ShowDetails(null);
+        _addingReminder = reminder;
+        string title = reminder ? "Añadir recordador" : "Añadir enfermera";
+        string person = reminder ? "el recordador" : "la enfermera";
+        string possessive = reminder ? "del recordador" : "de la enfermera";
         _details.Children.Clear();
-        _details.Children.Add(new TextBlock { Text = "Añadir enfermera", FontWeight = FontWeights.SemiBold, FontSize = 15, Foreground = Res("TextMain") });
-        _details.Children.Add(new TextBlock { Text = nurses.NurseSummary, TextWrapping = TextWrapping.Wrap, Foreground = Res("TextSoft"), Margin = new Thickness(0, 4, 0, 0) });
+        _details.Children.Add(new TextBlock { Text = title, FontWeight = FontWeights.SemiBold, FontSize = 15, Foreground = Res("TextMain") });
+        _details.Children.Add(new TextBlock { Text = summary, TextWrapping = TextWrapping.Wrap, Foreground = Res("TextSoft"), Margin = new Thickness(0, 4, 0, 0) });
         _details.Children.Add(new TextBlock { Text = "Haz clic en una casilla del mapa o escribe sus coordenadas.", TextWrapping = TextWrapping.Wrap, Foreground = Res("TextSoft"), Margin = new Thickness(0, 8, 0, 0) });
         var coords = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 6, 0, 0) };
         TextBox Number(string name)
         {
             var t = new TextBox { Width = 64, Margin = new Thickness(4, 0, 10, 0) };
             System.Windows.Automation.AutomationProperties.SetName(t, name);
+            t.TextChanged += (_, _) =>
+            {
+                _pendingNurse = null; _canvas.SetPendingNurse(null);
+                if (_nurseSave is not null) _nurseSave.IsEnabled = false;
+            };
             return t;
         }
         coords.Children.Add(new TextBlock { Text = "X", Foreground = Res("TextSoft"), VerticalAlignment = VerticalAlignment.Center });
-        coords.Children.Add(_nurseX = Number("Casilla X de la enfermera"));
+        coords.Children.Add(_nurseX = Number($"Casilla X {possessive}"));
         coords.Children.Add(new TextBlock { Text = "Y", Foreground = Res("TextSoft"), VerticalAlignment = VerticalAlignment.Center });
-        coords.Children.Add(_nurseY = Number("Casilla Y de la enfermera"));
+        coords.Children.Add(_nurseY = Number($"Casilla Y {possessive}"));
         _details.Children.Add(coords);
         var row = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 6, 0, 0) };
         row.Children.Add(new TextBlock { Text = "Mira hacia", Foreground = Res("TextSoft"), VerticalAlignment = VerticalAlignment.Center });
         _nurseDirection = new ComboBox { Width = 110, Margin = new Thickness(4, 0, 0, 0), DisplayMemberPath = "Name", SelectedValuePath = "Degrees",
             ItemsSource = Cardinal.Select(c => new { c.Name, c.Degrees }).ToArray(), SelectedValue = 180.0 };
-        System.Windows.Automation.AutomationProperties.SetName(_nurseDirection, "Dirección hacia la que mira la enfermera");
-        _nurseDirection.SelectionChanged += (_, _) => { if (_nurseX is { Text.Length: > 0 }) PreviewNurse(); };
+        System.Windows.Automation.AutomationProperties.SetName(_nurseDirection, $"Dirección hacia la que mira {person}");
+        _nurseDirection.SelectionChanged += (_, _) => { if (_nurseX is { Text.Length: > 0 }) PreviewServiceNpc(); };
         row.Children.Add(_nurseDirection);
         _details.Children.Add(row);
         var buttons = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 8, 0, 0) };
-        buttons.Children.Add(Small("Previsualizar", () => PreviewNurse(), "Previsualizar la enfermera en el mapa"));
-        _nurseSave = Small("Guardar", () => SaveNurse(), "Guardar la enfermera en el proyecto");
+        buttons.Children.Add(Small("Previsualizar", () => PreviewServiceNpc(), $"Previsualizar {person} en el mapa"));
+        _nurseSave = Small("Guardar", () => SaveServiceNpc(), $"Guardar {person} en el proyecto");
         _nurseSave.IsEnabled = false;
         buttons.Children.Add(_nurseSave);
-        buttons.Children.Add(Small("Cancelar", () => ShowDetails(null), "Cancelar la enfermera nueva"));
+        buttons.Children.Add(Small("Cancelar", () => ShowDetails(null), reminder ? "Cancelar el recordador nuevo" : "Cancelar la enfermera nueva"));
         _details.Children.Add(buttons);
         _nurseResult = new TextBlock { TextWrapping = TextWrapping.Wrap, Foreground = Res("TextSoft"), Margin = new Thickness(0, 6, 0, 0) };
         _details.Children.Add(_nurseResult);
+        if (reminder) _details.Children.Add(new TextBlock { Text = "Vista previa: rombo azul con la dirección del recordador. Guardar confirma su incorporación al proyecto.", TextWrapping = TextWrapping.Wrap, Foreground = Res("TextSoft"), FontSize = 11, Margin = new Thickness(0, 6, 0, 0) });
         _details.Children.Add(new TextBlock { Text = GameplayNotice, TextWrapping = TextWrapping.Wrap, Foreground = Res("TextSoft"), FontSize = 11, Margin = new Thickness(0, 6, 0, 0) });
         _canvas.PickingCell = true;
-        _status.Text = $"Zona {zone:000}: elige la casilla de la enfermera.";
+        _status.Text = $"Zona {zone:000}: elige la casilla {possessive}.";
         return true;
     }
 
     /// <summary>Checks the cell and direction and draws the nurse on the map; nothing is written.</summary>
-    internal bool PreviewNurse()
+    internal bool PreviewNurse() => !_addingReminder && PreviewServiceNpc();
+    internal bool PreviewReminder() => _addingReminder && PreviewServiceNpc();
+
+    private bool PreviewServiceNpc()
     {
-        if (_nurseX is null || _nurseY is null || _nurseResult is null || _nurseSave is null || CurrentZone is not int zone || _backend is not IMapNurseCreation nurses) return false;
+        if (_nurseX is null || _nurseY is null || _nurseResult is null || _nurseSave is null || CurrentZone is not int zone) return false;
         _pendingNurse = null; _canvas.SetPendingNurse(null); _nurseSave.IsEnabled = false;
         if (!int.TryParse(_nurseX.Text, out int x) || !int.TryParse(_nurseY.Text, out int y)) { _nurseResult.Text = "Escribe números enteros para X e Y."; return false; }
         if (_nurseDirection?.SelectedValue is not double facing) { _nurseResult.Text = "Elige una dirección."; return false; }
-        var check = nurses.ValidateAddNurse(zone, x, y, facing);
+        var check = _addingReminder
+            ? (_backend as IMapReminderCreation)?.ValidateAddReminder(zone, x, y, facing)
+            : (_backend as IMapNurseCreation)?.ValidateAddNurse(zone, x, y, facing);
+        if (check is null) return false;
         _nurseResult.Text = check.Reason;
         if (!check.Allowed) return false;
         _pendingNurse = (x, y, facing);
-        _canvas.SetPendingNurse(_pendingNurse);
+        if (_addingReminder) _canvas.SetPendingReminder(_pendingNurse);
+        else _canvas.SetPendingNurse(_pendingNurse);
         _nurseSave.IsEnabled = true;
         return true;
     }
 
     /// <summary>Writes the previewed nurse through the project history and reloads the zone from disk.</summary>
-    internal bool SaveNurse()
+    internal bool SaveNurse() => !_addingReminder && SaveServiceNpc();
+    internal bool SaveReminder() => _addingReminder && SaveServiceNpc();
+
+    private bool SaveServiceNpc()
     {
         if (_mover is null || _pendingNurse is not { } nurse || CurrentZone is not int zone || _nurseResult is null) return false;
         try
         {
-            string summary = _mover.AddNurse(_backend, zone, nurse.X, nurse.Y, nurse.Facing);
+            string summary = _addingReminder
+                ? _mover.AddReminder(_backend, zone, nurse.X, nurse.Y, nurse.Facing)
+                : _mover.AddNurse(_backend, zone, nurse.X, nurse.Y, nurse.Facing);
             _backend = _mover.Reload();
             ShowZone(zone);
             var added = _current.LastOrDefault(e => e.Kind == MapEventKind.Npc && e.Placed && (int)e.X == nurse.X && (int)e.Y == nurse.Y);

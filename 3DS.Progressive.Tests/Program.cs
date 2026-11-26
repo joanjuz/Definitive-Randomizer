@@ -482,6 +482,11 @@ if(args.Length is 5 or 6&&args[0]=="--map3ds-trainer-facing-probe-gen6"){Map3dsT
 if(args.Length==5&&args[0]=="--map3ds-trainer-facing-probe-gen7"){Map3dsTrainerFacingChecks.ProbeGen7(args[1],int.Parse(args[2]),int.Parse(args[3]),double.Parse(args[4],System.Globalization.CultureInfo.InvariantCulture));return;}
 if(args.Length is 7 or 8&&args[0]=="--map3ds-trainer-facing-rebuild"){Map3dsTrainerFacingChecks.Rebuild(args[1],args[2],args[3],int.Parse(args[4]),int.Parse(args[5]),double.Parse(args[6],System.Globalization.CultureInfo.InvariantCulture),args.Length==8?int.Parse(args[7]):null);return;}
 if(args.Length==1&&args[0]=="--map3ds-nurse-only"){Map3dsNurseChecks.Run(Check);Console.WriteLine($"Completed {checks} 3DS nurse checks (synthetic).");return;}
+if(args.Length==1&&args[0]=="--map3ds-reminder-only"){Map3dsReminderChecks.Run(Check);Console.WriteLine($"Completed {checks} XY move reminder checks (synthetic).");return;}
+if(args.Length==1&&args[0]=="--map3ds-reminder-ui-only")
+{
+    Exception? failure=null;var thread=new Thread(()=>{try{var app=new ThreeDS.Progressive.App();app.InitializeComponent();WpfTestHost.SuppressStartup();ThreeDS.Progressive.StudioDialog.AutomatedChecks=true;Map3dsReminderUiChecks.Run(Check);}catch(Exception ex){failure=ex;}});thread.SetApartmentState(ApartmentState.STA);thread.Start();thread.Join();if(failure is not null)System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(failure).Throw();Console.WriteLine($"Completed {checks} move reminder UI checks (off-screen).");return;
+}
 if(args.Length==1&&args[0]=="--map3ds-nurse-ui-only")
 {
     Exception? failure=null;var thread=new Thread(()=>{try{var app=new ThreeDS.Progressive.App();app.InitializeComponent();WpfTestHost.SuppressStartup();ThreeDS.Progressive.StudioDialog.AutomatedChecks=true;Map3dsNurseChecks.RunUi(Check);}catch(Exception ex){failure=ex;}});thread.SetApartmentState(ApartmentState.STA);thread.Start();thread.Join();if(failure is not null)System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(failure).Throw();Console.WriteLine($"Completed {checks} 3DS nurse UI checks (off-screen).");return;
