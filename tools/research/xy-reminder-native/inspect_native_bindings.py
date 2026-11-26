@@ -115,7 +115,7 @@ def main():
                               code_sha256=hashlib.sha256(code).hexdigest().upper(),
                               common42_sha256=hashlib.sha256(amx).hexdigest().upper(),
                               cro_sha256={name:hashlib.sha256((args.project/'ExtractedRomFS'/name).read_bytes()).hexdigest().upper() for name in resources},
-                              production_allowed=False,gameplay='not tested'),indent=2));return
+                              grants_production_admission=False,gameplay_validation='not performed by this tool'),indent=2));return
     if args.read_words:
         print(json.dumps({v:hex(u32(code,int(v,0)-base)) for v in args.read_words}));return
     if args.link_slots:

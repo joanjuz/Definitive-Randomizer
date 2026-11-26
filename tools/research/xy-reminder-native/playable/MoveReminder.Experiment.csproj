@@ -10,6 +10,8 @@
     <AssemblyName>3DS.Progressive.Tests</AssemblyName>
   </PropertyGroup>
   <ItemGroup>
+    <Using Remove="System.Windows.Forms" />
     <ProjectReference Include="../../../../3DS.Progressive.App/3DS.Progressive.App.csproj" />
+    <Compile Include="../../../../3DS.Progressive.Tests/WpfTestHost.cs" Link="WpfTestHost.cs" />
   </ItemGroup>
 </Project>

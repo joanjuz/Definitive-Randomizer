@@ -6,6 +6,7 @@ using pk3DS.Core;
 using pk3DS.Core.CTR;
 using pk3DS.Core.Maps;
 using pk3DS.Core.Maps.Gen6;
+using ThreeDS.Progressive;
 using ThreeDS.Progressive.Models;
 using ThreeDS.Progressive.Services;
 
@@ -13,7 +14,7 @@ using ThreeDS.Progressive.Services;
 internal static class Program
 {
     static readonly JsonSerializerOptions Json = new() { WriteIndented = true };
-    record Experiment(string Source, Dictionary<string, string> Sources, int Zone, int X, int Y, double Facing);
+    record Experiment(string Source, Dictionary<string, string> Sources, int Zone, int X, int Y, double Facing, string Title = "X");
     static string Hash(byte[] bytes) => Convert.ToHexString(SHA256.HashData(bytes));
     static string HashFile(string path) { using var s = File.OpenRead(path); return Convert.ToHexString(SHA256.HashData(s)); }
     static void Check(bool condition, string name) { if (!condition) throw new InvalidDataException(name); Console.WriteLine("PASS " + name); }
@@ -26,14 +27,15 @@ internal static class Program
         for (var d = new DirectoryInfo(Path.GetFullPath(path)); d is not null; d = d.Parent)
             Check((d.Attributes & FileAttributes.ReparsePoint) == 0, "path_not_link_" + d.Name);
     }
-    static void Pin(string root)
+    static void Pin(string root, bool y = false)
     {
         byte[] ex = File.ReadAllBytes(Path.Combine(root, "DecryptedExHeader.bin"));
-        Check(ex.Length >= 0x208 && BinaryPrimitives.ReadUInt64LittleEndian(ex.AsSpan(0x200)) == 0x0004000000055D00, "experiment_is_X_only");
+        Check(ex.Length >= 0x208 && BinaryPrimitives.ReadUInt64LittleEndian(ex.AsSpan(0x200)) == (y ? 0x0004000000055E00UL : 0x0004000000055D00UL), y ? "experiment_is_Y_only" : "experiment_is_X_only");
         var pins = new Dictionary<string, string>
         {
-            ["ExtractedExeFS/.code.bin"] = "0F6D3E1D66CBCD55D46FA453DB4B6AA489E03C3537C6B24026F2A53AF142797A",
-            ["ExtractedRomFS/DllField.cro"] = "ED043EB6C5D4057D64CEEFDA99B59B0978412B982427551F6C99BF6084BE6489",
+            ["ExtractedExeFS/.code.bin"] = y ? "62554AC3D494F6A333D92B156AD239017114ECF95367A97DB57E251456692FE7" : "0F6D3E1D66CBCD55D46FA453DB4B6AA489E03C3537C6B24026F2A53AF142797A",
+            ["ExtractedRomFS/DllField.cro"] = y ? "F4D77DD5FE18888A51513E13864F84AF0FDA2D0A3420334CD0E886BC9F080BD3" : "ED043EB6C5D4057D64CEEFDA99B59B0978412B982427551F6C99BF6084BE6489",
+            ["ExtractedRomFS/static.crs"] = y ? "598EAA950FEC39DD4D7915257299B4BCECE7E143F3542A31EB5772E7F89FECBD" : "30D10ADA3F829AE5AE2080C15D27DDF809B3D852CBAF5928C44E609764BFFDAA",
             ["ExtractedRomFS/DllWazaOmoidashi.cro"] = "B76C2045E0D7988AEB1B82F132F9F5C38C7A622FEBDCEDD144C1538A1BB4E5DD",
             ["ExtractedRomFS/DllPokeList.cro"] = "D673A3B9A38BF301C8337672EB7E67AECABB83DB5B8D2A989F26CDB754E22D38",
         };
@@ -64,7 +66,8 @@ internal static class Program
             cfg.GetText(TextName.metlist_000000), modelListCount: models.Length, modelList: i => models[i], reminderAccredited: true);
         Check(b.Reminder is { } r && Hash(r.Record) == "C7AB122F70C27E674959DF808E5B595C86AADABE64036B590BB4B993B0E13393", "original_record_exact");
         Check(b.ReminderModelEntry is { } entry && Hash(entry) == "1A7FC7BF2E1E93ED1093D166EFC2A823D5459039D28126E2B3139915A25361E4", "original_model_entry_exact");
-        Check(!Gen6MapBackend.FromConfig(cfg).CanAddReminder && !Gen6MoveReminderProfile.Inspect(cfg).Allowed, "production_gate_stays_closed");
+        bool isX = BinaryPrimitives.ReadUInt64LittleEndian(File.ReadAllBytes(Path.Combine(Directory.GetParent(cfg.RomFS)!.FullName, "DecryptedExHeader.bin")).AsSpan(0x200)) == Gen6MoveReminderProfile.XTitleId;
+        Check(!Gen6MapBackend.FromConfig(cfg).CanAddReminder && Gen6MoveReminderProfile.Inspect(cfg).Allowed == isX, "project_admission_matches_title_evidence");
         return b;
     }
     static void VerifySources(Experiment plan)
@@ -74,10 +77,10 @@ internal static class Program
     static GameProjectSession Open(string root)
     {
         Check(Path.GetFileName(Path.GetFullPath(root)).StartsWith("PruebasRecordador-", StringComparison.Ordinal), "explicit_experiment_folder");
-        NoLinks(root); Pin(Project(root));
+        NoLinks(root); Pin(Project(root), y: Load(root).Title == "Y");
         return GameProjectSession.Open(Project(root), recoverInterruptedSave: false);
     }
-    static void Prepare(string source, string root, int zone, int x, int y)
+    static void Prepare(string source, string root, int zone, int x, int y, bool pokemonY = false)
     {
         source = Path.GetFullPath(source); root = Path.GetFullPath(root);
         Check(!source.Equals(root, StringComparison.OrdinalIgnoreCase) && !source.StartsWith(root + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase)
@@ -85,7 +88,7 @@ internal static class Program
         Check(Path.GetFileName(root).StartsWith("PruebasRecordador-", StringComparison.Ordinal), "explicit_experiment_folder");
         Check(!Directory.Exists(root) && !File.Exists(root), "destination_must_be_new");
         Check(zone != 34 && zone >= 0, "experiment_outside_source_zone");
-        NoLinks(source); NoLinks(Path.GetDirectoryName(root)!); Pin(source);
+        NoLinks(source); NoLinks(Path.GetDirectoryName(root)!); Pin(source, pokemonY);
         var folders = new[] { "ExtractedRomFS", "ExtractedExeFS" };
         foreach (var folder in folders) NoLinks(Path.Combine(source, folder));
         Check(folders.SelectMany(f => Directory.EnumerateDirectories(Path.Combine(source, f), "*", SearchOption.AllDirectories))
@@ -101,7 +104,7 @@ internal static class Program
             Directory.CreateDirectory(Path.GetDirectoryName(target)!); File.Copy(file, target, overwrite: false);
             Check(HashFile(target) == hashes[relative], "copy_readback_" + relative);
         }
-        var plan = new Experiment(source, hashes, zone, x, y, 180);
+        var plan = new Experiment(source, hashes, zone, x, y, 180, pokemonY ? "Y" : "X");
         Save(Path.Combine(Evidence(root), "experiment.json"), plan);
         var project = Open(root); var backend = StructuralBackend(project.GameConfiguration);
         var check = backend.ValidateAddReminder(zone, x, y, plan.Facing);
@@ -146,9 +149,9 @@ internal static class Program
         Check(HashFile(zonesPath) == Hash(zonesBefore) && HashFile(modelsPath) == Hash(modelsBefore), "preview_writes_nothing");
         foreach (var file in files) GarcTransaction.ReadUnchanged(file.Path, file.Fingerprint);
         GarcTransaction.ReadUnchanged(modelsPath, SHA256.HashData(modelsBefore));
-        project.History.Commit(files, "Editor de mapas", nurse ? "Experimento: enfermera" : "Experimento: recordador X fuera de Pueblo Fresco",
+        project.History.Commit(files, "Editor de mapas", nurse ? "Experimento: enfermera" : $"Experimento: recordador {plan.Title} fuera de Pueblo Fresco",
             [new BatchChange(plan.Zone, "Experimento aislado", "NPC", "sin NPC nuevo", $"script {BinaryPrimitives.ReadUInt16LittleEndian(record.AsSpan(10))}, modelo {model}", "npc.experiment")],
-            new Dictionary<string, string> { ["ActionId"] = "research.xy.move-reminder", ["Gameplay"] = "not tested", ["Scope"] = "ExperimentalCopyOnly" });
+            new Dictionary<string, string> { ["ActionId"] = "research.xy.move-reminder", ["Game"] = plan.Title, ["Gameplay"] = "not tested", ["Scope"] = "ExperimentalCopyOnly" });
         var reopened = StructuralBackend(GameProjectSession.Open(Project(root), false).GameConfiguration);
         var added = reopened.ZoneEvents(plan.Zone).Last(e => e.Kind == MapEventKind.Npc);
         Check(added.X == x && added.Y == plan.Y && added.Properties.Any(p => p.Name == "Modelo" && p.Value == model.ToString()), "reopened_added_npc");
@@ -212,26 +215,124 @@ internal static class Program
             }
         }
         var reopened = GameProjectSession.Open(extracted, false);
-        var b = Gen6MapBackend.FromConfig(reopened.GameConfiguration);
+        var b = Gen6MoveReminderProfile.CreateBackend(reopened.GameConfiguration);
         var npc = b.ZoneEvents(plan.Zone).Last(e => e.Kind == MapEventKind.Npc);
         Check(npc.X == plan.X && npc.Y == plan.Y && npc.Properties.Any(p => p.Name == "Script" && p.Value == "2261")
             && npc.Properties.Any(p => p.Name == "Modelo" && p.Value == "54"), "reconstructed_reminder_preserved");
         Check(Gen6AreaModels.Models(b.ModelList(b.Zone(plan.Zone).Area)!).Contains(54), "reconstructed_area_loads_model54");
-        Check(!b.CanAddReminder && !Gen6MoveReminderProfile.Inspect(reopened.GameConfiguration).Allowed, "reconstructed_project_keeps_production_gate_closed");
-        Save(Path.Combine(Evidence(root), "rebuild-verification.json"), new { Files = count, AllExact = true, Gameplay = "not tested", ProductionAllowed = false });
+        bool admitted = plan.Title == "X";
+        Check(b.CanAddReminder == admitted && Gen6MoveReminderProfile.Inspect(reopened.GameConfiguration).Allowed == admitted, "reconstructed_admission_matches_title_evidence");
+        Save(Path.Combine(Evidence(root), "rebuild-verification.json"), new { Files = count, AllExact = true, Gameplay = plan.Title == "X" ? "owner confirmed X Route 2 experiment" : "Y not tested", ProductionAllowed = admitted });
         VerifySources(plan);
     }
+    static void Production(string root)
+    {
+        var plan = Load(root); Check(plan.Title == "X", "production_validation_is_X_only"); var project = Open(root); var cfg = project.GameConfiguration;
+        string zones = Path.GetFullPath(Path.Combine(cfg.RomFS, "a/0/1/2")), models = Path.GetFullPath(Path.Combine(cfg.RomFS, "a/1/4/9"));
+        byte[] originalZones = File.ReadAllBytes(zones), originalModels = File.ReadAllBytes(models);
+        Check(Hash(originalZones) == plan.Sources[Path.Combine("ExtractedRomFS", "a", "0", "1", "2")]
+            && Hash(originalModels) == plan.Sources[Path.Combine("ExtractedRomFS", "a", "1", "4", "9")], "production_starts_from_original_copy");
+        var backend = Gen6MoveReminderProfile.CreateBackend(cfg);
+        Check(backend.CanAddReminder && Gen6MoveReminderProfile.Inspect(cfg).Title == "X", "production_X_profile_admitted");
+        var service = new Map3dsNpcMoveService(project);
+        var proposal = service.PreviewAddReminder(backend, plan.Zone, plan.X, plan.Y, plan.Facing);
+        Check(proposal.Files.Count == 2 && proposal.Dependencies.Any(d => d.Path == models), "production_missing_model_in_same_proposal");
+        Check(File.ReadAllBytes(zones).AsSpan().SequenceEqual(originalZones) && File.ReadAllBytes(models).AsSpan().SequenceEqual(originalModels), "production_preview_writes_nothing");
+        int historyBefore = project.History.Read().Entries.Count;
+        foreach (var dependency in proposal.Dependencies)
+        {
+            byte[] before = File.ReadAllBytes(dependency.Path), changed = (byte[])File.ReadAllBytes(dependency.Path).Clone(); changed[0] ^= 1;
+            try
+            {
+                File.WriteAllBytes(dependency.Path, changed);
+                string zoneAtAttempt = HashFile(zones), modelsAtAttempt = HashFile(models);
+                bool rejected = false;
+                try { service.Apply(proposal); }
+                catch (IOException) { rejected = true; }
+                Check(rejected && HashFile(zones) == zoneAtAttempt && HashFile(models) == modelsAtAttempt
+                    && project.History.Read().Entries.Count == historyBefore, "production_dependency_race_rejected_" + Path.GetRelativePath(Project(root), dependency.Path));
+            }
+            finally { File.WriteAllBytes(dependency.Path, before); }
+        }
+        service.Apply(proposal);
+        var first = project.History.Read().Entries.Last();
+        Check(first.Parameters["Game"] == "X" && first.Parameters["ActionId"] == Map3dsNpcMoveService.ReminderActionId, "production_history_identifies_X_and_action");
+        var changedZones = new GARC.MemGARC(File.ReadAllBytes(zones)).Files;
+        var priorZones = new GARC.MemGARC(originalZones).Files;
+        Check(Enumerable.Range(0, priorZones.Length).All(i => i == plan.Zone || priorZones[i].AsSpan().SequenceEqual(changedZones[i])), "production_other_zones_identical");
+        var original = new Gen6Zone(Decode(priorZones[plan.Zone])); var edited = new Gen6Zone(Decode(changedZones[plan.Zone]));
+        Check(original.Entities.Records.All(r => original.Entities.Bytes(r).SequenceEqual(edited.Entities.Bytes(edited.Entities.Records.Single(e => e.Kind == r.Kind && e.Index == r.Index)))), "production_other_entities_identical");
+        Check(Enumerable.Range(0, original.Pack.Count).Where(i => i != 1).All(i => original.Pack.Part(i).SequenceEqual(edited.Pack.Part(i))), "production_other_zone_parts_identical");
+        RestorePoints.Undo(project.History, project.ProjectRoot, first.Id);
+        Check(File.ReadAllBytes(zones).AsSpan().SequenceEqual(originalZones) && File.ReadAllBytes(models).AsSpan().SequenceEqual(originalModels), "production_undo_exact");
+
+        project = Open(root); service = new Map3dsNpcMoveService(project); backend = Gen6MoveReminderProfile.CreateBackend(project.GameConfiguration);
+        service.Apply(service.PreviewAddNurse(backend, plan.Zone, plan.X + 1, plan.Y, plan.Facing));
+        var nurse = project.History.Read().Entries.Last();
+        backend = Gen6MoveReminderProfile.CreateBackend(project.GameConfiguration);
+        service.Apply(service.PreviewAddReminder(backend, plan.Zone, plan.X, plan.Y, plan.Facing));
+        var reminder = project.History.Read().Entries.Last();
+        backend = Gen6MoveReminderProfile.CreateBackend(project.GameConfiguration);
+        var scripts = backend.ZoneEvents(plan.Zone).Where(e => e.Kind == MapEventKind.Npc).Select(e => e.Properties.Single(p => p.Name == "Script").Value).ToArray();
+        Check(scripts.Contains("2100") && scripts.Contains("2261"), "production_nurse_and_reminder_coexist");
+        var nextCell = Enumerable.Range(1, 10).Select(dx => plan.X - dx).First(x => backend.ValidateAddReminder(plan.Zone, x, plan.Y, plan.Facing).Allowed);
+        var existingModel = service.PreviewAddReminder(backend, plan.Zone, nextCell, plan.Y, plan.Facing);
+        Check(existingModel.Files.Count == 1 && existingModel.Dependencies.Any(d => d.Path == models), "production_existing_model_is_still_pinned");
+        byte[] modelsBefore = File.ReadAllBytes(models), invalidModels = (byte[])modelsBefore.Clone(); invalidModels[^1] ^= 1;
+        try
+        {
+            File.WriteAllBytes(models, invalidModels);
+            bool rejected = false;
+            try { service.PreviewAddReminder(backend, plan.Zone, nextCell, plan.Y, plan.Facing); }
+            catch (IOException) { rejected = true; }
+            Check(rejected, "production_stale_backend_model_rejected_before_proposal");
+        }
+        finally { File.WriteAllBytes(models, modelsBefore); }
+        service.Apply(existingModel);
+        var second = project.History.Read().Entries.Last();
+        Check(File.ReadAllBytes(models).AsSpan().SequenceEqual(modelsBefore), "production_existing_model_not_rewritten");
+        RestorePoints.Undo(project.History, project.ProjectRoot, second.Id);
+        RestorePoints.Undo(project.History, project.ProjectRoot, reminder.Id);
+        RestorePoints.Undo(project.History, project.ProjectRoot, nurse.Id);
+        Check(File.ReadAllBytes(zones).AsSpan().SequenceEqual(originalZones) && File.ReadAllBytes(models).AsSpan().SequenceEqual(originalModels), "production_coexistence_undo_exact");
+
+        project = Open(root);
+        var app = new ThreeDS.Progressive.App();
+        WpfTestHost.SuppressStartup();
+        StudioDialog.AutomatedChecks = true;
+        var view = new Map3dsEditorView(project);
+        view.ShowZone(plan.Zone);
+        Check(view.ReminderButton is { Content: "Añadir recordador" } && view.NurseButton is not null, "production_WPF_X_button_beside_nurse");
+        Check(view.ShowReminderPanel(), "production_WPF_opens_panel");
+        view.ReminderX!.Text = plan.X.ToString(); view.ReminderY!.Text = plan.Y.ToString();
+        Check(view.PreviewReminder() && view.Canvas.PendingReminder is not null
+            && HashFile(zones) == Hash(originalZones) && HashFile(models) == Hash(originalModels), "production_WPF_preview_writes_nothing");
+        Check(view.SaveReminder() && view.Backend is Gen6MapBackend { CanAddReminder: true }, "production_WPF_saves_and_reloads_accredited_backend");
+        var final = project.History.Read().Entries.Last();
+        Save(Path.Combine(Evidence(root), "reminder-entry.json"), final);
+        var changes = plan.Sources.Select(p => new { Path = p.Key, Before = p.Value, After = HashFile(Path.Combine(Project(root), p.Key)) }).Where(p => p.Before != p.After).ToArray();
+        Check(changes.Length == 2 && changes.All(p => p.Path == Path.Combine("ExtractedRomFS", "a", "0", "1", "2") || p.Path == Path.Combine("ExtractedRomFS", "a", "1", "4", "9")), "production_only_zone_and_model_archives_changed");
+        Save(Path.Combine(Evidence(root), "changed-files.json"), changes);
+        if (plan.Zone == 259 && plan.X == 463 && plan.Y == 458 && plan.Facing == 180)
+            Check(HashFile(zones) == "83222B273A8320B8E37CDBA84F7BA903E96367FB761D907FB353E80CB2FB0A03"
+                && HashFile(models) == "03B88CE373ACA3738CECCD94C1C72CFAC34B69F0BD1F0A755BA5A953E962199A", "production_matches_owner_tested_archives_exactly");
+        Save(Path.Combine(Evidence(root), "production-verification.json"), new { Title = "X", Dependencies = proposal.Dependencies.Count, Gameplay = "owner confirmed reference Route 2 experiment", Wpf = true, Undo = true, Coexistence = "disk verified" });
+        VerifySources(plan);
+    }
+    [STAThread]
     static int Main(string[] args)
     {
         try
         {
             if (args.Length == 6 && args[0] == "prepare") Prepare(args[1], args[2], int.Parse(args[3]), int.Parse(args[4]), int.Parse(args[5]));
+            else if (args.Length == 6 && args[0] == "prepare-y") Prepare(args[1], args[2], int.Parse(args[3]), int.Parse(args[4]), int.Parse(args[5]), pokemonY: true);
             else if (args.Length == 2 && args[0] == "check") { StructuralBackend(Open(args[1]).GameConfiguration); VerifySources(Load(args[1])); }
+            else if (args.Length == 2 && args[0] == "production") Production(root: args[1]);
             else if (args.Length == 2 && args[0] == "persistence") Persistence(args[1]);
             else if (args.Length == 3 && args[0] == "build") Build(args[1], args[2]);
             else if (args.Length == 4 && args[0] == "verify") VerifyImage(args[1], args[2], args[3]);
             else if (args.Length == 3 && args[0] == "undo") Undo(args[1], Guid.Parse(args[2]));
-            else { Console.Error.WriteLine("prepare SOURCE NEW_PruebasRecordador-X ZONE X Y | check ROOT | persistence ROOT | build ROOT NEW_3DS | verify ROOT IMAGE NEW_EXTRACTED | undo ROOT ENTRY_GUID"); return 2; }
+            else { Console.Error.WriteLine("prepare SOURCE NEW_PruebasRecordador-X ZONE X Y | prepare-y SOURCE NEW_PruebasRecordador-Y ZONE X Y | check ROOT | production ROOT | persistence ROOT | build ROOT NEW_3DS | verify ROOT IMAGE NEW_EXTRACTED | undo ROOT ENTRY_GUID"); return 2; }
             return 0;
         }
         catch (Exception ex) { Console.Error.WriteLine(ex.ToString()); return 1; }

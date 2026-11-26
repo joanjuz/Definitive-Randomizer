@@ -1,9 +1,24 @@
-# Recordador de movimientos de X/Y: investigación e infraestructura protegida
+# Recordador de movimientos de X/Y
 
-**Estado, continuación del PR #144, 26-11-2026:** identificados el NPC, su script y los enlaces nativos en X e Y de forma independiente. Resuelta estáticamente la selección de Story96 y el despacho del menú auténtico. Preparado un experimento reversible de X fuera de Pueblo Fresco, con persistencia, deshacer, coexistencia con enfermera y reconstrucción/reextracción verificadas. **La operación permanece deshabilitada en producción:** el recorrido completo en juego sigue pendiente en X y en Y.
+**Estado actual, PR #144, 26-11-2026:** el propietario confirmó «Todo funciona perfectamente» después de recibir la ROM experimental de X y el protocolo manual de Ruta 2. Se registra como confirmación jugable del propietario para ese candidato; no se atribuyen trazas, capturas ni resultados automatizados por caso que no se hayan recibido. El perfil de **Pokémon X** identificado abajo permite ahora añadir el recordador desde el editor, sujeto a huellas y validaciones. **Pokémon Y permanece bloqueado en producción** hasta su prueba independiente. ORAS y Gen7 quedan excluidos.
 
-Se generó una imagen experimental privada de X; no se modificaron extracciones originales ni partidas. Se intentó el arranque en un Citra portátil aislado, sin llegar a validar el servicio en juego; el propietario realizará la prueba manual. No se incorpora contenido comercial como fixture. ORAS y Gen7 quedan excluidos.
+La integración final de X se comprobó también desde el guardado WPF real en una copia nueva: historial, deshacer exacto, modelo presente/ausente, reapertura, convivencia en disco con enfermera y rechazo de cambios externos. Los dos GARC finales coinciden byte por byte con los del candidato X probado por el propietario. La prueba jugable conjunta de una enfermera nueva y un recordador no se declara realizada.
 
+Se conservan debajo las evidencias estáticas y las fases experimentales anteriores, identificadas como tales. Las ROM, extracciones, partidas y logs privados no se versionan. No se modificaron originales ni se publicó una versión.
+
+## Perfil de producción de X y uso del botón
+
+`Gen6MoveReminderProfile` acredita únicamente el Title ID `0004000000055D00` y el ejecutable/CRO de la tabla de huellas. Verifica el miembro común 42, los ocho bancos Story96, el registro completo del NPC original y la entrada completa del modelo 54. El área original debe seguir cargándolo; se rechazan duplicados incluso si sus bytes coinciden. No exige que todo el GARC de mapas o modelos sea original: las enfermeras y otras ediciones previas de mapas se conservan.
+
+El Title ID de Y se rechaza explícitamente aunque los scripts y textos sean iguales. Otras revisiones, ejecutables parcheados o recursos nativos/textos distintos tampoco se admiten sin investigación y acreditación adicionales. Se aceptan las cabeceras `DecryptedExHeader.bin` y `exheader.bin`, verificando todas si coexisten; se necesita un único `.code.bin` o `code.bin`.
+
+El backend creado por la aplicación conserva las huellas de todos los archivos acreditados desde que se abre el editor. Una marca estructural del backend Core o un fixture sintético no sustituye esa acreditación. Se vuelven a comprobar los recursos al preparar la propuesta y antes de aplicar, incluida la lista de modelos cuando el área ya tiene el 54. Cambios externos requieren reabrir el editor; el rechazo no escribe archivos ni crea una entrada de historial.
+
+1. Abrir una **copia de proyecto X compatible** en la aplicación compilada desde esta rama. No modifica la Preview instalada ni su versión.
+2. Abrir el editor de mapas y la zona deseada. Pulsar **Añadir recordador**, junto a **Añadir enfermera**.
+3. Elegir una casilla con clic o coordenadas manuales y la orientación. Revisar la vista previa azul, NPC 2 de zona 034, modelo 54 y script 2261. Se indica si debe añadirse el modelo al área.
+4. Confirmar mediante el botón de guardado del panel. Zonas y modelos se guardan juntos mediante `ProjectHistory`. Reabrir reconoce el NPC; para deshacer, utilizar la entrada correspondiente del historial.
+5. Reconstruir a una salida nueva y comprobar accesibilidad de la posición elegida. La confirmación de Ruta 2 no garantiza que toda casilla de cualquier zona sea accesible durante la historia.
 ## Plantilla original comprobada
 
 La sonda de solo lectura reconoce los Title ID `0004000000055D00` (X) y `0004000000055E00` (Y). En cada copia se leyó el miembro 34 del GARC de zonas `a/0/1/2`, descomprimiendo LZ11 y comprobando el paquete `ZO`.
@@ -81,7 +96,7 @@ En el ejecutable de X se resuelve el import del gestor a `0x3B2A00`. La entrada 
 
 El cuerpo de `ItemSub` usa el inventario del estado de juego y el número de objeto/cantidad recibidos, sin un ID fijo de zona. `WordSetTemotiMonsNickName` obtiene el Pokémon por índice del equipo y el registro de palabras recibido. `Assert_` solo comprueba la condición. En estos cuerpos y en la estructura enviada al menú no hay una referencia fija al NPC 2, zona 34 o área 108.
 
-La conversación conserva además los auxiliares originales de modelo, orientación y mensajes del interlocutor actual. El experimento mantiene el modelo 54 original y su entrada íntegra del área. **No se declara auditado todo el grafo transitivo de cámara, animaciones, interfaz y guardado** por haber resuelto estos enlaces: esa es una parte de la validación pendiente en juego.
+La conversación conserva además los auxiliares originales de modelo, orientación y mensajes del interlocutor actual. El experimento mantiene el modelo 54 original y su entrada íntegra del área. **No se declara auditado todo el grafo transitivo de cámara, animaciones, interfaz y guardado** por haber resuelto estos enlaces: la confirmación de X se limita al candidato probado por el propietario y Y necesita su propia prueba.
 
 ## Modelo del área
 
@@ -134,11 +149,11 @@ Se comparte únicamente la infraestructura que aporta una reutilización concret
 - `Gen6MapBackend.Reminder.cs`: identificación estructural del NPC original de zona 034 y modelo 54. Esta identificación no sustituye una acreditación del ejecutable y sus dependencias.
 - `Map3dsNpcMoveService`: propuesta de inserción y modelo mediante `EditorProposal`, con el mecanismo existente de reconstrucción de GARC, comprobación de bytes y `ProjectHistory`.
 - `Map3dsEditorView`, `Map3dsMover` y `Map3dsCanvas`: panel de posición compartido con coordenadas manuales, clic, orientación y vista previa diferenciada. En el escenario sintético, el recordador es un rombo azul y aparece junto a la enfermera.
-- `Gen6MoveReminderProfile`: barrera de producción que **rechaza todos los proyectos reales** mientras la investigación esté incompleta. El servicio vuelve a comprobarla antes de preparar una escritura.
+- `Gen6MoveReminderProfile`: acreditación separada del backend estructural. Admite solo el perfil X confirmado, protege dependencias desde la apertura y rechaza Y y otras revisiones. El servicio vuelve a comprobarla antes de preparar una escritura.
 
-**El botón no aparece actualmente al abrir un proyecto real de X o Y.** Tampoco aparece en ORAS ni en Gen7. La acreditación explícita de fixtures sintéticos permite probar el recorrido de interfaz, pero no constituye un mecanismo para habilitar proyectos reales.
+**El botón aparece únicamente en proyectos X acreditados.** No aparece en Y, ORAS ni Gen7. La acreditación explícita de fixtures sintéticos permite probar el recorrido de interfaz, pero no constituye un mecanismo para habilitar proyectos reales.
 
-La propuesta preparada para una futura acreditación modificaría el GARC de zonas y, cuando fuese necesario, el de modelos, en la misma transacción del historial. No escribiría scripts ni textos. Un ejecutable de investigación separado ha ejercitado esos archivos reales en una copia aislada mediante `ProjectHistory`, incluyendo deshacer y reconstrucción; no habilita el servicio de guardado de producción ni acredita el funcionamiento en juego. La función no se declara compatible con Global Template ni Batch por el mero hecho de utilizar el historial.
+La propuesta modifica el GARC de zonas y, cuando es necesario, el de modelos, en la misma transacción del historial. No escribe scripts ni textos. El servicio de producción de X se ejercitó sobre otra copia aislada mediante WPF y `ProjectHistory`, incluyendo reapertura, deshacer y equivalencia de los GARC con el candidato aprobado. La función no se declara compatible con Global Template ni Batch por el mero hecho de utilizar el historial.
 
 Archivos de implementación y pruebas:
 
@@ -223,21 +238,42 @@ Solo cambiaron estos archivos de juego, registrados con sus huellas anteriores/p
 
 Imagen nueva: `artifacts/native-research/X-recordador-ruta2.3ds`, **1 801 064 448 bytes**, SHA-256 `D97161428864C1804C4C741AE13D8DC79ACD2B9224D504236123C04F2D9C5B80`. La reextracción está en `artifacts/native-research/ReextraidaRecordador-X-001`. Esos archivos, los logs y las evidencias con rutas privadas están excluidos de Git. No se modificaron scripts, ejecutables ni textos; tampoco los originales ni partidas.
 
-El [README de las herramientas](../../tools/research/xy-reminder-native/README.md) permite reproducir preparación, persistencia, reconstrucción, comparación y deshacer sobre carpetas nuevas. Solo el ejecutable de investigación admite esta copia X fijada por huellas. Y se rechaza deliberadamente, aunque sus enlaces nativos se hayan identificado.
+El [README de las herramientas](../../tools/research/xy-reminder-native/README.md) permite reproducir preparación, persistencia, reconstrucción, comparación y deshacer sobre carpetas nuevas. La aplicación admite ahora el perfil X confirmado. `prepare-y` permite exclusivamente el experimento aislado con las huellas de Y; su perfil de producción sigue rechazado.
 
-## Bloqueo restante y siguiente evidencia necesaria
+## Acreditación X: validación de integración final
 
-La resolución estática explica la selección de Story96, el menú original, la selección del equipo y la resta de una Escama Corazón. No se ha ejecutado el recorrido completo fuera de Pueblo Fresco ni se ha observado el ciclo de vida de sus gestores de campo, interlocutor, cámara, aplicación y guardado. No se afirma una ausencia universal de dependencias transitivas de zona por no ver un ID fijo en las funciones examinadas.
+Compilados de nuevo App/Tests/LegacyBatch, Core/WinForms y la herramienta: 0 errores; el build de Tests mantiene el aviso CS0675 preexistente. Se ejecutaron **198 comprobaciones** relacionadas: recordador 71, UI del recordador 15, enfermera 19+7, mapas Gen6 23+16, zonas de captura 21+10 y enfermera USUM 11+5 (sin habilitar el recordador Gen7). Los 8 tests Python del lector siguen separados de este recuento.
 
-La siguiente evidencia necesaria es una ejecución controlada del candidato X. Si falla, capturar log, zona/estado/acción exacta, pantalla y resultado; comparar con el NPC original y seguir el inicio/fin de `MsgLoad`, `CallPokeSelect`, `_CallWazaApps`, su callback e `ItemSub` en una sesión de depuración. No se realizaron trazas dinámicas durante esta entrega.
+Las 25 comprobaciones añadidas al runner verifican identidad X, rechazo independiente de Y/ORAS/cabeceras truncadas, huellas, ausencia de escritura, código ambiguo, cabeceras contradictorias, imposibilidad de autorizar un backend sintético, duplicados/modelo del área original, cabeceras GARC y bloqueos de dependencias. Los locks permiten lectores, impiden escritores durante el commit y se liberan también al rechazar una dependencia. Los archivos que cambia la transacción conservan sus propios controles de integridad.
 
-Solo tras confirmar el flujo jugable se podrá acreditar un perfil X y completar su habilitación de producción. Y necesitará su propio experimento y validación, no una extrapolación. El botón permanece oculto en todos los proyectos reales; ORAS y Gen7 siguen fuera del alcance. No se han modificado otros PR ni publicado una versión.
+En `PruebasRecordador-X-Produccion-002`, el modo `production` utilizó la vista y el servicio reales, con el host WPF fuera de pantalla existente. Pasaron las 17 carreras de dependencias, vista previa sin escritura, modelo presente/ausente, guardado/reapertura, preservación de otras entidades/partes/zonas, convivencia con enfermera, deshacer exacto y nueva instalación desde WPF. Los dos GARC finales coinciden con los del candidato aprobado. Una comprobación final de solo lectura volvió a acreditar el perfil y verificó el origen intacto.
 
-## Prueba jugable pendiente y restauración
+La imagen reconstruida `X-recordador-produccion-002.3ds` tiene SHA-256 `48009735122AB06AEDD2C6CDA23FB2B551F47D12F4381E0CA8AB90E6F63358C8`, 1 801 064 448 bytes. Su reextracción compara los **656 archivos** RomFS/ExeFS exactamente y conserva la acreditación de X. No se afirma identidad del contenedor completo con la primera imagen: sus SHA son distintos; la equivalencia comprobada corresponde a los archivos del juego y a los GARC modificados.
 
-El botón sigue oculto por diseño. Utilizar la imagen experimental privada ya preparada, sin modificar la instalación o el guardado habitual:
+La última entrada del historial en esa copia es `bc2d45a9-7cd0-4aad-98bd-b9f38056c5de`; el subcomando `undo` del README permite restaurarla. Las imágenes generadas no se sobrescriben al deshacer.
 
-1. Crear una instancia portátil o un perfil de emulador de prueba con directorio de usuario independiente. Copiar allí una partida autorizada de X, conservando el original y un respaldo; comprobar la ruta de guardado antes de arrancar. Se preparó Citra Nightly 2104 portátil en `artifacts/e144` de la carpeta principal del proyecto, con una copia verificada del guardado de X. El primer arranque no reconoció `main` por faltar el archivo hermano `00000001.metadata`; se restauró solo la copia y se incorporó ese metadato. Un segundo arranque registra carga de `DllTitle`/`DllSequence`, sin acreditar acceso al campo ni al servicio. El guardado original se comprobó intacto. El propietario se hará cargo de la prueba manual; no se continúa la automatización del juego.
+## Candidato independiente de Y, pendiente de prueba manual
+
+Se preparó desde la extracción autorizada de Y una carpeta nueva: `artifacts/native-research/PruebasRecordador-Y-001/Proyecto`. Tiene su propio título, ejecutable, `DllField.cro` y `static.crs`, sin trasladar huellas de X. `static.crs` SHA-256: X `30D10ADA3F829AE5AE2080C15D27DDF809B3D852CBAF5928C44E609764BFFDAA`; Y `598EAA950FEC39DD4D7915257299B4BCECE7E143F3542A31EB5772E7F89FECBD`.
+
+Destino Y: Ruta 2, zona 259, área 2, X=463/Y=458, orientación 180°, modelo 54 y script 2261. Solo cambiaron `a/0/1/2` y `a/1/4/9`; el manifiesto privado registra ambos. El GARC de zonas pasó de `46ADD58DB41926FF75A3EFD4DEED0646C5CD5572360E92C4A58A47300DA04BC6` a `CFA09F319D06309FB785EC0C82D5C665ADDD8C695F1F32B88D85C9A166C74A43`. Las huellas anterior/posterior del GARC de modelos coinciden con las del experimento X, comprobadas por separado.
+
+Pasaron en la copia Y: identidad/huellas propias, colocación, conservación, modelo añadido, historial, reapertura, deshacer exacto y convivencia en disco con enfermera. Se restauró esa convivencia y se dejó solo el recordador. La imagen privada `artifacts/native-research/Y-recordador-ruta2.3ds` mide **1 801 068 544 bytes**, SHA-256 **`3CFC4506DCD1610ED295FEF0079C6B0AFB67573CF40381170FA61DE0DB86F455`**. La reextracción `ReextraidaRecordador-Y-001` comparó **656 archivos** idénticos y confirmó que Y sigue sin admisión de producción.
+
+No se arrancó el candidato Y ni se declara una prueba jugable. Se preparó una copia verificada de su guardado y metadato en el Citra portátil, sin reemplazar guardados existentes. El propietario debe repetir el protocolo manual con esta imagen de Y. Para restaurar el proyecto experimental Y: `undo artifacts/native-research/PruebasRecordador-Y-001 1ed02659-edd9-4da2-9d9f-2fa930b480c2`. Los originales permanecieron intactos.
+
+## Evidencia pendiente y alcance de la confirmación
+
+La resolución estática explica Story96, el menú original, la selección del equipo y la resta de una Escama Corazón. La confirmación del propietario elimina el bloqueo jugable del candidato X de Ruta 2. No equivale a auditar todo el grafo transitivo ni a probar cada zona, estado de historia o revisión del juego.
+
+Y necesita el mismo protocolo con su propia imagen y partida. Hasta recibir esa confirmación, su perfil no permite escritura y su botón permanece oculto. Si falla, capturar versión del emulador, zona/estado/acción exacta, pantalla, log y resultado; comparar con el NPC original y seguir `MsgLoad`, `CallPokeSelect`, `_CallWazaApps`, su callback e `ItemSub`. No se realizaron trazas dinámicas de esas funciones durante esta entrega.
+
+No se han modificado otros PR ni publicado una versión. El PR permanece pendiente de revisión y no se fusiona automáticamente.
+## Protocolo manual y restauración de los experimentos
+
+Este es el protocolo de referencia para la copia experimental. X tiene confirmación global del propietario tras las instrucciones manuales de siete pasos; no se presenta un log individual de cada caso. Repetirlo por separado en Y, sin modificar la instalación o el guardado habitual:
+
+1. Crear una instancia portátil o un perfil de emulador de prueba con directorio de usuario independiente. Copiar allí una partida autorizada de X, conservando el original y un respaldo; comprobar la ruta de guardado antes de arrancar. Se preparó Citra Nightly 2104 portátil en `artifacts/e144` de la carpeta principal del proyecto, con una copia verificada del guardado de X. El primer arranque no reconoció `main` por faltar el archivo hermano `00000001.metadata`; se restauró solo la copia y se incorporó ese metadato. Un segundo arranque registra carga de `DllTitle`/`DllSequence`, sin acreditar acceso al campo ni al servicio. El guardado original se comprobó intacto. El propietario confirmó posteriormente el funcionamiento del candidato X; no se continuó la automatización del juego.
 2. Verificar el SHA-256 de `X-recordador-ruta2.3ds` contra el indicado arriba y abrir esa imagen en la instancia de prueba.
 3. Llegar a Ruta 2 (zona interna 259). Buscar el modelo 54 en la casilla del mapa X=463, Y=458, orientado hacia abajo. Entrar/salir y comprobar aparición, colisiones y ausencia de congelación. Si el acceso visual a esa casilla presenta un problema, registrarlo y preparar otra copia con una casilla validada; no cambiar la extracción original.
 4. Hablar llevando una Escama Corazón y un Pokémon con un movimiento recuperable. Confirmar que aparece el selector original de Pokémon y después la lista original de movimientos. Anotar especie, nivel, movimiento disponible y cantidad inicial del objeto 93.
@@ -246,7 +282,7 @@ El botón sigue oculto por diseño. Utilizar la imagen experimental privada ya p
 7. Probar sin Escama Corazón, con un huevo y con un Pokémon sin movimientos recuperables. Registrar mensajes y confirmar que no hay cobro ni bloqueo. Comparar el comportamiento con el recordador original usando la misma copia de partida.
 8. Probar una partida anterior y otra posterior a conocer al recordador original para contrastar el flag de introducción 410. Guardar solo en la instancia de prueba, cerrarla y cargar de nuevo: comprobar movimiento, bolsa, NPC y estabilidad.
 9. Registrar versión del emulador, Title ID, SHA de la imagen, estado de partida y resultados de cada caso. La convivencia de ambos servicios tiene evidencia de archivos y deshacer, pero su prueba jugable conjunta requiere un candidato adicional; no está incluida en la imagen final de solo recordador.
-10. Repetir la investigación experimental y el protocolo por separado en Y antes de habilitarlo. La herramienta actual rechaza su escritura.
+10. Repetir la investigación experimental y el protocolo por separado en Y antes de habilitarlo. La escritura de producción de Y sigue rechazada; el modo `prepare-y` se limita a la copia experimental.
 
 Para restaurar exactamente el proyecto experimental X, ejecutar desde la raíz de este checkout:
 
@@ -255,4 +291,4 @@ $experimentTool = 'tools/research/xy-reminder-native/playable/bin/Release/net10.
 dotnet $experimentTool undo artifacts/native-research/PruebasRecordador-X-001 6a549e66-1aef-40de-a23d-f70e61b77823
 ```
 
-El historial restaura juntos zonas y modelos. La imagen reconstruida ya generada no cambia al deshacer el proyecto; una imagen restaurada requeriría otra reconstrucción a una ruta nueva. El origen no requiere restauración porque permaneció intacto. La compatibilidad jugable de **X está pendiente** y la de **Y está pendiente**.
+El historial restaura juntos zonas y modelos. La imagen reconstruida ya generada no cambia al deshacer el proyecto; una imagen restaurada requeriría otra reconstrucción a una ruta nueva. El origen no requiere restauración porque permaneció intacto. El candidato de **X está confirmado por el propietario**; la validación jugable de **Y está pendiente**. No se atribuye la prueba a otras revisiones o zonas.
