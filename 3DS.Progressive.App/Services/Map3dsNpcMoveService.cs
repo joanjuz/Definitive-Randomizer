@@ -91,6 +91,40 @@ internal sealed class Map3dsNpcMoveService
 
     internal const string ViewActionId = "map3ds.npc.view";
     internal const string NurseActionId = "map3ds.npc.add-nurse";
+    internal const string ReminderActionId = "map3ds.npc.add-move-reminder";
+
+    /// <summary>Copies the accredited X/Y service NPC; scripts and texts remain in the game.</summary>
+    internal EditorProposal PreviewAddReminder(Gen6MapBackend backend, int zone, int x, int y, double facing)
+    {
+        var evidence = Gen6MoveReminderProfile.Inspect(_project.GameConfiguration);
+        if (!evidence.Allowed) throw new InvalidOperationException(evidence.Reason);
+        var check = backend.ValidateAddReminder(zone, x, y, facing);
+        if (!check.Allowed) throw new InvalidOperationException(check.Reason);
+        var reminder = backend.Reminder ?? throw new InvalidOperationException(backend.ReminderSummary);
+        int direction = Gen6MapBackend.FacingValue(facing) ?? throw new InvalidOperationException("Dirección no verificada.");
+        int index = backend.ZoneEvents(zone).Count(e => e.Kind == MapEventKind.Npc);
+        var (source, output) = Rewrite(backend, zone, current => Gen6ZoneEdit.AddNpc(current, reminder.Record, x, y, direction));
+        int area = backend.Zone(zone).Area;
+        bool addModel = backend.AreaLoadsReminder(zone) == false;
+        var files = new List<FileChange> { new(_path, source, output) };
+        var changes = new List<BatchChange> { new(zone, $"Zona {zone:000}", $"NPC {index} · recordador nuevo", "—", $"{x}, {y} · mira {Gen6MapBackend.DirectionName(facing)}", "npc.add-move-reminder") };
+        if (addModel)
+        {
+            files.Add(AddAreaModel(backend, area, backend.ReminderModelEntry ?? throw new InvalidOperationException("No hay una entrada única del modelo del recordador.")));
+            changes.Add(new(zone, $"Área {area}", "Lista de modelos", $"{Gen6AreaModels.Models(backend.ModelList(area)!).Count} modelos", $"+ modelo {reminder.Model}", "area.models"));
+        }
+        var inv = System.Globalization.CultureInfo.InvariantCulture;
+        var parameters = new Dictionary<string, string>
+        {
+            ["ActionId"] = ReminderActionId, ["Game"] = evidence.Title,
+            ["Zone"] = zone.ToString(inv), ["Npc"] = index.ToString(inv),
+            ["X"] = x.ToString(inv), ["Y"] = y.ToString(inv), ["Facing"] = direction.ToString(inv),
+            ["Script"] = Gen6MoveReminder.Script.ToString(inv), ["Model"] = reminder.Model.ToString(inv),
+            ["TemplateZone"] = reminder.Zone.ToString(inv), ["TemplateNpc"] = reminder.Index.ToString(inv),
+            ["Area"] = area.ToString(inv), ["AreaModelAdded"] = addModel ? "true" : "false", ["Gameplay"] = "not tested",
+        };
+        return new EditorProposal(_owner, $"Añadir recordador en la zona {zone:000} ({x}, {y})", 0, files, changes, parameters, evidence.Dependencies);
+    }
 
     /// <summary>
     /// Adds a Pokémon Center nurse on cell (x, y): a copy of the game's own nurse record (model and
@@ -135,10 +169,12 @@ internal sealed class Map3dsNpcMoveService
     /// rebuilds that archive, checking that the member is the one the editor read and every other member is unchanged.
     /// </summary>
     private FileChange AddAreaModel(Gen6MapBackend backend, int area)
+        => AddAreaModel(backend, area, backend.NurseModelEntry ?? throw new InvalidOperationException("No hay una entrada única del modelo de la enfermera."));
+
+    private FileChange AddAreaModel(Gen6MapBackend backend, int area, byte[] entry)
     {
         var config = _project.GameConfiguration;
         string path = ModelArchive;
-        byte[] entry = backend.NurseModelEntry ?? throw new InvalidOperationException("No hay una entrada única del modelo de la enfermera.");
         byte[] source = File.ReadAllBytes(path);
         byte[][] members = new GARC.MemGARC(source).Files;
         if (area < 0 || area >= members.Length) throw new InvalidDataException("El área no existe en la lista de modelos.");
@@ -188,6 +224,7 @@ internal sealed class Map3dsNpcMoveService
     internal void Apply(EditorProposal proposal)
     {
         if (proposal.Owner != _owner) throw new InvalidOperationException("La propuesta pertenece a otro editor.");
+        foreach (var dependency in proposal.Dependencies) GarcTransaction.ReadUnchanged(dependency.Path, dependency.Fingerprint);
         foreach (var file in proposal.Files) GarcTransaction.ReadUnchanged(file.Path, file.Fingerprint);
         _project.History.Commit(proposal.Files, Module, proposal.Action, proposal.Changes, proposal.Parameters);
         _hash = SHA256.HashData(File.ReadAllBytes(_path));

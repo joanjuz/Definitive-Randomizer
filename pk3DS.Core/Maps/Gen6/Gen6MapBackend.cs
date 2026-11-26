@@ -15,7 +15,7 @@ public enum Gen6Title { XY, ORAS }
 /// matrices from mapMatrix and blocks from mapGR. Every file is read through
 /// the delegates, so the adapter never touches the project on disk.
 /// </summary>
-public sealed class Gen6MapBackend : IMapEditorBackend, IMapResourceProvider, IMapEventProvider, IMapMutationValidator, IMapTrainerViews, IMapNurseCreation, IMapCatchZones
+public sealed partial class Gen6MapBackend : IMapEditorBackend, IMapResourceProvider, IMapEventProvider, IMapMutationValidator, IMapTrainerViews, IMapNurseCreation, IMapCatchZones, IMapReminderCreation
 {
     private readonly Func<int, byte[]> _zone, _matrix, _block;
     private readonly int _matrixCount, _blockCount;
@@ -48,9 +48,10 @@ public sealed class Gen6MapBackend : IMapEditorBackend, IMapResourceProvider, IM
 
     public Gen6MapBackend(Gen6Title game, int zoneCount, Func<int, byte[]> zone, int matrixCount, Func<int, byte[]> matrix,
         int blockCount, Func<int, byte[]> block, IReadOnlyList<string>? locationNames, int areaCount = 0, Func<int, byte[]>? area = null,
-        int modelListCount = 0, Func<int, byte[]>? modelList = null)
+        int modelListCount = 0, Func<int, byte[]>? modelList = null, bool reminderAccredited = false)
     {
         Game = game; _zone = zone; _matrix = matrix; _block = block; _matrixCount = matrixCount; _blockCount = blockCount; _zoneCount = zoneCount;
+        CanAddReminder = game == Gen6Title.XY && reminderAccredited;
         _modelList = modelList; _modelListCount = modelList is null ? 0 : modelListCount;
         _area = area; _areaCount = area is null ? 0 : areaCount;
         Capabilities = new(_area is not null, true, true, (_area is not null
@@ -288,6 +289,7 @@ public sealed class Gen6MapBackend : IMapEditorBackend, IMapResourceProvider, IM
     public byte[]? ModelList(int area) => _modelList is not null && area >= 0 && area < _modelListCount ? (byte[])_modelList(area).Clone() : null;
 
     private byte[]? _nurseEntry;
+    private bool _nurseEntrySearched;
     private int _modelCeiling = -1;
 
     /// <summary>The nurse's entry in the model lists (identical in every list that has it), or null.</summary>
@@ -298,11 +300,11 @@ public sealed class Gen6MapBackend : IMapEditorBackend, IMapResourceProvider, IM
             if (Nurse is not { } n || _modelList is null) return null;
             lock (_gate)
             {
-                if (_modelCeiling < 0)
+                if (!_nurseEntrySearched)
                 {
                     var lists = Enumerable.Range(0, _modelListCount).Select(_modelList).ToArray();
                     _nurseEntry = Gen6AreaModels.Entry(lists, n.Model);
-                    _modelCeiling = lists.Select(l => l.Length / Gen6AreaModels.EntrySize).DefaultIfEmpty(0).Max();
+                    _nurseEntrySearched = true;
                 }
                 return _nurseEntry is null ? null : (byte[])_nurseEntry.Clone();
             }
@@ -310,7 +312,18 @@ public sealed class Gen6MapBackend : IMapEditorBackend, IMapResourceProvider, IM
     }
 
     /// <summary>Largest model list of the game; a list never grows beyond it.</summary>
-    public int ModelListCeiling { get { _ = NurseModelEntry; return _modelCeiling; } }
+    public int ModelListCeiling
+    {
+        get
+        {
+            lock (_gate)
+            {
+                if (_modelCeiling < 0 && _modelList is not null)
+                    _modelCeiling = Enumerable.Range(0, _modelListCount).Select(i => _modelList(i).Length / Gen6AreaModels.EntrySize).DefaultIfEmpty(0).Max();
+                return _modelCeiling;
+            }
+        }
+    }
 
     /// <summary>Whether the area of <paramref name="zone"/> already loads the nurse's model (null when it cannot be read).</summary>
     public bool? AreaLoadsNurse(int zone)
@@ -327,6 +340,14 @@ public sealed class Gen6MapBackend : IMapEditorBackend, IMapResourceProvider, IM
     public MapMutationCheck ValidateAddNurse(int zone, int x, int y, double facing)
     {
         if (Nurse is not { } nurse) return new(false, NurseSummary);
+        return ValidateAddService(zone, x, y, facing, nurse.Model, nurse.Zone, () => NurseModelEntry, "enfermera",
+            "No se ha probado en el juego fuera de un Centro Pokémon: comprueba que aparece, que se puede hablar con ella y que cura al equipo.");
+    }
+
+    /// <summary>Shared placement/model checks; scripts and template admission stay with each service.</summary>
+    private MapMutationCheck ValidateAddService(int zone, int x, int y, double facing, int model, int templateZone, Func<byte[]?> modelEntry, string service, string gameplayNote)
+    {
+        string ofService = service == "enfermera" ? "de la enfermera" : "del recordador";
         if (!_zones.ContainsKey(zone)) return new(false, "Zona no disponible.");
         var events = ZoneEvents(zone);
         if (events.Any(e => e.PositionNote?.Contains("no son casillas", StringComparison.Ordinal) == true))
@@ -341,15 +362,15 @@ public sealed class Gen6MapBackend : IMapEditorBackend, IMapResourceProvider, IM
         int count = events.Count(e => e.Kind == MapEventKind.Npc);
         if (count + 1 > NpcCeiling) return new(false, $"La zona ya tiene {count} NPC; con uno más superaría el máximo que usa el juego ({NpcCeiling}).");
         int area = Zone(zone).Area;
-        if (ModelList(area) is not { } models) return new(false, $"No se puede leer la lista de modelos del área {area}; sin el modelo de la enfermera en ella el juego se congela al entrar en la zona.");
-        if (NurseModelEntry is null) return new(false, $"No se encontró una entrada única del modelo {nurse.Model} en las listas de modelos; no se añade.");
+        if (ModelList(area) is not { } models) return new(false, $"No se puede leer la lista de modelos del área {area}; sin el modelo {ofService} en ella el juego se congela al entrar en la zona.");
+        if (modelEntry() is null) return new(false, $"No se encontró una entrada única del modelo {model} en las listas de modelos; no se añade.");
         string modelNote = "";
-        if (AreaLoadsNurse(zone) == false)
+        if (!Gen6AreaModels.Models(models).Contains(model))
         {
             int entries = models.Length / Gen6AreaModels.EntrySize;
             if (entries + 1 > ModelListCeiling) return new(false, $"La lista de modelos del área {area} ya tiene {entries} modelos; con uno más superaría el máximo del juego ({ModelListCeiling}).");
             int sharing = _zones.Values.Count(z => z.Area == area);
-            modelNote = $" Se añadirá el modelo {nurse.Model} a la lista de modelos del área {area} ({sharing} zona{(sharing == 1 ? "" : "s")} la usa{(sharing == 1 ? "" : "n")}).";
+            modelNote = $" Se añadirá el modelo {model} a la lista de modelos del área {area} ({sharing} zona{(sharing == 1 ? "" : "s")} la usa{(sharing == 1 ? "" : "n")}).";
         }
         string ground = "";
         if (Cells(block) is { } grid)
@@ -358,9 +379,9 @@ public sealed class Gen6MapBackend : IMapEditorBackend, IMapResourceProvider, IM
             uint value = Value(x, y);
             int same = events.Count(e => e.Kind == MapEventKind.Npc && e.Placed && layout.BlockAt((int)e.X / layout.BlockCells, (int)e.Y / layout.BlockCells) is int b && b >= 0
                 && Cells(b) is { } g && g.Cells[(((int)e.Y % layout.BlockCells) * g.Width) + ((int)e.X % layout.BlockCells)] == value);
-            ground = $" Permiso de la casilla 0x{value.ToString("X8", CultureInfo.InvariantCulture)}: " + (same > 0 ? $"{same} NPC de esta zona están sobre casillas con el mismo valor." : "ningún NPC de esta zona está sobre una casilla con ese valor; comprueba que se puede llegar a hablar con ella.");
+            ground = $" Permiso de la casilla 0x{value.ToString("X8", CultureInfo.InvariantCulture)}: " + (same > 0 ? $"{same} NPC de esta zona están sobre casillas con el mismo valor." : "ningún NPC de esta zona está sobre una casilla con ese valor; comprueba que se puede llegar a hablar con " + (service == "enfermera" ? "ella." : "él."));
         }
-        return new(true, $"Se puede añadir como NPC {count} (copia de la enfermera de la zona {nurse.Zone:000}).{modelNote}{ground} No se ha probado en el juego fuera de un Centro Pokémon: comprueba que aparece, que se puede hablar con ella y que cura al equipo.");
+        return new(true, $"Se puede añadir como NPC {count} (copia {ofService} de la zona {templateZone:000}).{modelNote}{ground} {gameplayNote}");
     }
 
     private Gen6MapMatrix MatrixOf(int zone)

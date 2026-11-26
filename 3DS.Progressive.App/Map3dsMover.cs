@@ -15,7 +15,8 @@ internal sealed class Map3dsMover(Func<IMapEditorBackend, int, int, int, int, st
     Func<IMapEditorBackend, int, int, double, int?, string>? view = null,
     Func<IMapEditorBackend, int, int, int, double, string>? addNurse = null,
     Func<IMapEditorBackend, int, IReadOnlyCollection<(int X, int Y)>, int?, string>? paintCatch = null,
-    Func<IMapEditorBackend, int, (int X, int Y), int, string>? addGrass = null, Func<int, bool>? canUndoGrass = null, Func<int, string>? undoGrass = null)
+    Func<IMapEditorBackend, int, (int X, int Y), int, string>? addGrass = null, Func<int, bool>? canUndoGrass = null, Func<int, string>? undoGrass = null,
+    Func<IMapEditorBackend, int, int, int, double, string>? addReminder = null)
 {
     /// <summary>Adds visible grass (a vanilla grass patch) centred on a cell of the area; it does not create encounters.</summary>
     internal string AddGrass(IMapEditorBackend backend, int zone, (int X, int Y) centre, int template) =>
@@ -32,6 +33,10 @@ internal sealed class Map3dsMover(Func<IMapEditorBackend, int, int, int, int, st
     internal string AddNurse(IMapEditorBackend backend, int zone, int x, int y, double facing) =>
         (addNurse ?? throw new InvalidOperationException("Este juego no admite añadir enfermeras."))(backend, zone, x, y, facing);
     internal bool CanAddNurse => addNurse is not null;
+    /// <summary>Adds the accredited X/Y move reminder through the same project history transaction.</summary>
+    internal string AddReminder(IMapEditorBackend backend, int zone, int x, int y, double facing) =>
+        (addReminder ?? throw new InvalidOperationException("Este juego no admite añadir recordadores."))(backend, zone, x, y, facing);
+    internal bool CanAddReminder => addReminder is not null;
     /// <summary>Writes a previewed facing (compass degrees) and, where the game has one, sight range.</summary>
     internal string SetView(IMapEditorBackend backend, int zone, int npc, double facing, int? sight) =>
         (view ?? throw new InvalidOperationException("Este juego no escribe la orientación."))(backend, zone, npc, facing, sight);
@@ -128,6 +133,12 @@ internal sealed class Map3dsMover(Func<IMapEditorBackend, int, int, int, int, st
             var proposal = catchZones.Preview(gen6, zone, cells, source);
             catchZones.Apply(proposal);
             return proposal.Action;
-        });
+        }, addReminder: config.XY ? (backend, zone, x, y, facing) =>
+        {
+            if (backend is not Gen6MapBackend gen6) throw new InvalidOperationException("El adaptador no admite escritura.");
+            var proposal = service.PreviewAddReminder(gen6, zone, x, y, facing);
+            service.Apply(proposal);
+            return proposal.Action;
+        } : null);
     }
 }

@@ -54,9 +54,13 @@ internal sealed class Map3dsCanvas : FrameworkElement
     private static readonly Pen SightEdge = Freeze(new Pen(new SolidColorBrush(Color.FromArgb(0xCC, 0xF4, 0xC9, 0x5D)), 1));
     private static readonly Pen ArrowPen = Freeze(new Pen(new SolidColorBrush(Color.FromRgb(0xF4, 0xC9, 0x5D)), 2.5) { StartLineCap = PenLineCap.Round, EndLineCap = PenLineCap.Round });
     private (int X, int Y, double Facing)? _pendingNurse;
+    private bool _pendingIsReminder;
     /// <summary>Ghost of a nurse that would be added on a cell, with the direction it would face.</summary>
-    internal void SetPendingNurse((int X, int Y, double Facing)? nurse) { _pendingNurse = nurse; InvalidateVisual(); }
-    internal (int X, int Y, double Facing)? PendingNurse => _pendingNurse;
+    internal void SetPendingNurse((int X, int Y, double Facing)? nurse) { _pendingNurse = nurse; _pendingIsReminder = false; InvalidateVisual(); }
+    internal (int X, int Y, double Facing)? PendingNurse => _pendingIsReminder ? null : _pendingNurse;
+    /// <summary>The move reminder has a diamond marker, distinct from the nurse's cross.</summary>
+    internal void SetPendingReminder((int X, int Y, double Facing)? reminder) { _pendingNurse = reminder; _pendingIsReminder = true; InvalidateVisual(); }
+    internal (int X, int Y, double Facing)? PendingReminder => _pendingIsReminder ? _pendingNurse : null;
     /// <summary>While true, a click picks a cell (<see cref="CellPicked"/>) instead of selecting an event.</summary>
     internal bool PickingCell { get; set; }
     internal event Action<int, int>? CellPicked;
@@ -322,10 +326,23 @@ internal sealed class Map3dsCanvas : FrameworkElement
         {
             var c = ToScreen(new Point(nurse.X + 0.5, nurse.Y + 0.5));
             double rad = Math.Max(5, _scale * 0.55), arm = rad * 0.55, len = Math.Max(14, _scale * 1.4), a = nurse.Facing * Math.PI / 180;
-            dc.DrawEllipse(new SolidColorBrush(Color.FromArgb(0xCC, 0xF2, 0x8C, 0xB8)), GhostPen, c, rad, rad);
-            var cross = Freeze(new Pen(Brushes.White, Math.Max(1.5, rad * 0.3)));
-            dc.DrawLine(cross, new Point(c.X - arm, c.Y), new Point(c.X + arm, c.Y));
-            dc.DrawLine(cross, new Point(c.X, c.Y - arm), new Point(c.X, c.Y + arm));
+            if (_pendingIsReminder)
+            {
+                var diamond = new StreamGeometry();
+                using (var shape = diamond.Open())
+                {
+                    shape.BeginFigure(new Point(c.X, c.Y - rad), true, true);
+                    shape.PolyLineTo([new Point(c.X + rad, c.Y), new Point(c.X, c.Y + rad), new Point(c.X - rad, c.Y)], true, false);
+                }
+                dc.DrawGeometry(new SolidColorBrush(Color.FromArgb(0xDD, 0x70, 0xD6, 0xE8)), GhostPen, diamond);
+            }
+            else
+            {
+                dc.DrawEllipse(new SolidColorBrush(Color.FromArgb(0xCC, 0xF2, 0x8C, 0xB8)), GhostPen, c, rad, rad);
+                var cross = Freeze(new Pen(Brushes.White, Math.Max(1.5, rad * 0.3)));
+                dc.DrawLine(cross, new Point(c.X - arm, c.Y), new Point(c.X + arm, c.Y));
+                dc.DrawLine(cross, new Point(c.X, c.Y - arm), new Point(c.X, c.Y + arm));
+            }
             dc.DrawLine(GhostPen, new Point(c.X + (Math.Sin(a) * rad), c.Y - (Math.Cos(a) * rad)), new Point(c.X + (Math.Sin(a) * len), c.Y - (Math.Cos(a) * len)));
         }
         if (_view is { } v && v.Event.Placed && Layers.Shows(v.Event.Kind))
