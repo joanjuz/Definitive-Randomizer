@@ -125,7 +125,7 @@ internal sealed class Map3dsNpcMoveService
             ["X"] = x.ToString(inv), ["Y"] = y.ToString(inv), ["Facing"] = direction.ToString(inv),
             ["Script"] = Gen6MoveReminder.Script.ToString(inv), ["Model"] = reminder.Model.ToString(inv),
             ["TemplateZone"] = reminder.Zone.ToString(inv), ["TemplateNpc"] = reminder.Index.ToString(inv),
-            ["Area"] = area.ToString(inv), ["AreaModelAdded"] = addModel ? "true" : "false", ["Gameplay"] = "owner confirmed X Route 2; placement not tested",
+            ["Area"] = area.ToString(inv), ["AreaModelAdded"] = addModel ? "true" : "false", ["Gameplay"] = $"owner confirmed {evidence.Title} Route 2; placement not tested",
         };
         return new EditorProposal(_owner, $"Añadir recordador en la zona {zone:000} ({x}, {y})", 0, files, changes, parameters, evidence.Dependencies);
     }

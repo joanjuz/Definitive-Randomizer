@@ -26,7 +26,7 @@ Punto de entrada a `docs/3ds-progressive/`. Muchos documentos son **registros hi
 | Editor DS Gen5: edificios y árboles en la vista gráfica (paquetes `AB`, tabla de áreas, id big-endian, Z invertida), sombras translúcidas y selector de estación; solo lectura, Negro, Blanco y Blanco 2 | [NDS_GEN5_EDIFICIOS_ESTACIONES.md](NDS_GEN5_EDIFICIOS_ESTACIONES.md) |
 | Editor DS: lectores NSBMD/NSBTX, recursos de mapa y render cenital por software (Platino) | [NDS_MAP_RENDER_LECTORES.md](NDS_MAP_RENDER_LECTORES.md) |
 | Editor de mapas 3DS Gen6 (X/Y, OR/AS): zonas, matriz, rejilla de permisos y eventos, solo lectura | [MAPAS_3DS_GEN6.md](MAPAS_3DS_GEN6.md) |
-| Recordador de movimientos: X acreditado tras confirmación jugable del propietario; perfil por huellas, historial y deshacer; Y pendiente de prueba independiente | [MAPAS_GEN6_RECORDADOR.md](MAPAS_GEN6_RECORDADOR.md) |
+| Recordador de movimientos: X e Y acreditados tras pruebas jugables independientes del propietario; perfiles por huellas, historial y deshacer | [MAPAS_GEN6_RECORDADOR.md](MAPAS_GEN6_RECORDADOR.md) |
 | Editor de mapas 3DS Gen7 (Ultra Sol/Ultra Luna): mundos, matriz TR y modelos GFL2, solo lectura | [MAPAS_3DS_GEN7.md](MAPAS_3DS_GEN7.md) |
 | Editor de mapas 3DS: orientación y visión de entrenadores existentes (Gen6 y Ultra Sol/Ultra Luna) | [MAPAS_3DS_ORIENTACION_ENTRENADORES.md](MAPAS_3DS_ORIENTACION_ENTRENADORES.md) |
 | Editor de mapas 3DS: «Añadir enfermera» con el script de curación del Centro Pokémon (X/Y, OR/AS; Ultra Sol/Ultra Luna con el script común 5030 y el modelo en el paquete «AC» del área, prueba jugable pendiente) | [MAPAS_3DS_ENFERMERA.md](MAPAS_3DS_ENFERMERA.md) |

@@ -1,6 +1,6 @@
 # Recordador X/Y: evidencia nativa y experimento separado
 
-La aplicación acredita únicamente el perfil X confirmado por el propietario. Y permanece bloqueado. Estas herramientas no cambian esa decisión ni habilitan perfiles.
+La aplicación acredita los perfiles X e Y confirmados por el propietario mediante pruebas independientes. Cada título conserva sus propias huellas. Estas herramientas no habilitan perfiles por sí solas.
 No se distribuyen ROMs, instrucciones originales, textos ni partidas. Las salidas privadas deben
 permanecer en `artifacts/` o en otra carpeta excluida de Git.
 
@@ -29,7 +29,7 @@ El lector usa las posiciones reales de las tablas AMX (`+0x24` y `+0x28`), no in
 `+0x08` como un puntero. Los tests incluyen un public export anterior a los imports para detectar
 esa confusión. Ninguno contiene bytes originales del juego.
 
-## Experimentos separados y validación de producción X
+## Experimentos separados y validación de producción X/Y
 
 `playable/MoveReminder.Experiment.csproj` es un ejecutable de investigación separado, con el mismo
 acceso de ensamblado amigo ya utilizado por otras herramientas del repositorio. Reutiliza
@@ -41,8 +41,8 @@ escribir exige una carpeta de salida nueva cuyo nombre empiece por `PruebasRecor
 superposición con el origen ni enlaces. Copia RomFS, ExeFS y cabeceras necesarias, verificando cada
 archivo. La plantilla, la entrada del modelo y los ocho bancos Story96 se verifican por SHA-256.
 La marca del backend estructural experimental no autoriza al servicio de escritura de la aplicación.
-Se comprueba expresamente que la aplicación admite X y rechaza Y. El modo `production` utiliza la
-fábrica y el guardado WPF reales de X, con las huellas y comprobaciones de producción.
+Se comprueba expresamente que la aplicación admite X e Y con sus respectivos recursos. El modo `production` utiliza la
+fábrica y el guardado WPF reales del título acreditado, con las huellas y comprobaciones de producción.
 
 Ejemplo desde la raíz del checkout, con rutas de salida nuevas:
 
@@ -77,14 +77,14 @@ La imagen reconstruida es independiente del proyecto. Deshacer restaura el proye
 ni borra imágenes ya generadas. Consultar el protocolo jugable y los resultados reales en
 [`MAPAS_GEN6_RECORDADOR.md`](../../../docs/3ds-progressive/MAPAS_GEN6_RECORDADOR.md).
 
-Para comprobar el servicio de producción de X, usar otra carpeta nueva y sustituir `persistence`
+Para comprobar el servicio de producción de X o Y, usar otra carpeta nueva y sustituir `persistence`
 por `production`. Ese modo verifica propuestas sin escritura, cambios externos de las 17 dependencias,
 modelo presente/ausente, historial/deshacer, preservación, convivencia con enfermera y el guardado real
 WPF fuera de pantalla. La protección transaccional conserva abiertas para lectura las dependencias que
 no se escriben, impidiendo que cambien durante el commit. Al terminar deja un recordador guardado desde
 la vista real y contrasta los dos GARC con los del candidato X aprobado.
 
-Y se prepara de forma explícita y separada; no ejecutar `production` para Y:
+Y se prepara de forma explícita y separada. Después de la confirmación jugable también puede utilizarse `production` sobre otra copia Y intacta:
 
 ```powershell
 dotnet $experimentTool prepare-y 'RUTA_COPIA_Y' artifacts/PruebasRecordador-Y-nueva 259 463 458
@@ -93,5 +93,4 @@ dotnet $experimentTool build artifacts/PruebasRecordador-Y-nueva artifacts/Y-rec
 dotnet $experimentTool verify artifacts/PruebasRecordador-Y-nueva artifacts/Y-recordador-nuevo.3ds artifacts/ReextraidaRecordador-Y-nueva
 ```
 
-La verificación reabre el proyecto y exige que la admisión coincida con la evidencia: X acreditado,
-Y bloqueado. El experimento Y no constituye una acreditación jugable hasta la prueba del propietario.
+La verificación reabre el proyecto y exige que la admisión coincida con la evidencia: X e Y acreditados por separado, sin intercambiar ejecutables o CRO. La prueba jugable del propietario se documenta independientemente de estos checks.

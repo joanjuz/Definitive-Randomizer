@@ -9,19 +9,20 @@ using pk3DS.Core.Maps.Gen6;
 
 namespace ThreeDS.Progressive.Services;
 
-/// <summary>Admission of the exact X resources whose Route 2 experiment the owner validated in game.</summary>
+/// <summary>Admission of independently verified X and Y resources whose Route 2 experiments the owner validated in game.</summary>
 internal static class Gen6MoveReminderProfile
 {
     internal const ulong XTitleId = 0x0004000000055D00;
     internal const ulong YTitleId = 0x0004000000055E00;
     private const string CodeHash = "0F6D3E1D66CBCD55D46FA453DB4B6AA489E03C3537C6B24026F2A53AF142797A";
+    private const string YCodeHash = "62554AC3D494F6A333D92B156AD239017114ECF95367A97DB57E251456692FE7";
     private const string CommonHash = "4068FC8704B1DD9529B2351E0173EF5216A2F4B0225B1282B193498704744D6F";
     private const string RecordHash = "C7AB122F70C27E674959DF808E5B595C86AADABE64036B590BB4B993B0E13393";
     private const string ModelHash = "1A7FC7BF2E1E93ED1093D166EFC2A823D5459039D28126E2B3139915A25361E4";
-    private static readonly (string Path, string Hash)[] NativePins =
+    private static (string Path, string Hash)[] NativePins(bool y) =>
     [
-        ("DllField.cro", "ED043EB6C5D4057D64CEEFDA99B59B0978412B982427551F6C99BF6084BE6489"),
-        ("static.crs", "30D10ADA3F829AE5AE2080C15D27DDF809B3D852CBAF5928C44E609764BFFDAA"),
+        ("DllField.cro", y ? "F4D77DD5FE18888A51513E13864F84AF0FDA2D0A3420334CD0E886BC9F080BD3" : "ED043EB6C5D4057D64CEEFDA99B59B0978412B982427551F6C99BF6084BE6489"),
+        ("static.crs", y ? "598EAA950FEC39DD4D7915257299B4BCECE7E143F3542A31EB5772E7F89FECBD" : "30D10ADA3F829AE5AE2080C15D27DDF809B3D852CBAF5928C44E609764BFFDAA"),
         ("DllWazaOmoidashi.cro", "B76C2045E0D7988AEB1B82F132F9F5C38C7A622FEBDCEDD144C1538A1BB4E5DD"),
         ("DllPokeList.cro", "D673A3B9A38BF301C8337672EB7E67AECABB83DB5B8D2A989F26CDB754E22D38"),
     ];
@@ -74,15 +75,15 @@ internal static class Gen6MoveReminderProfile
         return title switch
         {
             XTitleId => null,
-            YTitleId => "Pokémon Y permanece bloqueado: falta su validación jugable independiente.",
-            _ => "El Title ID no corresponde al perfil acreditado de Pokémon X.",
+            YTitleId => null,
+            _ => "El Title ID no corresponde al perfil acreditado de Pokémon X/Y.",
         };
     }
 
     internal static void RequireHash(ReadOnlySpan<byte> bytes, string expected, string resource)
     {
         if (!SHA256.HashData(bytes).AsSpan().SequenceEqual(Convert.FromHexString(expected)))
-            throw new InvalidDataException($"{resource}: la huella no coincide con el recurso acreditado de Pokémon X.");
+            throw new InvalidDataException($"{resource}: la huella no coincide con el recurso del perfil acreditado de Pokémon X/Y.");
     }
 
     internal static void RequireOriginalTemplate(Gen6MapBackend backend)
@@ -114,9 +115,9 @@ internal static class Gen6MoveReminderProfile
     internal static Inspection Inspect(GameConfig config)
     {
         Inspection Deny(string reason) => new(false, reason, config.XY ? "XY" : config.Version.ToString(), []);
-        if (!config.XY) return Deny("Añadir recordador está disponible exclusivamente para Pokémon X acreditado; este juego no es compatible.");
+        if (!config.XY) return Deny("Añadir recordador está disponible exclusivamente para Pokémon X/Y acreditados; este juego no es compatible.");
         if (string.IsNullOrWhiteSpace(config.RomFS) || string.IsNullOrWhiteSpace(config.ExeFS))
-            return Deny("Faltan las rutas del proyecto para comprobar la identidad de Pokémon X.");
+            return Deny("Faltan las rutas del proyecto para comprobar la identidad de Pokémon X/Y.");
         try
         {
             string root = Directory.GetParent(Path.GetFullPath(config.RomFS))?.FullName
@@ -139,13 +140,23 @@ internal static class Gen6MoveReminderProfile
                 return bytes;
             }
             string[] headers = new[] { "DecryptedExHeader.bin", "exheader.bin" }.Select(n => Path.Combine(root, n)).Where(File.Exists).ToArray();
-            if (headers.Length == 0) return Deny("Falta la cabecera de identidad (DecryptedExHeader.bin o exheader.bin). No se puede acreditar Pokémon X.");
+            if (headers.Length == 0) return Deny("Falta la cabecera de identidad (DecryptedExHeader.bin o exheader.bin). No se puede acreditar Pokémon X/Y.");
+            ulong? titleId = null;
             foreach (string header in headers)
-                if (IdentityFailure(Read(header)) is { } reason) return Deny(reason);
+            {
+                byte[] bytes = Read(header);
+                if (IdentityFailure(bytes) is { } reason) return Deny(reason);
+                ulong currentTitle = BinaryPrimitives.ReadUInt64LittleEndian(bytes.AsSpan(0x200));
+                if (titleId.HasValue && titleId.Value != currentTitle)
+                    return Deny("Las cabeceras de identidad corresponden a juegos distintos; no se puede acreditar el proyecto.");
+                titleId = currentTitle;
+            }
+            bool pokemonY = titleId == YTitleId;
+            string title = pokemonY ? "Y" : "X";
             string[] code = new[] { ".code.bin", "code.bin" }.Select(n => Path.Combine(config.ExeFS, n)).Where(File.Exists).ToArray();
-            if (code.Length != 1) return Deny("Se necesita un único ejecutable code.bin identificable para acreditar Pokémon X.");
-            RequireHash(Read(code[0]), CodeHash, "code.bin");
-            foreach (var pin in NativePins) RequireHash(Read(Path.Combine(config.RomFS, pin.Path)), pin.Hash, pin.Path);
+            if (code.Length != 1) return Deny("Se necesita un único ejecutable code.bin identificable para acreditar Pokémon X/Y.");
+            RequireHash(Read(code[0]), pokemonY ? YCodeHash : CodeHash, "code.bin");
+            foreach (var pin in NativePins(pokemonY)) RequireHash(Read(Path.Combine(config.RomFS, pin.Path)), pin.Hash, pin.Path);
             byte[] common = Archive(Path.Combine(config.RomFS, "a/0/3/1"));
             RequireHash(new GARC.MemGARC(common).GetFile(42), CommonHash, "Script común 42");
             for (int i = 0; i < StoryPins.Length; i++)
@@ -162,13 +173,13 @@ internal static class Gen6MoveReminderProfile
             RequireModelLists(lists, zone.Area);
             // Whole-file fingerprints also guard the already-present destination model until Apply.
             foreach (var dependency in dependencies) GarcTransaction.ReadUnchanged(dependency.Key, dependency.Value);
-            return new(true, "Pokémon X acreditado: servicio original confirmado por el propietario en Ruta 2; cada nueva colocación debe ser accesible.", "X",
+            return new(true, $"Pokémon {title} acreditado: servicio original confirmado por el propietario en Ruta 2; cada nueva colocación debe ser accesible.", title,
                 dependencies.Select(d => (d.Key, d.Value)).ToArray());
         }
         catch (Exception ex) when (ex is IOException or InvalidDataException or UnauthorizedAccessException or ArgumentException
             or InvalidOperationException or IndexOutOfRangeException or OverflowException or MapFormatException or FormatException)
         {
-            return Deny("No se puede acreditar el recordador de Pokémon X: " + ex.Message);
+            return Deny("No se puede acreditar el recordador de Pokémon X/Y: " + ex.Message);
         }
     }
 }

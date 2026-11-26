@@ -17,8 +17,8 @@ internal static class Map3dsReminderProfileChecks
         }
         check(Gen6MoveReminderProfile.IdentityFailure(Header(Gen6MoveReminderProfile.XTitleId)) is null,
             "ReminderProfile_XIdentityAccepted");
-        check(Gen6MoveReminderProfile.IdentityFailure(Header(Gen6MoveReminderProfile.YTitleId)) is { } y && y.Contains("Y") && y.Contains("independiente"),
-            "ReminderProfile_YRemainsBlockedDespiteSharedScripts");
+        check(Gen6MoveReminderProfile.IdentityFailure(Header(Gen6MoveReminderProfile.YTitleId)) is null,
+            "ReminderProfile_YIdentityAcceptedAfterIndependentGameplayConfirmation");
         check(Gen6MoveReminderProfile.IdentityFailure(Header(0x000400000011C400)) is { } other && other.Contains("Title ID"),
             "ReminderProfile_OrasIdentityRejectedEvenWithXyConfig");
         check(Gen6MoveReminderProfile.IdentityFailure(new byte[0x207]) is { } shortHeader && shortHeader.Contains("truncada"),
@@ -73,8 +73,8 @@ internal static class Map3dsReminderProfileChecks
         check(!Gen6MoveReminderProfile.Inspect(config).Allowed, "ReminderProfile_MissingHeaderRejectsBeforeAnyWrite");
         File.WriteAllBytes(header, Header(Gen6MoveReminderProfile.YTitleId));
         var deniedY = Gen6MoveReminderProfile.Inspect(config);
-        check(!deniedY.Allowed && deniedY.Dependencies.Count == 0 && deniedY.Reason.Contains("Pokémon Y"),
-            "ReminderProfile_YProjectRejectedBeforeReadingExecutable");
+        check(!deniedY.Allowed && deniedY.Dependencies.Count == 0 && deniedY.Reason.Contains("ejecutable"),
+            "ReminderProfile_YStillRequiresAnAccreditedExecutable");
         File.WriteAllBytes(header, Header(Gen6MoveReminderProfile.XTitleId));
         check(!Gen6MoveReminderProfile.Inspect(config).Allowed, "ReminderProfile_MissingExecutableRejected");
         File.WriteAllBytes(code, original);
@@ -85,11 +85,17 @@ internal static class Map3dsReminderProfileChecks
         check(Directory.GetFiles(root, "*", SearchOption.AllDirectories).Length == filesBefore.Count
             && filesBefore.All(p => Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(p.Key))) == p.Value),
             "ReminderProfile_InspectionNeverWritesProject");
+        File.WriteAllBytes(header, Header(Gen6MoveReminderProfile.YTitleId));
+        var wrongYCode = Gen6MoveReminderProfile.Inspect(config);
+        check(!wrongYCode.Allowed && wrongYCode.Dependencies.Count == 0 && wrongYCode.Reason.Contains("code.bin") && wrongYCode.Reason.Contains("huella"),
+            "ReminderProfile_YRejectsUnaccreditedExecutable");
+        File.WriteAllBytes(header, Header(Gen6MoveReminderProfile.XTitleId));
         File.Copy(code, Path.Combine(root, "ExeFS", "code.bin"));
         check(!Gen6MoveReminderProfile.Inspect(config).Allowed && Gen6MoveReminderProfile.Inspect(config).Reason.Contains("único"),
             "ReminderProfile_AmbiguousExecutableRejected");
         File.WriteAllBytes(Path.Combine(root, "DecryptedExHeader.bin"), Header(Gen6MoveReminderProfile.YTitleId));
-        check(!Gen6MoveReminderProfile.Inspect(config).Allowed, "ReminderProfile_ConflictingHeadersRejected");
+        var conflict = Gen6MoveReminderProfile.Inspect(config);
+        check(!conflict.Allowed && conflict.Reason.Contains("cabeceras"), "ReminderProfile_ConflictingHeadersRejected");
 
         string dependency = Path.Combine(root, "dependency"), another = Path.Combine(root, "another");
         File.WriteAllBytes(dependency, original); File.WriteAllBytes(another, original);

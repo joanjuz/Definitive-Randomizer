@@ -67,7 +67,7 @@ internal static class Program
         Check(b.Reminder is { } r && Hash(r.Record) == "C7AB122F70C27E674959DF808E5B595C86AADABE64036B590BB4B993B0E13393", "original_record_exact");
         Check(b.ReminderModelEntry is { } entry && Hash(entry) == "1A7FC7BF2E1E93ED1093D166EFC2A823D5459039D28126E2B3139915A25361E4", "original_model_entry_exact");
         bool isX = BinaryPrimitives.ReadUInt64LittleEndian(File.ReadAllBytes(Path.Combine(Directory.GetParent(cfg.RomFS)!.FullName, "DecryptedExHeader.bin")).AsSpan(0x200)) == Gen6MoveReminderProfile.XTitleId;
-        Check(!Gen6MapBackend.FromConfig(cfg).CanAddReminder && Gen6MoveReminderProfile.Inspect(cfg).Allowed == isX, "project_admission_matches_title_evidence");
+        Check(!Gen6MapBackend.FromConfig(cfg).CanAddReminder && Gen6MoveReminderProfile.Inspect(cfg).Allowed && Gen6MoveReminderProfile.Inspect(cfg).Title == (isX ? "X" : "Y"), "project_admission_matches_title_evidence");
         return b;
     }
     static void VerifySources(Experiment plan)
@@ -220,20 +220,30 @@ internal static class Program
         Check(npc.X == plan.X && npc.Y == plan.Y && npc.Properties.Any(p => p.Name == "Script" && p.Value == "2261")
             && npc.Properties.Any(p => p.Name == "Modelo" && p.Value == "54"), "reconstructed_reminder_preserved");
         Check(Gen6AreaModels.Models(b.ModelList(b.Zone(plan.Zone).Area)!).Contains(54), "reconstructed_area_loads_model54");
-        bool admitted = plan.Title == "X";
+        bool admitted = plan.Title is "X" or "Y";
         Check(b.CanAddReminder == admitted && Gen6MoveReminderProfile.Inspect(reopened.GameConfiguration).Allowed == admitted, "reconstructed_admission_matches_title_evidence");
-        Save(Path.Combine(Evidence(root), "rebuild-verification.json"), new { Files = count, AllExact = true, Gameplay = plan.Title == "X" ? "owner confirmed X Route 2 experiment" : "Y not tested", ProductionAllowed = admitted });
+        Save(Path.Combine(Evidence(root), "rebuild-verification.json"), new { Files = count, AllExact = true, Gameplay = $"owner confirmed {plan.Title} Route 2 experiment", ProductionAllowed = admitted });
         VerifySources(plan);
     }
     static void Production(string root)
     {
-        var plan = Load(root); Check(plan.Title == "X", "production_validation_is_X_only"); var project = Open(root); var cfg = project.GameConfiguration;
+        var plan = Load(root); Check(plan.Title is "X" or "Y", "production_validation_is_accredited_XY_only"); var project = Open(root); var cfg = project.GameConfiguration;
         string zones = Path.GetFullPath(Path.Combine(cfg.RomFS, "a/0/1/2")), models = Path.GetFullPath(Path.Combine(cfg.RomFS, "a/1/4/9"));
         byte[] originalZones = File.ReadAllBytes(zones), originalModels = File.ReadAllBytes(models);
         Check(Hash(originalZones) == plan.Sources[Path.Combine("ExtractedRomFS", "a", "0", "1", "2")]
             && Hash(originalModels) == plan.Sources[Path.Combine("ExtractedRomFS", "a", "1", "4", "9")], "production_starts_from_original_copy");
         var backend = Gen6MoveReminderProfile.CreateBackend(cfg);
-        Check(backend.CanAddReminder && Gen6MoveReminderProfile.Inspect(cfg).Title == "X", "production_X_profile_admitted");
+        Check(backend.CanAddReminder && Gen6MoveReminderProfile.Inspect(cfg).Title == plan.Title, "production_title_profile_admitted");
+        string identityPath = Path.Combine(Project(root), "DecryptedExHeader.bin");
+        byte[] identity = File.ReadAllBytes(identityPath), otherTitle = (byte[])identity.Clone();
+        BinaryPrimitives.WriteUInt64LittleEndian(otherTitle.AsSpan(0x200), plan.Title == "X" ? Gen6MoveReminderProfile.YTitleId : Gen6MoveReminderProfile.XTitleId);
+        try
+        {
+            File.WriteAllBytes(identityPath, otherTitle);
+            var mismatched = Gen6MoveReminderProfile.Inspect(cfg);
+            Check(!mismatched.Allowed && mismatched.Reason.Contains("code.bin"), "production_other_title_executable_rejected");
+        }
+        finally { File.WriteAllBytes(identityPath, identity); }
         var service = new Map3dsNpcMoveService(project);
         var proposal = service.PreviewAddReminder(backend, plan.Zone, plan.X, plan.Y, plan.Facing);
         Check(proposal.Files.Count == 2 && proposal.Dependencies.Any(d => d.Path == models), "production_missing_model_in_same_proposal");
@@ -256,7 +266,7 @@ internal static class Program
         }
         service.Apply(proposal);
         var first = project.History.Read().Entries.Last();
-        Check(first.Parameters["Game"] == "X" && first.Parameters["ActionId"] == Map3dsNpcMoveService.ReminderActionId, "production_history_identifies_X_and_action");
+        Check(first.Parameters["Game"] == plan.Title && first.Parameters["ActionId"] == Map3dsNpcMoveService.ReminderActionId, "production_history_identifies_title_and_action");
         var changedZones = new GARC.MemGARC(File.ReadAllBytes(zones)).Files;
         var priorZones = new GARC.MemGARC(originalZones).Files;
         Check(Enumerable.Range(0, priorZones.Length).All(i => i == plan.Zone || priorZones[i].AsSpan().SequenceEqual(changedZones[i])), "production_other_zones_identical");
@@ -302,7 +312,7 @@ internal static class Program
         StudioDialog.AutomatedChecks = true;
         var view = new Map3dsEditorView(project);
         view.ShowZone(plan.Zone);
-        Check(view.ReminderButton is { Content: "Añadir recordador" } && view.NurseButton is not null, "production_WPF_X_button_beside_nurse");
+        Check(view.ReminderButton is { Content: "Añadir recordador" } && view.NurseButton is not null, "production_WPF_button_beside_nurse");
         Check(view.ShowReminderPanel(), "production_WPF_opens_panel");
         view.ReminderX!.Text = plan.X.ToString(); view.ReminderY!.Text = plan.Y.ToString();
         Check(view.PreviewReminder() && view.Canvas.PendingReminder is not null
@@ -314,9 +324,9 @@ internal static class Program
         Check(changes.Length == 2 && changes.All(p => p.Path == Path.Combine("ExtractedRomFS", "a", "0", "1", "2") || p.Path == Path.Combine("ExtractedRomFS", "a", "1", "4", "9")), "production_only_zone_and_model_archives_changed");
         Save(Path.Combine(Evidence(root), "changed-files.json"), changes);
         if (plan.Zone == 259 && plan.X == 463 && plan.Y == 458 && plan.Facing == 180)
-            Check(HashFile(zones) == "83222B273A8320B8E37CDBA84F7BA903E96367FB761D907FB353E80CB2FB0A03"
+            Check(HashFile(zones) == (plan.Title == "Y" ? "CFA09F319D06309FB785EC0C82D5C665ADDD8C695F1F32B88D85C9A166C74A43" : "83222B273A8320B8E37CDBA84F7BA903E96367FB761D907FB353E80CB2FB0A03")
                 && HashFile(models) == "03B88CE373ACA3738CECCD94C1C72CFAC34B69F0BD1F0A755BA5A953E962199A", "production_matches_owner_tested_archives_exactly");
-        Save(Path.Combine(Evidence(root), "production-verification.json"), new { Title = "X", Dependencies = proposal.Dependencies.Count, Gameplay = "owner confirmed reference Route 2 experiment", Wpf = true, Undo = true, Coexistence = "disk verified" });
+        Save(Path.Combine(Evidence(root), "production-verification.json"), new { Title = plan.Title, Dependencies = proposal.Dependencies.Count, Gameplay = "owner confirmed reference Route 2 experiment", Wpf = true, Undo = true, Coexistence = "disk verified" });
         VerifySources(plan);
     }
     [STAThread]
