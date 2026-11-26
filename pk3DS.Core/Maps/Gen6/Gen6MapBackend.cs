@@ -656,7 +656,10 @@ public sealed partial class Gen6MapBackend : IMapEditorBackend, IMapResourceProv
     public static string ModelListArchive(bool xy) => xy ? "a/1/4/9" : "a/1/3/7";
 
     /// <summary>Builds the adapter from a 3DS project configuration.</summary>
-    public static Gen6MapBackend FromConfig(GameConfig config)
+    public static Gen6MapBackend FromConfig(GameConfig config) => FromConfig(config, false);
+
+    /// <summary>Builds the adapter with admission supplied by the application profile; Core does not accredit game resources.</summary>
+    public static Gen6MapBackend FromConfig(GameConfig config, bool reminderAccredited)
     {
         if (!config.XY && !config.ORAS) throw new NotSupportedException("El adaptador de mapas Gen6 solo admite X/Y y Rubí Omega/Zafiro Alfa.");
         var zones = config.GetlzGARCData("encdata");
@@ -671,6 +674,6 @@ public sealed partial class Gen6MapBackend : IMapEditorBackend, IMapResourceProv
         var models = new GARC.MemGARC(System.IO.File.ReadAllBytes(System.IO.Path.Combine(config.RomFS, ModelListArchive(config.XY)))).Files;
         return new Gen6MapBackend(config.XY ? Gen6Title.XY : Gen6Title.ORAS,
             zones.FileCount, i => zones[i], matrices.FileCount, i => matrices[i], blocks.FileCount, i => blocks[i], names, areas.FileCount, i => areas[i],
-            models.Length, i => models[i]);
+            models.Length, i => models[i], reminderAccredited);
     }
 }

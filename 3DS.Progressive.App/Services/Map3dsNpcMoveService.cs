@@ -96,15 +96,19 @@ internal sealed class Map3dsNpcMoveService
     /// <summary>Copies the accredited X/Y service NPC; scripts and texts remain in the game.</summary>
     internal EditorProposal PreviewAddReminder(Gen6MapBackend backend, int zone, int x, int y, double facing)
     {
-        var evidence = Gen6MoveReminderProfile.Inspect(_project.GameConfiguration);
-        if (!evidence.Allowed) throw new InvalidOperationException(evidence.Reason);
+        var evidence = Gen6MoveReminderProfile.Revalidate(backend, _project.GameConfiguration);
+        Gen6MoveReminderProfile.RequireOriginalTemplate(backend);
+        int area = backend.Zone(zone).Area;
+        var modelDependency = evidence.Dependencies.Single(d => string.Equals(d.Path, Path.GetFullPath(ModelArchive), StringComparison.OrdinalIgnoreCase));
+        var currentModels = new GARC.MemGARC(GarcTransaction.ReadUnchanged(modelDependency.Path, modelDependency.Fingerprint)).Files;
+        if (area < 0 || area >= currentModels.Length || !currentModels[area].AsSpan().SequenceEqual(backend.ModelList(area)))
+            throw new InvalidDataException("La lista de modelos cambió desde que se abrió el editor. Vuelve a abrirlo; no se escribió nada.");
         var check = backend.ValidateAddReminder(zone, x, y, facing);
         if (!check.Allowed) throw new InvalidOperationException(check.Reason);
         var reminder = backend.Reminder ?? throw new InvalidOperationException(backend.ReminderSummary);
         int direction = Gen6MapBackend.FacingValue(facing) ?? throw new InvalidOperationException("Dirección no verificada.");
         int index = backend.ZoneEvents(zone).Count(e => e.Kind == MapEventKind.Npc);
         var (source, output) = Rewrite(backend, zone, current => Gen6ZoneEdit.AddNpc(current, reminder.Record, x, y, direction));
-        int area = backend.Zone(zone).Area;
         bool addModel = backend.AreaLoadsReminder(zone) == false;
         var files = new List<FileChange> { new(_path, source, output) };
         var changes = new List<BatchChange> { new(zone, $"Zona {zone:000}", $"NPC {index} · recordador nuevo", "—", $"{x}, {y} · mira {Gen6MapBackend.DirectionName(facing)}", "npc.add-move-reminder") };
@@ -121,7 +125,7 @@ internal sealed class Map3dsNpcMoveService
             ["X"] = x.ToString(inv), ["Y"] = y.ToString(inv), ["Facing"] = direction.ToString(inv),
             ["Script"] = Gen6MoveReminder.Script.ToString(inv), ["Model"] = reminder.Model.ToString(inv),
             ["TemplateZone"] = reminder.Zone.ToString(inv), ["TemplateNpc"] = reminder.Index.ToString(inv),
-            ["Area"] = area.ToString(inv), ["AreaModelAdded"] = addModel ? "true" : "false", ["Gameplay"] = "not tested",
+            ["Area"] = area.ToString(inv), ["AreaModelAdded"] = addModel ? "true" : "false", ["Gameplay"] = "owner confirmed X Route 2; placement not tested",
         };
         return new EditorProposal(_owner, $"Añadir recordador en la zona {zone:000} ({x}, {y})", 0, files, changes, parameters, evidence.Dependencies);
     }
@@ -224,7 +228,7 @@ internal sealed class Map3dsNpcMoveService
     internal void Apply(EditorProposal proposal)
     {
         if (proposal.Owner != _owner) throw new InvalidOperationException("La propuesta pertenece a otro editor.");
-        foreach (var dependency in proposal.Dependencies) GarcTransaction.ReadUnchanged(dependency.Path, dependency.Fingerprint);
+        using var dependencies = new Map3dsDependencyLease(proposal);
         foreach (var file in proposal.Files) GarcTransaction.ReadUnchanged(file.Path, file.Fingerprint);
         _project.History.Commit(proposal.Files, Module, proposal.Action, proposal.Changes, proposal.Parameters);
         _hash = SHA256.HashData(File.ReadAllBytes(_path));

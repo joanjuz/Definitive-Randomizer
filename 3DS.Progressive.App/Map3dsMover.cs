@@ -115,7 +115,7 @@ internal sealed class Map3dsMover(Func<IMapEditorBackend, int, int, int, int, st
             var proposal = service.Preview(gen6, zone, npc, x, y);
             service.Apply(proposal);
             return proposal.Action;
-        }, () => { service.Refresh(); return Gen6MapBackend.FromConfig(config); }, view: (backend, zone, npc, facing, sight) =>
+        }, () => { service.Refresh(); return Gen6MoveReminderProfile.CreateBackend(config); }, view: (backend, zone, npc, facing, sight) =>
         {
             if (backend is not Gen6MapBackend gen6) throw new InvalidOperationException("El adaptador no admite escritura.");
             var proposal = service.PreviewView(gen6, zone, npc, facing, sight);

@@ -107,7 +107,7 @@ internal sealed partial class Map3dsEditorView : UserControl
     internal static IMapEditorBackend CreateBackend(GameProjectSession session)
     {
         var config = session.GameConfiguration;
-        if (config.XY || config.ORAS) return Gen6MapBackend.FromConfig(config);
+        if (config.XY || config.ORAS) return Gen6MoveReminderProfile.CreateBackend(config);
         if (config.USUM) return pk3DS.Core.Maps.Gen7.Gen7MapBackend.FromConfig(config);
         throw new NotSupportedException("El editor de mapas 3DS todavía no admite este juego. Sol/Luna está en desarrollo.");
     }

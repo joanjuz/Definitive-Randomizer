@@ -49,6 +49,7 @@ internal static class Map3dsReminderChecks
 
     internal static void Run(Action<bool, string> check)
     {
+        Map3dsReminderProfileChecks.Run(check);
         byte[][] zones = Zones();
         var b = Backend(zones);
         var original = new Gen6Zone(zones[34]);
@@ -86,8 +87,8 @@ internal static class Map3dsReminderChecks
             "Reminder_UnaccreditedAndOrasVersionsCannotAdd");
         var xyGate = Gen6MoveReminderProfile.Inspect(new GameConfig(GameVersion.XY));
         check(!xyGate.Allowed && xyGate.Title == "XY" && xyGate.Dependencies.Count == 0
-            && xyGate.Reason.Contains("2261") && xyGate.Reason.Contains("nativas") && xyGate.Reason.Contains("contexto"),
-            "Reminder_ProductionGateDeniesUnprovenContextWithoutReadingDependencies");
+            && xyGate.Reason.Contains("identidad"),
+            "Reminder_ProductionGateRejectsMissingProjectIdentity");
         foreach (var game in new[] { GameVersion.ORAS, GameVersion.SN, GameVersion.MN, GameVersion.US, GameVersion.UM })
         {
             var denied = Gen6MoveReminderProfile.Inspect(new GameConfig(game));
@@ -96,7 +97,7 @@ internal static class Map3dsReminderChecks
         }
 
         check(b.ValidateAddReminder(1, 31, 15, 180) is { Allowed: true } free && free.Reason.Contains("NPC 3")
-            && free.Reason.Contains("modelo 54") && free.Reason.Contains("Validación jugable pendiente"), "Reminder_FreeCellExplainsAdditionAndModel");
+            && free.Reason.Contains("modelo 54") && free.Reason.Contains("acceder al NPC"), "Reminder_FreeCellExplainsAdditionAndModel");
         check(!b.ValidateAddReminder(35, 31, 15, 180).Allowed && !b.ValidateAddReminder(-1, 31, 15, 180).Allowed,
             "Reminder_MissingAndNegativeZonesRejected");
         check(!b.ValidateAddReminder(1, -1, 15, 180).Allowed && !b.ValidateAddReminder(1, 80, 15, 180).Allowed

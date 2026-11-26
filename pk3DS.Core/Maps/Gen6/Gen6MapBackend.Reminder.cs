@@ -41,7 +41,7 @@ public sealed partial class Gen6MapBackend
     public string ReminderSummary => !CanAddReminder
         ? "Esta versión no tiene un perfil acreditado del recordador de movimientos de Pokémon X/Y; no se puede añadir."
         : Reminder is { } r
-            ? $"Copia el recordador original de la zona {r.Zone:000} (NPC {r.Index}, modelo {r.Model}, script {Gen6MoveReminder.Script}). Reutiliza el servicio común del juego, con sus requisitos y coste originales. Validación jugable pendiente."
+            ? $"Copia el recordador original de la zona {r.Zone:000} (NPC {r.Index}, modelo {r.Model}, script {Gen6MoveReminder.Script}). Reutiliza el servicio común del juego, con sus requisitos y coste originales."
             : "La zona 034 no conserva el recordador original acreditado (NPC 2, modelo 54, script 2261); no se puede añadir.";
 
     /// <summary>A single consistent entry of model 54 from the game's own model lists.</summary>
@@ -58,6 +58,6 @@ public sealed partial class Gen6MapBackend
     {
         if (Reminder is not { } reminder) return new(false, ReminderSummary);
         return ValidateAddService(zone, x, y, facing, reminder.Model, reminder.Zone, () => ReminderModelEntry, "recordador",
-            "Validación jugable pendiente: comprueba que aparece, abre el servicio de recordar movimientos y conserva sus requisitos y coste originales.");
+            "Comprueba que esta casilla permite acceder al NPC y hablar con él.");
     }
 }
