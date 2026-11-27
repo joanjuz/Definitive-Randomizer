@@ -74,7 +74,7 @@ internal sealed class GameTypeChartService
             changes.Add(new(i/TypeCount,Types[i/TypeCount],
                 "Defiende "+Types[i%TypeCount],original[i].ToString(),changed[i].ToString()));
         }
-        if(repairCro&&_project.Generation==6&&changes.Count>0)result=CroIntegrity.Rebuild(result);
+        if(_project.Generation==6&&changes.Count>0&&(repairCro||(_project.GameConfiguration.XY&&Gen6PersistentItemsPatcher.HasAppliedPattern(before))))result=CroIntegrity.Rebuild(result);
         return(new FileChange(_codePath,before,result),changes);
     }
     internal void Apply(FileChange file,IReadOnlyList<BatchChange> changes)

@@ -4,7 +4,7 @@
 
 ## Uso
 
-`--gen6-persistent-items-only` comprueba el bloqueo de producción de Persistent Items para la familia X/Y y la infraestructura transaccional compartida con CRO sintético: rechazo sin escritura ni historial, nombre físico `DllBattle.cro`, hashes, rollback, vista previa obsoleta y recuperación. Incluso un fixture con firmas USUM debe ser rechazado. Se ejecuta en CI. No acredita perfiles independientes X/Y, parche ARM, restauración de objetos ni jugabilidad.
+`--gen6-persistent-items-only` comprueba perfiles sintéticos X/Y independientes, las dos condiciones ARM, firmas y hashes, rechazo de estados parciales y cambios externos, propuestas congeladas, dependencias, historial/deshacer y convivencia en ambos órdenes con tabla de tipos y Escudo Real. Conserva las regresiones del nombre físico `DllBattle.cro` y el rechazo de X/Y por el servicio USUM. `--gen6-persistent-items-ui-only` verifica fuera de pantalla el diagnóstico incompatible y el ciclo vista previa/aplicar/retirar de la vista WPF con perfiles sintéticos explícitos. Ambas suites se ejecutan en CI y no sustituyen pruebas jugables.
 
 `--nds-trainers-only` comprueba lectura y edición manual de entrenadores, conversión de formatos, conservación de datos, rebuild/reapertura y replay de recetas históricas y nuevas (fixtures Gen4/Gen5). Se incluye en `--nds-only`.
 
