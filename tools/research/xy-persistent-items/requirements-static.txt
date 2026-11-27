@@ -1,0 +1,2 @@
+# Optional bounded native CFG research and its synthetic regressions.
+capstone==5.0.7
