@@ -105,6 +105,11 @@ jobs:
         run: |
           python -m unittest discover -s tools/research/xy-nature-mints -p 'test_*.py' -v 2>&1 | Tee-Object -FilePath validation-logs/xy-mints-research.log
           if ($LASTEXITCODE -ne 0) { throw 'XY mint research contract tests failed' }
+      - name: Compilar lector aislado de mentas XY
+        shell: pwsh
+        run: |
+          dotnet build .\tools\research\xy-nature-mints\playable\XYMint.Experiment.csproj -c Release -p:UseAppHost=true '-bl:validation-logs/xy-mints-reader-{}.binlog'
+          if ($LASTEXITCODE -ne 0) { throw 'XY mint isolated reader build failed' }
       - name: Verificar fuente y ejecucion ARM de mentas USUM
         shell: pwsh
         run: |
