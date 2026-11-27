@@ -224,6 +224,11 @@ if(args.Length is 2 or 3&&args[0]=="--usum-bag-coexistence-real")
     UsumBagCoexistenceChecks.RunReal(args[1],args.Length==3?args[2]:null,Check);
     Console.WriteLine($"Completed {checks} USUM Bag.cro coexistence checks on real files (in memory; not in game).");return;
 }
+if(args.Length==1&&args[0]=="--gen6-persistent-items-only")
+{
+    Gen6PersistentItemsChecks.Run(Check,Reject);
+    Console.WriteLine($"Completed {checks} Gen6 Persistent Items safety checks (production blocked; no gameplay validation).");return;
+}
 if(args.Length==1&&args[0]=="--patch-capability-only")
 {
     PatchCapabilityChecks.Run(Check,Reject);

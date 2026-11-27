@@ -4,6 +4,8 @@
 
 ## Uso
 
+`--gen6-persistent-items-only` comprueba el bloqueo de producción de Persistent Items para la familia X/Y y la infraestructura transaccional compartida con CRO sintético: rechazo sin escritura ni historial, nombre físico `DllBattle.cro`, hashes, rollback, vista previa obsoleta y recuperación. Incluso un fixture con firmas USUM debe ser rechazado. Se ejecuta en CI. No acredita perfiles independientes X/Y, parche ARM, restauración de objetos ni jugabilidad.
+
 `--nds-trainers-only` comprueba lectura y edición manual de entrenadores, conversión de formatos, conservación de datos, rebuild/reapertura y replay de recetas históricas y nuevas (fixtures Gen4/Gen5). Se incluye en `--nds-only`.
 
 `--nds-trainers-probe <salida nueva> <rom>…` ejecuta el mismo flujo con copias privadas de los perfiles soportados. Requiere un entrenador con movimientos/objetos explícitos y otro sin ellos; solo lee las fuentes y conserva las salidas aisladas. No prueba jugabilidad.
