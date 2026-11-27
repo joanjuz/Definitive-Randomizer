@@ -236,6 +236,7 @@ internal sealed class SystemsView : UserControl
             "Fix Economy aplica precios UPR-ZX con vista previa, filtros y guardado verificado. Los parches adicionales de CRO se incorporarán separadamente cuando existan firmas comprobadas.");
         AddButton((StackPanel)item.Child,"Abrir editor de objetos",()=>_navigate("Items"));
         if(_project.GameConfiguration.USUM)AddButton((StackPanel)item.Child,"Persistent Items · restaurar consumibles tras el combate",()=>_navigate("PersistentItems"));
+        if(_project.GameConfiguration.XY)AddButton((StackPanel)item.Child,"Persistent Items · conservar objetos tras el combate",()=>_navigate("PersistentItems"));
         stack.Children.Add(item);
     }
     private void BuildPokemonTools(Panel stack)

@@ -76,6 +76,8 @@ public sealed partial class GameMoveService
                     (_, message) => errors.Add(message));
                 if (result < 0) throw new InvalidDataException("El archivo de combate no coincide con las versiones compatibles del template. " + string.Join(" ", errors));
                 byte[] after = File.ReadAllBytes(staged);
+                // XY native patches must remain loadable alongside Persistent Items.
+                if (_config.XY) after = CroIntegrity.Rebuild(after);
                 // Match MoveEditor7: install the requested effects once. Giro Vil relocates
                 // the move registry; running stock-address installers again is not a validator.
                 // Every installer checks its signatures; FileTransaction verifies frozen output.

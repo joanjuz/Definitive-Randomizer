@@ -224,6 +224,17 @@ if(args.Length is 2 or 3&&args[0]=="--usum-bag-coexistence-real")
     UsumBagCoexistenceChecks.RunReal(args[1],args.Length==3?args[2]:null,Check);
     Console.WriteLine($"Completed {checks} USUM Bag.cro coexistence checks on real files (in memory; not in game).");return;
 }
+if(args.Length==1&&args[0]=="--gen6-persistent-items-ui-only")
+{
+    Exception? failure=null;var ui=new Thread(()=>{try{var app=new ThreeDS.Progressive.App();app.InitializeComponent();WpfTestHost.SuppressStartup();Gen6PersistentItemsChecks.RunUi(Check);}catch(Exception ex){failure=ex;}});
+    ui.SetApartmentState(ApartmentState.STA);ui.Start();ui.Join();if(failure is not null)System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(failure).Throw();
+    Console.WriteLine($"Completed {checks} Gen6 Persistent Items UI checks.");return;
+}
+if(args.Length==1&&args[0]=="--gen6-persistent-items-only")
+{
+    Gen6PersistentItemsChecks.Run(Check,Reject);
+    Console.WriteLine($"Completed {checks} Gen6 Persistent Items synthetic patch and transaction checks.");return;
+}
 if(args.Length==1&&args[0]=="--patch-capability-only")
 {
     PatchCapabilityChecks.Run(Check,Reject);

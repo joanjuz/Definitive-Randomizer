@@ -4,6 +4,8 @@
 
 ## Uso
 
+`--gen6-persistent-items-only` comprueba perfiles sintéticos X/Y independientes, las dos condiciones ARM, firmas y hashes, rechazo de estados parciales y cambios externos, propuestas congeladas, dependencias, historial/deshacer y convivencia en ambos órdenes con tabla de tipos y Escudo Real. Conserva las regresiones del nombre físico `DllBattle.cro` y el rechazo de X/Y por el servicio USUM. `--gen6-persistent-items-ui-only` verifica fuera de pantalla el diagnóstico incompatible y el ciclo vista previa/aplicar/retirar de la vista WPF con perfiles sintéticos explícitos. Ambas suites se ejecutan en CI y no sustituyen pruebas jugables.
+
 `--nds-trainers-only` comprueba lectura y edición manual de entrenadores, conversión de formatos, conservación de datos, rebuild/reapertura y replay de recetas históricas y nuevas (fixtures Gen4/Gen5). Se incluye en `--nds-only`.
 
 `--nds-trainers-probe <salida nueva> <rom>…` ejecuta el mismo flujo con copias privadas de los perfiles soportados. Requiere un entrenador con movimientos/objetos explícitos y otro sin ellos; solo lee las fuentes y conserva las salidas aisladas. No prueba jugabilidad.

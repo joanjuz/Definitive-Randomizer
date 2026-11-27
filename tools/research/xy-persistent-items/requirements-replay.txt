@@ -1,0 +1,2 @@
+# Optional native callback execution over synthetic RAM; no commercial fixtures.
+unicorn==2.1.4

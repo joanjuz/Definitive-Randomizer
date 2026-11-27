@@ -50,7 +50,7 @@ internal static class SectionCatalog
         new("Trade6","Intercambios · Gen6","Mechanics","intercambios ofertas"),
         new("CatchZones","Catch Zones","Mechanics","zonas captura"),
         new("OPower","O-Powers","Mechanics","poderes"),
-        new("PersistentItems","Persistent Items","Mechanics","consumibles objetos tras el combate"),
+        new("PersistentItems","Persistent Items","Mechanics","consumibles objetos tras el combate XY USUM"),
         new("MegaAbilitySync","Mega Ability Sync","Mechanics","megaevoluciones habilidades combates entre dos juegos multijugador"),
         new("DisguiseUnlock","Habilidades especiales · Disfraz","Mechanics","habilidades especiales disfraz mimikyu golpe protector"),
         new("RksUnlock","Habilidades especiales · Sistema Alfa","Mechanics","habilidades especiales sistema alfa silvally memoria tipo"),
