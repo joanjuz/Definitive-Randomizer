@@ -159,6 +159,93 @@ internal static class Program
         Save(Path.Combine(E(root), "rebuild-verification.json"), new { Files = count, AllExact = true, ProductionEnabled = false, GameplayVerified = false });
         VerifySource(root);
     }
+    static void ServiceCheck(string root)
+    {
+        Check(Path.GetFileName(root).Contains("-Integration-", StringComparison.Ordinal), "explicit_new_integration_copy");
+        string title = Root(root);
+        var baseline = Inventory(P(root));
+        var project = GameProjectSession.Open(P(root), false);
+        string cro = Path.Combine(project.GameConfiguration.RomFS, "DllBattle.cro");
+        byte[] initial = File.ReadAllBytes(cro);
+        Check(Gen6PersistentItemsPatcher.Inspect(initial) == Gen6PersistentItemsPatcher.State.Installed, "integration_starts_from_a_copied_candidate");
+        Guid Toggle(bool enabled)
+        {
+            var service = new GameGen6PersistentItemsService(project);
+            service.Apply(service.Preview(new Dictionary<string, int> { ["Enable"] = enabled ? 1 : 0 }, [1]));
+            return project.History.Read().Entries.Last().Id;
+        }
+        // Start each order without Persistent Items; only our own isolated copy is touched.
+        Toggle(false);
+        var stock = Inventory(P(root));
+        string template = Path.Combine(E(root), "shield.csv");
+        File.WriteAllText(template, "Move,PP,KingShieldAttackMinusOne\n588,7,true\n");
+        foreach (bool itemsFirst in new[] { true, false })
+        {
+            var entries = new List<Guid>();
+            if (itemsFirst) entries.Add(Toggle(true));
+            var types = new GameTypeChartService(project); byte[] table = types.Read();
+            table[0] = table[0] == 4 ? (byte)8 : (byte)4;
+            var tablePreview = types.Preview(table, repairCro: !itemsFirst);
+            types.Apply(tablePreview.File, tablePreview.Changes); entries.Add(project.History.Read().Entries.Last().Id);
+            var moves = new GameMoveService(project);
+            moves.ApplyMovePreview(moves.PreviewMoves(BatchAction.MoveBalance, new BatchSettings { TemplatePath = template, MoveDescriptions = false }, [588]));
+            entries.Add(project.History.Read().Entries.Last().Id);
+            if (!itemsFirst) entries.Add(Toggle(true));
+            byte[] combined = File.ReadAllBytes(cro);
+            Check(Gen6PersistentItemsPatcher.Inspect(combined) == Gen6PersistentItemsPatcher.State.Installed
+                && combined[Gen6PersistentItemsPatcher.KingShield + 4] == 0xFF && combined[Gen6PersistentItemsPatcher.TypeChart] == table[0], "both_orders_preserve_three_changes_" + itemsFirst);
+            if (itemsFirst) CombinedRoundTrip(project, root);
+            int count = project.History.Read().Entries.Count; Toggle(true);
+            Check(project.History.Read().Entries.Count == count && File.ReadAllBytes(cro).AsSpan().SequenceEqual(combined), "reopen_and_idempotent_" + itemsFirst);
+            Guid removal = Toggle(false);
+            byte[] removed = File.ReadAllBytes(cro);
+            Check(Gen6PersistentItemsPatcher.Inspect(removed) == Gen6PersistentItemsPatcher.State.Original
+                && removed[Gen6PersistentItemsPatcher.KingShield + 4] == 0xFF && removed[Gen6PersistentItemsPatcher.TypeChart] == table[0], "delta_removal_preserves_other_patches_" + itemsFirst);
+            RestorePoints.Undo(project.History, project.ProjectRoot, removal);
+            Check(File.ReadAllBytes(cro).AsSpan().SequenceEqual(combined), "undo_removal_exact_" + itemsFirst);
+            foreach (Guid entry in entries.AsEnumerable().Reverse()) RestorePoints.Undo(project.History, project.ProjectRoot, entry);
+            Check(Inventory(P(root)).OrderBy(p => p.Key).SequenceEqual(stock.OrderBy(p => p.Key)), "ordered_undo_restores_every_resource_" + itemsFirst);
+        }
+        Toggle(true);
+        Check(File.ReadAllBytes(cro).AsSpan().SequenceEqual(initial) && Inventory(P(root)).OrderBy(p => p.Key).SequenceEqual(baseline.OrderBy(p => p.Key)), "integration_copy_returns_to_initial_candidate");
+        Save(Path.Combine(E(root), "service-integration.json"), new { TitleId = title, BothOrders = true, ExactUndo = true, Reopened = true, GameplayVerified = false });
+        VerifySource(root);
+    }
+    static void CombinedRoundTrip(GameProjectSession project, string root)
+    {
+        string image = Path.Combine(root, "PersistentItems-Types-Shield-EXPERIMENTAL.3ds"), extracted = Path.Combine(root, "Reextraido-Combinado");
+        Check(!File.Exists(image) && !Directory.Exists(extracted), "combined_roundtrip_outputs_are_new");
+        var expected = Inventory(P(root));
+        var result = new GameRomRebuildService(project).BuildAsync(RomRebuildKind.Trimmed3DS, image).GetAwaiter().GetResult();
+        new GameRomExtractionService(P(root)).ExtractAsync(image, extracted).GetAwaiter().GetResult();
+        var actual = new Dictionary<string, string>(StringComparer.Ordinal);
+        foreach (var (source, target) in new[] { ("RomFS", "ExtractedRomFS"), ("ExeFS", "ExtractedExeFS") })
+            foreach (string path in Directory.EnumerateFiles(Path.Combine(extracted, source), "*", SearchOption.AllDirectories))
+                actual.Add(target + "/" + Path.GetRelativePath(Path.Combine(extracted, source), path).Replace('\\', '/'), HashFile(path));
+        Check(actual.OrderBy(p => p.Key, StringComparer.Ordinal).SequenceEqual(expected.OrderBy(p => p.Key, StringComparer.Ordinal)), "combined_rebuild_reextract_every_file_and_case_exact");
+        Check(Inventory(P(root)).OrderBy(p => p.Key, StringComparer.Ordinal).SequenceEqual(expected.OrderBy(p => p.Key, StringComparer.Ordinal)), "combined_build_did_not_modify_project");
+        Save(Path.Combine(E(root), "combined-roundtrip.json"), new { TitleId = Target(root), Files = actual.Count, result.File, result.Hash, result.Bytes, AllExact = true, GameplayVerified = false });
+    }
+    static void RenderView(string root, string output)
+    {
+        Root(root); Check(!Directory.Exists(output) && !File.Exists(output), "render_output_is_new");
+        NoLinks(Path.GetDirectoryName(Path.GetFullPath(output))!);
+        var app = new ThreeDS.Progressive.App(); app.InitializeComponent();
+        var project = GameProjectSession.Open(P(root), false);
+        Check(GameGen6PersistentItemsService.Inspect(project).Allowed, "real_profile_view_is_available");
+        Directory.CreateDirectory(output);
+        foreach (var (width, dpi) in new[] { (520, 96), (1100, 144) })
+        {
+            var view = new ThreeDS.Progressive.Gen6PersistentItemsView(project);
+            var surface = new System.Windows.Controls.Border { Background = System.Windows.Media.Brushes.White, Child = view, Width = width, Height = 720 };
+            surface.Measure(new System.Windows.Size(width, 720)); surface.Arrange(new System.Windows.Rect(0, 0, width, 720)); surface.UpdateLayout();
+            var bitmap = new System.Windows.Media.Imaging.RenderTargetBitmap(width * dpi / 96, 720 * dpi / 96, dpi, dpi, System.Windows.Media.PixelFormats.Pbgra32);
+            bitmap.Render(surface);
+            var encoder = new System.Windows.Media.Imaging.PngBitmapEncoder(); encoder.Frames.Add(System.Windows.Media.Imaging.BitmapFrame.Create(bitmap));
+            using var file = File.Create(Path.Combine(output, $"persistent-items-{width}-{dpi}dpi.png")); encoder.Save(file);
+        }
+        Check(true, "offscreen_render_only_not_interactive_focus_validation");
+    }
     [STAThread]
     static int Main(string[] args)
     {
@@ -168,7 +255,9 @@ internal static class Program
             else if (args.Length == 3 && args[0] == "stage") Stage(args[1], args[2]);
             else if (args.Length == 3 && args[0] == "build") Build(args[1], args[2]);
             else if (args.Length == 4 && args[0] == "verify") Verify(args[1], args[2], args[3]);
-            else { Console.Error.WriteLine("extract SOURCE_ROM NEW_PruebasPersistentItems-X_OR_Y_ROOT | stage ROOT EXPERIMENT | build ROOT NEW_3DS | verify ROOT IMAGE NEW_EXTRACTED"); return 2; }
+            else if (args.Length == 2 && args[0] == "service-check") ServiceCheck(args[1]);
+            else if (args.Length == 3 && args[0] == "render-view") RenderView(args[1], args[2]);
+            else { Console.Error.WriteLine("extract SOURCE_ROM NEW_PruebasPersistentItems-X_OR_Y_ROOT | stage ROOT EXPERIMENT | build ROOT NEW_3DS | verify ROOT IMAGE NEW_EXTRACTED | service-check NEW_INTEGRATION_COPY | render-view ROOT NEW_OUTPUT"); return 2; }
             return 0;
         }
         catch (Exception error) { Console.Error.WriteLine(error); return 1; }

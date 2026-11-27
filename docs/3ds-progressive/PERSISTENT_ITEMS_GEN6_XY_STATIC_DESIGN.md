@@ -3,8 +3,9 @@
 > Registro histórico: la especificación corregida conserva el objeto original
 > también tras Lanzamiento, Desarme y Truco. Procedencia y memoria adicional
 > no son requisitos del [candidato de dos condiciones](PERSISTENT_ITEMS_GEN6_XY_TWO_GATES.md).
-> X tiene aceptación funcional del propietario, incluidos Desarme y Lanzamiento.
-> Hay un candidato Y separado pendiente de juego; producción sigue deshabilitada.
+> Ambos candidatos, X e Y, tienen aceptación funcional del propietario. La
+> [integración posterior](PERSISTENT_ITEMS_GEN6_XY_INTEGRATION.md) incorpora servicio
+> reversible y WPF; este documento conserva el diseño histórico de investigación.
 
 27/11/2026. Continuación del PR #145 desde `3ffcafec9af1ea0f3e725efb584795b681574146`.
 Se conserva `feature/xy-persistent-items`. **Sin payload, ROM candidata ni

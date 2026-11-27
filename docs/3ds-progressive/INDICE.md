@@ -10,6 +10,7 @@ Punto de entrada a `docs/3ds-progressive/`. Muchos documentos son **registros hi
 | Persistent Items X/Y: investigación nativa protegida, perfiles observados y bloqueo de producción | [PERSISTENT_ITEMS_GEN6_XY.md](PERSISTENT_ITEMS_GEN6_XY.md) |
 | Persistent Items X/Y: CFG acotado, escritores directos, snapshot y modelo de procedencia | [PERSISTENT_ITEMS_GEN6_XY_STATIC_DESIGN.md](PERSISTENT_ITEMS_GEN6_XY_STATIC_DESIGN.md) |
 | Persistent Items X/Y: candidatos BNE→BHI / BEQ→B, aceptación X y validación Y separada | [PERSISTENT_ITEMS_GEN6_XY_TWO_GATES.md](PERSISTENT_ITEMS_GEN6_XY_TWO_GATES.md) |
+| Persistent Items X/Y: aceptación jugable, instalador reversible, WPF y convivencia | [PERSISTENT_ITEMS_GEN6_XY_INTEGRATION.md](PERSISTENT_ITEMS_GEN6_XY_INTEGRATION.md) |
 | Base espacial DS, fase visual 1: matrices CPUE/1 de solo lectura y caso T01 | [NDS_MAP_LAYOUT_PHASE1.md](NDS_MAP_LAYOUT_PHASE1.md) |
 | Lienzo DS esquemático de eventos, fase visual 2 (solo lectura) | [NDS_MAP_CANVAS_PHASE2.md](NDS_MAP_CANVAS_PHASE2.md) |
 | Terreno y obstáculos DS, fase visual 3 (colisión de `land_data`, solo lectura) | [NDS_MAP_TERRAIN_PHASE3.md](NDS_MAP_TERRAIN_PHASE3.md) |

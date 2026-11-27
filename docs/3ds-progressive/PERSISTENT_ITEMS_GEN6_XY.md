@@ -1,6 +1,14 @@
 # Persistent Items X/Y — investigación y candidato experimental
 
-**Estado vigente tras la corrección de alcance:** hay un candidato experimental
+**Estado de integración:** el propietario aceptó el comportamiento jugable de
+ambos candidatos, X e Y. El PR incorpora instalador nativo reversible, perfiles
+independientes y sección WPF protegida por validación de recursos. Véase
+[integración y pruebas](PERSISTENT_ITEMS_GEN6_XY_INTEGRATION.md) para el estado
+vigente; los estados de bloqueo anteriores se conservan como registro histórico.
+
+## Registro de preparación de candidatos
+
+**Estado histórico al preparar los candidatos:** hay un candidato experimental
 X de dos condiciones, reconstruido y reextraído. Producción deshabilitada;
 con aceptación del propietario en X de Baya Zidra, Bolsa conservada y recuperación
 también tras Desarme y Lanzamiento. Y tiene un candidato reconstruido y reextraído

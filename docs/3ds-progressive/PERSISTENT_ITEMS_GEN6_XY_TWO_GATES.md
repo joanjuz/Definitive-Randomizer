@@ -1,5 +1,10 @@
 # Persistent Items X/Y: candidatos experimentales de dos condiciones
 
+> Estado posterior: el propietario también confirmó satisfactoriamente Y. La
+> [integración nativa y WPF](PERSISTENT_ITEMS_GEN6_XY_INTEGRATION.md) registra la
+> aceptación de ambos títulos, las transacciones y la convivencia. Los resultados
+> y flags de generación siguientes son históricos y no sustituyen ese estado.
+
 Fecha: 27/11/2026. Continuación del PR #145, rama `feature/xy-persistent-items`.
 Producción deshabilitada. El propietario acepta el comportamiento del candidato
 X: Baya Zidra, Bolsa conservada y recuperación también tras Desarme y Lanzamiento.
