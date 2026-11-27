@@ -392,6 +392,7 @@ public partial class MainWindow : Window
                 "LevelUp"=>_levelUpView=new LevelUpView(_session),
                 "Items"=>CreateEditor(CurrentItemEditor()),
                 "PersistentItems" when _session.GameConfiguration.USUM=>CreateEditor(new GamePersistentItemsService(_session)),
+                "PersistentItems" when _session.GameConfiguration.XY=>new Gen6PersistentItemsView(_session),
                 "MegaAbilitySync" when _session.GameConfiguration.USUM=>CreateEditor(new GameMegaAbilitySyncService(_session)),
                 "DisguiseUnlock" when _session.GameConfiguration.USUM=>CreateEditor(new GameDisguiseUnlockService(_session)),
                 "RksUnlock" when _session.GameConfiguration.USUM=>CreateEditor(new GameRksUnlockService(_session)),
