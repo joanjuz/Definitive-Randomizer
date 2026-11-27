@@ -91,6 +91,8 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'XY static research dependencies failed' }
           & $xyResearchPython -m unittest discover -s tools/research/xy-persistent-items -p 'test_*.py' -v 2>&1 | Tee-Object -FilePath validation-logs/xy-persistent-items-reader.log
           if ($LASTEXITCODE -ne 0) { throw 'XY persistent items research reader tests failed' }
+      - name: Compilar candidato aislado Persistent Items X
+        run: dotnet build tools/research/xy-persistent-items/playable/PersistentItems.Experiment.csproj -c Release -p:UseAppHost=true '-bl:validation-logs/build-persistent-experiment-{}.binlog'
       - name: Compilar experimento aislado del recordador XY
         run: dotnet build tools/research/xy-reminder-native/playable/MoveReminder.Experiment.csproj -c Release -p:UseAppHost=true '-bl:validation-logs/build-reminder-experiment-{}.binlog'
       - name: Regresiones sinteticas del lector nativo XY
