@@ -1,17 +1,24 @@
 # Persistent Items X/Y — investigación protegida
 
-Fecha: 26/11/2026. Base: `24f89911c1a08f0b9f81bb7a641aa3b96279c316`
+Actualizado: 27/11/2026. Base: `24f89911c1a08f0b9f81bb7a641aa3b96279c316`
 (main, merge del PR #144). **No hay instalador Gen6 ni candidato jugable.**
 Persistent Items continúa disponible únicamente para USUM. No se habilitó un
 botón X/Y, ni se modificaron motores, servicios, templates, recordador, mentas,
 Level Caps, Preview instalada o versiones. Este documento no acredita la función.
 
+Estado actual: hay trazas originales de X (salvaje, Liga, activación de Baya
+Zidra y Lanzamiento), un análisis reproducible de procedencia sin escritura y
+un inventario estático de escrituras candidatas. No hay pruebas del parche en
+juego ni evidencia dinámica independiente de Y. Las secciones inferiores
+conservan el orden de la investigación; sus pendientes históricos no sustituyen
+este estado ni los resultados fechados de la continuación.
+
 ## Estado por fase
 
 | Fase | Resultado |
 |---|---|
-| A: investigación | Ruta candidata localizada en recursos reales de ambos títulos; lector reproducible de solo lectura y perfiles observados separados. Semántica incompleta. |
-| B: parche | Bloqueado: faltan trazas de modos y procedencia del objeto. Ningún payload ni perfil autoriza instalación. |
+| A: investigación | Ruta localizada en ambos títulos; X tiene trazas de modo 0/1 y consumo frente a Lanzamiento. Procedencia y modos excluidos incompletos. |
+| B: parche | Análisis de procedencia sin escritura; bloqueado por cobertura incompleta de escrituras y modos. Ningún payload ni perfil autoriza instalación. |
 | C: transacción e historial | Infraestructura existente revisada y regresión sintética específica XY; no instalador ni deshacer de un parche Gen6. |
 | D: WPF | Bloqueada hasta acreditar B. Disponibilidad USUM-only preservada y comprobada. |
 | E: regresiones/CI | Suite de protección y lector sintético añadidos al CI; resultados al final. |
@@ -580,3 +587,124 @@ sea suficiente para todos los objetos o scripts. Hace falta una política de
 procedencia que registre el consumo admitido y descarte pérdidas/transferencias
 posteriores, validada con Truco, Ladrón y Desarme. Se ha solicitado preparar
 Truco como siguiente control. No se habilita ningún parche de producción.
+
+## Análisis posterior sin más combates manuales
+
+Se pausaron las solicitudes de combate para consolidar la evidencia existente.
+`analyze_provenance.py` procesa los JSONL de forma local y **no escribe** ROM,
+RAM, CRO, CRR o guardados. Exige el perfil observado del proyecto y que el
+título concuerde con la captura. Su informe siempre mantiene `installable=false`,
+`production_enabled=false` y `native_payload_present=false`.
+
+### Relación del participante con el portador
+
+El primer word del bloque leído en `6B140` coincide, en las dos capturas, con
+el CoreParam del slot 0 de la vista `after_candidate` al entrar en `1945C`.
+En código, `76408` contiene `STR r8,[r4]`, dentro de una rutina que consulta el
+objeto mediante el import `6AC`, lo escribe en `+0x12` y pone `+0x14` a cero
+(`76424–76440`). Es evidencia de una asociación por puntero; no una regla
+universal sobre índices de combate. El analizador correlaciona ese puntero,
+especie y etiqueta de identidad con las lecturas de equipo y rechaza identidades
+ambiguas, cambios de puntero o discrepancias de campos frente a bytes opacos.
+
+La reproducción de `07` identifica una observación compatible con la hipótesis
+de consumo propio; `08` queda excluido por caller distinto. Solo considera la
+Baya Zidra y modo 1/flag 0 de X, que son los acreditados para esa comparación.
+Y, modo salvaje, otros objetos, múltiples mutaciones del mismo portador y
+evidencia incompleta no se admiten como candidatos de la hipótesis. Una captura
+editada no adquiere autenticidad por pasar este lector: no es una barrera de
+instalación ni sustituye las validaciones nativas pendientes.
+
+### Cobertura de escrituras: no basta con interceptar `6B140`
+
+El inventario recorre exclusivamente el segmento de código declarado y decodifica
+BL y STRH inmediatos preindexados sin writeback. En la muestra observada encuentra
+las cinco llamadas a `6B140` y **21 encodings candidatos** que escriben halfwords
+en `+0x12/+0x14` sin usar SP como base. No es un CFG: puede incluir datos o
+estructuras distintas, y omite stores indirectos, otras anchuras y copias de memoria.
+
+Dos rutas merecen atención concreta: `8578` escribe directamente en `+0x12`;
+`C344/C348` escriben `+0x14` y cero en `+0x12`. Ambas obtienen el destino desde
+una tabla de punteros `+0x84`, como otros comandos de batalla. No pasan por
+`6B140` en esos fragmentos. Debe determinarse su alcance antes de asegurar que
+un interceptor cubre toda pérdida/transferencia. Otros encodings corresponden
+aparentemente a inicialización u otras estructuras: el inventario no les asigna
+semántica de objetos sin comprobarla.
+
+### Diseño propuesto, todavía sin payload
+
+1. Capturar el objeto propio y su identidad **antes de las acciones del combate**;
+   las vistas mutables de conciliación no sirven como sustituto de ese estado.
+2. Registrar únicamente activaciones cuya procedencia esté acreditada, asociadas
+   al CoreParam propio y al objeto inicial. Un objeto recibido no obtiene permiso
+   de restauración por compartir ID con uno original.
+3. Invalidar el permiso ante transferencias, pérdidas no admitidas, escrituras
+   desconocidas, identidad ambigua o cambios posteriores del mismo portador.
+   Cubrir los stores directos y las copias; no solo la llamada de consumo.
+4. Ejecutar primero la conciliación original. Restaurar solo si el portador
+   sigue acreditado y su objeto final es cero; respetar cualquier resultado
+   nativo no nulo. No modificar la Bolsa ni las condiciones `14854/148AC`.
+5. Usar almacenamiento propio cuyo ciclo de vida y limpieza por combate estén
+   acreditados; no reutilizar campos del motor o huecos por apariencia. Verificar
+   segmentos, relocaciones, ABI ARM y espacio antes de emitir un payload.
+
+Este diseño conserva una exclusión verificable de Lanzamiento en los dos casos
+observados, pero aún no demuestra cobertura de las demás mutaciones ni de modos
+excluidos. Por ello no se genera todavía una ROM experimental con esos hooks.
+
+### Política del cargador de la revisión de Citra utilizada
+
+Se consultó la fuente preservada de la revisión reportada por la copia aislada,
+`0ff3440232d6bc9226e37c41c05c5aead03f37fd`:
+
+- [`CROHelper::VerifyHash`](https://github.com/Lime3DS/Lime3DS/blob/0ff3440232d6bc9226e37c41c05c5aead03f37fd/src/core/hle/service/ldr_ro/cro_helper.cpp#L1249)
+  devuelve éxito sin verificar el hash.
+- [`RO::LoadCRR`](https://github.com/Lime3DS/Lime3DS/blob/0ff3440232d6bc9226e37c41c05c5aead03f37fd/src/core/hle/service/ldr_ro/ldr_ro.cpp#L145)
+  está stubbed y devuelve éxito.
+- [`RO::LoadCRO`](https://github.com/Lime3DS/Lime3DS/blob/0ff3440232d6bc9226e37c41c05c5aead03f37fd/src/core/hle/service/ldr_ro/ldr_ro.cpp#L264)
+  llama a esa verificación antes de rebase/link/fix.
+
+SHA-256 de las fuentes consultadas: `ldr_ro.cpp`
+`D3D3F2CF552D695C78A32AAB31303CEF6676C127B30B74AC177FD88473924157`;
+`cro_helper.cpp`
+`6DB1D8A64E787C4797355D7CDE381BD1B2CE09701FBA4FCCF41C851338361238`.
+Las copias descargadas quedan privadas. Esto explica por qué una carga exitosa
+en esa fuente HLE no acreditaría una firma CRR válida. No es una compilación
+reproducible del ejecutable local, prueba del cargador de consola ni verificación
+de la revisión concreta de Lime3DS del propietario. No se fabrica firma RSA,
+no se modifica CRR y no se amplía compatibilidad por este resultado.
+
+Comandos de reproducción, sobre las copias privadas existentes:
+
+```powershell
+python tools/research/xy-persistent-items/analyze_provenance.py --project artifacts/pi145-x/stock --trace artifacts/pi145-x/evidence/X-sitrus-provenance-07.jsonl
+python tools/research/xy-persistent-items/analyze_provenance.py --project artifacts/pi145-x/stock --trace artifacts/pi145-x/evidence/X-fling-sitrus-08.jsonl
+```
+
+### Validación de esta fase
+
+**87 tests Python OK** (14 nuevos), `py_compile` y `git diff --check` correctos.
+La suite ya descubierta por el CI incluye automáticamente el archivo nuevo;
+no necesita ampliar dependencias. La auditoría ARM usa decodificación limitada
+propia, sin Capstone/Unicorn en CI ni fixtures comerciales.
+
+| Requisito | Evidencia sintética |
+| --- | --- |
+| Hipótesis limitada, sin escrituras ni habilitación | `test_complete_consistent_sitrus_trace_yields_only_a_disabled_hypothesis_without_mutating_events` |
+| Evidencia incompleta y orden incorrecto | `test_missing_duplicate_or_failed_capture_proofs_never_admit_a_candidate`, `test_adversarial_capture_and_mutation_order_never_admits_a_candidate` |
+| Exclusión de Y/modos desconocidos y Lanzamiento | `test_y_unknown_and_nontrainer_modes_or_flags_never_admit_a_candidate`, `test_fling_unknown_caller_item_or_nonconsumption_triplets_remain_excluded` |
+| Cambios posteriores y propiedad ambigua | `test_same_core_additional_mutation_poisons_the_entire_hypothesis`, `test_missing_changed_or_ambiguous_party_identity_never_admits_a_candidate` |
+| Coherencia de bytes y campos | `test_raw_field_or_core_contradiction_cannot_be_hidden_by_json_decoded_fields`, `test_invalid_native_fields_cannot_be_used_as_ownership_evidence` |
+| Inventario ARM acotado al segmento | `test_bl_forward_backward_and_conditional_calls_have_exact_file_and_return_offsets`, `test_strh_inventory_includes_only_supported_immediate_nonsp_positive_forms` |
+
+Se comprobaron además tres mutaciones controladas en memoria del analizador:
+retirar la comprobación del tipo de evento produjo un fallo; retirar la
+coherencia de campos raw produjo tres; retirar los límites de identidad produjo
+tres. Los mismos tests pasan con el código final. No fue una ejecución de una
+revisión anterior ni una prueba del juego modificado. Evidencias/hashes privados
+fuera de Git. Las dos capturas reales se analizaron correctamente, una como
+hipótesis compatible y otra excluida, siempre sin permiso de instalación.
+
+El CI de `7715eb21`, `e4741417` y `dc84925f` terminó en éxito. Esta fase necesita
+su propia ejecución de CI. No se repitieron builds WPF/Core/USUM locales porque
+solo cambiaron herramientas Python y documentación; sus suites siguen en el CI.
