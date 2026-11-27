@@ -1,9 +1,10 @@
-# Persistent Items X: candidato experimental de dos condiciones
+# Persistent Items X/Y: candidatos experimentales de dos condiciones
 
 Fecha: 27/11/2026. Continuación del PR #145, rama `feature/xy-persistent-items`.
-Producción deshabilitada. Y sin candidato. Hay confirmación jugable del propietario
-para consumo y recuperación de Baya Zidra en X, con cantidad en Bolsa conservada.
-La validación completa sigue pendiente.
+Producción deshabilitada. El propietario acepta el comportamiento del candidato
+X: Baya Zidra, Bolsa conservada y recuperación también tras Desarme y Lanzamiento.
+Y tiene un candidato reconstruido y reextraído independientemente; su validación
+jugable sigue pendiente.
 
 ## Especificación corregida
 
@@ -57,21 +58,27 @@ ambos caminos con el mismo cambio. No se parchean las acciones durante el combat
 de su entrada en Unicorn. Los imports de consulta/setter son contratos simulados;
 no se ejecuta una batalla completa ni se demuestra el estado de la Bolsa.
 
-Resultado X: 256 comparaciones de modo; 20 combinaciones de entrada exterior;
+Resultado por título, ejecutado independientemente en X e Y: 256 comparaciones
+de modo; 20 combinaciones de entrada exterior;
 14 casos de conciliación (siete casos en modos 0/1), incluidos los valores de
 X-07/08, transferencia entre dos miembros, intercambio, dos consumos, objeto no
 consumido y equipo vacío. En 0/1 vuelve la distribución original; 2..255 conservan
 el resultado original en el replay. No hay código nuevo de transferencia ni
-doble contabilización dentro del equipo simulado. Falta comprobar el combate
-completo, la Bolsa y la transferencia con el rival en juego.
+doble contabilización dentro del equipo simulado. Este replay no comprueba una
+batalla completa ni la Bolsa. La confirmación jugable de X se registra aparte;
+Y no tiene todavía ninguna confirmación del candidato en juego. Los valores de
+X-07/08 usados en el replay Y son entradas simuladas, no capturas de Y.
 
 ## Perfiles e integridad
 
-El preparador admite exclusivamente el conjunto **X** observado y el Title ID
-`0004000000055D00`, verificado contra NCCH y exheader. Comprueba las ocho
-dependencias del perfil existente, firmas únicas, instrucciones originales y
-SHA-256 del CRO completo normalizado. Y (`0004000000055E00`) sigue rechazado,
-aunque su CRO observado sea igual: sus otras dependencias son diferentes.
+El preparador conserva **X** como destino por defecto (`0004000000055D00`).
+Y exige selección explícita `--title-id 0004000000055E00`; un proyecto del otro
+título se rechaza. Cada título comprueba sus propias ocho dependencias del perfil
+existente, NCCH y exheader reales, firmas únicas, instrucciones originales y
+SHA-256 del CRO completo normalizado. El CLI exige además que el prefijo de la
+carpeta aislada X/Y corresponda a las cabeceras y al perfil completo. El CRO
+observado coincide, pero code, DllField, CRR, CRS y cabeceras siguen separados.
+Esto admite experimentación Y, no compatibilidad jugable ni producción Y.
 
 * CRO original: `9C07A3342DFBA4ADFC3569271D65FE9FAD88F1E271D5BA650179377E60D0A5A1`.
 * CRO experimental: `84E125B4DEB74D523DFC742E3A1D46AE3601B5B24A2F9E4D5CF0EA80A7AB7A42`.
@@ -89,7 +96,7 @@ cargador real ni cualquier versión de Lime3DS.
 
 ## Preparación reversible y reconstrucción
 
-Se usa una extracción nueva de la ROM X original autorizada, no el proyecto con
+Se usa una extracción nueva de cada ROM original autorizada, no el proyecto con
 ediciones anteriores. `experimental_two_gates.py` produce assets en otra carpeta,
 sin escribir entradas. Rechaza estados parciales, firmas ausentes/duplicadas,
 modificaciones externas, dependencias cruzadas y cambios entre inspección y lectura.
@@ -134,10 +141,16 @@ combate; confirma asimismo que se mantuvo la cantidad en Bolsa, sin aportar
 un nuevo recuento numérico. Es una prueba manual reportada, no una traza nueva
 recogida automáticamente. En esta confirmación no precisó el tipo de combate.
 
-Quedan sin confirmar para el candidato: ausencia de reactivación dentro del mismo
-combate, guardar/cerrar/reabrir, Banda Focus, Lanzamiento, Desarme, Truco y otras
-transferencias, cobertura de modalidades y convivencia con otros parches.
-No se extrapola este resultado a Y ni a todos los consumibles.
+En una confirmación posterior declara haber probado lo demás, cita expresamente
+**Desarme y Lanzamiento** y confirma que el portador mantiene el objeto al final.
+Acepta todos los comportamientos observados como los que desea del parche. Esto
+acredita la aceptación funcional del candidato X y de la especificación corregida.
+No se solicitan de nuevo los casos aceptados.
+
+Su informe general no enumera por separado cada otro consumible, modalidad,
+guardado/recarga o secuencia de transferencia; no se inventan trazas ni detalles
+individuales. Permanecen pendientes la integración de producción, convivencia
+técnica con otros parches y **validación independiente de Y**.
 
 ### Protocolo restante
 
@@ -166,7 +179,7 @@ prueba positiva aislada. Y requiere su propio candidato, guardado y evidencia.
 
 ## Comprobaciones técnicas de esta continuación
 
-132 pruebas Python sintéticas aprobadas (incluidas nueve del preparador y cinco
+135 pruebas Python sintéticas aprobadas (incluidas doce del preparador y cinco
 del arnés de replay sin ejecutar ARM). Se
 comprobaron contrafactuales controlados de no-op, aceptación de parcial, omisión
 del baseline y admisión de Y: las pruebas detectaron los cuatro cambios. Build
@@ -175,7 +188,13 @@ recordador XY aprobadas. El CI compila el CLI y descubre las nuevas pruebas; su
 resultado del commit nuevo debe consultarse en el PR. Ningún resultado anterior
 equivale a ejecución jugable de este candidato.
 
+Las tres nuevas comprobaciones del preparador verifican Y explícito con baseline
+sintético independiente, rechazo de títulos cruzados/destino desconocido y
+carreras/perfil Y no acreditado sin crear salida. Mantienen deshabilitada producción.
+
 ## Artefacto local entregado
+
+### X — aceptación funcional del propietario
 
 * Imagen: `D:\Progra\Pokemon\Randomizer\PruebasPersistentItems-X-01\Pokemon-X-PersistentItems-EXPERIMENTAL.3ds`.
 * SHA-256: `13455A2A3B0AE6457EC68BA96FF4766A9AC6C413895517339DB5762A16BB90C1`.
@@ -192,3 +211,46 @@ equivale a ejecución jugable de este candidato.
 Para abandonar el experimento basta cerrar su emulador. No se ha cambiado la
 configuración ni el guardado del Lime habitual. Conservar el backup previo a X-08;
 no copiar el resultado experimental sobre la partida habitual durante validación.
+
+### Y — candidato independiente pendiente de juego
+
+Después de la aceptación de X se extrajo de nuevo la ROM Y autorizada, con SHA-256
+`44E661A351DA2BAB29016097D5C34873E427B92BEA0A48812C8607AD28AA52CE`.
+Sus cabeceras acreditaron `0004000000055E00` y sus ocho dependencias coincidieron
+con el perfil Y. No se reutilizó la extracción, code, CRR ni guardado de X.
+Se ejecutó su propio replay ARM, instalación, rollback exacto, reaplicación,
+reinstalación idempotente, rebuild y reextracción; **656 archivos** coincidieron
+con el proyecto Y candidato. Nombre `DllBattle.cro` y CRR intacta verificados.
+La regresión de reinstalación X también pasó con el CLI actualizado.
+
+* Imagen: `D:\Progra\Pokemon\Randomizer\PruebasPersistentItems-Y-01\Pokemon-Y-PersistentItems-EXPERIMENTAL.3ds`.
+* SHA-256: `F6ACF11482E1DD7FBB515381371EEBF16C6E5400CB1FD3F91209D718EDC4472E`.
+* Tamaño: 1.801.068.544 bytes.
+* Abrir: `D:\Progra\Pokemon\Randomizer\PruebasPersistentItems-Y-01\Abrir-Prueba-Y.cmd`.
+  Usa otro runtime portable de Citra con una copia del guardado **Y**, su propia
+  SD/NAND y depurador desactivado. Las fuentes copiadas fueron releídas y sus hashes
+  se conservaron. No se inició el juego ni se afirman pruebas jugables Y.
+
+Reproducción independiente, con carpetas nuevas y CLI compilado actualizado:
+
+```powershell
+$root = 'D:/Progra/Pokemon/Randomizer/PruebasPersistentItems-Y-01'
+dotnet $cli extract D:/Nintendo/3DS/Juegos/PokemonY/Rom.3ds $root
+python tools/research/xy-persistent-items/experimental_two_gates.py --project "$root/Proyecto" --output "$root/evidence/two-gates-assets" --title-id 0004000000055E00
+dotnet $cli stage $root "$root/evidence/two-gates-assets"
+dotnet $cli build $root "$root/Pokemon-Y-PersistentItems-EXPERIMENTAL.3ds"
+dotnet $cli verify $root "$root/Pokemon-Y-PersistentItems-EXPERIMENTAL.3ds" "$root/Reextraido"
+python tools/research/xy-persistent-items/replay_two_gates.py D:/Nintendo/3DS/Juegos/PokemonY --title-id 0004000000055E00
+```
+
+Primera prueba Y: desde ese acceso aislado, equipar una Baya Zidra, anotar la
+cantidad en Bolsa, consumirla durante un combate normal y comprobar que vuelve
+equipada al terminar con la misma cantidad en Bolsa. Después comprobar guardar y
+recargar. No se exige repetir X para acreditar Y. La aceptación de un título no
+habilita automáticamente el otro ni modifica la política de producción.
+
+| Requirement | Evidence |
+|---|---|
+| Selección Y explícita y baseline propio; producción deshabilitada | `test_explicit_y_uses_its_own_baseline_and_manifest_without_enabling_production` |
+| Rechazo X/Y cruzados y destino desconocido sin escritura | `test_default_x_explicit_y_and_unknown_targets_reject_crossed_projects_without_writes` |
+| Perfil Y no acreditado y carreras de recursos sin salida | `test_explicit_y_unknown_profile_and_resource_races_reject_before_output_creation` |

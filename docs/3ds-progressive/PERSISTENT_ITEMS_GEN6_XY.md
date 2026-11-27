@@ -2,8 +2,9 @@
 
 **Estado vigente tras la corrección de alcance:** hay un candidato experimental
 X de dos condiciones, reconstruido y reextraído. Producción deshabilitada;
-con confirmación del propietario en X de consumo y recuperación de Baya Zidra
-y cantidad en Bolsa conservada; sin candidato Y. El objeto original debe volver
+con aceptación del propietario en X de Baya Zidra, Bolsa conservada y recuperación
+también tras Desarme y Lanzamiento. Y tiene un candidato reconstruido y reextraído
+independientemente, sin validación jugable. El objeto original debe volver
 también tras Lanzamiento, Desarme o Truco. No se añade seguimiento de procedencia
 ni memoria propia. Véanse [candidato, integridad y protocolo](PERSISTENT_ITEMS_GEN6_XY_TWO_GATES.md).
 El estado y los bloqueos anteriores que siguen se conservan como registro
