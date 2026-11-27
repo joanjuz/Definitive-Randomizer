@@ -500,3 +500,41 @@ posteriores, errores de memoria sin campos inventados, rechazo de offsets
 desconocidos y verificación de las 17 instrucciones antes de instrumentar.
 La nueva captura quedó conectada y en espera de la ejecución manual. Aún no
 hay un resultado del consumo instrumentado que permita clasificar su caller.
+
+## Activación original instrumentada de Baya Zidra en X
+
+El caso `X-sitrus-provenance-07` completó la captura. El propietario confirmó
+al finalizar: **993 Bayas Zidra en Bolsa**, igual que antes del combate, y
+Gardevoir sin la baya que tenía equipada. Es un conteo manual anterior/posterior;
+no se presenta como una lectura automática de todo el inventario ni como prueba
+de ausencia de duplicación para los demás mecanismos.
+
+Se verificaron las 17 instrucciones originales con `.text = 0x006A5180` en esta
+sesión. Hubo una entrada a la rutina candidata y dos observaciones posteriores:
+
+| Punto (archivo) | Observación |
+| --- | --- |
+| `6B140` | `r2=0`, `r3=1`, LR convertido a offset `6C1F0`: llamada desde `6C1EC`. Participante nativo `+0x19=0`; `+0x12=158`, `+0x14=0`. |
+| `6B1F0` | Mismo puntero de parámetro: `+0x12=0`, `+0x14=0`, `+0x16A=0x80`. El store del objeto actual ya ocurrió. |
+| `6B248` | Mismo puntero: `+0x12=0`, `+0x14=158`, `+0x16A=0x80`. Se observan los stores de la ruta con `r3` distinto de cero. |
+
+En `6B248`, el byte `+0x167` todavía vale `0`: el breakpoint está **antes**
+del bloque que lo modifica. No se deduce su valor final de esa muestra. El
+campo `+0x14` conserva el ID de la baya; esto por sí solo no acredita un marcador
+exclusivo de consumos restaurables. Falta compararlo con Lanzamiento y otras
+formas de pérdida/transferencia.
+
+Después, `14854` observó modo `1`; `148AC` recibió objeto original `158` y
+parámetro 17 igual a `1`; `148CC` pasó `0` al setter nativo. Al volver por
+`19460`, los datos checksum-válidos del mismo Gardevoir contienen objeto `0`.
+Los otros cuatro objetos siguen siendo `664`, `234`, `268`, `270`. No hubo
+errores de estructuras/descifrado en esta captura. Las 17 trampas propias se
+retiraron y verificaron antes del ACK de continuación.
+
+SHA-256 del JSONL privado:
+`085E8A03ECE5772665B755143EEB08C4B88806E8868EDB97FE5A2B0442426FD1`.
+La copia anterior del guardado y su metadata también permanecen privadas.
+No se modificaron ROM, CRO ni CRR para este experimento. El resultado identifica
+un caller real de activación de Baya Zidra; no demuestra aún que todos los
+consumibles ni todos los modos pasen por él. El siguiente control solicitado
+es Lanzamiento con una baya equipada para comparar caller, campos y conciliación.
