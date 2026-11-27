@@ -202,6 +202,38 @@ class TransportTests(unittest.TestCase):
 
 
 class BreakpointTests(unittest.TestCase):
+    def test_return_control_requires_no_owned_traps_and_verified_state(self):
+        for owned, unsafe in ((True, False), (False, True)):
+            with self.subTest(owned=owned, unsafe=unsafe):
+                sock = FakeSocket([b'+'])
+                rsp = trace.Rsp(sock)
+                if owned:
+                    rsp.breakpoints[0x100000] = b'ABCD'
+                rsp.unsafe = unsafe
+                with self.assertRaises(ValueError):
+                    rsp.resume_clean()
+                self.assertEqual(sock.sent, [])
+
+    def test_return_control_sends_continue_once_and_waits_for_ack(self):
+        for buffered in (False, True):
+            with self.subTest(buffered=buffered):
+                sock = FakeSocket([] if buffered else [b'+'])
+                rsp = trace.Rsp(sock)
+                if buffered:
+                    rsp.buffer.extend(b'+')
+                rsp.resume_clean()
+                self.assertEqual(sock.sent, [packet('c')])
+                self.assertTrue(rsp.running)
+
+    def test_return_control_does_not_claim_success_on_disconnect_or_unexpected_reply(self):
+        for chunks in ([b''], [b'-'], [packet('T05')]):
+            with self.subTest(chunks=chunks):
+                sock = FakeSocket(chunks)
+                rsp = trace.Rsp(sock)
+                with self.assertRaises(ValueError):
+                    rsp.resume_clean()
+                self.assertEqual(sock.sent, [packet('c')])
+
     def test_owned_breakpoint_verifies_stock_trap_and_exact_restoration(self):
         rsp = MemoryRsp()
         rsp.ram[0x100000] = b'ABCD'

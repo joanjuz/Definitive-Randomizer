@@ -386,3 +386,84 @@ Pruebas sintéticas actualizadas: **55 tests Python OK**, incluyendo
 y `test_interrupt_fence_rejects_unknown_reply_and_more_than_one_empty_trailer`.
 El CI anterior para `6100f783` terminó [SUCCESS](https://github.com/joanjuz/Definitive-Randomizer/actions/runs/45931151974).
 La nueva revisión necesita su CI y la repetición de captura de combate.
+
+## Trazas originales completadas: salvaje y Liga en X
+
+No se instaló ningún parche funcional. Solo se insertaron breakpoints temporales
+en RAM, retirados con relectura de las instrucciones originales. Los JSONL,
+direcciones privadas y datos de Pokémon permanecen fuera de Git.
+
+### Control salvaje `X-agent-control-04`
+
+La cabecera cargada dio `.text = 0x006A5180`; las direcciones se calcularon con
+`T + (F - 0x180)`, sin fijar esta base para futuras sesiones. Se verificaron
+14 instrucciones originales. La secuencia observada fue `1945C → 1469C →
+14850 → 14854 → 19460` (offsets de archivo hexadecimales). Modo `0`, byte
+`+0x4B = 0`, lado `0`. En `14854`, `r0 = 0`, `CPSR = 0x80000010`: el BNE
+original se tomó y omitió el bucle de conciliación. No se alcanzó `148AC`.
+Esto acredita el modo de este control salvaje, no todos los combates salvajes.
+SHA-256 del JSONL privado:
+`E5F84047159654052B37D9A51D0ADC42F98BD2F9F7D79236A7C275960573C701`.
+
+Tras retirar los breakpoints, esa versión del cliente dejaba la CPU pausada.
+El propietario observó la detención al finalizar. Ahora `resume_clean()` solo
+devuelve el control si no quedan trampas propias ni fallos de verificación,
+y espera el ACK de `continue` antes de desconectar. Un sondeo real sin combate
+comprobó limpieza y ACK; la captura siguiente verificó además la continuación
+visible del juego. Ante limpieza incompleta sigue prohibida la reanudación.
+
+### Baya Zidra en Liga `X-sitrus-trainer-06`
+
+El propietario confirmó que era un combate de la Liga, que Gardevoir llevaba
+Baya Zidra, que esta se activó y que terminó el combate. Después confirmó que
+Citra respondía y Gardevoir figuraba sin objeto. No se reinició la partida
+ni se editaron sus banderas de entrenadores. Es evidencia de ese combate de
+historia; aún falta un entrenador corriente fuera de la Liga.
+
+La captura original muestra:
+
+| Punto (archivo) | Valor y ruta observados |
+| --- | --- |
+| `14854` | Modo `1`, byte `+0x4B = 0`, `r0 = 1`, CPSR `0x60000010`: BNE no tomado. |
+| `148A0` | Objeto de referencia de Gardevoir `158` (Baya Zidra). |
+| `148AC` | Parámetro 17 devuelve `1`, CPSR `0x20000010`: BEQ no tomado. |
+| `148B8` | Consulta del objeto actual devuelve `0`. |
+| `148CC` | Setter nativo recibe objeto `0` para el CoreParam de Gardevoir. |
+| `19460` | Ambas vistas del equipo contienen Gardevoir con objeto `0`, checksum válido. |
+
+Los otros cuatro miembros recorrieron `14948 → 14950 → 14954`, con parámetro
+17 igual a `0`; el setter recibió respectivamente los objetos `664`, `234`,
+`268` y `270`. Sus objetos finales permanecieron iguales. Las dos vistas son
+estructuras mutables observadas, no copias inmutables ni prueba independiente
+del guardado: ambas empezaron con objeto `158` y acabaron con `0` en el slot
+de Gardevoir. No deben utilizarse como diario de procedencia durante la batalla.
+
+Se verificaron todos los breakpoints retirados y el ACK de continuación.
+SHA-256 del JSONL privado:
+`E1D40C5587149F7919E449CDC95624CF7999D49760F65376B957A81B924A7FE4`.
+No se obtuvo un inventario anterior al combate porque este comenzó antes de
+la preparación solicitada. **El delta de Bolsa no está acreditado.** Tampoco
+se trazó el instante de activación: lo confirmó el propietario.
+
+### Lectura comprobada de los Pokémon y siguiente experimento
+
+`pokemon_snapshot.py` lee el puntero de datos en `Accessor + 8` y su estado de
+cifrado en `+0x0C`; no confunde el Accessor con un PK6. Obtiene las posiciones
+de bloques de la dependencia nativa fijada por hash, coteja su tabla en RAM,
+descifra únicamente una copia y exige checksum válido antes de informar especie
+u objeto. La etiqueta de identidad es un resumen local de EC/PID/propietario,
+útil para correlacionar estas capturas; no garantiza unicidad entre clones.
+Los errores conservan los datos opacos y se notifican, sin inventar campos.
+
+Resultado técnico: **68 tests Python OK**, incluidos los 32 selectores de bloque,
+datos truncados/corruptos, límites, inmutabilidad y reanudación condicionada a
+limpieza. El CI del commit previo `9706a86e` terminó
+[SUCCESS](https://github.com/joanjuz/Definitive-Randomizer/actions/runs/45933263898).
+Los cambios de esta sección necesitan su propio CI. Sin cambios C#/WPF/USUM.
+
+La evidencia demuestra qué hacen ambas condiciones en estos dos controles,
+pero no autoriza invertirlas: falta distinguir consumo propio de transferencias,
+Desarme y Lanzamiento, además de los modos excluidos y la política completa CRR.
+El siguiente experimento debe registrar la mutación del objeto durante el
+combate y su caller, además de la conciliación, con inventario inicial/final.
+X y Y siguen bloqueados para producción; Y aún no tiene evidencia dinámica.

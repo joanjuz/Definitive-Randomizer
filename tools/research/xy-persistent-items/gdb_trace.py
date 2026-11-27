@@ -179,6 +179,24 @@ class Rsp:
         for address in list(self.breakpoints):
             self.remove_breakpoint(address)
 
+    def resume_clean(self):
+        """Return control only after every owned trap has been verified removed."""
+        require(not self.breakpoints and not self.unsafe, 'Cannot return control with unverified RAM traps')
+        self.resume()
+        # Continue has no ordinary reply. Await its ACK before disconnecting so
+        # the old Citra stub has received the complete command.
+        while True:
+            if self.buffer:
+                value = self.buffer.pop(0)
+            else:
+                chunk = self.sock.recv(8192)
+                require(bool(chunk), 'Disconnected before continue acknowledgement')
+                self.buffer.extend(chunk)
+                continue
+            if value == ord('+'):
+                return
+            require(False, 'Unexpected response while returning control; close the isolated emulator')
+
 
 def module_text(rsp, base, stock):
     header = rsp.memory(base, 0x180)
@@ -198,7 +216,7 @@ def module_text(rsp, base, stock):
     return text
 
 
-def snapshot(rsp, regs, offset, context=None):
+def snapshot(rsp, regs, offset, context=None, pokemon_decoder=None):
     """Read bounded structures only; do not invent decoded species or item provenance."""
     result = dict(registers=regs, file_offset=hex(offset))
     if context is None:
@@ -222,8 +240,18 @@ def snapshot(rsp, regs, offset, context=None):
                 core = struct.unpack('<I', read(party+i*4, 4))[0]
                 raw = read(core, 0x20)
                 pokemon = struct.unpack_from('<I', raw, 0xc)[0]
-                members.append(dict(index=i, core=hex(core), core_hex=raw.hex(),
-                                    pokemon=hex(pokemon), opaque_pokemon_hex=read(pokemon, 0xe8).hex()))
+                member = dict(index=i, core=hex(core), core_hex=raw.hex(),
+                              pokemon=hex(pokemon), opaque_pokemon_hex=read(pokemon, 0xe8).hex())
+                if pokemon_decoder is not None:
+                    try:
+                        accessor = read(pokemon, 0x10)
+                        data_pointer = struct.unpack_from('<I', accessor, 8)[0]
+                        boxed = read(data_pointer, 0xe8)
+                        member.update(data_pointer=hex(data_pointer), opaque_boxed_hex=boxed.hex(),
+                                      native_fields=pokemon_decoder(boxed, accessor[12]))
+                    except ValueError as error:
+                        member['decode_error'] = str(error)
+                members.append(member)
             result['parties'][label] = dict(pointer=hex(party), count=count, members=members)
         if offset in (0x148a0, 0x148ac, 0x148b8, 0x148cc, 0x14948, 0x14950):
             result['original_item_candidate'] = regs['r6']
@@ -271,6 +299,7 @@ def capture(session, case, launch=False):
             time.sleep(0.2)
     rsp = Rsp(sock)
     log = open(output, 'x', encoding='utf-8')
+    completed = False
     def record(event):
         log.write(json.dumps(dict(time_utc=time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime()), **event))+'\n')
         log.flush()
@@ -284,6 +313,15 @@ def capture(session, case, launch=False):
         for address in (0x39e508, 0x39d804, 0x4a16c8, 0x427f5c, 0x4a23b4):
             require(rsp.memory(address, 16) == region(code, address-code_base, 16),
                     'Loaded main executable differs at a native dependency; no trace admitted')
+        from pokemon_snapshot import block_a_positions, decode_block_a
+        from inspect_persistent_items import garc_members
+        for address in (0x168660, 0x1685f0, 0x16b358, 0x174e6c):
+            require(rsp.memory(address, 32) == region(code, address-code_base, 32),
+                    'Loaded native Accessor dependency differs; no decoded trace admitted')
+        positions, table_address, table = block_a_positions(code, code_base)
+        require(rsp.memory(table_address, len(table)) == table, 'Loaded native block table differs')
+        max_item_id = len(garc_members((session/'stock/ExtractedRomFS/a/2/2/0').read_bytes()))-1
+        pokemon_decoder = lambda raw, encrypted: decode_block_a(raw, encrypted, positions, max_item_id)
         record(dict(event='native_dependency_samples_verified', code_base=hex(code_base), full_runtime_hash_verified=False))
         rsp.resume()
         print('Play manually in the isolated emulator. Waiting for DllBattle. Ctrl+C here ends capture.', flush=True)
@@ -318,9 +356,10 @@ def capture(session, case, launch=False):
             offset = addresses[address]
             if offset in (0x1469c, 0x1945c):
                 context = regs['r0']
-            record(dict(event='breakpoint', **snapshot(rsp, regs, offset, context)))
+            record(dict(event='breakpoint', **snapshot(rsp, regs, offset, context, pokemon_decoder)))
             if offset == 0x19460:
                 record(dict(event='native_reconciliation_returned', gameplay_verified=False))
+                completed = True
                 break  # One battle per capture; never leave traps in an unloading CRO.
             rsp.remove_breakpoint(address)
             rsp.step()
@@ -332,7 +371,12 @@ def capture(session, case, launch=False):
         try:
             rsp.cleanup()
             record(dict(event='cleanup', all_owned_instructions_restored=True))
-            print('Owned RAM instructions restored. You may close the isolated emulator. No Gen6 patch installed.', flush=True)
+            if completed:
+                rsp.resume_clean()
+                record(dict(event='control_returned', continue_acknowledged=True))
+                print('Owned RAM instructions restored; game resumed. No Gen6 patch installed.', flush=True)
+            else:
+                print('Owned RAM instructions restored. Close the isolated emulator after this incomplete capture.', flush=True)
         except Exception as error:
             record(dict(event='cleanup_failed', reason=str(error), remaining=[hex(p) for p in rsp.breakpoints]))
             print('CLEANUP UNVERIFIED: close ONLY the isolated emulator before saving or continuing. '+str(error), flush=True)
