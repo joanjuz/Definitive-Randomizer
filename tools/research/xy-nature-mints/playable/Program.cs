@@ -71,7 +71,7 @@ internal static class Program
         {
             var reference = config.GetGARCReference("gametext").GetRelativeGARC(language);
             byte[][] banks = new GARC.MemGARC(File.ReadAllBytes(Path.Combine(config.RomFS, reference.Reference))).Files;
-            texts.Add(new { Language = language, Banks = Enumerable.Range(90, 12).Select(index => new { Index = index, Lines = new TextFile(config, banks[index], config.RemapCharacters).Lines }).ToArray() });
+            texts.Add(new { Language = language, Banks = new[]{1,47}.Concat(Enumerable.Range(90, 12)).Select(index => new { Index = index, Lines = new TextFile(config, banks[index], config.RemapCharacters).Lines }).ToArray() });
         }
         Save(output, new { Items = itemData.Select((record, id) => new { Id = id, Size = record.Length, Sha256 = Hash(record), Hex = Convert.ToHexString(record) }), Texts = texts });
         Console.WriteLine("Private item/text inventory written; no source files modified.");

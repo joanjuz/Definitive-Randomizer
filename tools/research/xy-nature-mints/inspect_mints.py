@@ -14,7 +14,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'xy-persistent-item
 from inspect_persistent_items import Cro, garc_members, region, require, sha, u32
 
 
-SLOTS = {0x36c, 0x42c, 0x44c, 0x454, 0x504}
+SLOTS = {0x2e4, 0x36c, 0x42c, 0x44c, 0x454, 0x504}
 NATIVE_REGIONS = {
     'nature_accessor_get': (0x152c3c, 0x152c68),
     'nature_core_get': (0x4a0d40, 0x4a0d54),
@@ -29,11 +29,13 @@ NATIVE_REGIONS = {
     'remove_bag_quantity': (0x434944, 0x434a30),
     'pocket_cache_builder': (0x107788, 0x107878),
     'pocket_cached_getter': (0x39faf4, 0x39fb44),
+    'message_handle_accessor': (0x3480a4, 0x3480f4),
 }
 BAG_REGIONS = {
     'medicine_action': (0x2b00, 0x30f8),
     'medicine_message': (0x9074, 0x9450),
     'consume_and_finalize': (0x97e0, 0x9848),
+    'pre_action_callback': (0x976c, 0x97e0),
 }
 
 

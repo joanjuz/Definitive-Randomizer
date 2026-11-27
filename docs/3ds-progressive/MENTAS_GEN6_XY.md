@@ -54,6 +54,8 @@ Los offsets de esta tabla son **de archivo de `DllBag.cro`**. Para ejecución en
 
 El retorno del borrado de Bolsa no se comprueba inmediatamente en esa ruta original. No basta con saltar a la conciliación después de escribir la naturaleza: hay que cerrar selección, cancelación, efectos previos, fallo de borrado y mensaje. Tampoco se modifica indiscriminadamente la importación compartida: primero debe demostrarse qué callers pertenecen a uso fuera de combate.
 
+**Bloqueo de mensajes comprobado:** la importación `0x2E0` (literal `0x2E4`) resuelve a `0x3480A4`. Esta función comprueba que su argumento es menor que 2 y selecciona un handle en el array del contexto; el `1` pasado por la rutina de Bolsa **no identifica el banco de textos 1**. Los ocho idiomas de X y de Y tienen 886 líneas en ese banco, y la línea 120 contiene un peso, no el mensaje usado en `0x9190`. El banco de Bolsa de USUM tiene otra estructura. El lector privado ahora incluye los bancos 1 y 47 para reproducir esta distinción. Falta seguir la inicialización del contexto hasta su archivo real antes de añadir el mensaje de cambio de naturaleza. No se modifica el banco 1 por analogía.
+
 Las direcciones siguientes son **VAs de `.code.bin`**, con base observada `0x100000` verificada en cada exheader:
 
 | VA | Evidencia |
@@ -152,7 +154,7 @@ El CLI `tools/research/xy-nature-mints/playable/XYMint.Experiment.csproj` ofrece
 
 ## Siguiente experimento y aceptación posterior
 
-El próximo paso concreto es cerrar el flujo de los cuatro callers de `0x428` y la acción `0x2B00`, incluido su paso previo `0x976C`, para ubicar un dispatch de uso fuera de combate. Debe acreditarse el orden entre validación de huevo/misma naturaleza, mutación, mensaje y retirada de exactamente una unidad, con rutas de cancelación/fallo sin efectos. En paralelo debe cerrarse el slot adicional #623. No se emite un payload que omita esas comprobaciones.
+El próximo paso concreto es cerrar el flujo de los cuatro callers de `0x428` y la acción `0x2B00`, incluido su paso previo `0x976C`, para ubicar un dispatch de uso fuera de combate; seguir además la inicialización del handle `0x3480A4` hasta el banco real de mensajes. Debe acreditarse el orden entre validación de huevo/misma naturaleza, mutación, mensaje y retirada de exactamente una unidad, con rutas de cancelación/fallo sin efectos. En paralelo debe cerrarse el slot adicional #623. No se emite un payload que omita esas comprobaciones.
 
 Después podrá construirse un candidato aislado X con `CroPatchSession`, actualización de hashes, política CRR/cargador verificada, `EditorProposal`, transacción e historial; delta-undo y relectura deben comprobarse antes de reconstruir. Y necesita preparación y aceptación separadas. La expansión y los hooks deben conservar nombres físicos, relocaciones, CROs ajenos y las modificaciones de #144/#145.
 
