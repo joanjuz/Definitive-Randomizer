@@ -162,6 +162,8 @@ internal static class Program
     static void ServiceCheck(string root)
     {
         Check(Path.GetFileName(root).Contains("-Integration-", StringComparison.Ordinal), "explicit_new_integration_copy");
+        Check(!File.Exists(Path.Combine(root, "PersistentItems-Types-Shield-EXPERIMENTAL.3ds"))
+            && !Directory.Exists(Path.Combine(root, "Reextraido-Combinado")), "integration_outputs_must_be_new_before_any_write");
         string title = Root(root);
         var baseline = Inventory(P(root));
         var project = GameProjectSession.Open(P(root), false);

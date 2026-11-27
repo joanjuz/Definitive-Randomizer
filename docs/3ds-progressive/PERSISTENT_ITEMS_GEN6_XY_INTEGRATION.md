@@ -3,7 +3,8 @@
 Continuación del PR #145, 27/11/2026. Rama `feature/xy-persistent-items`.
 El propietario confirmó el comportamiento deseado en los candidatos **X e Y**.
 Se integra el mismo cambio nativo en el instalador del proyecto, sin publicar
-build, modificar la Preview instalada, fusionar el PR ni ampliar a ORAS.
+una release, modificar la Preview instalada, fusionar el PR ni ampliar a ORAS.
+El CI existente puede adjuntar su ejecutable de pruebas como artefacto.
 
 ## Evidencia jugable y alcance
 
@@ -150,6 +151,10 @@ dotnet $runner --synthetic-only
 
 Las pruebas de recursos originales usan únicamente copias nuevas explícitas con
 prefijo X/Y y marcador de investigación; nunca proyectos habituales:
+
+`service-check` requiere una copia nueva del candidato, sus cabeceras y el marcador
+`evidence/source.json`. Sus destinos de rebuild/reextracción también deben ser
+nuevos: rechaza una repetición sobre salidas anteriores antes de escribir.
 
 ```powershell
 dotnet build tools/research/xy-persistent-items/playable/PersistentItems.Experiment.csproj -c Release -p:UseAppHost=true '-bl:artifacts/persistent-research/integration-cli-{}.binlog'
