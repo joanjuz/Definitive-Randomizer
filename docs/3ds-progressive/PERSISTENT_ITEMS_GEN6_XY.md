@@ -467,3 +467,36 @@ Desarme y Lanzamiento, además de los modos excluidos y la política completa CR
 El siguiente experimento debe registrar la mutación del objeto durante el
 combate y su caller, además de la conciliación, con inventario inicial/final.
 X y Y siguen bloqueados para producción; Y aún no tiene evidencia dinámica.
+
+### Instrumentación opcional del cambio de objeto
+
+`--item-events` añade tres breakpoints cuya instrucción original se verifica
+antes de insertar ninguna trampa: `6B140` (entrada), `6B1F0` (después del
+`STRH r6,[r4,#0x12]`) y `6B248` (después de los stores a `+0x14` y `+0x12`).
+La entrada registra `r0..r3`, LR y el bloque apuntado por `r1`; los puntos
+posteriores leen ese bloque desde `r4`. Se conservan los campos `+0x12`,
+`+0x14`, `+0x19`, `+0x167`, `+0x16A` y los bytes opacos. Los nombres reflejan
+offsets, **no** certifican todavía qué mecanismo de consumo o transferencia
+representa cada campo. LR convertido a offset se etiqueta como candidato.
+
+La inspección estática del recurso fijado encuentra llamadas directas a
+`6B140` en `1A470`, `1F4EC`, `20E68`, `20E7C` y `6C1EC`. Sus retornos son
+respectivamente `1A474`, `1F4F0`, `20E6C`, `20E80`, `6C1F0`. No se asignan
+todavía estos callers a movimientos concretos sin una traza del caso.
+
+Ejemplo reproducible, con la instancia aislada cerrada y el guardado preparado:
+
+```powershell
+python tools/research/xy-persistent-items/gdb_trace.py --session artifacts/pi145-x --case X-sitrus-provenance-07 --launch --item-events
+```
+
+El propietario preparó otra Baya Zidra en Gardevoir y comunicó **993** en Bolsa.
+Se conservó una copia privada del guardado y su metadata antes de la siguiente
+captura. Es una observación inicial, no un resultado de ese experimento.
+
+La suite ampliada terminó con **73 tests Python OK**. Las cinco pruebas nuevas
+cubren campos/endian/argumentos de entrada, selección de `r4` en los puntos
+posteriores, errores de memoria sin campos inventados, rechazo de offsets
+desconocidos y verificación de las 17 instrucciones antes de instrumentar.
+La nueva captura quedó conectada y en espera de la ejecución manual. Aún no
+hay un resultado del consumo instrumentado que permita clasificar su caller.

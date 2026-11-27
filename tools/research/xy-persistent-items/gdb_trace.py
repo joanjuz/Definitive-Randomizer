@@ -17,6 +17,7 @@ from inspect_persistent_items import Cro, region, require, sha
 
 POINTS = (0x1469c, 0x14850, 0x14854, 0x14888, 0x148a0, 0x148ac,
           0x148b8, 0x148cc, 0x148d0, 0x14948, 0x14950, 0x14954, 0x1945c, 0x19460)
+ITEM_POINTS = (0x6b140, 0x6b1f0, 0x6b248)
 TRAP = bytes.fromhex('700020e1')
 
 
@@ -198,7 +199,7 @@ class Rsp:
             require(False, 'Unexpected response while returning control; close the isolated emulator')
 
 
-def module_text(rsp, base, stock):
+def module_text(rsp, base, stock, points=POINTS):
     header = rsp.memory(base, 0x180)
     require(header[0x80:0x84] in (b'CRO0', b'FIXD'), 'Loaded CRO header missing')
     live_code = struct.unpack_from('<I', header, 0xb0)[0]
@@ -210,10 +211,33 @@ def module_text(rsp, base, stock):
         require(base <= live_code < base+len(stock), 'Loaded .text pointer outside module')
         text = live_code
     require(text == base+file_code, 'Unexpected CRO mapping; this reader needs investigation')
-    for offset in POINTS:
+    for offset in points:
         require(rsp.memory(text+offset-file_code, 4) == region(stock, offset, 4),
                 f'Live instruction at file offset {offset:#x} differs from observed original')
     return text
+
+
+def item_snapshot(rsp, regs, offset, text):
+    """Raw native item writes; field names describe offsets, not proven provenance."""
+    require(offset in ITEM_POINTS, 'Unknown item mutation point')
+    entry = offset == 0x6b140
+    pointer = regs['r1'] if entry else regs['r4']
+    result = dict(registers=regs, file_offset=hex(offset), battle_parameter_pointer=hex(pointer))
+    if entry:
+        result.update(server_candidate=hex(regs['r0']), requested_item=regs['r2'],
+                      remember_argument=regs['r3'])
+        # LR is recorded verbatim. It is only interpreted as this CRO's caller
+        # after the pinned native call sites have been compared offline.
+        result['return_file_offset_candidate'] = hex(regs['r14']-text+0x180)
+    try:
+        require(pointer >= 0x100000 and pointer+0x16b < 0x40000000, 'Implausible battle parameter pointer')
+        raw = rsp.memory(pointer, 0x16b)
+        result.update(opaque_parameter_hex=raw.hex(), item_12=struct.unpack_from('<H', raw, 0x12)[0],
+                      item_14=struct.unpack_from('<H', raw, 0x14)[0], participant_id_19=raw[0x19],
+                      flags_167=raw[0x167], flags_16a=raw[0x16a])
+    except (ValueError, EOFError, socket.timeout) as error:
+        result['structure_error'] = str(error)
+    return result
 
 
 def snapshot(rsp, regs, offset, context=None, pokemon_decoder=None):
@@ -266,7 +290,7 @@ def snapshot(rsp, regs, offset, context=None, pokemon_decoder=None):
     return result
 
 
-def capture(session, case, launch=False):
+def capture(session, case, launch=False, item_events=False):
     from prepare_trace import no_links, file_sha
     no_links(session.absolute())
     session = session.resolve()
@@ -300,12 +324,14 @@ def capture(session, case, launch=False):
     rsp = Rsp(sock)
     log = open(output, 'x', encoding='utf-8')
     completed = False
+    points = POINTS + ITEM_POINTS if item_events else POINTS
     def record(event):
         log.write(json.dumps(dict(time_utc=time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime()), **event))+'\n')
         log.flush()
     try:
         record(dict(event='session', case=case, title_id=manifest['title_id'], installable=False,
-                    bag_delta_verified=False, item_provenance_verified=False, gameplay_verified=False))
+                    bag_delta_verified=False, item_provenance_verified=False, gameplay_verified=False,
+                    item_events_requested=item_events))
         record(dict(event='gdb', features=rsp.command('qSupported'), stop=rsp.command('?'), registers=rsp.registers()))
         code = (session/'stock/ExtractedExeFS/.code.bin').read_bytes()
         ex = (session/'stock/DecryptedExHeader.bin').read_bytes()
@@ -335,11 +361,11 @@ def capture(session, case, launch=False):
                 loads = re.findall(r'CRO "DllBattle" loaded at 0x([0-9A-Fa-f]+)', contents)
                 if loads:
                     rsp.interrupt()
-                    text = module_text(rsp, int(loads[-1], 16), stock)
-                    addresses = {text+point-0x180: point for point in POINTS}
+                    text = module_text(rsp, int(loads[-1], 16), stock, points)
+                    addresses = {text+point-0x180: point for point in points}
                     for address, offset in addresses.items():
                         rsp.add_breakpoint(address, region(stock, offset, 4))
-                    record(dict(event='instrumented', text_va=hex(text), formula='T+(F-0x180)', points=[hex(p) for p in POINTS]))
+                    record(dict(event='instrumented', text_va=hex(text), formula='T+(F-0x180)', points=[hex(p) for p in points]))
                     print('Original DllBattle verified; RAM breakpoints active. Finish the labelled battle.', flush=True)
                     rsp.resume()
                 else:
@@ -356,7 +382,10 @@ def capture(session, case, launch=False):
             offset = addresses[address]
             if offset in (0x1469c, 0x1945c):
                 context = regs['r0']
-            record(dict(event='breakpoint', **snapshot(rsp, regs, offset, context, pokemon_decoder)))
+            if offset in ITEM_POINTS:
+                record(dict(event='item_mutation_candidate', **item_snapshot(rsp, regs, offset, text)))
+            else:
+                record(dict(event='breakpoint', **snapshot(rsp, regs, offset, context, pokemon_decoder)))
             if offset == 0x19460:
                 record(dict(event='native_reconciliation_returned', gameplay_verified=False))
                 completed = True
@@ -391,5 +420,6 @@ if __name__ == '__main__':
     parser.add_argument('--session', type=Path, required=True)
     parser.add_argument('--case', required=True)
     parser.add_argument('--launch', action='store_true')
+    parser.add_argument('--item-events', action='store_true', help='Also trace candidate native item mutation fields/callers')
     args = parser.parse_args()
-    capture(args.session, args.case, args.launch)
+    capture(args.session, args.case, args.launch, args.item_events)

@@ -299,8 +299,8 @@ class BreakpointTests(unittest.TestCase):
 
 
 class StructureTests(unittest.TestCase):
-    def module(self, base, magic=b'CRO0', relocated=False):
-        stock = bytearray(0x20000)
+    def module(self, base, magic=b'CRO0', relocated=False, points=trace.POINTS):
+        stock = bytearray(max(0x20000, max(points)+4))
         struct.pack_into('<I', stock, 0xb0, 0x180)
         stock[0x80:0x84] = b'CRO0'
         header = bytearray(stock[:0x180])
@@ -308,7 +308,7 @@ class StructureTests(unittest.TestCase):
         struct.pack_into('<I', header, 0xb0, base + 0x180 if relocated else 0x180)
         rsp = MemoryRsp()
         rsp.ram[base] = header
-        for index, offset in enumerate(trace.POINTS):
+        for index, offset in enumerate(points):
             struct.pack_into('<I', stock, offset, index + 0x12000000)
             rsp.ram[base + offset] = bytes(stock[offset:offset + 4])
         return rsp, stock
@@ -333,6 +333,20 @@ class StructureTests(unittest.TestCase):
                 rsp.ram[base + trace.POINTS[-1]] = b'EDIT'
             with self.subTest(mutation=mutation), self.assertRaises(ValueError):
                 trace.module_text(rsp, base, stock)
+
+    def test_optional_item_mapping_verifies_every_original_and_item_instruction(self):
+        points = trace.POINTS + trace.ITEM_POINTS
+        base = 0x1800000
+        rsp, stock = self.module(base, magic=b'FIXD', relocated=True, points=points)
+        self.assertEqual(trace.module_text(rsp, base, stock, points), base+0x180)
+        self.assertEqual(rsp.commands, [('memory', base, 0x180)] +
+                         [('memory', base+offset, 4) for offset in points])
+        for offset in trace.ITEM_POINTS:
+            with self.subTest(changed_offset=offset):
+                rsp, stock = self.module(base, points=points)
+                rsp.ram[base+offset] = b'EDIT'
+                with self.assertRaises(ValueError):
+                    trace.module_text(rsp, base, stock, points)
 
     def test_missing_snapshot_memory_is_recorded_as_error_without_invented_fields(self):
         rsp = MemoryRsp()
@@ -367,6 +381,60 @@ class StructureTests(unittest.TestCase):
         self.assertEqual(result['parties']['before_candidate']['members'][0]['opaque_pokemon_hex'], bytes(range(0xe8)).hex())
         self.assertEqual(result['parties']['after_candidate'], dict(pointer=hex(after), count=0, members=[]))
         self.assertNotIn('species', str(result))
+
+
+class ItemSnapshotTests(unittest.TestCase):
+    def raw(self):
+        raw = bytearray(0x16b)
+        struct.pack_into('<HH', raw, 0x12, 158, 275)
+        raw[0x19], raw[0x167], raw[0x16a] = 0xab, 0xc3, 0x55
+        return bytes(raw)
+
+    def registers(self):
+        return dict(r0=0x200000, r1=0x300000, r2=639, r3=7, r4=0x400000, r14=0x1803390)
+
+    def test_entry_records_register_arguments_and_little_endian_raw_fields_without_provenance(self):
+        rsp, regs = MemoryRsp(), self.registers()
+        raw = self.raw()
+        rsp.ram[regs['r1']] = raw
+        result = trace.item_snapshot(rsp, regs, 0x6b140, 0x1800180)
+        self.assertEqual(result, dict(registers=regs, file_offset='0x6b140', battle_parameter_pointer='0x300000',
+                                     server_candidate='0x200000', requested_item=639, remember_argument=7,
+                                     return_file_offset_candidate='0x3390', opaque_parameter_hex=raw.hex(),
+                                     item_12=158, item_14=275, participant_id_19=0xab,
+                                     flags_167=0xc3, flags_16a=0x55))
+        self.assertEqual(rsp.commands, [('memory', regs['r1'], 0x16b)])
+
+    def test_later_points_read_r4_and_do_not_reinterpret_entry_arguments(self):
+        for offset in (0x6b1f0, 0x6b248):
+            with self.subTest(offset=offset):
+                rsp, regs = MemoryRsp(), self.registers()
+                rsp.ram[regs['r4']] = self.raw()
+                result = trace.item_snapshot(rsp, regs, offset, 0x1800180)
+                self.assertEqual(result, dict(registers=regs, file_offset=hex(offset), battle_parameter_pointer='0x400000',
+                                             opaque_parameter_hex=self.raw().hex(), item_12=158, item_14=275,
+                                             participant_id_19=0xab, flags_167=0xc3, flags_16a=0x55))
+                self.assertEqual(rsp.commands, [('memory', regs['r4'], 0x16b)])
+
+    def test_invalid_pointer_or_truncated_remote_memory_returns_error_without_decoded_fields(self):
+        for pointer, chunks in ((0xfffff, []), (0x3ffffe95, []), (0x20000000, []),
+                                (0x300000, [packet('0000')]), (0x300000, [packet('E00')])):
+            with self.subTest(pointer=pointer, chunks=chunks):
+                regs = self.registers()
+                regs['r1'] = pointer
+                rsp = trace.Rsp(FakeSocket(chunks))
+                result = trace.item_snapshot(rsp, regs, 0x6b140, 0x1800180)
+                self.assertIn('structure_error', result)
+                self.assertEqual(set(result), {'registers', 'file_offset', 'battle_parameter_pointer',
+                                              'server_candidate', 'requested_item', 'remember_argument',
+                                              'return_file_offset_candidate', 'structure_error'})
+                self.assertEqual(result['registers'], regs)
+
+    def test_unknown_item_offset_rejects_before_reading_registers_or_memory(self):
+        rsp = MemoryRsp()
+        with self.assertRaises(ValueError):
+            trace.item_snapshot(rsp, {}, 0x6b144, 0x1800180)
+        self.assertEqual(rsp.commands, [])
 
 
 if __name__ == '__main__':
