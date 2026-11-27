@@ -21,6 +21,7 @@ public static class NativeBatchGen6Bridge
         (Key(a.ToLowerInvariant())!="Trades"||doc.Section("ProgressiveApp")?["Trades"] is not null));
     internal static void ValidateDocument(GlobalTemplateDocument doc)
     {
+        pk3DS.Core.Modding.Research.Gen6MintExecutionContract.ValidateForExecution(doc.ToJson());
         MachineCompatibilityTemplate.ValidateReplay(doc);TutorCompatibilityTemplate.ValidateReplay(doc);
         foreach(var group in SelectedActions(doc).GroupBy(a=>Key(a.ToLowerInvariant())!))
         {

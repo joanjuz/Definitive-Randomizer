@@ -203,6 +203,7 @@ internal static class BatchGen6ActionExecutor
     internal static void ValidateMintDependencies(GlobalRandomizationTemplate template)
     {
         string json=System.Text.Json.JsonSerializer.Serialize(template);
+        pk3DS.Core.Modding.Research.Gen6MintExecutionContract.ValidateForExecution(json);
         // Old recipes keep their original path without new file reads or RNG draws.
         if(json.IndexOf("Gen7MintItems",StringComparison.Ordinal)<0 && !(template.Actions?.Any(a=>a.Id=="marts.add-nature-mints")??false))return;
         string path=System.IO.Path.GetFullPath(System.IO.Path.Combine(System.IO.Path.GetDirectoryName(typeof(BatchGen6ActionExecutor).Assembly.Location),"..","3DS.Progressive.dll"));

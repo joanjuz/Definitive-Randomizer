@@ -235,6 +235,11 @@ if(args.Length==1&&args[0]=="--gen6-persistent-items-only")
     Gen6PersistentItemsChecks.Run(Check,Reject);
     Console.WriteLine($"Completed {checks} Gen6 Persistent Items synthetic patch and transaction checks.");return;
 }
+if(args.Length==1&&args[0]=="--gen6-mints-only")
+{
+    Gen6MintPolicyChecks.Run(Check,Reject);
+    Console.WriteLine($"Completed {checks} Gen6 mint policy and blocked native-contract checks; no native installation or gameplay validated.");return;
+}
 if(args.Length==1&&args[0]=="--patch-capability-only")
 {
     PatchCapabilityChecks.Run(Check,Reject);

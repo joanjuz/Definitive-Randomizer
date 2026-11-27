@@ -26,6 +26,7 @@ internal static class RunnerCatalog
         new("--player-caps-recipe-only","",RunnerCategory.Synthetic,true),
         new("--profiles-only","",RunnerCategory.Ui,true),
         new("--gen6-persistent-items-only","",RunnerCategory.Synthetic,true),
+        new("--gen6-mints-only","",RunnerCategory.Synthetic,true),
         new("--gen6-persistent-items-ui-only","",RunnerCategory.Ui,true),
         new("--patch-capability-only","",RunnerCategory.Ui,true),
         new("--rks-only","",RunnerCategory.Synthetic,true),

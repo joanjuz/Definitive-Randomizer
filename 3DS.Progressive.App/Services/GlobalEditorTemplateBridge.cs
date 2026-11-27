@@ -145,6 +145,7 @@ internal static class GlobalEditorTemplateBridge
     }
     internal static void ValidateBatchReplay(GlobalTemplateDocument document)
     {
+        pk3DS.Core.Modding.Research.Gen6MintExecutionContract.ValidateForExecution(document.ToJson());
         if(document.SettingsCount==0&&!NativeRecipeCompletion.HasAllSelectedSnapshots(document))throw new InvalidDataException("La receta sin RandSettings requiere la configuración nativa de todas sus acciones.");
         if(document.Generation==7){_=ShinyRateTemplate.Read(document);NativeRecipeCompletion.ValidatePickupParameters(document);}
         UsumMintItemPolicy.ValidateDocument(document);NativeGen7WildBridge.ValidateDocument(document);NativeGen7MartBridge.ValidateDocument(document);NativeGen7MachineBridge.ValidateDocument(document);NativeMasterBatchBridge.ValidateDocument(document);NativeGen7FieldBridge.ValidateDocument(document);

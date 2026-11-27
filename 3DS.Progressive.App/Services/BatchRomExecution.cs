@@ -89,6 +89,7 @@ internal sealed class BatchRomExecution
                 StringComparison.OrdinalIgnoreCase))
             throw new InvalidOperationException("El destino no puede estar dentro de la ROM de origen.");
         var template=GlobalTemplateDocument.Load(options.TemplatePath,_game,_project.Generation);
+        pk3DS.Core.Modding.Research.Gen6MintExecutionContract.ValidateForExecution(template.ToJson());
         ProjectFeatureAvailability.ValidateActions(_project,template.Actions);
         GlobalEditorTemplateBridge.ValidateBatchReplay(template);
         if(_project.Generation==6)NativeBatchGen6Bridge.ValidateSession(_project,template);
