@@ -339,3 +339,50 @@ breakpoints, bloqueo tras fallo, mapping dinámico, snapshots opacos, límites d
 copias y aislamiento de configuración. La preparación real X finalizó sin
 lanzar el emulador y con verificación de copias/fuentes. No hay cambios en C#,
 WPF, Core, USUM, recordador o Preview. CI nuevo pendiente al registrar esta sección.
+
+## Primera carga real de DllBattle y corrección de sincronización GDB
+
+El propietario comunicó un control en Lime3DS: Gardevoir con Gardevoirita,
+funcionamiento normal y sin cambio visible en Bolsa. No aparecieron los avisos
+del cliente GDB; el objeto no se consumió. Se conserva como observación manual
+limitada, no como traza ni validación de restauración.
+
+Después autorizó continuar en Citra. Citra Qt mostró correctamente el título de
+X y comprobó muestras de las dependencias nativas. Los pulsos de teclado
+automatizados no hicieron avanzar el juego, aunque las asignaciones se veían
+correctas en su configuración; el propietario introdujo manualmente el control.
+No se modificó su instancia Lime3DS ni se guardó sobre su partida original.
+
+En el caso privado `X-agent-control-03`, el log real del cargador registró:
+
+- `DllBattle` cargado en `0x006A5000`, `fixed_end=0x00787000`.
+- Tamaño de entrada CRO `0xFE000`, `fix_level=1`, parámetro `crr_address=0`.
+
+Son observaciones de **esta sesión**, no una base constante ni prueba de la
+política completa CRR/RSA. La cabecera cargada no llegó a leerse: el cliente
+falló con `Incomplete memory response` antes de insertar ningún breakpoint.
+El propietario observó el juego congelado; el depurador había detenido la CPU
+y el cliente terminó con error sin reanudarla. Se cerró únicamente la copia
+aislada. No fue una ejecución de un parche Gen6.
+
+Se reprodujo el fallo desde el arranque, sin entrar en combate ni insertar
+trampas. La captura TCP real mostró, tras el byte de interrupción `03`, un
+paquete de parada `T05…` seguido de un paquete vacío `$#00`. La siguiente
+lectura recibía ese paquete vacío; su respuesta auténtica quedaba pendiente
+para la orden posterior. Este resultado acredita la desincronización del
+cliente con el comportamiento observado de este binario, sin atribuir una
+causa de compilación a la fuente preservada.
+
+`Rsp.interrupt` ahora introduce una consulta soportada de solo lectura como
+barrera, consume como máximo ese único paquete vacío y exige la respuesta
+de capacidades antes de permitir otra orden. **No reenvía órdenes Z/z** ni
+acepta datos de memoria incompletos. Dos ciclos reales pausa/lectura desde el
+arranque verificaron 384 bytes y una lectura posterior de 16 bytes idénticos
+a los datos previos, con cero breakpoints insertados. Esto prueba la corrección
+de transporte en ese escenario; la secuencia completa de batalla sigue pendiente.
+
+Pruebas sintéticas actualizadas: **55 tests Python OK**, incluyendo
+`test_citra_empty_interrupt_trailer_is_drained_before_memory_without_resending`
+y `test_interrupt_fence_rejects_unknown_reply_and_more_than_one_empty_trailer`.
+El CI anterior para `6100f783` terminó [SUCCESS](https://github.com/joanjuz/Definitive-Randomizer/actions/runs/45931151974).
+La nueva revisión necesita su CI y la repetición de captura de combate.

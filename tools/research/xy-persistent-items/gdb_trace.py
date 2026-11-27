@@ -98,7 +98,8 @@ class Rsp:
         require(0x100000 <= address < 0x10000000 and 0 <= size <= 4096 and address+size <= 0x10000000,
                 'Memory request outside bounded 3DS application space')
         reply = self.command(f'm{address:x},{size:x}')
-        require(len(reply) == size*2, 'Incomplete memory response')
+        require(len(reply) == size*2,
+                f'Incomplete memory response: expected {size*2} hex characters, received {len(reply)}')
         return bytes.fromhex(reply)
 
     def registers(self):
@@ -128,6 +129,14 @@ class Rsp:
             return
         self.sock.sendall(b'\x03')
         require(self.receive().startswith(('T', 'S')), 'No stop response to interrupt')
+        # Observed Citra 2104 wire sequence after Ctrl+C: T05 followed by $#00.
+        # Fence with a read-only, supported query and drain at most that one
+        # empty trailer. Never retry the next command (especially Z/z).
+        self.send('qSupported')
+        reply = self.receive()
+        if reply == '':
+            reply = self.receive()
+        require(reply.startswith('PacketSize='), 'Debugger did not resynchronise after interrupt')
 
     def resume(self):
         require(not self.running and not self.unsafe, 'Already running or RAM cleanup is unverified')

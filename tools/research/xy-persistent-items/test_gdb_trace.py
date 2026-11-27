@@ -160,7 +160,7 @@ class TransportTests(unittest.TestCase):
                          [packet('qC'), packet('qfThreadInfo'), packet('Hg3')])
 
     def test_resume_requires_stopped_cpu_and_interrupt_waits_for_real_stop(self):
-        sock = FakeSocket([packet('S05')])
+        sock = FakeSocket([packet('S05'), packet('PacketSize=2000')])
         rsp = trace.Rsp(sock)
         rsp.resume()
         self.assertTrue(rsp.running)
@@ -168,7 +168,30 @@ class TransportTests(unittest.TestCase):
             rsp.resume()
         rsp.interrupt()
         self.assertFalse(rsp.running)
-        self.assertEqual(sock.sent, [packet('c'), b'\x03', b'+'])
+        self.assertEqual(sock.sent, [packet('c'), b'\x03', b'+', packet('qSupported'), b'+'])
+
+    def test_citra_empty_interrupt_trailer_is_drained_before_memory_without_resending(self):
+        wire = packet('T05thread:1;')+packet('')+packet('PacketSize=2000')+packet('41424344')
+        for chunks in ([wire], [bytes([byte]) for byte in wire]):
+            with self.subTest(fragmented=len(chunks)>1):
+                sock = FakeSocket(chunks)
+                rsp = trace.Rsp(sock)
+                rsp.running = True
+                rsp.interrupt()
+                self.assertEqual(rsp.memory(0x100000, 4), b'ABCD')
+                self.assertEqual([p for p in sock.sent if p.startswith(b'$')],
+                                 [packet('qSupported'), packet('m100000,4')])
+                self.assertFalse(rsp.running)
+
+    def test_interrupt_fence_rejects_unknown_reply_and_more_than_one_empty_trailer(self):
+        for replies in ((packet(''), packet('')), (packet('E01'),), (packet('OK'),)):
+            with self.subTest(replies=replies):
+                sock = FakeSocket([packet('T05'), *replies])
+                rsp = trace.Rsp(sock)
+                rsp.running = True
+                with self.assertRaises(ValueError):
+                    rsp.interrupt()
+                self.assertNotIn(packet('c'), sock.sent)
 
     def test_single_step_sends_no_address_and_requires_stop_reply(self):
         sock = FakeSocket([packet('T05thread:1;')])
