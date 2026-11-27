@@ -7,6 +7,7 @@ Punto de entrada a `docs/3ds-progressive/`. Muchos documentos son **registros hi
 | Tema | Documento vigente |
 |---|---|
 | Runner de pruebas y sus opciones | [RUNNER_PRUEBAS.md](RUNNER_PRUEBAS.md) |
+| Persistent Items X/Y: investigación nativa protegida, perfiles observados y bloqueo de producción | [PERSISTENT_ITEMS_GEN6_XY.md](PERSISTENT_ITEMS_GEN6_XY.md) |
 | Base espacial DS, fase visual 1: matrices CPUE/1 de solo lectura y caso T01 | [NDS_MAP_LAYOUT_PHASE1.md](NDS_MAP_LAYOUT_PHASE1.md) |
 | Lienzo DS esquemático de eventos, fase visual 2 (solo lectura) | [NDS_MAP_CANVAS_PHASE2.md](NDS_MAP_CANVAS_PHASE2.md) |
 | Terreno y obstáculos DS, fase visual 3 (colisión de `land_data`, solo lectura) | [NDS_MAP_TERRAIN_PHASE3.md](NDS_MAP_TERRAIN_PHASE3.md) |
