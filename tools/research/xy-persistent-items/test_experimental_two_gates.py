@@ -135,17 +135,17 @@ class TwoGateTests(unittest.TestCase):
 
 
 class PreparationTests(unittest.TestCase):
-    def inputs(self, directory):
+    def inputs(self, directory, title='0004000000055D00'):
         root = Path(directory)
         project, output = root/'project', root/'candidate'
         cro_path = project/'ExtractedRomFS/DllBattle.cro'
         cro_path.parent.mkdir(parents=True)
-        data = original()
+        data = original(7 if title == '0004000000055D00' else 13)
         cro_path.write_bytes(data)
         crr_path = project/'ExtractedRomFS/.crr/static.crr'
         crr_path.parent.mkdir()
-        crr_path.write_bytes(b'Pure synthetic CRR bytes; never signed or modified')
-        identity = dict(observation_matches=True, title_id='0004000000055D00', sha256={
+        crr_path.write_bytes(b'Pure synthetic CRR bytes; never signed or modified '+title.encode('ascii'))
+        identity = dict(observation_matches=True, title_id=title, sha256={
             'ExtractedRomFS/DllBattle.cro': fingerprint(data),
             'ExtractedRomFS/.crr/static.crr': fingerprint(crr_path.read_bytes())})
         return project, output, cro_path, crr_path, identity
@@ -213,6 +213,61 @@ class PreparationTests(unittest.TestCase):
                     self.assertEqual((output/'keep.txt').read_text(), 'Existing experiment')
                 else:
                     self.assertFalse(output.exists())
+
+    def test_explicit_y_uses_its_own_baseline_and_manifest_without_enabling_production(self):
+        with tempfile.TemporaryDirectory() as directory:
+            project, output, cro_path, crr_path, identity = self.inputs(directory, '0004000000055E00')
+            before = {p: p.read_bytes() for p in project.rglob('*') if p.is_file()}
+            with patch.object(experiment, 'inspect', return_value=identity):
+                manifest = experiment.prepare(project, output, expected_title='0004000000055E00')
+            self.assertEqual(manifest['title_id'], '0004000000055E00')
+            self.assertEqual(manifest['baseline_sha256'], identity['sha256']['ExtractedRomFS/DllBattle.cro'])
+            self.assertNotEqual(manifest['baseline_sha256'], fingerprint(original()))
+            applied = (output/'patched/DllBattle.cro').read_bytes()
+            self.assertEqual(experiment.rollback(applied, manifest['baseline_sha256']), before[cro_path])
+            with self.assertRaises(ValueError):
+                experiment.classify(applied, fingerprint(original()))
+            self.assertEqual((output/'original/DllBattle.cro').read_bytes(), before[cro_path])
+            self.assertEqual([p.name for p in (output/'patched').iterdir()], ['DllBattle.cro'])
+            self.assertEqual({p: p.read_bytes() for p in before}, before)
+            self.assertEqual(crr_path.read_bytes(), before[crr_path])
+            for field in ('production_enabled', 'gameplay_verified', 'hardware_loader_verified',
+                          'crr_candidate_registration_valid'):
+                self.assertFalse(manifest[field])
+            self.assertEqual(json.loads((output/'experiment.json').read_text()), manifest)
+
+    def test_default_x_explicit_y_and_unknown_targets_reject_crossed_projects_without_writes(self):
+        for title, expected_title in (('0004000000055E00', None), ('0004000000055D00', '0004000000055E00'),
+                                      ('0004000000055D00', 'unknown'), ('0004000000055E00', 'unknown')):
+            with self.subTest(title=title, expected_title=expected_title), tempfile.TemporaryDirectory() as directory:
+                project, output, _, _, identity = self.inputs(directory, title)
+                before = {p: p.read_bytes() for p in project.rglob('*') if p.is_file()}
+                arguments = {} if expected_title is None else dict(expected_title=expected_title)
+                with patch.object(experiment, 'inspect', return_value=identity), self.assertRaises(ValueError):
+                    experiment.prepare(project, output, **arguments)
+                self.assertFalse(output.exists())
+                self.assertEqual({p: p.read_bytes() for p in before}, before)
+
+    def test_explicit_y_unknown_profile_and_resource_races_reject_before_output_creation(self):
+        for case in ('unknown', 'cro_race', 'crr_race'):
+            with self.subTest(case=case), tempfile.TemporaryDirectory() as directory:
+                project, output, cro_path, crr_path, identity = self.inputs(directory, '0004000000055E00')
+                if case == 'unknown':
+                    identity['observation_matches'] = False
+                changed_sources = {}
+                def inspected(*args):
+                    if case.endswith('_race'):
+                        path = cro_path if case == 'cro_race' else crr_path
+                        changed = bytearray(path.read_bytes())
+                        changed[-1] ^= 1
+                        path.write_bytes(changed)
+                        changed_sources[path] = bytes(changed)
+                    return identity
+                with patch.object(experiment, 'inspect', side_effect=inspected), self.assertRaises(ValueError):
+                    experiment.prepare(project, output, expected_title='0004000000055E00')
+                self.assertFalse(output.exists())
+                for path, changed in changed_sources.items():
+                    self.assertEqual(path.read_bytes(), changed)
 
 
 if __name__ == '__main__':

@@ -1,4 +1,4 @@
-"""X-only experimental adaptation of native held-item reconciliation.
+"""Explicit-title experimental adaptation of native held-item reconciliation.
 
 Exactly two ARM conditions plus existing CRO SHA-256 fields. No production
 admission, snapshots, payload allocation, CRR table rewrite or RSA signing.
@@ -14,6 +14,7 @@ from inspect_persistent_items import Cro, GATE, RESTORE, inspect, matches, regio
 
 WORDS = ((0x14854, 0x1a000020, 0x8a000020), (0x148ac, 0x0a000025, 0xea000025))
 X_TITLE = '0004000000055D00'
+Y_TITLE = '0004000000055E00'
 
 
 def rebuild_hashes(data):
@@ -71,16 +72,18 @@ def rollback(data, original_sha256):
     return output
 
 
-def prepare(project, output):
+def prepare(project, output, expected_title=X_TITLE):
     from prepare_trace import no_links
     project, output = project.absolute(), output.absolute()
     no_links(project)
     no_links(output.parent)
     require(not output.exists(), 'Experimental output must be new')
     require(not output.is_relative_to(project) and not project.is_relative_to(output), 'Output overlaps input')
+    require(expected_title in (X_TITLE, Y_TITLE), 'Unknown experimental target title')
     profiles = json.loads(Path(__file__).with_name('observed_profiles.json').read_text(encoding='utf-8'))
     identity = inspect(project, profiles)
-    require(identity['observation_matches'] and identity['title_id'] == X_TITLE, 'Only the observed X resource set is admitted experimentally')
+    require(identity['observation_matches'] and identity['title_id'] == expected_title,
+            'The observed resource set must match the explicitly selected experimental title')
     path = project/'ExtractedRomFS/DllBattle.cro'
     no_links(path)
     data = path.read_bytes()
@@ -90,7 +93,7 @@ def prepare(project, output):
     require(rollback(proposed, expected) == data, 'Exact rollback failed')
     crr = (project/'ExtractedRomFS/.crr/static.crr').read_bytes()
     require(sha(crr) == identity['sha256']['ExtractedRomFS/.crr/static.crr'], 'CRR changed during inspection')
-    manifest = dict(purpose='xy-persistent-items-two-gates-experiment-v1', title_id=X_TITLE,
+    manifest = dict(purpose='xy-persistent-items-two-gates-experiment-v1', title_id=expected_title,
                     production_enabled=False, gameplay_verified=False, hardware_loader_verified=False,
                     baseline_sha256=expected, patched_sha256=sha(proposed), source_dependencies=identity['sha256'],
                     words=[dict(file_offset=hex(at), original=hex(before), patched=hex(after),
@@ -113,5 +116,6 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--project', type=Path, required=True)
     parser.add_argument('--output', type=Path, required=True)
+    parser.add_argument('--title-id', choices=(X_TITLE, Y_TITLE), default=X_TITLE)
     args = parser.parse_args()
-    print(json.dumps(prepare(args.project, args.output), indent=2))
+    print(json.dumps(prepare(args.project, args.output, args.title_id), indent=2))

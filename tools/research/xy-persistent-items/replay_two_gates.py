@@ -9,7 +9,7 @@ import struct
 from pathlib import Path
 from collections import Counter
 
-from experimental_two_gates import patch
+from experimental_two_gates import patch, X_TITLE, Y_TITLE
 from inspect_persistent_items import inspect, require, sha, garc_members
 
 
@@ -94,10 +94,12 @@ def entry_route(data, mode, flag):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('project', type=Path)
+    parser.add_argument('--title-id', choices=(X_TITLE, Y_TITLE), default=X_TITLE)
     args = parser.parse_args()
     profiles = json.loads(Path(__file__).with_name('observed_profiles.json').read_text(encoding='utf-8'))
     identity = inspect(args.project, profiles)
-    require(identity['observation_matches'] and identity['title_id'] == '0004000000055D00', 'This experimental replay admits only the observed X project')
+    require(identity['observation_matches'] and identity['title_id'] == args.title_id,
+            'Replay requires the full observed profile of the explicitly selected title')
     original = (args.project/'ExtractedRomFS/DllBattle.cro').read_bytes()
     require(sha(original) == identity['sha256']['ExtractedRomFS/DllBattle.cro'], 'Input changed after inspection')
     candidate = patch(original, sha(original))

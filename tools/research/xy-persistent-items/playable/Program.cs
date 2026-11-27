@@ -24,24 +24,32 @@ internal static class Program
         for (var d = new DirectoryInfo(Path.GetFullPath(path)); d is not null; d = d.Parent)
             Check((d.Attributes & FileAttributes.ReparsePoint) == 0, "path_not_link_" + d.Name);
     }
-    static void Root(string root)
+    static string Target(string root)
     {
-        Check(Path.GetFileName(Path.GetFullPath(root)).StartsWith("PruebasPersistentItems-X-", StringComparison.Ordinal), "explicit_X_experiment_folder");
+        string name = Path.GetFileName(Path.GetFullPath(root));
+        if (name.StartsWith("PruebasPersistentItems-X-", StringComparison.Ordinal)) return "0004000000055D00";
+        if (name.StartsWith("PruebasPersistentItems-Y-", StringComparison.Ordinal)) return "0004000000055E00";
+        throw new InvalidDataException("Use a new explicit PruebasPersistentItems-X- or PruebasPersistentItems-Y- folder");
+    }
+    static string Root(string root)
+    {
+        string title = Target(root);
         NoLinks(root);
         NoLinks(P(root)); NoLinks(E(root));
         Check(Load<Source>(Path.Combine(E(root), "source.json")).Purpose == Purpose, "research_marker");
         var header = File.ReadAllBytes(Path.Combine(P(root), "HeaderNCCH0.bin"));
         var ex = File.ReadAllBytes(Path.Combine(P(root), "DecryptedExHeader.bin"));
         Check(header.Length >= 0x120 && header.AsSpan(0x100, 4).SequenceEqual("NCCH"u8)
-            && BinaryPrimitives.ReadUInt64LittleEndian(header.AsSpan(0x118)) == 0x0004000000055D00UL
-            && ex.Length >= 0x208 && BinaryPrimitives.ReadUInt64LittleEndian(ex.AsSpan(0x200)) == 0x0004000000055D00UL, "real_headers_are_X");
+            && BinaryPrimitives.ReadUInt64LittleEndian(header.AsSpan(0x118)) == Convert.ToUInt64(title, 16)
+            && ex.Length >= 0x208 && BinaryPrimitives.ReadUInt64LittleEndian(ex.AsSpan(0x200)) == Convert.ToUInt64(title, 16), "real_headers_match_explicit_target");
         using var profile = JsonDocument.Parse(typeof(Program).Assembly.GetManifestResourceStream("ObservedProfiles")!);
-        foreach (var dependency in profile.RootElement.GetProperty("titles").GetProperty("0004000000055D00").GetProperty("sha256").EnumerateObject())
+        foreach (var dependency in profile.RootElement.GetProperty("titles").GetProperty(title).GetProperty("sha256").EnumerateObject())
         {
             string actual = HashFile(Path.Combine(P(root), dependency.Name));
             Check(actual == dependency.Value.GetString() || (dependency.Name == "ExtractedRomFS/DllBattle.cro" && actual == CandidateCro),
-                "pinned_X_dependency_" + dependency.Name);
+                "pinned_dependency_" + title + "_" + dependency.Name);
         }
+        return title;
     }
     static Dictionary<string, string> Inventory(string folder) => new[] { "ExtractedRomFS", "ExtractedExeFS" }
         .SelectMany(name => Directory.EnumerateFiles(Path.Combine(folder, name), "*", new EnumerationOptions { RecurseSubdirectories = true, AttributesToSkip = FileAttributes.ReparsePoint }))
@@ -54,7 +62,7 @@ internal static class Program
     static void Extract(string rom, string root)
     {
         rom = Path.GetFullPath(rom); root = Path.GetFullPath(root);
-        Check(Path.GetFileName(root).StartsWith("PruebasPersistentItems-X-", StringComparison.Ordinal), "explicit_new_X_folder");
+        _ = Target(root);
         Check(!File.Exists(root) && !Directory.Exists(root) && !rom.StartsWith(root + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase), "destination_new_and_not_source");
         NoLinks(Path.GetDirectoryName(root)!); NoLinks(Path.GetDirectoryName(rom)!);
         Check((File.GetAttributes(rom) & FileAttributes.ReparsePoint) == 0, "source_ROM_not_link");
@@ -83,12 +91,12 @@ internal static class Program
     }
     static void Stage(string root, string experiment)
     {
-        Root(root); VerifySource(root); NoLinks(experiment);
+        string title = Root(root); VerifySource(root); NoLinks(experiment);
         foreach (string asset in new[] { "experiment.json", "original/DllBattle.cro", "patched/DllBattle.cro" }) NoLinks(Path.Combine(experiment, asset));
         using var doc = JsonDocument.Parse(File.ReadAllBytes(Path.Combine(experiment, "experiment.json")));
         var m = doc.RootElement;
-        Check(m.GetProperty("purpose").GetString() == Purpose && m.GetProperty("title_id").GetString() == "0004000000055D00"
-            && !m.GetProperty("production_enabled").GetBoolean(), "X_only_disabled_experiment");
+        Check(m.GetProperty("purpose").GetString() == Purpose && m.GetProperty("title_id").GetString() == title
+            && !m.GetProperty("production_enabled").GetBoolean(), "matching_title_disabled_experiment");
         string baseline = m.GetProperty("baseline_sha256").GetString()!, patchedHash = m.GetProperty("patched_sha256").GetString()!;
         Check(baseline == "9C07A3342DFBA4ADFC3569271D65FE9FAD88F1E271D5BA650179377E60D0A5A1" && patchedHash == CandidateCro, "independently_pinned_CRO_pair");
         var original = File.ReadAllBytes(Path.Combine(experiment, "original", "DllBattle.cro"));
@@ -107,7 +115,7 @@ internal static class Program
         Check(current.AsSpan().SequenceEqual(original), "project_still_has_exact_baseline");
         VerifyInventory(root);
         var project = GameProjectSession.Open(P(root), false);
-        void Commit() => project.History.Commit([new FileChange(path, original, proposed)], "Persistent Items X · experimento",
+        void Commit() => project.History.Commit([new FileChange(path, original, proposed)], "Persistent Items " + (title.EndsWith("5D00", StringComparison.Ordinal) ? "X" : "Y") + " · experimento",
             "BNE→BHI y BEQ→B", [new BatchChange(1, "DllBattle.cro", "ARM", "2 condiciones originales", "2 condiciones experimentales")],
             new Dictionary<string, string> { ["ActionId"] = "research.xy.persistent-items.two-gates", ["Scope"] = "ExperimentalCopyOnly", ["Gameplay"] = "pending" });
         Commit();
@@ -160,7 +168,7 @@ internal static class Program
             else if (args.Length == 3 && args[0] == "stage") Stage(args[1], args[2]);
             else if (args.Length == 3 && args[0] == "build") Build(args[1], args[2]);
             else if (args.Length == 4 && args[0] == "verify") Verify(args[1], args[2], args[3]);
-            else { Console.Error.WriteLine("extract SOURCE_ROM NEW_PruebasPersistentItems-X_ROOT | stage ROOT EXPERIMENT | build ROOT NEW_3DS | verify ROOT IMAGE NEW_EXTRACTED"); return 2; }
+            else { Console.Error.WriteLine("extract SOURCE_ROM NEW_PruebasPersistentItems-X_OR_Y_ROOT | stage ROOT EXPERIMENT | build ROOT NEW_3DS | verify ROOT IMAGE NEW_EXTRACTED"); return 2; }
             return 0;
         }
         catch (Exception error) { Console.Error.WriteLine(error); return 1; }
