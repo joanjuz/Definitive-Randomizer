@@ -538,3 +538,45 @@ No se modificaron ROM, CRO ni CRR para este experimento. El resultado identifica
 un caller real de activación de Baya Zidra; no demuestra aún que todos los
 consumibles ni todos los modos pasen por él. El siguiente control solicitado
 es Lanzamiento con una baya equipada para comparar caller, campos y conciliación.
+
+## Control de procedencia: Lanzamiento en X
+
+El caso `X-fling-sitrus-08` terminó sin errores de lectura/descifrado. El
+propietario confirmó **992 Bayas Zidra en Bolsa antes y después**, una baya
+equipada inicialmente a Gardevoir, Lanzamiento ejecutado correctamente con
+efecto de la baya sobre el rival y Gardevoir sin objeto después. Las cantidades
+y el efecto visible son observaciones manuales; la traza acredita por separado
+la mutación y la conciliación. No se interpreta el efecto sobre el rival como
+un consumo normal del objeto propio.
+
+| Observación | Activación propia (`07`) | Lanzamiento (`08`) |
+| --- | --- | --- |
+| Caller de `6B140` | `6C1EC` (LR `6C1F0`) | `1A470` (LR `1A474`) |
+| Argumentos `r2`, `r3` | `0`, `1` | `0`, `1` |
+| Entrada: campos `+0x12`, `+0x14` | `158`, `0` | `158`, `0` |
+| Tras `6B244`: campos `+0x12`, `+0x14` | `0`, `158` | `0`, `158` |
+| Modo final observado | `1` | `1` |
+| Parámetro 17 para objeto inicial `158` | `1` | `1` |
+| Setter en `148CC` | `0` | `0` |
+
+En la entrada de Lanzamiento, el byte `+0x167` ya valía `0x80`; en el control
+anterior valía `0`. Esta diferencia aislada **no acredita** un discriminador:
+no se ha demostrado qué modifica ese bit ni su estabilidad entre escenarios.
+El byte `+0x16A` pasó de `0` a `0x80` en ambos casos.
+
+Al retorno `19460`, ambas vistas checksum-válidas contienen el mismo Gardevoir
+con objeto `0`; los otros cuatro objetos se mantienen. Se verificó la retirada
+de las 17 trampas y el ACK de continuación. SHA-256 del JSONL privado:
+`EBFC5313A0FDBF1231884346DC1699ED8674DEE7A6B25431E1F32FB4E9A08C17`.
+Guardado previo, metadata, JSONL y observaciones quedan fuera de Git.
+
+**Consecuencia para el diseño:** ni el ID conservado en `+0x14` ni `r3=1`
+identifican exclusivamente un consumible restaurable. La condición final
+observa la misma combinación de objeto inicial/parámetro 17/objeto actual en
+estos dos casos. Invertirla o forzar la restauración usando solo esos valores
+también alcanzaría Lanzamiento, contrario al contrato de procedencia. El
+caller distingue estas dos ejecuciones concretas; no se declara todavía que
+sea suficiente para todos los objetos o scripts. Hace falta una política de
+procedencia que registre el consumo admitido y descarte pérdidas/transferencias
+posteriores, validada con Truco, Ladrón y Desarme. Se ha solicitado preparar
+Truco como siguiente control. No se habilita ningún parche de producción.
