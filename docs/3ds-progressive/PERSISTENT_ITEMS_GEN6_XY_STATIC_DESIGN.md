@@ -3,7 +3,8 @@
 > Registro histórico: la especificación corregida conserva el objeto original
 > también tras Lanzamiento, Desarme y Truco. Procedencia y memoria adicional
 > no son requisitos del [candidato de dos condiciones](PERSISTENT_ITEMS_GEN6_XY_TWO_GATES.md).
-> Hay un candidato X aislado; producción sigue deshabilitada y falta prueba jugable.
+> Hay un candidato X aislado con confirmación del propietario para Baya Zidra;
+> producción sigue deshabilitada y falta completar la validación jugable.
 
 27/11/2026. Continuación del PR #145 desde `3ffcafec9af1ea0f3e725efb584795b681574146`.
 Se conserva `feature/xy-persistent-items`. **Sin payload, ROM candidata ni

@@ -1,7 +1,9 @@
 # Persistent Items X: candidato experimental de dos condiciones
 
 Fecha: 27/11/2026. Continuación del PR #145, rama `feature/xy-persistent-items`.
-Producción deshabilitada. Y sin candidato. No hay validación jugable del parche.
+Producción deshabilitada. Y sin candidato. Hay confirmación jugable del propietario
+para consumo y recuperación de Baya Zidra en X, con cantidad en Bolsa conservada.
+La validación completa sigue pendiente.
 
 ## Especificación corregida
 
@@ -124,6 +126,21 @@ inventarios. ROM, guardados y dependencias comerciales no se incorporan a Git.
 
 ## Prueba jugable posterior al candidato
 
+### Resultado comunicado por el propietario
+
+Sobre el candidato X entregado (SHA-256 indicado al final), el propietario
+confirma que la Baya Zidra se consumió y volvió a estar equipada al terminar el
+combate; confirma asimismo que se mantuvo la cantidad en Bolsa, sin aportar
+un nuevo recuento numérico. Es una prueba manual reportada, no una traza nueva
+recogida automáticamente. En esta confirmación no precisó el tipo de combate.
+
+Quedan sin confirmar para el candidato: ausencia de reactivación dentro del mismo
+combate, guardar/cerrar/reabrir, Banda Focus, Lanzamiento, Desarme, Truco y otras
+transferencias, cobertura de modalidades y convivencia con otros parches.
+No se extrapola este resultado a Y ni a todos los consumibles.
+
+### Protocolo restante
+
 Usar solamente el emulador portable de la carpeta experimental y su guardado
 copiado; no abrir por asociación de archivos en el Lime habitual. Cerrar otros
 emuladores para evitar confundir ventanas. No usar savestates ni conexión online.
@@ -167,7 +184,8 @@ equivale a ejecución jugable de este candidato.
 * Acceso aislado: `D:\Progra\Pokemon\Randomizer\PruebasPersistentItems-X-01\Abrir-Prueba-X.cmd`.
   Abrir ese acceso; también existe una variante `.ps1`. Usa Citra 2104 copiado en `Emulador`, almacenamiento
   portable propio y copia previa a X-08. Depurador y telemetría desactivados;
-  no se ha iniciado una batalla nueva ni se ha validado el candidato en juego.
+  en su preparación no se inició una batalla. Posteriormente el propietario
+  confirmó el caso de Baya Zidra descrito arriba.
 * `evidence/build.json`, `rebuild-verification.json`, `patch-entry.json` y
   `runtime.json` conservan las comprobaciones locales. No están en Git.
 
