@@ -1,4 +1,14 @@
-# Persistent Items X/Y — investigación protegida
+# Persistent Items X/Y — investigación y candidato experimental
+
+**Estado vigente tras la corrección de alcance:** hay un candidato experimental
+X de dos condiciones, reconstruido y reextraído. Producción deshabilitada;
+sin prueba jugable del candidato ni candidato Y. El objeto original debe volver
+también tras Lanzamiento, Desarme o Truco. No se añade seguimiento de procedencia
+ni memoria propia. Véanse [candidato, integridad y protocolo](PERSISTENT_ITEMS_GEN6_XY_TWO_GATES.md).
+El estado y los bloqueos anteriores que siguen se conservan como registro
+cronológico; sus requisitos de procedencia no bloquean este nuevo experimento.
+
+## Registro anterior a la corrección de alcance
 
 Actualizado: 27/11/2026. Base: `24f89911c1a08f0b9f81bb7a641aa3b96279c316`
 (main, merge del PR #144). **No hay instalador Gen6 ni candidato jugable.**
