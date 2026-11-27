@@ -83,7 +83,7 @@ jobs:
       - name: Regresiones del lector protegido Persistent Items XY
         shell: pwsh
         run: |
-          python -m unittest discover -s tools/research/xy-persistent-items -p test_inspection.py -v 2>&1 | Tee-Object -FilePath validation-logs/xy-persistent-items-reader.log
+          python -m unittest discover -s tools/research/xy-persistent-items -p 'test_*.py' -v 2>&1 | Tee-Object -FilePath validation-logs/xy-persistent-items-reader.log
           if ($LASTEXITCODE -ne 0) { throw 'XY persistent items research reader tests failed' }
       - name: Compilar experimento aislado del recordador XY
         run: dotnet build tools/research/xy-reminder-native/playable/MoveReminder.Experiment.csproj -c Release -p:UseAppHost=true '-bl:validation-logs/build-reminder-experiment-{}.binlog'

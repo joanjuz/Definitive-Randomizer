@@ -197,8 +197,9 @@ Para ese candidato, registrar por separado X/Y, hashes antes/después y:
 
 **No hay ROM candidata para estas pruebas todavía.** Las ROM del recordador del
 PR #144 no contienen Persistent Items y no sirven como candidato de esta función.
-Hay emuladores en el entorno, pero no se inició una sesión con guardados ni se
-obtuvieron trazas de batalla en esta entrega. No hay evidencia jugable nueva X/Y.
+En la primera entrega no se inició una sesión con guardados. La continuación
+descrita abajo verificó conexión GDB y arranque aislado, sin traza de batalla.
+No hay evidencia jugable nueva X/Y.
 
 ## Comandos reproducibles y resultados
 
@@ -230,3 +231,111 @@ después de la investigación, sin cambios de las fuentes. CI remoto pendiente.
 Las comprobaciones sintéticas prueban lectores y barreras, no ejecución del motor.
 No se reclaman estados original compatible/instalado/parcial, instalación
 idempotente, reversión de Persistent Items o compatibilidad de actualizaciones.
+
+## Continuación: captura dinámica preparada para intervención del propietario
+
+Se conserva el mismo PR #145 y la misma rama. Por indicación del propietario,
+**las pruebas jugables en emulador las realiza él**. No se automatizan combates,
+inputs ni acciones sobre sus instancias habituales. La sesión inicial de
+diagnóstico se cerró antes de preparar la captura manual.
+
+### Herramientas encontradas y resultados reales limitados
+
+Existen Citra, Azahar y Lime3DS. Se utilizó una copia portátil de Citra Nightly
+2104, commit `0ff3440`, con ROM y guardado copiados. Se verificó que cargaba
+su configuración y almacenamiento aislados y que no encontraba actualización
+instalada para X en esa copia. El Program ID cargado fue `0004000000055D00`.
+No se importaron mods, cheats ni claves de las instalaciones habituales.
+
+El servidor GDB anunció `PacketSize=2000;qXfer:features:read+;qXfer:threads:read+`.
+`qfThreadInfo` devolvió `m1`; `Hg1` seleccionó el hilo y `pf` devolvió
+`00001000` (VA `0x00100000`, little endian). Se leyó memoria del ejecutable y
+el log registró cargas de módulos de título. **No se llegó a cargar/trazar
+DllBattle ni a completar un combate.** La salida SDL apareció negra; no se
+atribuye una causa definitiva. Una petición de interrupción terminó en timeout.
+Por tanto, no se declara que la captura completa esté validada en el emulador.
+La copia original del guardado mantuvo su SHA-256 después de cerrar la sesión.
+
+Se contrastó el protocolo con la [fuente preservada del commit exacto de Citra](https://raw.githubusercontent.com/itsTyrion/lemon/0ff3440232d6bc9226e37c41c05c5aead03f37fd/src/core/gdbstub/gdbstub.cpp).
+**Tanto Z0 como Z1 insertan una trampa de cuatro bytes en RAM.** No son
+breakpoints de hardware sin escritura. Repetir Z en una dirección puede perder
+el original guardado, y cerrar el socket no restaura automáticamente los puntos.
+El cliente nuevo usa propiedad exclusiva, rechaza duplicados, verifica la trampa
+y comprueba la restauración exacta mediante z antes de continuar. Si falla,
+bloquea resume/step y pide cerrar únicamente la copia aislada antes de guardar.
+No expone paquetes de escritura de memoria/registros ni fabrica firmas CRO/CRR.
+
+### Preparador y trazador experimentales
+
+- `prepare_trace.py` valida el proyecto observado, título NCSD/NCCH y guardado
+  del mismo título. Crea una carpeta nueva, copia ROM/runtime/guardado con su
+  `00000001.metadata`, conserva huellas y configura únicamente esa copia. No
+  lanza el emulador. Rechaza destino existente, enlaces y destino dentro de una
+  fuente; verifica que las fuentes no cambiaron. Coincidencia de título no
+  demuestra que toda la ROM corresponda a la extracción: se conserva esa limitación.
+- `gdb_trace.py --launch` inicia solo Citra Qt de la sesión preparada, conecta a
+  localhost, selecciona el hilo y lee registros individuales. Comprueba muestras
+  nativas del ejecutable; no afirma haber acreditado su hash completo en RAM.
+  Al ver la carga de DllBattle en el log, lee la cabecera cargada, deriva `.text`
+  y verifica cada instrucción original antes de insertar puntos temporales.
+- Se capturan los siete puntos pedidos, además de `0x14888`, lectura actual,
+  llamadas al escritor y retornos. `0x19460` termina automáticamente **una sola
+  batalla**, limpia los puntos antes de descargar el CRO y deja el emulador parado.
+  Para otra batalla se inicia otra sesión del emulador y un nombre de caso nuevo.
+- Los JSONL guardan registros, byte de modo sin asignarle nombres, metadatos,
+  candidatos a equipos, valor consultado e intención de escritura. Los bloques
+  de Pokémon permanecen **opacos**: no se inventan especie, identidad ni procedencia.
+  Bolsa, identidad visible y evento de consumo se anotan manualmente. Ningún
+  JSONL constituye por sí solo aprobación jugable ni autoriza instalar.
+
+### Primera prueba manual: validar captura del original X
+
+La carpeta local preparada es `artifacts/pi145-x` dentro de este worktree. Es
+una **ROM original copiada, sin Persistent Items**; no se espera restauración
+nueva de objetos. No es el candidato del recordador ni una build de Preview.
+
+Desde la raíz del worktree:
+
+```powershell
+python tools/research/xy-persistent-items/gdb_trace.py --session artifacts/pi145-x --case X-control-salvaje-01 --launch
+```
+
+1. Esperar el arranque de la copia Citra Qt y el aviso del terminal de que se
+   puede jugar manualmente. Si aparece un error, no forzar ninguna validación.
+2. Anotar Pokémon utilizado, objeto equipado y cantidades relevantes de Bolsa.
+3. Entrar en un combate salvaje normal y terminarlo o huir. Esta primera prueba
+   valida la instrumentación; todavía no exige disponer de un consumible.
+4. El terminal debe mostrar `Original DllBattle verified; RAM breakpoints active`
+   y, al terminar, `Owned RAM instructions restored`. Puede haber pausas al leer
+   estructuras. Cerrar después **solo la instancia aislada**.
+5. Informar qué ocurrió en pantalla, objeto/Bag antes y después y si aparecieron
+   esos avisos. No hace falta subir ROMs ni guardados: el log queda local en
+   `artifacts/pi145-x/evidence/X-control-salvaje-01.jsonl`.
+
+Si hay pantalla negra, timeout, cabecera/instrucción diferente o mensaje
+`CLEANUP UNVERIFIED`, cerrar esa copia antes de guardar o continuar e informar
+el texto. No usarla como evidencia de funcionamiento. No arrancar todavía la
+matriz completa ni realizar conexiones de juego en línea.
+
+Después de revisar esta primera traza se habilita **la siguiente captura**, no
+el parche: Baya Zidra consumida en salvaje, luego entrenador, Banda Focus,
+Hierbas/Seguro/Tarjeta/Botón y procedencia con Desarme/Truco/Ladrón/Lanzamiento.
+Cada caso necesita estado inicial y final visible, conteo de Bolsa y su propio
+JSONL. Y requiere preparación y evidencia separadas; no se extrapola X.
+
+### Validación técnica de esta continuación
+
+Los clientes y el preparador se prueban con sockets, RAM y archivos sintéticos;
+no se lanzan emuladores desde las pruebas. El CI ahora descubre `test_*.py`,
+incluidos `test_gdb_trace.py` y `test_prepare_trace.py`.
+
+```powershell
+python -m unittest discover -s tools/research/xy-persistent-items -p 'test_*.py' -v
+```
+
+Resultado local: **53 tests Python OK**, con validación del framing, checksum,
+escape/RLE, comandos permitidos, hilo/registros, propiedad/restauración de
+breakpoints, bloqueo tras fallo, mapping dinámico, snapshots opacos, límites de
+copias y aislamiento de configuración. La preparación real X finalizó sin
+lanzar el emulador y con verificación de copias/fuentes. No hay cambios en C#,
+WPF, Core, USUM, recordador o Preview. CI nuevo pendiente al registrar esta sección.
