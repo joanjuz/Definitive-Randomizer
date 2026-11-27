@@ -13,6 +13,13 @@ juego ni evidencia dinámica independiente de Y. Las secciones inferiores
 conservan el orden de la investigación; sus pendientes históricos no sustituyen
 este estado ni los resultados fechados de la continuación.
 
+La fase posterior a `3ffcafec` se detalla en
+[flujo estático y modelo de procedencia](PERSISTENT_ITEMS_GEN6_XY_STATIC_DESIGN.md):
+callbacks de los stores directos resueltos por relocaciones, 20 CFG acotados,
+modelo PRE con invalidación persistente, 118 pruebas y ejecución ARM aislada de
+los dos callbacks originales por separado para X/Y. Sin nuevas batallas manuales,
+sin payload ni ROM candidata; permanecen bloqueadas cobertura global y memoria propia.
+
 ## Estado por fase
 
 | Fase | Resultado |
