@@ -105,6 +105,7 @@ internal static class Gen6MintRecipeChecks
         BundledCsv(check);
         DependencyMerge(check,reject);
         IdentityShapes(check,reject);
+        HeaderSelection(check,reject);
         var legacyAssembly=Assembly.LoadFrom(Path.ChangeExtension(BatchRomExecution.RunnerPath,".dll"));
         var gen7=(IEnumerable<string>)legacyAssembly.GetType("pk3DS.WinForms.BatchGen7ActionExecutor",true)!.GetField("Supported",BindingFlags.NonPublic|BindingFlags.Static)!.GetValue(null)!;
         check(!gen7.Intersect(Gen6MintRecipeBridge.ActionIds,StringComparer.OrdinalIgnoreCase).Any(),"Gen6MintRecipe_Gen7ExecutorDoesNotAdvertiseXyInstallActions");
@@ -124,6 +125,27 @@ internal static class Gen6MintRecipeChecks
         byte[] ex=new byte[2048],compressed=(byte[])ex.Clone();compressed[0xd]=1;
         check(Gen6MintRuntimeDependencies.ExheaderShape(ex).SequenceEqual(Gen6MintRuntimeDependencies.ExheaderShape(compressed)),"Gen6MintCompatibility_CodeCompressionMetadataAllowed");
         compressed[0x24]=1;check(!Gen6MintRuntimeDependencies.ExheaderShape(ex).SequenceEqual(Gen6MintRuntimeDependencies.ExheaderShape(compressed)),"Gen6MintCompatibility_MemoryMapChangeStillPinned");
+    }
+    private static void HeaderSelection(Action<bool,string> check,Action<Action,string> reject)
+    {
+        string root=Path.Combine(Path.GetTempPath(),"xy-mint-headers-"+Guid.NewGuid().ToString("N"));Directory.CreateDirectory(root);
+        string Resolve()=>Gen6MintRuntimeDependencies.Header(root,"ncchheader.bin","HeaderNCCH0.bin","HeaderNCCH.bin");
+        try
+        {
+            byte[] partition=new byte[512];"NCCH"u8.CopyTo(partition.AsSpan(0x100));
+            byte[] container=new byte[0x4000];"NCSD"u8.CopyTo(container.AsSpan(0x100));
+            string primary=Path.Combine(root,"HeaderNCCH0.bin"),outer=Path.Combine(root,"HeaderNCCH.bin");
+            File.WriteAllBytes(primary,partition);File.WriteAllBytes(outer,container);
+            check(Resolve()==primary,"Gen6MintHeaders_ToolkitContainerDoesNotConflictWithPartitionZero");
+            check(File.ReadAllBytes(outer).SequenceEqual(container),"Gen6MintHeaders_ContainerRemainsUnchanged");
+            File.Delete(primary);reject(()=>Resolve(),"Gen6MintHeaders_ContainerAloneCannotIdentifyGame");
+            File.WriteAllBytes(outer,partition);check(Resolve()==outer,"Gen6MintHeaders_StandaloneNcchAliasAccepted");
+            File.WriteAllBytes(primary,partition);reject(()=>Resolve(),"Gen6MintHeaders_TwoPartitionAliasesRemainAmbiguous");
+            File.WriteAllBytes(outer,new byte[0x4000]);reject(()=>Resolve(),"Gen6MintHeaders_UnknownLargeAliasIsNotSilentlyIgnored");
+            File.Delete(outer);File.Delete(primary);string extracted=Path.Combine(root,"ncchheader.bin");File.WriteAllBytes(extracted,partition);
+            check(Resolve()==extracted,"Gen6MintHeaders_AppExtractionLayoutStillAccepted");
+        }
+        finally{Directory.Delete(root,true);}
     }
     private static void FirstMoveReplay(Action<bool,string> check)
     {

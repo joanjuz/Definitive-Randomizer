@@ -24,7 +24,15 @@ internal static class Gen6MintRuntimeDependencies
     }
     internal static string Header(string root,params string[] names)
     {
-        var files=names.Select(n=>Path.Combine(root,n)).Where(File.Exists).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();Need(files.Length==1,"Cabecera ausente o ambigua.");return files[0];
+        // HackingToolkit3DS emits both partition-zero NCCH and a 16-KiB NCSD
+        // container named HeaderNCCH.bin. Only that recognized container is ignored.
+        bool IsContainer(string path)
+        {
+            if(!Path.GetFileName(path).Equals("HeaderNCCH.bin",StringComparison.OrdinalIgnoreCase)||new FileInfo(path).Length!=0x4000)return false;
+            using var stream=File.OpenRead(path);stream.Position=0x100;Span<byte> magic=stackalloc byte[4];stream.ReadExactly(magic);return magic.SequenceEqual("NCSD"u8);
+        }
+        var files=names.Select(n=>Path.Combine(root,n)).Where(File.Exists).Distinct(StringComparer.OrdinalIgnoreCase).Where(p=>!IsContainer(p)).ToArray();
+        Need(files.Length==1,"Cabecera ausente o ambigua: "+names[0]+". Se requiere una cabecera de la partición del juego, no del contenedor NCSD.");return files[0];
     }
     internal static string CodePath(GameProjectSession p)=>Header(p.GameConfiguration.ExeFS,".code.bin","code.bin",".code","code");
     private static int Unique(byte[] bytes,byte[] pattern,int start)

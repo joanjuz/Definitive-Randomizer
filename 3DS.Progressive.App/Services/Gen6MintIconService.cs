@@ -156,35 +156,34 @@ internal sealed class Gen6MintIconService(GameProjectSession project,
     {
         if(!project.GameConfiguration.XY)throw new NotSupportedException("Iconos de mentas: solo X/Y.");
         string root=Path.GetFullPath(project.ProjectRoot);
-        string header=Directory.GetFiles(root).Single(p=>Path.GetFileName(p) is "ncchheader.bin" or "HeaderNCCH0.bin" or "HeaderNCCH.bin");CheckPath(header);
+        string header=Gen6MintRuntimeDependencies.Header(root,"ncchheader.bin","HeaderNCCH0.bin","HeaderNCCH.bin");CheckPath(header);
         byte[] identity=File.ReadAllBytes(header);if(identity.Length<0x120)throw new InvalidDataException("Cabecera truncada.");
         ulong title=BitConverter.ToUInt64(identity,0x118);if(title is not (0x0004000000055D00UL or 0x0004000000055E00UL))throw new NotSupportedException("Title ID ajeno a X/Y.");
         var profile=(resolveProfile??Gen6NatureMintService.Profile)(title);
         string Resolve(string name)=>name switch{
             "ncchheader.bin"=>header,
-            "exheader.bin"=>Directory.GetFiles(root).Single(p=>Path.GetFileName(p).Equals("exheader.bin",StringComparison.OrdinalIgnoreCase)||Path.GetFileName(p)=="DecryptedExHeader.bin"),
+            "exheader.bin"=>Gen6MintRuntimeDependencies.Header(root,"exheader.bin","DecryptedExHeader.bin","ExHeader.bin"),
             "ExeFS/.code.bin"=>Gen6MintRuntimeDependencies.CodePath(project),
             _ when name.StartsWith("RomFS/",StringComparison.Ordinal)=>Path.GetFullPath(Path.Combine(project.GameConfiguration.RomFS,name[6..])),
             _ when name.StartsWith("ExeFS/",StringComparison.Ordinal)=>Path.GetFullPath(Path.Combine(project.GameConfiguration.ExeFS,name[6..])),
             _=>Path.GetFullPath(Path.Combine(root,name.Replace('/',Path.DirectorySeparatorChar)))};
         string[] paths=profile.GetProperty("sha256").EnumerateObject().Select(p=>Resolve(p.Name))
             .Concat(Directory.GetFiles(project.GameConfiguration.RomFS).Where(p=>Path.GetExtension(p).Equals(".cro",StringComparison.OrdinalIgnoreCase)))
-            .Append(header).Append(Path.Combine(project.GameConfiguration.ExeFS,".code.bin")).Append(Path.Combine(project.GameConfiguration.RomFS,ArchivePath))
+            .Append(header).Append(Gen6MintRuntimeDependencies.CodePath(project)).Append(Path.Combine(project.GameConfiguration.RomFS,ArchivePath))
             .Select(Path.GetFullPath).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
         foreach(string path in paths)CheckPath(path);
         var contents=paths.ToDictionary(p=>p,File.ReadAllBytes,StringComparer.OrdinalIgnoreCase);
         var state=new Gen6NatureMintService(project,false,resolveProfile).Inspect();
         if(state.State!=Gen6MintNativeState.Installed)throw new InvalidDataException("Mentas XY instaladas y acreditadas requeridas. "+state.Report);
-        string[] codes=Directory.GetFiles(project.GameConfiguration.ExeFS).Where(p=>Path.GetFileName(p) is ".code.bin" or "code.bin").ToArray();
-        if(codes.Length!=1)throw new InvalidDataException("Ejecutable ambiguo.");
-        string icon=Path.GetFullPath(Path.Combine(project.GameConfiguration.RomFS,ArchivePath));byte[] code=contents[codes[0]],archive=contents[icon];
+        string codePath=Gen6MintRuntimeDependencies.CodePath(project);
+        string icon=Path.GetFullPath(Path.Combine(project.GameConfiguration.RomFS,ArchivePath));byte[] code=contents[codePath],archive=contents[icon];
         if(!Mapping(code,false)&&!Mapping(code,true))throw new InvalidDataException("Tabla de imágenes de mentas desconocida.");
         var records=Records(archive);
         if((records.Length==InstalledCount)!=Mapping(code,true))throw new InvalidDataException("Instalación de iconos parcial.");
         if(Sources.Count!=21||!Sources.Select(s=>s.ItemId).SequenceEqual(Ids))throw new InvalidDataException("Catálogo de iconos cruzado.");
         var dependencies=contents.Select(p=>(p.Key,SHA256.HashData(p.Value))).ToArray();
         foreach(var (path,hash) in dependencies)GarcTransaction.ReadUnchanged(path,hash);
-        return(codes[0],code,icon,archive,dependencies);
+        return(codePath,code,icon,archive,dependencies);
     }
     internal Gen6MintIconPreview Inspect()
     {

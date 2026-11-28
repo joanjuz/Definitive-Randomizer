@@ -44,11 +44,7 @@ internal sealed class Gen6NatureMintService(GameProjectSession project,bool allo
             if(!snapshots.TryGetValue(path,out byte[]? data))snapshots.Add(path,data=File.ReadAllBytes(path));
             return data;
         }
-        string Header(params string[] names)
-        {
-            var paths=names.Select(n=>Path.Combine(project.ProjectRoot,n)).Where(File.Exists).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
-            if(paths.Length!=1)throw new InvalidDataException("Falta una cabecera única: "+names[0]);return paths[0];
-        }
+        string Header(params string[] names)=>Gen6MintRuntimeDependencies.Header(project.ProjectRoot,names);
         string ncchPath=Header("ncchheader.bin","HeaderNCCH0.bin","HeaderNCCH.bin");
         string exPath=Header("exheader.bin","DecryptedExHeader.bin","ExHeader.bin");
         byte[] ncch=Read(ncchPath),ex=Read(exPath);

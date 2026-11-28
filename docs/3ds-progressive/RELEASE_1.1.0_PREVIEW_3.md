@@ -24,6 +24,8 @@ La instalación conserva Pokémon, entrenadores, encuentros, movimientos, invent
 
 Se admiten los perfiles X/Y observados y los cambios de datos identificados del randomizer. Una revisión de ejecutable o modificación de código nativo desconocida puede seguir bloqueada: el mensaje explica el recurso incompatible. No se acredita ejecución en consola ni servicios online.
 
+La corrección del instalador reconoce las extracciones HackingToolkit3DS que contienen simultáneamente `HeaderNCCH0.bin` (partición del juego) y `HeaderNCCH.bin` (contenedor NCSD de 16 KiB). Usa la primera sin renombrar ni modificar las cabeceras. Dos cabeceras de partición candidatas siguen rechazándose como ambiguas. Mentas e iconos comparten esta detección.
+
 Global Template y Batch ofrecen instalaciones separadas de Persistent Items, mentas e iconos, y dos checks independientes para incluir mentas en tiendas o en suelo visible/oculto. Instalar no activa los pools automáticamente. Conservar los CSV y recursos adjuntos de cada receta.
 
 @DISTRIBUTION_WORKFLOW@
