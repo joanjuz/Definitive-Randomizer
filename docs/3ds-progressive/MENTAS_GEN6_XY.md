@@ -3,7 +3,11 @@
 Issue: [#146](https://github.com/joanjuz/Definitive-Randomizer/issues/146).
 Base: `f8f958432958df4a18b4ef482a7d5e1fe3f91b7c`, main con los PR #144 y #145 fusionados.
 
-## Estado de la entrega
+## Estado actual
+
+Existe un primer candidato experimental de X, todavía sin aceptación jugable. El handler, el instalador transaccional, las pruebas nuevas y el protocolo manual se detallan en [MENTAS_GEN6_XY_CANDIDATO.md](MENTAS_GEN6_XY_CANDIDATO.md). Producción sigue bloqueada; los apartados siguientes conservan la investigación anterior.
+
+## Estado de la entrega anterior
 
 **Las 21 mentas todavía no están implementadas para uso en juego. No hay un candidato `.3ds` de mentas ni un instalador habilitado.**
 

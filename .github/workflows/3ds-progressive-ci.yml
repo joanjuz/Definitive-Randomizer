@@ -121,6 +121,8 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'Mint harness dependencies failed' }
           & $mintPython native/3ds/nature-mints/generate.py --check
           if ($LASTEXITCODE -ne 0) { throw 'Mint source/template mismatch' }
+          & $mintPython native/3ds/xy-nature-mints/generate.py --check
+          if ($LASTEXITCODE -ne 0) { throw 'XY mint source/template mismatch' }
           & $mintPython native/3ds/rare-candy-multiuse/generate.py --check
           if ($LASTEXITCODE -ne 0) { throw 'Rare Candy source/template mismatch' }
           & $mintPython native/3ds/rare-candy-usum/generate.py --check

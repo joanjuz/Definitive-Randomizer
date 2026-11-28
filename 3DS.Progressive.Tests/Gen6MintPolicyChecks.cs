@@ -106,6 +106,8 @@ internal static class Gen6MintPolicyChecks
         usum.SetSection("ProgressiveApp",new JsonObject{{Gen6MintItemPolicy.Node,new JsonObject{{"Include",true}}}});
         reject(()=>Gen6MintItemPolicy.Read(usum),"Gen6 mint read rejects incompatible opt-in");
         ExecutionContract(check,reject);
+        Gen6MintNativeChecks.Run(check,reject);
+        Gen6MintServiceChecks.Run(check,reject);
     }
 
     private static void ExecutionContract(Action<bool,string> check,Action<Action,string> reject)

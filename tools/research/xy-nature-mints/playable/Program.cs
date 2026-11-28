@@ -4,7 +4,9 @@ using System.Text.Json;
 using pk3DS.Core;
 using pk3DS.Core.CTR;
 using pk3DS.Core.Maps.Gen6;
+using pk3DS.Core.Modding.Research;
 using ThreeDS.Progressive.Services;
+using ThreeDS.Progressive.Models;
 
 internal static class Program
 {
@@ -71,7 +73,7 @@ internal static class Program
         {
             var reference = config.GetGARCReference("gametext").GetRelativeGARC(language);
             byte[][] banks = new GARC.MemGARC(File.ReadAllBytes(Path.Combine(config.RomFS, reference.Reference))).Files;
-            texts.Add(new { Language = language, Banks = new[]{1,47}.Concat(Enumerable.Range(90, 12)).Select(index => new { Index = index, Lines = new TextFile(config, banks[index], config.RemapCharacters).Lines }).ToArray() });
+            texts.Add(new { Language = language, Banks = new[]{1,47,140}.Concat(Enumerable.Range(90, 12)).Select(index => new { Index = index, Lines = new TextFile(config, banks[index], config.RemapCharacters).Lines }).ToArray() });
         }
         Save(output, new { Items = itemData.Select((record, id) => new { Id = id, Size = record.Length, Sha256 = Hash(record), Hex = Convert.ToHexString(record) }), Texts = texts });
         Console.WriteLine("Private item/text inventory written; no source files modified.");
@@ -137,6 +139,70 @@ internal static class Program
             Candidates=candidates.Select(id=>new{Id=id,References=rows.Where(r=>r.Item==id).Select(r=>r.Source).ToArray()}) });
         Console.WriteLine($"Typed references: {marts.Entries.Count} marts, {field.Entries.Count} field slots, {pickup.Read().Count} Pickup rows.");
     }
+    static void Plan(string root,string output,bool install)
+    {
+        NewEvidence(root,output);
+        var project=GameProjectSession.Open(Path.Combine(root,"Proyecto"),false);
+        var service=new Gen6NatureMintService(project,allowExperimental:true);
+        var preview=service.Inspect();
+        Check(preview.State==Gen6MintNativeState.Original&&preview.Proposal is not null,preview.Report);
+        var proposal=preview.Proposal!;
+        string bufferDirectory=output+".buffers";
+        Check(!Directory.Exists(bufferDirectory)&&!File.Exists(bufferDirectory),"Buffer output must be new");
+        Directory.CreateDirectory(bufferDirectory);
+        var changedBag=proposal.Files.Single(f=>Path.GetFileName(f.Path)=="DllBag.cro");
+        using(var stream=new FileStream(Path.Combine(bufferDirectory,"DllBag.cro"),FileMode.CreateNew))stream.Write(changedBag.Proposed());
+        if(install)service.Apply(preview);
+        Save(output,new {State=install?service.Inspect().State.ToString():preview.State.ToString(),preview.Report,
+            ProductionEnabled=false,Installed=install,Files=proposal.Files.Select(f=>new {Path=Path.GetRelativePath(project.ProjectRoot,f.Path),Before=Hash(f.Original()),After=Hash(f.Proposed())}),
+            PrivateNativeBuffer=Path.Combine(bufferDirectory,"DllBag.cro")});
+        Console.WriteLine(install?"Experimental install verified and recorded in isolated project history.":"Detached experimental preview; no project files modified.");
+    }
+    static Dictionary<string,string> Inventory(string project)=>new[]{"RomFS","ExeFS"}.SelectMany(part=>
+        Directory.EnumerateFiles(Path.Combine(project,part),"*",SearchOption.AllDirectories)).ToDictionary(
+            path=>Path.GetRelativePath(project,path).Replace('\\','/'),path=>{NoLinks(path);return Hash(File.ReadAllBytes(path));},StringComparer.Ordinal);
+    static void UndoCheck(string root,string output)
+    {
+        NewEvidence(root,output);string folder=Path.Combine(root,"Proyecto");var project=GameProjectSession.Open(folder,false);
+        var service=new Gen6NatureMintService(project,true);Check(service.Inspect().State==Gen6MintNativeState.Installed,"Installed candidate required");
+        var before=Inventory(folder);var entry=project.History.Read().Entries.Last();
+        Check(entry.Parameters.GetValueOrDefault("ActionId")==Gen6NatureMintService.ActionId,"Newest change must be the mint installation");
+        RestorePoints.Undo(project.History,folder,entry.Id);
+        var original=new Gen6NatureMintService(GameProjectSession.Open(folder,false),true);
+        var preview=original.Inspect();Check(preview.State==Gen6MintNativeState.Original&&preview.Proposal is not null,"Undo restored accredited originals");
+        original.Apply(preview);Check(Inventory(folder).OrderBy(p=>p.Key).SequenceEqual(before.OrderBy(p=>p.Key)),"Reinstall restores exact candidate files");
+        Check(new Gen6NatureMintService(GameProjectSession.Open(folder,false)).Inspect().State==Gen6MintNativeState.Installed,"Full project reopen detects candidate");
+        Save(output,new {ExactUndo=true,ExactReinstall=true,Reopened=true,Files=before.Count,ProductionEnabled=false});
+    }
+    static void Shops(string root,string output)
+    {
+        NewEvidence(root,output);var project=GameProjectSession.Open(Path.Combine(root,"Proyecto"),false);
+        Check(new Gen6NatureMintService(project).Inspect().State==Gen6MintNativeState.Installed,"Verified installation required before test distribution");
+        var marts=new GameMart6Service(project);Check(marts.SupportsExpansion,"Original Gen6 shop expansion must be supported: "+marts.ExpansionReason);
+        int[][] before=marts.ReadAllItems(),rows=before.Select(r=>(int[])r.Clone()).ToArray();
+        for(int i=0;i<9;i++)rows[i]=rows[i].Concat(Gen6NatureMintCatalog.ExperimentalItemMap.Items.Select(m=>m.ItemId).Where(id=>!rows[i].Contains(id))).ToArray();
+        var options=EditorValues.Flatten(marts.RandomOptions);options["Randomize"]=0;options["Candies"]=0;options["EVItems"]=0;options["BanCapsule"]=0;
+        var proposal=marts.PrepareDraft(rows,options,Enumerable.Range(1,9).ToArray(),0);marts.Apply(proposal);
+        var after=new GameMart6Service(GameProjectSession.Open(Path.Combine(root,"Proyecto"),false)).ReadAllItems();
+        Check(after.Where((row,i)=>!row.SequenceEqual(rows[i])).Count()==0,"Test inventories reopen exactly");
+        Save(output,new {CandidateDistributionOnly=true,GeneralStocks=9,Capacity=marts.Capacity,
+            Stocks=after.Select((r,i)=>new{Id=i+1,Count=r.Length,MintIds=r.Where(id=>Gen6NatureMintCatalog.ExperimentalItemMap.Items.Any(m=>m.ItemId==id))}),
+            ProductionEnabled=false,Note="Explicit test distribution; production policy remains disabled. Undo this shop action before undoing mint installation."});
+    }
+    static void RoundTrip(string root,string output)
+    {
+        NewEvidence(root,output);string folder=Path.Combine(root,"Proyecto"),image=Path.Combine(root,"Pokemon-X-XY-MINT-EXPERIMENTAL.3ds"),reextracted=Path.Combine(root,"Reextraido-XYMint");
+        Check(Target(root)==0x0004000000055D00,"First gameplay candidate is X only");
+        Check(!File.Exists(image)&&!Directory.Exists(reextracted),"Rebuild outputs must be new");
+        var expected=Inventory(folder);var project=GameProjectSession.Open(folder,false);
+        var result=new GameRomRebuildService(project).BuildAsync(RomRebuildKind.Trimmed3DS,image).GetAwaiter().GetResult();
+        new GameRomExtractionService(folder).ExtractAsync(image,reextracted).GetAwaiter().GetResult();
+        var actual=Inventory(reextracted);
+        Check(actual.OrderBy(p=>p.Key).SequenceEqual(expected.OrderBy(p=>p.Key)),"Every rebuilt/reextracted RomFS and ExeFS file matches");
+        Check(Inventory(folder).OrderBy(p=>p.Key).SequenceEqual(expected.OrderBy(p=>p.Key)),"Rebuild did not alter source project");
+        Check(Directory.GetFiles(Path.Combine(reextracted,"RomFS")).Select(Path.GetFileName).Count(n=>n=="DllBag.cro")==1,"Physical DllBag.cro name preserved");
+        Save(output,new {result.File,result.Hash,result.Bytes,AllFilesExact=true,FileCount=actual.Count,ProductionEnabled=false,GameplayVerified=false});
+    }
     [STAThread] static int Main(string[] args)
     {
         try
@@ -145,7 +211,12 @@ internal static class Program
             else if (args.Length == 3 && args[0] == "inspect") Inspect(args[1], args[2]);
             else if (args.Length == 3 && args[0] == "scripts") Scripts(args[1], args[2]);
             else if (args.Length == 3 && args[0] == "references") References(args[1], args[2]);
-            else { Console.Error.WriteLine("extract SOURCE_ROM NEW_PruebasMentasXY_ROOT | inspect ISOLATED_ROOT NEW_PRIVATE_JSON | scripts ISOLATED_ROOT NEW_JSON | references ISOLATED_ROOT NEW_JSON"); return 2; }
+            else if (args.Length == 3 && args[0] == "plan") Plan(args[1],args[2],false);
+            else if (args.Length == 3 && args[0] == "install-experiment") Plan(args[1],args[2],true);
+            else if (args.Length == 3 && args[0] == "verify-undo") UndoCheck(args[1],args[2]);
+            else if (args.Length == 3 && args[0] == "prepare-test-shops") Shops(args[1],args[2]);
+            else if (args.Length == 3 && args[0] == "rebuild-reextract") RoundTrip(args[1],args[2]);
+            else { Console.Error.WriteLine("extract SOURCE_ROM NEW_PruebasMentasXY_ROOT | inspect/scripts/references/plan/install-experiment/verify-undo/prepare-test-shops/rebuild-reextract ISOLATED_ROOT NEW_PRIVATE_JSON"); return 2; }
             return 0;
         }
         catch (Exception error) { Console.Error.WriteLine(error); return 1; }
