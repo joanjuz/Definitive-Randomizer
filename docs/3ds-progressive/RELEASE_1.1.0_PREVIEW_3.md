@@ -18,6 +18,8 @@ Esta entrega privada del PR #147 permite probar las 21 mentas de naturaleza y lo
 
 Cada operación se registra en Historial. Deshacer se realiza en orden inverso y devuelve los bytes anteriores del proyecto, incluidos sus datos randomizados; no cambia lo guardado dentro de una partida.
 
+La corrección de «Movimientos mejorados» en Gen6 evita que el archivo opcional vacío anule la casilla general. Conserva las categorías de entrenadores seleccionadas y las reglas de archivos personalizados (Keep, nivel, alcance y probabilidad). El selector STAB no cambia: el caso Gyarados 85 / Concha Filo 75 se comprobó por separado sobre datos aislados de Y y con regresión sintética. La política de Gen7 permanece igual.
+
 ## Compatibilidad
 
 La instalación conserva Pokémon, entrenadores, encuentros, movimientos, inventarios y textos ajenos a las mentas. No requiere que esos datos coincidan íntegramente con una ROM vanilla. Sí comprueba el título, el mapa nativo de memoria, las instrucciones/importaciones que usa el handler, los slots que ocupará, los segmentos y relocaciones CRO y la estructura CRR. Los hashes que necesitan reparación se preparan y guardan en la misma transacción; no se fabrican firmas RSA.

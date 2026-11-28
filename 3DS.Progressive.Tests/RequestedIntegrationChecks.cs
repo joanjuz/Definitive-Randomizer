@@ -13,6 +13,7 @@ internal static class RequestedIntegrationChecks
 {
     internal static void Run(Action<bool,string> check,Action<Action,string> reject)
     {
+        BetterMovesetActivation(check);
         byte[] matrix=Enumerable.Range(0,324).Select(i=>new byte[]{0,2,4,8}[i%4]).ToArray();var inverted=GameTypeChartService.Inverse(matrix);
         check(inverted.Take(4).SequenceEqual(new byte[]{8,8,4,2})&&matrix.Take(4).SequenceEqual(new byte[]{0,2,4,8}),"Inverse chart maps immunity/resistance to weakness and preserves neutral/source");reject(()=>GameTypeChartService.Inverse(new byte[2]),"Inverse chart rejects malformed matrix");
         foreach(int previous in new[]{5,40,90})foreach(int next in new[]{10,50,80})foreach(int gap in new[]{0,1,5,20})
@@ -64,6 +65,51 @@ internal static class RequestedIntegrationChecks
             var title=new GameTitleScreenService(f.Session);check(title.Archives.Count==18&&title.Images(9).Count==1,version+" Gen7 exposes 18 ALYT title resources");byte[] replacement=GameGraphicsCodec.Encode(bitmap,XLIMEncoding.RGBA8,true);var alyt=new TitleAlytCodec(record);byte[] replaced=alyt.Replace(1,replacement);check(new TitleAlytCodec(replaced).Read(0).SequenceEqual(new byte[]{1,2,3,4})&&new TitleAlytCodec(replaced).Read(1).SequenceEqual(replacement),version+" growing BFLIM replacement preserves other SARC payloads");byte[] before=File.ReadAllBytes(path);reject(()=>title.Replace(9,1,replacement),version+" Gen7 title rejects unsafe format and size expansion");
             bitmap.SetPixel(0,0,System.Drawing.Color.Blue);replacement=GameGraphicsCodec.EncodeLike(bitmap,image);
             check(replacement.Length==image.Length&&replacement.AsSpan(replacement.Length-40).SequenceEqual(image.AsSpan(image.Length-40)),version+" PNG conversion preserves complete original title texture footer and allocation");title.Replace(9,1,replacement);check(File.ReadAllBytes(path).SequenceEqual(before),version+" Gen7 title proposal is read-only");title.Apply();check(new GameTitleScreenService(f.Session).Read(9,1).SequenceEqual(replacement),version+" Gen7 title save roundtrips a compatible texture");
+        }
+    }
+    private static void BetterMovesetActivation(Action<bool,string> check)
+    {
+        using(var fixture=new Fixture(GameVersion.XY))
+        using(var context=ThreeDS.Progressive.Services.ProgressiveLegacy.Main.Enter(fixture.Root,fixture.Game))
+        {
+            ModuleChecks.CreateArchives(fixture);var config=fixture.Game;config.InitializeLearnset();var personal=config.Personal.Table[130];personal.Types=[10,2];personal.ATK=125;personal.SPA=60;
+            var set=config.Learnsets[130];set.Moves=[89,344,489,534];set.Levels=[1,34,60,75];set.Count=4;
+            foreach(var (id,type,power) in new[]{(89,4,100),(344,12,120),(489,3,0),(534,10,75)})
+            {config.Moves[id].Type=type;config.Moves[id].Power=power;config.Moves[id].Category=power==0?0:1;config.Moves[id].Accuracy=100;}
+            var learn=new LearnsetRandomizer(config,config.Learnsets);var move=new MoveRandomizer(config);
+            check(!learn.GetMovesUpToLevel(130,0,74).Contains(534)&&learn.GetMovesUpToLevel(130,0,85).Contains(534),"BetterMovesets_GyaradosRazorShellEligibleAt75ButNot74");
+            bool stab=true,legal=true;
+            for(int seed=0;seed<32;seed++)
+            {
+                Util.ReseedRand(seed);var chosen=ThreeDS.Progressive.Services.ProgressiveLegacy.SmartTrainerMovePicker.PickBetterMoveset(130,0,85,[],move,learn,
+                    new ThreeDS.Progressive.Services.ProgressiveLegacy.TrainerMoveRule{UseStrongestAttackStat=true},0,0,6);
+                stab&=chosen.Contains(534);legal&=chosen.All(m=>m==0||set.Moves.Contains(m));
+            }
+            check(stab,"BetterMovesets_Gyarados85ReceivesAvailablePhysicalWaterStabAcross32Seeds");
+            check(legal,"BetterMovesets_Gyarados85UsesOnlyEligibleLearnsetMoves");
+        }
+        const System.Reflection.BindingFlags flags=System.Reflection.BindingFlags.Public|System.Reflection.BindingFlags.NonPublic|System.Reflection.BindingFlags.Static;
+        var legacy=System.Reflection.Assembly.LoadFrom(Path.ChangeExtension(BatchRomExecution.RunnerPath,".dll"));
+        foreach(var pair in new[]{(typeof(ThreeDS.Progressive.Services.ProgressiveLegacy.RSTE),typeof(ThreeDS.Progressive.Services.ProgressiveLegacy.TrainerBetterMovesetTemplate)),
+            (legacy.GetType("pk3DS.WinForms.RSTE",true)!,legacy.GetType("pk3DS.WinForms.TrainerBetterMovesetTemplate",true)!)})
+        {
+            var engine=pair.Item1;var templateType=pair.Item2;var fields=new[]{"rBetterMovesets","rTrainerBetterMovesetTemplate","rGlobalMoveSettings"}.Select(n=>engine.GetField(n,flags)!).ToArray();var saved=fields.Select(f=>f.GetValue(null)).ToArray();
+            string path=Path.Combine(Path.GetTempPath(),"better-moves-"+Guid.NewGuid().ToString("N")+".txt");
+            try
+            {
+                object Load(string text){File.WriteAllText(path,text);return templateType.GetMethod("Load",flags)!.Invoke(null,[path,new List<string>()])!;}
+                var should=engine.GetMethod("ShouldUseBetterMoveset",flags)!;
+                bool Applies()=> (bool)should.Invoke(null,[null,1,false,"",85])!;
+                fields[0].SetValue(null,true);fields[1].SetValue(null,Load("# optional empty template\n"));fields[2].SetValue(null,null);
+                check(Applies(),engine.FullName+" BetterMovesets_ExplicitGlobalOptionWorksWithEmptyTemplate");
+                check(!(bool)templateType.GetMethod("ShouldApply")!.Invoke(fields[1].GetValue(null),[1,false,"",85,false])!,engine.FullName+" BetterMovesets_Gen7EmptyTemplatePolicyUnchanged");
+                fields[0].SetValue(null,false);check(!Applies(),engine.FullName+" BetterMovesets_DisabledGlobalOptionRemainsOff");fields[0].SetValue(null,true);
+                fields[1].SetValue(null,Load("Any | 1 | 100 | 100 | Keep"));check(!Applies(),engine.FullName+" BetterMovesets_AuthoredKeepStillWins");
+                fields[1].SetValue(null,Load("Trainer:2 | 1 | 100 | 100 | Better"));check(!Applies(),engine.FullName+" BetterMovesets_AuthoredScopeStillRestrictsApplication");
+                fields[1].SetValue(null,Load("Any | 1 | 100 | 0 | Better"));check(!Applies(),engine.FullName+" BetterMovesets_ZeroChanceStillDisablesApplication");
+                fields[1].SetValue(null,Load("broken rule"));check(!Applies(),engine.FullName+" BetterMovesets_MalformedTemplateDoesNotEnableFallback");
+            }
+            finally{for(int i=0;i<fields.Length;i++)fields[i].SetValue(null,saved[i]);File.Delete(path);}
         }
     }
     internal static void RunUi(Action<bool,string> check)

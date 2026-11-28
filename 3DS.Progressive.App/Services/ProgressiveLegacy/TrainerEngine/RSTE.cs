@@ -1361,7 +1361,9 @@ public partial class RSTE : Form
             return false;
         if(rGlobalMoveSettings is {} settings&&!GlobalMoveCategory(trainerID,settings.BetterMovesetsNormalTrainers,settings.BetterMovesetsImportantTrainers,settings.BetterMovesetsBosses))return false;
 
-        return rTrainerBetterMovesetTemplate?.ShouldApply(trainerID, isImportantTrainer, trainerGroup, level) ?? true;
+        // An empty optional file must not cancel the explicitly enabled Gen6 option.
+        // Authored rules (including Keep and unmatched scopes) still take precedence.
+        return rTrainerBetterMovesetTemplate?.ShouldApply(trainerID, isImportantTrainer, trainerGroup, level, applyWhenEmpty: true) ?? true;
     }
 
     private static bool ShouldApplyMoveRule(TrainerMoveRule rule)

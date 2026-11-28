@@ -132,11 +132,11 @@ public sealed class TrainerBetterMovesetTemplate
         return new TrainerBetterMovesetTemplate(rules, warnings);
     }
 
-    public bool ShouldApply(int trainerID, bool isImportantTrainer, string trainerGroup, int level)
+    public bool ShouldApply(int trainerID, bool isImportantTrainer, string trainerGroup, int level, bool applyWhenEmpty = false)
     {
         var rule = Rules.LastOrDefault(r => r.Matches(trainerID, isImportantTrainer, trainerGroup, level));
         if (rule is null)
-            return false;
+            return applyWhenEmpty && Rules.Length == 0 && Warnings.Count == 0;
 
         if (rule.Mode != TrainerBetterMovesetMode.Better)
             return false;

@@ -27,4 +27,6 @@
 # Any | 1 | 100 | 100 | Better
 #
 # Empty template:
-#   With no active rules, this template does not change trainer movesets.
+#   Gen6: the global Better Movesets checkbox and trainer categories apply.
+#   Gen7: with no active rules, this template does not change trainer movesets.
+#   An authored rule file still limits Gen6 by scope, level, chance and mode.
