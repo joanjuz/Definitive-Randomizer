@@ -10,6 +10,9 @@ internal sealed class Gen6MartTable
     private readonly int _cave,_end,_counts,_pointer,_stock,_family;
     private readonly uint _address;
     private readonly int _shops;
+    private readonly bool _upgradePointers;
+    internal bool NeedsPointerUpgrade=>_upgradePointers;
+    internal int MaxItemsPerShop=>_family==1?60:64;
     internal int Capacity=>(_end-_cave-64)/2;
     private static int I(byte[] b,int p)=>checked((int)BitConverter.ToUInt32(b,p));
     private static int Aligned(int n)=>checked((n+4095)&~4095);
@@ -31,9 +34,10 @@ internal sealed class Gen6MartTable
         if(source.AsSpan(_cave,4).SequenceEqual("DRM6"u8))
         {
             _pointer=I(source,_cave+24);
-            if(I(source,_cave+4)!=1||I(source,_cave+8)!=_family||I(source,_cave+12)!=_end-_cave||I(source,_cave+16)!=stock||I(source,_cave+20)!=_counts||I(source,_cave+28)!=_cave+64||I(source,_cave+32)!=Capacity||BitConverter.ToUInt32(source,_cave+40)!=_address||_pointer<roFile+Aligned(ro)||_pointer>source.Length-4||_pointer%4!=0||BitConverter.ToUInt32(source,_pointer)!=_address)throw new InvalidDataException("Descriptor de tiendas Gen6 incompatible.");
+            int version=I(source,_cave+4);_upgradePointers=_family==1&&version==1;
+            if(version is not (1 or 2)||version==2&&_family!=1||I(source,_cave+8)!=_family||I(source,_cave+12)!=_end-_cave||I(source,_cave+16)!=stock||I(source,_cave+20)!=_counts||I(source,_cave+28)!=_cave+64||I(source,_cave+32)!=Capacity||BitConverter.ToUInt32(source,_cave+40)!=_address||_pointer<roFile+Aligned(ro)||_pointer>source.Length-4||_pointer%4!=0||BitConverter.ToUInt32(source,_pointer)!=_address)throw new InvalidDataException("Descriptor de tiendas Gen6 incompatible.");
             int total=source.AsSpan(_counts,_shops).ToArray().Sum(v=>(int)v);
-            if(source.AsSpan(_counts,_shops).ToArray().Any(n=>n is <1 or >64)||total>Capacity||I(source,_cave+44)!=total||!Digest(source).AsSpan(0,16).SequenceEqual(source.AsSpan(_cave+48,16))||source.AsSpan(_cave+64+total*2,_end-(_cave+64+total*2)).ToArray().Any(v=>v!=0))throw new InvalidDataException("Integridad de tiendas Gen6 inválida.");
+            if(source.AsSpan(_counts,_shops).ToArray().Any(n=>n<1||n>MaxItemsPerShop)||total>Capacity||I(source,_cave+44)!=total||!Digest(source).AsSpan(0,16).SequenceEqual(source.AsSpan(_cave+48,16))||source.AsSpan(_cave+64+total*2,_end-(_cave+64+total*2)).ToArray().Any(v=>v!=0))throw new InvalidDataException("Integridad de tiendas Gen6 inválida.");
         }
         else
         {
@@ -42,19 +46,31 @@ internal sealed class Gen6MartTable
             for(int p=roFile+Aligned(ro);p<=source.Length-4;p+=4)if(source.AsSpan(p,4).SequenceEqual(needle))refs.Add(p);
             if(refs.Count!=1)throw new InvalidDataException("Puntero de inventarios Gen6 ausente o ambiguo.");_pointer=refs[0];
         }
+        if(_family==1)
+        {
+            if((long)_pointer+_shops*4>source.Length)throw new InvalidDataException("Vector de punteros XY truncado.");
+            bool relocated=TableOffset(source)!=_stock;bool complete=relocated&&I(source,_cave+4)==2;
+            var counts=complete?Counts(source):stockCounts;uint address=complete?_address:stockAddress;
+            for(int i=0;i<_shops;i++)
+            {
+                uint expected=relocated&&i==0?_address:address;
+                if(BitConverter.ToUInt32(source,_pointer+i*4)!=expected)throw new InvalidDataException("Puntero XY desconocido en tienda "+(i+1));
+                address=checked(address+(uint)counts[i]*2);
+            }
+        }
     }
     internal void ValidateHeader(){if(!SHA256.HashData(File.ReadAllBytes(_headerPath)).SequenceEqual(_headerHash))throw new IOException("ExHeader cambió desde la lectura de tiendas.");}
     internal int[] Counts(byte[] code)=>code.AsSpan(_counts,_shops).ToArray().Select(n=>(int)n).ToArray();
     internal int TableOffset(byte[] code)=>code.AsSpan(_cave,4).SequenceEqual("DRM6"u8)?_cave+64:_stock;
-    internal IReadOnlyList<(int Offset,int Length)> MintMutableRanges=>[(_stock,GameMart6Service.CountsXY.Sum()*2),(_counts,_shops),(_pointer,4),(_cave,_end-_cave)];
+    internal IReadOnlyList<(int Offset,int Length)> MintMutableRanges=>[(_stock,GameMart6Service.CountsXY.Sum()*2),(_counts,_shops),(_pointer,_family==1?_shops*4:4),(_cave,_end-_cave)];
     private byte[] Digest(byte[] code)
     {using var hash=IncrementalHash.CreateHash(HashAlgorithmName.SHA256);hash.AppendData(code.AsSpan(_cave,48));hash.AppendData(code.AsSpan(_counts,_shops));hash.AppendData(code.AsSpan(_cave+64,_end-_cave-64));return hash.GetHashAndReset();}
     internal byte[] Build(byte[] source,IReadOnlyList<int[]> rows)
     {
-        ValidateHeader();if(rows.Count!=_shops||rows.Any(r=>r.Length is <1 or >64||r.Any(i=>i<0||i>ushort.MaxValue))||rows.Sum(r=>r.Length)>Capacity)throw new InvalidDataException($"Inventario fuera de capacidad: máximo 64 por tienda y {Capacity} en total.");
+        ValidateHeader();if(rows.Count!=_shops||rows.Any(r=>r.Length<1||r.Length>MaxItemsPerShop||r.Any(i=>i<0||i>ushort.MaxValue))||rows.Sum(r=>r.Length)>Capacity)throw new InvalidDataException($"Inventario fuera de capacidad: máximo {MaxItemsPerShop} por tienda y {Capacity} en total.");
         int old=TableOffset(source);var oldCounts=Counts(source);bool changed=false;
         for(int i=0;i<_shops;i++){if(rows[i].Length!=oldCounts[i]||!rows[i].SequenceEqual(Enumerable.Range(0,oldCounts[i]).Select(n=>(int)BitConverter.ToUInt16(source,old+n*2))))changed=true;old+=oldCounts[i]*2;}
-        if(!changed)return (byte[])source.Clone();
+        if(!changed&&!_upgradePointers)return (byte[])source.Clone();
         if(TableOffset(source)==_stock&&rows.Select(r=>r.Length).SequenceEqual(oldCounts))
         {
             byte[] fixedSize=(byte[])source.Clone();int at=_stock;
@@ -62,9 +78,10 @@ internal sealed class Gen6MartTable
             return fixedSize;
         }
         byte[] next=(byte[])source.Clone();Array.Clear(next,_cave,_end-_cave);"DRM6"u8.CopyTo(next.AsSpan(_cave));
-        int[] meta=[1,_family,_end-_cave,_stock,_counts,_pointer,_cave+64,Capacity,0,unchecked((int)_address),rows.Sum(r=>r.Length)];
+        int[] meta=[_family==1?2:1,_family,_end-_cave,_stock,_counts,_pointer,_cave+64,Capacity,0,unchecked((int)_address),rows.Sum(r=>r.Length)];
         for(int i=0;i<meta.Length;i++)BitConverter.GetBytes(meta[i]).CopyTo(next,_cave+4+i*4);
         BitConverter.GetBytes(_address).CopyTo(next,_pointer);int cursor=_cave+64;
+        if(_family==1){uint address=_address;for(int i=0;i<_shops;i++){BitConverter.GetBytes(address).CopyTo(next,_pointer+i*4);address=checked(address+(uint)rows[i].Length*2);}}
         for(int i=0;i<_shops;i++){next[_counts+i]=(byte)rows[i].Length;foreach(int item in rows[i]){BitConverter.GetBytes((ushort)item).CopyTo(next,cursor);cursor+=2;}}
         Digest(next).AsSpan(0,16).CopyTo(next.AsSpan(_cave+48));return next;
     }

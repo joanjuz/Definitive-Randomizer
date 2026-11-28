@@ -120,3 +120,23 @@ Algunas operaciones de randomización dejan hashes CRO/CRR obsoletos. Los instal
 Sobre una copia aislada del proyecto randomizado de Y se reprodujo el rechazo anterior por code.bin. Se acreditaron después instalación e idempotencia de Persistent Items, recordador en la colocación conocida de Ruta 2 (zona 259, 463/458), ambos órdenes de instalación, integridad CRO/CRR durante la instalación y deshacer LIFO exacto de los 659 recursos de entrada. Una mutación desconocida del ejecutable se rechazó en ambos instaladores. El primer ensayo de convivencia tuvo un error del arnés: deshacía el asiento de restauración en vez de la operación anterior; se corrigió usando LatestUndoable y se repitió sobre otra copia limpia. No se atribuye ese resultado a una prueba dentro del juego.
 
 Regresiones locales: Persistent Items 122, recordador 72, WPF recordador 15, WPF Persistent Items 20, mentas Gen6 528, Global WPF 17 y mentas USUM 98; todas aprobadas. Evidencias privadas: `compat-before.log`, `compat-cycle-v2.log` y los logs `compat-*-only.log`, fuera de Git y sin recursos comerciales versionados.
+
+## Lectura nativa de tiendas X/Y (fix4)
+
+Se reextrajo code.bin de la salida de prueba facilitada por el propietario: su SHA-256 coincide exactamente con el ejecutable del proyecto (`B5AA00048E0010963DC0B894DA915FC03D598629FE0F310BFDDC56912AE638CF`). El rebuild conserva los cambios. El defecto estaba en la ampliación: se actualizaba únicamente el primer elemento del vector de punteros; las otras tiendas seguían apuntando a los inventarios originales.
+
+En ambos ejecutables originales acreditados X/Y, la rutina en offset de archivo `0x230014` carga los conteos desde el literal `0x23022C` y el vector desde `0x230230`. `0x2300D8` lee el conteo indexado; `0x2300EC` carga el puntero de la tienda con `r7 << 2`, `0x2300F4` añade `r5 << 1` y `0x2300F8` lee el objeto. Estos fragmentos se verificaron por separado en X e Y. El vector de 26 direcciones ocupa 104 bytes desde `0x4ADCE8`; cada puntero debe corresponder al comienzo de su propia fila. El código ARM no cambia.
+
+El descriptor DRM6 versión 2 contiene las mismas filas y actualiza todos los punteros XY. Se admite migrar la versión 1 reconocida, verificando que sus punteros restantes todavía son exactamente los originales. Un puntero desconocido, descriptor falsificado o checksum incorrecto se rechaza. Los perfiles independientes regeneran su hash del complemento nativo excluyendo los 104 bytes únicamente después de validar analíticamente las 26 direcciones. Los hashes de los ejecutables originales permanecen intactos. ORAS no se acredita mediante estas direcciones ni cambia de formato en esta corrección.
+
+La UI ofrece una propuesta explícita «Reparar referencias de tiendas», sin nuevos sorteos ni cambios a las filas. Historial conserva el deshacer exacto. Además, el bucle nativo escribe pares objeto/precio de ocho bytes a partir de `contexto+4`; `contexto+0x1E4` ya es un campo de control. Por ello X/Y admite como máximo 60 elementos por tienda, incluyendo las 21 mentas; se rechaza un inventario de 61.
+
+El replay de las instrucciones originales con Unicorn reproduce el fallo anterior en Y y obtiene las 26 filas esperadas después de reparar. Una ampliación separada de X también obtiene las 26 filas. El rebuild y la reextracción de ExeFS preservan exactamente el código reparado; no se presenta como prueba dentro del juego. La aceptación jugable corresponde al propietario.
+
+Comando reproducible sobre copias autorizadas (sin incluir binarios en Git):
+
+```text
+python tools/research/xy-nature-mints/verify_shop_pointer_reads.py CODE EXHEADER EXPECTED_ROWS_JSON
+```
+
+El JSON de entrada contiene `Rows` con las 26 listas de IDs esperados; el script no lee el descriptor del editor para decidir dónde están los punteros nativos. Devuelve código 1 si la lectura ARM no coincide. Regresiones específicas: `XYMart_All26NativePointersReadTheAuthoredInventories`, `XYMart_LegacySinglePointerLayoutReproducesMissingShopChanges`, `XYMart_RepairPreservesInventoriesAndRestoresEveryNativePointer`, `XYMart_UnknownSecondPointerIsRejected`, `XYMart_NativeSixtyItemLimitRejectsOverflow` y las dos pruebas `XYMartUi_*`. CI ejecuta `--requested-only` y `--requested-ui-only`.

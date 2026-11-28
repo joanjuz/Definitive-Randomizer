@@ -68,7 +68,7 @@ jobs:
         run: |
           $runner = '.\3DS.Progressive.Tests\bin\Release\net10.0-windows\3DS.Progressive.Tests.dll'
           $suites = @(
-            'visual-redesign-only', 'interaction-lock-only', 'requested-ui-only',
+            'visual-redesign-only', 'interaction-lock-only', 'requested-only', 'requested-ui-only',
             'template-studio-ui-only', 'template-latest-ui-only', 'template-feedback-ui-only',
             'text-classification-ui-only', 'text-commands-ui-only', 'global-options-only',
             'guidance-only', 'global-apply-only', 'global-apply-ui-only', 'batch-gen6-only', 'rebuild-marts-ui-only', 'mart-layout-ui-only',

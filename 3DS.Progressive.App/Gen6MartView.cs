@@ -26,6 +26,7 @@ internal sealed class Gen6MartView:UserControl
     private readonly TextBlock _shopDetail=new(){TextWrapping=TextWrapping.Wrap,Margin=new Thickness(0,2,0,8)};
     private readonly TextBlock _shopsHeading;
     private readonly Button _apply;
+    private readonly Button _repair;
     private List<MartShop> _shops=[];
     private EditorProposal? _pending;
     private bool _dirty,_loading;
@@ -34,7 +35,7 @@ internal sealed class Gen6MartView:UserControl
         _project=project;Editor=new(project);Background=(Brush)FindResource("Bg");MinHeight=MartWorkspace.MinimumHeight;
         var root=new DockPanel{Margin=new Thickness(20)};Content=root;var top=new StackPanel();DockPanel.SetDock(top,Dock.Top);root.Children.Add(top);
         top.Children.Add(new TextBlock{Text="Tiendas · XY / ORAS",FontSize=23,Foreground=(Brush)FindResource("TextMain")});
-        TextBlock description;top.Children.Add(description=new TextBlock{Text=Editor.SupportsExpansion?$"Añade o elimina objetos: hasta 64 por tienda y {Editor.Capacity} ranuras en total. Las plumas conservan su efecto EV Gen6.":"Inventarios fijos. Ampliar requiere una extracción con ExHeader compatible.",TextWrapping=TextWrapping.Wrap,Foreground=(Brush)FindResource("TextSoft"),Margin=new Thickness(0,4,0,0)});
+        TextBlock description;top.Children.Add(description=new TextBlock{Text=Editor.SupportsExpansion?$"Añade o elimina objetos: hasta {Editor.MaxItemsPerShop} por tienda y {Editor.Capacity} ranuras en total. Las plumas conservan su efecto EV Gen6.":"Inventarios fijos. Ampliar requiere una extracción con ExHeader compatible.",TextWrapping=TextWrapping.Wrap,Foreground=(Brush)FindResource("TextSoft"),Margin=new Thickness(0,4,0,0)});
         MartWorkspace.FitDescription(this,description);
         string[] keys=["Randomize","Candies","EVItems","BanCapsule","SpecialOnly","KeepX"];
         string[] labels=["Randomizar tiendas","Caramelos raros","Plumas EV","Prohibir Cápsula Habilidad","Solo tiendas especiales","Conservar objetos X"];
@@ -49,7 +50,8 @@ internal sealed class Gen6MartView:UserControl
         // Right column: actions on the selected shop, options grouped by purpose and preview/apply pinned at the bottom.
         var options=new StackPanel();
         MartWorkspace.Heading(options,"Inventario de la tienda",first:true);
-        MartWorkspace.Action(options,"+ Añadir objeto",()=>{if(_picker.SelectedItem is not MartShop shop)return;if(shop.Rows.Count>=64||_shops.Sum(s=>s.Rows.Count)>=Editor.Capacity){_status.Text="Capacidad de ranuras alcanzada.";return;}shop.Rows.Add(new(shop.Rows.Count+1,(_grid.SelectedItem as MartSlotRow)?.ItemId??4));}).IsEnabled=Editor.SupportsExpansion;
+        MartWorkspace.Action(options,"+ Añadir objeto",()=>{if(_picker.SelectedItem is not MartShop shop)return;if(shop.Rows.Count>=Editor.MaxItemsPerShop||_shops.Sum(s=>s.Rows.Count)>=Editor.Capacity){_status.Text="Capacidad de ranuras alcanzada.";return;}shop.Rows.Add(new(shop.Rows.Count+1,(_grid.SelectedItem as MartSlotRow)?.ItemId??4));}).IsEnabled=Editor.SupportsExpansion;
+        _repair=MartWorkspace.Action(options,"Reparar referencias de tiendas",PreviewRepair);
         MartWorkspace.Action(options,"− Eliminar objeto",()=>{if(_picker.SelectedItem is MartShop shop&&_grid.SelectedItem is MartSlotRow row&&shop.Rows.Count>1){shop.Rows.Remove(row);for(int i=0;i<shop.Rows.Count;i++)shop.Rows[i].Number=i+1;_grid.Items.Refresh();}}).IsEnabled=Editor.SupportsExpansion;
         MartWorkspace.Heading(options,"Opciones de la vista previa y de Global/Batch");
         MartWorkspace.Heading(options,"Randomización");
@@ -102,15 +104,20 @@ internal sealed class Gen6MartView:UserControl
         var shop=_picker.SelectedItem as MartShop;
         _shopsHeading.Text=$"Tiendas · {_shops.Count}";
         _shopTitle.Text=shop?.Name??"Tiendas";
-        _shopDetail.Text=shop is null?"":$"{shop.Rows.Count} objetos"+(Editor.SupportsExpansion?$" (máximo 64) · {_shops.Sum(s=>s.Rows.Count)} de {Editor.Capacity} ranuras en total":"");
+        _shopDetail.Text=shop is null?"":$"{shop.Rows.Count} objetos"+(Editor.SupportsExpansion?$" (máximo {Editor.MaxItemsPerShop}) · {_shops.Sum(s=>s.Rows.Count)} de {Editor.Capacity} ranuras en total":"");
     }
     private void Bind()
     {
         _loading=true;var items=Editor.ReadAllItems();_shops=Editor.Entries.Select((e,i)=>new MartShop(i,false,e.Name,items[i].Select((id,n)=>new MartSlotRow(n+1,id)))).ToList();
         foreach(var shop in _shops){foreach(var row in shop.Rows)row.PropertyChanged+=(_,_)=>Dirty();shop.Rows.CollectionChanged+=(_,e)=>{if(e.NewItems is not null)foreach(MartSlotRow row in e.NewItems)row.PropertyChanged+=(_,_)=>Dirty();Dirty();};}
-        _picker.ItemsSource=_shops;_picker.SelectedIndex=0;_loading=false;_dirty=false;_pending=null;_apply.IsEnabled=false;UpdateShopHeading();
+        _picker.ItemsSource=_shops;_picker.SelectedIndex=0;_loading=false;_dirty=false;_pending=null;_apply.IsEnabled=false;_repair.IsEnabled=Editor.NeedsPointerRepair;UpdateShopHeading();
     }
-    private void Dirty(){if(_loading)return;_dirty=true;_pending=null;_apply.IsEnabled=false;_changes.ItemsSource=null;_status.Text="Cambios pendientes: genera una nueva vista previa.";UpdateShopHeading();}
+    private void Dirty(){if(_loading)return;_dirty=true;_pending=null;_apply.IsEnabled=false;_repair.IsEnabled=false;_changes.ItemsSource=null;_status.Text="Cambios pendientes: genera una nueva vista previa.";UpdateShopHeading();}
+    private void PreviewRepair()
+    {
+        try{_pending=Editor.PreparePointerRepair();_changes.ItemsSource=_pending.Changes.Select(c=>$"{c.Name} · {c.Field}: {c.Before} → {c.After}").ToArray();_apply.IsEnabled=_pending.Files.Any(f=>f.Changed);_status.Text="Reparación preparada. Conserva exactamente los inventarios guardados y no randomiza; pulsa Aplicar y verificar.";}
+        catch(Exception ex){_pending=null;_apply.IsEnabled=false;StudioDialog.Error(Window.GetWindow(this),"Reparar tiendas X/Y",ex.Message);}
+    }
     internal RecordEditorView.UiState RememberOptions(){var values=EditorValues.Flatten(Editor.RandomOptions);values["UseChecks"]=1;foreach(var pair in _checks)values[pair.Key]=pair.Value.IsChecked==true?1:0;return new(values,0);}
     internal void Preview()
     {
