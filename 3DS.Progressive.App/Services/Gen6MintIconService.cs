@@ -12,7 +12,7 @@ namespace ThreeDS.Progressive.Services;
 internal sealed record Gen6MintIconPreview(Gen6MintNativeState State,string Report,EditorProposal? Proposal=null);
 
 /// <summary>XY-only image references and GARC v4. Uses the pinned USUM artwork pipeline,
-/// but converts to XY's independently observed 30x30 RGB5A1 BCLIM, orientation None.</summary>
+/// but converts to XY's native paletted RGB5A1 BCLIM, including high-nibble-first indexes.</summary>
 internal sealed class Gen6MintIconService(GameProjectSession project,
     Func<ulong,System.Text.Json.JsonElement>? resolveProfile=null,IReadOnlyList<UsumMintIconSource>? sources=null)
 {
@@ -76,7 +76,62 @@ internal sealed class Gen6MintIconService(GameProjectSession project,
         using var original=GameGraphicsCodec.Decode(source);if(original.Width!=32||original.Height!=32)throw new InvalidDataException("Fuente de icono incompatible.");
         using var canvas=new Bitmap(30,30);
         for(int y=0;y<30;y++)for(int x=0;x<30;x++)canvas.SetPixel(x,y,original.GetPixel(x+1,y+1));
-        return GameGraphicsCodec.Encode(canvas,XLIMEncoding.RGB5A1,false,XLIMOrientation.None);
+        byte[] result=GameGraphicsCodec.Encode(canvas,XLIMEncoding.RGB5A1,false,XLIMOrientation.None);
+        var histogram=new Dictionary<ushort,int>();
+        for(int y=0;y<30;y++)for(int x=0;x<30;x++){var c=canvas.GetPixel(x,y);if(c.A<128)continue;ushort packed=Pixel(c);histogram[packed]=histogram.GetValueOrDefault(packed)+1;}
+        var opaque=Quantize(histogram);var colors=new List<ushort>{0xfffe};colors.AddRange(opaque);
+        var lookup=histogram.Keys.ToDictionary(c=>c,c=>(byte)(1+opaque.Select((p,i)=>(i,d:Distance(c,p))).OrderBy(v=>v.d).ThenBy(v=>v.i).First().i));var indexes=new byte[1024];
+        var orienter=new XLIMOrienter(32,32,XLIMOrientation.None);
+        for(uint i=0;i<1024;i++)
+        {
+            var at=orienter.Get(i);if(at.X>=30||at.Y>=30)continue;var c=canvas.GetPixel((int)at.X,(int)at.Y);if(c.A<128)continue;
+            indexes[i]=lookup[Pixel(c)];
+        }
+        result.AsSpan(0,2048).Clear();BitConverter.GetBytes((ushort)2).CopyTo(result,0);BitConverter.GetBytes((ushort)colors.Count).CopyTo(result,2);
+        for(int i=0;i<colors.Count;i++)BitConverter.GetBytes(colors[i]).CopyTo(result,4+i*2);
+        int start=4+colors.Count*2;
+        if(colors.Count<=16)for(int i=0;i<1024;i+=2)result[start+i/2]=(byte)(indexes[i]<<4|indexes[i+1]);
+        else indexes.CopyTo(result,start);
+        ExpandPalette(result);return result;
+    }
+    private static ushort Pixel(Color c)=>(ushort)((c.R>>3)<<11|(c.G>>3)<<6|(c.B>>3)<<1|1);
+    private static int Channel(ushort c,int shift)=>(c>>shift)&31;
+    private static int Distance(ushort a,ushort b)=>new[]{11,6,1}.Sum(s=>{int d=Channel(a,s)-Channel(b,s);return d*d;});
+    // Deterministic, population-weighted median cut; reserves slot zero for
+    // transparency. RGB5A1 alpha and tile order never participate in reduction.
+    private static List<ushort> Quantize(Dictionary<ushort,int> histogram)
+    {
+        if(histogram.Count<=69)return histogram.Keys.Order().ToList();
+        var boxes=new List<List<ushort>>{histogram.Keys.Order().ToList()};
+        int Range(List<ushort> box,int shift)=>box.Max(c=>Channel(c,shift))-box.Min(c=>Channel(c,shift));
+        while(boxes.Count<69)
+        {
+            var pick=boxes.Select((box,i)=>(box,i,score:box.Count<2?-1L:(long)new[]{11,6,1}.Max(s=>Range(box,s))*box.Sum(c=>histogram[c])))
+                .OrderByDescending(v=>v.score).ThenBy(v=>v.i).First();
+            if(pick.score<0)break;
+            int channel=new[]{11,6,1}.OrderByDescending(s=>Range(pick.box,s)).First();
+            var sorted=pick.box.OrderBy(c=>Channel(c,channel)).ThenBy(c=>c).ToList();int half=(sorted.Sum(c=>histogram[c])+1)/2,weight=0,cut=0;
+            while(cut<sorted.Count-1&&weight<half)weight+=histogram[sorted[cut++]];
+            cut=Math.Clamp(cut,1,sorted.Count-1);boxes[pick.i]=sorted.Take(cut).ToList();boxes.Add(sorted.Skip(cut).ToList());
+        }
+        return boxes.Select(box=>{int total=box.Sum(c=>histogram[c]);int Mean(int s)=>(box.Sum(c=>Channel(c,s)*histogram[c])+total/2)/total;
+            return (ushort)(Mean(11)<<11|Mean(6)<<6|Mean(1)<<1|1);}).Distinct().Order().ToList();
+    }
+    /// <summary>Contract of original ARM 0x338B04: two bytes per palette entry,
+    /// RGB5A1 halfwords copied unchanged, <=16 colors use high nibble first.</summary>
+    internal static byte[] ExpandPalette(byte[] texture)
+    {
+        if(texture.Length!=2088||BitConverter.ToUInt16(texture,0)!=2)throw new InvalidDataException("Se requiere una paleta XY; píxeles directos no admitidos.");
+        int count=BitConverter.ToUInt16(texture,2),start=4+count*2;
+        if(count is <1 or >70||start+1024/(count<=16?2:1)>2048)throw new InvalidDataException("Paleta XY truncada o inválida.");
+        byte[] result=new byte[2048];
+        for(int i=0;i<1024;i++)
+        {
+            int index=count<=16?(texture[start+i/2]>>(i%2==0?4:0))&15:texture[start+i];
+            if(index>=count)throw new InvalidDataException("Índice ajeno a la paleta XY.");
+            texture.AsSpan(4+index*2,2).CopyTo(result.AsSpan(i*2,2));
+        }
+        return result;
     }
     internal static byte[] Decompress(byte[] record)
     {
@@ -87,7 +142,7 @@ internal sealed class Gen6MintIconService(GameProjectSession project,
         var tex=new BCLIM(raw);
         if(!raw.AsSpan(raw.Length-40,4).SequenceEqual("CLIM"u8)||!tex.Valid||tex.Width!=30||tex.Height!=30||
             tex.Format!=XLIMEncoding.RGB5A1||tex.Orientation!=XLIMOrientation.None)throw new InvalidDataException("Se requiere BCLIM XY 30x30 RGB5A1 None.");
-        using var decoded=GameGraphicsCodec.Decode(raw);return raw;
+        ExpandPalette(raw);return raw;
     }
     private static byte[] Compress(byte[] raw)
     {
@@ -151,7 +206,7 @@ internal sealed class Gen6MintIconService(GameProjectSession project,
         var files=new[]{new FileChange(s.Code,s.CodeBytes,code),new FileChange(s.Icons,s.Archive,archive)};
         var proposal=new EditorProposal(_owner,"Instalar iconos de mentas XY",0,files,
             Ids.Select((id,i)=>new BatchChange(id,"Menta XY","Icono",OriginalImage(id).ToString(),(OriginalCount+i).ToString())),
-            new Dictionary<string,string>{{"ActionId",ActionId},{"Source","PokeAPI/sprites"},{"SourceCommit",UsumMintIconSources.Commit},{"Conversion","XY-BCLIM-30-RGB5A1-None-v1"}},s.Dependencies);
+            new Dictionary<string,string>{{"ActionId",ActionId},{"Source","PokeAPI/sprites"},{"SourceCommit",UsumMintIconSources.Commit},{"Conversion","XY-BCLIM-30-PaletteRGB5A1-HighNibble-v2"}},s.Dependencies);
         _preparedTextures=textures.Select(t=>(byte[])t.Clone()).ToArray();
         return new(Gen6MintNativeState.Original,"21 iconos preparados; solo ejecutable y GARC de imágenes.",proposal);
     }

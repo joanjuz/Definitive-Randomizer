@@ -235,15 +235,19 @@ internal static class Program
                 string folder=Path.Combine(root,"Proyecto");var p=GameProjectSession.Open(folder,false);
                 byte[] archive=File.ReadAllBytes(Path.Combine(folder,"RomFS/a/0/9/4"));var rows=new GARC.MemGARC(archive).Files;
                 byte[] code=File.ReadAllBytes(Path.Combine(folder,"ExeFS/.code.bin"));
-                var observations=new List<object>();
+                var observations=new List<object>();string sheetPath=args[2]+".png";Check(!File.Exists(sheetPath),"Preview image output must be new");
+                using var sheet=new System.Drawing.Bitmap(280,120);using var drawing=System.Drawing.Graphics.FromImage(sheet);drawing.Clear(System.Drawing.Color.LightGray);
                 foreach(var m in Gen6NatureMintCatalog.ExperimentalItemMap.Items)
                 {
                     int image=BitConverter.ToInt32(code,0x43db74+m.ItemId*4);using var stream=new MemoryStream();
                     LZSS.Decompress(new MemoryStream(rows[image]),rows[image].Length,stream);byte[] raw=stream.ToArray();
-                    var tex=new BCLIM(raw);using var decoded=GameGraphicsCodec.Decode(raw);
-                    observations.Add(new{m.ItemId,image,raw.Length,tex.Valid,tex.Width,tex.Height,Format=tex.Format.ToString(),Orientation=tex.Orientation.ToString(),Footer=Convert.ToHexString(raw[^40..])});
+                    var tex=new BCLIM(raw);byte[] display=(byte[])raw.Clone();
+                    if(BitConverter.ToUInt16(raw,0)==2)Gen6MintIconService.ExpandPalette(raw).CopyTo(display,0);
+                    using var decoded=GameGraphicsCodec.Decode(display);int slot=observations.Count;drawing.DrawImageUnscaled(decoded,slot%7*40+5,slot/7*40+5);
+                    observations.Add(new{m.ItemId,image,raw.Length,tex.Valid,tex.Width,tex.Height,Format=tex.Format.ToString(),Orientation=tex.Orientation.ToString(),DataPrefix=Convert.ToHexString(raw[..16]),Footer=Convert.ToHexString(raw[^40..])});
                 }
                 Save(args[2],new{Title=Target(root),Count=rows.Length,Version=BitConverter.ToUInt16(archive,10),CodeSha256=Hash(code),Observations=observations});
+                sheet.Save(sheetPath,System.Drawing.Imaging.ImageFormat.Png);
             }
             else if (args.Length == 3 && args[0] == "extract") Extract(args[1], args[2]);
             else if (args.Length == 3 && args[0] == "inspect") Inspect(args[1], args[2]);

@@ -76,22 +76,31 @@ El perfil reconoce el `.code.bin` original y, solo en X, la huella exacta de la 
 
 `Gen6MintIconService` reutiliza las fuentes PokéAPI fijadas por commit y SHA-256 de USUM, sin cambiar sus servicios. La asignación se hace por el orden de naturalezas acreditado, usando los IDs de X/Y; no se copian los IDs de USUM.
 
-Las extracciones X e Y acreditan independientemente GARC **v4**, 579 imágenes, y texturas **BCLIM 30×30 RGB5A1, orientación None**, con 2048 bytes de píxeles y footer de 40 bytes. USUM utiliza GARC v6 y BFLIM 32×32 Rotate90: no se trasladan esos formatos. La imagen convertida de USUM se decodifica, se centra en 30×30 y se codifica en el formato XY. Se verifica su hash independiente.
+Las extracciones X e Y acreditan independientemente GARC **v4**, 579 imágenes, y texturas **BCLIM 30×30 RGB5A1, orientación None**, con área de datos de 2048 bytes y footer de 40 bytes. **Los datos de iconos llevan una paleta propia; no son 2048 bytes de píxeles directos.** USUM utiliza GARC v6 y BFLIM 32×32 Rotate90: no se trasladan esos formatos. La imagen convertida de USUM se decodifica y se centra en 30×30 antes de crear la paleta XY.
+
+El propietario informó que el candidato X-03 mostraba los iconos vacíos. La causa se reprodujo ejecutando el código original: `0x338B04` copia los datos mediante `0x300EF8` y luego expande la paleta. En `0x338B44/48` lee tamaño de entrada y cantidad; en `0x338B50/64`, `cantidad <= 16` selecciona índices de cuatro bits, con el nibble alto primero (`0x338B90..0x338BB4`). Para más de 16 usa índices de ocho bits (`0x338C24..0x338C78`). Los colores son halfwords RGB5A1 copiados sin reinterpretación a la salida. El candidato X-03 tenía ceros iniciales de píxeles directos; esa rutina los interpretaba como paleta vacía y producía alfa transparente en sus 21 imágenes. El decodificador gráfico propio había aceptado los píxeles directos: aquella prueba no demostraba aceptación por el juego.
+
+La conversión v2 escribe `ushort 2`, cantidad de colores, paleta RGB5A1 e índices Morton; reserva el índice cero para transparencia (`0xFFFE`) y conserva el área de 2048 bytes. Cuando se necesitan más de 69 colores opacos se aplica reducción determinista mediante median cut ponderado por población. La paleta resultante tiene como máximo 70 entradas con transparencia, mantiene el alfa y usa nibble alto primero también con exactamente 16 colores. Los hashes de las 21 texturas se actualizan para esta conversión acreditada; las texturas v1 fallidas no se aceptan como instaladas.
 
 Se añaden imágenes **579–599** y se actualizan únicamente las 21 palabras de la tabla en `.code.bin`. Se preservan exactamente los 579 registros anteriores; la reconstrucción canónica del GARC original coincide byte por byte con el original observado. Se rechazan tablas vectorizadas, rangos inválidos, compresión ajena, referencias parciales, texturas modificadas y cambios no reconocidos del ejecutable. El instalador de iconos requiere las mentas nativas instaladas, prepara dos archivos, relee las dependencias, valida la propuesta y registra su propia transacción y restauración exacta. No modifica `DllBag.cro`, CRR, textos, precio ni el handler de mentas.
 
 La aceptación del primer candidato X corresponde a sus iconos heredados. El candidato posterior con estos iconos requiere únicamente una nueva comprobación visual y un control de uso del propietario; no se ha ejecutado automáticamente en un emulador.
 
-El candidato privado `PruebasMentasXY-X-03/Pokemon-X-XY-MINT-EXPERIMENTAL.3ds` tiene tamaño `1801076736`, SHA-256 `1B83157D351560A9B20C3F000AA1BD6537C2DD66C6685A707562CDD3909D903E`. Su rebuild/reextracción conserva los 656 archivos esperados. La instalación real de iconos modificó únicamente `.code.bin` y `a/0/9/4`; deshacer y reinstalar conservaron exactamente el proyecto previo. El candidato X-02 y su guardado no se modificaron. Se puede abrir manualmente la nueva ROM desde el mismo perfil aislado de Citra, con el guardado de prueba que el propietario ya cargó; no requiere otro `main`. Validación pendiente: iconos de distintos colores, un objeto normal y un uso de menta como control.
+El candidato anterior `PruebasMentasXY-X-03/Pokemon-X-XY-MINT-EXPERIMENTAL.3ds` tiene tamaño `1801076736`, SHA-256 `1B83157D351560A9B20C3F000AA1BD6537C2DD66C6685A707562CDD3909D903E`. Su rebuild/reextracción conserva los 656 archivos esperados. La instalación real de iconos modificó únicamente `.code.bin` y `a/0/9/4`; deshacer y reinstalar conservaron exactamente el proyecto previo. Esto acreditaba la transacción, pero no el formato gráfico que requería el juego.
+
+**X-03 queda descartado para validar los iconos:** el propietario observó imágenes vacías y el replay reprodujo el problema. El candidato de corrección es X-04, con la paleta v2 descrita arriba. Sus 21 imágenes se visualizaron fuera del juego después de expandirlas, y los 2048 bytes de cada una coinciden con la ejecución nativa de X e Y. Esto no acredita todavía su visualización en el emulador ni un candidato jugable Y.
+
+La ROM X-04 tiene tamaño `1801072640`, SHA-256 `6F841869CCED1CCDF104E812FC0D054400E230DF0ED9BC076259C073F71A7002`. Rebuild y reextracción conservan los 656 archivos. Comparados los proyectos X-03 y X-04, cambia únicamente `RomFS/a/0/9/4`: ejecutable, handler, objetos y textos se mantienen idénticos. Las partidas y candidatos anteriores no se modificaron. Para la comprobación visual, abrir manualmente `PruebasMentasXY-X-04/Pokemon-X-XY-MINT-EXPERIMENTAL.3ds` desde el mismo emulador aislado y usar el `main` ya validado. Basta revisar los iconos en Medicina; no se solicita otra batería de pruebas funcionales.
 
 ## Evidencia técnica obtenida
 
 | Prueba | Resultado |
 |---|---|
-| Runner `--gen6-mints-only` | 328 comprobaciones sintéticas aprobadas, incluidas conversión, referencias, fuentes, rechazo de mutaciones, propuestas alteradas, fallos transaccionales, idempotencia y reversión de iconos X/Y |
-| Python `test_*.py` | 16 aprobadas; incluye restricciones y checksums de preparación de una copia de guardado |
+| Runner `--gen6-mints-only` | 341 comprobaciones sintéticas aprobadas, incluidas paleta/alpha/índices y límites 16/17/70, reducción determinista, rechazo de píxeles directos, transacciones y reversión de iconos X/Y |
+| Python `test_*.py` | 20 aprobadas; incluye formato de paleta, nibble alto, límites e índices inválidos, LZ11 y las comprobaciones anteriores de guardado aislado |
 | Regresiones sintéticas | USUM mentas 98, distribución USUM 128, Persistent Items X/Y 122, recordador X/Y 72, Batch Gen6 6 y Global 134 aprobadas |
 | Iconos USUM | 88 comprobaciones aprobadas después de añadir el servicio XY |
+| Expansión ARM de paletas v2 | 49 casos aprobados por título, sin stubs: límites 1/4/15/16/17/70, control negativo de píxeles directos, los 21 iconos vacíos de X-03 y los 21 iconos corregidos de X-04 |
 | Replay del handler X | 232 casos aprobados, también sobre el CRO exacto producido por el instalador |
 | Replay del handler Y | 232 casos aprobados con su ejecutable independiente |
 | Instalación real aislada X | 11 archivos, lectura posterior, deshacer exacto, reinstalación y reapertura del proyecto comprobados |
@@ -129,3 +138,5 @@ dotnet 3DS.Progressive.Tests/bin/Release/net10.0-windows/3DS.Progressive.Tests.d
 ```
 
 El CLI `tools/research/xy-nature-mints/playable` ofrece `plan`, `install-experiment`, `verify-undo`, `prepare-test-shops` y `rebuild-reextract`. Exige raíz aislada con marcador y salidas nuevas; los replays requieren binarios privados compatibles. No ejecutar comandos de emulador como parte de estas comprobaciones técnicas.
+
+El replay privado `replay_icon_palette.py PROYECTO_ORIGINAL --archive GARC_ICONOS_CANDIDATO --failed-archive GARC_X03 --output INFORME_NUEVO` ejecuta la rutina original y su memcpy, sin stubs ni cambios en el juego. Comprueba los límites de paleta, reproduce el fallo con las imágenes X-03 y contrasta los 2048 bytes expandidos de cada imagen nueva con una referencia independiente. Requiere las dependencias originales verificadas por título; no es una prueba jugable.

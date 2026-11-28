@@ -14,12 +14,33 @@ internal static class Gen6MintIconChecks
     private static string Hash(byte[] b)=>Convert.ToHexString(SHA256.HashData(b));
     internal static void Run(Action<bool,string> check,Action<Action,string> reject)
     {
-        using var picture=new Bitmap(32,32);for(int y=4;y<28;y++)for(int x=4;x<28;x++)picture.SetPixel(x,y,Color.FromArgb(255,x*8,y*8,32));
+        using var picture=new Bitmap(32,32);for(int y=4;y<28;y++)for(int x=4;x<28;x++)picture.SetPixel(x,y,x%2==0?Color.Red:y%3==0?Color.White:Color.Black);
         byte[] source=GameGraphicsCodec.Encode(picture,XLIMEncoding.RGB5A1,true,XLIMOrientation.Rotate90);
         byte[] converted=Gen6MintIconService.ConvertTexture(source);
-        using(var decoded=GameGraphicsCodec.Decode(converted))
+        byte[] expanded=(byte[])converted.Clone();Gen6MintIconService.ExpandPalette(converted).CopyTo(expanded,0);
+        using(var decoded=GameGraphicsCodec.Decode(expanded))
         using(var quantized=GameGraphicsCodec.Decode(source))
             check(decoded.Width==30&&decoded.Height==30&&decoded.GetPixel(10,13).ToArgb()==quantized.GetPixel(11,14).ToArgb(),"Gen6 icon conversion preserves visual orientation and crop");
+        reject(()=>Gen6MintIconService.ExpandPalette(GameGraphicsCodec.Encode(picture,XLIMEncoding.RGB5A1)),"Gen6 icon rejects direct pixels that appeared empty in game");
+        check(BitConverter.ToUInt16(converted,0)==2&&BitConverter.ToUInt16(converted,2)==4&&
+            Gen6MintIconService.ExpandPalette(converted).Where((value,i)=>i%2==0&&(value&1)!=0).Any(),"Gen6 icon native palette contains visible alpha");
+        foreach(int count in new[]{1,4,16,17,70})
+        {
+            byte[] fixture=new byte[2088];BitConverter.GetBytes((ushort)2).CopyTo(fixture,0);BitConverter.GetBytes((ushort)count).CopyTo(fixture,2);
+            for(int i=0;i<count;i++)BitConverter.GetBytes((ushort)(i==0?0xfffe:0xf801)).CopyTo(fixture,4+i*2);
+            int at=4+count*2;fixture[at]=count<=16?(byte)((count-1)<<4):(byte)(count-1);
+            byte[] raw=Gen6MintIconService.ExpandPalette(fixture);
+            check(BitConverter.ToUInt16(raw,0)==(count==1?0xfffe:0xf801)&&BitConverter.ToUInt16(raw,2)==0xfffe,"Gen6 native palette high-first and 16-color boundary "+count);
+            if(count>1){fixture[at]=count<=16?(byte)(count-1):(byte)0;check(!Gen6MintIconService.ExpandPalette(fixture).SequenceEqual(raw),"Gen6 palette index mutation changes native first pixel "+count);}
+        }
+        using(var gradient=new Bitmap(32,32))
+        {
+            for(int y=4;y<28;y++)for(int x=4;x<28;x++)gradient.SetPixel(x,y,Color.FromArgb(255,x*8,y*8,32));
+            byte[] input=GameGraphicsCodec.Encode(gradient,XLIMEncoding.RGB5A1,true,XLIMOrientation.Rotate90);
+            byte[] quantized=Gen6MintIconService.ConvertTexture(input),raw=Gen6MintIconService.ExpandPalette(quantized);
+            check(BitConverter.ToUInt16(quantized,2)<=70&&quantized.SequenceEqual(Gen6MintIconService.ConvertTexture(input)),"Gen6 palette reduction is bounded and deterministic");
+            check(Enumerable.Range(0,1024).Count(i=>(BitConverter.ToUInt16(raw,2*i)&1)!=0)==24*24,"Gen6 palette reduction preserves every opaque and transparent pixel");
+        }
         var ids=Gen6NatureMintCatalog.ExperimentalItemMap.Items.Select(m=>m.ItemId).ToArray();
         var sources=ids.Select(id=>new UsumMintIconSource(id,"synthetic",Hash(source),Hash(source))).ToArray();
         byte[][] textures=Enumerable.Range(0,21).Select(_=>(byte[])source.Clone()).ToArray();
