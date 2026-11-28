@@ -431,11 +431,12 @@ public sealed partial class Main : Form
                     BatchRuntime.Log($"Seed = {seed}");
                     BatchBridgeProgress.Step("Template aplicado","Iniciando las acciones de la receta");
                     BatchRuntime.Log($"Replaying {template.Actions.Count} action(s)...");
-                    string previousReplay=Environment.GetEnvironmentVariable("DEFINITIVE_BATCH_REPLAY"),previousTemplate=Environment.GetEnvironmentVariable("DEFINITIVE_TEMPLATE_PATH");
+                    string previousReplay=Environment.GetEnvironmentVariable("DEFINITIVE_BATCH_REPLAY"),previousTemplate=Environment.GetEnvironmentVariable("DEFINITIVE_TEMPLATE_PATH"),previousXySeed=Environment.GetEnvironmentVariable(pk3DS.Core.Modding.Research.Gen6MintExecutionContract.ReplaySeedEnvironment);
                     Environment.SetEnvironmentVariable("DEFINITIVE_TEMPLATE_PATH",options.TemplatePath);
                     Environment.SetEnvironmentVariable("DEFINITIVE_BATCH_REPLAY","1");
+                    if(Config.XY)Environment.SetEnvironmentVariable(pk3DS.Core.Modding.Research.Gen6MintExecutionContract.ReplaySeedEnvironment,seed.ToString(System.Globalization.CultureInfo.InvariantCulture));
                     try{if(batchGeneration==6)BatchGen6ActionExecutor.Execute(template);else BatchGen7ActionExecutor.Execute(template);}
-                    finally{Environment.SetEnvironmentVariable("DEFINITIVE_BATCH_REPLAY",previousReplay);Environment.SetEnvironmentVariable("DEFINITIVE_TEMPLATE_PATH",previousTemplate);}
+                    finally{Environment.SetEnvironmentVariable("DEFINITIVE_BATCH_REPLAY",previousReplay);Environment.SetEnvironmentVariable("DEFINITIVE_TEMPLATE_PATH",previousTemplate);Environment.SetEnvironmentVariable(pk3DS.Core.Modding.Research.Gen6MintExecutionContract.ReplaySeedEnvironment,previousXySeed);}
 
                     if (File.Exists(outputPath))
                         File.Delete(outputPath);

@@ -1,5 +1,7 @@
 # Runner de pruebas de 3DS.Progressive.Tests
 
+`--rom-extraction-only` ejecuta las comprobaciones sintéticas de RomFS, ExeFS, NCCH/NCSD y BLZ: relectura y SHA-256, archivos y nombres físicos, límites, rechazo de entradas dañadas y ausencia de escritura en la fuente. Está registrado en `RunnerCatalog.cs` y CI; no usa ROMs comerciales ni ejecuta un emulador.
+
 `3DS.Progressive.Tests` es un **ejecutable con runner propio**. No usa MSTest ni xUnit, así que `dotnet test` no ejecuta sus comprobaciones. La fuente de verdad es `3DS.Progressive.Tests/Program.cs`: este catálogo se generó a partir de ese archivo el 29/10/2026 y puede quedar desfasado. Si una opción no aparece aquí, buscarla en `Program.cs`.
 
 ## Uso

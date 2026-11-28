@@ -169,6 +169,11 @@ internal static class Gen6MintRecipeChecks
             check(reopened.ExecutionSnapshot().ToJson()==snapshot.ToJson(),$"Gen6MintUi_SaveLoadPreservesSelections_{shops}_{field}");
         }
         check(f.Session.History.Read().Entries.Count==0,"Gen6MintUi_ConfiguringRecipeNeverInstallsOrWritesHistory");
+        view.Measure(new System.Windows.Size(752,370));view.Arrange(new System.Windows.Rect(0,0,752,370));view.UpdateLayout();
+        var scroll=(ScrollViewer)view.Content;scroll.ScrollToBottom();view.UpdateLayout();
+        var status=(TextBlock)typeof(GlobalTemplateView).GetField("_status",fields)!.GetValue(view)!;
+        var bounds=status.TransformToAncestor(view).TransformBounds(new System.Windows.Rect(status.RenderSize));
+        check(status.ActualHeight>0&&bounds.Top>=0&&bounds.Bottom<=view.ActualHeight+1&&scroll.VerticalScrollBarVisibility==ScrollBarVisibility.Auto,"Gen6MintUi_SmallHeightKeepsStatusReachableByScrolling");
     }
     private static void Seeds(Action<bool,string> check,Action<Action,string> reject)
     {
@@ -177,6 +182,7 @@ internal static class Gen6MintRecipeChecks
         {
             string json=Seed(seed.ToString(System.Globalization.CultureInfo.InvariantCulture));
             check(Gen6MintExecutionContract.SeedForRom(json,0,37)==seed,"Gen6MintSeed_ExactSavedSeed_"+seed);
+            check(Gen6MintExecutionContract.TrainerSeed(seed)==(seed^0x58594D54),"Gen6MintSeed_TrainerModuleUsesActualRomSeed_"+seed);
             var sequence=Enumerable.Range(0,50).Select(i=>Gen6MintExecutionContract.SeedForRom(json,i,37)).ToArray();
             check(sequence.Distinct().Count()==50&&sequence.All(s=>s>=0),"Gen6MintSeed_DistinctNonnegativeBatch_"+seed);
             check(sequence.SequenceEqual(Enumerable.Range(0,50).Select(i=>Gen6MintExecutionContract.SeedForRom(json,i,99))),"Gen6MintSeed_ReplayIndependentOfGeneratedSeed_"+seed);
@@ -187,6 +193,7 @@ internal static class Gen6MintRecipeChecks
         foreach(string value in new[]{"-1","2147483648","1.5","true","null","\" 1\"","{}","[]"})
             reject(()=>Gen6MintExecutionContract.SeedForRom(Seed(value),0,0),"Gen6MintSeed_InvalidValueRejected_"+value);
         reject(()=>Gen6MintExecutionContract.SeedForRom(Seed("1"),-1,0),"Gen6MintSeed_NegativeIndexRejected");
+        reject(()=>Gen6MintExecutionContract.TrainerSeed(-1),"Gen6MintSeed_TrainerModuleRejectsUnknownSeed");
     }
     private static void RuntimeCro(Action<bool,string> check,Action<Action,string> reject)
     {

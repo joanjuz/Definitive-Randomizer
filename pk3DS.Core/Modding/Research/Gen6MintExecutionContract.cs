@@ -12,6 +12,8 @@ public static class Gen6MintExecutionContract
 {
     public const string Node = "Gen6MintItems";
     public const string InstallAction="xy.nature-mints.install",IconsAction="xy.nature-mints.icons.install";
+    public const string ReplaySeedEnvironment="DEFINITIVE_XY_REPLAY_SEED";
+    public static int TrainerSeed(int romSeed)=>romSeed>=0?romSeed^0x58594D54:throw new ArgumentOutOfRangeException(nameof(romSeed));
     public const string BlockedReason = "Se requiere una instalación nativa de mentas X/Y acreditada.";
 
     public static bool Read(string json)

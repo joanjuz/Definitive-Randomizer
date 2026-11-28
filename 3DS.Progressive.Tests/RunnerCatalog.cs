@@ -211,6 +211,7 @@ internal static class RunnerCatalog
         new("--pokefeur-only","",RunnerCategory.Synthetic,false),
         new("--rebuild-cache-only","",RunnerCategory.Synthetic,false),
         new("--rebuild-stability-only","",RunnerCategory.Synthetic,true),
+        new("--rom-extraction-only","",RunnerCategory.Synthetic,true),
         new("--remote-sprites-only","",RunnerCategory.Synthetic,false),
         new("--requested-only","",RunnerCategory.Synthetic,false),
         new("--shiny-batch-only","",RunnerCategory.Synthetic,false),

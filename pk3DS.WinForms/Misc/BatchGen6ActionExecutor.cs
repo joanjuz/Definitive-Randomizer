@@ -22,7 +22,17 @@ internal static class BatchGen6ActionExecutor
         var unsupported=GetUnsupported(template.Actions);if(unsupported.Length>0)throw new NotSupportedException("Acciones Gen6 no integradas: "+string.Join(", ",unsupported));
         var actions=new HashSet<string>(template.Actions.Select(a=>a.Id),StringComparer.OrdinalIgnoreCase);
         bool Has(string id)=>actions.Contains(id);
-        if(Extensions(template,"Bootstrap")){Main.Config.InitializeAll();pk3DS.Core.Randomizers.MoveRandomizer.ResetFirstMoveSequence();BatchBridgeProgress.ActionGroup("Instalaciones X/Y",actions,id=>id.StartsWith("xy.",StringComparison.OrdinalIgnoreCase));}
+        int? trainerSeed=null;
+        if(Extensions(template,"Bootstrap"))
+        {
+            Main.Config.InitializeAll();pk3DS.Core.Randomizers.MoveRandomizer.ResetFirstMoveSequence();
+            if(Has("trainers.randomize"))
+            {
+                if(!int.TryParse(Environment.GetEnvironmentVariable(pk3DS.Core.Modding.Research.Gen6MintExecutionContract.ReplaySeedEnvironment),out int actualSeed)||actualSeed<0)throw new InvalidDataException("Falta la semilla del replay X/Y.");
+                trainerSeed=pk3DS.Core.Modding.Research.Gen6MintExecutionContract.TrainerSeed(actualSeed);
+            }
+            BatchBridgeProgress.ActionGroup("Instalaciones X/Y",actions,id=>id.StartsWith("xy.",StringComparison.OrdinalIgnoreCase));
+        }
         if((Has("trades.accept-any")||Has("trades.randomize-offers"))&&!HasNativeTrades(template))
             BatchRuntime.Log(Gen6TradePatcher.ApplyGen6TradePatch(Main.ExeFSPath,Main.Config,Has("trades.randomize-offers")));
         BatchBridgeProgress.ActionGroup("Trades",actions,id=>id.StartsWith("trades.",StringComparison.OrdinalIgnoreCase));
@@ -69,7 +79,7 @@ internal static class BatchGen6ActionExecutor
             Main.Config.InitializeAll();
             BatchBridgeProgress.ActionGroup("Gen6 native editors",actions,id=>nativeIds.Contains(id,StringComparer.OrdinalIgnoreCase));
         }
-        if(Has("trainers.randomize"))RunTrainers();
+        if(Has("trainers.randomize")){if(trainerSeed is {} fixedSeed)RunTrainersSeeded(fixedSeed);else RunTrainers();}
         BatchBridgeProgress.ActionGroup("Trainers",actions,id=>id.StartsWith("trainers.",StringComparison.OrdinalIgnoreCase));
         ApplyManual(template);
         Extensions(template,"FinalizeRecipe");
@@ -236,10 +246,13 @@ internal static class BatchGen6ActionExecutor
         try{bridge.GetMethod("ApplyShiny",BindingFlags.Static|BindingFlags.Public).Invoke(null,new object[]{root,rerolls,everything});}
         catch(TargetInvocationException ex)when(ex.InnerException!=null){ExceptionDispatchInfo.Capture(ex.InnerException).Throw();}
     }
-    internal static void RunTrainers()
+    internal static void RunTrainers()=>ReplayTrainers(null);
+    internal static void RunTrainersSeeded(int seed)=>ReplayTrainers(seed);
+    private static void ReplayTrainers(int? replaySeed)
     {
         BatchRuntime.Log("Gen6 trainers...");var headers=Main.Config.GetGARCData("trdata");var teams=Main.Config.GetGARCData("trpoke");
         byte[][] trd=headers.Files,trp=teams.Files;using var form=new RSTE(trd,trp);
+        if(replaySeed is {} seed){Util.ReseedRand(seed);pk3DS.Core.Randomizers.MoveRandomizer.ResetFirstMoveSequence();}
         Event(form,"B_Randomize_Click");Invoke(form,"WriteFile");headers.Files=trd;teams.Files=trp;headers.Save();teams.Save();
     }
     private static void Event(object form,string name)=>Invoke(form,name,form,EventArgs.Empty);

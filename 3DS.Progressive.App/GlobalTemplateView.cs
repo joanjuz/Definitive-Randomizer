@@ -47,7 +47,7 @@ internal sealed class GlobalTemplateView : UserControl
         _restoreAsync=restoreAsync;_afterApply=afterApply;
         _project=project;_restoreOptions=restoreOptions;_captureOptions=captureOptions;Background=(Brush)FindResource("Bg");
         var root=new DockPanel {Margin=new Thickness(20)};
-        Content=root;
+        Content=project.GameConfiguration.XY?new ScrollViewer{Content=root,VerticalScrollBarVisibility=ScrollBarVisibility.Auto,HorizontalScrollBarVisibility=ScrollBarVisibility.Disabled}:root;
         var header=new StackPanel{Margin=new Thickness(0,0,0,13)};
         DockPanel.SetDock(header,Dock.Top);root.Children.Add(header);
         header.Children.Add(new TextBlock{Text="Global Template · Definitive Randomizer",
@@ -109,6 +109,7 @@ internal sealed class GlobalTemplateView : UserControl
                 }
             }
         };
+        if(project.GameConfiguration.XY){grid.MinHeight=180;grid.MaxHeight=480;}
         grid.Columns.Add(new DataGridCheckBoxColumn{Header="Incluir en copia",Width=120,
             Binding=new Binding(nameof(ActionRow.Selected)){Mode=BindingMode.TwoWay,
                 UpdateSourceTrigger=UpdateSourceTrigger.PropertyChanged}});

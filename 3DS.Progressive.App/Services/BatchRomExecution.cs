@@ -213,7 +213,7 @@ internal sealed class BatchRomExecution
                 string path=Path.Combine(options.OutputDirectory,$"{options.BaseName}_{i:00}.3ds");
                 if(!File.Exists(path)||new FileInfo(path).Length<512)
                     throw new IOException("Falta un ROM final o su tamaño es inválido: "+path);
-                using var outputStream=File.OpenRead(path);
+                using var outputStream=new FileStream(path,FileMode.Open,FileAccess.Read,FileShare.Read,1024*1024,FileOptions.SequentialScan);
                 string hash=Convert.ToHexString(SHA256.HashData(outputStream));
                 outputs.Add(new(i,path,hash,new FileInfo(path).Length,
                     i-1<seeds.Length?seeds[i-1]:null));
