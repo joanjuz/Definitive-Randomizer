@@ -20,6 +20,11 @@ public static class Gen6NatureMintCatalog
         new(20,"Calm"),new(21,"Gentle"),new(23,"Careful"),new(22,"Sassy"),
         new(10,"Timid"),new(11,"Hasty"),new(13,"Jolly"),new(14,"Naive"),new(12,"Serious") });
     public static Gen6MintItemMap? OfficialItemMap => null;
+    /// <summary>XY-only candidate allocation, gated until independent gameplay acceptance.
+    /// Includes the audited legacy Gen5 letter slot 623; never use a synthetic test map.</summary>
+    public static Gen6MintItemMap ExperimentalItemMap { get; } = new(
+        new[]{113,114,115,120,121,122,123,124,125,126,127,128,129,130,131,132,133,426,427,622,623}
+        .Select((item,index)=>new Gen6MintItem(item,Natures[index].NatureId)));
 }
 
 /// <summary>A validated mapping, not evidence that these item slots are safe in a game.</summary>

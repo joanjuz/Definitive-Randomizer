@@ -30,6 +30,7 @@
     <EmbeddedResource Include="Data\story-quote-metadata.json" LogicalName="ThreeDS.Progressive.story-quote-metadata.json" />
     <Content Include="..\pk3DS.WinForms\catch_zone_patches\*.json" Link="catch_zone_patches\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
     <InternalsVisibleTo Include="3DS.Progressive.Tests" />
+    <EmbeddedResource Include="..\tools\research\xy-nature-mints\observed_profiles.json" LogicalName="ThreeDS.Progressive.Gen6MintObservedProfiles" />
     <Content Include="Tools\Mobipeg\**\*" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
     <ProjectReference Include="..\pk3DS.Core\pk3DS.Core.csproj" />
     <ProjectReference Include="..\pk3DS.WinForms\pk3DS.WinForms.csproj" ReferenceOutputAssembly="false"
