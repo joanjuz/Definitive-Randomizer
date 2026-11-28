@@ -13,6 +13,7 @@ internal static class RequestedIntegrationChecks
 {
     internal static void Run(Action<bool,string> check,Action<Action,string> reject)
     {
+        BetterMovesetActivation(check);
         byte[] matrix=Enumerable.Range(0,324).Select(i=>new byte[]{0,2,4,8}[i%4]).ToArray();var inverted=GameTypeChartService.Inverse(matrix);
         check(inverted.Take(4).SequenceEqual(new byte[]{8,8,4,2})&&matrix.Take(4).SequenceEqual(new byte[]{0,2,4,8}),"Inverse chart maps immunity/resistance to weakness and preserves neutral/source");reject(()=>GameTypeChartService.Inverse(new byte[2]),"Inverse chart rejects malformed matrix");
         foreach(int previous in new[]{5,40,90})foreach(int next in new[]{10,50,80})foreach(int gap in new[]{0,1,5,20})
@@ -43,9 +44,10 @@ internal static class RequestedIntegrationChecks
             var options=EditorValues.Flatten(wild.RandomOptions);options["Progressive"]=1;for(int i=0;i<6;i++){options[$"BST.{i}.MinBST"]=options[$"BST.{i}.MaxBST"]=i==0?300:i==5?540:420;}
             string path=ModuleChecks.PathFor(f,"encdata");byte[] before=File.ReadAllBytes(path);var proposal=wild.Preview(options,[1],19);check(File.ReadAllBytes(path).SequenceEqual(before),version+" BST Gen6 preview preserves source");wild.Apply(proposal);var after=EditorValues.Flatten(wild.Read(1));check(after["S0.Species"]==1&&after["S1.Species"]==2,version+" BST Gen6 uses each slot's own level rather than first slot");
             check(wild.SplitLongestWildRange()&&wild.RandomOptions.SelectMany(g=>g.Fields).Count(f=>f.Key.StartsWith("BST."))==35,version+" Gen6 BST range table can expand");
-            SeedMart(f);var marts=new GameMart6Service(f.Session);check(marts.SupportsExpansion,version+" Gen6 mart RO padding is verified");var manual=marts.ReadAllItems();manual[0]=manual[0].Append(50).ToArray();manual[1]=manual[1].SkipLast(1).ToArray();options=EditorValues.Flatten(marts.RandomOptions);options["UseChecks"]=1;
+            SeedMart(f);var marts=new GameMart6Service(f.Session);check(marts.SupportsExpansion,version+" Gen6 mart RO padding is verified");var manual=marts.ReadAllItems();manual[0]=manual[0].Append(50).ToArray();manual[1]=manual[1].SkipLast(1).ToArray();if(version==GameVersion.XY)manual[1][0]=17;options=EditorValues.Flatten(marts.RandomOptions);options["UseChecks"]=1;
             byte[] codeBefore=File.ReadAllBytes(Path.Combine(f.Game.ExeFS,".code.bin"));var changes=marts.PrepareDraft(manual,options,marts.Entries.Select(e=>e.Id).ToArray(),5);marts.Apply(changes);var reread=new GameMart6Service(f.Session);check(reread.ReadAllItems().Zip(manual).All(pair=>pair.First.SequenceEqual(pair.Second)),version+" Gen6 added/deleted slots roundtrip through count vector and relocated table");
-            byte[] written=File.ReadAllBytes(Path.Combine(f.Game.ExeFS,".code.bin"));int header=written.AsSpan().IndexOf("DRM6"u8);var spans=new[]{(header,BitConverter.ToInt32(written,header+12)),(BitConverter.ToInt32(written,header+20),manual.Length),(BitConverter.ToInt32(written,header+24),4)}.OrderBy(p=>p.Item1).ToArray();int cursor=0;bool preserved=true;foreach(var span in spans){preserved&=codeBefore.AsSpan(cursor,span.Item1-cursor).SequenceEqual(written.AsSpan(cursor,span.Item1-cursor));cursor=span.Item1+span.Item2;}preserved&=codeBefore.AsSpan(cursor).SequenceEqual(written.AsSpan(cursor));check(preserved&&written.Length==codeBefore.Length,version+" Gen6 mart expansion preserves code outside owned padding/count/pointer regions and file size");
+            byte[] written=File.ReadAllBytes(Path.Combine(f.Game.ExeFS,".code.bin"));int header=written.AsSpan().IndexOf("DRM6"u8);var spans=new[]{(header,BitConverter.ToInt32(written,header+12)),(BitConverter.ToInt32(written,header+20),manual.Length),(BitConverter.ToInt32(written,header+24),version==GameVersion.XY?manual.Length*4:4)}.OrderBy(p=>p.Item1).ToArray();int cursor=0;bool preserved=true;foreach(var span in spans){preserved&=codeBefore.AsSpan(cursor,span.Item1-cursor).SequenceEqual(written.AsSpan(cursor,span.Item1-cursor));cursor=span.Item1+span.Item2;}preserved&=codeBefore.AsSpan(cursor).SequenceEqual(written.AsSpan(cursor));check(preserved&&written.Length==codeBefore.Length,version+" Gen6 mart expansion preserves code outside owned padding/count/pointer regions and file size");
+            if(version==GameVersion.XY)CheckMartPointers(f,written,header,manual,check,reject);
             options["EVItems"]=1;var ev=reread.PrepareDraft(reread.ReadAllItems(),options,reread.Entries.Select(e=>e.Id).ToArray(),5);int regular=f.Game.ORAS?10:9;reread.Apply(ev);var evRead=new GameMart6Service(f.Session).ReadAllItems();check(evRead.Take(regular).All(row=>Enumerable.Range(565,6).All(row.Contains))&&evRead.Skip(1).Take(regular-1).All(row=>!row.Contains(50)),version+" Gen6 EV preset adds wings and never adds candy");
             var doc=NativeRecipeFactory.Create(f.Session,d=>GlobalEditorTemplateBridge.Capture(d,new GameMart6Service(f.Session),new(options,0),6),["Marts"]);check(doc.Actions.SequenceEqual(new[]{"marts.add-ev-items"})&&NativeRecipeCompletion.TryComplete(f.Session,doc),version+" Gen6 check selection completes native Global/Batch recipe");NativeBatchGen6Bridge.ExecuteSession(f.Session,doc.ToJson(),9);
             written=File.ReadAllBytes(Path.Combine(f.Game.ExeFS,".code.bin"));written[header+64]^=1;File.WriteAllBytes(Path.Combine(f.Game.ExeFS,".code.bin"),written);reject(()=>new GameMart6Service(f.Session),version+" corrupted owned mart payload is rejected");
@@ -66,9 +68,64 @@ internal static class RequestedIntegrationChecks
             check(replacement.Length==image.Length&&replacement.AsSpan(replacement.Length-40).SequenceEqual(image.AsSpan(image.Length-40)),version+" PNG conversion preserves complete original title texture footer and allocation");title.Replace(9,1,replacement);check(File.ReadAllBytes(path).SequenceEqual(before),version+" Gen7 title proposal is read-only");title.Apply();check(new GameTitleScreenService(f.Session).Read(9,1).SequenceEqual(replacement),version+" Gen7 title save roundtrips a compatible texture");
         }
     }
+    private static void BetterMovesetActivation(Action<bool,string> check)
+    {
+        using(var fixture=new Fixture(GameVersion.XY))
+        using(var context=ThreeDS.Progressive.Services.ProgressiveLegacy.Main.Enter(fixture.Root,fixture.Game))
+        {
+            ModuleChecks.CreateArchives(fixture);var config=fixture.Game;config.InitializeLearnset();var personal=config.Personal.Table[130];personal.Types=[10,2];personal.ATK=125;personal.SPA=60;
+            var set=config.Learnsets[130];set.Moves=[89,344,489,534];set.Levels=[1,34,60,75];set.Count=4;
+            foreach(var (id,type,power) in new[]{(89,4,100),(344,12,120),(489,3,0),(534,10,75)})
+            {config.Moves[id].Type=type;config.Moves[id].Power=power;config.Moves[id].Category=power==0?0:1;config.Moves[id].Accuracy=100;}
+            var learn=new LearnsetRandomizer(config,config.Learnsets);var move=new MoveRandomizer(config);
+            check(!learn.GetMovesUpToLevel(130,0,74).Contains(534)&&learn.GetMovesUpToLevel(130,0,85).Contains(534),"BetterMovesets_GyaradosRazorShellEligibleAt75ButNot74");
+            bool stab=true,legal=true;
+            for(int seed=0;seed<32;seed++)
+            {
+                Util.ReseedRand(seed);var chosen=ThreeDS.Progressive.Services.ProgressiveLegacy.SmartTrainerMovePicker.PickBetterMoveset(130,0,85,[],move,learn,
+                    new ThreeDS.Progressive.Services.ProgressiveLegacy.TrainerMoveRule{UseStrongestAttackStat=true},0,0,6);
+                stab&=chosen.Contains(534);legal&=chosen.All(m=>m==0||set.Moves.Contains(m));
+            }
+            check(stab,"BetterMovesets_Gyarados85ReceivesAvailablePhysicalWaterStabAcross32Seeds");
+            check(legal,"BetterMovesets_Gyarados85UsesOnlyEligibleLearnsetMoves");
+        }
+        const System.Reflection.BindingFlags flags=System.Reflection.BindingFlags.Public|System.Reflection.BindingFlags.NonPublic|System.Reflection.BindingFlags.Static;
+        var legacy=System.Reflection.Assembly.LoadFrom(Path.ChangeExtension(BatchRomExecution.RunnerPath,".dll"));
+        foreach(var pair in new[]{(typeof(ThreeDS.Progressive.Services.ProgressiveLegacy.RSTE),typeof(ThreeDS.Progressive.Services.ProgressiveLegacy.TrainerBetterMovesetTemplate)),
+            (legacy.GetType("pk3DS.WinForms.RSTE",true)!,legacy.GetType("pk3DS.WinForms.TrainerBetterMovesetTemplate",true)!)})
+        {
+            var engine=pair.Item1;var templateType=pair.Item2;var fields=new[]{"rBetterMovesets","rTrainerBetterMovesetTemplate","rGlobalMoveSettings"}.Select(n=>engine.GetField(n,flags)!).ToArray();var saved=fields.Select(f=>f.GetValue(null)).ToArray();
+            string path=Path.Combine(Path.GetTempPath(),"better-moves-"+Guid.NewGuid().ToString("N")+".txt");
+            try
+            {
+                object Load(string text){File.WriteAllText(path,text);return templateType.GetMethod("Load",flags)!.Invoke(null,[path,new List<string>()])!;}
+                var should=engine.GetMethod("ShouldUseBetterMoveset",flags)!;
+                bool Applies()=> (bool)should.Invoke(null,[null,1,false,"",85])!;
+                fields[0].SetValue(null,true);fields[1].SetValue(null,Load("# optional empty template\n"));fields[2].SetValue(null,null);
+                check(Applies(),engine.FullName+" BetterMovesets_ExplicitGlobalOptionWorksWithEmptyTemplate");
+                check(!(bool)templateType.GetMethod("ShouldApply")!.Invoke(fields[1].GetValue(null),[1,false,"",85,false])!,engine.FullName+" BetterMovesets_Gen7EmptyTemplatePolicyUnchanged");
+                fields[0].SetValue(null,false);check(!Applies(),engine.FullName+" BetterMovesets_DisabledGlobalOptionRemainsOff");fields[0].SetValue(null,true);
+                fields[1].SetValue(null,Load("Any | 1 | 100 | 100 | Keep"));check(!Applies(),engine.FullName+" BetterMovesets_AuthoredKeepStillWins");
+                fields[1].SetValue(null,Load("Trainer:2 | 1 | 100 | 100 | Better"));check(!Applies(),engine.FullName+" BetterMovesets_AuthoredScopeStillRestrictsApplication");
+                fields[1].SetValue(null,Load("Any | 1 | 100 | 0 | Better"));check(!Applies(),engine.FullName+" BetterMovesets_ZeroChanceStillDisablesApplication");
+                fields[1].SetValue(null,Load("broken rule"));check(!Applies(),engine.FullName+" BetterMovesets_MalformedTemplateDoesNotEnableFallback");
+            }
+            finally{for(int i=0;i<fields.Length;i++)fields[i].SetValue(null,saved[i]);File.Delete(path);}
+        }
+    }
     internal static void RunUi(Action<bool,string> check)
     {
         var flags=System.Reflection.BindingFlags.Instance|System.Reflection.BindingFlags.NonPublic;
+        using(var f=new Fixture(GameVersion.XY))
+        {
+            ModuleChecks.CreateArchives(f);SeedMart(f);var service=new GameMart6Service(f.Session);var rows=service.ReadAllItems();rows[0]=rows[0].Append(50).ToArray();
+            var options=EditorValues.Flatten(service.RandomOptions);options["UseChecks"]=1;service.Apply(service.PrepareDraft(rows,options,service.Entries.Select(e=>e.Id).ToArray(),0));
+            string path=Path.Combine(f.Game.ExeFS,".code.bin");byte[] code=File.ReadAllBytes(path);File.WriteAllBytes(path,LegacyMartCode(code));
+            var view=new ThreeDS.Progressive.Gen6MartView(f.Session);var repair=(System.Windows.Controls.Button)typeof(ThreeDS.Progressive.Gen6MartView).GetField("_repair",flags)!.GetValue(view)!;
+            check(repair.IsEnabled,"XYMartUi_LegacyLayoutShowsEnabledRepairButton");repair.RaiseEvent(new System.Windows.RoutedEventArgs(System.Windows.Controls.Button.ClickEvent));
+            var pending=(EditorProposal)typeof(ThreeDS.Progressive.Gen6MartView).GetField("_pending",flags)!.GetValue(view)!;
+            check(pending.Files.Single().Proposed().SequenceEqual(code),"XYMartUi_RepairButtonPreparesExactPointerMigrationWithoutRandomizing");
+        }
         foreach(var version in new[]{GameVersion.XY,GameVersion.ORAS})
         {
             using var f=new Fixture(version);ModuleChecks.CreateArchives(f);SeedMart(f);
@@ -100,7 +157,33 @@ internal static class RequestedIntegrationChecks
         byte[] code=new byte[0x403000],header=new byte[2048];void H(int at,uint value)=>BitConverter.GetBytes(value).CopyTo(header,at);
         H(16,0x100000);H(20,1024);H(24,0x400000);H(32,0x500000);H(36,2);H(40,0x1800);H(48,0x502000);H(52,1);H(56,0x1000);File.WriteAllBytes(Path.Combine(f.Root,"DecryptedExHeader.bin"),header);
         int marker=0x400600,stock=marker+GameMart6Service.Vanilla.Length;GameMart6Service.Vanilla.CopyTo(code,marker);int[] counts=f.Game.ORAS?GameMart6Service.CountsORAS:GameMart6Service.CountsXY;counts.Select(n=>(byte)n).ToArray().CopyTo(code,stock-(f.Game.ORAS?0x236:0x1BA));int cursor=stock;foreach(int count in counts)for(int i=0;i<count;i++){BitConverter.GetBytes((ushort)(4+i%10)).CopyTo(code,cursor);cursor+=2;}BitConverter.GetBytes((uint)(0x100000+stock)).CopyTo(code,0x402100);File.WriteAllBytes(Path.Combine(f.Game.ExeFS,".code.bin"),code);
+        if(f.Game.XY){uint address=(uint)(0x100000+stock);for(int i=0;i<counts.Length;i++){BitConverter.GetBytes(address).CopyTo(code,0x402100+i*4);address+=(uint)counts[i]*2;}File.WriteAllBytes(Path.Combine(f.Game.ExeFS,".code.bin"),code);}
         var items=Enumerable.Range(0,1000).Select(_=>{byte[] b=new byte[0x30];BitConverter.GetBytes((ushort)100).CopyTo(b,0);b[^1]=0xA5;return b;}).ToArray();f.WriteGarc(ModuleChecks.PathFor(f,"item"),items,f.Game.GetGARCReference("item"));
+    }
+    private static void CheckMartPointers(Fixture f,byte[] code,int header,int[][] expected,Action<bool,string> check,Action<Action,string> reject)
+    {
+        int pointers=BitConverter.ToInt32(code,header+24),counts=BitConverter.ToInt32(code,header+20);string path=Path.Combine(f.Game.ExeFS,".code.bin");
+        bool NativeMatches(byte[] bytes)=>expected.Select((row,i)=>row.SequenceEqual(Enumerable.Range(0,bytes[counts+i]).Select(n=>(int)BitConverter.ToUInt16(bytes,checked((int)BitConverter.ToUInt32(bytes,pointers+i*4)-0x100000)+n*2)))).All(v=>v);
+        check(NativeMatches(code),"XYMart_All26NativePointersReadTheAuthoredInventories");
+        byte[] legacy=LegacyMartCode(code);
+        check(!NativeMatches(legacy),"XYMart_LegacySinglePointerLayoutReproducesMissingShopChanges");File.WriteAllBytes(path,legacy);
+        var service=new GameMart6Service(f.Session);check(service.NeedsPointerRepair,"XYMart_LegacyLayoutOffersExplicitRepair");var proposal=service.PreparePointerRepair();service.Apply(proposal);
+        check(File.ReadAllBytes(path).SequenceEqual(code)&&NativeMatches(File.ReadAllBytes(path)),"XYMart_RepairPreservesInventoriesAndRestoresEveryNativePointer");
+        RestorePoints.Undo(f.Session.History,f.Root,f.Session.History.Read().Entries.Last().Id);
+        check(File.ReadAllBytes(path).SequenceEqual(legacy),"XYMart_RepairUndoRestoresExactLegacyBytes");
+        var reinstall=new GameMart6Service(f.Session);reinstall.Apply(reinstall.PreparePointerRepair());
+        check(File.ReadAllBytes(path).SequenceEqual(code),"XYMart_RepairReinstallReturnsExactCorrectedBytes");
+        check(!new GameMart6Service(f.Session).NeedsPointerRepair,"XYMart_RepairedLayoutDoesNotRequestAnotherMigration");
+        byte[] external=(byte[])code.Clone();external[pointers+4]^=1;File.WriteAllBytes(path,external);reject(()=>new GameMart6Service(f.Session),"XYMart_UnknownSecondPointerIsRejected");File.WriteAllBytes(path,code);
+        var rows=expected.Select(r=>(int[])r.Clone()).ToArray();rows[0]=Enumerable.Repeat(4,61).ToArray();var options=EditorValues.Flatten(new GameMart6Service(f.Session).RandomOptions);options["UseChecks"]=1;
+        reject(()=>new GameMart6Service(f.Session).PrepareDraft(rows,options,[1],0),"XYMart_NativeSixtyItemLimitRejectsOverflow");
+    }
+    private static byte[] LegacyMartCode(byte[] code)
+    {
+        byte[] legacy=(byte[])code.Clone();int header=legacy.AsSpan().IndexOf("DRM6"u8),counts=BitConverter.ToInt32(code,header+20),pointers=BitConverter.ToInt32(code,header+24);
+        BitConverter.GetBytes(1).CopyTo(legacy,header+4);uint address=(uint)(0x100000+BitConverter.ToInt32(code,header+16));
+        for(int i=0;i<26;i++){if(i>0)BitConverter.GetBytes(address).CopyTo(legacy,pointers+i*4);address+=(uint)GameMart6Service.CountsXY[i]*2;}
+        using var hash=IncrementalHash.CreateHash(HashAlgorithmName.SHA256);hash.AppendData(legacy.AsSpan(header,48));hash.AppendData(legacy.AsSpan(counts,26));hash.AppendData(legacy.AsSpan(header+64,BitConverter.ToInt32(legacy,header+12)-64));hash.GetHashAndReset().AsSpan(0,16).CopyTo(legacy.AsSpan(header+48));return legacy;
     }
     internal static byte[] Alyt(byte[] image)
     {

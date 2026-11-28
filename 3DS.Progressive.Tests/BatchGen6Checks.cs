@@ -84,6 +84,19 @@ internal static class BatchGen6Checks
                 check(after.Skip(1).All(team=>BitConverter.ToUInt16(team,2)==20&&BitConverter.ToUInt16(team,20)==22),version+" packaged Gen6 Batch actually replays trainer level multiplier without dialogs");
                 check(after.Skip(1).Zip(before.Skip(1)).All(pair=>BitConverter.ToUInt16(pair.First,4)==BitConverter.ToUInt16(pair.Second,4)&&BitConverter.ToUInt16(pair.First,22)==BitConverter.ToUInt16(pair.Second,22)),version+" Batch trainer option disables species randomization");
                 check(File.ReadAllBytes(f.PersonalPath).SequenceEqual(personal),version+" Batch trainer replay preserves personal archive");
+                if(version==GameVersion.XY)
+                {
+                    string hp=ModuleChecks.PathFor(f,"trdata"),tp=ModuleChecks.PathFor(f,"trpoke");byte[] h=File.ReadAllBytes(hp),t=File.ReadAllBytes(tp);
+                    (byte[] Data,int Next) Replay(int precedingSeed)
+                    {
+                        File.WriteAllBytes(hp,h);File.WriteAllBytes(tp,t);Util.ReseedRand(precedingSeed);
+                        for(int i=0;i<17;i++)_=pk3DS.Core.Randomizers.MoveRandomizer.GetRandomFirstMoveAny();
+                        assembly.GetType("pk3DS.WinForms.BatchGen6ActionExecutor",true)!.GetMethod("RunTrainersSeeded",flags)!.Invoke(null,new object[]{12345});
+                        return(File.ReadAllBytes(tp),Util.Rand.Next());
+                    }
+                    var a=Replay(77);var b=Replay(88);
+                    check(a.Data.SequenceEqual(b.Data)&&a.Next==b.Next,"XYBatch_TrainerReplayIsolatesActualSeedFromPriorRngAndPoolState");
+                }
                 } finally {Environment.CurrentDirectory=oldDirectory;}
             }
         }

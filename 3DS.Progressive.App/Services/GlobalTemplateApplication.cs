@@ -31,7 +31,11 @@ internal sealed class GlobalTemplatePreview:IDisposable
 /// <summary>Preview is original Batch replay without assembly, applied once using frozen staged bytes.</summary>
 internal sealed class GlobalTemplateApplication(GameProjectSession project)
 {
-    private static string HashFile(string path){using var stream=File.OpenRead(path);return Convert.ToHexString(SHA256.HashData(stream));}
+    private static string HashFile(string path)
+    {
+        using var stream=new FileStream(path,FileMode.Open,FileAccess.Read,FileShare.Read,1024*1024,FileOptions.SequentialScan);
+        return Convert.ToHexString(SHA256.HashData(stream));
+    }
     internal static Dictionary<string,string> Snapshot(GameProjectSession session)
     {
         var result=new Dictionary<string,string>(StringComparer.OrdinalIgnoreCase);
@@ -50,7 +54,7 @@ internal sealed class GlobalTemplateApplication(GameProjectSession project)
             }
             Scan(folder);
         }
-        foreach(string file in Directory.EnumerateFiles(session.ProjectRoot).Where(path=>Path.GetFileName(path).StartsWith("exheader",StringComparison.OrdinalIgnoreCase)||Path.GetFileName(path).StartsWith("decryptedexh",StringComparison.OrdinalIgnoreCase)||session.GameConfiguration.USUM&&new[]{"ncchheader.bin","HeaderNCCH0.bin","HeaderNCCH.bin"}.Contains(Path.GetFileName(path),StringComparer.OrdinalIgnoreCase)))
+        foreach(string file in Directory.EnumerateFiles(session.ProjectRoot).Where(path=>Path.GetFileName(path).StartsWith("exheader",StringComparison.OrdinalIgnoreCase)||Path.GetFileName(path).StartsWith("decryptedexh",StringComparison.OrdinalIgnoreCase)||(session.GameConfiguration.USUM||session.GameConfiguration.XY)&&new[]{"ncchheader.bin","HeaderNCCH0.bin","HeaderNCCH.bin"}.Contains(Path.GetFileName(path),StringComparer.OrdinalIgnoreCase)))
         {
             if((File.GetAttributes(file)&FileAttributes.ReparsePoint)!=0)throw new InvalidDataException("ExHeader no puede ser un enlace.");
             result.Add(Path.GetRelativePath(session.ProjectRoot,file),HashFile(file));
@@ -93,6 +97,7 @@ internal sealed class GlobalTemplateApplication(GameProjectSession project)
                         "trainer-better-movesets"=>"Templates/trainer_better_movesets.txt",
                         "field-items"=>"custom_balance_templates/field_items.txt",_=>null
                     };
+                    if(project.GameConfiguration.XY)canonical??=name switch{"moves_gen6.csv" or "evolutions_gen6.csv" or "pokemon_stats_gen6.csv"=>"custom_balance_templates/"+name,_=>null};
                     if(canonical is not null&&!Path.GetFullPath(target).Equals(Path.GetFullPath(Path.Combine(workspace,canonical)),StringComparison.OrdinalIgnoreCase))File.Copy(target,Path.Combine(workspace,canonical),true);
                 }
             var preflight=await new BatchRomExecution(project).PreflightAsync(new(recipe,workspace,"preview",1,false,false,true));

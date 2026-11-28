@@ -50,7 +50,7 @@ internal sealed class GameRomExtractionService(string? protectedProject=null)
                     cancellation.ThrowIfCancellationRequested();UiProgress.Stage("Extrayendo "+part.Path);
                     string path=Path.Combine(stage,part.Path);Directory.CreateDirectory(Path.GetDirectoryName(path)!);
                     string hash=Copy(content,part.Offset,part.Length,path,cancellation);
-                    using(var verify=File.OpenRead(path))
+                    using(var verify=new FileStream(path,FileMode.Open,FileAccess.Read,FileShare.Read,1024*1024,FileOptions.SequentialScan))
                         if(verify.Length!=part.Length||Convert.ToHexString(SHA256.HashData(verify))!=hash)
                             throw new IOException("La relectura no coincide: "+part.Path);
                     records.Add(new(part.Path.Replace('\\','/'),part.Length,hash));

@@ -2,6 +2,7 @@ using System.IO;
 using System.Security.Cryptography;
 using pk3DS.Core;
 using pk3DS.Core.CTR;
+using pk3DS.Core.Modding.Research;
 using ThreeDS.Progressive.Models;
 
 namespace ThreeDS.Progressive.Services;
@@ -89,7 +90,7 @@ public sealed class GameMachine6Service : IProjectEditor
         var changes=EditorValues.Diff(1,"MT / MO",before,Read(next)).ToList();byte[] textOutput=text;
         if(!old.SequenceEqual(decoded.Items))
         {
-            var game=_project.GameConfiguration;byte[] encoded=new TextFile(game,remapChars:game.RemapCharacters){PreserveWhitespace=true,Lines=decoded.Items}.Data;
+            var game=_project.GameConfiguration;byte[] encoded=game.XY?UsumMintTextRows.Patch(game,decoded.Records[_itemIndex],decoded.Items):new TextFile(game,remapChars:game.RemapCharacters){PreserveWhitespace=true,Lines=decoded.Items}.Data;
             var confirmed=new TextFile(game,encoded,game.RemapCharacters).Lines;
             if(!confirmed.SequenceEqual(decoded.Items))
             {

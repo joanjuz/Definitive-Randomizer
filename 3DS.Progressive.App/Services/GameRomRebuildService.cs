@@ -138,7 +138,7 @@ internal sealed class GameRomRebuildService(GameProjectSession project, ExeFsBui
                     _=>Build3ds(stage,root,exefile,romfile,kind==RomRebuildKind.Trimmed3DS,project.GameConfiguration)
                 };
                 Report("Verificando SHA-256 de la salida…",75);
-                using var input=File.OpenRead(produced);
+                using var input=new FileStream(produced,FileMode.Open,FileAccess.Read,FileShare.Read,1024*1024,FileOptions.SequentialScan);
                 string hash=Convert.ToHexString(SHA256.HashData(input));
                 long size=input.Length;
                 if(size<512)throw new InvalidDataException("El archivo reconstruido está incompleto.");

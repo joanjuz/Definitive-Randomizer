@@ -145,6 +145,11 @@ internal sealed class SystemsView : UserControl
     internal void OpenRelearnerForChecks()=>_navigate("UsumRelearner");
     private void BuildMechanics(Panel stack)
     {
+        if(_project.GameConfiguration.XY)
+        {
+            var mints=Card("Mentas Gen6 · Pokémon X/Y","Instala las 21 mentas de naturaleza y sus iconos corregidos, también sobre datos randomizados.","Vista previa, comprobación del código nativo, integridad CRO/CRR e historial reversible.");
+            AddButton((StackPanel)mints.Child,"Abrir Mentas Gen6",()=>_navigate("Gen6NatureMints"));stack.Children.Add(mints);
+        }
         if(_project.GameConfiguration.USUM){
             var mints=Card("Mentas Gen7 — Ultra Sol / Ultra Luna","Instala 21 mentas consumibles y consulta el estado del parche. Cambian la naturaleza real del Pokémon.","Se comprueban huellas de US/UM y recursos; instalación transaccional y deshacer. Después puedes añadirlas manualmente desde Tiendas y BP.");
             AddButton((StackPanel)mints.Child,"Abrir Mentas Gen7",()=>_navigate("UsumNatureMints"));stack.Children.Add(mints);

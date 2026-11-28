@@ -23,6 +23,16 @@ internal static class Machine6Checks
     }
     internal static void Run(Action<bool,string> check,Action<Action,string> reject)
     {
+        using(var f=new Fixture(GameVersion.XY))
+        {
+            var setup=Setup(f);var records=setup.TextRecords;byte[] rows=records[setup.Items];
+            // Opaque row flags must survive a TM description edit after mint setup.
+            BitConverter.GetBytes((ushort)0x5a37).CopyTo(rows,20+623*8+6);
+            var reference=f.Game.GetGARCReference("gametext");f.WriteGarc(setup.Text,records,reference.LanguageVariant?reference.GetRelativeGARC(f.Game.Language):reference);
+            var service=new GameMachine6Service(f.Session);var values=EditorValues.Flatten(service.Read(1));values["TM001"]=321;service.Save(1,values);
+            var after=new GARC.MemGARC(File.ReadAllBytes(setup.Text)).Files[setup.Items];
+            check(BitConverter.ToUInt16(after,20+623*8+6)==0x5a37,"XYMachine6_UntouchedMintRowFlagsPreserved");
+        }
         using(var f=new Fixture(GameVersion.ORAS))
         {
             var setup=Setup(f);var records=setup.TextRecords;

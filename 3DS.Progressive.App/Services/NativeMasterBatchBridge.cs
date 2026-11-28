@@ -40,6 +40,13 @@ public static class NativeMasterBatchBridge
         {
             if(node["TemplateSha256"]?.GetValue<string>() is not {} expected)throw new InvalidDataException("Falta el CSV o su SHA-256.");
             string path=Path.GetFullPath(value.TemplatePath??(action==BatchAction.MoveBalance?OptionalTemplates.LegacyMoveTemplate(document.Generation):OptionalTemplates.LegacyStatsTemplate(document.Generation)));
+            if(document.Game.Equals("XY",StringComparison.OrdinalIgnoreCase)&&document.SourcePath is {} recipe)
+            {
+                string name=Path.GetFileName(path);
+                string? bundled=OptionalTemplates.FindAsset([Path.Combine(Path.GetDirectoryName(recipe)!,"custom_balance_templates"),Path.GetDirectoryName(recipe)!],name,expected);
+                if(bundled is not null&&OptionalTemplates.Sha256(bundled).Equals(expected,StringComparison.OrdinalIgnoreCase))
+                {path=bundled;value=value with{TemplatePath=path};}
+            }
             // A CSV changed since the capture is only a warning (CheckAssets); the current file is used.
             if(!File.Exists(path))throw new FileNotFoundException("Falta el CSV del template.",path);
         }
@@ -79,7 +86,7 @@ public static class NativeMasterBatchBridge
     public static void Execute(string root,string templateJson,int seed,string module)=>ExecuteSession(GameProjectSession.Open(root,recoverInterruptedSave:false),templateJson,seed,module);
     public static void ExecuteSession(GameProjectSession project,string templateJson,int seed,string module)
     {
-        var document=GlobalTemplateDocument.Parse(templateJson,project.GameName,project.Generation);ProjectFeatureAvailability.ValidateActions(project,document.Actions);ValidateDocument(document);
+        var document=GlobalTemplateDocument.Parse(templateJson,project.GameName,project.Generation,project.GameConfiguration.XY?Environment.GetEnvironmentVariable("DEFINITIVE_TEMPLATE_PATH"):null);ProjectFeatureAvailability.ValidateActions(project,document.Actions);ValidateDocument(document);
         if(!Selected(document,module))throw new InvalidDataException("No hay configuración nativa seleccionada: "+module);
         var result=Preview(project,module,Read(document,module)!,seed);
         if(result.Moves is {} moves)moves.ApplyMovePreview(result.Proposal);else project.ApplyPersonalPreview(result.Proposal);

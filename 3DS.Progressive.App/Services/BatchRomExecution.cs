@@ -36,7 +36,7 @@ internal sealed record RomBuildJournal(DateTimeOffset CompletedUtc,string Projec
 internal sealed class BatchRomExecution
 {
     // Parity with BatchGen7ActionExecutor.Supported from the original executable.
-    internal static bool Supports(string actionId)=>SupportedActionIds.Contains(actionId);
+    internal static bool Supports(string actionId)=>SupportedActionIds.Contains(actionId)||Gen6MintRecipeBridge.ActionIds.Contains(actionId,StringComparer.OrdinalIgnoreCase);
     private static readonly HashSet<string> SupportedActionIds=new(StringComparer.OrdinalIgnoreCase)
     {
         "manual-edits.apply","rng.seed","moves.balance","moves.randomize","moves.metronome",
@@ -62,7 +62,7 @@ internal sealed class BatchRomExecution
     };
     private readonly GameProjectSession _project;
     internal static readonly HashSet<string> Gen6ActionIds=new(StringComparer.OrdinalIgnoreCase)
-    {"manual-edits.apply","rng.seed","moves.balance","moves.randomize","moves.metronome","personal.randomize","personal.modify-all","pokemon-stats.apply",
+    {"xy.persistent-items","xy.nature-mints.install","xy.nature-mints.icons.install","manual-edits.apply","rng.seed","moves.balance","moves.randomize","moves.metronome","personal.randomize","personal.modify-all","pokemon-stats.apply",
      "evolutions.randomize","evolutions.every-level","evolutions.remove-trade","evolutions.normalize","level-up-moves.randomize","level-up-moves.metronome","egg-moves.randomize","trades.accept-any","trades.randomize-offers","trainers.randomize","static-encounters.randomize","static-encounters.modify-levels","starters.randomize","tms.randomize","field-items.randomize","marts.randomize","marts.add-rare-candies","marts.add-ev-items","marts.ban-ability-capsule","items.fix-economy","pickup.randomize","wild-encounters.randomize","wild-encounters.modify-levels","wild-encounters.scale-levels","tms.sanity","tms.follow-evolutions","catchzones.enable","shiny-rate.apply","move-tutors.randomize","move-tutors.sanity","move-tutors.follow-evolutions"};
     private readonly string _game;
     internal static string RunnerPath=>Path.Combine(AppContext.BaseDirectory,
@@ -89,6 +89,7 @@ internal sealed class BatchRomExecution
                 StringComparison.OrdinalIgnoreCase))
             throw new InvalidOperationException("El destino no puede estar dentro de la ROM de origen.");
         var template=GlobalTemplateDocument.Load(options.TemplatePath,_game,_project.Generation);
+        pk3DS.Core.Modding.Research.Gen6MintExecutionContract.ValidateForExecution(template.ToJson());
         ProjectFeatureAvailability.ValidateActions(_project,template.Actions);
         GlobalEditorTemplateBridge.ValidateBatchReplay(template);
         if(_project.Generation==6)NativeBatchGen6Bridge.ValidateSession(_project,template);
@@ -96,7 +97,7 @@ internal sealed class BatchRomExecution
         NativeGen7WildBridge.ValidateSession(_project,template);NativeRecipeCompletion.ValidateGen7Parameters(_project,template);_=NativeGen7MartBridge.ValidateSession(_project,template);NativeGen7MachineBridge.ValidateSession(_project,template);NativeMasterBatchBridge.ValidateSession(_project,template);if(_project.Generation==7)NativeGen7FieldBridge.ValidateSession(_project,template);
         UsumMintItemPolicy.ValidateSession(_project,template);ManualEditTemplate.ValidateSession(_project,template);
         if(template.Actions.Count==0)throw new InvalidDataException("El template no tiene acciones de batch.");
-        if(template.SettingsCount==0&&template.Actions.Any(id=>id!="rng.seed"&&id!=ManualEditTemplate.ActionId&&!NativeMasterBatchBridge.ActionIds.Contains(id,StringComparer.OrdinalIgnoreCase)&&!(_project.Generation==7&&NativeGen7FieldBridge.ActionIds.Contains(id,StringComparer.OrdinalIgnoreCase))&&!(_project.Generation==7&&NativeGen7MachineBridge.ActionIds.Contains(id,StringComparer.OrdinalIgnoreCase))&&!(_project.Generation==7&&NativeGen7MartBridge.ActionIds.Contains(id,StringComparer.OrdinalIgnoreCase))&&!(_project.Generation==7&&NativeRecipeCompletion.Gen7ParameterActions.Contains(id,StringComparer.OrdinalIgnoreCase))&&!(_project.Generation==7&&NativeGen7WildBridge.ActionIds.Contains(id,StringComparer.OrdinalIgnoreCase))&&!(_project.Generation==7&&Gen7Adjustments.ActionIds(_project.GameConfiguration.USUM).Contains(id,StringComparer.OrdinalIgnoreCase))&&!(_project.Generation==6?NativeBatchGen6Bridge.ActionIds:NativeBatchGen7StaticBridge.ActionIds).Contains(id,StringComparer.OrdinalIgnoreCase)))
+        if(template.SettingsCount==0&&template.Actions.Any(id=>id!="rng.seed"&&id!=ManualEditTemplate.ActionId&&!(_project.Generation==6&&Gen6MintRecipeBridge.ActionIds.Contains(id,StringComparer.OrdinalIgnoreCase))&&!NativeMasterBatchBridge.ActionIds.Contains(id,StringComparer.OrdinalIgnoreCase)&&!(_project.Generation==7&&NativeGen7FieldBridge.ActionIds.Contains(id,StringComparer.OrdinalIgnoreCase))&&!(_project.Generation==7&&NativeGen7MachineBridge.ActionIds.Contains(id,StringComparer.OrdinalIgnoreCase))&&!(_project.Generation==7&&NativeGen7MartBridge.ActionIds.Contains(id,StringComparer.OrdinalIgnoreCase))&&!(_project.Generation==7&&NativeRecipeCompletion.Gen7ParameterActions.Contains(id,StringComparer.OrdinalIgnoreCase))&&!(_project.Generation==7&&NativeGen7WildBridge.ActionIds.Contains(id,StringComparer.OrdinalIgnoreCase))&&!(_project.Generation==7&&Gen7Adjustments.ActionIds(_project.GameConfiguration.USUM).Contains(id,StringComparer.OrdinalIgnoreCase))&&!(_project.Generation==6?NativeBatchGen6Bridge.ActionIds:NativeBatchGen7StaticBridge.ActionIds).Contains(id,StringComparer.OrdinalIgnoreCase)))
             throw new InvalidDataException("Este template se creó solo desde historial: no contiene RandSettings. Importa y guarda una receta completa antes de construir.");
         var supported=_project.Generation==6?Gen6ActionIds:SupportedActionIds;
         var unsupported=template.Actions.Where(id=>!supported.Contains(id)&&id!=ManualEditTemplate.ActionId).ToArray();
@@ -114,7 +115,8 @@ internal sealed class BatchRomExecution
             Path.Combine(AppContext.BaseDirectory,"custom_balance_templates"),
             Path.Combine(Path.GetDirectoryName(RunnerPath)??"","custom_balance_templates"),
             Path.GetDirectoryName(options.TemplatePath)??""};
-        var warnings=template.CheckAssets(dirs).ToList();
+        var assetDirs=_project.GameConfiguration.XY?dirs.Prepend(Path.Combine(Path.GetDirectoryName(options.TemplatePath)??"","custom_balance_templates")):dirs;
+        var warnings=template.CheckAssets(assetDirs).ToList();
         var exe=_project.GameConfiguration.ExeFS;
         var rom=_project.GameConfiguration.RomFS;
         if(!Directory.Exists(exe)||!Directory.Exists(rom))
@@ -151,7 +153,8 @@ internal sealed class BatchRomExecution
             TemplatePath=Path.GetFullPath(options.TemplatePath),
             OutputDirectory=Path.GetFullPath(options.OutputDirectory),
             options.BaseName,options.Count,options.Trimmed,options.RestoreBackups,
-            options.KeepEditableProjects,options.AllowAssetMismatch
+            options.KeepEditableProjects,options.AllowAssetMismatch,
+            UseSourceLanguage=_project.GameConfiguration.XY,Language=_project.GameConfiguration.Language
         };
         await File.WriteAllTextAsync(requestPath,JsonSerializer.Serialize(request));
         string? scratchToClean=null;
@@ -211,7 +214,7 @@ internal sealed class BatchRomExecution
                 string path=Path.Combine(options.OutputDirectory,$"{options.BaseName}_{i:00}.3ds");
                 if(!File.Exists(path)||new FileInfo(path).Length<512)
                     throw new IOException("Falta un ROM final o su tamaño es inválido: "+path);
-                using var outputStream=File.OpenRead(path);
+                using var outputStream=new FileStream(path,FileMode.Open,FileAccess.Read,FileShare.Read,1024*1024,FileOptions.SequentialScan);
                 string hash=Convert.ToHexString(SHA256.HashData(outputStream));
                 outputs.Add(new(i,path,hash,new FileInfo(path).Length,
                     i-1<seeds.Length?seeds[i-1]:null));

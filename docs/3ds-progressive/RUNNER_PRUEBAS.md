@@ -1,10 +1,14 @@
 # Runner de pruebas de 3DS.Progressive.Tests
 
+`--rom-extraction-only` ejecuta las comprobaciones sintéticas de RomFS, ExeFS, NCCH/NCSD y BLZ: relectura y SHA-256, archivos y nombres físicos, límites, rechazo de entradas dañadas y ausencia de escritura en la fuente. Está registrado en `RunnerCatalog.cs` y CI; no usa ROMs comerciales ni ejecuta un emulador.
+
 `3DS.Progressive.Tests` es un **ejecutable con runner propio**. No usa MSTest ni xUnit, así que `dotnet test` no ejecuta sus comprobaciones. La fuente de verdad es `3DS.Progressive.Tests/Program.cs`: este catálogo se generó a partir de ese archivo el 29/10/2026 y puede quedar desfasado. Si una opción no aparece aquí, buscarla en `Program.cs`.
 
 ## Uso
 
 `--gen6-persistent-items-only` comprueba perfiles sintéticos X/Y independientes, las dos condiciones ARM, firmas y hashes, rechazo de estados parciales y cambios externos, propuestas congeladas, dependencias, historial/deshacer y convivencia en ambos órdenes con tabla de tipos y Escudo Real. Conserva las regresiones del nombre físico `DllBattle.cro` y el rechazo de X/Y por el servicio USUM. `--gen6-persistent-items-ui-only` verifica fuera de pantalla el diagnóstico incompatible y el ciclo vista previa/aplicar/retirar de la vista WPF con perfiles sintéticos explícitos. Ambas suites se ejecutan en CI y no sustituyen pruebas jugables.
+
+`--gen6-mints-only` comprueba la política de las 21 naturalezas, filtros, dependencias, Global/Batch bloqueados para producción y conservación de campos desconocidos. Incluye parche ARM y perfiles X/Y sintéticos independientes, firmas, estados parciales/externos, idempotencia, propuestas alteradas, carreras, transacciones, rollback, historial y reapertura. También verifica la conversión BCLIM específica de X/Y, las 21 referencias gráficas, la conservación de las imágenes originales, la instalación parcial, fuentes/texturas modificadas y el deshacer independiente de los iconos. Los fixtures no contienen datos comerciales; la suite no demuestra funcionamiento jugable ni acreditación de otras revisiones. Los replays privados y el candidato se documentan en [MENTAS_GEN6_XY_CANDIDATO.md](MENTAS_GEN6_XY_CANDIDATO.md). Se ejecuta en CI.
 
 `--nds-trainers-only` comprueba lectura y edición manual de entrenadores, conversión de formatos, conservación de datos, rebuild/reapertura y replay de recetas históricas y nuevas (fixtures Gen4/Gen5). Se incluye en `--nds-only`.
 

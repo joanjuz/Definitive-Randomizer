@@ -39,7 +39,7 @@ internal static class Gen6MoveReminderProfile
     ];
 
     internal sealed record Inspection(bool Allowed, string Reason, string Title,
-        IReadOnlyList<(string Path, byte[] Fingerprint)> Dependencies);
+        IReadOnlyList<(string Path, byte[] Fingerprint)> Dependencies,bool NeedsIntegrityRepair=false);
 
     private static readonly ConditionalWeakTable<Gen6MapBackend, Inspection> Snapshots = new();
 
@@ -123,6 +123,7 @@ internal static class Gen6MoveReminderProfile
             string root = Directory.GetParent(Path.GetFullPath(config.RomFS))?.FullName
                 ?? throw new InvalidDataException("La ruta RomFS no tiene una carpeta raíz de proyecto.");
             var dependencies = new Dictionary<string, byte[]>(StringComparer.OrdinalIgnoreCase);
+            bool needsIntegrityRepair=false;
             byte[] Read(string path)
             {
                 path = Path.GetFullPath(path);
@@ -155,8 +156,25 @@ internal static class Gen6MoveReminderProfile
             string title = pokemonY ? "Y" : "X";
             string[] code = new[] { ".code.bin", "code.bin" }.Select(n => Path.Combine(config.ExeFS, n)).Where(File.Exists).ToArray();
             if (code.Length != 1) return Deny("Se necesita un único ejecutable code.bin identificable para acreditar Pokémon X/Y.");
-            RequireHash(Read(code[0]), pokemonY ? YCodeHash : CodeHash, "code.bin");
-            foreach (var pin in NativePins(pokemonY)) RequireHash(Read(Path.Combine(config.RomFS, pin.Path)), pin.Hash, pin.Path);
+            byte[] executable=Read(code[0]);
+            if(Convert.ToHexString(SHA256.HashData(executable))!=(pokemonY?YCodeHash:CodeHash))
+            {
+                needsIntegrityRepair=true;
+                var shape=Gen6NatureMintService.Profile(titleId!.Value).GetProperty("native").GetProperty("runtime").GetProperty("code");
+                try { RequireHash(Gen6MintRuntimeDependencies.NormalizeCode(config,root,config.Moves?.Length??0,executable,shape),shape.GetProperty("sha256").GetString()!,"code.bin (complemento nativo)"); }
+                catch(InvalidDataException error){throw new InvalidDataException("code.bin: la huella nativa o sus tablas no están acreditadas. "+error.Message,error);}
+            }
+            foreach (var pin in NativePins(pokemonY))
+            {
+                byte[] bytes=Read(Path.Combine(config.RomFS,pin.Path));
+                if(pin.Path=="DllField.cro"&&Convert.ToHexString(SHA256.HashData(bytes))!=pin.Hash)
+                {
+                    var shape=Gen6NatureMintService.Profile(titleId!.Value).GetProperty("native").GetProperty("runtime").GetProperty("cros").GetProperty(pin.Path);
+                    byte[] rebuilt=CroIntegrity.Rebuild(bytes);needsIntegrityRepair=true;
+                    RequireHash(Gen6MintRuntimeDependencies.NormalizeCro(pin.Path,rebuilt),shape.GetProperty("shape_sha256").GetString()!,pin.Path+" (complemento nativo)");
+                }
+                else RequireHash(bytes,pin.Hash,pin.Path);
+            }
             byte[] common = Archive(Path.Combine(config.RomFS, "a/0/3/1"));
             RequireHash(new GARC.MemGARC(common).GetFile(42), CommonHash, "Script común 42");
             for (int i = 0; i < StoryPins.Length; i++)
@@ -174,7 +192,7 @@ internal static class Gen6MoveReminderProfile
             // Whole-file fingerprints also guard the already-present destination model until Apply.
             foreach (var dependency in dependencies) GarcTransaction.ReadUnchanged(dependency.Key, dependency.Value);
             return new(true, $"Pokémon {title} acreditado: servicio original confirmado por el propietario en Ruta 2; cada nueva colocación debe ser accesible.", title,
-                dependencies.Select(d => (d.Key, d.Value)).ToArray());
+                dependencies.Select(d => (d.Key, d.Value)).ToArray(),needsIntegrityRepair);
         }
         catch (Exception ex) when (ex is IOException or InvalidDataException or UnauthorizedAccessException or ArgumentException
             or InvalidOperationException or IndexOutOfRangeException or OverflowException or MapFormatException or FormatException)

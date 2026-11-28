@@ -91,7 +91,25 @@ internal static class CustomBalanceTemplates
         => Path.Combine(GetTemplateRoot(), $"moves_gen{generation}.csv");
 
     internal static string GetEvolutionTemplatePath(int generation)
-        => Path.Combine(GetTemplateRoot(), $"evolutions_gen{generation}.csv");
+        => XYRecipeAsset($"evolutions_gen{generation}.csv")??Path.Combine(GetTemplateRoot(), $"evolutions_gen{generation}.csv");
+
+    private static string XYRecipeAsset(string name)
+    {
+        string recipe=Environment.GetEnvironmentVariable("DEFINITIVE_TEMPLATE_PATH");
+        if(Main.Config?.XY!=true||string.IsNullOrWhiteSpace(recipe))return null;
+        using var document=System.Text.Json.JsonDocument.Parse(File.ReadAllText(recipe));
+        if(!document.RootElement.TryGetProperty("Assets",out var assets))return null;
+        var rows=assets.EnumerateArray().Where(a=>a.TryGetProperty("FileName",out var n)&&n.GetString()==name).ToArray();
+        if(rows.Length==0)return null;
+        if(rows.Length!=1)throw new InvalidDataException("Asset XY duplicado: "+name);
+        string expected=rows[0].GetProperty("Sha256").GetString();
+        foreach(string folder in new[]{Path.Combine(Path.GetDirectoryName(recipe),TemplateRoot),Path.GetDirectoryName(recipe)})
+        {
+            string path=Path.Combine(folder,name);if(!File.Exists(path))continue;
+            if(Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(File.ReadAllBytes(path))).Equals(expected,StringComparison.OrdinalIgnoreCase))return path;
+        }
+        throw new InvalidDataException("Falta el CSV XY con el SHA-256 guardado: "+name);
+    }
 
     internal static string GetPokemonStatsTemplatePath(int generation)
         => Path.Combine(GetTemplateRoot(), $"pokemon_stats_gen{generation}.csv");

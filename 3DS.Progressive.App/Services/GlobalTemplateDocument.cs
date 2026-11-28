@@ -69,6 +69,15 @@ internal sealed class GlobalTemplateDocument
         }
         var mintEntry=recent.LastOrDefault(entry=>entry.Parameters.ContainsKey(UsumMintItemPolicy.Node));
         if(loaded is null&&mintEntry is not null)UsumMintItemPolicy.Capture(template,mintEntry.Parameters[UsumMintItemPolicy.Node]=="true");
+        if(loaded is null&&expectedGeneration==6&&expectedGame.Equals("XY",StringComparison.OrdinalIgnoreCase))
+        {
+            var current=pk3DS.Core.Modding.Research.Gen6MintExecutionContract.ReadOptions(template.ToJson());
+            var marts=recent.LastOrDefault(entry=>entry.Parameters.ContainsKey("Gen6MintItems.IncludeMarts"));
+            var field=recent.LastOrDefault(entry=>entry.Parameters.ContainsKey("Gen6MintItems.IncludeFieldItems"));
+            if(marts is not null||field is not null)Gen6MintItemPolicy.Capture(template,
+                marts?.Parameters["Gen6MintItems.IncludeMarts"]=="true"||(marts is null&&current.IncludeMarts),
+                field?.Parameters["Gen6MintItems.IncludeFieldItems"]=="true"||(field is null&&current.IncludeFieldItems));
+        }
         if(source is not null)template.SourcePath=source;
         return template;
     }
@@ -148,9 +157,12 @@ internal sealed class GlobalTemplateDocument
         {
             if(entry.Parameters.ContainsKey("ManualOperation")||entry.Parameters.ContainsKey("ManualEdits"))continue;
             if(!entry.Parameters.TryGetValue("ActionId",out string? id)||
-                string.IsNullOrWhiteSpace(id)||id is "usum.nature-mints.install" or "usum.nature-mints.icons.install"||!current.Add(id))continue;
-            // Mint installation stays in the audit trail. Replay validates the installed
-            // dependency instead of trying to install executable patches automatically.
+                string.IsNullOrWhiteSpace(id)||id is "usum.nature-mints.install" or "usum.nature-mints.icons.install")continue;
+            if(Game.Equals("XY",StringComparison.OrdinalIgnoreCase)&&Generation==6&&id==Gen6NatureMintService.ActionId)
+                id=pk3DS.Core.Modding.Research.Gen6MintExecutionContract.InstallAction;
+            if(!current.Add(id))continue;
+            // USUM installation remains audit-only. XY exposes explicit opt-in install
+            // actions; their bootstrap still validates the native dependencies.
             // History records demonstrate that a module ran, but do not invent missing
             // legacy RandSettings or detailed action parameter payloads.
             actions.Add(new JsonObject{["Id"]=id,["Parameters"]=entry.Parameters.TryGetValue("ActionParameters",out var payload)?JsonNode.Parse(payload):new JsonObject()});

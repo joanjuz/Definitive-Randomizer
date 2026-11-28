@@ -127,7 +127,27 @@ internal sealed class Map3dsNpcMoveService
             ["TemplateZone"] = reminder.Zone.ToString(inv), ["TemplateNpc"] = reminder.Index.ToString(inv),
             ["Area"] = area.ToString(inv), ["AreaModelAdded"] = addModel ? "true" : "false", ["Gameplay"] = $"owner confirmed {evidence.Title} Route 2; placement not tested",
         };
-        return new EditorProposal(_owner, $"Añadir recordador en la zona {zone:000} ({x}, {y})", 0, files, changes, parameters, evidence.Dependencies);
+        var dependencies=evidence.Dependencies.ToList();
+        if(evidence.NeedsIntegrityRepair)
+        {
+            var runtime=Gen6MintRuntimeDependencies.Capture(_project,requireInstalled:false);
+            foreach(var dependency in runtime.Dependencies)
+            {
+                var previous=dependencies.FirstOrDefault(d=>d.Path.Equals(dependency.Key,StringComparison.OrdinalIgnoreCase));byte[] hash=Convert.FromHexString(dependency.Value);
+                if(previous.Path is not null&&!previous.Fingerprint.AsSpan().SequenceEqual(hash))throw new IOException("Dependencias contradictorias antes de reparar la integridad.");
+                if(previous.Path is null)dependencies.Add((dependency.Key,hash));
+            }
+            var images=new List<byte[]>();
+            foreach(string path in Directory.GetFiles(_project.GameConfiguration.RomFS).Where(p=>Path.GetExtension(p).Equals(".cro",StringComparison.OrdinalIgnoreCase)).Order(StringComparer.Ordinal))
+            {
+                byte[] original=File.ReadAllBytes(path),rebuilt=CroIntegrity.Rebuild(original);images.Add(rebuilt);
+                if(!original.AsSpan().SequenceEqual(rebuilt))files.Add(new(path,original,rebuilt));
+            }
+            string crrPath=Path.Combine(_project.GameConfiguration.RomFS,".crr/static.crr");byte[] crr=File.ReadAllBytes(crrPath),next= CroIntegrity.RebuildCrr(crr,images);
+            if(!crr.AsSpan().SequenceEqual(next))files.Add(new(crrPath,crr,next));runtime.VerifyUnchanged();
+            changes.Add(new(zone,"Integridad nativa","CRO/CRR","Hashes obsoletos de datos acreditados","Hashes regenerados; firmas y código conservados"));
+        }
+        return new EditorProposal(_owner, $"Añadir recordador en la zona {zone:000} ({x}, {y})", 0, files, changes, parameters, dependencies);
     }
 
     /// <summary>

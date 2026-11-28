@@ -25,6 +25,9 @@ internal sealed class GlobalTemplateView : UserControl
     private readonly TextBox _name;
     private readonly Button _save,_previewButton,_applyButton;
     private readonly StackPanel _previewPanel=new();
+    private readonly StackPanel _xyMintOptions=new(){Margin=new Thickness(0,5,0,5),IsEnabled=false};
+    private readonly CheckBox _xyMintMarts=new(){Content="Incluir mentas X/Y en el pool de tiendas",Margin=new Thickness(0,2,12,2)};
+    private readonly CheckBox _xyMintField=new(){Content="Incluir mentas X/Y en el pool del suelo · visibles y ocultos",Margin=new Thickness(0,2,12,2)};
     private GlobalTemplatePreview? _preview;
     private bool _busy;
     private readonly Func<Task>? _afterApply;
@@ -44,7 +47,7 @@ internal sealed class GlobalTemplateView : UserControl
         _restoreAsync=restoreAsync;_afterApply=afterApply;
         _project=project;_restoreOptions=restoreOptions;_captureOptions=captureOptions;Background=(Brush)FindResource("Bg");
         var root=new DockPanel {Margin=new Thickness(20)};
-        Content=root;
+        Content=project.GameConfiguration.XY?new ScrollViewer{Content=root,VerticalScrollBarVisibility=ScrollBarVisibility.Auto,HorizontalScrollBarVisibility=ScrollBarVisibility.Disabled}:root;
         var header=new StackPanel{Margin=new Thickness(0,0,0,13)};
         DockPanel.SetDock(header,Dock.Top);root.Children.Add(header);
         header.Children.Add(new TextBlock{Text="Global Template · Definitive Randomizer",
@@ -71,6 +74,13 @@ internal sealed class GlobalTemplateView : UserControl
         header.Children.Add(_name);
         _meta=new TextBlock{Foreground=(Brush)FindResource("TextSoft"),TextWrapping=TextWrapping.Wrap};
         header.Children.Add(_meta);
+        if(project.GameConfiguration.XY)
+        {
+            _xyMintOptions.Children.Add(new TextBlock{Text="Las instalaciones se seleccionan en la lista de acciones. Cada pool es independiente y conserva el alcance y los filtros del editor.",TextWrapping=TextWrapping.Wrap,Foreground=(Brush)FindResource("TextSoft")});
+            _xyMintOptions.Children.Add(_xyMintMarts);_xyMintOptions.Children.Add(_xyMintField);header.Children.Add(_xyMintOptions);
+            _xyMintMarts.Checked+=(_,_)=>InvalidatePreview();_xyMintMarts.Unchecked+=(_,_)=>InvalidatePreview();
+            _xyMintField.Checked+=(_,_)=>InvalidatePreview();_xyMintField.Unchecked+=(_,_)=>InvalidatePreview();
+        }
         _status=new TextBlock{Foreground=(Brush)FindResource("TextSoft"),TextWrapping=TextWrapping.Wrap,
             Margin=new Thickness(0,8,0,6)};
         DockPanel.SetDock(_status,Dock.Bottom);root.Children.Add(_status);
@@ -99,6 +109,7 @@ internal sealed class GlobalTemplateView : UserControl
                 }
             }
         };
+        if(project.GameConfiguration.XY){grid.MinHeight=180;grid.MaxHeight=480;}
         grid.Columns.Add(new DataGridCheckBoxColumn{Header="Incluir en copia",Width=120,
             Binding=new Binding(nameof(ActionRow.Selected)){Mode=BindingMode.TwoWay,
                 UpdateSourceTrigger=UpdateSourceTrigger.PropertyChanged}});
@@ -122,12 +133,17 @@ internal sealed class GlobalTemplateView : UserControl
         InvalidatePreview();_loaded=document;_previewButton.IsEnabled=true;
         _actions.Clear();
         foreach(var id in document.Actions)_actions.Add(new ActionRow {Id=id,Selected=true,Changed=InvalidatePreview});
+        if(_project.GameConfiguration.XY)
+        {
+            foreach(string id in Gen6MintRecipeBridge.ActionIds.Where(id=>!document.Actions.Contains(id,StringComparer.OrdinalIgnoreCase)))_actions.Add(new ActionRow{Id=id,Selected=false,Changed=InvalidatePreview});
+            var flags=pk3DS.Core.Modding.Research.Gen6MintExecutionContract.ReadOptions(document.ToJson());_xyMintMarts.IsChecked=flags.IncludeMarts;_xyMintField.IsChecked=flags.IncludeFieldItems;_xyMintOptions.IsEnabled=true;
+        }
         _name.Text=document.Name;
         _meta.Text=$"Versión {document.Version} · Coverage {document.Coverage} · " +
             $"{document.SettingsCount} líneas RandSettings · {document.TrainerCapCount} Trainer Caps · " +
             $"{document.TrainerMoveRuleCount} Trainer Move Rules · {document.PlayerCapCount} Player Caps · " +
             $"{document.AssetCount} assets · {(document.Section("ProgressiveApp")?["ManualEdits"]?["Entries"]?.AsArray().Count??0)+ManualOperations.Read(document).Length} modificaciones exactas · {_actions.Count} acciones · SHA {document.Sha256[..12]}…";
-        _meta.Text+=" · Mentas Gen7: "+(UsumMintItemPolicy.Read(document)?"incluidas (requiere parche)":"excluidas del pool");
+        if(_project.GameConfiguration.USUM)_meta.Text+=" · Mentas Gen7: "+(UsumMintItemPolicy.Read(document)?"incluidas (requiere parche)":"excluidas del pool");
         _save.IsEnabled=true;
         _status.Text=warning??"Receta validada y cargada en memoria. Nada se escribió en la ROM.";
     }
@@ -234,6 +250,7 @@ internal sealed class GlobalTemplateView : UserControl
         // Keep explicit deselections for existing rows and include new settings.
         foreach(string id in export.Actions.Where(id=>!_actions.Any(row=>row.Id.Equals(id,StringComparison.OrdinalIgnoreCase))).ToArray())_actions.Add(new ActionRow{Id=id,Changed=InvalidatePreview,Selected=!id.StartsWith("wild-encounters.",StringComparison.OrdinalIgnoreCase)||!_actions.Any(row=>row.Id.StartsWith("wild-encounters.",StringComparison.OrdinalIgnoreCase))||_actions.Any(row=>row.Id.StartsWith("wild-encounters.",StringComparison.OrdinalIgnoreCase)&&row.Selected)});
         export.Rename(_name.Text);
+        if(_project.GameConfiguration.XY)Gen6MintRecipeBridge.CaptureSelection(export,_actions.Where(a=>a.Selected).Select(a=>a.Id).ToHashSet(StringComparer.OrdinalIgnoreCase),_xyMintMarts.IsChecked==true,_xyMintField.IsChecked==true);
         export.SelectActions(_actions.Where(a=>a.Selected).Select(a=>a.Id)
             .ToHashSet(StringComparer.OrdinalIgnoreCase));
         NativeRecipeCompletion.ReconcileSelection(export);
@@ -244,6 +261,7 @@ internal sealed class GlobalTemplateView : UserControl
     {
         if(_loaded is null)throw new InvalidOperationException("Carga primero un Global Template.");
         var snapshot=_loaded.Clone();snapshot.Rename(_name.Text);
+        if(_project.GameConfiguration.XY)Gen6MintRecipeBridge.CaptureSelection(snapshot,_actions.Where(a=>a.Selected).Select(a=>a.Id).ToHashSet(StringComparer.OrdinalIgnoreCase),_xyMintMarts.IsChecked==true,_xyMintField.IsChecked==true);
         snapshot.SelectActions(_actions.Where(row=>row.Selected).Select(row=>row.Id).ToHashSet(StringComparer.OrdinalIgnoreCase));
         NativeRecipeCompletion.ReconcileSelection(snapshot);return snapshot;
     }
@@ -294,7 +312,7 @@ internal sealed class GlobalTemplateView : UserControl
     private sealed class ActionRow
     {
         public string Id{get;init;}="";
-        public string Display=>Id==ManualEditTemplate.ActionId?"Modificaciones manuales · aplicar entradas y recursos al final":Id;
+        public string Display=>Id switch{ManualEditTemplate.ActionId=>"Modificaciones manuales · aplicar entradas y recursos al final","xy.persistent-items"=>"Persistent Items X/Y","xy.nature-mints.install"=>"Instalar las 21 mentas de naturaleza X/Y","xy.nature-mints.icons.install"=>"Instalar los 21 iconos corregidos de mentas X/Y",_=>Id};
         public Action? Changed{get;init;}
         private bool _selected;
         public bool Selected{get=>_selected;set{if(value==_selected)return;_selected=value;Changed?.Invoke();}}

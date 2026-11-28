@@ -309,9 +309,9 @@ internal static class BatchWorkspace
         CopyDirectory(sourceConfig.RomFS, stageRomFS);
         CopyDirectory(sourceConfig.ExeFS, stageExeFS);
         File.Copy(sourceExHeader, stageExHeader, true);
-        // Mint dependency validation needs the title identity in every isolated USUM stage.
+        // Mint dependency validation needs the title identity in isolated XY/USUM stages.
         // These headers are metadata, not source ROM containers; preserve their exact bytes.
-        if(sourceConfig.USUM)foreach(string name in new[]{"ncchheader.bin","HeaderNCCH0.bin","HeaderNCCH.bin"})
+        if(sourceConfig.USUM||sourceConfig.XY)foreach(string name in new[]{"ncchheader.bin","HeaderNCCH0.bin","HeaderNCCH.bin"})
         {
             string header=Path.Combine(sourceRoot,name);if(!File.Exists(header))continue;
             if((File.GetAttributes(header)&FileAttributes.ReparsePoint)!=0)throw new IOException("NCCH identity cannot be a link.");

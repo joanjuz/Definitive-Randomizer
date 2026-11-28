@@ -145,6 +145,7 @@ internal static class GlobalEditorTemplateBridge
     }
     internal static void ValidateBatchReplay(GlobalTemplateDocument document)
     {
+        pk3DS.Core.Modding.Research.Gen6MintExecutionContract.ValidateForExecution(document.ToJson());
         if(document.SettingsCount==0&&!NativeRecipeCompletion.HasAllSelectedSnapshots(document))throw new InvalidDataException("La receta sin RandSettings requiere la configuración nativa de todas sus acciones.");
         if(document.Generation==7){_=ShinyRateTemplate.Read(document);NativeRecipeCompletion.ValidatePickupParameters(document);}
         UsumMintItemPolicy.ValidateDocument(document);NativeGen7WildBridge.ValidateDocument(document);NativeGen7MartBridge.ValidateDocument(document);NativeGen7MachineBridge.ValidateDocument(document);NativeMasterBatchBridge.ValidateDocument(document);NativeGen7FieldBridge.ValidateDocument(document);
@@ -154,7 +155,7 @@ internal static class GlobalEditorTemplateBridge
         if(native is null)return;
         if(native["NativeOnly"]?.GetValue<bool>()==true)
         {
-            var allowed=(document.Generation==6?NativeBatchGen6Bridge.ActionIds:NativeBatchGen7StaticBridge.ActionIds).Concat(NativeMasterBatchBridge.ActionIds).Append(ManualEditTemplate.ActionId).Concat(document.Generation==7?NativeGen7FieldBridge.ActionIds:[]).Concat(document.Generation==7?NativeGen7MachineBridge.ActionIds:[]).Concat(document.Generation==7?NativeGen7MartBridge.ActionIds:[]).Concat(document.Generation==7?NativeRecipeCompletion.Gen7ParameterActions:[]).Concat(document.Generation==7?NativeGen7WildBridge.ActionIds:[]).Concat(document.Generation==7?Gen7Adjustments.ActionIds(document.Game.Equals("USUM",StringComparison.OrdinalIgnoreCase)):[]).ToArray();
+            var allowed=(document.Generation==6?NativeBatchGen6Bridge.ActionIds:NativeBatchGen7StaticBridge.ActionIds).Concat(document.Generation==6?Gen6MintRecipeBridge.ActionIds:[]).Concat(NativeMasterBatchBridge.ActionIds).Append(ManualEditTemplate.ActionId).Concat(document.Generation==7?NativeGen7FieldBridge.ActionIds:[]).Concat(document.Generation==7?NativeGen7MachineBridge.ActionIds:[]).Concat(document.Generation==7?NativeGen7MartBridge.ActionIds:[]).Concat(document.Generation==7?NativeRecipeCompletion.Gen7ParameterActions:[]).Concat(document.Generation==7?NativeGen7WildBridge.ActionIds:[]).Concat(document.Generation==7?Gen7Adjustments.ActionIds(document.Game.Equals("USUM",StringComparison.OrdinalIgnoreCase)):[]).ToArray();
             if(!NativeRecipeCompletion.HasAllSelectedSnapshots(document))throw new InvalidDataException("Falta la configuración nativa de una acción seleccionada.");
             if(document.Actions.Any(id=>id!="rng.seed"&&!allowed.Contains(id,StringComparer.OrdinalIgnoreCase)))throw new InvalidDataException("La receta nativa no contiene la configuración completa de las acciones originales añadidas. Importa una receta original completa para combinarlas.");
         }

@@ -8,14 +8,23 @@ public sealed partial class GameMart6Service
     internal string? ExpansionReason {get;}
     internal bool SupportsExpansion=>_structure is not null;
     internal int Capacity=>_structure?.Capacity??_counts.Sum();
+    internal int MaxItemsPerShop=>_structure?.MaxItemsPerShop??64;
+    internal bool NeedsPointerRepair=>_structure?.NeedsPointerUpgrade==true;
+    internal EditorProposal PreparePointerRepair()
+    {
+        var options=EditorValues.Flatten(RandomOptions);options["UseChecks"]=1;
+        foreach(string key in PresetKeys)options[key]=0;
+        return PrepareDraft(ReadAllItems(),options,Entries.Select(e=>e.Id).ToArray(),0);
+    }
     internal static readonly string[] PresetKeys=["Randomize","Candies","EVItems","BanCapsule"];
     internal int[][] ReadAllItems()=>Entries.Select(e=>Read(e.Id).SelectMany(g=>g.Fields).Select(f=>f.Value).ToArray()).ToArray();
     internal EditorProposal PrepareDraft(IReadOnlyList<int[]> inventories,IReadOnlyDictionary<string,int> options,IReadOnlyList<int> scope,int seed,IReadOnlyList<int>? fixedPrices=null,IReadOnlyList<int>? customPool=null,IReadOnlySet<int>? banned=null,IReadOnlyDictionary<int,int[]>? exactShops=null)
     {
         EditorValues.Validate(RandomOptions,options);byte[] source=Source();var before=ReadAllItems();var rows=inventories.Select(r=>r.ToList()).ToArray();
-        if(rows.Length!=Entries.Count||rows.Any(r=>r.Count is <1 or >64||r.Any(i=>i<0||i>=_items.Count)))throw new InvalidDataException("Inventario Gen6 inválido.");
+        if(rows.Length!=Entries.Count||rows.Any(r=>r.Count<1||r.Count>MaxItemsPerShop||r.Any(i=>i<0||i>=_items.Count)))throw new InvalidDataException("Inventario Gen6 inválido.");
         int[] ids=scope.Distinct().Order().ToArray();if(ids.Length==0||ids.Any(i=>i<1||i>rows.Length))throw new ArgumentException("Alcance de tiendas inválido.");
-        var rng=new Random(seed);int[] pool=(customPool??ProgressiveLegacy.Randomizer.GetRandomItemList(_project.GameConfiguration)).Where(i=>i>0&&i<_items.Count&&(banned is null||!banned.Contains(i))&&(options["BanCapsule"]==0||i!=645)).Distinct().ToArray();
+        var admitted=Gen6MintItemPolicy.AdmitPool(_project,customPool??ProgressiveLegacy.Randomizer.GetRandomItemList(_project.GameConfiguration),Gen6MintInclusion,customPool?.ToHashSet(),banned);
+        var rng=new Random(seed);int[] pool=admitted.Pool.Where(i=>i>0&&i<_items.Count&&(banned is null||!banned.Contains(i))&&(options["BanCapsule"]==0||i!=645)).Distinct().ToArray();
         if((options["Randomize"]==1||options["BanCapsule"]==1)&&pool.Length==0)throw new InvalidDataException("No hay reemplazos legales.");
         if(options["Randomize"]==1)foreach(int id in ids.Where(id=>options["SpecialOnly"]==0||id>=11))for(int n=0;n<rows[id-1].Count;n++)
             if(!Protected.Contains(rows[id-1][n])&&!(options["KeepX"]==1&&rows[id-1][n] is >=55 and <=62))rows[id-1][n]=pool[rng.Next(pool.Length)];
@@ -35,6 +44,7 @@ public sealed partial class GameMart6Service
             output=(byte[])source.Clone();for(int i=0;i<rows.Length;i++)for(int n=0;n<rows[i].Count;n++)BitConverter.GetBytes((ushort)rows[i][n]).CopyTo(output,_offsets[i]+n*2);
         }
         var changes=new List<BatchChange>();
+        if(NeedsPointerRepair)changes.Add(new(0,"Tiendas X/Y","Referencias nativas","Solo el primer puntero actualizado","Un puntero verificado por tienda; inventarios conservados"));
         for(int i=0;i<rows.Length;i++)for(int n=0;n<Math.Max(before[i].Length,rows[i].Count);n++)
         {string old=n<before[i].Length?before[i][n].ToString():"—",next=n<rows[i].Count?rows[i][n].ToString():"—";if(old!=next)changes.Add(new(i+1,Entries[i].Name,$"Ranura {n+1}",old,next));}
         var files=new List<FileChange>{new(_codePath,source,output)};
@@ -47,6 +57,7 @@ public sealed partial class GameMart6Service
         }
         var parameters=options.ToDictionary(p=>p.Key,p=>p.Value.ToString());
         if(Environment.GetEnvironmentVariable("DEFINITIVE_BATCH_REPLAY")!="1"&&inventories.Where((row,i)=>!row.SequenceEqual(before[i])).Any())parameters["ManualOperation"]=System.Text.Json.JsonSerializer.Serialize(new{Kind="shops6",Key="shops6",Payload=new{Shops=rows.Select((row,i)=>new{Id=i+1,Items=row.ToArray()}).Where(row=>!inventories[row.Id-1].SequenceEqual(before[row.Id-1])).ToArray(),Prices=prices.ToArray()}});
-        return new(_owner,"Tiendas Gen6 y presets",seed,files,changes,parameters);
+        var proposal=new EditorProposal(_owner,"Tiendas Gen6 y presets",seed,files,changes,parameters);
+        return admitted.Evidence is null?proposal:Gen6MintRecipeBridge.WithEvidence(proposal,admitted.Evidence,"Gen6MintItems.IncludeMarts",true);
     }
 }

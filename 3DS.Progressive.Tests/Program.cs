@@ -235,6 +235,11 @@ if(args.Length==1&&args[0]=="--gen6-persistent-items-only")
     Gen6PersistentItemsChecks.Run(Check,Reject);
     Console.WriteLine($"Completed {checks} Gen6 Persistent Items synthetic patch and transaction checks.");return;
 }
+if(args.Length==1&&args[0]=="--gen6-mints-only")
+{
+    Gen6MintPolicyChecks.Run(Check,Reject);
+    Console.WriteLine($"Completed {checks} Gen6 mint synthetic policy, native patch and transaction checks; no gameplay validated.");return;
+}
 if(args.Length==1&&args[0]=="--patch-capability-only")
 {
     PatchCapabilityChecks.Run(Check,Reject);
@@ -318,6 +323,7 @@ if(args.Length==1&&args[0]=="--transaction-races-only"){TransactionRaceChecks.Ru
 if(args.Length==1&&args[0]=="--undo-toctou-only"){UndoToctouChecks.Run(Check);Console.WriteLine($"Completed {checks} undo TOCTOU checks.");return;}
 if(args.Length==1&&args[0]=="--history-inspection-only"){HistoryInspectionChecks.Run(Check);Console.WriteLine($"Completed {checks} history inspection checks.");return;}
 if(args.Length==1&&args[0]=="--rebuild-stability-only"){RebuildStabilityChecks.Run(Check);Console.WriteLine($"Completed {checks} rebuild stability checks.");return;}
+if(args.Length==1&&args[0]=="--rom-extraction-only"){RomExtractionChecks.Run(Check,Reject);Console.WriteLine($"Completed {checks} ROM extraction checks (synthetic containers).");return;}
 if(args.Length==1&&args[0]=="--rebuild-cache-only"){RebuildCacheChecks.Run(Check);Console.WriteLine($"Completed {checks} rebuild cache checks.");return;}
 if(args.Length==1&&args[0]=="--titles6-only"){TitleScreenChecks.Run(Check,Reject);Console.WriteLine($"Completed {checks} Gen6 title checks.");return;}
 if(args.Length==1&&args[0]=="--tutors6-only"){Tutor6Checks.Run(Check,Reject);Tutor6CompatibilityChecks.Run(Check,Reject);BatchSourcePolicyChecks.Run(Check,Reject);Console.WriteLine($"Completed {checks} ORAS tutor checks.");return;}

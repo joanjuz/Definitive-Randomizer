@@ -22,6 +22,7 @@ internal sealed class BatchBridgeRequest
     public bool AllowAssetMismatch {get;set;}
     public bool PreviewOnly {get;set;}
     public int Language {get;set;}=2;
+    public bool UseSourceLanguage {get;set;}
 }
 
 
@@ -64,6 +65,11 @@ public partial class Main
             if(Config is null||Config.Generation is not (6 or 7))throw new InvalidDataException("Proyecto incompatible.");
             RunGlobalTemplatePreview(job);return;
         }
+        if(job.UseSourceLanguage)
+        {
+            if(job.Language is <0 or >7)throw new InvalidDataException("Idioma X/Y no válido.");
+            CB_Lang.SelectedIndex=job.Language;
+        }
         OpenQuick(source);
         if(Config is null||Config.Generation is not (6 or 7))
             throw new InvalidDataException("Batch source must be a fully extracted XY/ORAS/SM/USUM game.");
@@ -99,11 +105,13 @@ public partial class Main
             OpenQuick(stage);
             if(Config.Generation!=generation||CurrentGlobalTemplateGame!=game)throw new InvalidDataException("La copia no corresponde al juego original.");
             int seed=System.Security.Cryptography.RandomNumberGenerator.GetInt32(int.MaxValue);
+            if(Config.XY)seed=pk3DS.Core.Modding.Research.Gen6MintExecutionContract.SeedForRom(JsonSerializer.Serialize(template),0,seed);
             Util.ReseedRand(seed);
-            string previous=Environment.GetEnvironmentVariable("DEFINITIVE_BATCH_REPLAY"),previousTemplate=Environment.GetEnvironmentVariable("DEFINITIVE_TEMPLATE_PATH");
+            string previous=Environment.GetEnvironmentVariable("DEFINITIVE_BATCH_REPLAY"),previousTemplate=Environment.GetEnvironmentVariable("DEFINITIVE_TEMPLATE_PATH"),previousXySeed=Environment.GetEnvironmentVariable(pk3DS.Core.Modding.Research.Gen6MintExecutionContract.ReplaySeedEnvironment);
             Environment.SetEnvironmentVariable("DEFINITIVE_BATCH_REPLAY","1");Environment.SetEnvironmentVariable("DEFINITIVE_TEMPLATE_PATH",job.TemplatePath);
+            if(Config.XY)Environment.SetEnvironmentVariable(pk3DS.Core.Modding.Research.Gen6MintExecutionContract.ReplaySeedEnvironment,seed.ToString(System.Globalization.CultureInfo.InvariantCulture));
             try{var warnings=GlobalRandomizationTemplateFile.Apply(template,game);if(job.AllowAssetMismatch)warnings=warnings.Where(w=>!w.StartsWith("Template dependency changed since this global template was saved:",StringComparison.OrdinalIgnoreCase)).ToList();if(warnings.Count>0)throw new InvalidDataException(string.Join(" | ",warnings));if(generation==6)BatchGen6ActionExecutor.Execute(template);else BatchGen7ActionExecutor.Execute(template);}
-            finally{Environment.SetEnvironmentVariable("DEFINITIVE_BATCH_REPLAY",previous);Environment.SetEnvironmentVariable("DEFINITIVE_TEMPLATE_PATH",previousTemplate);}
+            finally{Environment.SetEnvironmentVariable("DEFINITIVE_BATCH_REPLAY",previous);Environment.SetEnvironmentVariable("DEFINITIVE_TEMPLATE_PATH",previousTemplate);Environment.SetEnvironmentVariable(pk3DS.Core.Modding.Research.Gen6MintExecutionContract.ReplaySeedEnvironment,previousXySeed);}
             // This bridge deliberately stops before ROM assembly. The exact staged bytes are the proposal.
             File.WriteAllText(Path.Combine(output,"preview-result.json"),JsonSerializer.Serialize(new{Seed=seed,Actions=template.Actions.Select(a=>a.Id).ToArray()}));
         }
