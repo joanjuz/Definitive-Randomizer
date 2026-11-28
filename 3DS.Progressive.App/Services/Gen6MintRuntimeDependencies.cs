@@ -41,14 +41,16 @@ internal static class Gen6MintRuntimeDependencies
         Need(bytes.AsSpan(at+1).IndexOf(pattern)<0,"Firma de tabla duplicada.");return at;
     }
     internal static byte[] NormalizeCode(GameProjectSession p,byte[] code,JsonElement shape)
+        =>NormalizeCode(p.GameConfiguration,p.ProjectRoot,p.MoveNames.Count,code,shape);
+    internal static byte[] NormalizeCode(GameConfig config,string root,int moveCount,byte[] code,JsonElement shape)
     {
         Need(code.Length==shape.GetProperty("length").GetInt32(),"Tamaño de ejecutable XY desconocido.");
         int tm=GameMachine6Service.FindTable(code,false),pickup=Unique(code,GamePickupService.Signature,0x400000)-58;
         var hm=Gen6HmRestriction.Locate(code,false);int stock=GameMart6Service.Find(code,GameMart6Service.CountsXY.Sum()*2);
         Need(tm==shape.GetProperty("tm").GetInt32()&&pickup==shape.GetProperty("pickup").GetInt32()&&hm.Offset==shape.GetProperty("hm").GetInt32()&&stock==shape.GetProperty("stock").GetInt32(),"Una dependencia XY se desplazó.");
-        Need(hm.Offset>=0&&Enumerable.Range(0,105).All(i=>BitConverter.ToUInt16(code,tm+i*2)<p.MoveNames.Count),"Tabla MT/MO inválida.");
+        Need(hm.Offset>=0&&Enumerable.Range(0,105).All(i=>BitConverter.ToUInt16(code,tm+i*2)<moveCount),"Tabla MT/MO inválida.");
         Need(Enumerable.Range(0,29).All(i=>BitConverter.ToUInt16(code,pickup+i*2)<718),"Tabla Pickup inválida.");
-        var marts=new Gen6MartTable(p,code,stock,GameMart6Service.CountsXY);int cursor=marts.TableOffset(code);
+        var marts=new Gen6MartTable(config.ORAS,root,code,stock,GameMart6Service.CountsXY);int cursor=marts.TableOffset(code);
         var expectedRanges=shape.GetProperty("mart_ranges").EnumerateArray().Select(r=>(r[0].GetInt32(),r[1].GetInt32())).ToArray();
         Need(marts.MintMutableRanges.SequenceEqual(expectedRanges),"Los rangos o el puntero nativo de tiendas se desplazaron.");
         foreach(int count in marts.Counts(code)){Need(count is >=1 and <=64,"Cantidad de tienda inválida.");for(int i=0;i<count;i++)Need(BitConverter.ToUInt16(code,cursor+i*2)<718,"Objeto de tienda inválido.");cursor+=count*2;}

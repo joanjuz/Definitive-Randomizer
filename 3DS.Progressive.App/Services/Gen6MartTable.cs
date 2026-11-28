@@ -14,9 +14,11 @@ internal sealed class Gen6MartTable
     private static int I(byte[] b,int p)=>checked((int)BitConverter.ToUInt32(b,p));
     private static int Aligned(int n)=>checked((n+4095)&~4095);
     internal Gen6MartTable(GameProjectSession project,byte[] source,int stock,int[] stockCounts)
+        :this(project.GameConfiguration.ORAS,project.ProjectRoot,source,stock,stockCounts) { }
+    internal Gen6MartTable(bool oras,string root,byte[] source,int stock,int[] stockCounts)
     {
-        _family=project.GameConfiguration.ORAS?2:1;_shops=stockCounts.Length;_stock=stock;
-        _headerPath=new[]{"DecryptedExHeader.bin","ExHeader.bin","exheader.bin"}.Select(n=>Path.Combine(project.ProjectRoot,n)).FirstOrDefault(File.Exists)??throw new InvalidDataException("Falta ExHeader para verificar el padding de tiendas.");
+        _family=oras?2:1;_shops=stockCounts.Length;_stock=stock;
+        _headerPath=new[]{"DecryptedExHeader.bin","ExHeader.bin","exheader.bin"}.Select(n=>Path.Combine(root,n)).FirstOrDefault(File.Exists)??throw new InvalidDataException("Falta ExHeader para verificar el padding de tiendas.");
         byte[] header=File.ReadAllBytes(_headerPath);if(header.Length<64)throw new InvalidDataException("ExHeader truncado.");_headerHash=SHA256.HashData(header);
         int text=I(header,24),ro=I(header,40),data=I(header,56),roFile=Aligned(text);
         if((long)roFile+Aligned(ro)+Aligned(data)!=source.Length||I(header,20)!=Aligned(text)/4096||I(header,36)!=Aligned(ro)/4096)throw new InvalidDataException("Layout ExHeader/code.bin incompatible.");

@@ -31,6 +31,7 @@ internal sealed class GameGen6PersistentItemsService : IProjectEditor
     private readonly GameProjectSession _project;
     private readonly Gen6PersistentItemsProfile _profile;
     private readonly Guid _owner = Guid.NewGuid();
+    private readonly bool _composed;
     private readonly string _path;
     private IReadOnlyList<(string Path, byte[] Fingerprint)> _dependencies;
     private byte[] _hash;
@@ -38,11 +39,13 @@ internal sealed class GameGen6PersistentItemsService : IProjectEditor
     public IReadOnlyList<RecordEntry> Entries => [new(1, "Conservar el objeto inicialmente equipado después del combate")];
     public IReadOnlyList<EditorGroup> RandomOptions => [new("Instalación reversible", [new("Enable", "Persistent Items activado", 1, 0, 1)])];
 
-    internal GameGen6PersistentItemsService(GameProjectSession project) : this(project, SelectProfile(project)) { }
+    internal GameGen6PersistentItemsService(GameProjectSession project) : this(project, SelectProfile(project),true) { }
     internal GameGen6PersistentItemsService(GameProjectSession project, Gen6PersistentItemsProfile profile)
+        :this(project,profile,false) { }
+    private GameGen6PersistentItemsService(GameProjectSession project, Gen6PersistentItemsProfile profile,bool composed)
     {
-        _project = project; _profile = profile;
-        var inspection = Inspect(project, profile);
+        _project = project; _profile = profile;_composed=composed;
+        var inspection = Inspect(project, composed?null:profile);
         if (!inspection.Allowed) throw new InvalidDataException(inspection.Reason);
         _path = Path.Combine(project.GameConfiguration.RomFS, "DllBattle.cro");
         _dependencies = inspection.Dependencies;
@@ -76,6 +79,18 @@ internal sealed class GameGen6PersistentItemsService : IProjectEditor
     {
         try
         {
+            if(profile is null)
+            {
+                profile=SelectProfile(project);
+                var admission=Gen6MintRuntimeDependencies.Capture(project,requireInstalled:false);
+                if(admission.TitleId!=profile.TitleId)throw new InvalidDataException("Perfil XY cruzado.");
+                string battlePath=Path.Combine(project.GameConfiguration.RomFS,"DllBattle.cro");
+                var native=Gen6PersistentItemsPatcher.Inspect(CroIntegrity.Rebuild(File.ReadAllBytes(battlePath)),profile.ShapeHash);
+                if(native==Gen6PersistentItemsPatcher.State.Partial)throw new InvalidDataException("Instalación parcial de Persistent Items; usa el historial para deshacerla.");
+                admission.VerifyUnchanged();
+                return new(true,"Código nativo y datos randomizados acreditados. Se verifican CRO/CRR en la misma transacción; no se genera una firma criptográfica.",profile.Name,
+                    native==Gen6PersistentItemsPatcher.State.Installed?"Instalado · patrón ARM acreditado":"Original compatible",profile,admission.Dependencies.Select(d=>(d.Key,Convert.FromHexString(d.Value))).ToArray());
+            }
             profile ??= SelectProfile(project);
             if (!project.GameConfiguration.XY) throw new InvalidDataException("Este juego no pertenece a X/Y.");
             if (profile.TitleId is not (0x0004000000055D00UL or 0x0004000000055E00UL)
@@ -132,18 +147,32 @@ internal sealed class GameGen6PersistentItemsService : IProjectEditor
     public IReadOnlyList<EditorGroup> Read(int id)
     {
         if (id != 1) throw new ArgumentException("Registro inválido.");
-        return [new("Estado", [new("Enable", "Persistent Items activado", Gen6PersistentItemsPatcher.Inspect(Current(), _profile.ShapeHash) == Gen6PersistentItemsPatcher.State.Installed ? 1 : 0, 0, 1)])];
+        byte[] current=Current();return [new("Estado", [new("Enable", "Persistent Items activado", Gen6PersistentItemsPatcher.Inspect(_composed?CroIntegrity.Rebuild(current):current, _profile.ShapeHash) == Gen6PersistentItemsPatcher.State.Installed ? 1 : 0, 0, 1)])];
     }
     public EditorProposal Preview(IReadOnlyDictionary<string, int> options, IReadOnlyList<int> scope)
     {
         EditorValues.Validate(RandomOptions, options);
         if (scope.Count != 1 || scope[0] != 1) throw new ArgumentException("Selecciona Persistent Items.");
-        byte[] before = Current(), after = Gen6PersistentItemsPatcher.Patch(before, options["Enable"] == 1, _profile.ShapeHash);
+        byte[] before = Current(), after = Gen6PersistentItemsPatcher.Patch(_composed?CroIntegrity.Rebuild(before):before, options["Enable"] == 1, _profile.ShapeHash);
+        var files=new List<FileChange>{new(_path,before,after)};
+        if(_composed)
+        {
+            string[] paths=Directory.GetFiles(_project.GameConfiguration.RomFS).Where(p=>Path.GetExtension(p).Equals(".cro",StringComparison.OrdinalIgnoreCase)).Order(StringComparer.Ordinal).ToArray();
+            var images=new List<byte[]>();
+            foreach(string path in paths)
+            {
+                byte[] source=File.ReadAllBytes(path),proposed=path.Equals(_path,StringComparison.OrdinalIgnoreCase)?after:CroIntegrity.Rebuild(source);images.Add(proposed);
+                if(!path.Equals(_path,StringComparison.OrdinalIgnoreCase)&&!source.AsSpan().SequenceEqual(proposed))files.Add(new(path,source,proposed));
+            }
+            string crrPath=Path.Combine(_project.GameConfiguration.RomFS,".crr/static.crr");byte[] crr=File.ReadAllBytes(crrPath),next= CroIntegrity.RebuildCrr(crr,images);
+            if(!crr.AsSpan().SequenceEqual(next))files.Add(new(crrPath,crr,next));
+            Current();
+        }
         var changes = new List<BatchChange>();
         foreach (int at in new[] { Gen6PersistentItemsPatcher.Gate, Gen6PersistentItemsPatcher.Restore })
             if (!before.AsSpan(at, 4).SequenceEqual(after.AsSpan(at, 4))) changes.Add(new(1, "DllBattle.cro", $"ARM 0x{at:X}", Convert.ToHexString(before.AsSpan(at, 4)), Convert.ToHexString(after.AsSpan(at, 4))));
         return new(_owner, options["Enable"] == 1 ? "Instalar Persistent Items X/Y" : "Retirar Persistent Items X/Y", 0,
-            [new FileChange(_path, before, after)], changes, new Dictionary<string, string>
+            files, changes, new Dictionary<string, string>
             { ["ActionId"] = ActionId, ["Enable"] = options["Enable"].ToString(), ["TitleId"] = _profile.TitleId.ToString("X16"), ["SourceSHA256"] = Hash(before), ["ResultSHA256"] = Hash(after) },
             _dependencies.Select(d => (d.Path, (byte[])d.Fingerprint.Clone())));
     }
@@ -153,7 +182,7 @@ internal sealed class GameGen6PersistentItemsService : IProjectEditor
         if (proposal.Owner != _owner) throw new InvalidOperationException("La propuesta pertenece a otra sesión.");
         byte[] current = Current();
         if (!proposal.Parameters.TryGetValue("Enable", out string? enable) || enable is not ("0" or "1")) throw new InvalidDataException("Propuesta inválida.");
-        byte[] expected = Gen6PersistentItemsPatcher.Patch(current, enable == "1", _profile.ShapeHash);
+        byte[] expected = Gen6PersistentItemsPatcher.Patch(_composed?CroIntegrity.Rebuild(current):current, enable == "1", _profile.ShapeHash);
         var canonical = Preview(new Dictionary<string, int> { ["Enable"] = enable == "1" ? 1 : 0 }, [1]);
         if (proposal.Action != canonical.Action || proposal.Seed != canonical.Seed || !proposal.Changes.SequenceEqual(canonical.Changes)
             || proposal.Parameters.Count != canonical.Parameters.Count || canonical.Parameters.Any(p => !proposal.Parameters.TryGetValue(p.Key, out string? value) || value != p.Value))
@@ -161,23 +190,24 @@ internal sealed class GameGen6PersistentItemsService : IProjectEditor
         if (proposal.Dependencies.Count != canonical.Dependencies.Count || proposal.Dependencies.Where((d, i) =>
             !StringComparer.Ordinal.Equals(d.Path, canonical.Dependencies[i].Path) || !d.Fingerprint.AsSpan().SequenceEqual(canonical.Dependencies[i].Fingerprint)).Any())
             throw new InvalidDataException("Las dependencias de la propuesta fueron alteradas.");
-        if (proposal.Files.Count != 1 || !StringComparer.Ordinal.Equals(proposal.Files[0].Path, _path)
-            || !proposal.Files[0].Original().AsSpan().SequenceEqual(current) || !proposal.Files[0].Proposed().AsSpan().SequenceEqual(expected))
+        if (proposal.Files.Count != canonical.Files.Count || proposal.Files.Where((file,i)=>file.Path!=canonical.Files[i].Path
+            || !file.Original().AsSpan().SequenceEqual(canonical.Files[i].Original()) || !file.Proposed().AsSpan().SequenceEqual(canonical.Files[i].Proposed())).Any())
             throw new InvalidDataException("La propuesta está obsoleta o fue alterada.");
         using var manual = ManualOperationScope.Record(this, 1, new Dictionary<string, int> { ["Enable"] = enable == "1" ? 1 : 0 });
         var held = new List<FileStream>();
         try
         {
             // Dependencies remain immutable for the complete history/file transaction.
-            foreach (var dependency in _dependencies.Where(d => !StringComparer.OrdinalIgnoreCase.Equals(d.Path, _path)))
+            foreach (var dependency in _dependencies.Where(d => !canonical.Files.Any(f=>f.Changed&&StringComparer.OrdinalIgnoreCase.Equals(d.Path,f.Path))))
             {
                 NoLinks(dependency.Path); var file = new FileStream(dependency.Path, FileMode.Open, FileAccess.Read, FileShare.Read); held.Add(file);
                 if (!SHA256.HashData(file).AsSpan().SequenceEqual(dependency.Fingerprint)) throw new IOException("Una dependencia cambió después de la vista previa.");
             }
-            _project.History.Commit(proposal.Files, Title, proposal.Action, proposal.Changes, proposal.Parameters, "Mechanics");
+            _project.History.Commit(canonical.Files, Title, canonical.Action, canonical.Changes, canonical.Parameters, "Mechanics");
             if (!File.ReadAllBytes(_path).AsSpan().SequenceEqual(expected)) throw new InvalidDataException("Falló la relectura del parche.");
+            foreach(var file in canonical.Files)if(!File.ReadAllBytes(file.Path).AsSpan().SequenceEqual(file.Proposed()))throw new InvalidDataException("Falló la relectura de integridad: "+Path.GetFileName(file.Path));
             _hash = SHA256.HashData(expected);
-            _dependencies = _dependencies.Select(d => (d.Path, StringComparer.OrdinalIgnoreCase.Equals(d.Path, _path) ? _hash : d.Fingerprint)).ToArray();
+            _dependencies = _dependencies.Select(d => (d.Path, canonical.Files.FirstOrDefault(f=>StringComparer.OrdinalIgnoreCase.Equals(d.Path,f.Path)) is {} file?SHA256.HashData(file.Proposed()):d.Fingerprint)).ToArray();
         }
         finally { foreach (var file in held) file.Dispose(); }
     }

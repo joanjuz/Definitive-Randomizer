@@ -20,6 +20,8 @@ Cada operación se registra en Historial. Deshacer se realiza en orden inverso y
 
 La corrección de «Movimientos mejorados» en Gen6 evita que el archivo opcional vacío anule la casilla general. Conserva las categorías de entrenadores seleccionadas y las reglas de archivos personalizados (Keep, nivel, alcance y probabilidad). El selector STAB no cambia: el caso Gyarados 85 / Concha Filo 75 se comprobó por separado sobre datos aislados de Y y con regresión sintética. La política de Gen7 permanece igual.
 
+La revisión fix3 permite combinar Persistent Items y el recordador con tablas randomizadas y mentas/iconos reconocidos. El recordador del PR #144 estaba incluido; su botón quedaba oculto al exigir hashes vanilla de code.bin y DllField.cro. Ahora se comprueba el complemento nativo y los campos de datos permitidos por título. Si esos cambios dejaron hashes CRO/CRR obsoletos, la vista previa incluye su reparación en la misma operación reversible. No admite instrucciones desconocidas, instalaciones parciales ni firmas CRR modificadas. No cambia el script ni el comportamiento del recordador.
+
 ## Compatibilidad
 
 La instalación conserva Pokémon, entrenadores, encuentros, movimientos, inventarios y textos ajenos a las mentas. No requiere que esos datos coincidan íntegramente con una ROM vanilla. Sí comprueba el título, el mapa nativo de memoria, las instrucciones/importaciones que usa el handler, los slots que ocupará, los segmentos y relocaciones CRO y la estructura CRR. Los hashes que necesitan reparación se preparan y guardan en la misma transacción; no se fabrican firmas RSA.

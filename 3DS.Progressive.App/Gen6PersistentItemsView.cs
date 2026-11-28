@@ -32,7 +32,7 @@ internal sealed class Gen6PersistentItemsView : UserControl
         content.Children.Add(Status);
         var actions = new WrapPanel(); actions.Children.Add(PreviewInstall); actions.Children.Add(PreviewRemove); actions.Children.Add(ApplyButton); content.Children.Add(actions);
         content.Children.Add(_preview);
-        content.Children.Add(new TextBlock { Text = "Archivo afectado: DllBattle.cro. Se conservan la CRR, el tamaño, los segmentos y las relocaciones. La propuesta muestra los cambios ARM y las huellas antes de escribir. Historial conserva la operación y permite Deshacer en orden; la retirada revierte solo las dos condiciones y sus hashes.", TextWrapping = TextWrapping.Wrap });
+        content.Children.Add(new TextBlock { Text = "Se modifican las dos condiciones ARM de DllBattle.cro y las comprobaciones de integridad CRO/CRR necesarias. La vista previa enumera los archivos y sus huellas. Se conservan tamaño, segmentos, relocaciones y datos randomizados acreditados. Historial permite Deshacer en orden; la retirada conserva los demás parches.", TextWrapping = TextWrapping.Wrap });
         foreach (var text in content.Children.OfType<TextBlock>()) text.SetResourceReference(TextBlock.ForegroundProperty, "TextMain");
         Content = new ScrollViewer { Content = content, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled };
         PreviewInstall.Click += (_, _) => ShowPreview(true); PreviewRemove.Click += (_, _) => ShowPreview(false); ApplyButton.Click += Apply;
@@ -58,10 +58,11 @@ internal sealed class Gen6PersistentItemsView : UserControl
         {
             if (_service is null) return;
             _proposal = _service.Preview(new Dictionary<string, int> { ["Enable"] = enable ? 1 : 0 }, [1]);
-            _preview.Text = _proposal.Action + "\n" + (_proposal.Changes.Count == 0 ? "El archivo ya está en el estado solicitado. No hay cambios pendientes." :
+            _preview.Text = _proposal.Action + "\n" + (_proposal.Changes.Count == 0 ? (_proposal.Files.Any(f=>f.Changed)?"El patrón ARM ya tiene el estado solicitado; se actualizará la integridad acreditada.":"El archivo ya está en el estado solicitado. No hay cambios pendientes.") :
                 string.Join("\n", _proposal.Changes.Select(c => c.Field + ": " + c.Before + " → " + c.After))) +
-                "\nSHA-256 original: " + _proposal.Parameters["SourceSHA256"] + "\nSHA-256 propuesto: " + _proposal.Parameters["ResultSHA256"];
-            ApplyButton.IsEnabled = _proposal.Changes.Count > 0;
+                "\nSHA-256 original: " + _proposal.Parameters["SourceSHA256"] + "\nSHA-256 propuesto: " + _proposal.Parameters["ResultSHA256"]+
+                "\nArchivos de la propuesta:\n"+string.Join("\n",_proposal.Files.Where(f=>f.Changed).Select(f=>System.IO.Path.GetFileName(f.Path)));
+            ApplyButton.IsEnabled = _proposal.Files.Any(f=>f.Changed);
         }
         catch (Exception error) { _preview.Text = error.Message; }
     }
@@ -69,7 +70,7 @@ internal sealed class Gen6PersistentItemsView : UserControl
     {
         var proposal = _proposal;
         if (proposal is null || _service is null || !ApplyButton.IsEnabled) return;
-        if (!StudioDialog.Confirm(Window.GetWindow(this), "Persistent Items", proposal.Action + ". Se modificará únicamente DllBattle.cro. ¿Aplicar la propuesta revisada?")) return;
+        if (!StudioDialog.Confirm(Window.GetWindow(this), "Persistent Items", proposal.Action + ". Archivos: "+string.Join(", ",proposal.Files.Where(f=>f.Changed).Select(f=>System.IO.Path.GetFileName(f.Path)))+". ¿Aplicar la propuesta revisada?")) return;
         ApplyButton.IsEnabled = PreviewInstall.IsEnabled = PreviewRemove.IsEnabled = false;
         UiProgress.Begin("Guardando Persistent Items X/Y…");
         try
