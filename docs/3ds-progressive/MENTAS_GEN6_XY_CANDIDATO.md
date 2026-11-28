@@ -4,7 +4,7 @@ Continuación del [PR #147](https://github.com/joanjuz/Definitive-Randomizer/pul
 
 ## Estado y alcance
 
-Existe un handler ARM, un instalador experimental transaccional y una imagen reconstruida de Pokémon X. **No hay aceptación jugable. Producción, WPF, Global y Batch siguen bloqueados.** Y tiene perfil independiente y replay del handler con su ejecutable, pero no un candidato aceptado en juego. Por indicación del propietario, las validaciones en emulador quedan a su cargo; no se ejecutarán nuevas pruebas jugables autónomas.
+Existe un handler ARM, un instalador experimental transaccional y una imagen reconstruida de Pokémon X. **El propietario cargó el `main` de prueba y dio por validada la integración de X, señalando únicamente los iconos heredados.** Esta aceptación no se extrapola a Y ni se convierte en una afirmación de que cada caso del protocolo fue reportado individualmente. Producción, WPF, Global y Batch siguen bloqueados hasta completar su integración. Y tiene perfil independiente y replay del handler con su ejecutable, pero no un candidato aceptado en juego. Por indicación del propietario, las validaciones en emulador quedan a su cargo; no se ejecutarán nuevas pruebas jugables autónomas.
 
 El candidato X contiene las 21 mentas y una operación adicional y explícita de tiendas de prueba: añade las 21 una sola vez a nueve stocks generales. Instalar el handler no randomiza ni distribuye objetos por sí mismo. La conexión general de tiendas, suelo, Pickup, Global y Batch sigue pendiente.
 
@@ -60,7 +60,7 @@ Asignación **experimental**, separada del mapa oficial de producción:
 
 El ID 623 está dentro de los 718 registros originales. Las referencias literales 623 de `0x1252FC/0x2C6754` corresponden a bucles Mersenne Twister de 624 palabras, no prueban uso como objeto. Las búsquedas anteriores de referencias tipadas en tiendas, suelo, Pickup y scripts no encontraron colisiones; no constituyen una demostración universal sobre todos los eventos del juego.
 
-La tabla de iconos empieza en archivo **`0x43DB74`**, VA `0x53DB74`, e indexa por ID. El GARC `a/0/9/4` tiene 579 imágenes. Se conservan los iconos de los placeholders y los iconos heredados 492/493 de 622/623. **El candidato no incluye arte nuevo de mentas.**
+La tabla de iconos empieza en archivo **`0x43DB74`**, VA `0x53DB74`, e indexa por ID. El GARC `a/0/9/4` tiene 579 imágenes. El primer candidato conservaba los iconos de los placeholders y los iconos heredados 492/493 de 622/623; el instalador posterior de iconos añade las imágenes de mentas descritas abajo.
 
 ## Integridad, instalación y reversión
 
@@ -70,15 +70,28 @@ La tabla de iconos empieza en archivo **`0x43DB74`**, VA `0x53DB74`, e indexa po
 
 Se mantiene el nombre físico **`DllBag.cro`**, se usa el asignador CRO compatible con segmentos/relocaciones y se regeneran sus hashes. En CRR se reemplaza únicamente la entrada de hash correspondiente al CRO. **La firma RSA existente no se regenera ni se presenta como firma válida del contenido modificado.** El comportamiento del cargador con el candidato y el uso en hardware no están acreditados por el rebuild ni por Unicorn.
 
-Limitación pendiente: el perfil experimental exige el `.code.bin` original. La expansión explícita de tiendas de prueba modifica ese archivo y hace que la inspección general del servicio rechace la dependencia después de esa segunda operación. El payload sigue identificable, pero la normalización de modificaciones conocidas y la convivencia con otros parches deben resolverse antes de ofrecer instalación general. No se declara acreditada la convivencia con Persistent Items, tabla de tipos o Escudo Real.
+El perfil reconoce el `.code.bin` original y, solo en X, la huella exacta de la expansión de tiendas del candidato aceptado (`A66CD57050FBDD851B7C87CC022F0C9D76EF62B234D71AE9491DDA5DC4879DF6`). Normaliza únicamente las 21 referencias gráficas propias antes de comparar esas huellas. No acepta otras ediciones del ejecutable. La convivencia general con otros parches sigue pendiente; no se declara acreditada con Persistent Items, tabla de tipos o Escudo Real.
+
+## Iconos específicos de X/Y
+
+`Gen6MintIconService` reutiliza las fuentes PokéAPI fijadas por commit y SHA-256 de USUM, sin cambiar sus servicios. La asignación se hace por el orden de naturalezas acreditado, usando los IDs de X/Y; no se copian los IDs de USUM.
+
+Las extracciones X e Y acreditan independientemente GARC **v4**, 579 imágenes, y texturas **BCLIM 30×30 RGB5A1, orientación None**, con 2048 bytes de píxeles y footer de 40 bytes. USUM utiliza GARC v6 y BFLIM 32×32 Rotate90: no se trasladan esos formatos. La imagen convertida de USUM se decodifica, se centra en 30×30 y se codifica en el formato XY. Se verifica su hash independiente.
+
+Se añaden imágenes **579–599** y se actualizan únicamente las 21 palabras de la tabla en `.code.bin`. Se preservan exactamente los 579 registros anteriores; la reconstrucción canónica del GARC original coincide byte por byte con el original observado. Se rechazan tablas vectorizadas, rangos inválidos, compresión ajena, referencias parciales, texturas modificadas y cambios no reconocidos del ejecutable. El instalador de iconos requiere las mentas nativas instaladas, prepara dos archivos, relee las dependencias, valida la propuesta y registra su propia transacción y restauración exacta. No modifica `DllBag.cro`, CRR, textos, precio ni el handler de mentas.
+
+La aceptación del primer candidato X corresponde a sus iconos heredados. El candidato posterior con estos iconos requiere únicamente una nueva comprobación visual y un control de uso del propietario; no se ha ejecutado automáticamente en un emulador.
+
+El candidato privado `PruebasMentasXY-X-03/Pokemon-X-XY-MINT-EXPERIMENTAL.3ds` tiene tamaño `1801076736`, SHA-256 `1B83157D351560A9B20C3F000AA1BD6537C2DD66C6685A707562CDD3909D903E`. Su rebuild/reextracción conserva los 656 archivos esperados. La instalación real de iconos modificó únicamente `.code.bin` y `a/0/9/4`; deshacer y reinstalar conservaron exactamente el proyecto previo. El candidato X-02 y su guardado no se modificaron. Se puede abrir manualmente la nueva ROM desde el mismo perfil aislado de Citra, con el guardado de prueba que el propietario ya cargó; no requiere otro `main`. Validación pendiente: iconos de distintos colores, un objeto normal y un uso de menta como control.
 
 ## Evidencia técnica obtenida
 
 | Prueba | Resultado |
 |---|---|
-| Runner `--gen6-mints-only` | 289 comprobaciones sintéticas aprobadas: política, parche, transacción y reversión |
+| Runner `--gen6-mints-only` | 328 comprobaciones sintéticas aprobadas, incluidas conversión, referencias, fuentes, rechazo de mutaciones, propuestas alteradas, fallos transaccionales, idempotencia y reversión de iconos X/Y |
 | Python `test_*.py` | 16 aprobadas; incluye restricciones y checksums de preparación de una copia de guardado |
 | Regresiones sintéticas | USUM mentas 98, distribución USUM 128, Persistent Items X/Y 122, recordador X/Y 72, Batch Gen6 6 y Global 134 aprobadas |
+| Iconos USUM | 88 comprobaciones aprobadas después de añadir el servicio XY |
 | Replay del handler X | 232 casos aprobados, también sobre el CRO exacto producido por el instalador |
 | Replay del handler Y | 232 casos aprobados con su ejecutable independiente |
 | Instalación real aislada X | 11 archivos, lectura posterior, deshacer exacto, reinstalación y reapertura del proyecto comprobados |
@@ -92,7 +105,7 @@ La imagen privada de X se llama `Pokemon-X-XY-MINT-EXPERIMENTAL.3ds`, tamaño `1
 BF7E6533EE68E3D47646BADA476ADB9FE91585EDCDCE8834C779CDA78FC2E9D0
 ```
 
-No se incluyen ROMs, guardados ni buffers comerciales en Git. La preparación auxiliar de un guardado no cuenta como guardado cargado o persistencia validada. La primera apertura de la copia de emulador no conservó el archivo preparado; no debe presentarse como una partida lista con suministros. Queda pendiente preparar/cargar correctamente una copia de guardado mediante el flujo del emulador, a cargo del propietario.
+No se incluyen ROMs, guardados ni buffers comerciales en Git. La primera apertura autónoma no conservó el archivo preparado. Después se generó un archivo separado para importar manualmente; el propietario confirmó que lo cargó y que la integración quedó correcta. Esa confirmación es la evidencia jugable de X. No se realizaron nuevas pruebas autónomas del emulador.
 
 ## Protocolo manual del propietario
 

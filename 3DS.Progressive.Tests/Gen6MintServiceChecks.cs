@@ -33,7 +33,7 @@ internal static class Gen6MintServiceChecks
         return new(){{"header_sha256",Hash(header)},{"opaque_rows_sha256",Framed(rows,i=>messages||!Ids.Contains(i))},
             {"edited_flags_sha256",Framed(flags,i=>!messages&&Ids.Contains(i))}};
     }
-    private static JsonElement Setup(Fixture f,bool y)
+    internal static JsonElement Setup(Fixture f,bool y)
     {
         ModuleChecks.CreateArchives(f);Gen6PersistentItemsChecks.Setup(f,y);
         File.WriteAllBytes(Path.Combine(f.Game.RomFS,"DllBag.cro"),Gen6MintNativeChecks.SyntheticBag());

@@ -207,7 +207,45 @@ internal static class Program
     {
         try
         {
-            if (args.Length == 3 && args[0] == "extract") Extract(args[1], args[2]);
+            if (args.Length == 3 && args[0] == "install-icons")
+            {
+                string root=Path.GetFullPath(args[1]);NewEvidence(root,args[2]);
+                var project=GameProjectSession.Open(Path.Combine(root,"Proyecto"),false);var service=new Gen6MintIconService(project);
+                var before=Inventory(project.ProjectRoot);var preview=service.PrepareAsync().GetAwaiter().GetResult();
+                Check(preview.Proposal is not null,"New icon proposal required: "+preview.Report);service.Apply(preview);
+                Check(service.Inspect().State==Gen6MintNativeState.Installed,"Icon installation reopens");var installed=Inventory(project.ProjectRoot);
+                var entry=project.History.Read().Entries.Last();Check(entry.Parameters["ActionId"]==Gen6MintIconService.ActionId,"Icon action is newest");
+                RestorePoints.Undo(project.History,project.ProjectRoot,entry.Id);
+                Check(Inventory(project.ProjectRoot).OrderBy(p=>p.Key).SequenceEqual(before.OrderBy(p=>p.Key)),"Icon undo preserves every original candidate file");
+                var next=new Gen6MintIconService(GameProjectSession.Open(project.ProjectRoot,false));var proposal=next.PrepareAsync().GetAwaiter().GetResult();next.Apply(proposal);
+                Check(Inventory(project.ProjectRoot).OrderBy(p=>p.Key).SequenceEqual(installed.OrderBy(p=>p.Key)),"Icon reinstall exact");
+                Save(args[2],new{Installed=true,UndoExact=true,ReinstallExact=true,FilesChanged=preview.Proposal!.Files.Select(f=>Path.GetRelativePath(project.ProjectRoot,f.Path)),GameplayVerified=false});
+            }
+            else if (args.Length == 3 && args[0] == "icon-textures")
+            {
+                string root=Path.GetFullPath(args[1]);NewEvidence(root,args[2]);
+                var textures=UsumMintIconDownload.LoadAsync(UsumMintIconDownload.DefaultCache).GetAwaiter().GetResult();
+                byte[] archive=File.ReadAllBytes(Path.Combine(root,"Proyecto/RomFS/a/0/9/4"));
+                Save(args[2],new{TextureSha256=textures.Select(t=>Hash(Gen6MintIconService.ConvertTexture(t))),
+                    CanonicalOriginalArchive=Gen6MintIconService.Pack(new GARC.MemGARC(archive).Files).AsSpan().SequenceEqual(archive)});
+            }
+            else if (args.Length == 3 && args[0] == "icon-probe")
+            {
+                string root=Path.GetFullPath(args[1]);NewEvidence(root,args[2]);
+                string folder=Path.Combine(root,"Proyecto");var p=GameProjectSession.Open(folder,false);
+                byte[] archive=File.ReadAllBytes(Path.Combine(folder,"RomFS/a/0/9/4"));var rows=new GARC.MemGARC(archive).Files;
+                byte[] code=File.ReadAllBytes(Path.Combine(folder,"ExeFS/.code.bin"));
+                var observations=new List<object>();
+                foreach(var m in Gen6NatureMintCatalog.ExperimentalItemMap.Items)
+                {
+                    int image=BitConverter.ToInt32(code,0x43db74+m.ItemId*4);using var stream=new MemoryStream();
+                    LZSS.Decompress(new MemoryStream(rows[image]),rows[image].Length,stream);byte[] raw=stream.ToArray();
+                    var tex=new BCLIM(raw);using var decoded=GameGraphicsCodec.Decode(raw);
+                    observations.Add(new{m.ItemId,image,raw.Length,tex.Valid,tex.Width,tex.Height,Format=tex.Format.ToString(),Orientation=tex.Orientation.ToString(),Footer=Convert.ToHexString(raw[^40..])});
+                }
+                Save(args[2],new{Title=Target(root),Count=rows.Length,Version=BitConverter.ToUInt16(archive,10),CodeSha256=Hash(code),Observations=observations});
+            }
+            else if (args.Length == 3 && args[0] == "extract") Extract(args[1], args[2]);
             else if (args.Length == 3 && args[0] == "inspect") Inspect(args[1], args[2]);
             else if (args.Length == 3 && args[0] == "scripts") Scripts(args[1], args[2]);
             else if (args.Length == 3 && args[0] == "references") References(args[1], args[2]);
@@ -216,7 +254,7 @@ internal static class Program
             else if (args.Length == 3 && args[0] == "verify-undo") UndoCheck(args[1],args[2]);
             else if (args.Length == 3 && args[0] == "prepare-test-shops") Shops(args[1],args[2]);
             else if (args.Length == 3 && args[0] == "rebuild-reextract") RoundTrip(args[1],args[2]);
-            else { Console.Error.WriteLine("extract SOURCE_ROM NEW_PruebasMentasXY_ROOT | inspect/scripts/references/plan/install-experiment/verify-undo/prepare-test-shops/rebuild-reextract ISOLATED_ROOT NEW_PRIVATE_JSON"); return 2; }
+            else { Console.Error.WriteLine("extract SOURCE_ROM NEW_PruebasMentasXY_ROOT | inspect/scripts/references/plan/install-experiment/verify-undo/prepare-test-shops/rebuild-reextract/icon-probe/icon-textures/install-icons ISOLATED_ROOT NEW_PRIVATE_JSON"); return 2; }
             return 0;
         }
         catch (Exception error) { Console.Error.WriteLine(error); return 1; }

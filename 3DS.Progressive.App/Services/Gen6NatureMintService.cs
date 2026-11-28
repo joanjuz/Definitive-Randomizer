@@ -27,7 +27,7 @@ internal sealed class Gen6NatureMintService(GameProjectSession project,bool allo
         catch(Exception ex) when(ex is IOException or InvalidDataException or NotSupportedException or ArgumentException)
         {return new(Gen6MintNativeState.Incompatible,ex.Message,null);}
     }
-    private static JsonElement Profile(ulong title)
+    internal static JsonElement Profile(ulong title)
     {
         using var document=JsonDocument.Parse(typeof(Gen6NatureMintService).Assembly.GetManifestResourceStream("ThreeDS.Progressive.Gen6MintObservedProfiles")
             ??throw new InvalidDataException("Faltan los perfiles XY-MINT."));
@@ -76,9 +76,30 @@ internal sealed class Gen6NatureMintService(GameProjectSession project,bool allo
         foreach(var pin in pins.EnumerateObject())
         {
             byte[] data=Read(PathOf(pin.Name));
+            byte[] accredited=data;
+            bool knownShopCode=false;
+            if(installed&&pin.Name=="ExeFS/.code.bin")
+            {
+                accredited=Gen6MintIconService.NormalizeCode(data);
+                knownShopCode=native.TryGetProperty("experimental_shop_code_sha256",out var shop)&&Hash(accredited)==shop.GetString();
+            }
+            if(installed&&pin.Name=="RomFS/a/0/9/4")accredited=Gen6MintIconService.NormalizeArchive(data);
             bool mutable=pin.Name is "RomFS/DllBag.cro" or "RomFS/a/2/2/0" or "RomFS/.crr/static.crr"||
                 Enumerable.Range(72,8).Any(n=>pin.Name==$"RomFS/a/0/{n/10}/{n%10}");
-            if((!installed||!mutable)&&Hash(data)!=pin.Value.GetString())throw new InvalidDataException("Dependencia modificada o cruzada: "+pin.Name);
+            if((!installed||!mutable)&&!knownShopCode&&Hash(accredited)!=pin.Value.GetString())throw new InvalidDataException("Dependencia modificada o cruzada: "+pin.Name);
+        }
+        if(installed&&pins.TryGetProperty("RomFS/a/0/9/4",out _))
+        {
+            byte[] code=Read(PathOf("ExeFS/.code.bin"));var iconRows=Gen6MintIconService.Records(Read(PathOf("RomFS/a/0/9/4")));
+            bool iconsInstalled=Gen6MintIconService.Mapping(code,true);
+            if(!iconsInstalled&&!Gen6MintIconService.Mapping(code,false)||iconsInstalled!=(iconRows.Length==Gen6MintIconService.InstalledCount))
+                throw new InvalidDataException("Estado de iconos XY parcial o modificado.");
+            if(iconsInstalled)
+            {
+                string[] expected=native.GetProperty("icon_texture_sha256").EnumerateArray().Select(v=>v.GetString()!).ToArray();
+                if(expected.Length!=21||expected.Where((h,i)=>Hash(Gen6MintIconService.Decompress(iconRows[Gen6MintIconService.OriginalCount+i]))!=h).Any())
+                    throw new InvalidDataException("Textura de menta XY modificada.");
+            }
         }
         var files=new List<FileChange>();
         string itemPath=PathOf("RomFS/a/2/2/0");byte[] itemSource=Read(itemPath);

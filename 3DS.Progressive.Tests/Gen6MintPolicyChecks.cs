@@ -13,6 +13,7 @@ internal static class Gen6MintPolicyChecks
     private static Gen6MintItem[] SyntheticItems()=>Gen6NatureMintCatalog.Natures.Select((n,i)=>new Gen6MintItem(600+i,n.NatureId)).ToArray();
     internal static void Run(Action<bool,string> check,Action<Action,string> reject)
     {
+        Gen6MintIconChecks.Run(check,reject);
         var rows=SyntheticItems();var map=new Gen6MintItemMap(rows);
         check(Gen6NatureMintCatalog.Natures.Count==21&&Gen6NatureMintCatalog.Natures.Count(n=>n.NatureId%6==0)==1&&
             Gen6NatureMintCatalog.Natures.Single(n=>n.NatureId%6==0).NatureId==12,"Gen6 mint metadata:20 nonneutral and Serious only");

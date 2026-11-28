@@ -5,7 +5,7 @@ Base: `f8f958432958df4a18b4ef482a7d5e1fe3f91b7c`, main con los PR #144 y #145 fu
 
 ## Estado actual
 
-Existe un primer candidato experimental de X, todavía sin aceptación jugable. El handler, el instalador transaccional, las pruebas nuevas y el protocolo manual se detallan en [MENTAS_GEN6_XY_CANDIDATO.md](MENTAS_GEN6_XY_CANDIDATO.md). Producción sigue bloqueada; los apartados siguientes conservan la investigación anterior.
+El propietario validó en juego el primer candidato experimental de X con la copia de guardado preparada. La observación pendiente eran los iconos heredados; ya existe un instalador específico de iconos XY, pendiente de su comprobación visual. El handler, las pruebas y el protocolo se detallan en [MENTAS_GEN6_XY_CANDIDATO.md](MENTAS_GEN6_XY_CANDIDATO.md). Y e integración general siguen pendientes; los apartados siguientes conservan la investigación anterior.
 
 ## Estado de la entrega anterior
 
