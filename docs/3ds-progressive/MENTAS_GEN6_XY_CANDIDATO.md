@@ -4,6 +4,8 @@ Continuación del [PR #147](https://github.com/joanjuz/Definitive-Randomizer/pul
 
 ## Estado y alcance
 
+Actualización: existe un candidato independiente Y-02 con integridad y ciclo de retirada/reinstalación comprobados; su aceptación jugable sigue pendiente. Las nuevas opciones Global/Batch, la composición de parches y su protocolo se describen en [MENTAS_GEN6_XY_GLOBAL_BATCH.md](MENTAS_GEN6_XY_GLOBAL_BATCH.md). El estado de integración de los párrafos siguientes corresponde a la entrega inicial de X.
+
 Existe un handler ARM, un instalador experimental transaccional y una imagen reconstruida de Pokémon X. **El propietario cargó el `main` de prueba y dio por validada la integración de X, señalando únicamente los iconos heredados.** Esta aceptación no se extrapola a Y ni se convierte en una afirmación de que cada caso del protocolo fue reportado individualmente. Producción, WPF, Global y Batch siguen bloqueados hasta completar su integración. Y tiene perfil independiente y replay del handler con su ejecutable, pero no un candidato aceptado en juego. Por indicación del propietario, las validaciones en emulador quedan a su cargo; no se ejecutarán nuevas pruebas jugables autónomas.
 
 El candidato X contiene las 21 mentas y una operación adicional y explícita de tiendas de prueba: añade las 21 una sola vez a nueve stocks generales. Instalar el handler no randomiza ni distribuye objetos por sí mismo. La conexión general de tiendas, suelo, Pickup, Global y Batch sigue pendiente.

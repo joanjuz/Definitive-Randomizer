@@ -60,6 +60,8 @@ Punto de entrada a `docs/3ds-progressive/`. Muchos documentos son **registros hi
 | Mentas USUM fase 2: pools opcionales, distribución, Global Template y Batch | [MENTAS_GEN7_USUM_FASE2.md](MENTAS_GEN7_USUM_FASE2.md) |
 | XY-MINT: investigación nativa X/Y, replays de naturaleza/estadísticas y contrato protegido de distribución | [MENTAS_GEN6_XY.md](MENTAS_GEN6_XY.md) |
 | XY-MINT: candidato experimental X, handler ARM, instalación reversible y protocolo manual | [MENTAS_GEN6_XY_CANDIDATO.md](MENTAS_GEN6_XY_CANDIDATO.md) |
+| XY-MINT: candidato independiente Y, composición de parches y opciones Global Template / Batch | [MENTAS_GEN6_XY_GLOBAL_BATCH.md](MENTAS_GEN6_XY_GLOBAL_BATCH.md) |
+| Preview privada 1.1.0-preview.3: botón de mentas X/Y y proyectos randomizados | [RELEASE_1.1.0_PREVIEW_3.md](RELEASE_1.1.0_PREVIEW_3.md) |
 | Mentas USUM: compatibilidad por regiones y cambios acreditados | [MENTAS_GEN7_USUM_COMPATIBILIDAD.md](MENTAS_GEN7_USUM_COMPATIBILIDAD.md) |
 | Mentas USUM: convivencia con otros parches de `Bag.cro` (anclas en lugar de archivo idéntico) | [MENTAS_GEN7_USUM_CONVIVENCIA_BAG.md](MENTAS_GEN7_USUM_CONVIVENCIA_BAG.md) |
 | Definitive Game Data v1: exportación USUM e integración con Tracker | [Contrato técnico](../contracts/DEFINITIVE_GAME_DATA_V1.md) |

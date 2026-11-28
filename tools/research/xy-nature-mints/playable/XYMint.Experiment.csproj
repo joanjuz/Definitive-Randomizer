@@ -4,6 +4,7 @@
     <UseWPF>true</UseWPF><UseWindowsForms>true</UseWindowsForms>
     <ImplicitUsings>enable</ImplicitUsings><Nullable>enable</Nullable>
     <AssemblyName>3DS.Progressive.Tests</AssemblyName>
+    <OutputPath Condition="'$(XYMintProbeOutput)' != ''">$(XYMintProbeOutput)</OutputPath>
   </PropertyGroup>
   <ItemGroup>
     <Using Remove="System.Windows.Forms" />

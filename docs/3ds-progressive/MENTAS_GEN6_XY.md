@@ -5,6 +5,8 @@ Base: `f8f958432958df4a18b4ef482a7d5e1fe3f91b7c`, main con los PR #144 y #145 fu
 
 ## Estado actual
 
+La continuación del candidato Y-02 y las nuevas opciones independientes de Global/Batch se documentan en [MENTAS_GEN6_XY_GLOBAL_BATCH.md](MENTAS_GEN6_XY_GLOBAL_BATCH.md). Los apartados de investigación y bloqueo inicial que siguen son históricos.
+
 El propietario validó en juego el funcionamiento de X y posteriormente los iconos corregidos de X-04 («funcionó al 100%»). El fallo de iconos vacíos de X-03 se reprodujo con la rutina nativa de expansión de paletas y se corrigió en la conversión v2. El handler, las pruebas y el protocolo se detallan en [MENTAS_GEN6_XY_CANDIDATO.md](MENTAS_GEN6_XY_CANDIDATO.md). Y e integración general siguen pendientes; los apartados siguientes conservan la investigación anterior.
 
 ## Estado de la entrega anterior

@@ -104,6 +104,7 @@ internal static class Gen6MintRecipeChecks
         RuntimeCro(check,reject);
         BundledCsv(check);
         DependencyMerge(check,reject);
+        IdentityShapes(check,reject);
         var legacyAssembly=Assembly.LoadFrom(Path.ChangeExtension(BatchRomExecution.RunnerPath,".dll"));
         var gen7=(IEnumerable<string>)legacyAssembly.GetType("pk3DS.WinForms.BatchGen7ActionExecutor",true)!.GetField("Supported",BindingFlags.NonPublic|BindingFlags.Static)!.GetValue(null)!;
         check(!gen7.Intersect(Gen6MintRecipeBridge.ActionIds,StringComparer.OrdinalIgnoreCase).Any(),"Gen6MintRecipe_Gen7ExecutorDoesNotAdvertiseXyInstallActions");
@@ -111,6 +112,18 @@ internal static class Gen6MintRecipeChecks
         fromHistory.MergeHistoryActions(new HistoryDocument(1,"XY","synthetic",new[]{new HistoryEntry(Guid.NewGuid(),DateTimeOffset.UnixEpoch,"Mints","Install",[],
             new Dictionary<string,string>{{"ActionId",Gen6NatureMintService.ActionId}},[])}));
         check(fromHistory.Actions.SequenceEqual(new[]{Gen6MintExecutionContract.InstallAction}),"Gen6MintRecipe_HistoryExportsExecutableInstallAction");
+    }
+    private static void IdentityShapes(Action<bool,string> check,Action<Action,string> reject)
+    {
+        byte[] header=new byte[512];"NCCH"u8.CopyTo(header.AsSpan(0x100));header[0x118]=0x5d;
+        byte[] original=Gen6MintRuntimeDependencies.IdentityShape(header);var rebuilt=(byte[])header.Clone();
+        rebuilt.AsSpan(0,256).Fill(0xa5);rebuilt[0x104]=77;rebuilt[0x18f]=4;rebuilt.AsSpan(0x1c0,64).Fill(0xb7);
+        check(Gen6MintRuntimeDependencies.IdentityShape(rebuilt).SequenceEqual(original),"Gen6MintCompatibility_RebuiltContainerFieldsDoNotInvalidateNativeIdentity");
+        rebuilt[0x118]^=1;check(!Gen6MintRuntimeDependencies.IdentityShape(rebuilt).SequenceEqual(original),"Gen6MintCompatibility_CrossTitleIdentityStillRejected");
+        rebuilt[0x18f]=0xff;reject(()=>Gen6MintRuntimeDependencies.IdentityShape(rebuilt),"Gen6MintCompatibility_UnknownCryptoRejected");
+        byte[] ex=new byte[2048],compressed=(byte[])ex.Clone();compressed[0xd]=1;
+        check(Gen6MintRuntimeDependencies.ExheaderShape(ex).SequenceEqual(Gen6MintRuntimeDependencies.ExheaderShape(compressed)),"Gen6MintCompatibility_CodeCompressionMetadataAllowed");
+        compressed[0x24]=1;check(!Gen6MintRuntimeDependencies.ExheaderShape(ex).SequenceEqual(Gen6MintRuntimeDependencies.ExheaderShape(compressed)),"Gen6MintCompatibility_MemoryMapChangeStillPinned");
     }
     private static void FirstMoveReplay(Action<bool,string> check)
     {
@@ -150,6 +163,9 @@ internal static class Gen6MintRecipeChecks
     internal static void RunUi(Action<bool,string> check)
     {
         using var f=new Fixture(GameVersion.XY);ModuleChecks.CreateArchives(f);
+        var main=new MainWindow();main.LoadProject(f.Session);
+        typeof(MainWindow).GetMethod("NavigateSystem",BindingFlags.Instance|BindingFlags.NonPublic)!.Invoke(main,new object[]{"Gen6NatureMints"});
+        check(((ContentControl)main.FindName("SectionHost")).Content is Gen6NatureMintView,"Gen6MintUi_MechanicsNavigationOpensActualInstaller");main.Close();
         string path=Path.Combine(f.Root,"mint-selection.json");GlobalTemplateDocument.Empty("XY",6).Save(path);
         var view=new GlobalTemplateView(f.Session);view.OpenPath(path);
         var fields=BindingFlags.Instance|BindingFlags.NonPublic;

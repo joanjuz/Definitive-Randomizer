@@ -58,9 +58,12 @@ internal sealed class Gen6NatureMintService(GameProjectSession project,bool allo
         if(title is not (0x0004000000055D00UL or 0x0004000000055E00UL)||BitConverter.ToUInt64(ex,0x200)!=title)
             throw new InvalidDataException("Title ID cruzado o ajeno a X/Y.");
         JsonElement observed=(resolveProfile??Profile)(title),pins=observed.GetProperty("sha256"),native=observed.GetProperty("native");
+        bool composed=resolveProfile is null;
+        Gen6MintInstallation? admission=composed?Gen6MintRuntimeDependencies.Capture(project,requireInstalled:false):null;
         string PathOf(string relative)=>relative switch
         {
             "ncchheader.bin"=>ncchPath,"exheader.bin"=>exPath,
+            "ExeFS/.code.bin"=>Gen6MintRuntimeDependencies.CodePath(project),
             _ when relative.StartsWith("RomFS/",StringComparison.Ordinal)=>Path.Combine(config.RomFS,relative[6..]),
             _ when relative.StartsWith("ExeFS/",StringComparison.Ordinal)=>Path.Combine(config.ExeFS,relative[6..]),
             _=>throw new InvalidDataException("Dependencia fuera del contrato XY.")
@@ -86,7 +89,7 @@ internal sealed class Gen6NatureMintService(GameProjectSession project,bool allo
             if(installed&&pin.Name=="RomFS/a/0/9/4")accredited=Gen6MintIconService.NormalizeArchive(data);
             bool mutable=pin.Name is "RomFS/DllBag.cro" or "RomFS/a/2/2/0" or "RomFS/.crr/static.crr"||
                 Enumerable.Range(72,8).Any(n=>pin.Name==$"RomFS/a/0/{n/10}/{n%10}");
-            if((!installed||!mutable)&&!knownShopCode&&Hash(accredited)!=pin.Value.GetString())throw new InvalidDataException("Dependencia modificada o cruzada: "+pin.Name);
+            if(!composed&&(!installed||!mutable)&&!knownShopCode&&Hash(accredited)!=pin.Value.GetString())throw new InvalidDataException("Dependencia modificada o cruzada: "+pin.Name);
         }
         if(installed&&pins.TryGetProperty("RomFS/a/0/9/4",out _))
         {
@@ -104,7 +107,7 @@ internal sealed class Gen6NatureMintService(GameProjectSession project,bool allo
         var files=new List<FileChange>();
         string itemPath=PathOf("RomFS/a/2/2/0");byte[] itemSource=Read(itemPath);
         var items=new GARC.MemGARC(itemSource).Files;
-        if(items.Length!=718||items.Any(r=>r.Length!=36)||DigestMembers(items,i=>!Ids.Contains(i))!=native.GetProperty("items_opaque_sha256").GetString())
+        if(items.Length!=718||items.Any(r=>r.Length!=36)||!composed&&DigestMembers(items,i=>!Ids.Contains(i))!=native.GetProperty("items_opaque_sha256").GetString())
             throw new InvalidDataException("Tabla de objetos Gen6 ajena al perfil.");
         foreach(var item in Gen6NatureMintCatalog.ExperimentalItemMap.Items)
         {
@@ -121,7 +124,7 @@ internal sealed class Gen6NatureMintService(GameProjectSession project,bool allo
             string path=Path.Combine(config.RomFS,reference.Reference);byte[] source=Read(path);
             byte[][] records=new GARC.MemGARC(source).Files;
             JsonElement textProfile=native.GetProperty("texts").GetProperty(language.ToString());
-            if(records.Length<=140||DigestMembers(records,i=>!Banks.Contains(i))!=textProfile.GetProperty("opaque_banks_sha256").GetString())
+            if(records.Length<=140||!composed&&DigestMembers(records,i=>!Banks.Contains(i))!=textProfile.GetProperty("opaque_banks_sha256").GetString())
                 throw new InvalidDataException("Bancos ajenos de texto modificados: idioma "+language);
             string[] natures=new TextFile(config,records[47],config.RemapCharacters).Lines;
             if(natures.Length!=26)throw new InvalidDataException("Banco de naturalezas XY incompatible.");
@@ -131,7 +134,7 @@ internal sealed class Gen6NatureMintService(GameProjectSession project,bool allo
                 int count=bank==140?179:718;
                 if(previous.Length!=count+(bank==140&&installed?1:0))throw new InvalidDataException("Cantidad de filas incompatible: "+bank);
                 var rowProfile=textProfile.GetProperty("banks").GetProperty(bank.ToString());
-                ValidateRows(before,count,bank==140,rowProfile);
+                if(!composed)ValidateRows(before,count,bank==140,rowProfile);
                 string[] next=bank==140?[..previous.Take(179),Message(language)]:(string[])previous.Clone();
                 if(bank!=140)foreach(var item in Gen6NatureMintCatalog.ExperimentalItemMap.Items)
                     next[item.ItemId]=bank==99?Description(item.NatureId,language):Name(item.NatureId,natures,language,bank);
@@ -143,7 +146,7 @@ internal sealed class Gen6NatureMintService(GameProjectSession project,bool allo
                 {
                     // Shared text-envelope primitive only: no USUM slot, index or game profile is used.
                     records[bank]=UsumMintTextRows.Patch(config,before,next);
-                    ValidateRows(records[bank],count,bank==140,rowProfile);
+                    if(!composed)ValidateRows(records[bank],count,bank==140,rowProfile);
                 }
             }
             if(!installed)files.Add(new(path,source,GarcTransaction.Build(source,reference,records,preserveRecordSize:false)));
@@ -152,21 +155,29 @@ internal sealed class Gen6NatureMintService(GameProjectSession project,bool allo
         if(!installed)files.Add(new(bagPath,bag,outputBag));
         string[] inventory=Directory.GetFiles(config.RomFS).Where(p=>Path.GetExtension(p).Equals(".cro",StringComparison.OrdinalIgnoreCase)).Order(StringComparer.Ordinal).ToArray();
         byte[][] images=inventory.Select(Read).ToArray();
-        foreach(byte[] image in images)
+        for(int i=0;i<images.Length;i++)
         {
-            if(!CroIntegrity.Rebuild(image).AsSpan().SequenceEqual(image))
+            byte[] rebuilt=CroIntegrity.Rebuild(images[i]);
+            if(composed&&!rebuilt.AsSpan().SequenceEqual(images[i])&&inventory[i]!=bagPath)files.Add(new(inventory[i],images[i],rebuilt));
+            else if(!composed&&!rebuilt.AsSpan().SequenceEqual(images[i]))
                 throw new InvalidDataException("Inventario CRO inconsistente.");
         }
         string crrPath=PathOf("RomFS/.crr/static.crr");byte[] crr=Read(crrPath);
-        if(!CroIntegrity.RebuildCrr(crr,images).AsSpan().SequenceEqual(crr))throw new InvalidDataException("CRR no acredita el inventario CRO completo.");
-        if(installed)
+        if(!composed&&!CroIntegrity.RebuildCrr(crr,images).AsSpan().SequenceEqual(crr))throw new InvalidDataException("CRR no acredita el inventario CRO completo.");
+        if(composed)
+        {
+            var nextImages=inventory.Select(path=>files.FirstOrDefault(f=>f.Path.Equals(Path.GetFullPath(path),StringComparison.OrdinalIgnoreCase))?.Proposed()??Read(path)).ToArray();
+            byte[] nextCrr=CroIntegrity.RebuildCrr(crr,nextImages);if(!nextCrr.AsSpan().SequenceEqual(crr))files.Add(new(crrPath,crr,nextCrr));
+        }
+        else if(installed)
         {
             byte[] normalized=ReplaceCrr(crr,Hash(bag.AsSpan(0,128).ToArray()),native.GetProperty("original_bag_header_sha256").GetString()!,inventory.Length);
             if(Hash(normalized)!=pins.GetProperty("RomFS/.crr/static.crr").GetString())throw new InvalidDataException("CRR modificado fuera del candidato.");
         }
         else files.Add(new(crrPath,crr,ReplaceCrr(crr,Hash(bag.AsSpan(0,128).ToArray()),Hash(outputBag.AsSpan(0,128).ToArray()),inventory.Length)));
         foreach(var (path,data) in snapshots)GarcTransaction.ReadUnchanged(path,SHA256.HashData(data));
-        if(installed)return new(state.State,state.Report+"\nPerfiles y 21 objetos/textos comprobados; iconos originales (no dibujos nuevos de mentas).",null);
+        admission?.VerifyUnchanged();
+        if(installed&&!files.Any(f=>f.Changed))return new(state.State,state.Report+"\n21 mentas verificadas; datos randomizados conservados.",null);
         if(!allowExperimental)return new(state.State,"Producción bloqueada; solo candidato aislado autorizado.",null);
         var proposal=new EditorProposal(_owner,"Instalar 21 mentas X/Y · candidato experimental",0,files,
             Gen6NatureMintCatalog.ExperimentalItemMap.Items.Select(m=>new BatchChange(m.ItemId,"Menta "+m.NatureId,"Naturaleza real","Sin handler",m.NatureId.ToString())),
@@ -177,7 +188,7 @@ internal sealed class Gen6NatureMintService(GameProjectSession project,bool allo
     }
     internal void Apply(Gen6MintPreview preview)
     {
-        if(!allowExperimental||preview.State!=Gen6MintNativeState.Original||preview.Proposal is not {} offered||offered.Owner!=_owner)
+        if(!allowExperimental||preview.State is not (Gen6MintNativeState.Original or Gen6MintNativeState.Installed)||preview.Proposal is not {} offered||offered.Owner!=_owner)
             throw new InvalidOperationException("No hay una instalación experimental propia preparada.");
         // Recompute canonical output and commit that output, never caller-mutated proposal buffers.
         var current=Prepare().Proposal??throw new InvalidOperationException("La instalación ya no está disponible.");

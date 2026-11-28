@@ -163,6 +163,9 @@ internal sealed class Gen6MintIconService(GameProjectSession project,
         string Resolve(string name)=>name switch{
             "ncchheader.bin"=>header,
             "exheader.bin"=>Directory.GetFiles(root).Single(p=>Path.GetFileName(p).Equals("exheader.bin",StringComparison.OrdinalIgnoreCase)||Path.GetFileName(p)=="DecryptedExHeader.bin"),
+            "ExeFS/.code.bin"=>Gen6MintRuntimeDependencies.CodePath(project),
+            _ when name.StartsWith("RomFS/",StringComparison.Ordinal)=>Path.GetFullPath(Path.Combine(project.GameConfiguration.RomFS,name[6..])),
+            _ when name.StartsWith("ExeFS/",StringComparison.Ordinal)=>Path.GetFullPath(Path.Combine(project.GameConfiguration.ExeFS,name[6..])),
             _=>Path.GetFullPath(Path.Combine(root,name.Replace('/',Path.DirectorySeparatorChar)))};
         string[] paths=profile.GetProperty("sha256").EnumerateObject().Select(p=>Resolve(p.Name))
             .Concat(Directory.GetFiles(project.GameConfiguration.RomFS).Where(p=>Path.GetExtension(p).Equals(".cro",StringComparison.OrdinalIgnoreCase)))

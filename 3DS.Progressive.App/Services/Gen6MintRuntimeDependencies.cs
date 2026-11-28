@@ -26,6 +26,7 @@ internal static class Gen6MintRuntimeDependencies
     {
         var files=names.Select(n=>Path.Combine(root,n)).Where(File.Exists).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();Need(files.Length==1,"Cabecera ausente o ambigua.");return files[0];
     }
+    internal static string CodePath(GameProjectSession p)=>Header(p.GameConfiguration.ExeFS,".code.bin","code.bin",".code","code");
     private static int Unique(byte[] bytes,byte[] pattern,int start)
     {
         int found=bytes.AsSpan(start).IndexOf(pattern);Need(found>=0,"Firma de tabla ausente.");int at=start+found;
@@ -111,6 +112,17 @@ internal static class Gen6MintRuntimeDependencies
     }
     internal static JsonObject DescribeOriginal(GameProjectSession p)
     {
+        var originalPins=Gen6NatureMintService.Profile(Title(p)).GetProperty("sha256");
+        foreach(var pin in originalPins.EnumerateObject())
+        {
+            string path=pin.Name switch{
+                "ncchheader.bin"=>Header(p.ProjectRoot,"ncchheader.bin","HeaderNCCH0.bin","HeaderNCCH.bin"),
+                "exheader.bin"=>Header(p.ProjectRoot,"exheader.bin","DecryptedExHeader.bin","ExHeader.bin"),
+                "ExeFS/.code.bin"=>CodePath(p),
+                _ when pin.Name.StartsWith("RomFS/",StringComparison.Ordinal)=>Path.Combine(p.GameConfiguration.RomFS,pin.Name[6..]),
+                _=>Path.Combine(p.GameConfiguration.ExeFS,pin.Name[6..])};
+            Need(Hash(File.ReadAllBytes(path))==pin.Value.GetString(),"La exportación de perfiles requiere originales completos: "+pin.Name);
+        }
         Need(new Gen6NatureMintService(p).Inspect().State==Gen6MintNativeState.Original,"Se requiere el perfil original completo para acreditar los rangos.");
         ulong title=Title(p);var config=p.GameConfiguration;byte[] code=File.ReadAllBytes(Path.Combine(config.ExeFS,".code.bin"));
         var shape=new JsonObject{{"length",code.Length},{"tm",GameMachine6Service.FindTable(code,false)},
@@ -127,9 +139,24 @@ internal static class Gen6MintRuntimeDependencies
         var natureBanks=new JsonObject();for(int language=0;language<8;language++)
         {byte[][] records=new GARC.MemGARC(File.ReadAllBytes(Path.Combine(config.RomFS,config.GetGARCReference("gametext").GetRelativeGARC(language).Reference))).Files;natureBanks[language.ToString()]=Hash(records[47]);}
         Need(new Gen6NatureMintService(p).Inspect().State==Gen6MintNativeState.Original,"Los originales cambiaron durante la acreditación.");
-        return new(){{"title_id",title.ToString("X16")},{"code",shape},{"cros",cro},{"item_price_shape",ItemShape(new GARC.MemGARC(File.ReadAllBytes(Path.Combine(config.RomFS,"a/2/2/0"))).Files)},{"nature_banks",natureBanks}};
+        var itemRows=new GARC.MemGARC(File.ReadAllBytes(Path.Combine(config.RomFS,"a/2/2/0"))).Files;
+        var reserved=new JsonObject();foreach(var mint in Gen6NatureMintCatalog.ExperimentalItemMap.Items)reserved[mint.ItemId.ToString()]=Hash(itemRows[mint.ItemId][2..]);
+        string identityHash=Hash(IdentityShape(File.ReadAllBytes(Header(p.ProjectRoot,"ncchheader.bin","HeaderNCCH0.bin","HeaderNCCH.bin"))));
+        string exheaderHash=Hash(ExheaderShape(File.ReadAllBytes(Header(p.ProjectRoot,"exheader.bin","DecryptedExHeader.bin","ExHeader.bin"))));
+        return new(){{"title_id",title.ToString("X16")},{"code",shape},{"cros",cro},{"item_price_shape",ItemShape(itemRows)},{"nature_banks",natureBanks},
+            {"identity_shape_sha256",identityHash},{"exheader_shape_sha256",exheaderHash},{"reserved_item_shapes",reserved}};
     }
-    internal static Gen6MintInstallation Capture(GameProjectSession p)
+    internal static byte[] IdentityShape(byte[] source)
+    {
+        Need(source.Length==512&&source.AsSpan(0x100,4).SequenceEqual("NCCH"u8),"Cabecera NCCH inválida.");
+        Need(source[0x18f] is 0 or 1 or 4,"Cifrado NCCH no reconocido.");
+        var result=(byte[])source.Clone();
+        foreach(var (at,length) in new[]{(0,256),(0x104,4),(0x130,32),(0x160,32),(0x18f,1),(0x190,0x70)})result.AsSpan(at,length).Clear();
+        return result;
+    }
+    internal static byte[] ExheaderShape(byte[] source)
+    {Need(source.Length==2048,"ExHeader truncado.");var result=(byte[])source.Clone();result[0xd]&=0xfe;return result;}
+    internal static Gen6MintInstallation Capture(GameProjectSession p,bool requireInstalled=true)
     {
         ulong title=Title(p);var profile=Gen6NatureMintService.Profile(title);var native=profile.GetProperty("native");var pins=profile.GetProperty("sha256");var runtime=native.GetProperty("runtime");
         Need(runtime.GetProperty("title_id").GetString()==title.ToString("X16"),"Perfil de composición de otro título.");
@@ -137,35 +164,40 @@ internal static class Gen6MintRuntimeDependencies
         byte[] Read(string path){path=Path.GetFullPath(path);UsumMintItemPolicy.CheckPath(p,path);if(!snapshots.TryGetValue(path,out var bytes))snapshots[path]=bytes=File.ReadAllBytes(path);return bytes;}
         string root=p.ProjectRoot,rom=p.GameConfiguration.RomFS,exe=p.GameConfiguration.ExeFS;
         string ncch=Header(root,"ncchheader.bin","HeaderNCCH0.bin","HeaderNCCH.bin"),ex=Header(root,"exheader.bin","DecryptedExHeader.bin","ExHeader.bin");
-        Need(Hash(Read(ncch))==pins.GetProperty("ncchheader.bin").GetString()&&Hash(Read(ex))==pins.GetProperty("exheader.bin").GetString(),"Identidad o mapa de memoria XY alterados.");
-        byte[] code=Read(Path.Combine(exe,".code.bin"));Need(Hash(NormalizeCode(p,code,runtime.GetProperty("code")))==runtime.GetProperty("code").GetProperty("sha256").GetString(),"El complemento nativo del ejecutable XY cambió.");
+        Need(Hash(IdentityShape(Read(ncch)))==runtime.GetProperty("identity_shape_sha256").GetString()&&Hash(ExheaderShape(Read(ex)))==runtime.GetProperty("exheader_shape_sha256").GetString(),"Identidad o mapa de memoria XY alterados.");
+        byte[] code=Read(CodePath(p));Need(Hash(NormalizeCode(p,code,runtime.GetProperty("code")))==runtime.GetProperty("code").GetProperty("sha256").GetString(),"El complemento nativo del ejecutable XY cambió.");
         Need(Hash(Read(Path.Combine(rom,"static.crs")))==pins.GetProperty("RomFS/static.crs").GetString(),"Relocaciones/importaciones estáticas alteradas.");
         string[] files=Directory.GetFiles(rom).Where(f=>Path.GetExtension(f).Equals(".cro",StringComparison.OrdinalIgnoreCase)).Order().ToArray();var cros=runtime.GetProperty("cros");
         Need(files.Length==cros.EnumerateObject().Count(),"Inventario CRO cambió.");var images=new List<byte[]>();var oldHeaders=new List<string>();
+        bool installed=false;
         foreach(string file in files)
         {
             string name=Path.GetFileName(file);Need(cros.TryGetProperty(name,out var original),"Nombre físico CRO desconocido: "+name);byte[] bytes=Read(file);images.Add(bytes);
-            Need(CroIntegrity.Rebuild(bytes).AsSpan().SequenceEqual(bytes),"Hashes CRO inválidos: "+name);
-            if(name=="DllBag.cro")Need(Gen6NatureMintPatch.Inspect(bytes,new("XY-runtime",title,pins.GetProperty("ExeFS/.code.bin").GetString()!,pins.GetProperty("RomFS/DllBag.cro").GetString()!)).State==Gen6MintNativeState.Installed,"Mentas nativas no instaladas o modificadas.");
-            else if(name is "DllBattle.cro" or "DllField.cro" or "DllPoke3Select.cro")Need(Hash(NormalizeCro(name,bytes))==original.GetProperty("shape_sha256").GetString(),"Instrucciones/bytes opacos CRO alterados: "+name);
-            else Need(Hash(bytes)==original.GetProperty("sha256").GetString(),"CRO ajeno a los cambios acreditados: "+name);
+            byte[] rebuilt=CroIntegrity.Rebuild(bytes);if(requireInstalled)Need(rebuilt.AsSpan().SequenceEqual(bytes),"Hashes CRO inválidos: "+name);
+            if(name=="DllBag.cro")
+            {
+                var state=Gen6NatureMintPatch.Inspect(bytes,new("XY-runtime",title,pins.GetProperty("ExeFS/.code.bin").GetString()!,pins.GetProperty("RomFS/DllBag.cro").GetString()!)).State;
+                installed=state==Gen6MintNativeState.Installed;
+                Need(installed||!requireInstalled&&state==Gen6MintNativeState.Original,"Handler de Bolsa desconocido o parcial.");
+            }
+            else if(name is "DllBattle.cro" or "DllField.cro" or "DllPoke3Select.cro")Need(Hash(NormalizeCro(name,rebuilt))==original.GetProperty("shape_sha256").GetString(),"Instrucciones/bytes opacos CRO alterados: "+name);
+            else Need(Hash(rebuilt)==original.GetProperty("sha256").GetString(),"CRO ajeno a los cambios acreditados: "+name);
             oldHeaders.Add(original.GetProperty("header_sha256").GetString()!);
         }
-        byte[] crr=Read(Path.Combine(rom,".crr/static.crr"));Need(CroIntegrity.RebuildCrr(crr,images).AsSpan().SequenceEqual(crr),"CRR no corresponde al inventario actual.");
+        byte[] crr=Read(Path.Combine(rom,".crr/static.crr"));if(requireInstalled)Need(CroIntegrity.RebuildCrr(crr,images).AsSpan().SequenceEqual(crr),"CRR no corresponde al inventario actual.");
         int at=BitConverter.ToInt32(crr,0x350),count=BitConverter.ToInt32(crr,0x354);Need(count==oldHeaders.Count&&at>=0x358&&(long)at+count*32L<=crr.Length,"Tabla CRR incompatible.");
         byte[] normalized=(byte[])crr.Clone();oldHeaders.Sort(StringComparer.Ordinal);for(int i=0;i<count;i++)Convert.FromHexString(oldHeaders[i]).CopyTo(normalized,at+i*32);
         Need(Hash(normalized)==pins.GetProperty("RomFS/.crr/static.crr").GetString(),"Firma/metadatos o entradas CRR ajenos al perfil original.");
-        var items=new GARC.MemGARC(Read(Path.Combine(rom,"a/2/2/0"))).Files;Need(ItemShape(items)==runtime.GetProperty("item_price_shape").GetString(),"Propiedades de objetos fuera de los precios acreditados.");
-        foreach(var mint in Gen6NatureMintCatalog.ExperimentalItemMap.Items)Need(items[mint.ItemId].AsSpan(2).SequenceEqual(Gen6NatureMintService.ItemRecord().AsSpan(2)),"Propiedades de menta alteradas.");
+        var items=new GARC.MemGARC(Read(Path.Combine(rom,"a/2/2/0"))).Files;Need(items.Length==718&&items.All(r=>r.Length==36),"Formato de objetos XY inválido.");
+        foreach(var mint in Gen6NatureMintCatalog.ExperimentalItemMap.Items)Need(installed?items[mint.ItemId].AsSpan(2).SequenceEqual(Gen6NatureMintService.ItemRecord().AsSpan(2)):Hash(items[mint.ItemId][2..])==runtime.GetProperty("reserved_item_shapes").GetProperty(mint.ItemId.ToString()).GetString(),"Slot de menta ocupado por otro cambio: "+mint.ItemId);
         for(int language=0;language<8;language++)
         {
             var rows=new GARC.MemGARC(Read(Path.Combine(rom,p.GameConfiguration.GetGARCReference("gametext").GetRelativeGARC(language).Reference))).Files;
             Need(rows.Length>140&&Hash(rows[47])==runtime.GetProperty("nature_banks").GetProperty(language.ToString()).GetString(),"Banco de naturalezas no acreditado.");
             string[] natures=new TextFile(p.GameConfiguration,rows[47],p.GameConfiguration.RemapCharacters).Lines;
             foreach(int bank in new[]{95,96,97,98,99})
-            {TextEnvelope(rows[bank],native.GetProperty("texts").GetProperty(language.ToString()).GetProperty("banks").GetProperty(bank.ToString()));var text=new TextFile(p.GameConfiguration,rows[bank],p.GameConfiguration.RemapCharacters).Lines;Need(text.Length==718,"Banco de objetos truncado.");foreach(var mint in Gen6NatureMintCatalog.ExperimentalItemMap.Items)Need(text[mint.ItemId]==(bank==99?Gen6NatureMintService.Description(mint.NatureId,language):Gen6NatureMintService.Name(mint.NatureId,natures,language,bank)),"Texto de menta alterado.");}
-            Gen6NatureMintService.ValidateRows(rows[140],179,true,native.GetProperty("texts").GetProperty(language.ToString()).GetProperty("banks").GetProperty("140"));
-            var messages=new TextFile(p.GameConfiguration,rows[140],p.GameConfiguration.RemapCharacters).Lines;Need(messages.Length==180&&messages[179]==Gen6NatureMintService.Message(language),"Mensaje de uso no acreditado.");
+            {TextEnvelope(rows[bank],native.GetProperty("texts").GetProperty(language.ToString()).GetProperty("banks").GetProperty(bank.ToString()));var text=new TextFile(p.GameConfiguration,rows[bank],p.GameConfiguration.RemapCharacters).Lines;Need(text.Length==718,"Banco de objetos truncado.");if(installed)foreach(var mint in Gen6NatureMintCatalog.ExperimentalItemMap.Items)Need(text[mint.ItemId]==(bank==99?Gen6NatureMintService.Description(mint.NatureId,language):Gen6NatureMintService.Name(mint.NatureId,natures,language,bank)),"Texto de menta alterado.");}
+            var messages=new TextFile(p.GameConfiguration,rows[140],p.GameConfiguration.RemapCharacters).Lines;Need(installed?messages.Length==180&&messages[179]==Gen6NatureMintService.Message(language):messages.Length==179,"Fila de mensaje de mentas ocupada o incompatible.");
         }
         byte[] archive=Read(Path.Combine(rom,Gen6MintIconService.ArchivePath));Need(Hash(Gen6MintIconService.NormalizeArchive(archive))==pins.GetProperty("RomFS/a/0/9/4").GetString(),"Imágenes originales alteradas.");
         var records=Gen6MintIconService.Records(archive);bool icons=Gen6MintIconService.Mapping(code,true);Need(icons==(records.Length==600),"Instalación de iconos parcial.");

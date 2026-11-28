@@ -265,7 +265,31 @@ internal static class Program
     {
         try
         {
-            if(args.Length==3&&args[0]=="runtime-code-guards")
+            if(args.Length==4&&args[0]=="randomized-install-probe")
+            {
+                string root=Path.GetFullPath(args[1]);NewEvidence(root,args[3]);var p=GameProjectSession.Open(Path.Combine(root,"Proyecto"),false);
+                var doc=GlobalTemplateDocument.Load(args[2],"XY",6);Check(!Gen6MintRecipeBridge.Selected(doc),"Use the original randomization recipe without mint installation");
+                using var preview=Task.Run(()=>new GlobalTemplateApplication(p).PreviewAsync(doc,Console.WriteLine)).GetAwaiter().GetResult();
+                string stage=Path.Combine(preview.Workspace,"preview-project");var project=GameProjectSession.Open(stage,false);var randomized=Inventory(stage);
+                var installer=new Gen6NatureMintService(project,true);var native=installer.Inspect();Check(native.State==Gen6MintNativeState.Original&&native.Proposal is not null,"Randomized data admitted with native code verified: "+native.Report);installer.Apply(native);
+                Guid nativeEntry=project.History.Read().Entries.Last().Id;
+                var icons=new Gen6MintIconService(project);var image=Task.Run(()=>icons.PrepareAsync()).GetAwaiter().GetResult();Check(image.Proposal is not null,"Icons on randomized data");icons.Apply(image);
+                _=Gen6MintRuntimeDependencies.Capture(project);Guid iconEntry=project.History.Read().Entries.Last().Id;
+                RestorePoints.Undo(project.History,stage,iconEntry);RestorePoints.Undo(project.History,stage,nativeEntry);
+                Check(Inventory(stage).OrderBy(p=>p.Key).SequenceEqual(randomized.OrderBy(p=>p.Key)),"Undo restores exact randomized resources");
+                installer=new Gen6NatureMintService(GameProjectSession.Open(stage,false),true);installer.Apply(installer.Inspect());
+                icons=new Gen6MintIconService(GameProjectSession.Open(stage,false));icons.Apply(Task.Run(()=>icons.PrepareAsync()).GetAwaiter().GetResult());
+                _=Gen6MintRuntimeDependencies.Capture(GameProjectSession.Open(stage,false));
+                Save(args[3],new{TitleId=Target(root).ToString("X16"),RandomizedInput=true,NativeInstalled=true,IconsInstalled=true,AllCroCrrValid=true,UndoExactRandomizedBytes=true,ReinstallVerified=true,Files=randomized.Count,GameplayVerified=false});
+            }
+            else if(args.Length==3&&args[0]=="compare-garc")
+            {
+                NoLinks(args[1]);NoLinks(args[2]);var a=new GARC.MemGARC(File.ReadAllBytes(args[1])).Files;var b=new GARC.MemGARC(File.ReadAllBytes(args[2])).Files;
+                Check(a.Length==b.Length,"Record count differs");var changes=Enumerable.Range(0,a.Length).Where(i=>!a[i].SequenceEqual(b[i])).ToArray();
+                Console.WriteLine("Different records: "+changes.Length+" / "+a.Length);
+                foreach(int i in changes.Take(12))Console.WriteLine(i+": lengths "+a[i].Length+" / "+b[i].Length+"; offsets "+string.Join(",",Enumerable.Range(0,Math.Min(a[i].Length,b[i].Length)).Where(n=>a[i][n]!=b[i][n]).Take(40)));
+            }
+            else if(args.Length==3&&args[0]=="runtime-code-guards")
             {
                 string root=Path.GetFullPath(args[1]);NewEvidence(root,args[2]);var p=GameProjectSession.Open(Path.Combine(root,"Proyecto"),false);
                 var shape=Gen6NatureMintService.Profile(Target(root)).GetProperty("native").GetProperty("runtime").GetProperty("code");
@@ -337,12 +361,14 @@ internal static class Program
                 Check(GlobalTemplateApplication.Snapshot(project).OrderBy(p=>p.Key).SequenceEqual(before.OrderBy(p=>p.Key)),"Clean source unchanged after Batch");
                 Save(Path.Combine(caseRoot,"result.json"),new{TitleId=Target(root).ToString("X16"),SourceUnchanged=true,Reports=reports,GameplayVerified=false});
             }
-            else if(args.Length==5&&args[0]=="preview-global")
+            else if(args.Length is 5 or 6&&args[0]=="preview-global")
             {
                 string root=Path.GetFullPath(args[1]),recipe=Path.GetFullPath(args[2]),caseRoot=Path.GetFullPath(args[4]);Root(root);Headers(root);NoLinks(recipe);
                 Check(int.TryParse(args[3],out int seed)&&seed>=0,"Explicit nonnegative seed required");
                 Check(Path.GetDirectoryName(caseRoot)==Path.Combine(root,"evidence")&&!Directory.Exists(caseRoot)&&!File.Exists(caseRoot),"New isolated case folder required");
-                var project=GameProjectSession.Open(Path.Combine(root,"Proyecto"),false);var before=GlobalTemplateApplication.Snapshot(project);
+                var project=GameProjectSession.Open(Path.Combine(root,"Proyecto"),false);
+                if(args.Length==6){Check(int.TryParse(args[5],out int language)&&language is >=0 and <=7,"Explicit XY language");project.GameConfiguration.Initialize(project.GameConfiguration.RomFS,project.GameConfiguration.ExeFS,language);}
+                var before=GlobalTemplateApplication.Snapshot(project);
                 var doc=GlobalTemplateDocument.Load(recipe,"XY",6);var actions=(System.Text.Json.Nodes.JsonArray)doc.Section("Actions")!;
                 Check(!doc.Actions.Contains("rng.seed",StringComparer.OrdinalIgnoreCase),"Use a source without a fixed seed for this multi-seed probe");
                 actions.Add(new System.Text.Json.Nodes.JsonObject{{"Id","rng.seed"},{"Parameters",new System.Text.Json.Nodes.JsonObject{{"value",seed.ToString(System.Globalization.CultureInfo.InvariantCulture)}}}});doc.SetSection("Actions",actions);
@@ -362,6 +388,7 @@ internal static class Program
                 int martsCount=marts.Sum(row=>row.Count(mintIds.Contains)),visibleCount=fields.Count(row=>row[1]=="Visible"&&mintIds.Contains(int.Parse(row[4]))),hiddenCount=fields.Count(row=>row[1]=="Hidden"&&mintIds.Contains(int.Parse(row[4])));
                 Check(flags.IncludeMarts||martsCount==0,"Marts OFF must not introduce mints");Check(flags.IncludeFieldItems||visibleCount+hiddenCount==0,"Field OFF must not introduce mints");
                 var after=Inventory(stage);Check(GlobalTemplateApplication.Snapshot(project).OrderBy(p=>p.Key).SequenceEqual(before.OrderBy(p=>p.Key)),"Source clean project remained unchanged");
+                File.Copy(Path.Combine(result.GameConfiguration.RomFS,result.GameConfiguration.GetGARCFileName("trpoke")),Path.Combine(caseRoot,"trpoke.private.garc"));
                 Save(Path.Combine(caseRoot,"result.json"),new{TitleId=Target(root).ToString("X16"),Seed=seed,SourceUnchanged=true,RuntimeDependenciesValid=true,PersistentItemsInstalled=true,
                     flags.IncludeMarts,flags.IncludeFieldItems,MartsMintSlots=martsCount,VisibleMintSlots=visibleCount,HiddenMintSlots=hiddenCount,
                     ChangedFiles=preview.Files.Count,Files=after,RecipeSha256=doc.Sha256,GameplayVerified=false});

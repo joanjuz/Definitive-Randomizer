@@ -309,6 +309,7 @@ public partial class MainWindow : Window
         if(_croRecipesView is not null&&!_croRecipesView.ConfirmLeave())return false;
         if(_relearnerView is not null&&!_relearnerView.ConfirmLeave())return false;
         if(SectionHost.Content is UsumNatureMintView mints&&!mints.ConfirmLeave())return false;
+        if(SectionHost.Content is Gen6NatureMintView xyMints&&!xyMints.ConfirmLeave())return false;
         if(_typeChartView is not null&&!_typeChartView.ConfirmLeave())return false;
         if(_shinyRateView is not null&&!_shinyRateView.ConfirmLeave())return false;
         if(_romRebuildView is not null&&!_romRebuildView.ConfirmLeave())return false;
@@ -413,6 +414,7 @@ public partial class MainWindow : Window
                 "CroRecipes"=>_croRecipesView=new CroRecipesView(_session),
                 "UsumRelearner"=>_relearnerView=new UsumRelearnerView(_session),
                 "UsumNatureMints"=>new UsumNatureMintView(_session,()=>NavigateSystem("Marts")),
+                "Gen6NatureMints"=>new Gen6NatureMintView(_session,NavigateSystem),
                 "TemplateStudio"=>_templateStudioView??=new TemplateStudioView(_session),
                 "GlobalTemplate"=>_globalTemplateView??=new GlobalTemplateView(_session,RestoreGlobalOptions,CaptureGlobalOptions,RestoreGlobalOptionsAsync,ReloadAfterGlobalTemplateAsync),
                 "BatchRom"=>_batchRomView??=new BatchRomBuilderView(_session,
@@ -481,6 +483,8 @@ public partial class MainWindow : Window
             _=>null
         };
         if(_session is null||!ProjectFeatureAvailability.Supports(_session,section))return;
+        if(section=="Gen6NatureMints")
+        {Section_Click(new Button{Tag=section},new RoutedEventArgs());return;}
         if(section=="PlayerCaps")
         {
             // The Player Caps editor is hosted as its own full-width view.

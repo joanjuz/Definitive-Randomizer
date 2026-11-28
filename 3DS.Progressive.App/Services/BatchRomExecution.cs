@@ -153,7 +153,8 @@ internal sealed class BatchRomExecution
             TemplatePath=Path.GetFullPath(options.TemplatePath),
             OutputDirectory=Path.GetFullPath(options.OutputDirectory),
             options.BaseName,options.Count,options.Trimmed,options.RestoreBackups,
-            options.KeepEditableProjects,options.AllowAssetMismatch
+            options.KeepEditableProjects,options.AllowAssetMismatch,
+            UseSourceLanguage=_project.GameConfiguration.XY,Language=_project.GameConfiguration.Language
         };
         await File.WriteAllTextAsync(requestPath,JsonSerializer.Serialize(request));
         string? scratchToClean=null;

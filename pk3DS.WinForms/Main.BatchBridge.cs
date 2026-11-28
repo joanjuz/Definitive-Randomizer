@@ -22,6 +22,7 @@ internal sealed class BatchBridgeRequest
     public bool AllowAssetMismatch {get;set;}
     public bool PreviewOnly {get;set;}
     public int Language {get;set;}=2;
+    public bool UseSourceLanguage {get;set;}
 }
 
 
@@ -63,6 +64,11 @@ public partial class Main
             OpenQuick(source);
             if(Config is null||Config.Generation is not (6 or 7))throw new InvalidDataException("Proyecto incompatible.");
             RunGlobalTemplatePreview(job);return;
+        }
+        if(job.UseSourceLanguage)
+        {
+            if(job.Language is <0 or >7)throw new InvalidDataException("Idioma X/Y no válido.");
+            CB_Lang.SelectedIndex=job.Language;
         }
         OpenQuick(source);
         if(Config is null||Config.Generation is not (6 or 7))
