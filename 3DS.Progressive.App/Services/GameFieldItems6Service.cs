@@ -20,6 +20,7 @@ public sealed partial class GameFieldItems6Service : IProjectEditor,IOptionTempl
     private byte[] _scriptsHash;
     private byte[]? _codeHash;
     private readonly Guid _owner=Guid.NewGuid();
+    internal bool Gen6MintInclusion {get;set;}
     private readonly byte[][] _items;
     private readonly string _itemPath;
     private readonly byte[] _itemHash;
@@ -113,7 +114,7 @@ public sealed partial class GameFieldItems6Service : IProjectEditor,IOptionTempl
     {
         if(options[slot.Kind]==0||options["Safe"]==1&&_project.GameConfiguration.ORAS&&slot.Kind=="Visible"&&slot.Offset>=0x16A4)return false;
         if(options["Safe"]==1&&item>=_project.ItemNames.Count)return false;
-        if(options["ExcludeMachines"]==1&&item is >=328 and <=434)return false;
+        if(options["ExcludeMachines"]==1&&item is >=328 and <=434&&!(Gen6MintInclusion&&_project.GameConfiguration.XY&&pk3DS.Core.Modding.Research.Gen6NatureMintCatalog.ExperimentalItemMap.Items.Any(m=>m.ItemId==item)))return false;
         string name=Name(item).ToLowerInvariant();
         if(options["ExcludeKey"]==1)
         {
@@ -156,18 +157,20 @@ public sealed partial class GameFieldItems6Service : IProjectEditor,IOptionTempl
         var ids=scope.Distinct().Where(id=>Allowed(_slots[id],Value(_slots[id],source.Records,source.Code),options)).ToArray();
         if(ids.Length<2)throw new ArgumentException("Selecciona al menos dos objetos elegibles.");
         var random=new Random(seed);
-        int[] values=ids.Select(id=>Value(_slots[id],source.Records,source.Code)).ToArray();
+        int[] values=ids.Select(id=>Value(_slots[id],source.Records,source.Code)).ToArray();Gen6MintInstallation? mintEvidence=null;
         if(_itemTemplate.AllowedItems.Length>0)
         {
             var poolOptions=options.ToDictionary(p=>p.Key,p=>p.Value);poolOptions["Visible"]=1;
-            var pool=_itemTemplate.AllowedItems.Where(item=>Allowed(new(0,0,"Visible"),item,poolOptions)).ToArray();
+            var admitted=Gen6MintItemPolicy.AdmitPool(_project,_itemTemplate.AllowedItems,Gen6MintInclusion,_itemTemplate.AllowedItems.ToHashSet());mintEvidence=admitted.Evidence;
+            var pool=admitted.Pool.Where(item=>(!Gen6MintInclusion||_itemTemplate.Allows(item))&&Allowed(new(0,0,"Visible"),item,poolOptions)).ToArray();
             if(pool.Length==0)throw new InvalidDataException("La plantilla y los filtros dejan el catálogo vacío.");
             for(int i=0;i<values.Length;i++)values[i]=pool[random.Next(pool.Length)];
         }
         else if(options["RandomPool"]==1)
         {
             var poolOptions=options.ToDictionary(p=>p.Key,p=>p.Value);poolOptions["Visible"]=1;
-            var pool=ProgressiveLegacy.Randomizer.GetRandomItemList(_project.GameConfiguration)
+            var admitted=Gen6MintItemPolicy.AdmitPool(_project,ProgressiveLegacy.Randomizer.GetRandomItemList(_project.GameConfiguration),Gen6MintInclusion);mintEvidence=admitted.Evidence;
+            var pool=admitted.Pool
                 .Where(item=>_itemTemplate.Allows(item)&&item<_project.ItemNames.Count&&Allowed(new(0,0,"Visible"),item,poolOptions)).ToArray();
             if(pool.Length==0)throw new InvalidDataException("Catálogo vacío.");
             for(int i=0;i<values.Length;i++)values[i]=pool[random.Next(pool.Length)];
@@ -179,12 +182,14 @@ public sealed partial class GameFieldItems6Service : IProjectEditor,IOptionTempl
             for(int i=0;i<values.Length;i++)if(!_itemTemplate.Allows(values[i]))values[i]=eligible[random.Next(eligible.Length)];
             for(int i=values.Length-1;i>0;i--){int j=random.Next(i+1);(values[i],values[j])=(values[j],values[i]);}
         }
-        return Prepare(ids.Select((id,i)=>(id,values[i])).ToDictionary(p=>p.id,p=>p.Item2),"Randomizar objetos de campo",seed);
+        var proposal=Prepare(ids.Select((id,i)=>(id,values[i])).ToDictionary(p=>p.id,p=>p.Item2),"Randomizar objetos de campo",seed);
+        return mintEvidence is null?proposal:Gen6MintRecipeBridge.WithEvidence(proposal,mintEvidence,"Gen6MintItems.IncludeFieldItems",true);
     }
     public void Apply(EditorProposal proposal)
     {
         if(proposal.Owner!=_owner)throw new InvalidOperationException("La propuesta pertenece a otra sesión.");
         _=ReadSource();foreach(var f in proposal.Files)GarcTransaction.ReadUnchanged(f.Path,f.Fingerprint);
+        using var held=MintItemDependency.Lock(_project,proposal.Dependencies,proposal.Files);
         _project.History.Commit(proposal.Files,Title,proposal.Action,proposal.Changes,proposal.Parameters);
         _scriptsHash=SHA256.HashData(File.ReadAllBytes(_scriptsPath));if(_codePath!=null)_codeHash=SHA256.HashData(File.ReadAllBytes(_codePath));
         var display=ReadSource();RefreshDisplay(display.Records,display.Code);

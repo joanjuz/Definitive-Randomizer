@@ -381,6 +381,7 @@ public sealed partial class Main : Form
                 }
 
                 int seed = CreateBatchSeed(usedSeeds);
+                if(originalConfig.XY)seed=pk3DS.Core.Modding.Research.Gen6MintExecutionContract.SeedForRom(System.Text.Json.JsonSerializer.Serialize(template),i-1,seed);
                 activeStage = Path.Combine(options.OutputDirectory, $".pk3ds_batch_{Guid.NewGuid():N}");
                 string outputPath = Path.Combine(options.OutputDirectory, $"{options.BaseName}_{i:00}.3ds");
 

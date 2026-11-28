@@ -124,7 +124,11 @@ public class MoveRandomizer : IRandomizer
 
     ];
 
-    private static readonly GenericRandomizer first = new(firstMoves);
+    private static GenericRandomizer first = new((int[])firstMoves.Clone());
+
+    /// <summary>Starts an isolated replay from the canonical pool without drawing RNG.
+    /// Ordinary editors keep their existing sequence unless explicitly reset.</summary>
+    public static void ResetFirstMoveSequence() => first = new((int[])firstMoves.Clone());
 
     public static int GetRandomFirstMoveAny()
     {

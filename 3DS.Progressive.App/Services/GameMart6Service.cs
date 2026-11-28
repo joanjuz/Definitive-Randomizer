@@ -24,6 +24,7 @@ public sealed partial class GameMart6Service : IProjectEditor
     private readonly int[] _counts,_offsets;
     private readonly IReadOnlyList<MoveChoice> _items;
     private readonly Guid _owner=Guid.NewGuid();
+    internal bool Gen6MintInclusion {get;set;}
     public string Title=>"Tiendas · Gen6";
     public IReadOnlyList<RecordEntry> Entries {get;}
     public IReadOnlyList<EditorGroup> RandomOptions=>[new("Operación sobre el alcance elegido",[
@@ -54,7 +55,7 @@ public sealed partial class GameMart6Service : IProjectEditor
         _itemRef=config.GetGARCReference("item");_itemPath=Path.Combine(config.RomFS,config.GetGARCFileName("item"));
         if(File.Exists(_itemPath))_itemHash=SHA256.HashData(File.ReadAllBytes(_itemPath));
     }
-    private static int Find(byte[] source,int bytes)
+    internal static int Find(byte[] source,int bytes)
     {
         if(source.Length%512!=0||source.Length<0x400000)throw new InvalidDataException("code.bin comprimido o truncado.");
         var candidates=new List<int>();
@@ -92,7 +93,7 @@ public sealed partial class GameMart6Service : IProjectEditor
         EditorValues.Validate(RandomOptions,options);int[] ids=scope.Distinct().Order().ToArray();
         if(ids.Length==0||ids.Any(i=>i<1||i>Entries.Count))throw new ArgumentException("Alcance de tiendas inválido.");
         if(options["UseChecks"]==1)return PrepareDraft(ReadAllItems(),options,scope,seed);
-        byte[] source=Source(),next=(byte[])source.Clone();var rng=new Random(seed);
+        byte[] source=Source(),next=(byte[])source.Clone();var rng=new Random(seed);Gen6MintInstallation? mintEvidence=null;
         var files=new List<FileChange>();var changes=new List<BatchChange>();bool candy=options["Operation"]==1;
         if(candy)
         {
@@ -112,7 +113,8 @@ public sealed partial class GameMart6Service : IProjectEditor
         else
         {
             if(options["SpecialOnly"]==1)ids=ids.Where(id=>id>=11).ToArray();
-            int[] pool=ProgressiveLegacy.Randomizer.GetRandomItemList(_project.GameConfiguration).Where(i=>i>0&&i<_items.Count).Distinct().ToArray();
+            var admitted=Gen6MintItemPolicy.AdmitPool(_project,ProgressiveLegacy.Randomizer.GetRandomItemList(_project.GameConfiguration),Gen6MintInclusion);
+            mintEvidence=admitted.Evidence;int[] pool=admitted.Pool.Where(i=>i>0&&i<_items.Count).Distinct().ToArray();
             if(pool.Length==0)throw new InvalidDataException("No hay objetos legales para las tiendas.");
             int cursor=pool.Length;
             foreach(int id in ids)for(int i=0;i<_counts[id-1];i++)
@@ -129,12 +131,14 @@ public sealed partial class GameMart6Service : IProjectEditor
         parameters["Scope"]=string.Join(",",ids);
         if(candy)parameters["price"]="10";else {parameters["specialOnly"]=(options["SpecialOnly"]==1).ToString();parameters["keepXItems"]=(options["KeepX"]==1).ToString();}
         parameters["ActionId"]=candy?"marts.add-rare-candies":"marts.randomize";
-        return new(_owner,candy?"Añadir Caramelos Raros":"Randomizar tiendas",seed,files,changes,parameters);
+        var proposal=new EditorProposal(_owner,candy?"Añadir Caramelos Raros":"Randomizar tiendas",seed,files,changes,parameters);
+        return mintEvidence is null?proposal:Gen6MintRecipeBridge.WithEvidence(proposal,mintEvidence,"Gen6MintItems.IncludeMarts",true);
     }
     public void Apply(EditorProposal proposal)
     {
         if(proposal.Owner!=_owner)throw new InvalidOperationException("La propuesta pertenece a otro editor.");
         _=Source();foreach(var file in proposal.Files)GarcTransaction.ReadUnchanged(file.Path,file.Fingerprint);
+        using var held=MintItemDependency.Lock(_project,proposal.Dependencies,proposal.Files);
         _project.History.Commit(proposal.Files,Title,proposal.Action,proposal.Changes,proposal.Parameters);
         byte[] saved=File.ReadAllBytes(_codePath);_codeHash=SHA256.HashData(saved);
         if(_structure is not null){int offset=_structure.TableOffset(saved);var counts=_structure.Counts(saved);for(int i=0;i<_counts.Length;i++){_counts[i]=counts[i];_offsets[i]=offset;offset+=2*_counts[i];}}

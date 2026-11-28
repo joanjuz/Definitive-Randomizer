@@ -36,7 +36,7 @@ internal sealed class Gen6MintItemPolicy
     private readonly Func<Gen6MintInstallation> _captureInstalled;
     internal bool Include {get;set;}
     internal Gen6MintItemPolicy(GameProjectSession project,Func<Gen6MintInstallation>? captureInstalled=null)
-        :this(project.GameName,project.Generation,captureInstalled) { }
+        :this(project.GameName,project.Generation,captureInstalled??(()=>Gen6MintRuntimeDependencies.Capture(project))) { }
     internal Gen6MintItemPolicy(string game,int generation,Func<Gen6MintInstallation>? captureInstalled=null)
     {
         _game=game;_generation=generation;
@@ -48,6 +48,12 @@ internal sealed class Gen6MintItemPolicy
         if(!IsXY(_game,_generation))throw new InvalidDataException("Las mentas Gen6 requieren Pokémon X/Y.");
         var evidence=_captureInstalled()??throw new InvalidDataException(BlockedReason);
         evidence.VerifyUnchanged();return evidence;
+    }
+    internal static (int[] Pool,Gen6MintInstallation? Evidence) AdmitPool(GameProjectSession project,IEnumerable<int> original,bool include,IReadOnlySet<int>? allowed=null,IReadOnlySet<int>? banned=null)
+    {
+        Gen6MintInstallation? evidence=null;
+        var policy=new Gen6MintItemPolicy(project,()=>evidence??=Gen6MintRuntimeDependencies.Capture(project));
+        return(policy.Pool(original,include,allowed,banned),evidence);
     }
     internal (bool Available,string Report) Inspect()
     {
@@ -75,5 +81,15 @@ internal sealed class Gen6MintItemPolicy
         if(native?[Node] is not null and not JsonObject)throw new InvalidDataException("Gen6MintItems debe ser un objeto de opciones.");
         var copy=native?.DeepClone() as JsonObject??new();
         var node=copy[Node] as JsonObject??new();node["Include"]=include;copy[Node]=node;document.SetSection("ProgressiveApp",copy);
+    }
+    internal static void Capture(GlobalTemplateDocument document,bool includeMarts,bool includeFieldItems)
+    {
+        if(!includeMarts&&!includeFieldItems&&document.Section("ProgressiveApp")?[Node] is null)return;
+        if((includeMarts||includeFieldItems)&&!IsXY(document.Game,document.Generation))throw new InvalidDataException("La receta de mentas Gen6 requiere Pokémon X/Y.");
+        if(document.Section("ProgressiveApp") is not null and not JsonObject)throw new InvalidDataException("ProgressiveApp debe ser un objeto.");
+        var copy=document.Section("ProgressiveApp")?.DeepClone() as JsonObject??new();
+        if(copy[Node] is not null and not JsonObject)throw new InvalidDataException("Gen6MintItems debe ser un objeto de opciones.");
+        var node=copy[Node] as JsonObject??new();node.Remove("Include");node["IncludeMarts"]=includeMarts;node["IncludeFieldItems"]=includeFieldItems;
+        copy[Node]=node;document.SetSection("ProgressiveApp",copy);
     }
 }

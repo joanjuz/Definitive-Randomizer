@@ -22,6 +22,7 @@ public static class NativeBatchGen6Bridge
     internal static void ValidateDocument(GlobalTemplateDocument doc)
     {
         pk3DS.Core.Modding.Research.Gen6MintExecutionContract.ValidateForExecution(doc.ToJson());
+        Gen6MintRecipeBridge.ValidateDocument(doc);
         MachineCompatibilityTemplate.ValidateReplay(doc);TutorCompatibilityTemplate.ValidateReplay(doc);
         foreach(var group in SelectedActions(doc).GroupBy(a=>Key(a.ToLowerInvariant())!))
         {
@@ -112,6 +113,7 @@ public static class NativeBatchGen6Bridge
     internal static void ValidateSession(GameProjectSession project,GlobalTemplateDocument doc,string? catchManifest=null)
     {
         ValidateDocument(doc);
+        Gen6MintRecipeBridge.ValidateSession(project,doc);
         foreach(string action in SelectedActions(doc))
         {
             string key=Key(action.ToLowerInvariant())!;
@@ -138,6 +140,8 @@ public static class NativeBatchGen6Bridge
         // Validate every selected module before committing any changes. Recreate editors for
         // execution because machines, field items and marts may share code.bin.
         ValidateSession(project,doc,catchManifest);
+        Gen6MintRecipeBridge.Bootstrap(project,doc);
+        if(Gen6MintRecipeBridge.Selected(doc))project=GameProjectSession.Open(project.ProjectRoot,false);
         int index=0;
         bool tradesDone=false,martsDone=false;
         foreach(string action in actions)
@@ -168,6 +172,9 @@ public static class NativeBatchGen6Bridge
                 var pickup=new GamePickupService(project);pickup.Apply(pickup.Preview(pickup.Randomize(pickup.Read(),moduleSeed)));continue;
             }
             var editor=Create(project,key);int[] scope=editor.Entries.Select(e=>e.Id).ToArray();
+            var mintOptions=pk3DS.Core.Modding.Research.Gen6MintExecutionContract.ReadOptions(doc.ToJson());
+            if(editor is GameMart6Service mintMarts)mintMarts.Gen6MintInclusion=mintOptions.IncludeMarts;
+            if(editor is GameFieldItems6Service mintField)mintField.Gen6MintInclusion=mintOptions.IncludeFieldItems;
             EditorProposal proposal;
             if(editor is GameItemService items)proposal=items.PreviewEconomy(items.PriceRows());
             else
@@ -185,10 +192,14 @@ public static class NativeBatchGen6Bridge
                 };
             }
             editor.Apply(proposal);
+            // Static encounters write CRO data. Seal that completed operation before
+            // another module captures the installed mint dependencies, including CRR.
+            if(key=="StaticEncounters"&&Gen6MintRecipeBridge.Selected(doc))Gen6MintRecipeBridge.FinalizeRecipe(project,doc);
         }
         if(actions.Any(action=>Key(action.ToLowerInvariant())=="StaticEncounters"))
         {
             var integrity=new GameCroIntegrityService(project);integrity.Apply(integrity.Preview(updateCrr:false));
         }
+        Gen6MintRecipeBridge.FinalizeRecipe(project,doc);
     }
 }

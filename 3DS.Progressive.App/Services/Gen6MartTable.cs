@@ -44,6 +44,7 @@ internal sealed class Gen6MartTable
     internal void ValidateHeader(){if(!SHA256.HashData(File.ReadAllBytes(_headerPath)).SequenceEqual(_headerHash))throw new IOException("ExHeader cambió desde la lectura de tiendas.");}
     internal int[] Counts(byte[] code)=>code.AsSpan(_counts,_shops).ToArray().Select(n=>(int)n).ToArray();
     internal int TableOffset(byte[] code)=>code.AsSpan(_cave,4).SequenceEqual("DRM6"u8)?_cave+64:_stock;
+    internal IReadOnlyList<(int Offset,int Length)> MintMutableRanges=>[(_stock,GameMart6Service.CountsXY.Sum()*2),(_counts,_shops),(_pointer,4),(_cave,_end-_cave)];
     private byte[] Digest(byte[] code)
     {using var hash=IncrementalHash.CreateHash(HashAlgorithmName.SHA256);hash.AppendData(code.AsSpan(_cave,48));hash.AppendData(code.AsSpan(_counts,_shops));hash.AppendData(code.AsSpan(_cave+64,_end-_cave-64));return hash.GetHashAndReset();}
     internal byte[] Build(byte[] source,IReadOnlyList<int[]> rows)

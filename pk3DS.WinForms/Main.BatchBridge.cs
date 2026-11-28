@@ -99,6 +99,7 @@ public partial class Main
             OpenQuick(stage);
             if(Config.Generation!=generation||CurrentGlobalTemplateGame!=game)throw new InvalidDataException("La copia no corresponde al juego original.");
             int seed=System.Security.Cryptography.RandomNumberGenerator.GetInt32(int.MaxValue);
+            if(Config.XY)seed=pk3DS.Core.Modding.Research.Gen6MintExecutionContract.SeedForRom(JsonSerializer.Serialize(template),0,seed);
             Util.ReseedRand(seed);
             string previous=Environment.GetEnvironmentVariable("DEFINITIVE_BATCH_REPLAY"),previousTemplate=Environment.GetEnvironmentVariable("DEFINITIVE_TEMPLATE_PATH");
             Environment.SetEnvironmentVariable("DEFINITIVE_BATCH_REPLAY","1");Environment.SetEnvironmentVariable("DEFINITIVE_TEMPLATE_PATH",job.TemplatePath);

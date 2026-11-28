@@ -222,7 +222,7 @@ internal sealed class Gen6NatureMintService(GameProjectSession project,bool allo
         for(int i=0;i<records.Length;i++)if(include(i)){h.AppendData(BitConverter.GetBytes(i));h.AppendData(BitConverter.GetBytes(records[i].Length));h.AppendData(records[i]);}
         return Convert.ToHexString(h.GetHashAndReset());
     }
-    private static void ValidateRows(byte[] source,int count,bool messages,JsonElement profile)
+    internal static void ValidateRows(byte[] source,int count,bool messages,JsonElement profile)
     {
         if(source.Length<20||BitConverter.ToInt32(source,12)!=16)throw new InvalidDataException("Sección de texto Gen6 incompatible.");
         byte[] head=source.AsSpan(0,16).ToArray();Array.Clear(head,2,6);

@@ -106,6 +106,7 @@ internal static class Gen6MintPolicyChecks
         check(usum.ToJson()==before,"Gen6 mint rejected global capture is atomic");
         usum.SetSection("ProgressiveApp",new JsonObject{{Gen6MintItemPolicy.Node,new JsonObject{{"Include",true}}}});
         reject(()=>Gen6MintItemPolicy.Read(usum),"Gen6 mint read rejects incompatible opt-in");
+        Gen6MintRecipeChecks.Run(check,reject);
         ExecutionContract(check,reject);
         Gen6MintNativeChecks.Run(check,reject);
         Gen6MintServiceChecks.Run(check,reject);
@@ -122,8 +123,9 @@ internal static class Gen6MintPolicyChecks
         }
         string optIn="{\"Game\":\"XY\",\"Generation\":6,\"ProgressiveApp\":{\"Gen6MintItems\":{\"Include\":true,\"Unknown\":[1]}}}";
         check(Gen6MintExecutionContract.Read(optIn),"Gen6 mint syntactically valid opt-in can be read without implying admission");
-        check(Failure(()=>Gen6MintExecutionContract.ValidateForExecution(optIn))==Gen6MintExecutionContract.BlockedReason,
-            "Gen6 mint execution valid XY opt-in blocked until native accreditation");
+        Gen6MintExecutionContract.ValidateForExecution(optIn);
+        check(Gen6MintExecutionContract.ReadOptions(optIn) is {IncludeMarts:true,IncludeFieldItems:true},
+            "Gen6 mint structural XY opt-in accepted without native installation admission");
         foreach(string json in new[]{"{", "[]", "{\"ProgressiveApp\":7}","{\"ProgressiveApp\":{\"Gen6MintItems\":null}}",
             "{\"ProgressiveApp\":{\"Gen6MintItems\":{}}}","{\"ProgressiveApp\":{\"Gen6MintItems\":{\"Include\":1}}}",
             "{\"ProgressiveApp\":{\"Gen6MintItems\":{\"Include\":\"false\"}}}",
@@ -157,14 +159,13 @@ internal static class Gen6MintPolicyChecks
         var files=Directory.GetFiles(fixture.Root,"*",SearchOption.AllDirectories).ToDictionary(p=>p,p=>Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(p))));
         int history=fixture.Session.History.Read().Entries.Count;
         string beforeJson=document.ToJson();
-        check(Failure(()=>NativeBatchGen6Bridge.ValidateDocument(document))==Gen6MintExecutionContract.BlockedReason,
-            "Gen6 mint native Gen6 bridge rejects opt-in at document preflight");
-        check(Failure(()=>batch.Preflight(options))==Gen6MintExecutionContract.BlockedReason,
-            "Gen6 mint batch source preflight rejects opt-in before execution");
-        check(Failure(()=>legacy(document.ToJson()))==Gen6MintExecutionContract.BlockedReason,
-            "Gen6 mint legacy runner rejects opt-in without WPF bridge or resource access");
-        check(Failure(()=>GlobalEditorTemplateBridge.ValidateBatchReplay(document))==Gen6MintExecutionContract.BlockedReason,
-            "Gen6 mint Global replay rejects opt-in before editor validation");
+        NativeBatchGen6Bridge.ValidateDocument(document);
+        reject(()=>NativeBatchGen6Bridge.ValidateSession(fixture.Session,document),
+            "Gen6 mint native Gen6 session rejects opt-in without accredited installation");
+        reject(()=>batch.Preflight(options),"Gen6 mint batch source preflight rejects opt-in without accredited installation");
+        reject(()=>legacy(document.ToJson()),"Gen6 mint legacy runner rejects opt-in without accredited installation");
+        GlobalEditorTemplateBridge.ValidateBatchReplay(document);
+        check(Gen6MintItemPolicy.Read(document),"Gen6 mint Global structural replay preserves explicit opt-in for later project validation");
         var foreign=GlobalTemplateDocument.Empty("USUM",7);
         foreign.SetSection("ProgressiveApp",new JsonObject{{Gen6MintItemPolicy.Node,new JsonObject{{"Include",true}}}});
         reject(()=>GlobalEditorTemplateBridge.ValidateBatchReplay(foreign),"Gen6 mint Global foreign family cannot bypass execution guard");
@@ -174,11 +175,6 @@ internal static class Gen6MintPolicyChecks
         check(!Directory.Exists(output)&&fixture.Session.History.Read().Entries.Count==history&&
             Directory.GetFiles(fixture.Root,"*",SearchOption.AllDirectories).Length==files.Count&&files.All(p=>Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(p.Key)))==p.Value),
             "Gen6 mint rejected source and legacy preflight preserve all files history and output absence");
-    }
-    private static string Failure(Action action)
-    {
-        try { action(); }catch(InvalidDataException ex){return ex.Message;}
-        throw new Exception("Expected explicit native-contract rejection.");
     }
     private static Action<string> LegacyValidator()
     {

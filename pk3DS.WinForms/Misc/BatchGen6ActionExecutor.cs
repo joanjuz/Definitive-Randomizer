@@ -13,7 +13,7 @@ namespace pk3DS.WinForms;
 internal static class BatchGen6ActionExecutor
 {
     internal static readonly HashSet<string> Supported=new(StringComparer.OrdinalIgnoreCase)
-    {"manual-edits.apply","rng.seed","moves.balance","moves.randomize","moves.metronome","personal.randomize","personal.modify-all","pokemon-stats.apply",
+    {"xy.persistent-items","xy.nature-mints.install","xy.nature-mints.icons.install","manual-edits.apply","rng.seed","moves.balance","moves.randomize","moves.metronome","personal.randomize","personal.modify-all","pokemon-stats.apply",
      "evolutions.randomize","evolutions.every-level","evolutions.remove-trade","evolutions.normalize","level-up-moves.randomize","level-up-moves.metronome","egg-moves.randomize","trades.accept-any","trades.randomize-offers","trainers.randomize","static-encounters.randomize","static-encounters.modify-levels","starters.randomize","tms.randomize","field-items.randomize","marts.randomize","marts.add-rare-candies","marts.add-ev-items","marts.ban-ability-capsule","items.fix-economy","pickup.randomize","wild-encounters.randomize","wild-encounters.modify-levels","wild-encounters.scale-levels","tms.sanity","tms.follow-evolutions","catchzones.enable","shiny-rate.apply","move-tutors.randomize","move-tutors.sanity","move-tutors.follow-evolutions"};
     internal static string[] GetUnsupported(IEnumerable<GlobalRandomizationAction> actions)=>(actions??Enumerable.Empty<GlobalRandomizationAction>()).Where(a=>a!=null&&!string.IsNullOrWhiteSpace(a.Id)&&!Supported.Contains(a.Id)).Select(a=>a.Id).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
     internal static void Execute(GlobalRandomizationTemplate template)
@@ -22,6 +22,7 @@ internal static class BatchGen6ActionExecutor
         var unsupported=GetUnsupported(template.Actions);if(unsupported.Length>0)throw new NotSupportedException("Acciones Gen6 no integradas: "+string.Join(", ",unsupported));
         var actions=new HashSet<string>(template.Actions.Select(a=>a.Id),StringComparer.OrdinalIgnoreCase);
         bool Has(string id)=>actions.Contains(id);
+        if(Extensions(template,"Bootstrap")){Main.Config.InitializeAll();pk3DS.Core.Randomizers.MoveRandomizer.ResetFirstMoveSequence();BatchBridgeProgress.ActionGroup("Instalaciones X/Y",actions,id=>id.StartsWith("xy.",StringComparison.OrdinalIgnoreCase));}
         if((Has("trades.accept-any")||Has("trades.randomize-offers"))&&!HasNativeTrades(template))
             BatchRuntime.Log(Gen6TradePatcher.ApplyGen6TradePatch(Main.ExeFSPath,Main.Config,Has("trades.randomize-offers")));
         BatchBridgeProgress.ActionGroup("Trades",actions,id=>id.StartsWith("trades.",StringComparison.OrdinalIgnoreCase));
@@ -71,6 +72,17 @@ internal static class BatchGen6ActionExecutor
         if(Has("trainers.randomize"))RunTrainers();
         BatchBridgeProgress.ActionGroup("Trainers",actions,id=>id.StartsWith("trainers.",StringComparison.OrdinalIgnoreCase));
         ApplyManual(template);
+        Extensions(template,"FinalizeRecipe");
+    }
+    private static bool Extensions(GlobalRandomizationTemplate template,string method)
+    {
+        string json=System.Text.Json.JsonSerializer.Serialize(template);var o=pk3DS.Core.Modding.Research.Gen6MintExecutionContract.ReadOptions(json);
+        if(!o.InstallMints&&!o.InstallIcons&&!o.IncludeMarts&&!o.IncludeFieldItems&&!template.Actions.Any(a=>a.Id.Equals("xy.persistent-items",StringComparison.OrdinalIgnoreCase)))return false;
+        string path=Path.GetFullPath(Path.Combine(Path.GetDirectoryName(typeof(BatchGen6ActionExecutor).Assembly.Location),"..","3DS.Progressive.dll"));
+        var bridge=Assembly.LoadFrom(path).GetType("ThreeDS.Progressive.Services.Gen6MintRecipeBridge",true);
+        try{bridge.GetMethod(method,BindingFlags.Public|BindingFlags.Static).Invoke(null,new object[]{Directory.GetParent(Main.RomFSPath).FullName,json});}
+        catch(TargetInvocationException ex)when(ex.InnerException!=null){ExceptionDispatchInfo.Capture(ex.InnerException).Throw();}
+        return true;
     }
     internal static void ApplyManual(GlobalRandomizationTemplate template)
     {
@@ -204,6 +216,7 @@ internal static class BatchGen6ActionExecutor
     {
         string json=System.Text.Json.JsonSerializer.Serialize(template);
         pk3DS.Core.Modding.Research.Gen6MintExecutionContract.ValidateForExecution(json);
+        Extensions(template,"Validate");
         // Old recipes keep their original path without new file reads or RNG draws.
         if(json.IndexOf("Gen7MintItems",StringComparison.Ordinal)<0 && !(template.Actions?.Any(a=>a.Id=="marts.add-nature-mints")??false))return;
         string path=System.IO.Path.GetFullPath(System.IO.Path.Combine(System.IO.Path.GetDirectoryName(typeof(BatchGen6ActionExecutor).Assembly.Location),"..","3DS.Progressive.dll"));

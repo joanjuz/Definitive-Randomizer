@@ -77,6 +77,16 @@ internal static class GlobalApplicationChecks
                     check(GlobalTemplateApplication.Snapshot(f.Session).All(pair=>hashes[pair.Key]==pair.Value)&&f.Session.History.Read().Entries.Count==historyCount,"GlobalApply_FailedCommitRollsBackFilesAndHistory");
                 }
             }
+            if(version==GameVersion.XY)
+            {
+                string header=Path.Combine(f.Root,"ncchheader.bin");byte[] original=new byte[512];File.WriteAllBytes(header,original);
+                using var identityChanged=await application.PreviewAsync(doc);
+                byte[] changed=(byte[])original.Clone();changed[0x118]=1;File.WriteAllBytes(header,changed);
+                var hashes=GlobalTemplateApplication.Snapshot(f.Session);int entries=f.Session.History.Read().Entries.Count;
+                reject(()=>application.Apply(identityChanged),"GlobalApply_XyChangedTitleHeaderRejectsStalePreview");
+                check(GlobalTemplateApplication.Snapshot(f.Session).All(p=>hashes[p.Key]==p.Value)&&f.Session.History.Read().Entries.Count==entries,"GlobalApply_XyIdentityRejectionWritesNothing");
+                File.WriteAllBytes(header,original);
+            }
             if(version==GameVersion.USUM)
             {
                 string dependency=Path.Combine(f.Root,"moves_gen7.csv");File.WriteAllText(dependency,"local dependency fixture");
@@ -101,6 +111,7 @@ internal static class GlobalApplicationChecks
     }
     internal static void RunUi(Action<bool,string> check)
     {
+        Gen6MintRecipeChecks.RunUi(check);
         using var f=new Fixture(GameVersion.USUM);ModuleChecks.CreateArchives(f);var main=new MainWindow();main.LoadProject(f.Session);
         check(((ContentControl)main.FindName("HomeHost")).Visibility==Visibility.Visible&&!((Grid)main.FindName("EditorShell")).IsEnabled,"GlobalApply_OpeningProjectRequiresChoiceAtHome");main.Close();
         var view=new GlobalTemplateView(f.Session);var doc=GlobalTemplateDocument.Empty("USUM",7);NativeMasterBatchBridge.Capture(doc,new MasterBatchState(BatchAction.MoveRandomize,new(){MoveTypes=true},0),7);
